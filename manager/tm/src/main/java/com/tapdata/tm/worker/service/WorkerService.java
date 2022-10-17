@@ -29,6 +29,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.entity.Worker;
@@ -110,9 +111,14 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     @NotNull
     private Query getAvailableAgentQuery() {
-        return Query.query(Criteria.where("worker_type").is("connector")
+        return Query.query(getAvailableAgentCriteria());
+    }
+
+    private Criteria getAvailableAgentCriteria() {
+        Criteria criteria = Criteria.where("worker_type").is("connector")
                 .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
-                .and("isDeleted").ne(true).and("stopping").ne(true));
+                .and("isDeleted").ne(true).and("stopping").ne(true);
+        return criteria;
     }
 
     public List<Worker> findAvailableAgentBySystem() {
@@ -525,5 +531,29 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (Objects.nonNull(one)) {
             dto.setHostName(one.getHostname());
         }
+    }
+
+    public String checkTaskUsedAgent(String taskId, UserDetail user) {
+        TaskDto taskDto = taskService.checkExistById(MongoUtils.toObjectId(taskId), user, "agentId");
+        return checkUsedAgent(taskDto.getAgentId(), user);
+    }
+    public String checkUsedAgent(String processId, UserDetail user) {
+        Criteria availableAgentCriteria = Criteria.where("worker_type").is("connector")
+                .and("stopping").ne(true);
+        availableAgentCriteria.and("process_id").is(processId);
+        Query query = new Query(availableAgentCriteria);
+        WorkerDto workerDto = findOne(query, user);
+        if (workerDto == null || (workerDto.getDeleted() != null && workerDto.getDeleted())
+                || (workerDto.getIsDeleted() != null && workerDto.getIsDeleted())) {
+            return "deleted";
+        }
+        long outTime = System.currentTimeMillis() - 1000 * 5 * 2;
+        Long pingTime = workerDto.getPingTime();
+        if (pingTime != null && pingTime < outTime) {
+            return "offline";
+        }
+
+        return "online";
+
     }
 }

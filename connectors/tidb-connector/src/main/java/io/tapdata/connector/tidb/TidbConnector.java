@@ -36,10 +36,7 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -99,17 +96,19 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
-        codecRegistry.registerFromTapValue(TapTimeValue.class, "datetime", tapValue -> {
-            if (tapValue != null && tapValue.getValue() != null){
-                return toJson(tapValue.getValue());
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SSSSSS"));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
+                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
             }
-            return "null";
+            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
         });
-
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
-
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
+            if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
+                tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
+        });
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
@@ -308,21 +307,24 @@ public class TidbConnector extends ConnectorBase {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(tidbConfig.getConnectionString());
         try (
-                TidbConnectionTest damengTest = new TidbConnectionTest(tidbConfig)
+                TidbConnectionTest connectionTest = new TidbConnectionTest(tidbConfig)
         ) {
-            TestItem testHostPort = damengTest.testHostPort();
+            TestItem testHostPort = connectionTest.testHostPort();
             consumer.accept(testHostPort);
             if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
                 return connectionOptions;
             }
-            TestItem testConnect = damengTest.testConnect();
+            TestItem testPbServerHostPort = connectionTest.testPbserver();
+            consumer.accept(testPbServerHostPort);
+            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
+                return connectionOptions;
+            }
+            TestItem testConnect = connectionTest.testConnect();
             consumer.accept(testConnect);
             if (testConnect.getResult() == TestItem.RESULT_FAILED) {
                 return connectionOptions;
             }
         }
-//        List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDLParserType.DAMENG_CCJ_SQL_PARSER);
-//        ddlCapabilities.forEach(connectionOptions::capability);
         return connectionOptions;
     }
 

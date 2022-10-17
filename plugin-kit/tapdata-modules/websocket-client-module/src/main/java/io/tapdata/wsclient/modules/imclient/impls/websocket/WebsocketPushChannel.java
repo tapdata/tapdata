@@ -229,7 +229,7 @@ public class WebsocketPushChannel extends PushChannel {
         if(uri == null)
             throw new CoreException(NetErrors.WEBSOCKET_URL_ILLEGAL, "uri illegal, " + protocol + "://" + host + ":" + port);
 
-        EventLoopGroup group = new NioEventLoopGroup();
+        EventLoopGroup group = new NioEventLoopGroup(100);
         final WebSocketClientHandler handler = new WebSocketClientHandler(null, WebSocketClientHandshakerFactory
                 .newHandshaker(uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders(), 50 * 1024 * 1024));
         handler.pushChannel = this;
