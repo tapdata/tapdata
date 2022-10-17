@@ -35,7 +35,7 @@ public class TaskResetSchedule {
     private UserService userService;
 
 
-    @Scheduled(fixedDelay = 5 * 1000)
+    @Scheduled(fixedDelay = 100 * 1000)
     @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "60s", lockAtLeastFor = "60s")
     public void checkTaskReset() {
         checkNoResponseOp();
