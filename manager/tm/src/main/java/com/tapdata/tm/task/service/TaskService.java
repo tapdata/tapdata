@@ -1849,11 +1849,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 //存到表里面。
                 //拼装日志推送到前端
                 break;
-            case FINISHED:
+            case SUCCEED:
                 break;
             case TASK_START:
                 break;
-            case TASK_FINISHED:
+            case TASK_SUCCEED:
                 //根据任务的状态，如果是重置中，则继续重置的操作，如果为删除中，则删除继续删除的操作
                 if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
                     afterRenew(taskDto, user);
