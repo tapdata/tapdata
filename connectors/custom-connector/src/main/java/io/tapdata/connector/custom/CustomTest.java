@@ -6,12 +6,15 @@ import io.tapdata.constant.SyncTypeEnum;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 
+import javax.script.ScriptException;
+
 import static io.tapdata.base.ConnectorBase.testItem;
 
 public class CustomTest {
 
     private final CustomConfig customConfig;
     private final static String CHECK_CUSTOM_SCRIPT = "check script for source or target";
+    private final static String CHECK_CUSTOM_LOAD_SCHEMA = "check script for loading schema";
 
     public CustomTest(CustomConfig customConfig) {
         this.customConfig = customConfig;
@@ -26,7 +29,13 @@ public class CustomTest {
     }
 
     public TestItem testBuildSchema() {
-        return null;
+        CustomSchema customSchema = new CustomSchema(customConfig);
+        try {
+            customSchema.loadSchema();
+            return testItem(CHECK_CUSTOM_SCRIPT, TestItem.RESULT_SUCCESSFULLY);
+        } catch (ScriptException e) {
+            return testItem(CHECK_CUSTOM_SCRIPT, TestItem.RESULT_FAILED, e.getMessage());
+        }
     }
 
     private boolean validateScript(CustomConfig customConfig) {
