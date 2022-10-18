@@ -2,6 +2,7 @@ package io.tapdata.connector.custom;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.connector.custom.config.CustomConfig;
+import io.tapdata.constant.ConnectionTypeEnum;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -57,11 +58,11 @@ public class CustomConnector extends ConnectorBase {
         initConnection(connectionContext);
         CustomTest customTest = new CustomTest(customConfig);
         consumer.accept(customTest.testScript());
-        if (!"target".equals(customConfig.get__connectionType())) {
+        if (!ConnectionTypeEnum.TARGET.getType().equals(customConfig.get__connectionType())) {
             consumer.accept(customTest.testBuildSchema());
         }
         return ConnectionOptions.create().connectionString("Custom Connection: " +
-                ("target".equals(customConfig.get__connectionType()) ? "target" : "source[" + customConfig.getCollectionName() + "]"));
+                (ConnectionTypeEnum.TARGET.getType().equals(customConfig.get__connectionType()) ? ConnectionTypeEnum.TARGET.getType() : "source[" + customConfig.getCollectionName() + "]"));
     }
 
     @Override
