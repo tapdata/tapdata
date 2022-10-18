@@ -64,7 +64,7 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
 
         TaskResetEventDto taskResetEventDto = mongoTemplate.insert(resetEventDto);
 
-        //推送给前端
+//        推送给前端
 //        if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
 //            EditFlushHandler.sendEditFlushMessage(taskDto.getId().toHexString(), resetEventDto, "resetReport");
 //        }
