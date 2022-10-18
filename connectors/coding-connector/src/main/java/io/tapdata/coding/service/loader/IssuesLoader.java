@@ -167,7 +167,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     ){
         //查询事项详情
         issueDetailBody.builder("IssueCode", code);
-        Map<String,Object> issueDetailResponse = authorization.body(issueDetailBody.getEntity()).post(requestDetail);
+        CodingHttp codingHttp = authorization.body(issueDetailBody.getEntity());
+        Map<String,Object> issueDetailResponse = codingHttp.post(requestDetail);
         if (null == issueDetailResponse){
             TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
             throw new RuntimeException("HTTP request exception, Issue Detail acquisition failed: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
@@ -179,7 +180,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }
         Map<String,Object> issueDetail = (Map<String,Object>)issueDetailResponse.get("Issue");
         if (null == issueDetail){
-            TapLogger.info(TAG, "Issue Detail acquisition failed: IssueCode {} ", code);
+            TapLogger.info(TAG, "Issue Detail acquisition failed: IssueCode {} - {}", code, codingHttp.errorMsg(issueDetail));
             return null;
             //throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
         }
