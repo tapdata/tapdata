@@ -1,4 +1,4 @@
-package field;
+package io.tapdata.connector.vika.field;
 
 public class Field {
     private String id;

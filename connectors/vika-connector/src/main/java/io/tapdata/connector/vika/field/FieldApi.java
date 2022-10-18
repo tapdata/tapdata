@@ -1,11 +1,10 @@
-package field;
+package io.tapdata.connector.vika.field;
 
 import cn.vika.client.api.http.AbstractApi;
 import cn.vika.client.api.http.ApiHttpClient;
 import cn.vika.client.api.model.HttpResult;
 import cn.vika.core.http.GenericTypeReference;
 import cn.vika.core.http.HttpHeader;
-import space.SpaceRespone;
 
 public class FieldApi extends AbstractApi {
 

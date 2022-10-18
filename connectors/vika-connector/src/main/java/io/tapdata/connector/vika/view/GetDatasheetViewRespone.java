@@ -1,4 +1,4 @@
-package view;
+package io.tapdata.connector.vika.view;
 
 import java.util.List;
 

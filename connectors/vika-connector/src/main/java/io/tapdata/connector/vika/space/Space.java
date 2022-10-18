@@ -1,4 +1,4 @@
-package space;
+package io.tapdata.connector.vika.space;
 
 public class Space {
     private String id;

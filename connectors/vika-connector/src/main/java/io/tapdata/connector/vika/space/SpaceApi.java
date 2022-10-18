@@ -1,4 +1,4 @@
-package space;
+package io.tapdata.connector.vika.space;
 
 import cn.vika.client.api.http.AbstractApi;
 import cn.vika.client.api.http.ApiHttpClient;

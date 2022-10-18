@@ -1,3 +1,5 @@
+package io.tapdata.connector.vika;
+
 import cn.vika.client.api.VikaApiClient;
 import cn.vika.client.api.http.ApiCredential;
 import cn.vika.client.api.http.ApiHttpClient;
@@ -5,20 +7,19 @@ import cn.vika.client.api.model.*;
 import cn.vika.client.api.model.field.FieldTypeEnum;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import field.Field;
-import field.FieldApi;
-import field.FieldRespone;
+import io.tapdata.connector.vika.field.Field;
+import io.tapdata.connector.vika.field.FieldApi;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -30,16 +31,13 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.lang3.StringUtils;
-import space.SpaceApi;
-import space.SpaceRespone;
-import view.DataSheetView;
-import view.DataSheetViewApi;
-import view.GetDatasheetViewRespone;
+import io.tapdata.connector.vika.space.SpaceApi;
+import io.tapdata.connector.vika.space.SpaceRespone;
+import io.tapdata.connector.vika.view.DataSheetViewApi;
 
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -82,10 +80,25 @@ public class VikaConnector extends ConnectorBase {
         connectorFunctions.supportClearTable(this::clearTable);
         //connectorFunctions.supportDropTable(this::dropTable);
 
+        codecRegistry.registerFromTapValue(TapRawValue.class, FieldTypeEnum.SingleText.name(), tapRawValue -> {
+            if (tapRawValue != null && tapRawValue.getValue() != null) return tapRawValue.getValue().toString();
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapArrayValue.class, FieldTypeEnum.SingleText.name(), TapArrayValue -> {
+            if (TapArrayValue != null && TapArrayValue.getValue() != null) return TapArrayValue.getValue().toString();
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapMapValue.class, FieldTypeEnum.SingleText.name(), tapMapValue -> {
+            if (tapMapValue != null && tapMapValue.getValue() != null) return toJson(tapMapValue.getValue());
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapTimeValue.class, FieldTypeEnum.SingleText.name(), tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
+        codecRegistry.registerFromTapValue(TapDateValue.class, FieldTypeEnum.SingleText.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
     }
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+        this.onStart(connectionContext);
 
         List<Node> nodes = vikaApiClient.getNodeApi().getNodes(spaceId);
         if (EmptyKit.isNotEmpty(nodes)) {
@@ -110,6 +123,7 @@ public class VikaConnector extends ConnectorBase {
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+        this.onStart(connectionContext);
         TestItem testConnect;
 
         try {
@@ -125,6 +139,7 @@ public class VikaConnector extends ConnectorBase {
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
+        this.onStart(connectionContext);
         SpaceRespone spaces = getSpaceApi().getSpaces();
         if (EmptyKit.isNotEmpty(spaces.getSpaces())) {
 
@@ -183,6 +198,8 @@ public class VikaConnector extends ConnectorBase {
     }
 
     private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+        this.onStart(tapConnectorContext);
+
         CreateTableOptions createTableOptions = new CreateTableOptions();
         TapTable tapTable = tapCreateTableEvent.getTable();
         String tableId = tapTable.getId();
@@ -216,6 +233,8 @@ public class VikaConnector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+        this.onStart(connectorContext);
+
         String tableId = tapTable.getId();
         List<Node> nodes = vikaApiClient.getNodeApi().getNodes(spaceId);
         boolean match = nodes.stream().anyMatch(node -> tableId.equals(node.getName()));
@@ -313,6 +332,8 @@ public class VikaConnector extends ConnectorBase {
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
+        this.onStart(tapConnectorContext);
+
         String tableId = tapClearTableEvent.getTableId();
         vikaApiClient.getRecordApi().deleteAllRecords(tableId);
     }

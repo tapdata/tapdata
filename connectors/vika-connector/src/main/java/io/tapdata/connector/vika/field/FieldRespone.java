@@ -1,4 +1,4 @@
-package field;
+package io.tapdata.connector.vika.field;
 
 import java.util.List;
 

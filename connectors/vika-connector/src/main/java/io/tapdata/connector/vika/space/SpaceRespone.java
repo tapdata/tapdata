@@ -1,4 +1,4 @@
-package space;
+package io.tapdata.connector.vika.space;
 
 import java.util.List;
 

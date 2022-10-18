@@ -1,4 +1,4 @@
-package view;
+package io.tapdata.connector.vika.view;
 
 import cn.vika.client.api.http.AbstractApi;
 import cn.vika.client.api.http.ApiHttpClient;
