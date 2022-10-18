@@ -106,6 +106,7 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "required": true,
+          "default": false,
           "show": false,
           "x-reactions": [
             {
@@ -243,6 +244,7 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "required": true,
+          "default": false,
           "show": false,
           "x-reactions": [
             {
