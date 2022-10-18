@@ -16,12 +16,12 @@ import io.tapdata.zoho.utils.ZoHoHttp;
 
 import java.util.Map;
 
-public abstract class ZoHoStarter {
+public class ZoHoStarter {
     private static final String TAG = ZoHoStarter.class.getSimpleName();
 
     protected TapConnectionContext tapConnectionContext;
     protected boolean isVerify;
-    protected ZoHoStarter(TapConnectionContext tapConnectionContext){
+    public ZoHoStarter(TapConnectionContext tapConnectionContext){
         this.tapConnectionContext = tapConnectionContext;
         this.isVerify = Boolean.FALSE;
     }

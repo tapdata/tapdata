@@ -31,7 +31,7 @@ public class DocumentMode implements ConnectionMode {
         if (null != schemas && !schemas.isEmpty()){
             List<TapTable> tapTables = new ArrayList<>();
             schemas.forEach(schema -> tapTables.addAll(schema.document(tables,tableSize)));
-            return null != tables && !tables.isEmpty()? tapTables : null;
+            return null != tapTables && !tapTables.isEmpty()? tapTables : null;
         }
         return null;
     }

@@ -1,5 +1,6 @@
 package io.tapdata.zoho.service.zoho.schemaLoader;
 
+import cn.hutool.core.date.DateUtil;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -16,8 +17,6 @@ import java.util.function.Consumer;
 
 public interface SchemaLoader {
     public SchemaLoader configSchema(TapConnectionContext tapConnectionContext);
-
-    public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData);
 
     public void streamRead(Object offsetState, int recordSize, StreamReadConsumer consumer );
 
@@ -40,5 +39,10 @@ public interface SchemaLoader {
         }
         if (loaders.isEmpty()) return null;
         return new ArrayList<SchemaLoader>(){{addAll(loaders);}};
+    }
+    public default Long parseZoHoDatetime(String referenceTimeStr){
+        return DateUtil.parse(
+                referenceTimeStr.replaceAll("Z", "").replaceAll("T", " "),
+                "yyyy-MM-dd HH:mm:ss.SSS").getTime();
     }
 }

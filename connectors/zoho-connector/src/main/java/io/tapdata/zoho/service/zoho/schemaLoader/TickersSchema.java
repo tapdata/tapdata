@@ -37,7 +37,7 @@ public class TickersSchema implements SchemaLoader {
         return this;
     }
 
-    @Override
+
     public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData){
         if (Checker.isEmpty(issueEventData)){
             TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
@@ -89,10 +89,9 @@ public class TickersSchema implements SchemaLoader {
         this.read(batchCount,zoHoOffset,consumer);
     }
 
-    //分页接口没有返回总数，也没有单独提供count Api
     @Override
     public long batchCount() throws Throwable {
-        return 0;
+        return ticketLoader.count();
     }
 
     /**
@@ -119,8 +118,7 @@ public class TickersSchema implements SchemaLoader {
     public void read(int readSize, Object offsetState, BiConsumer<List<TapEvent>, Object> consumer ){
         final List<TapEvent>[] events = new List[]{new ArrayList<>()};
         int pageSize = Math.min(readSize, this.batchReadMaxPageSize);
-        HttpEntity<String, Object> tickPageParam = ticketLoader.getTickPageParam()
-                .build("limit", pageSize);//分页数
+        HttpEntity<String, Object> tickPageParam = ticketLoader.getTickPageParam().build("limit", pageSize);//分页数
         int fromPageIndex = 1;//从第几个工单开始分页
         TapConnectionContext context = this.ticketLoader.getContext();
         String modeName = context.getConnectionConfig().getString("connectionMode");
@@ -132,34 +130,25 @@ public class TickersSchema implements SchemaLoader {
         while (true){
             tickPageParam.build("from", fromPageIndex);
             List<Map<String, Object>> list = ticketLoader.list(tickPageParam);
-            if (Checker.isNotEmpty(list) && !list.isEmpty()){
-                fromPageIndex += pageSize;
-                list.stream().forEach(ticket->{
-                    Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,tableName,ticketLoader);
-                    if (Checker.isNotEmpty(oneTicket) && !oneTicket.isEmpty()){
-                        Object modifiedTimeObj = oneTicket.get("modifiedTime");
-                        long referenceTime = System.currentTimeMillis();
-                        if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
-                            String referenceTimeStr = (String) modifiedTimeObj;
-                            referenceTime = DateUtil.parse(
-                                    referenceTimeStr.replaceAll("Z", "").replaceAll("T", " "),
-                                    "yyyy-MM-dd HH:mm:ss.SSS").getTime();
-                            ((ZoHoOffset) offsetState).getTableUpdateTimeMap().put(tableName, referenceTime);
-                        }
-                        events[0].add(TapSimplify.insertRecordEvent(oneTicket,tableName).referenceTime(referenceTime));
-                        if (events[0].size() == readSize){
-                            consumer.accept(events[0], offsetState);
-                            events[0] = new ArrayList<>();
-                        }
-                    }
-                });
-                if (events[0].size()>0){
-                    consumer.accept(events[0], offsetState);
+            if (Checker.isEmpty(list) || list.isEmpty()) break;
+            fromPageIndex += pageSize;
+            list.stream().forEach(ticket->{
+                Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,tableName,ticketLoader);
+                if (Checker.isEmpty(oneTicket) || oneTicket.isEmpty()) return;
+                Object modifiedTimeObj = oneTicket.get("modifiedTime");
+                long referenceTime = System.currentTimeMillis();
+                if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
+                    referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
+                    ((ZoHoOffset) offsetState).getTableUpdateTimeMap().put(tableName, referenceTime);
                 }
-            }else {
-                break;
-            }
+                events[0].add(TapSimplify.insertRecordEvent(oneTicket,tableName).referenceTime(referenceTime));
+                if (events[0].size() != readSize) return;
+                consumer.accept(events[0], offsetState);
+                events[0] = new ArrayList<>();
+            });
         }
+        if (events[0].size() <= 0) return;
+        consumer.accept(events[0], offsetState);
     }
 
 }

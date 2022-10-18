@@ -28,11 +28,6 @@ public class OrganizationFieldsSchema implements SchemaLoader {
     }
 
     @Override
-    public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData) {
-        return null;
-    }
-
-    @Override
     public void streamRead(Object offsetState, int recordSize, StreamReadConsumer consumer) {
 
     }
@@ -53,23 +48,19 @@ public class OrganizationFieldsSchema implements SchemaLoader {
         }
         String table = Schemas.Departments.getTableName();
         List<Map<String, Object>> listDepartment = fieldLoader.list(ModuleEnums.TICKETS, null, null);//分页数
-        if (Checker.isNotEmpty(listDepartment) && !listDepartment.isEmpty()) {
-            for (Map<String, Object> stringObjectMap : listDepartment) {
-                Map<String, Object> department = connectionMode.attributeAssignment(stringObjectMap, table,fieldLoader);
-                if (Checker.isNotEmpty(department) && !department.isEmpty()) {
-                    long referenceTime = System.currentTimeMillis();
-                    ((ZoHoOffset) offset).getTableUpdateTimeMap().put(table, referenceTime);
-                    events.add(TapSimplify.insertRecordEvent(department, table).referenceTime(referenceTime));
-                    if (events.size() == batchCount) {
-                        consumer.accept(events, offset);
-                        events = new ArrayList<>();
-                    }
-                }
-            }
-        }
-        if (events.size()>0){
+        if (Checker.isEmpty(listDepartment) || listDepartment.isEmpty()) return;
+        for (Map<String, Object> stringObjectMap : listDepartment) {
+            Map<String, Object> department = connectionMode.attributeAssignment(stringObjectMap, table,fieldLoader);
+            if (Checker.isEmpty(department) || department.isEmpty()) continue;
+            long referenceTime = System.currentTimeMillis();
+            ((ZoHoOffset) offset).getTableUpdateTimeMap().put(table, referenceTime);
+            events.add(TapSimplify.insertRecordEvent(department, table).referenceTime(referenceTime));
+            if (events.size() != batchCount) continue;
             consumer.accept(events, offset);
+            events = new ArrayList<>();
         }
+        if (events.size() <= 0) return;
+        consumer.accept(events, offset);
     }
 
     @Override

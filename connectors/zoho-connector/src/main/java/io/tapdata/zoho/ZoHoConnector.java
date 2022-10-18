@@ -22,15 +22,18 @@ import io.tapdata.zoho.entity.ContextConfig;
 import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.ZoHoOffset;
 import io.tapdata.zoho.entity.webHook.EventBaseEntity;
+import io.tapdata.zoho.entity.webHook.WebHookEvent;
 import io.tapdata.zoho.service.commandMode.CommandMode;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.service.zoho.loader.TicketLoader;
 import io.tapdata.zoho.service.zoho.loader.TokenLoader;
 import io.tapdata.zoho.service.zoho.loader.ZoHoConnectionTest;
+import io.tapdata.zoho.service.zoho.loader.ZoHoStarter;
 import io.tapdata.zoho.service.zoho.schema.Schema;
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.service.zoho.schemaLoader.SchemaLoader;
 import io.tapdata.zoho.utils.Checker;
+import io.tapdata.zoho.utils.ZoHoString;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -112,18 +115,70 @@ public class ZoHoConnector extends ConnectorBase {
 	}
 
 	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, List<String> tables, Map<String, Object> eventData){
-		return this.rawDataCallbackFilterFunctionV2(connectorContext, tables, eventData);
+		return this.rawDataCallbackFilterFunctionV3(connectorContext, tables, eventData);
 	}
 
 	private List<TapEvent> rawDataCallbackFilterFunctionV2(TapConnectorContext connectorContext, List<String> tables, Map<String, Object> eventData){
+		if (Checker.isEmpty(eventData)){
+			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
+			return null;
+		}
+		Object listObj = eventData.get("array");
+		if (Checker.isEmpty(listObj) || !(listObj instanceof List)){
+			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
+			return null;
+		}
+		List<Map<String,Object>> dataEventList = (List<Map<String, Object>>)listObj;
+
+
 		if (Checker.isEmpty(tables) || tables.isEmpty()) return null;
 		List<SchemaLoader> loaders = SchemaLoader.loaders(connectorContext);
 		List<TapEvent> events = new ArrayList<>();
 		for (SchemaLoader loader : loaders) {
 			if (Checker.isEmpty(loader)) continue;
-			events.addAll(loader.rawDataCallbackFilterFunction(eventData));
+			//events.addAll(loader.rawDataCallbackFilterFunction(eventData));
 		}
 		return Checker.isEmpty(events) || events.isEmpty()?null:events;
+	}
+
+	private List<TapEvent> rawDataCallbackFilterFunctionV3(TapConnectorContext connectorContext, List<String> tables, Map<String, Object> eventData){
+		if (Checker.isEmpty(eventData)){
+			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
+			return null;
+		}
+		Object listObj = eventData.get("array");
+		if (Checker.isEmpty(listObj) || !(listObj instanceof List)){
+			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
+			return null;
+		}
+		List<Map<String,Object>> dataEventList = (List<Map<String, Object>>)listObj;
+		final List<TapEvent>[] events = new List[]{new ArrayList<>()};
+		//@TODO BiConsumer<List<TapEvent>, Object> consumer;
+		//@TODO 获取筛选条件
+		ZoHoStarter zoHoStarter = new ZoHoStarter(connectorContext);
+		ContextConfig contextConfig = zoHoStarter.veryContextConfigAndNodeConfig();
+		TapConnectionContext context = zoHoStarter.getContext();
+		String modeName = contextConfig.connectionMode();
+		ConnectionMode instance = ConnectionMode.getInstanceByName(context, modeName);
+		if (null == instance){
+			throw new CoreException("Connection Mode must be not empty or not null.");
+		}
+		dataEventList.forEach(eventMap->{
+			Object eventTypeObj = eventMap.get("eventType");
+			if (Checker.isEmpty(eventTypeObj)) return;
+			WebHookEvent event = WebHookEvent.event(String.valueOf(eventTypeObj));
+			String table = event.getEventTable();
+			if (Checker.isEmpty(table)) return;
+
+			if (!tables.contains(table)) return;
+			EventBaseEntity instanceByEventType = EventBaseEntity.getInstanceByEventType(eventMap);
+			if (Checker.isEmpty(instanceByEventType)){
+				TapLogger.debug(TAG,"An event type with unknown origin was found and cannot be processed .");
+				return;
+			}
+			events[0].add(instanceByEventType.outputTapEvent(table,instance));
+		});
+		return events[0].isEmpty()?null:events[0];
 	}
 	private List<TapEvent> rawDataCallbackFilterFunctionV1(TapConnectorContext connectorContext, Map<String, Object> eventData) {
 		if (Checker.isEmpty(eventData)){

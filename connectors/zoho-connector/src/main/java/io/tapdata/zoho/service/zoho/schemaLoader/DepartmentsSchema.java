@@ -27,11 +27,6 @@ public class DepartmentsSchema implements SchemaLoader {
     }
 
     @Override
-    public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData) {
-        return null;
-    }
-
-    @Override
     public void streamRead(Object offsetState, int recordSize, StreamReadConsumer consumer) {
 
     }
@@ -63,10 +58,7 @@ public class DepartmentsSchema implements SchemaLoader {
                         Object modifiedTimeObj = department.get("modifiedTime");
                         long referenceTime = System.currentTimeMillis();
                         if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
-                            String referenceTimeStr = (String) modifiedTimeObj;
-                            referenceTime = DateUtil.parse(
-                                    referenceTimeStr.replaceAll("Z", "").replaceAll("T", " "),
-                                    "yyyy-MM-dd HH:mm:ss.SSS").getTime();
+                            referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
                             ((ZoHoOffset) offset).getTableUpdateTimeMap().put(table, referenceTime);
                         }
                         events[0].add(TapSimplify.insertRecordEvent(department, table).referenceTime(referenceTime));

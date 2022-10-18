@@ -26,11 +26,6 @@ public class ProductsSchema implements SchemaLoader {
     }
 
     @Override
-    public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData) {
-        return null;
-    }
-
-    @Override
     public void streamRead(Object offsetState, int recordSize, StreamReadConsumer consumer) {
 
     }
@@ -72,19 +67,12 @@ public class ProductsSchema implements SchemaLoader {
                     Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,productsOpenApi);
                     if (Checker.isNotEmpty(oneProduct) && !oneProduct.isEmpty()){
                         Object modifiedTimeObj = oneProduct.get("modifiedTime");
-                        Object createdTimeObj = oneProduct.get("createdTime");
                         long referenceTime = System.currentTimeMillis();
                         if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
-                            String referenceTimeStr = (String) modifiedTimeObj;
-                            referenceTime = DateUtil.parse(
-                                    referenceTimeStr.replaceAll("Z", "").replaceAll("T", " "),
-                                    "yyyy-MM-dd HH:mm:ss.SSS").getTime();
+                            referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
                             ((ZoHoOffset) offsetState).getTableUpdateTimeMap().put(tableName, referenceTime);
                         }
-                        //创建时间和修改时间相同，表示新增事件，否则为修改事件
-                        events[0].add(( String.valueOf(modifiedTimeObj).equals(String.valueOf(createdTimeObj))?
-                                    TapSimplify.insertRecordEvent(oneProduct, tableName).referenceTime(referenceTime)
-                                    :TapSimplify.updateDMLEvent(null,oneProduct, tableName).referenceTime(referenceTime) ));
+                        events[0].add(( TapSimplify.insertRecordEvent(oneProduct, tableName).referenceTime(referenceTime) ));
                         if (events[0].size() == readSize){
                             consumer.accept(events[0], offsetState);
                             events[0] = new ArrayList<>();
