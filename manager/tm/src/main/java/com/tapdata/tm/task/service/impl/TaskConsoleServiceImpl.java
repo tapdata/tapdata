@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.task.service.TaskConsoleService;
@@ -55,7 +56,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
 
     private void getShareCache(List<String> connectionIds, List<RelationTaskInfoVo> result) {
         Criteria cacheCriteria = Criteria.where("is_deleted").is(false).and("syncType").ne("logCollector")
-                .and("dag.nodes.type").is("mem_cache")
+                .and("dag.nodes.type").is(NodeEnum.mem_cache.name())
                 .and("dag.nodes.connectionId").in(connectionIds);
         List<TaskDto> cacheTasks = taskService.findAll(new Query(cacheCriteria).with(Sort.by(Sort.Order.desc("startTime"))));
         cacheTasks.forEach(task -> {
@@ -71,7 +72,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
 
     private void getLogCollector(List<String> connectionIds, List<RelationTaskInfoVo> result) {
         Criteria logCriteria = Criteria.where("is_deleted").is(false).and("syncType").is("logCollector")
-                .and("dag.nodes.type").is("logCollector")
+                .and("dag.nodes.type").is(NodeEnum.logCollector.name())
                 .and("dag.nodes.connectionIds").in(connectionIds);
         List<TaskDto> logTasks = taskService.findAll(new Query(logCriteria).with(Sort.by(Sort.Order.desc("startTime"))));
         logTasks.forEach(task -> {

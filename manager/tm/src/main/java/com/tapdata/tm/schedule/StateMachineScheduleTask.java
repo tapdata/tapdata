@@ -83,8 +83,10 @@ public class StateMachineScheduleTask {
 
 		//云版不需要这个重新调度的逻辑
 		Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
-		final boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
-
+		if (Objects.isNull(buildProfile)) {
+			buildProfile = "DAAS";
+		}
+		boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
 
 		Object jobHeartTimeout = settingsService.getValueByCategoryAndKey(CategoryEnum.JOB, KeyEnum.JOB_HEART_TIMEOUT);
 		if (jobHeartTimeout == null || Long.parseLong(jobHeartTimeout.toString()) <= 0){

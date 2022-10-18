@@ -209,7 +209,9 @@ public class AlarmServiceImpl implements AlarmService {
 
             CompletableFuture.runAsync(() -> sendMessage(info, taskDto));
 
-            CompletableFuture.runAsync(() -> sendMail(info, taskDto));
+            if (info.getLastNotifyTime() == null) {
+                CompletableFuture.runAsync(() -> sendMail(info, taskDto));
+            }
 
         });
 
