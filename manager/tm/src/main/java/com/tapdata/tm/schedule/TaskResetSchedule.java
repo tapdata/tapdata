@@ -9,9 +9,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -20,6 +18,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -35,8 +34,8 @@ public class TaskResetSchedule {
     private UserService userService;
 
 
-    @Scheduled(fixedDelay = 100 * 1000)
-    @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "60s", lockAtLeastFor = "60s")
+    @Scheduled(fixedDelay = 10 * 1000)
+   // @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "10s", lockAtLeastFor = "60s")
     public void checkTaskReset() {
         checkNoResponseOp();
         resetRetry();
@@ -45,49 +44,66 @@ public class TaskResetSchedule {
 
 
     public void checkNoResponseOp() {
+
         try {
-            long fiveMin = System.currentTimeMillis() - 5 * 1000;
-            Date fiveMinDate = new Date(fiveMin);
+            Criteria taskCri = Criteria.where("status").in(TaskDto.STATUS_RENEWING, TaskDto.STATUS_DELETING);
 
-            Criteria criteria = Criteria.where("time").lte(fiveMinDate);
+            Query query1 = new Query(taskCri);
+            query1.fields().include("status", "last_updated");
+            List<TaskDto> taskDtos = taskService.findAll(query1);
+            List<String> taskIds = taskDtos.stream().map(t -> t.getId().toHexString()).distinct().collect(Collectors.toList());
+            Criteria criteria1 = Criteria.where("taskId").in(taskIds);
+            Query query2 = new Query(criteria1);
+            List<TaskResetEventDto> taskResetEventDtos = taskResetLogService.find(query2);
+            Map<String, List<TaskResetEventDto>> taskLogMap = taskResetEventDtos.stream()
+                    .collect(Collectors.groupingBy(TaskResetEventDto::getTaskId));
 
-            Query query = new Query(criteria);
-            List<TaskResetEventDto> taskResetLogs = taskResetLogService.find(query);
 
-            if (CollectionUtils.isEmpty(taskResetLogs)) {
-                return;
-            }
+            List<TaskDto> updateTask = new ArrayList<>();
+            long overTime = 50 * 1000;
+            long curr = System.currentTimeMillis();
+            for (TaskDto taskDto : taskDtos) {
+                List<TaskResetEventDto> taskResetEvents = taskLogMap.get(taskDto.getId().toHexString());
+                if (CollectionUtils.isNotEmpty(taskResetEvents)) {
+                    List<TaskResetEventDto.ResetStatusEnum> enums = taskResetEvents.stream().map(TaskResetEventDto::getStatus)
+                            .distinct().collect(Collectors.toList());
+                    if (enums.contains(TaskResetEventDto.ResetStatusEnum.TASK_SUCCEED)) {
 
-            Map<String, TaskResetEventDto> taskResetLogsMap = new HashMap<>();
-            for (TaskResetEventDto taskResetLog : taskResetLogs) {
-                TaskResetEventDto old = taskResetLogsMap.get(taskResetLog.getTaskId());
-                if (old == null) {
-                    taskResetLogsMap.put(taskResetLog.getTaskId(), taskResetLog);
+                        continue;
+                    } else if (enums.contains(TaskResetEventDto.ResetStatusEnum.TASK_FAILED)) {
+                        updateTask.add(taskDto);
+                        continue;
+                    }
+
+                    TaskResetEventDto taskResetEventDto = taskResetEvents.stream().max(Comparator.comparing(TaskResetEventDto::getTime)).get();
+                    if (curr - taskResetEventDto.getTime().getTime() >= overTime) {
+                        updateTask.add(taskDto);
+                    }
+
                 } else {
-                    if (old.getTime().before(taskResetLog.getTime())) {
-                        taskResetLogsMap.put(taskResetLog.getTaskId(), taskResetLog);
+                    if (curr - taskDto.getLastUpdAt().getTime() >= overTime) {
+                        updateTask.add(taskDto);
                     }
                 }
+
             }
 
-            taskResetLogs = new ArrayList<>(taskResetLogsMap.values());
 
-            //需要将重置中的跟删除中的改成 重置失败或者删除失败
-            for (TaskResetEventDto taskResetLog : taskResetLogs) {
+            for (TaskDto taskDto : updateTask) {
                 try {
-                    ObjectId objectId = taskResetLog.getId();
-                    TaskDto taskDto = taskService.checkExistById(objectId, "status");
                     if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
-                        taskService.updateStatus(objectId, TaskDto.STATUS_RENEW_FAILED);
+                        taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_RENEW_FAILED);
                     } else if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
-                        taskService.updateStatus(objectId, TaskDto.STATUS_DELETE_FAILED);
+                        taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_DELETE_FAILED);
                     } else {
-                        taskResetLogService.clearLogByTaskId(taskResetLog.getTaskId());
+                        taskResetLogService.clearLogByTaskId(taskDto.getId().toHexString());
                     }
                 } catch (Exception e) {
-                    log.info("check reset no response, task id = {}", taskResetLog.getTaskId());
+                    log.info("check reset no response, task id = {}", taskDto.getId().toHexString());
                 }
             }
+
+
         } catch (Exception e) {
             log.warn("check task reset no response error");
         }

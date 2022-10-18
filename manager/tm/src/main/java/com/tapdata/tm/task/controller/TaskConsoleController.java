@@ -55,14 +55,17 @@ public class TaskConsoleController extends BaseController {
             LinkedHashMap<String, String> nodes = taskResetLogVo.getNodes();
             if (nodes == null) {
                 nodes = new LinkedHashMap<>();
+                taskDagCheckLogVo.setNodes(nodes);
             }
             nodes.putAll(taskResetLogVo.getNodes());
 
             LinkedList<TaskLogInfoVo> taskLogInfoVos = taskDagCheckLogVo.getList();
             if (CollectionUtils.isEmpty(taskLogInfoVos)) {
                 taskLogInfoVos = new LinkedList<>();
+                taskDagCheckLogVo.setList(taskLogInfoVos);
             }
             taskLogInfoVos.addAll(taskResetLogVo.getList());
+            taskDagCheckLogVo.setOver(taskDagCheckLogVo.isOver() && taskResetLogVo.isOver());
             return success(taskDagCheckLogVo);
         }
     }

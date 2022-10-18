@@ -322,6 +322,7 @@ public abstract class TaskCleaner {
 		taskResetEventDto.setTaskId(taskDto.getId().toHexString());
 		taskResetEventDto.setDescribe(nodeResetDesc.name());
 		taskResetEventDto.setNodeId(node.getId());
+		taskResetEventDto.setNodeName(node.getName());
 		taskResetEventDto.setElapsedTime(elapsedTime);
 		if (null != throwable) {
 			taskResetEventDto.failed(throwable);
@@ -361,6 +362,7 @@ public abstract class TaskCleaner {
 		TaskResetEventDto taskResetEventDto = new TaskResetEventDto();
 		taskResetEventDto.setTaskId(taskDto.getId().toHexString());
 		taskResetEventDto.setNodeId(node.getId());
+		taskResetEventDto.setNodeName(node.getName());
 		taskResetEventDto.setDescribe(NodeResetDesc.unknown_error.name());
 		taskResetEventDto.failed(throwable);
 		taskCleanerReporter.addEvent(taskCleanerContext.getClientMongoOperator(), taskResetEventDto);

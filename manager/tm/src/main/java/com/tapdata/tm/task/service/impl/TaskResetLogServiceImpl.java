@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import com.google.common.base.Splitter;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskResetEventDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -90,11 +91,7 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
             criteria.and("nodeId").is(dto.getNodeId());
         }
         if (StringUtils.isNotBlank(dto.getGrade())) {
-            criteria.and("level").is(dto.getGrade());
-        }
-
-        if (StringUtils.isNotBlank(dto.getKeyword())) {
-            criteria.and("level").is(dto.getGrade());
+            criteria.and("level").in(Splitter.on(",").trimResults().splitToList(dto.getGrade()));
         }
 
         Query query = new Query(criteria);
@@ -102,14 +99,19 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
 
         LinkedHashMap<String, String> nodeMap = new LinkedHashMap<>();
         LinkedList<TaskLogInfoVo> taskLogInfoVos = new LinkedList<>();
+        TaskDagCheckLogVo taskDagCheckLogVo = new TaskDagCheckLogVo();
+        taskDagCheckLogVo.setOver(false);
         for (TaskResetEventDto taskResetEventDto : taskResetEventDtos) {
             nodeMap.put(taskResetEventDto.getTaskId(), taskResetEventDto.getNodeName());
             TaskLogInfoVo taskLogInfoVo = new TaskLogInfoVo();
             BeanUtils.copyProperties(taskResetEventDto, taskLogInfoVo);
             taskLogInfoVo.setId(taskResetEventDto.getId().toHexString());
             taskLogInfoVos.add(taskLogInfoVo);
+            if (taskResetEventDto.getStatus().equals(TaskResetEventDto.ResetStatusEnum.TASK_FAILED)
+                    || taskResetEventDto.getStatus().equals(TaskResetEventDto.ResetStatusEnum.TASK_SUCCEED)) {
+                taskDagCheckLogVo.setOver(true);
+            }
         }
-        TaskDagCheckLogVo taskDagCheckLogVo = new TaskDagCheckLogVo();
         taskDagCheckLogVo.setNodes(nodeMap);
         taskDagCheckLogVo.setList(taskLogInfoVos);
         return taskDagCheckLogVo;

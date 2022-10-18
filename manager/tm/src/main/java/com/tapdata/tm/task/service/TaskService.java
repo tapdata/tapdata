@@ -719,7 +719,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         taskResetLogService.clearLogByTaskId(id.toHexString());
         sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
-        afterRemove(taskDto, user);
+        //afterRemove(taskDto, user);
     }
 
     public void afterRemove(TaskDto taskDto, UserDetail user) {
@@ -915,7 +915,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("check task status complete, task name = {}", taskDto.getName());
         taskResetLogService.clearLogByTaskId(id.toHexString());
         sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_RESET);
-        afterRenew(taskDto, user);
+        //afterRenew(taskDto, user);
     }
 
     public void afterRenew(TaskDto taskDto, UserDetail user) {
@@ -1091,6 +1091,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            filter.setWhere(where);
+        }
+        if (where.get("status") == null) {
+            Document statusCondition = new Document();
+            statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
+            where.put("status", statusCondition);
+        }
         //过滤掉挖掘任务
         String syncType = (String) where.get("syncType");
         if (StringUtils.isBlank(syncType)) {
@@ -2145,7 +2154,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void updateStatus(ObjectId taskId, String status) {
         Query query = Query.query(Criteria.where("_id").is(taskId));
-        Update update = Update.update("status", status);
+        Update update = Update.update("status", status).set("last_updated", new Date());
         update(query, update);
     }
 
@@ -2253,24 +2262,26 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-            //检查是否完成重置，设置8秒的超时时间
-            boolean checkFlag = false;
-            for (int i = 0; i < 60; i++) {
-                checkFlag = DataSyncMq.OP_TYPE_RESET.equals(opType) ? checkResetFlag(taskDto.getId(), user) : checkDeleteFlag(taskDto.getId(), user);
-                if (checkFlag) {
-                    break;
-                }
-                try {
-                    Thread.sleep(1000L);
-                } catch (InterruptedException e) {
-                    throw new BizException("SystemError");
-                }
-            }
+            updateStatus(taskDto.getId(), DataSyncMq.OP_TYPE_RESET.equals(opType) ? TaskDto.STATUS_RENEWING : TaskDto.STATUS_DELETING);
 
-            if (!checkFlag) {
-                log.info((DataSyncMq.OP_TYPE_RESET.equals(opType) ? "reset" : "delete") + "Task reset timeout.");
-                throw new BizException(DataSyncMq.OP_TYPE_RESET.equals(opType) ? "Task.ResetTimeout" : "Task.DeleteTimeout");
-            }
+//            //检查是否完成重置，设置8秒的超时时间
+//            boolean checkFlag = false;
+//            for (int i = 0; i < 60; i++) {
+//                checkFlag = DataSyncMq.OP_TYPE_RESET.equals(opType) ? checkResetFlag(taskDto.getId(), user) : checkDeleteFlag(taskDto.getId(), user);
+//                if (checkFlag) {
+//                    break;
+//                }
+//                try {
+//                    Thread.sleep(1000L);
+//                } catch (InterruptedException e) {
+//                    throw new BizException("SystemError");
+//                }
+//            }
+//
+//            if (!checkFlag) {
+//                log.info((DataSyncMq.OP_TYPE_RESET.equals(opType) ? "reset" : "delete") + "Task reset timeout.");
+//                throw new BizException(DataSyncMq.OP_TYPE_RESET.equals(opType) ? "Task.ResetTimeout" : "Task.DeleteTimeout");
+//            }
         }
     }
 
