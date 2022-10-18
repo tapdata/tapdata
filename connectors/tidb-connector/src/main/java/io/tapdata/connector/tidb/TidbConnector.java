@@ -90,6 +90,7 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateIndex(this::createIndex);
+        connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
 
 
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
@@ -196,8 +197,10 @@ public class TidbConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         if (EmptyKit.isNotNull(tidbContext)) {
+            DataSourcePool.removeJdbcContext(tidbConfig);
             tidbContext.finish(connectionContext.getId());
         }
+
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
@@ -246,17 +249,6 @@ public class TidbConnector extends ConnectorBase {
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
         new TidbRecordWrite(tidbContext,tapTable).write(tapRecordEvents, consumer);
     }
-
-
-//    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-//        int count;
-//        try {
-//            count = tidbContext.count(tapTable.getName());
-//        } catch (Exception e) {
-//            throw new RuntimeException("Count table " + tapTable.getName() + " error: " + e.getMessage(), e);
-//        }
-//        return count;
-//    }
 
 
     @Override
@@ -316,7 +308,7 @@ public class TidbConnector extends ConnectorBase {
             }
             TestItem testPbServerHostPort = connectionTest.testPbserver();
             consumer.accept(testPbServerHostPort);
-            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
+            if (testPbServerHostPort.getResult() == TestItem.RESULT_FAILED) {
                 return connectionOptions;
             }
             TestItem testConnect = connectionTest.testConnect();
