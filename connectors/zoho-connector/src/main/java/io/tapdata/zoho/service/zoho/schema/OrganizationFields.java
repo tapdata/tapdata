@@ -23,6 +23,11 @@ public class OrganizationFields implements Schema {
         return this;
     }
 
+    @Override
+    public String schemaName() {
+        return Schemas.OrganizationFields.getTableName();
+    }
+
     /**
      *  "displayLabel" : "Account Name",
      *     "apiName" : "accountId",
@@ -41,7 +46,7 @@ public class OrganizationFields implements Schema {
     public List<TapTable> document(List<String> tables, int tableSize) {
         if(tables == null || tables.isEmpty()) {
             return list(
-                    table(Schemas.Departments.getTableName())
+                    table(Schemas.OrganizationFields.getTableName())
                             .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("displayLabel","StringMinor"))
                             .add(field("apiName","StringMinor"))
@@ -61,6 +66,23 @@ public class OrganizationFields implements Schema {
 
     @Override
     public List<TapTable> csv(List<String> tables, int tableSize, TapConnectionContext connectionContext) {
+        if(tables == null || tables.isEmpty()) {
+            return list(
+                    table(Schemas.OrganizationFields.getTableName())
+                            .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
+                            .add(field("displayLabel","StringMinor"))
+                            .add(field("apiName","StringMinor"))
+                            .add(field("showToHelpCenter","Boolean"))
+                            .add(field("isCustomField","Boolean"))
+                            .add(field("isEncryptedField","Boolean"))
+                            .add(field("maxLength","Integer"))
+                            .add(field("type","StringMinor"))
+                            .add(field("isMandatory","Boolean"))
+                            .add(field("allowedValues","StringMinor"))
+                            .add(field("toolTipType","StringMinor"))
+                            .add(field("toolTip","StringMinor"))
+            );
+        }
         return null;
     }
 
@@ -94,10 +116,10 @@ public class OrganizationFields implements Schema {
                 "maxLength",
                 "type",
                 "isMandatory",
-                "allowedValues",//@TODO CSV格式，数组用|分割的字符串
                 "toolTipType",
                 "toolTip"
         );
+        MapUtil.valueToString(ticketCSVDetail,"allowedValues");
         this.removeJsonNull(ticketCSVDetail);
         return ticketCSVDetail;
     }

@@ -26,6 +26,12 @@ public class Products implements Schema {
             this.productsOpenApi = (ProductsOpenApi) openApi;
         return this;
     }
+
+    @Override
+    public String schemaName() {
+        return Schemas.Products.getTableName();
+    }
+
     /**
      * "owner" : {
      *     "photoURL" : "https://desk.zoho.com.cn/api/v1/agents/6000000009050/photo?orgId=581861259",
@@ -65,7 +71,7 @@ public class Products implements Schema {
     public List<TapTable> document(List<String> tables, int tableSize) {
         if(tables == null || tables.isEmpty()) {
             return list(
-                    table(Schemas.Departments.getTableName())
+                    table(Schemas.Products.getTableName())
                             .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("departments","Array"))
                             .add(field("createdTime","StringMinor"))
@@ -91,7 +97,7 @@ public class Products implements Schema {
     public List<TapTable> csv(List<String> tables, int tableSize, TapConnectionContext connectionContext) {
         if(tables == null || tables.isEmpty()) {
             return list(
-                    table(Schemas.Departments.getTableName())
+                    table(Schemas.Products.getTableName())
                             .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("departmentIds","StringMinor"))
                             .add(field("createdTime","StringMinor"))

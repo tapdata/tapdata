@@ -24,6 +24,7 @@ public interface Schema {
         return BeanUtil.bean("io.tapdata.zoho.service.zoho.schema." + name);
     }
 
+    public String schemaName();
     /**
      * 文档类型输出表结构
      * */

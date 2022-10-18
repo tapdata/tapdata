@@ -26,6 +26,11 @@ public class Departments implements Schema {
         return this;
     }
 
+    @Override
+    public String schemaName() {
+        return Schemas.Departments.getTableName();
+    }
+
     /**
      * {
      *   "isAssignToTeamEnabled" : true,

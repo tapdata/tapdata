@@ -45,10 +45,15 @@ public class TicketAttachments implements Schema{
     }
 
     @Override
+    public String schemaName() {
+        return Schemas.TicketAttachments.getTableName();
+    }
+
+    @Override
     public List<TapTable> document(List<String> tables, int tableSize) {
         if(tables == null || tables.isEmpty()) {
             return list(
-                    table(Schemas.Departments.getTableName())
+                    table(Schemas.TicketAttachments.getTableName())
                             .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("href","StringMinor"))
                             .add(field("isPublic","Boolean"))
@@ -66,7 +71,7 @@ public class TicketAttachments implements Schema{
     public List<TapTable> csv(List<String> tables, int tableSize, TapConnectionContext connectionContext) {
         if(tables == null || tables.isEmpty()) {
             return list(
-                    table(Schemas.Departments.getTableName())
+                    table(Schemas.TicketAttachments.getTableName())
                             .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("href","StringMinor"))
                             .add(field("isPublic","Boolean"))

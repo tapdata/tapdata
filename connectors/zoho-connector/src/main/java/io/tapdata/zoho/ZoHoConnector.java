@@ -2,6 +2,7 @@ package io.tapdata.zoho;
 
 
 import cn.hutool.core.date.DateUtil;
+import com.sun.org.apache.xerces.internal.impl.xs.SchemaSymbols;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
@@ -116,10 +117,13 @@ public class ZoHoConnector extends ConnectorBase {
 
 	private List<TapEvent> rawDataCallbackFilterFunctionV2(TapConnectorContext connectorContext, List<String> tables, Map<String, Object> eventData){
 		if (Checker.isEmpty(tables) || tables.isEmpty()) return null;
-		SchemaLoader loader = SchemaLoader.loader(tables.get(0),connectorContext);
-		if (Checker.isEmpty(loader)) return null;
-		List<TapEvent> events = loader.rawDataCallbackFilterFunction(eventData);
-		return Checker.isEmpty(events)|| events.isEmpty()?null:events;
+		List<SchemaLoader> loaders = SchemaLoader.loaders(connectorContext);
+		List<TapEvent> events = new ArrayList<>();
+		for (SchemaLoader loader : loaders) {
+			if (Checker.isEmpty(loader)) continue;
+			events.addAll(loader.rawDataCallbackFilterFunction(eventData));
+		}
+		return Checker.isEmpty(events) || events.isEmpty()?null:events;
 	}
 	private List<TapEvent> rawDataCallbackFilterFunctionV1(TapConnectorContext connectorContext, Map<String, Object> eventData) {
 		if (Checker.isEmpty(eventData)){

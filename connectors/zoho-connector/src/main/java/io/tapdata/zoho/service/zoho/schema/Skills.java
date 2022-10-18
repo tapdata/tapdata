@@ -60,6 +60,11 @@ public class Skills implements Schema{
     }
 
     @Override
+    public String schemaName() {
+        return Schemas.Skills.getTableName();
+    }
+
+    @Override
     public List<TapTable> document(List<String> tables, int tableSize) {
         if(tables == null || tables.isEmpty()) {
             return list(

@@ -68,10 +68,15 @@ public class TicketComments implements Schema{
     }
 
     @Override
+    public String schemaName() {
+        return Schemas.TicketComments.getTableName();
+    }
+
+    @Override
     public List<TapTable> document(List<String> tables, int tableSize) {
         if(tables == null || tables.isEmpty()) {
             return list(
-                    table(Schemas.Departments.getTableName())
+                    table(Schemas.TicketComments.getTableName())
                             .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("contentType","StringStatus"))
                             .add(field("commenterId","StringMinor"))
@@ -89,7 +94,7 @@ public class TicketComments implements Schema{
     public List<TapTable> csv(List<String> tables, int tableSize, TapConnectionContext connectionContext) {
         if(tables == null || tables.isEmpty()) {
             return list(
-                    table(Schemas.Departments.getTableName())
+                    table(Schemas.TicketComments.getTableName())
                             .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("contentType","StringStatus"))
                             .add(field("commenterId","StringMinor"))

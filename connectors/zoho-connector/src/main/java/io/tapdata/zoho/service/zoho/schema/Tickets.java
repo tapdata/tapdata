@@ -37,6 +37,11 @@ public class Tickets implements Schema {
     }
 
     @Override
+    public String schemaName() {
+        return Schemas.Tickets.getTableName();
+    }
+
+    @Override
     public List<TapTable> document(List<String> tables, int tableSize) {
         if(tables == null || tables.isEmpty()) {
             return list(

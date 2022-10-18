@@ -63,6 +63,11 @@ public class Contracts implements Schema {
     }
 
     @Override
+    public String schemaName() {
+        return Schemas.Contracts.getTableName();
+    }
+
+    @Override
     public List<TapTable> document(List<String> tables, int tableSize) {
         if(tables == null || tables.isEmpty()) {
             return list(
