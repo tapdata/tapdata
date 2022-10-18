@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 @Component("sourceConnectStrategy")
 @Setter(onMethod_ = {@Autowired})
@@ -39,17 +41,16 @@ public class SourceConnectStrategyImpl implements DagLogStrategy {
         for (DatabaseNode node : sourceNode) {
             String connectionId = node.getConnectionId();
             DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
-            connectionDto.setExtParam(
-                    ImmutableMap.of("taskId", taskDto.getId().toHexString(),
-                            "templateEnum", templateEnum,
-                            "userId", userDetail.getUserId(),
-                            "type", "source",
-                            "agentId", taskDto.getAgentId(),
-                            "taskName", taskDto.getName(),
-                            "nodeName", connectionDto.getName(),
-                            "alarmCheck", false
-                    )
-            );
+            Map<String, Object> extParam = Maps.newHashMap();
+            extParam.put("taskId", taskDto.getId().toHexString());
+            extParam.put("templateEnum", templateEnum);
+            extParam.put("userId", userDetail.getUserId());
+            extParam.put("type", "source");
+            extParam.put("agentId", taskDto.getAgentId());
+            extParam.put("taskName", taskDto.getName());
+            extParam.put("nodeName", connectionDto.getName());
+            extParam.put("alarmCheck", false);
+            connectionDto.setExtParam(extParam);
 
             dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetail);
         }

@@ -339,8 +339,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     }
 
     @Override
-    public long batchCount() throws Throwable {
-        long count = 0;
+    public int batchCount() throws Throwable {
+        int count = 0;
         IssuesLoader issuesLoader = IssuesLoader.create(this.tapConnectionContext);
         issuesLoader.verifyConnectionConfig();
         try {
@@ -383,7 +383,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             );
             if (null!= dataMap){
                 Object obj = dataMap.get("TotalCount");
-                if (null != obj ) count = Long.parseLong(String.valueOf(obj));
+                if (null != obj ) count = (Integer)obj;
             }
         } catch (Exception e) {
             throw new RuntimeException();
@@ -413,20 +413,18 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData) {
         CodingEvent issueEvent = this.getRowDataCallBackEvent(issueEventData);
         if (null == issueEvent || !TABLE_NAME.equals(issueEvent.getEventGroup())) return null;//拒绝处理非此表相关事件
-
+        String evenType = issueEvent.getEventType();
         Object issueObj = issueEventData.get("issue");
         if (Checker.isEmpty(issueObj)) {
             TapLogger.debug(TAG, "An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
             return null;
         }
-        //String webHookEventType = String.valueOf(issueEventData.get("event"));
         Map<String, Object> issueMap = (Map<String, Object>) issueObj;
         Object codeObj = issueMap.get("code");
         if (Checker.isEmpty(codeObj)) {
             TapLogger.debug(TAG, "An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
             return null;
         }
-
         IssueType issueType = this.contextConfig.getIssueType();
         if (Checker.isNotEmpty(issueType)) {
             String issueTypeName = issueType.getName();
@@ -447,23 +445,21 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 return null;
             }
         }
-        //TapLogger.debug(TAG, "Start {} stream read [WebHook]", "Issues");
         TapEvent event = null;
         Object referenceTimeObj = issueMap.get("updated_at");
         Long referenceTime = null;
         if (Checker.isNotEmpty(referenceTimeObj)) {
             referenceTime = (Long) referenceTimeObj;
         }
-
-        Map<String, Object> issueDetail = null;
-        if (!DELETED_EVENT.equals(issueEvent)) {
+        Map<String, Object> issueDetail = issueMap;
+        this.composeIssue(contextConfig.getProjectName(),contextConfig.getTeamName(),issueMap);
+        if (!DELETED_EVENT.equals(evenType)) {
             HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", this.contextConfig.getToken());
             HttpEntity<String, Object> issueDetialBody = HttpEntity.create()
                     .builder("Action", "DescribeIssue")
                     .builder("ProjectName", this.contextConfig.getProjectName());
             CodingHttp authorization = CodingHttp.create(header.getEntity(), String.format(CodingStarter.OPEN_API_URL, this.contextConfig.getTeamName()));
             HttpRequest requestDetail = authorization.createHttpRequest();
-
             issueDetail = this.readIssueDetail(
                     issueDetialBody,
                     authorization,
@@ -471,36 +467,32 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     (codeObj instanceof Integer) ? (Integer) codeObj : Integer.parseInt(codeObj.toString()),
                     this.contextConfig.getProjectName(),
                     this.contextConfig.getTeamName());
+            if (Checker.isEmptyCollection(issueDetail)){
+                return null;
+            }
             String modeName = this.tapConnectionContext.getConnectionConfig().getString("connectionMode");
             ConnectionMode instance = ConnectionMode.getInstanceByName(this.tapConnectionContext, modeName);
             if (null == instance){
                 throw new CoreException("Connection Mode is not empty or not null.");
             }
-//            if (instance instanceof CSVMode) {
-//                issueDetail = instance.attributeAssignment(issueDetail);
-//            }else {
-//
-//            }
+            //if (instance instanceof CSVMode) {
+            //    issueDetail = instance.attributeAssignment(issueDetail);
+            //}else {
+            //}
         }
-        if (Checker.isNotEmpty(issueEvent)){
-            String evenType = issueEvent.getEventType();
-            switch (evenType){
-                case DELETED_EVENT:{
-                    issueDetail = (Map<String, Object>) issueObj;
-                    issueDetail.put("teamName",this.contextConfig.getTeamName());
-                    issueDetail.put("projectName",this.contextConfig.getProjectName());
-                    event = TapSimplify.deleteDMLEvent(issueDetail, TABLE_NAME).referenceTime(referenceTime)  ;
-                };break;
-                case UPDATE_EVENT:{
-                    event = TapSimplify.updateDMLEvent(null,issueDetail, TABLE_NAME).referenceTime(referenceTime) ;
-                };break;
-                case CREATED_EVENT:{
-                    event = TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(referenceTime)  ;
-                };break;
-            }
-            //TapLogger.debug(TAG, "End {} stream read [WebHook]", "Issues");
-        }else {
-            TapLogger.debug(TAG,"An event type with unknown origin was found and cannot be processed - ["+event+"]. The data has been discarded. Data to be processed:"+issueDetail);
+        switch (evenType){
+            case DELETED_EVENT:{
+                issueDetail = (Map<String, Object>) issueObj;
+                issueDetail.put("teamName",this.contextConfig.getTeamName());
+                issueDetail.put("projectName",this.contextConfig.getProjectName());
+                event = TapSimplify.deleteDMLEvent(issueDetail, TABLE_NAME).referenceTime(referenceTime)  ;
+            }break;
+            case UPDATE_EVENT:{
+                event = TapSimplify.updateDMLEvent(null,issueDetail, TABLE_NAME).referenceTime(referenceTime) ;
+            }break;
+            case CREATED_EVENT:{
+                event = TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(referenceTime)  ;
+            }break;
         }
         return Collections.singletonList(event);
     }
@@ -574,10 +566,11 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 Object code = stringObjectMap.get("Code");
                 //Map<String,Object> issueDetail = instance.attributeAssignment(stringObjectMap);
                 Map<String,Object> issueDetail = this.get(IssueParam.create().issueCode((Integer)code));// stringObjectMap;
-                if (null == issueDetail){
-                    events[0].add(TapSimplify.insertRecordEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
-                    events[0].add(TapSimplify.deleteDMLEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
-                }else {
+                //if (null == issueDetail){
+                //    events[0].add(TapSimplify.insertRecordEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                //    events[0].add(TapSimplify.deleteDMLEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                //}else
+                if (Checker.isNotEmptyCollection(issueDetail)){
                     Long referenceTime = (Long) issueDetail.get("UpdatedAt");
                     Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
                     Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
@@ -599,10 +592,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                         offsetState = new CodingOffset();
                     }
                     ((CodingOffset) offsetState).getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
-                }
-                if (events[0].size() == readSize) {
-                    consumer.accept(events[0], offsetState);
-                    events[0] = new ArrayList<>();
+
+
+                    if (events[0].size() == readSize) {
+                        consumer.accept(events[0], offsetState);
+                        events[0] = new ArrayList<>();
+                    }
                 }
             }
 

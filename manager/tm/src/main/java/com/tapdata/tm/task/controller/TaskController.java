@@ -2,6 +2,7 @@ package com.tapdata.tm.task.controller;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.google.gson.reflect.TypeToken;
 import com.tapdata.manager.common.utils.JsonUtil;
@@ -877,13 +878,17 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "check task repeat name")
     @PostMapping("checkName")
-    public ResponseMessage<Boolean> checkName(@RequestParam("name") String name
-            , @RequestParam(value = "id", required = false) String id) {
-        ObjectId objectId = null;
-        if (StringUtils.isNotBlank(id)) {
-            objectId = MongoUtils.toObjectId(id);
+    public ResponseMessage<Boolean> checkName(@RequestBody CheckNameReq req) {
+
+        if (StringUtils.isBlank(req.getName())) {
+            return success(true);
         }
-        return success(taskService.checkTaskNameNotError(name, getLoginUser(), objectId));
+
+        ObjectId objectId = null;
+        if (StringUtils.isNotBlank(req.getId())) {
+            objectId = MongoUtils.toObjectId(req.getId());
+        }
+        return success(taskService.checkTaskNameNotError(req.getName(), getLoginUser(), objectId));
     }
 
     @Operation(summary = "任务导出")
@@ -897,13 +902,9 @@ public class TaskController extends BaseController {
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
                                         @RequestParam String listtags) {
-        List<String> tags = JsonUtil.parseJson(listtags, new TypeToken<List<String>>() {}.getType());
-        List<Map<String, String>> collect = tags.stream().map(id -> {
-            Map<String, String> map = Maps.newHashMap();
-            map.put("id", id);
-            return map;
-        }).collect(Collectors.toList());
-        taskService.batchUpTask(file, getLoginUser(), cover, collect);
+        List<com.tapdata.tm.commons.schema.Tag> tags = JsonUtil.parseJsonUseJackson(listtags, new TypeReference<List<com.tapdata.tm.commons.schema.Tag>>() {
+        });
+        taskService.batchUpTask(file, getLoginUser(), cover, tags);
         return success();
     }
 

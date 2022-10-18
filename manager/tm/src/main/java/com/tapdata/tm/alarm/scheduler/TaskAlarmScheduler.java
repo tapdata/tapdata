@@ -73,7 +73,8 @@ public class TaskAlarmScheduler {
     @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskDataNodeConnectAlarm() {
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
-                .and("is_deleted").ne(true));
+                .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and("is_deleted").is(false));
         List<TaskDto> taskDtos = taskService.findAll(query);
         if (CollectionUtils.isEmpty(taskDtos)) {
             return;
@@ -98,18 +99,16 @@ public class TaskAlarmScheduler {
                     templateEnum = DagOutputTemplateEnum.TARGET_CONNECT_CHECK;
                     type = "target";
                 }
-
-                connectionDto.setExtParam(
-                        ImmutableMap.of("taskId", taskDto.getId().toHexString(),
-                                "templateEnum", templateEnum,
-                                "userId", taskDto.getUserId(),
-                                "type", type,
-                                "agentId", taskDto.getAgentId(),
-                                "taskName", taskDto.getName(),
-                                "nodeName", connectionDto.getName(),
-                                "alarmCheck", true
-                        )
-                );
+                Map<String, Object> extParam = Maps.newHashMap();
+                extParam.put("taskId", taskDto.getId().toHexString());
+                extParam.put("templateEnum", templateEnum);
+                extParam.put("userId", taskDto.getUserId());
+                extParam.put("type", type);
+                extParam.put("agentId", taskDto.getAgentId());
+                extParam.put("taskName", taskDto.getName());
+                extParam.put("nodeName", connectionDto.getName());
+                extParam.put("alarmCheck", true);
+                connectionDto.setExtParam(extParam);
 
                 dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(taskDto.getUserId()));
             });
@@ -121,7 +120,8 @@ public class TaskAlarmScheduler {
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
-                .and("is_deleted").ne(true));
+                .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and("is_deleted").is(false));
         List<TaskDto> taskDtos = taskService.findAll(query);
         if (CollectionUtils.isEmpty(taskDtos)) {
             return;
@@ -183,9 +183,9 @@ public class TaskAlarmScheduler {
     @Scheduled(initialDelay = 5000, fixedRate = 30000)
     @SchedulerLock(name ="task_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAlarm() {
-
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
-                .and("is_deleted").ne(true));
+                .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and("is_deleted").is(false));
         List<TaskDto> all = taskService.findAll(query);
 
         all.forEach(task -> executorService.submit(() -> {
@@ -318,6 +318,10 @@ public class TaskAlarmScheduler {
                 }
                 alarmInfo.setLevel(Level.WARNING);
                 alarmInfo.setSummary(summary);
+                Map<String, Object> param = Maps.newHashMap();
+                param.put("interval", alarmRuleDto.getMs());
+                param.put("current", current);
+                alarmInfo.setParam(param);
                 alarmService.save(alarmInfo);
             } else {
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
@@ -368,6 +372,9 @@ public class TaskAlarmScheduler {
                 } else {
                     alarmInfo.setStatus(AlarmStatusEnum.ING);
                     summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_START, alarmRuleDto.getMs(), current, DateUtil.now());
+                    Map<String, Object> param = Maps.newHashMap();
+                    param.put("time", current);
+                    alarmInfo.setParam(param);
                 }
                 alarmInfo.setLevel(Level.WARNING);
                 alarmInfo.setSummary(summary);

@@ -10,7 +10,6 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.lang.Nullable;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.DefaultUriBuilderFactory;
 
 import java.io.ByteArrayOutputStream;
@@ -18,9 +17,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
-public class CloudRestTemplate extends RestTemplate {
+public class CloudRestTemplate extends TmAvailableRestTemplate {
 
-	private ObjectMapper objectMapper;
+	private final ObjectMapper objectMapper;
 
 	public CloudRestTemplate(ClientHttpRequestFactory requestFactory) {
 		super(requestFactory);

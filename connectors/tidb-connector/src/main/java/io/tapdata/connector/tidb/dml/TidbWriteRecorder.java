@@ -25,6 +25,9 @@ public class TidbWriteRecorder extends WriteRecorder {
 
     private static final String INSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values %s";
 
+    private final static String UPDATE_SQL = "UPDATE %s SET %s WHERE %s";
+    private final static String DELETE_SQL = "DELETE FROM %s WHERE %s";
+
     @Override
     public void addInsertBatch(Map<String, Object> after) throws SQLException {
         if (EmptyKit.isEmpty(after)) {
@@ -101,5 +104,50 @@ public class TidbWriteRecorder extends WriteRecorder {
                 preparedStatement.setObject(pos++, after.get(key));
             }
         }
+
+    @Override
+    protected void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
+        if (EmptyKit.isNull(preparedStatement)) {
+            if (hasPk) {
+                preparedStatement = connection.prepareStatement("UPDATE " +"`"+  schema + "`" +"." + "`"+tapTable.getId()+"`" + " SET " +
+                        after.keySet().stream().map(k ->k + "=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        before.keySet().stream().map(k ->k + "=?").collect(Collectors.joining(" AND ")));
+            } else {
+                preparedStatement = connection.prepareStatement("UPDATE " +"`"+  schema + "`" +"." + "`"+tapTable.getId()+"`" +" SET " +
+                        after.keySet().stream().map(k -> k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        before.keySet().stream().map(k -> "("+ k + "=? OR (" + k + " IS NULL AND ? IS NULL))")
+                                .collect(Collectors.joining(" AND ")));
+            }
+        }
+        preparedStatement.clearParameters();
+        int pos = 1;
+        for (String key : after.keySet()) {
+            preparedStatement.setObject(pos++, after.get(key));
+        }
+        dealNullBefore(before, pos);
+    }
+
+    @Override
+    public void addDeleteBatch(Map<String, Object> before) throws SQLException {
+        if (EmptyKit.isEmpty(before)) {
+            return;
+        }
+        if (EmptyKit.isNotEmpty(uniqueCondition)) {
+            before.keySet().removeIf(k -> !uniqueCondition.contains(k));
+        }
+        if (EmptyKit.isNull(preparedStatement)) {
+            if (hasPk) {
+                preparedStatement = connection.prepareStatement("DELETE FROM" +"`"+  schema + "`" +"." + "`"+tapTable.getId()+"`" + " WHERE " +
+                        before.keySet().stream().map(k -> k + "=?").collect(Collectors.joining(" AND ")));
+            } else {
+                preparedStatement = connection.prepareStatement("DELETE FROM "+"`"+ schema + "`" +"." + "`"+tapTable.getId()+"`" + "WHERE " +
+                        before.keySet().stream().map(k -> "(" + k + "=? OR (" + k + " IS NULL AND ? IS NULL))")
+                                .collect(Collectors.joining(" AND ")));
+            }
+        }
+        preparedStatement.clearParameters();
+        dealNullBefore(before, 1);
+        preparedStatement.addBatch();
+    }
 
 }

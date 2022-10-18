@@ -3,7 +3,10 @@ package com.tapdata.tm.task.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.monitor.dto.TaskLogDto;
+import com.tapdata.tm.task.service.TaskConsoleService;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
+import com.tapdata.tm.task.vo.RelationTaskInfoVo;
+import com.tapdata.tm.task.vo.RelationTaskRequest;
 import com.tapdata.tm.task.service.TaskResetLogService;
 import com.tapdata.tm.task.vo.TaskDagCheckLogVo;
 import com.tapdata.tm.task.vo.TaskLogInfoVo;
@@ -14,10 +17,10 @@ import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import javax.print.attribute.ResolutionSyntax;
+import java.util.List;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -29,6 +32,7 @@ import java.util.LinkedList;
 public class TaskConsoleController extends BaseController {
 
     private TaskDagCheckLogService taskDagCheckLogService;
+    private TaskConsoleService taskConsoleService;
     private TaskResetLogService taskResetLogService;
 
     @GetMapping("")
@@ -68,5 +72,11 @@ public class TaskConsoleController extends BaseController {
             taskDagCheckLogVo.setOver(taskDagCheckLogVo.isOver() && taskResetLogVo.isOver());
             return success(taskDagCheckLogVo);
         }
+    }
+
+    @PostMapping("/relations")
+    @Operation(summary = "可观测界面展示 关联任务列表")
+    public ResponseMessage<List<RelationTaskInfoVo>> relation(@RequestBody RelationTaskRequest request) {
+        return success(taskConsoleService.getRelationTasks(request));
     }
 }
