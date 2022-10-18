@@ -35,9 +35,7 @@ public class ProductsOpenApi extends ZoHoStarter implements ZoHoBase {
         if (Checker.isEmpty(productId)){
             TapLogger.debug(TAG,"Department Id can not be null or not be empty.");
         }
-        String accessToken = this.accessTokenFromConfig();
-        HttpEntity<String,String> header = HttpEntity.create()
-                .build("Authorization",accessToken);
+        HttpEntity<String, String> header = requestHeard();
         HttpEntity<String,String> resetFull = HttpEntity.create().build("product_id",productId);
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,GET_PRODUCT_URL), HttpType.GET,header).resetFull(resetFull);
         HttpResult httpResult = this.readyAccessToken(http);
@@ -80,13 +78,7 @@ public class ProductsOpenApi extends ZoHoStarter implements ZoHoBase {
         return page(from, limit,null,0L,null,null,sortBy,null,null);
     }
     private List<Map<String,Object>> list(HttpEntity<String,Object> form){
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        String accessToken = this.accessTokenFromConfig();
-        HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
-        String orgId = contextConfig.orgId();
-        if (Checker.isNotEmpty(orgId)){
-            header.build("orgId",orgId);
-        }
+        HttpEntity<String, String> header = requestHeard();
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,LIST_PRODUCT_URL), HttpType.GET,header).header(header).form(form);
         HttpResult httpResult = this.readyAccessToken(http);
         TapLogger.debug(TAG,"Get product page succeed.");

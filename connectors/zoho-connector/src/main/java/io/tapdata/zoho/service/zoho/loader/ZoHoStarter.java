@@ -26,6 +26,20 @@ public abstract class ZoHoStarter {
         this.isVerify = Boolean.FALSE;
     }
 
+    public HttpEntity<String,String> requestHeard(){
+        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
+        String accessToken = this.accessTokenFromConfig();
+        HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
+        String orgId = contextConfig.orgId();
+        if (Checker.isNotEmpty(orgId)){
+            header.build("orgId",orgId);
+        }
+        return header;
+    }
+
+    public TapConnectionContext getContext() {
+        return this.tapConnectionContext;
+    }
     /**
      * 校验connectionConfig配置字段
      */

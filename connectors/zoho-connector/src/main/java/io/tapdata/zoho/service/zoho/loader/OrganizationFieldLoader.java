@@ -25,13 +25,7 @@ public class OrganizationFieldLoader extends ZoHoStarter implements ZoHoBase {
         if (Checker.isEmpty(model)){
             return null;
         }
-        ContextConfig contextConfig = super.veryContextConfigAndNodeConfig();
-        HttpEntity<String,String> header = HttpEntity.create()
-                .build("Authorization",this.accessTokenFromConfig());
-        String orgId = contextConfig.orgId();
-        if (Checker.isNotEmpty(orgId)){
-            header.build("orgId",orgId);
-        }
+        HttpEntity<String, String> header = requestHeard();
         HttpEntity<String,Object> form = HttpEntity.create().build("module",model.getModel());
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,"/api/v1/organizationFields"), HttpType.GET,header).form(form);
         HttpResult httpResult = this.readyAccessToken(http);

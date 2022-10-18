@@ -36,9 +36,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
             TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
         }
         String url = "/api/v1/tickets/{ticketID}";
-        String accessToken = this.accessTokenFromConfig();
-        HttpEntity<String,String> header = HttpEntity.create()
-                .build("Authorization",accessToken);
+        HttpEntity<String, String> header = requestHeard();
         HttpEntity<String,String> resetFull = HttpEntity.create().build("ticketID",ticketId);
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,header).resetFull(resetFull);
         HttpResult httpResult = this.readyAccessToken(http);
@@ -53,13 +51,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
      * */
     public List<Map<String,Object>> list(HttpEntity<String,Object> form){
         String url = "/api/v1/tickets";
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        String accessToken = this.accessTokenFromConfig();
-        HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
-        String orgId = contextConfig.orgId();
-        if (Checker.isNotEmpty(orgId)){
-            header.build("orgId",orgId);
-        }
+        HttpEntity<String, String> header = requestHeard();
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,header).header(header).form(form);
         HttpResult httpResult = this.readyAccessToken(http);
         TapLogger.debug(TAG,"Get ticket list succeed.");
@@ -72,13 +64,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
      *
      * */
     public Integer count(){
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        String accessToken = this.accessTokenFromConfig();
-        HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
-        String orgId = contextConfig.orgId();
-        if (Checker.isNotEmpty(orgId)){
-            header.build("orgId",orgId);
-        }
+        HttpEntity<String, String> header = requestHeard();
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,GET_COUNT_URL), HttpType.GET,header)
                 .header(header);
         HttpResult httpResult = this.readyAccessToken(http);

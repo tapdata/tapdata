@@ -35,9 +35,7 @@ public class OrganizationFieldsOpenApi extends ZoHoStarter implements ZoHoBase  
         if (Checker.isEmpty(fieldId)){
             TapLogger.debug(TAG,"Department Id can not be null or not be empty.");
         }
-        String accessToken = this.accessTokenFromConfig();
-        HttpEntity<String,String> header = HttpEntity.create()
-                .build("Authorization",accessToken);
+        HttpEntity<String, String> header = requestHeard();
         HttpEntity<String,String> resetFull = HttpEntity.create().build("field_id",fieldId);
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,GET_FIELD_URL), HttpType.GET,header).resetFull(resetFull);
         HttpResult httpResult = this.readyAccessToken(http);
@@ -58,13 +56,7 @@ public class OrganizationFieldsOpenApi extends ZoHoStarter implements ZoHoBase  
         return list(form);
     }
     private List<Map<String,Object>> list(HttpEntity<String,Object> form){
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        String accessToken = this.accessTokenFromConfig();
-        HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
-        String orgId = contextConfig.orgId();
-        if (Checker.isNotEmpty(orgId)){
-            header.build("orgId",orgId);
-        }
+        HttpEntity<String, String> header = requestHeard();
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,GET_ORGANIZATION_FIELDS_URL), HttpType.GET,header).header(header).form(form);
         HttpResult httpResult = this.readyAccessToken(http);
         TapLogger.debug(TAG,"Get organization fields succeed.");
@@ -72,13 +64,7 @@ public class OrganizationFieldsOpenApi extends ZoHoStarter implements ZoHoBase  
         return Checker.isEmpty(data)?new ArrayList<>():(List<Map<String,Object>>)data;
     }
     public int count(ModuleEnums module){
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        String accessToken = this.accessTokenFromConfig();
-        HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
-        String orgId = contextConfig.orgId();
-        if (Checker.isNotEmpty(orgId)){
-            header.build("orgId",orgId);
-        }
+        HttpEntity<String, String> header = requestHeard();
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,GET_FIELDS_COUNT_URL), HttpType.GET,header)
                 .header(header)
                 .form(HttpEntity.create().build("module",module.getName()));

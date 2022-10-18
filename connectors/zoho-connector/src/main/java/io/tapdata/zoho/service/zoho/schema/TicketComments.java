@@ -1,6 +1,21 @@
 package io.tapdata.zoho.service.zoho.schema;
 
-public class TicketComments {
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.zoho.entity.ContextConfig;
+import io.tapdata.zoho.service.zoho.loader.TicketCommentsOpenApi;
+import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
+import io.tapdata.zoho.utils.Checker;
+import io.tapdata.zoho.utils.MapUtil;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static io.tapdata.base.ConnectorBase.*;
+import static io.tapdata.base.ConnectorBase.field;
+
+public class TicketComments implements Schema{
     /**
      * {
      *   "commentedTime" : "2014-11-28T10:25:13.000Z",
@@ -45,4 +60,67 @@ public class TicketComments {
      *   }
      * }
      * */
+    private TicketCommentsOpenApi commentsOpenApi;
+    @Override
+    public Schema config(ZoHoBase openApi) {
+        if (Checker.isNotEmpty(openApi) && openApi instanceof TicketCommentsOpenApi) this.commentsOpenApi = (TicketCommentsOpenApi)openApi;
+        return this;
+    }
+
+    @Override
+    public List<TapTable> document(List<String> tables, int tableSize) {
+        if(tables == null || tables.isEmpty()) {
+            return list(
+                    table(Schemas.Departments.getTableName())
+                            .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
+                            .add(field("contentType","StringStatus"))
+                            .add(field("commenterId","StringMinor"))
+                            .add(field("content","StringMinor"))
+                            .add(field("mention","Array"))
+                            .add(field("commenter","Map"))
+                            .add(field("isPublic","Boolean"))
+                            .add(field("commentedTime","StringMinor"))
+            );
+        }
+        return null;
+    }
+
+    @Override
+    public List<TapTable> csv(List<String> tables, int tableSize, TapConnectionContext connectionContext) {
+        if(tables == null || tables.isEmpty()) {
+            return list(
+                    table(Schemas.Departments.getTableName())
+                            .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
+                            .add(field("contentType","StringStatus"))
+                            .add(field("commenterId","StringMinor"))
+                            .add(field("content","StringMinor"))
+                            .add(field("mentionId","StringMinor"))
+                            .add(field("isPublic","Boolean"))
+                            .add(field("commentedTime","StringMinor"))
+            );
+        }
+        return null;
+    }
+
+    @Override
+    public Map<String, Object> attributeAssignmentSelfCsv(Map<String, Object> obj, ContextConfig contextConfig) {
+        Map<String,Object> cSVDetail = new HashMap<>();
+        //统计需要操作的属性,子属性用点分割；数据组结果会以|分隔返回，大文本会以""包裹
+        MapUtil.putMapSplitByDotKeyNameFirstUpper(obj, cSVDetail,
+                "id",
+                "contentType",
+                "commenterId",
+                "content",
+                "mention.id",//id 列表，CSV格式使用|分割
+                "isPublic",
+                "commentedTime"
+        );
+        this.removeJsonNull(cSVDetail);
+        return cSVDetail;
+    }
+
+    @Override
+    public Map<String, Object> getDetail(Map<String, Object> map, TapConnectionContext connectionContext) {
+        return map;
+    }
 }

@@ -13,5 +13,4 @@ public interface ZoHoBase {
         return accessToken.startsWith(ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX)?accessToken:ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX+accessToken;
     }
 
-    public TapConnectionContext getContext();
 }

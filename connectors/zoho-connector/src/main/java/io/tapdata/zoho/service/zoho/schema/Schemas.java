@@ -8,6 +8,11 @@ public enum Schemas {
     Departments("Departments", Departments.class,    Boolean.TRUE),
     Products("Products", Products.class,    Boolean.TRUE),
     OrganizationFields("OrganizationFields", OrganizationFields.class,    Boolean.TRUE),
+    Contracts("Contracts",         Contracts.class,        Boolean.TRUE),
+    Skills("Skills",         Skills.class,        Boolean.FALSE),
+    Teams("Teams", Teams.class,    Boolean.FALSE),
+    TicketComments("TicketComments", TicketComments.class,    Boolean.FALSE),
+    TicketAttachments("TicketAttachments", TicketAttachments.class,    Boolean.FALSE),
 
     ;
     String tableName;

@@ -102,13 +102,11 @@ public class ZoHoHttp {
             if (null == httpCode){
                 return HttpResult.create(
                         HttpCode.ERROR,
-                        HttpEntity.create()
-                                .build(HttpCode.ERROR.getCode(), executeObject.get("message")).entity());
+                        HttpEntity.create().build(HttpCode.ERROR.getCode(), executeObject.get("message")).entity());
             }
             return HttpResult.create(
                     httpCode,
-                    HttpEntity.create()
-                            .build(httpCode.getCode(),httpCode.getMessage()).entity());
+                    HttpEntity.create().build(httpCode.getCode(),httpCode.getMessage()).entity());
         }
         return HttpResult.create(HttpCode.SUCCEED,executeObject);
     }

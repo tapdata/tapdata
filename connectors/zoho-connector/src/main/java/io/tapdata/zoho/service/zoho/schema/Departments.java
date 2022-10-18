@@ -22,7 +22,7 @@ public class Departments implements Schema {
 
     @Override
     public Schema config(ZoHoBase openApi) {
-        if (openApi instanceof DepartmentOpenApi) this.departmentOpenApi = (DepartmentOpenApi)departmentOpenApi;
+        if (Checker.isNotEmpty(openApi) && openApi instanceof DepartmentOpenApi) this.departmentOpenApi = (DepartmentOpenApi)departmentOpenApi;
         return this;
     }
 

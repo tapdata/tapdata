@@ -94,13 +94,7 @@ public class DepartmentOpenApi extends ZoHoStarter implements ZoHoBase {
         return this.list(form);
     }
     private List<Map<String,Object>> list(HttpEntity<String,Object> form){
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        String accessToken = this.accessTokenFromConfig();
-        HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
-        String orgId = contextConfig.orgId();
-        if (Checker.isNotEmpty(orgId)){
-            header.build("orgId",orgId);
-        }
+        HttpEntity<String, String> header = requestHeard();
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,LIST_URI), HttpType.GET,header).header(header).form(form);
         HttpResult httpResult = this.readyAccessToken(http);
         TapLogger.debug(TAG,"Get department list succeed.");
@@ -113,8 +107,7 @@ public class DepartmentOpenApi extends ZoHoStarter implements ZoHoBase {
     }
 
     public int getDepartmentCount(){
-        String accessToken = this.accessTokenFromConfig();
-        HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
+        HttpEntity<String, String> header = requestHeard();
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,GET_DEPARTMENT_COUNT), HttpType.GET,header);
         HttpResult httpResult = this.readyAccessToken(http);
         TapLogger.debug(TAG,"Get Department list succeed.");

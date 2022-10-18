@@ -26,6 +26,6 @@ public interface SchemaLoader {
     public long batchCount() throws Throwable ;
 
     public static SchemaLoader loader(String tableName,TapConnectionContext context){
-        return  BeanUtil.bean(SchemaLoader.class.getPackage().getName()+"."+tableName+"Loader");
+        return  BeanUtil.bean(SchemaLoader.class.getPackage().getName()+"."+tableName+"Schema");
     }
 }

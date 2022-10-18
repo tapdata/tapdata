@@ -8,7 +8,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.ZoHoOffset;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
-import io.tapdata.zoho.service.zoho.loader.ProductsOpenApi;
+import io.tapdata.zoho.service.zoho.loader.DepartmentOpenApi;
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
 
@@ -17,11 +17,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class ProductSchema implements SchemaLoader {
-    private ProductsOpenApi productsOpenApi;
+public class DepartmentsSchema implements SchemaLoader {
+    private static final String TAG = DepartmentsSchema.class.getSimpleName();
+    private DepartmentOpenApi departmentOpenApi;
     @Override
     public SchemaLoader configSchema(TapConnectionContext tapConnectionContext) {
-        this.productsOpenApi = ProductsOpenApi.create(tapConnectionContext);
+        this.departmentOpenApi = DepartmentOpenApi.create(tapConnectionContext);
         return this;
     }
 
@@ -42,62 +43,50 @@ public class ProductSchema implements SchemaLoader {
 
     @Override
     public void batchRead(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer) {
-        this.read(batchCount,offset,consumer,Boolean.TRUE);
-    }
-
-    @Override
-    public long batchCount() throws Throwable {
-        return 0;
-    }
-
-    public void read(int readSize, Object offsetState, BiConsumer<List<TapEvent>, Object> consumer,boolean isBatchRead ){
         final List<TapEvent>[] events = new List[]{new ArrayList<>()};
-        int pageSize = Math.min(readSize, ProductsOpenApi.MAX_PAGE_LIMIT);
-        int fromPageIndex = 1;//从第几个工单开始分页
-        TapConnectionContext context = this.productsOpenApi.getContext();
+        int pageSize = Math.min(batchCount, departmentOpenApi.MAX_PAGE_LIMIT);
+        int fromPageIndex = 0;//从0开始分页
+        TapConnectionContext context = departmentOpenApi.getContext();
         String modeName = context.getConnectionConfig().getString("connectionMode");
         ConnectionMode connectionMode = ConnectionMode.getInstanceByName(context, modeName);
         if (null == connectionMode){
             throw new CoreException("Connection Mode is not empty or not null.");
         }
-        String tableName =  Schemas.Products.getTableName();
+        String table = Schemas.Departments.getTableName();
         while (true){
-            List<Map<String, Object>> list = productsOpenApi.page(
-                    fromPageIndex,
-                    pageSize,
-                    isBatchRead ? ProductsOpenApi.SortBy.CREATED_TIME.descSortBy(): ProductsOpenApi.SortBy.MODIFIED_TIME.descSortBy());
-            if (Checker.isNotEmpty(list) && !list.isEmpty()){
+            List<Map<String, Object>> listDepartment = departmentOpenApi.list(null, null, fromPageIndex, pageSize, null);//分页数
+            if (Checker.isNotEmpty(listDepartment) && !listDepartment.isEmpty()) {
                 fromPageIndex += pageSize;
-                list.stream().forEach(product->{
-                    Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,productsOpenApi);
-                    if (Checker.isNotEmpty(oneProduct) && !oneProduct.isEmpty()){
-                        Object modifiedTimeObj = oneProduct.get("modifiedTime");
-                        Object createdTimeObj = oneProduct.get("createdTime");
+                for (Map<String, Object> stringObjectMap : listDepartment) {
+                    Map<String, Object> department = connectionMode.attributeAssignment(stringObjectMap, table,departmentOpenApi);
+                    if (Checker.isNotEmpty(department) && !department.isEmpty()) {
+                        Object modifiedTimeObj = department.get("modifiedTime");
                         long referenceTime = System.currentTimeMillis();
                         if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                             String referenceTimeStr = (String) modifiedTimeObj;
                             referenceTime = DateUtil.parse(
                                     referenceTimeStr.replaceAll("Z", "").replaceAll("T", " "),
                                     "yyyy-MM-dd HH:mm:ss.SSS").getTime();
-                            ((ZoHoOffset) offsetState).getTableUpdateTimeMap().put(tableName, referenceTime);
+                            ((ZoHoOffset) offset).getTableUpdateTimeMap().put(table, referenceTime);
                         }
-                        //创建时间和修改时间相同，表示新增事件，否则为修改事件
-                        events[0].add(( String.valueOf(modifiedTimeObj).equals(String.valueOf(createdTimeObj))?
-                                    TapSimplify.insertRecordEvent(oneProduct, tableName).referenceTime(referenceTime)
-                                    :TapSimplify.updateDMLEvent(null,oneProduct, tableName).referenceTime(referenceTime) ));
-                        if (events[0].size() == readSize){
-                            consumer.accept(events[0], offsetState);
+                        events[0].add(TapSimplify.insertRecordEvent(department, table).referenceTime(referenceTime));
+                        if (events[0].size() == batchCount) {
+                            consumer.accept(events[0], offset);
                             events[0] = new ArrayList<>();
                         }
                     }
-                });
-                if (events[0].size()>0){
-                    consumer.accept(events[0], offsetState);
                 }
             }else {
                 break;
             }
         }
+        if (events[0].size()>0){
+            consumer.accept(events[0], offset);
+        }
     }
 
+    @Override
+    public long batchCount() throws Throwable {
+        return departmentOpenApi.getDepartmentCount();
+    }
 }

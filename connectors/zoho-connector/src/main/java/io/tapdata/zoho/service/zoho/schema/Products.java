@@ -22,7 +22,7 @@ public class Products implements Schema {
 
     private ProductsOpenApi productsOpenApi;
     public Products config(ZoHoBase openApi){
-        if ( openApi instanceof ProductsOpenApi )
+        if (Checker.isNotEmpty(openApi) && openApi instanceof ProductsOpenApi )
             this.productsOpenApi = (ProductsOpenApi) openApi;
         return this;
     }

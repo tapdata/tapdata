@@ -5,6 +5,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.ContextConfig;
 import io.tapdata.zoho.service.zoho.loader.OrganizationFieldsOpenApi;
 import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
+import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.MapUtil;
 
 import java.util.HashMap;
@@ -18,7 +19,7 @@ public class OrganizationFields implements Schema {
     private OrganizationFieldsOpenApi fieldsOpenApi;
     @Override
     public Schema config(ZoHoBase openApi) {
-        if (openApi instanceof OrganizationFieldsOpenApi) this.fieldsOpenApi = (OrganizationFieldsOpenApi)openApi;
+        if (Checker.isNotEmpty(openApi) && openApi instanceof OrganizationFieldsOpenApi) this.fieldsOpenApi = (OrganizationFieldsOpenApi)openApi;
         return this;
     }
 

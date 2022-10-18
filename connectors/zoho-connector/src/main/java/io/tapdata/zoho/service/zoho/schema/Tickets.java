@@ -32,7 +32,7 @@ public class Tickets implements Schema {
     private TicketLoader ticketLoader;
     @Override
     public Schema config(ZoHoBase openApi) {
-        if (openApi instanceof TicketLoader) ticketLoader = (TicketLoader)openApi;
+        if (Checker.isNotEmpty(openApi) && openApi instanceof TicketLoader) ticketLoader = (TicketLoader)openApi;
         return this;
     }
 
