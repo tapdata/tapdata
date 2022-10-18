@@ -90,6 +90,7 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateIndex(this::createIndex);
+        connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
 
 
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
@@ -248,17 +249,6 @@ public class TidbConnector extends ConnectorBase {
     }
 
 
-//    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-//        int count;
-//        try {
-//            count = tidbContext.count(tapTable.getName());
-//        } catch (Exception e) {
-//            throw new RuntimeException("Count table " + tapTable.getName() + " error: " + e.getMessage(), e);
-//        }
-//        return count;
-//    }
-
-
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         List<DataMap> tableList = tidbContext.queryAllTables(tables);
@@ -316,7 +306,7 @@ public class TidbConnector extends ConnectorBase {
             }
             TestItem testPbServerHostPort = connectionTest.testPbserver();
             consumer.accept(testPbServerHostPort);
-            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
+            if (testPbServerHostPort.getResult() == TestItem.RESULT_FAILED) {
                 return connectionOptions;
             }
             TestItem testConnect = connectionTest.testConnect();
