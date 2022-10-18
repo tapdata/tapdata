@@ -23,7 +23,9 @@ public class TablestoreConfig {
     }
 
     public String getConnectionString() {
-        StringJoiner joiner = new StringJoiner("/", endpoint, instance);
+        StringJoiner joiner = new StringJoiner("/");
+        joiner.add(endpoint);
+        joiner.add(instance);
         return joiner.toString();
     }
 
