@@ -27,6 +27,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         return new TicketLoader(tapConnectionContext);
     }
 
+    public static final String GET_COUNT_URL = "/api/v1/ticketsCount";
     /**
      * 根据工单ID获取一个工单详情
      * */
@@ -71,31 +72,19 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
      *
      * */
     public Integer count(){
-        int totalCount = 0;
-        final int pageMaxSize = 100;
-        int startPage = 0;
-        String url = "/api/v1/tickets";
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         String accessToken = this.accessTokenFromConfig();
+        HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
         String orgId = contextConfig.orgId();
-        HttpEntity<String,Object> form = this.getTickPageParam().build("limit",pageMaxSize);
-        HttpEntity<String,String> heards = HttpEntity.create().build("orgId",orgId).build("Authorization",accessToken);
-        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,heards).header(heards).form(form);
-        List<Map<String,Object>> list = new ArrayList<>();
-        while (true){
-            form.build("from",startPage);
-            HttpResult httpResult = this.readyAccessToken(http);
-            Object data = ((Map<String,Object>)httpResult.getResult()).get("data");
-            list = Checker.isEmpty(data)?null:(List<Map<String,Object>>)data;
-            int pageSizeBatch = 0;
-            if (Checker.isEmpty(list) || list.isEmpty() || (pageSizeBatch = list.size()) < pageMaxSize){
-                totalCount += pageSizeBatch;
-                break;
-            }
-            totalCount += pageMaxSize;
-            startPage += pageMaxSize;
+        if (Checker.isNotEmpty(orgId)){
+            header.build("orgId",orgId);
         }
-        return totalCount;
+        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,GET_COUNT_URL), HttpType.GET,header)
+                .header(header);
+        HttpResult httpResult = this.readyAccessToken(http);
+        TapLogger.debug(TAG,"Get ticket count succeed.");
+        Object count = ((Map<String,Object>)httpResult.getResult()).get("count");
+        return Checker.isEmpty(count) ?0:(int)count;
     }
 
     public static void fun(){

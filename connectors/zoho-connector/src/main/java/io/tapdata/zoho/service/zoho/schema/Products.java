@@ -111,33 +111,33 @@ public class Products implements Schema {
         return null;
     }
 
-    @Override
-    public Map<String, Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext) {
-        if (Checker.isEmpty(productsOpenApi)){
-            productsOpenApi = ProductsOpenApi.create(connectionContext);
-        }
-        Object productIdObj = obj.get("id");
-        if (Checker.isEmpty(productIdObj)){
-            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
-            return Collections.emptyMap();
-        }
-        Map<String,Object> product = productsOpenApi.get(String.valueOf(productIdObj));
-        return this.attributeAssignmentSelfDocument(product);
-    }
+//    @Override
+//    public Map<String, Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext) {
+//        if (Checker.isEmpty(productsOpenApi)){
+//            productsOpenApi = ProductsOpenApi.create(connectionContext);
+//        }
+//        Object productIdObj = obj.get("id");
+//        if (Checker.isEmpty(productIdObj)){
+//            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
+//            return Collections.emptyMap();
+//        }
+//        Map<String,Object> product = productsOpenApi.get(String.valueOf(productIdObj));
+//        return this.attributeAssignmentSelfDocument(product);
+//    }
 
-    @Override
-    public Map<String, Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig) {
-        if (Checker.isEmpty(productsOpenApi)){
-            productsOpenApi = ProductsOpenApi.create(connectionContext);
-        }
-        Object productIdObj = obj.get("id");
-        if (Checker.isEmpty(productIdObj)){
-            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
-            return Collections.emptyMap();
-        }
-        Map<String,Object> product = productsOpenApi.get(String.valueOf(productIdObj));
-        return this.attributeAssignmentSelfCsv(product,contextConfig);
-    }
+//    @Override
+//    public Map<String, Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig) {
+//        if (Checker.isEmpty(productsOpenApi)){
+//            productsOpenApi = ProductsOpenApi.create(connectionContext);
+//        }
+//        Object productIdObj = obj.get("id");
+//        if (Checker.isEmpty(productIdObj)){
+//            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
+//            return Collections.emptyMap();
+//        }
+//        Map<String,Object> product = productsOpenApi.get(String.valueOf(productIdObj));
+//        return this.attributeAssignmentSelfCsv(product,contextConfig);
+//    }
 
     @Override
     public Map<String, Object> attributeAssignmentSelfCsv(Map<String, Object> obj, ContextConfig contextConfig) {
@@ -161,5 +161,18 @@ public class Products implements Schema {
         );
         this.removeJsonNull(cSVDetail);
         return cSVDetail;
+    }
+
+    @Override
+    public Map<String, Object> getDetail(Map<String, Object> obj, TapConnectionContext connectionContext) {
+        if (Checker.isEmpty(productsOpenApi)){
+            productsOpenApi = ProductsOpenApi.create(connectionContext);
+        }
+        Object productIdObj = obj.get("id");
+        if (Checker.isEmpty(productIdObj)){
+            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
+            return Collections.emptyMap();
+        }
+        return productsOpenApi.get(String.valueOf(productIdObj));
     }
 }

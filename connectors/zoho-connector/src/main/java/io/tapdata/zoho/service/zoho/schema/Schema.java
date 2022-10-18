@@ -37,7 +37,9 @@ public interface Schema {
     /**
      * 文档类型数据获取：此接口方法为---需要根据主键请求一次详情信息，如果Map为详情信息就不需要请求详情了
      * */
-    public Map<String,Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext);
+    public default Map<String,Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext){
+        return this.attributeAssignmentSelfDocument(this.getDetail(obj, connectionContext));
+    }
 
     /**
      * 文档类型数据获取：此接口方法为---直接使用Map根据需要处理成表数据，不需要去获取详情
@@ -50,7 +52,9 @@ public interface Schema {
     /**
      * CSV类型数据获取：此接口方法为---需要根据主键请求一次详情信息，如果Map为详情信息就不需要请求详情了
      * */
-    public Map<String,Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig);
+    public default Map<String,Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig){
+        return this.attributeAssignmentSelfCsv(this.getDetail(obj,connectionContext),contextConfig);
+    }
 
     /**
      * CSV类型数据获取：此接口方法为---直接使用Map根据需要处理成表数据，不需要去获取详情
@@ -80,4 +84,6 @@ public interface Schema {
             }
         }
     }
+
+    public Map<String,Object> getDetail(Map<String,Object> map, TapConnectionContext connectionContext);
 }

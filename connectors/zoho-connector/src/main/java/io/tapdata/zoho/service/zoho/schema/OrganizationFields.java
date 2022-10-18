@@ -64,14 +64,20 @@ public class OrganizationFields implements Schema {
     }
 
     @Override
-    public Map<String, Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext) {
-        return this.attributeAssignmentSelfDocument(obj);
+    public Map<String, Object> getDetail(Map<String, Object> map, TapConnectionContext connectionContext) {
+        return map;
     }
 
-    @Override
-    public Map<String, Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig) {
-        return this.attributeAssignmentSelfCsv(obj,contextConfig);
-    }
+
+    //    @Override
+//    public Map<String, Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext) {
+//        return this.attributeAssignmentSelfDocument(obj);
+//    }
+//
+//    @Override
+//    public Map<String, Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig) {
+//        return this.attributeAssignmentSelfCsv(obj,contextConfig);
+//    }
 
     @Override
     public Map<String, Object> attributeAssignmentSelfCsv(Map<String, Object> obj, ContextConfig contextConfig) {

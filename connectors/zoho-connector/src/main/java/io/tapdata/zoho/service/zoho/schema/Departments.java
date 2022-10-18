@@ -93,14 +93,19 @@ public class Departments implements Schema {
     }
 
     @Override
-    public Map<String, Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext) {
-        return this.attributeAssignmentSelfDocument(obj);
+    public Map<String, Object> getDetail(Map<String, Object> map, TapConnectionContext connectionContext) {
+        return map;
     }
 
-    @Override
-    public Map<String, Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig) {
-        return this.attributeAssignmentSelfCsv(obj,contextConfig);
-    }
+    //    @Override
+//    public Map<String, Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext) {
+//        return this.attributeAssignmentSelfDocument(obj);
+//    }
+//
+//    @Override
+//    public Map<String, Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig) {
+//        return this.attributeAssignmentSelfCsv(obj,contextConfig);
+//    }
 
     /**
      * Departments list 返回的结果已经是详情了，不需要在去获取详情

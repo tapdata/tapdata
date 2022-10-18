@@ -40,8 +40,8 @@ public class Tickets implements Schema {
     public List<TapTable> document(List<String> tables, int tableSize) {
         if(tables == null || tables.isEmpty()) {
             return list(
-                    /** customFields  department*/
-                    // sentiment     channelRelatedInfo  layoutDetails  product  team category
+                    /** customFields  department product*/
+                    // sentiment     channelRelatedInfo  layoutDetails   team category
                     // subCategory   source    sharedDepartments   contact  secondaryContacts assignee   entitySkills
                     table(Schemas.Tickets.getTableName())
                             .add(field("id","Long").isPrimaryKey(true).primaryKeyPos(1))
@@ -219,8 +219,24 @@ public class Tickets implements Schema {
         return null;
     }
 
+//    @Override
+//    public Map<String, Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext) {
+//        Object ticketIdObj = obj.get("id");
+//        if (Checker.isEmpty(ticketIdObj)){
+//            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
+//        }
+//        if (Checker.isEmpty(ticketLoader)){
+//            ticketLoader = TicketLoader.create(connectionContext);
+//        }
+//        Map<String, Object> ticketDetail = ticketLoader.getOne((String) ticketIdObj);
+//        ticketDetail.put("department",obj.get("department"));
+//        ticketDetail.put("contact",obj.get("contact"));
+//        ticketDetail.put("assignee",obj.get("assignee"));
+//        return this.attributeAssignmentSelfDocument(ticketDetail);
+//    }
+
     @Override
-    public Map<String, Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext) {
+    public Map<String, Object> getDetail(Map<String, Object> obj, TapConnectionContext connectionContext) {
         Object ticketIdObj = obj.get("id");
         if (Checker.isEmpty(ticketIdObj)){
             TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
@@ -229,10 +245,11 @@ public class Tickets implements Schema {
             ticketLoader = TicketLoader.create(connectionContext);
         }
         Map<String, Object> ticketDetail = ticketLoader.getOne((String) ticketIdObj);
+        if (Checker.isEmpty(ticketDetail)) ticketDetail = new HashMap<>();
         ticketDetail.put("department",obj.get("department"));
         ticketDetail.put("contact",obj.get("contact"));
         ticketDetail.put("assignee",obj.get("assignee"));
-        return this.attributeAssignmentSelfDocument(ticketDetail);
+        return ticketDetail;
     }
 
     @Override
@@ -289,23 +306,23 @@ public class Tickets implements Schema {
         return ticketCSVDetail;
     }
 
-    @Override
-    public Map<String, Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig) {
-        Object ticketIdObj = obj.get("id");
-        if (Checker.isEmpty(ticketIdObj)){
-            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
-            return null;
-        }
-        if (Checker.isEmpty(ticketLoader)){
-            ticketLoader = TicketLoader.create(connectionContext);
-        }
-        Map<String, Object> ticketDetail = ticketLoader.getOne((String) ticketIdObj);
-        //把分页结果中具有但详情结果中不具有切CSV结构数据需要的结构进行提取
-        ticketDetail.put("department",obj.get("department"));
-        ticketDetail.put("contact",obj.get("contact"));
-        ticketDetail.put("assignee",obj.get("assignee"));
-        return this.attributeAssignmentSelfCsv(ticketDetail,contextConfig);
-    }
+//    @Override
+//    public Map<String, Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig) {
+//        Object ticketIdObj = obj.get("id");
+//        if (Checker.isEmpty(ticketIdObj)){
+//            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
+//            return null;
+//        }
+//        if (Checker.isEmpty(ticketLoader)){
+//            ticketLoader = TicketLoader.create(connectionContext);
+//        }
+//        Map<String, Object> ticketDetail = ticketLoader.getOne((String) ticketIdObj);
+//        //把分页结果中具有但详情结果中不具有切CSV结构数据需要的结构进行提取
+//        ticketDetail.put("department",obj.get("department"));
+//        ticketDetail.put("contact",obj.get("contact"));
+//        ticketDetail.put("assignee",obj.get("assignee"));
+//        return this.attributeAssignmentSelfCsv(ticketDetail,contextConfig);
+//    }
 
     private Map<String,Object> setCustomField(Map<String,Object> stringObjectMap){
         Map<String, Object> result = new HashMap<>();
