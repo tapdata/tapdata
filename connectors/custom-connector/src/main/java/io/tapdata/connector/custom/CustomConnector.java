@@ -15,6 +15,7 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -50,15 +51,17 @@ public class CustomConnector extends ConnectorBase {
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-
+        CustomSchema customSchema = new CustomSchema(customConfig);
+        consumer.accept(Collections.singletonList(customSchema.loadSchema()));
     }
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
         initConnection(connectionContext);
         CustomTest customTest = new CustomTest(customConfig);
-        consumer.accept(customTest.testScript());
-        if (!ConnectionTypeEnum.TARGET.getType().equals(customConfig.get__connectionType())) {
+        TestItem testScript = customTest.testScript();
+        consumer.accept(testScript);
+        if (!ConnectionTypeEnum.TARGET.getType().equals(customConfig.get__connectionType()) && (testScript.getResult() == TestItem.RESULT_FAILED)) {
             consumer.accept(customTest.testBuildSchema());
         }
         return ConnectionOptions.create().connectionString("Custom Connection: " +
