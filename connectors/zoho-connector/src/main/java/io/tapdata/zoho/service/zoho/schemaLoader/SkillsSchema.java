@@ -13,6 +13,7 @@ import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -60,6 +61,8 @@ public class SkillsSchema implements SchemaLoader {
         String tableName =  Schemas.Products.getTableName();
         //@TODO 获取departmentID
         String departmentId = "";
+        if (Checker.isEmpty(offsetState)) offsetState = ZoHoOffset.create(new HashMap<>());
+        final Object offset = offsetState;
         while (true){
             List<Map<String, Object>> list = skillsOpenApi.page(departmentId,fromPageIndex, pageSize);
             if (Checker.isEmpty(list) || list.isEmpty()) break;
@@ -71,11 +74,11 @@ public class SkillsSchema implements SchemaLoader {
                 long referenceTime = System.currentTimeMillis();
                 if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                     referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
-                    ((ZoHoOffset) offsetState).getTableUpdateTimeMap().put(tableName, referenceTime);
+                    ((ZoHoOffset) offset).getTableUpdateTimeMap().put(tableName, referenceTime);
                 }
                 events[0].add(( TapSimplify.insertRecordEvent(oneProduct, tableName).referenceTime(referenceTime) ));
                 if (events[0].size() != readSize) return;
-                consumer.accept(events[0], offsetState);
+                consumer.accept(events[0], offset);
                 events[0] = new ArrayList<>();
             });
         }

@@ -26,14 +26,12 @@ import io.tapdata.zoho.entity.webHook.WebHookEvent;
 import io.tapdata.zoho.service.commandMode.CommandMode;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.service.zoho.loader.TicketLoader;
-import io.tapdata.zoho.service.zoho.loader.TokenLoader;
 import io.tapdata.zoho.service.zoho.loader.ZoHoConnectionTest;
 import io.tapdata.zoho.service.zoho.loader.ZoHoStarter;
 import io.tapdata.zoho.service.zoho.schema.Schema;
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.service.zoho.schemaLoader.SchemaLoader;
 import io.tapdata.zoho.utils.Checker;
-import io.tapdata.zoho.utils.ZoHoString;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -136,7 +134,7 @@ public class ZoHoConnector extends ConnectorBase {
 		List<TapEvent> events = new ArrayList<>();
 		for (SchemaLoader loader : loaders) {
 			if (Checker.isEmpty(loader)) continue;
-			//events.addAll(loader.rawDataCallbackFilterFunction(eventData));
+			//events.addAll(loader.configSchema(connectorContext).rawDataCallbackFilterFunction(eventData));
 		}
 		return Checker.isEmpty(events) || events.isEmpty()?null:events;
 	}
@@ -239,7 +237,9 @@ public class ZoHoConnector extends ConnectorBase {
 
 	private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long time) {
 		long date = time != null ? time: System.currentTimeMillis();
-		return ZoHoOffset.create(new HashMap<String,Long>(){{put("Tickets", date);}});
+		List<Schema> schemas = Schemas.allSupportSchemas();
+		if (Checker.isEmpty(schemas) || schemas.isEmpty()) return ZoHoOffset.create(new HashMap<String,Long>());
+		return ZoHoOffset.create(new HashMap<String,Long>(){{schemas.forEach(schema -> put(schema.schemaName(), date));}});
 	}
 
 	@Override
@@ -276,6 +276,7 @@ public class ZoHoConnector extends ConnectorBase {
 			Object offset,
 			int batchCount,
 			BiConsumer<List<TapEvent>, Object> consumer) {
+		//if (Checker.isEmpty(offset)) offset = ZoHoOffset.create(new HashMap<>());
 //		TokenLoader.create(connectorContext).addTokenToStateMap();
 //		Long readEnd = System.currentTimeMillis();
 //		ZoHoOffset zoHoOffset =  new ZoHoOffset();
@@ -283,7 +284,7 @@ public class ZoHoConnector extends ConnectorBase {
 //		zoHoOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
 //		this.read(connectorContext,batchCount,zoHoOffset,consumer,table.getId());
 		if (Checker.isEmpty(table) || Checker.isEmpty(connectorContext)) return ;
-		SchemaLoader loader = SchemaLoader.loader(table.getId(),connectorContext);
+		SchemaLoader loader = SchemaLoader.loader(table.getId(),connectorContext).configSchema(connectorContext);
 		if (Checker.isNotEmpty(loader)){
 			loader.batchRead(offset,batchCount,consumer);
 		}
@@ -294,7 +295,7 @@ public class ZoHoConnector extends ConnectorBase {
 		if (Checker.isEmpty(tapTable) || Checker.isEmpty(tapConnectorContext)) return 0;
 		SchemaLoader loader = SchemaLoader.loader(tapTable.getId(),tapConnectorContext);
 		if (Checker.isNotEmpty(loader)){
-			return loader.batchCount();
+			return loader.configSchema(tapConnectorContext).batchCount();
 		}
 		return 0;
 	}

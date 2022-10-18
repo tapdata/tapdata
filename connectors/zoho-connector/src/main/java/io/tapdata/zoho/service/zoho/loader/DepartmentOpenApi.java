@@ -81,7 +81,7 @@ public class DepartmentOpenApi extends ZoHoStarter implements ZoHoBase {
         if (Checker.isEmpty(from) || from < MIN_FROM) from = MIN_FROM;
         if (Checker.isEmpty(limit) || limit < MIN_PAGE_LIMIT || limit > MAX_PAGE_LIMIT) limit = DEFAULT_PAGE_LIMIT;
         HttpEntity<String,Object> form = HttpEntity.create();
-        form.build("form",form).build("limit",limit);
+        form.build("from",from).build("limit",limit);
         if (Checker.isNotEmpty(searchStr)){
             form.build("searchStr",searchStr);
         }

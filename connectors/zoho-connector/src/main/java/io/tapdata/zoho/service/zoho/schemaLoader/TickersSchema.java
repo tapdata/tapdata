@@ -132,6 +132,8 @@ public class TickersSchema implements SchemaLoader {
             List<Map<String, Object>> list = ticketLoader.list(tickPageParam);
             if (Checker.isEmpty(list) || list.isEmpty()) break;
             fromPageIndex += pageSize;
+            if (Checker.isEmpty(offsetState)) offsetState = ZoHoOffset.create(new HashMap<>());
+            final Object offset = offsetState;
             list.stream().forEach(ticket->{
                 Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,tableName,ticketLoader);
                 if (Checker.isEmpty(oneTicket) || oneTicket.isEmpty()) return;
@@ -139,11 +141,11 @@ public class TickersSchema implements SchemaLoader {
                 long referenceTime = System.currentTimeMillis();
                 if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                     referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
-                    ((ZoHoOffset) offsetState).getTableUpdateTimeMap().put(tableName, referenceTime);
+                    ((ZoHoOffset) offset).getTableUpdateTimeMap().put(tableName, referenceTime);
                 }
                 events[0].add(TapSimplify.insertRecordEvent(oneTicket,tableName).referenceTime(referenceTime));
                 if (events[0].size() != readSize) return;
-                consumer.accept(events[0], offsetState);
+                consumer.accept(events[0], offset);
                 events[0] = new ArrayList<>();
             });
         }

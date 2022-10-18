@@ -13,6 +13,7 @@ import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -59,6 +60,7 @@ public class DepartmentsSchema implements SchemaLoader {
                         long referenceTime = System.currentTimeMillis();
                         if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                             referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
+                            if (Checker.isEmpty(offset)) offset = ZoHoOffset.create(new HashMap<>());
                             ((ZoHoOffset) offset).getTableUpdateTimeMap().put(table, referenceTime);
                         }
                         events[0].add(TapSimplify.insertRecordEvent(department, table).referenceTime(referenceTime));

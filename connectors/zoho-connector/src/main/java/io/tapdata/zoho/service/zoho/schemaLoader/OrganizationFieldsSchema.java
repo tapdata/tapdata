@@ -14,6 +14,7 @@ import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -47,6 +48,7 @@ public class OrganizationFieldsSchema implements SchemaLoader {
             throw new CoreException("Connection Mode is not empty or not null.");
         }
         String table = Schemas.Departments.getTableName();
+        if (Checker.isEmpty(offset)) offset = ZoHoOffset.create(new HashMap<>());
         List<Map<String, Object>> listDepartment = fieldLoader.list(ModuleEnums.TICKETS, null, null);//分页数
         if (Checker.isEmpty(listDepartment) || listDepartment.isEmpty()) return;
         for (Map<String, Object> stringObjectMap : listDepartment) {

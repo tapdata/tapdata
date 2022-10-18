@@ -182,6 +182,7 @@ public class ProxyController extends BaseController {
             subscribeDto.from(bais);
         } catch (IOException e) {
             response.sendError(SC_INTERNAL_SERVER_ERROR, "Deserialize token failed, " + e.getMessage());
+            TapLogger.info(TAG,FormatUtils.format("Deserialize token failed, key = {}",key));
             return;
         }
 //        Map<String, Object> claims = JWTUtils.getClaims(key, token);

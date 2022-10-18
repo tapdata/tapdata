@@ -13,6 +13,7 @@ import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -56,6 +57,8 @@ public class ProductsSchema implements SchemaLoader {
             throw new CoreException("Connection Mode is not empty or not null.");
         }
         String tableName =  Schemas.Products.getTableName();
+        if (Checker.isEmpty(offsetState)) offsetState = ZoHoOffset.create(new HashMap<>());
+        final Object offset = offsetState;
         while (true){
             List<Map<String, Object>> list = productsOpenApi.page(
                     fromPageIndex,
@@ -70,11 +73,11 @@ public class ProductsSchema implements SchemaLoader {
                         long referenceTime = System.currentTimeMillis();
                         if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                             referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
-                            ((ZoHoOffset) offsetState).getTableUpdateTimeMap().put(tableName, referenceTime);
+                            ((ZoHoOffset) offset).getTableUpdateTimeMap().put(tableName, referenceTime);
                         }
                         events[0].add(( TapSimplify.insertRecordEvent(oneProduct, tableName).referenceTime(referenceTime) ));
                         if (events[0].size() == readSize){
-                            consumer.accept(events[0], offsetState);
+                            consumer.accept(events[0], offset);
                             events[0] = new ArrayList<>();
                         }
                     }
