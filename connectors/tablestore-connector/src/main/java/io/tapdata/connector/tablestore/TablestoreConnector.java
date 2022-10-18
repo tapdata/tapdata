@@ -189,7 +189,9 @@ public class TablestoreConnector extends ConnectorBase {
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
         tablestoreConfig = new TablestoreConfig().load(connectionContext.getConnectionConfig());
         TestItem testConnect;
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
         try {
+            connectionOptions.connectionString(tablestoreConfig.getConnectionString());
             if ("NORMAL".equals(tablestoreConfig.getClientType())) {
                 SyncClient syncClient = createInternalClient();
                 syncClient.listTable();
@@ -204,13 +206,13 @@ public class TablestoreConnector extends ConnectorBase {
                 testConnect = testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Elasticsearch client ping failed!");
             }
             consumer.accept(testConnect);
-            return null;
+            return connectionOptions;
         } catch (Exception e) {
             testConnect = testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage());
         }
 
         consumer.accept(testConnect);
-        return null;
+        return connectionOptions;
     }
 
     @Override
