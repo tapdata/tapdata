@@ -1,6 +1,8 @@
 package io.tapdata.connector.custom;
 
 import io.tapdata.connector.custom.config.CustomConfig;
+import io.tapdata.constant.ConnectionTypeEnum;
+import io.tapdata.constant.SyncTypeEnum;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 
@@ -28,30 +30,30 @@ public class CustomTest {
     }
 
     private boolean validateScript(CustomConfig customConfig) {
-        switch (customConfig.get__connectionType()) {
-            case "source":
+        switch (ConnectionTypeEnum.fromValue(customConfig.get__connectionType())) {
+            case SOURCE:
                 return validateSourceScript(customConfig);
-            case "target":
+            case TARGET:
                 return validateTargetScript(customConfig);
-            case "source_and_target":
+            case SOURCE_AND_TARGET:
                 return validateSourceScript(customConfig) && validateTargetScript(customConfig);
         }
         return true;
     }
 
     private boolean validateSourceScript(CustomConfig customConfig) {
-        switch (customConfig.getSyncType()) {
-            case "initial_sync":
+        switch (SyncTypeEnum.fromValue(customConfig.getSyncType())) {
+            case INITIAL_SYNC:
                 if (EmptyKit.isBlank(customConfig.getHistoryScript())) {
                     return false;
                 }
                 break;
-            case "cdc":
+            case CDC:
                 if (EmptyKit.isBlank(customConfig.getCdcScript())) {
                     return false;
                 }
                 break;
-            case "initial_sync+cdc":
+            case INITIAL_SYNC_CDC:
                 if (EmptyKit.isBlank(customConfig.getHistoryScript()) || EmptyKit.isBlank(customConfig.getCdcScript())) {
                     return false;
                 }
