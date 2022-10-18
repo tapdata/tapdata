@@ -9,11 +9,14 @@ import com.tapdata.tm.task.bean.LogCollectorDetailVo;
 import com.tapdata.tm.task.bean.LogCollectorEditVo;
 import com.tapdata.tm.task.bean.LogCollectorVo;
 import com.tapdata.tm.task.bean.LogSystemConfigDto;
+import com.tapdata.tm.task.service.LogCollectorExtendService;
 import com.tapdata.tm.task.service.LogCollectorService;
+import com.tapdata.tm.task.vo.LogCollectorRelateTaskVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -30,10 +33,10 @@ import java.util.Map;
 @Tag(name = "LogCollector", description = "Task相关接口")
 @RestController
 @RequestMapping("/api/logcollector")
+@Setter(onMethod_ = {@Autowired})
 public class LogCollectorController extends BaseController {
-
-    @Autowired
     private LogCollectorService logCollectorService;
+    private LogCollectorExtendService logCollectorExtendService;
 
     /**
      *  查询挖掘任务列表
@@ -154,6 +157,16 @@ public class LogCollectorController extends BaseController {
                                                                      @RequestParam(value = "limit", required = false, defaultValue = "20") int limit)  {
         return  success(logCollectorService.findCallTableNames(taskId, callSubId, skip, limit, getLoginUser()));
     }
+
+    @GetMapping("/relate_tasks")
+    @Operation(summary = "共享挖掘关联的数据复制/开发任务列表")
+    public ResponseMessage<Page<LogCollectorRelateTaskVo>> getRelateTasks(@RequestParam String taskId,
+                                                                          @RequestParam String type,
+                                                                          @RequestParam(defaultValue = "1") Integer page,
+                                                                          @RequestParam(defaultValue = "20") Integer size) {
+        return success(logCollectorExtendService.getRelationTask(taskId, type, page, size));
+    }
+
 
 
 }
