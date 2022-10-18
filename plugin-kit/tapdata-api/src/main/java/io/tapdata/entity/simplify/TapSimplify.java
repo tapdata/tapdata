@@ -17,6 +17,7 @@ import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.*;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.utils.*;
 
 import java.io.PrintWriter;
@@ -30,6 +31,7 @@ import java.util.*;
 public class TapSimplify {
 	private static TapUtils tapUtils;
 	private static JsonParser jsonParser;
+	private static ScriptFactory scriptFactory;
 
 	public static void interval(Runnable runnable, int seconds) {
 		tapUtils().interval(runnable, seconds);
@@ -48,6 +50,12 @@ public class TapSimplify {
 		return jsonParser().fromJsonWithClass(json);
 	}
 
+	public static ScriptFactory scriptFactory() {
+		if(scriptFactory == null) {
+			scriptFactory = InstanceFactory.instance(ScriptFactory.class);
+		}
+		return scriptFactory;
+	}
 	public static JsonParser jsonParser() {
 		if(jsonParser == null) {
 			jsonParser = InstanceFactory.instance(JsonParser.class);

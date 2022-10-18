@@ -9,6 +9,8 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.*;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.script.ScriptFactory;
+import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.*;
 import io.tapdata.pdk.apis.TapConnector;
@@ -18,6 +20,7 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.utils.TypeConverter;
 
+import javax.script.ScriptEngine;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
@@ -92,6 +95,13 @@ public abstract class ConnectorBase implements TapConnector {
 
 	public static Object fromJson(String json) {
 		return TapSimplify.fromJson(json);
+	}
+
+	public static ScriptEngine createScriptEngine(String type, ScriptOptions scriptOptions) {
+		ScriptFactory factory = TapSimplify.scriptFactory();
+		if(factory != null)
+			return factory.create(type, scriptOptions);
+		return null;
 	}
 
 	public static DataMap fromJsonObject(String json) {
