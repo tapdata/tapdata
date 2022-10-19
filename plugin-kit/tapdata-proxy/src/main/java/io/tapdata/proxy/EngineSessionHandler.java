@@ -258,7 +258,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 				.kv("id", getId())
 				.kv("userChannel", getUserChannel())
 				.kv("isConnected", isChannelActive())
-				.kv("subscribeMap", subscribeMap.memory(keyRegex, memoryLevel))
+//				.kv("subscribeMap", subscribeMap.memory(keyRegex, memoryLevel))
 				.kv("cachedSubscribedIds", cachedSubscribedIds)
 				;
 		DataMap commandIdExecutorMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
