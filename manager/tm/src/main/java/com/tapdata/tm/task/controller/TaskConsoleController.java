@@ -5,9 +5,9 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.monitor.dto.TaskLogDto;
 import com.tapdata.tm.task.service.TaskConsoleService;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
+import com.tapdata.tm.task.service.TaskResetLogService;
 import com.tapdata.tm.task.vo.RelationTaskInfoVo;
 import com.tapdata.tm.task.vo.RelationTaskRequest;
-import com.tapdata.tm.task.service.TaskResetLogService;
 import com.tapdata.tm.task.vo.TaskDagCheckLogVo;
 import com.tapdata.tm.task.vo.TaskLogInfoVo;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,15 +15,12 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import javax.print.attribute.ResolutionSyntax;
-import java.util.List;
-
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
+import java.util.List;
 
 @Tag(name = "复制dag信息输出")
 @RestController
