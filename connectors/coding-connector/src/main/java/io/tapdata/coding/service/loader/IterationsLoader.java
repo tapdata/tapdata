@@ -332,7 +332,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         if (Checker.isEmpty(issueEvent)) return null;
         if (!TABLE_NAME.equals(issueEvent.getEventGroup())) return null;//拒绝处理非此表相关事件
 
-        String evenType = issueEvent.getEventType();
+        String eventType = issueEvent.getEventType();
         TapEvent event = null;
 
         Object iterationObj = issueEventData.get("iteration");
@@ -341,23 +341,23 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         }
         Map<String,Object> iteration = (Map<String, Object>)iterationObj;
 
-        Map<String, Object> schemaMap = SchemaStart.getSchemaByName(TABLE_NAME).autoSchema(iteration);
+        Map<String, Object> iterationMap = SchemaStart.getSchemaByName(TABLE_NAME).autoSchema(iteration);
 
-        Object referenceTimeObj = schemaMap.get("UpdatedAt");
+        Object referenceTimeObj = iterationMap.get("UpdatedAt");
         Long referenceTime = Checker.isEmpty(referenceTimeObj)?System.currentTimeMillis():(Long)referenceTimeObj;
 
-        switch (evenType){
+        switch (eventType){
             case DELETED_EVENT:{
-                event = TapSimplify.deleteDMLEvent(schemaMap, TABLE_NAME).referenceTime(referenceTime)  ;
+                event = TapSimplify.deleteDMLEvent(iterationMap, TABLE_NAME).referenceTime(referenceTime)  ;
             };break;
             case UPDATE_EVENT:{
-                event = TapSimplify.updateDMLEvent(null,schemaMap, TABLE_NAME).referenceTime(referenceTime) ;
+                event = TapSimplify.updateDMLEvent(null,iterationMap, TABLE_NAME).referenceTime(referenceTime) ;
             };break;
             case CREATED_EVENT:{
-                event = TapSimplify.insertRecordEvent(schemaMap, TABLE_NAME).referenceTime(referenceTime)  ;
+                event = TapSimplify.insertRecordEvent(iterationMap, TABLE_NAME).referenceTime(referenceTime)  ;
             };break;
         }
-
+        TapLogger.debug(TAG,"From WebHook coding completed a event [{}] for [{}] table: event data is - {}",eventType,TABLE_NAME,iterationMap);
         return Collections.singletonList(event);
     }
 
