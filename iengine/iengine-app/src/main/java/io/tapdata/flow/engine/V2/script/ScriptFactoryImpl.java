@@ -23,9 +23,7 @@ public class ScriptFactoryImpl implements ScriptFactory {
             Invocable invocable = (Invocable) engine;
             try {
                 invocable.invokeFunction("main", "hello");
-            } catch (ScriptException e) {
-                throw new RuntimeException(e);
-            } catch (NoSuchMethodException e) {
+            } catch (ScriptException | NoSuchMethodException e) {
                 throw new RuntimeException(e);
             }
         }

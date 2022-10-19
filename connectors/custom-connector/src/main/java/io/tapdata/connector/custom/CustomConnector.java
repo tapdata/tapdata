@@ -1,12 +1,25 @@
 package io.tapdata.connector.custom;
 
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.connector.custom.bean.CustomOffset;
 import io.tapdata.connector.custom.config.CustomConfig;
+import io.tapdata.connector.custom.core.Core;
+import io.tapdata.connector.custom.core.ScriptCore;
+import io.tapdata.connector.custom.util.CustomLog;
+import io.tapdata.connector.custom.util.ScriptUtil;
 import io.tapdata.constant.ConnectionTypeEnum;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.script.ScriptFactory;
+import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -15,37 +28,48 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
-import java.util.Collections;
-import java.util.List;
+import javax.script.ScriptEngine;
+import javax.script.ScriptException;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 @TapConnectorClass("spec_custom.json")
 public class CustomConnector extends ConnectorBase {
 
+    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class); //script factory
     private CustomConfig customConfig;
+    private ScriptEngine initScriptEngine;
 
-    private void initConnection(TapConnectionContext connectorContext) {
+    private void initConnection(TapConnectionContext connectorContext) throws ScriptException {
         customConfig = new CustomConfig().load(connectorContext.getConnectionConfig());
+        assert scriptFactory != null;
+        initScriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        initScriptEngine.eval(ScriptUtil.appendBeforeFunctionScript(customConfig.getCustomBeforeScript()) + "\n"
+                + ScriptUtil.appendAfterFunctionScript(customConfig.getCustomBeforeScript()));
+        initScriptEngine.put("log", new CustomLog());
     }
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
+        initConnection(connectionContext);
         if (customConfig.getCustomBeforeOpr()) {
-
+            ScriptUtil.executeScript(initScriptEngine, ScriptUtil.BEFORE_FUNCTION_NAME);
         }
     }
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        if (customConfig.getCustomAfterOpr()) {
-
+    public void onStop(TapConnectionContext connectionContext) {
+        if (EmptyKit.isNotNull(customConfig) && customConfig.getCustomAfterOpr()) {
+            ScriptUtil.executeScript(initScriptEngine, ScriptUtil.AFTER_FUNCTION_NAME);
         }
     }
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         connectorFunctions.supportWriteRecord(this::writeRecord);
+        connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchRead);
     }
 
@@ -61,7 +85,7 @@ public class CustomConnector extends ConnectorBase {
         CustomTest customTest = new CustomTest(customConfig);
         TestItem testScript = customTest.testScript();
         consumer.accept(testScript);
-        if (!ConnectionTypeEnum.TARGET.getType().equals(customConfig.get__connectionType()) && (testScript.getResult() == TestItem.RESULT_FAILED)) {
+        if (!ConnectionTypeEnum.TARGET.getType().equals(customConfig.get__connectionType()) && (testScript.getResult() != TestItem.RESULT_FAILED)) {
             consumer.accept(customTest.testBuildSchema());
         }
         return ConnectionOptions.create().connectionString("Custom Connection: " +
@@ -73,12 +97,64 @@ public class CustomConnector extends ConnectorBase {
         return 1;
     }
 
-    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-
+    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws ScriptException {
+        assert scriptFactory != null;
+        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        scriptEngine.eval(ScriptUtil.appendTargetFunctionScript(customConfig.getTargetScript()));
+        scriptEngine.put("log", new CustomLog());
+        List<Map<String, Object>> data = new ArrayList<>();
+        WriteListResult<TapRecordEvent> result = new WriteListResult<>();
+        AtomicLong insert = new AtomicLong(0);
+        AtomicLong update = new AtomicLong(0);
+        AtomicLong delete = new AtomicLong(0);
+        for (TapRecordEvent event : tapRecordEvents) {
+            Map<String, Object> temp = new HashMap<>();
+            if (event instanceof TapInsertRecordEvent) {
+                temp.put("data", ((TapInsertRecordEvent) event).getAfter());
+                temp.put("op", Core.MESSAGE_OPERATION_INSERT);
+                insert.incrementAndGet();
+            } else if (event instanceof TapUpdateRecordEvent) {
+                temp.put("data", ((TapUpdateRecordEvent) event).getAfter());
+                temp.put("op", Core.MESSAGE_OPERATION_UPDATE);
+                update.incrementAndGet();
+            } else {
+                temp.put("data", ((TapDeleteRecordEvent) event).getBefore());
+                temp.put("op", Core.MESSAGE_OPERATION_DELETE);
+                delete.incrementAndGet();
+            }
+            temp.put("from", tapTable.getId());
+            data.add(temp);
+        }
+        ScriptUtil.executeScript(scriptEngine, ScriptUtil.TARGET_FUNCTION_NAME, data);
+        writeListResultConsumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
     }
 
-    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+        return 200;
+    }
 
+    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws ScriptException {
+        ScriptCore scriptCore = new ScriptCore(tapTable.getId(), eventBatchSize,
+                eventList -> eventsOffsetConsumer.accept(eventList, new CustomOffset()));
+        assert scriptFactory != null;
+        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getHistoryScript(), true));
+        scriptEngine.put("core", scriptCore);
+        scriptEngine.put("log", new CustomLog());
+        Runnable runnable = ScriptUtil.createScriptRunnable(scriptEngine, ScriptUtil.SOURCE_FUNCTION_NAME);
+        Thread t = new Thread(runnable);
+        t.start();
+        while (isAlive()) {
+            if (t.isAlive()) {
+                TapSimplify.sleep(1000);
+            } else {
+                break;
+            }
+        }
+        if (t.isAlive()) {
+            t.stop();
+        }
+        scriptCore.pullAll();
     }
 
 }

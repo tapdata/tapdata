@@ -16,12 +16,12 @@ public class CustomConfig implements Serializable {
     private String syncType = "initial_sync";
     private String jsEngineName = "graal.js";
     private Boolean customBeforeOpr;
-    private String customBeforeScript;
-    private String targetScript;
-    private String cdcScript;
-    private String historyScript;
+    private String customBeforeScript = "";
+    private String targetScript = "";
+    private String cdcScript = "";
+    private String historyScript = "";
     private Boolean customAfterOpr;
-    private String customAfterScript;
+    private String customAfterScript = "";
 
     public CustomConfig load(Map<String, Object> map) {
         assert beanUtils != null;
