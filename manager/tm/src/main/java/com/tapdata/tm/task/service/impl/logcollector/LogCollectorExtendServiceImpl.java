@@ -56,6 +56,7 @@ public class LogCollectorExtendServiceImpl implements LogCollectorExtendService 
         for (TaskDto dto : taskDtos) {
             LogCollectorRelateTaskVo build = LogCollectorRelateTaskVo.builder().taskId(dto.getId().toHexString())
                     .name(dto.getName()).type(dto.getType()).status(dto.getStatus()).creatTime(dto.getCreateAt().getTime())
+                    .syncType(dto.getSyncType())
                     .build();
             list.add(build);
         }

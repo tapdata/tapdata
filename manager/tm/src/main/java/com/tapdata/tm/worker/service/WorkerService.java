@@ -361,8 +361,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                     worker.setWeight(1);
                 }
                 long workNum = taskService.count(Query.query(Criteria.where("agentId").is(worker.getProcessId())
-                            .and("is_deleted").ne(true)
-                            .and("status").in(Lists.newArrayList(TaskDto.STATUS_RUNNING, TaskDto.STATUS_STOPPING, TaskDto.STATUS_ERROR))));
+                        .and("is_deleted").ne(true)
+                        .and("status").is(TaskDto.STATUS_RUNNING)));
+
                 worker.setRunningThread((int) workNum);
                 threadLog.add(new BasicDBObject()
                         .append("process_id", worker.getProcessId())

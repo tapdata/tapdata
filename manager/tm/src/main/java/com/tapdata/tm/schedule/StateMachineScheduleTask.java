@@ -114,7 +114,7 @@ public class StateMachineScheduleTask {
 				UserDetail userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
 				if (isCloud) {
 					String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetail);
-					if ("offline".equals(status)) {
+					if ("offline".equals(status) || "online".equals(status)) {
 						log.debug("The cloud version does not need this rescheduling");
 						return;
 					}
