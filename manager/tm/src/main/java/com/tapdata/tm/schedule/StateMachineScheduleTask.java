@@ -83,8 +83,10 @@ public class StateMachineScheduleTask {
 
 		//云版不需要这个重新调度的逻辑
 		Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
-		final boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
-
+		if (Objects.isNull(buildProfile)) {
+			buildProfile = "DAAS";
+		}
+		boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
 
 		Object jobHeartTimeout = settingsService.getValueByCategoryAndKey(CategoryEnum.JOB, KeyEnum.JOB_HEART_TIMEOUT);
 		if (jobHeartTimeout == null || Long.parseLong(jobHeartTimeout.toString()) <= 0){
@@ -107,7 +109,7 @@ public class StateMachineScheduleTask {
 				UserDetail userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
 				if (isCloud) {
 					String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetail);
-					if ("offline".equals(status)) {
+					if ("offline".equals(status) || "online".equals(status)) {
 						log.debug("The cloud version does not need this rescheduling");
 						return;
 					}

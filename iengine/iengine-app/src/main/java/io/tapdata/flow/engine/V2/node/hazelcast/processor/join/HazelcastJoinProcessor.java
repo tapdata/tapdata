@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor.join;
 
+import com.hazelcast.core.HazelcastInstance;
+import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.TapdataEvent;
@@ -88,6 +90,33 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		super.doInit(context);
 		this.context = context;
 		initNode();
+	}
+
+	public static void clearCache(Node<?> node) {
+		if (!(node instanceof JoinProcessorNode)) return;
+		String leftNodeId = ((JoinProcessorNode) node).getLeftNodeId();
+		String rightNodeId = ((JoinProcessorNode) node).getRightNodeId();
+		HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance();
+		String leftJoinCacheMapName = joinCacheMapName(leftNodeId, "leftJoinCache");
+		ConstructIMap<Map<String, Map<String, Object>>> leftJoinCache = new ConstructIMap<>(
+				hazelcastInstance,
+				leftJoinCacheMapName
+		);
+		try {
+			leftJoinCache.clear();
+		} catch (Exception e) {
+			throw new RuntimeException(String.format("Clear left join cache map occur an error: %s\n map name: %s", e.getMessage(), leftJoinCacheMapName), e);
+		}
+		String rightJoinCacheMapName = joinCacheMapName(rightNodeId, "rightCache");
+		ConstructIMap<Map<String, Map<String, Object>>> rightJoinCache = new ConstructIMap<>(
+				hazelcastInstance,
+				rightJoinCacheMapName
+		);
+		try {
+			rightJoinCache.clear();
+		} catch (Exception e) {
+			throw new RuntimeException(String.format("Clear right join cache map occur an error: %s\n map name: %s", e.getMessage(), rightJoinCacheMapName), e);
+		}
 	}
 
 	private void initNode() throws Exception {
@@ -277,7 +306,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		return deleteEvent;
 	}
 
-	private String joinCacheMapName(String leftNodeId, String name) {
+	private static String joinCacheMapName(String leftNodeId, String name) {
 		return leftNodeId + IMAP_NAME_DELIMITER + name;
 	}
 
