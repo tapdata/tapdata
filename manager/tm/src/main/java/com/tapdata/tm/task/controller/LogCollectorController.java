@@ -65,23 +65,6 @@ public class LogCollectorController extends BaseController {
         }
     }
 
-//    /** 根据连接名称模糊查询挖掘任务列表
-//     * @param connectionName 连接名称
-//     * @return 挖掘任务列表
-//     */
-//    @GetMapping("/byConnectionName/{connectionName}")
-//    @Operation(summary = "根据连接名称模糊查询挖掘任务列表")
-//    public ResponseMessage<Page<LogCollectorVo>> findByConnectionName(@PathVariable("connectionName") String connectionName,
-//                                                                      @RequestParam(value = "skip", required = false, defaultValue = "0") int skip,
-//                                                                      @RequestParam(value = "limit", required = false, defaultValue = "20") int limit)  {
-//        return success(logCollectorService.findByConnectionName(",", connectionName, getLoginUser(), skip, limit));
-//    }
-
-    /**
-     * 更新挖掘任务
-     * @param logCollectorEditVo
-     * @return
-     */
     @PatchMapping("{id}")
     @Operation(summary = "更新挖掘任务")
     public ResponseMessage<Void> update(@PathVariable("id") String id, @RequestBody LogCollectorEditVo logCollectorEditVo) {
@@ -111,18 +94,6 @@ public class LogCollectorController extends BaseController {
     public ResponseMessage<List<LogCollectorVo>> findByTaskId(@PathVariable("taskId")String taskId) {
         return success(logCollectorService.findByTaskId(taskId, getLoginUser()));
     }
-
-//    /**
-//     *  通过同步子任务查询被用到的挖掘任务列表
-//     * @param subTaskId 任务id
-//     * @return 挖掘任务列表
-//     */
-//    @GetMapping("/bySubTaskId/{subTaskId}")
-//    @Operation(summary = "通过同步子任务查询被用到的挖掘任务列表")
-//    public ResponseMessage<List<LogCollectorVo>> findBySubTaskId(@PathVariable("subTaskId")String subTaskId) {
-//        return success(logCollectorService.findBySubTaskId(subTaskId, getLoginUser()));
-//    }
-
 
     @GetMapping("/system/config")
     public ResponseMessage<LogSystemConfigDto> findSystemConfig() {

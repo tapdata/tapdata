@@ -41,7 +41,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
             getLogCollector(connectionIds, result, request);
         } else if (RelationTaskRequest.type_shareCache.equals(request.getType())) {
             getShareCache(connectionIds, result, request);
-        } else if (RelationTaskRequest.type_inspect.equals(request.getType())) {
+        //} else if (RelationTaskRequest.type_inspect.equals(request.getType())) {
         } else {
             getLogCollector(connectionIds, result, request);
             getShareCache(connectionIds, result, request);
