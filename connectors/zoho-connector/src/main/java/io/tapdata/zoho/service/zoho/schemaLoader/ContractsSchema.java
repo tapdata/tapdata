@@ -2,13 +2,10 @@ package io.tapdata.zoho.service.zoho.schemaLoader;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.zoho.entity.ContextConfig;
 import io.tapdata.zoho.entity.ZoHoOffset;
-import io.tapdata.zoho.entity.webHook.EventBaseEntity;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.service.zoho.loader.ContractsOpenApi;
 import io.tapdata.zoho.service.zoho.schema.Schemas;

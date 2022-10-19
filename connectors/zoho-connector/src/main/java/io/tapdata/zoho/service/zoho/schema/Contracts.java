@@ -75,8 +75,8 @@ public class Contracts implements Schema {
                             .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("associatedSLAId","StringMinor"))
                             .add(field("modifiedTime","StringMinor"))
-                            .add(field("product","Map"))//@TODO
-                            .add(field("cf","StringMinor"))//@Todo
+                            .add(field("product","Map"))
+                            .add(field("cf","Map"))
                             .add(field("productId","StringMinor"))
                             .add(field("endDate","StringMinor"))
                             .add(field("departmentId","StringMinor"))
@@ -108,7 +108,7 @@ public class Contracts implements Schema {
                             .add(field("associatedSLAId","StringMinor"))
                             .add(field("modifiedTime","StringMinor"))
                             //.add(field("product","Map"))//@TODO
-                            .add(field("cf","Map"))// TODO
+                            .add(field("cf","StringMinor"))// TODO
                             .add(field("productId","StringMinor"))
                             .add(field("endDate","StringMinor"))
                             .add(field("departmentId","StringMinor"))

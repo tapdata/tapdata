@@ -2,7 +2,6 @@ package io.tapdata.zoho;
 
 
 import cn.hutool.core.date.DateUtil;
-import com.sun.org.apache.xerces.internal.impl.xs.SchemaSymbols;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
@@ -21,8 +20,8 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.zoho.entity.ContextConfig;
 import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.ZoHoOffset;
-import io.tapdata.zoho.entity.webHook.EventBaseEntity;
-import io.tapdata.zoho.entity.webHook.WebHookEvent;
+import io.tapdata.zoho.service.zoho.webHook.EventBaseEntity;
+import io.tapdata.zoho.service.zoho.webHook.WebHookEvent;
 import io.tapdata.zoho.service.commandMode.CommandMode;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.service.zoho.loader.TicketLoader;

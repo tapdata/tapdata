@@ -1,10 +1,8 @@
-package io.tapdata.zoho.entity.webHook.doMain;
+package io.tapdata.zoho.service.zoho.webHook.doMain;
 
-import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.bean.copier.CopyOptions;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
-import io.tapdata.zoho.entity.webHook.EventBaseEntity;
+import io.tapdata.zoho.service.zoho.webHook.EventBaseEntity;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.service.connectionMode.impl.CSVMode;
 

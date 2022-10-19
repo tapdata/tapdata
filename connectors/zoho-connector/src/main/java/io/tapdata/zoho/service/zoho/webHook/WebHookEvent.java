@@ -1,4 +1,4 @@
-package io.tapdata.zoho.entity.webHook;
+package io.tapdata.zoho.service.zoho.webHook;
 
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 
