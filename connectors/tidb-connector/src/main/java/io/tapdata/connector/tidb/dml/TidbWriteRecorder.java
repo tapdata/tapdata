@@ -114,8 +114,8 @@ public class TidbWriteRecorder extends WriteRecorder {
                         before.keySet().stream().map(k ->k + "=?").collect(Collectors.joining(" AND ")));
             } else {
                 preparedStatement = connection.prepareStatement("UPDATE " +"`"+  schema + "`" +"." + "`"+tapTable.getId()+"`" +" SET " +
-                        after.keySet().stream().map(k -> "" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
-                        before.keySet().stream().map(k ->  k + "=? OR (" + k + " IS NULL AND ? IS NULL))")
+                        after.keySet().stream().map(k -> k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        before.keySet().stream().map(k -> "("+ k + "=? OR (" + k + " IS NULL AND ? IS NULL))")
                                 .collect(Collectors.joining(" AND ")));
             }
         }

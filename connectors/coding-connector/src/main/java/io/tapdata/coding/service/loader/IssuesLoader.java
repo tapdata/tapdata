@@ -471,11 +471,11 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             if (Checker.isEmptyCollection(issueDetail)){
                 return null;
             }
-            String modeName = this.tapConnectionContext.getConnectionConfig().getString("connectionMode");
-            ConnectionMode instance = ConnectionMode.getInstanceByName(this.tapConnectionContext, modeName);
-            if (null == instance){
-                throw new CoreException("Connection Mode is not empty or not null.");
-            }
+//            String modeName = this.tapConnectionContext.getConnectionConfig().getString("connectionMode");
+//            ConnectionMode instance = ConnectionMode.getInstanceByName(this.tapConnectionContext, modeName);
+//            if (null == instance){
+//                throw new CoreException("Connection Mode is not empty or not null.");
+//            }
             //if (instance instanceof CSVMode) {
             //    issueDetail = instance.attributeAssignment(issueDetail);
             //}else {
@@ -484,8 +484,9 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         switch (eventType){
             case DELETED_EVENT:{
                 issueDetail = (Map<String, Object>) issueObj;
-                issueDetail.put("teamName",this.contextConfig.getTeamName());
-                issueDetail.put("projectName",this.contextConfig.getProjectName());
+                this.composeIssue(this.contextConfig.getProjectName(), this.contextConfig.getTeamName(), issueDetail);
+//                issueDetail.put("teamName",this.contextConfig.getTeamName());
+//                issueDetail.put("projectName",this.contextConfig.getProjectName());
                 event = TapSimplify.deleteDMLEvent(issueDetail, TABLE_NAME).referenceTime(referenceTime)  ;
             }break;
             case UPDATE_EVENT:{
