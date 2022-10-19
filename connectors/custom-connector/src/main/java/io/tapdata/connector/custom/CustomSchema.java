@@ -2,7 +2,7 @@ package io.tapdata.connector.custom;
 
 import io.tapdata.connector.custom.config.CustomConfig;
 import io.tapdata.connector.custom.core.LoadSchemaCore;
-import io.tapdata.connector.custom.exception.StopException;
+import io.tapdata.connector.custom.util.CustomLog;
 import io.tapdata.connector.custom.util.ScriptUtil;
 import io.tapdata.constant.SyncTypeEnum;
 import io.tapdata.entity.logger.TapLogger;
@@ -15,7 +15,6 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.kit.EmptyKit;
 import org.apache.commons.lang3.StringUtils;
 
-import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import java.util.HashMap;
@@ -63,16 +62,13 @@ public class CustomSchema {
             ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
             scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(script, false));
             scriptEngine.put("core", core);
-            Thread t = new Thread(createScriptRunnable(scriptEngine));
+            scriptEngine.put("log", new CustomLog());
+            Thread t = new Thread(ScriptUtil.createScriptRunnable(scriptEngine, ScriptUtil.SOURCE_FUNCTION_NAME));
             TapLogger.info(TAG, "Running script, try to get data and build schema. \n {}", script);
             t.start();
             int time = 0;
             while (time < LOAD_SCHEMA_RETRY_TIME) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    // do nothing
-                }
+                TapSimplify.sleep(1000);
                 if (EmptyKit.isNotEmpty(core.getData())) {
                     Map<String, Object> data = core.getData();
                     data.forEach((k, v) -> {
@@ -103,22 +99,5 @@ public class CustomSchema {
             }
         }
         return tapTable;
-    }
-
-    private Runnable createScriptRunnable(ScriptEngine scriptEngine) {
-        if (scriptEngine != null) {
-            return () -> {
-                Invocable invocable = (Invocable) scriptEngine;
-                try {
-                    invocable.invokeFunction(ScriptUtil.SOURCE_FUNCTION_NAME, new HashMap<>());
-                } catch (StopException e) {
-                    TapLogger.info(TAG, "Get data and stop script.");
-                } catch (ScriptException | NoSuchMethodException | RuntimeException e) {
-                    TapLogger.error(TAG, "Run script error when load schema, message: {}", e.getMessage(), e);
-                }
-            };
-        } else {
-            return null;
-        }
     }
 }
