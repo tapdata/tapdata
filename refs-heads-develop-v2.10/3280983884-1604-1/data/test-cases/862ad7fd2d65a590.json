@@ -1,0 +1,145 @@
+{
+  "uid" : "862ad7fd2d65a590",
+  "name" : "rename column in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_rename_sync",
+  "historyId" : "4e70ff02fc8f0e6b5867676cc9ee7a1d",
+  "time" : {
+    "start" : 1666178082201,
+    "stop" : 1666178082216,
+    "duration" : 15
+  },
+  "status" : "broken",
+  "statusMessage" : "NameError: name 'source_name' is not defined",
+  "statusTrace" : "self = <test.test_pipeline.TestPipeline object at 0x7f34ad711a50>\n\n    @allure.title(\"rename column in sync\")\n    def test_rename_sync(self):\n        ori_name = \"test\"\n        new_name = \"test_rename\"\n        p = make_new_pipeline(f\"rename_sync_{random_str()}\")\n        p.dag.jobType = JobType.sync\n>       p1 = p.readFrom(f\"{source_name}.test\")\nE       NameError: name 'source_name' is not defined\n\ntest_pipeline.py:115: NameError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "7006c98f3114"
+  }, {
+    "name" : "thread",
+    "value" : "884-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Test defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 9,
+        "skipped" : 0,
+        "passed" : 0,
+        "unknown" : 0,
+        "total" : 9
+      },
+      "items" : [ {
+        "uid" : "7131ecdc08a983a9",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666173287455,
+          "stop" : 1666173287463,
+          "duration" : 8
+        }
+      }, {
+        "uid" : "a51c17dc6b1fb919",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666171799734,
+          "stop" : 1666171799747,
+          "duration" : 13
+        }
+      }, {
+        "uid" : "543a1a31f77df596",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666169830734,
+          "stop" : 1666169830744,
+          "duration" : 10
+        }
+      }, {
+        "uid" : "59bfac3e2b5b72e6",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666167304099,
+          "stop" : 1666167304110,
+          "duration" : 11
+        }
+      }, {
+        "uid" : "a6da96c5d1283b08",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666148945067,
+          "stop" : 1666148945092,
+          "duration" : 25
+        }
+      }, {
+        "uid" : "5dc33e11d56f6b82",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666108094164,
+          "stop" : 1666108094175,
+          "duration" : 11
+        }
+      }, {
+        "uid" : "79c6e40c32fb270c",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666094834186,
+          "stop" : 1666094834197,
+          "duration" : 11
+        }
+      }, {
+        "uid" : "dfe60dd4847654ba",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666090871099,
+          "stop" : 1666090871108,
+          "duration" : 9
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "862ad7fd2d65a590.json",
+  "parameterValues" : [ ]
+}
