@@ -63,7 +63,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
             RelationTaskInfoVo logRelation = RelationTaskInfoVo.builder().id(task.getId().toHexString()).name(task.getName())
                     .status(task.getStatus())
                     .startTime(Objects.nonNull(task.getStartTime()) ? task.getStartTime().getTime() : null)
-                    .type(RelationTaskRequest.type_logCollector)
+                    .type(RelationTaskRequest.type_shareCache)
                     .build();
 
             result.add(logRelation);
