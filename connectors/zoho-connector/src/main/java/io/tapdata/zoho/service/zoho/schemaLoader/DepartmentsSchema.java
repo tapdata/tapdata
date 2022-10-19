@@ -33,11 +33,6 @@ public class DepartmentsSchema implements SchemaLoader {
     }
 
     @Override
-    public Object timestampToStreamOffset(Long time) {
-        return null;
-    }
-
-    @Override
     public void batchRead(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer) {
         final List<TapEvent>[] events = new List[]{new ArrayList<>()};
         int pageSize = Math.min(batchCount, departmentOpenApi.MAX_PAGE_LIMIT);

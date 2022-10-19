@@ -1,6 +1,5 @@
 package io.tapdata.zoho.service.zoho.schemaLoader;
 
-import cn.hutool.core.date.DateUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -20,7 +19,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 public class OrganizationFieldsSchema implements SchemaLoader {
-    private static final String TAG = TickersSchema.class.getSimpleName();
+    private static final String TAG = TicketsSchema.class.getSimpleName();
     private OrganizationFieldsOpenApi fieldLoader;
     @Override
     public SchemaLoader configSchema(TapConnectionContext tapConnectionContext) {
@@ -31,11 +30,6 @@ public class OrganizationFieldsSchema implements SchemaLoader {
     @Override
     public void streamRead(Object offsetState, int recordSize, StreamReadConsumer consumer) {
 
-    }
-
-    @Override
-    public Object timestampToStreamOffset(Long time) {
-        return null;
     }
 
     @Override

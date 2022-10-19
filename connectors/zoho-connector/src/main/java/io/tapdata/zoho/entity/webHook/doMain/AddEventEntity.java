@@ -3,6 +3,7 @@ package io.tapdata.zoho.entity.webHook.doMain;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.zoho.entity.webHook.EventBaseEntity;
+import io.tapdata.zoho.entity.webHook.WebHookEvent;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.service.connectionMode.impl.CSVMode;
 
@@ -25,5 +26,10 @@ public class AddEventEntity extends EventBaseEntity<AddEventEntity> {
                 instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.payload(),table):this.payload()
                 ,table)
                 .referenceTime(this.eventTime());
+    }
+
+    @Override
+    public String tapEventType() {
+        return "AddEvent";
     }
 }

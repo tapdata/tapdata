@@ -20,8 +20,6 @@ public interface SchemaLoader {
 
     public void streamRead(Object offsetState, int recordSize, StreamReadConsumer consumer );
 
-    public Object timestampToStreamOffset(Long time);
-
     public void batchRead(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer) ;
 
     public long batchCount() throws Throwable ;

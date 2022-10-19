@@ -33,10 +33,7 @@ import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.service.zoho.schemaLoader.SchemaLoader;
 import io.tapdata.zoho.utils.Checker;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -145,8 +142,8 @@ public class ZoHoConnector extends ConnectorBase {
 			return null;
 		}
 		Object listObj = eventData.get("array");
-		if (Checker.isEmpty(listObj) || !(listObj instanceof List)){
-			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
+		if (Checker.isEmpty(listObj) || !(listObj instanceof Collection)){
+			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty or not Collection, Data callback has been over.");
 			return null;
 		}
 		List<Map<String,Object>> dataEventList = (List<Map<String, Object>>)listObj;
@@ -175,6 +172,7 @@ public class ZoHoConnector extends ConnectorBase {
 				return;
 			}
 			events[0].add(instanceByEventType.outputTapEvent(table,instance));
+			TapLogger.debug(TAG,"From WebHook, ZoHo completed a event [{}] for [{}] table: event data is - {}",instanceByEventType.tapEventType(),table,eventMap);
 		});
 		return events[0].isEmpty()?null:events[0];
 	}
@@ -284,9 +282,9 @@ public class ZoHoConnector extends ConnectorBase {
 //		zoHoOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
 //		this.read(connectorContext,batchCount,zoHoOffset,consumer,table.getId());
 		if (Checker.isEmpty(table) || Checker.isEmpty(connectorContext)) return ;
-		SchemaLoader loader = SchemaLoader.loader(table.getId(),connectorContext).configSchema(connectorContext);
+		SchemaLoader loader = SchemaLoader.loader(table.getId(),connectorContext);
 		if (Checker.isNotEmpty(loader)){
-			loader.batchRead(offset,batchCount,consumer);
+			loader.configSchema(connectorContext).batchRead(offset,batchCount,consumer);
 		}
 	}
 

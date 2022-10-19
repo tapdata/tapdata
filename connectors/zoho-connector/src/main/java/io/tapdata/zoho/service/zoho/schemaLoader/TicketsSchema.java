@@ -1,15 +1,11 @@
 package io.tapdata.zoho.service.zoho.schemaLoader;
 
-import cn.hutool.core.date.DateUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.zoho.entity.ContextConfig;
 import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.ZoHoOffset;
@@ -25,14 +21,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class TickersSchema implements SchemaLoader {
-    private static final String TAG = TickersSchema.class.getSimpleName();
+public class TicketsSchema implements SchemaLoader {
+    private static final String TAG = TicketsSchema.class.getSimpleName();
     TicketLoader ticketLoader;
 
     private final long streamExecutionGap = 5000;//util: ms
     private int batchReadMaxPageSize = 100;//ZoHo ticket page size 1~100,
     @Override
-    public TickersSchema configSchema(TapConnectionContext context) {
+    public TicketsSchema configSchema(TapConnectionContext context) {
         this.ticketLoader = TicketLoader.create(context);
         return this;
     }
@@ -73,11 +69,6 @@ public class TickersSchema implements SchemaLoader {
     @Override
     public void streamRead(Object offsetState, int recordSize, StreamReadConsumer consumer) {
 
-    }
-
-    @Override
-    public Object timestampToStreamOffset(Long time) {
-        return null;
     }
 
     @Override

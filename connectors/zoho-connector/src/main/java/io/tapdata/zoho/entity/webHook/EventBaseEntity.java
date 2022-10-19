@@ -61,6 +61,7 @@ public abstract class EventBaseEntity<T> {
      * */
     public abstract TapEvent outputTapEvent(String table, ConnectionMode instance);
 
+    public abstract String tapEventType();
 
 
     public EventBaseEntity payload(Map<String,Object> payload){

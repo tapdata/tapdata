@@ -40,6 +40,12 @@ public class UpdateEventEntity extends EventBaseEntity<UpdateEventEntity> {
                 .referenceTime(this.eventTime());
     }
 
+
+    @Override
+    public String tapEventType() {
+        return "UpdateEvent";
+    }
+
     public Map<String, Object> getPrevState() {
         return prevState;
     }

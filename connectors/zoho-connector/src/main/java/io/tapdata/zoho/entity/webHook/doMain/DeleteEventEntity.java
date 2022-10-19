@@ -26,4 +26,9 @@ public class DeleteEventEntity extends EventBaseEntity<DeleteEventEntity> {
                 , table)
                 .referenceTime(this.eventTime());
     }
+
+    @Override
+    public String tapEventType() {
+        return "DeleteEvent";
+    }
 }

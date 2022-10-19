@@ -34,11 +34,6 @@ public class TicketAttachmentsSchema implements SchemaLoader {
     }
 
     @Override
-    public Object timestampToStreamOffset(Long time) {
-        return null;
-    }
-
-    @Override
     public void batchRead(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer) {
         this.read(batchCount,offset,consumer,Boolean.TRUE);
     }
