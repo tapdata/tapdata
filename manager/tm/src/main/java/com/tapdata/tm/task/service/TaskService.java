@@ -2603,8 +2603,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
 
-        Update update = Update.update("status", TaskDto.STATUS_RUNNING);
         Date now = DateUtil.date();
+        Update update = Update.update("status", TaskDto.STATUS_RUNNING)
+                .set("lastStartDate", now.getTime());
         if (taskDto.getStartTime() == null) {
             update.set("startTime", now);
         }
