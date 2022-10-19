@@ -7,7 +7,9 @@ import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
-import io.tapdata.connector.clickhouse.dml.ClickhouseWriter;
+import io.tapdata.connector.clickhouse.dml.ClickhouseBatchWriter;
+import io.tapdata.connector.clickhouse.dml.TapTableWriter;
+import io.tapdata.connector.clickhouse.util.JdbcUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -60,13 +62,20 @@ public class ClickhouseConnector extends ConnectorBase {
 
     private DDLSqlMaker ddlSqlMaker;
 
-    private ClickhouseWriter clickhouseWriter;
+    private final ClickhouseBatchWriter clickhouseWriter = new ClickhouseBatchWriter(TAG);
 
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
         initConnection(connectionContext);
         ddlSqlMaker = new ClickhouseDDLSqlMaker();
+        if (connectionContext instanceof TapConnectorContext) {
+            TapConnectorContext tapConnectorContext = (TapConnectorContext) connectionContext;
+            Optional.ofNullable(tapConnectorContext.getConnectorCapabilities()).ifPresent(connectorCapabilities -> {
+                Optional.ofNullable(connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY)).ifPresent(clickhouseWriter::setInsertPolicy);
+                Optional.ofNullable(connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY)).ifPresent(clickhouseWriter::setUpdatePolicy);
+            });
+        }
 
     }
 
@@ -80,7 +89,6 @@ public class ClickhouseConnector extends ConnectorBase {
         if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
             this.connectionTimezone = clickhouseJdbcContext.timezone();
         }
-        this.clickhouseWriter = new ClickhouseWriter(clickhouseJdbcContext);
     }
 
     @Override
@@ -142,7 +150,7 @@ public class ClickhouseConnector extends ConnectorBase {
         if (EmptyKit.isNotNull(clickhouseJdbcContext)) {
             clickhouseJdbcContext.finish(connectionContext.getId());
         }
-        Optional.ofNullable(this.clickhouseWriter).ifPresent(ClickhouseWriter::onDestroy);
+        JdbcUtil.closeQuietly(clickhouseWriter);
     }
 
     @Override
@@ -209,24 +217,34 @@ public class ClickhouseConnector extends ConnectorBase {
     }
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
-
         TapTable tapTable = tapCreateTableEvent.getTable();
+        StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ");
+        sql.append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId()));
+        sql.append("(").append(ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true));
+        sql.setLength(sql.length() - 1);
+        sql.append(") ENGINE = ReplacingMergeTree");
+
+        // 主键
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
-        String sql = "CREATE TABLE IF NOT EXISTS \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId() + "\"(" + ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true);
-        sql = sql.substring(0, sql.length() - 1) + ") ENGINE = MergeTree ";
         if (EmptyKit.isNotEmpty(primaryKeys)) {
-            sql += " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\")";
-        } else {
-            sql += " order by tuple()";
+            sql.append(" PRIMARY KEY (").append(TapTableWriter.sqlQuota(",", primaryKeys)).append(")");
         }
+
+        // 关联键排序
+        primaryKeys = tapTable.primaryKeys(false);
+        if (EmptyKit.isNotEmpty(primaryKeys)) {
+            sql.append(" ORDER BY (").append(TapTableWriter.sqlQuota(",", primaryKeys)).append(")");
+        } else {
+            sql.append(" ORDER BY tuple()");
+        }
+
         try {
             List<String> sqls = TapSimplify.list();
-            sqls.add(sql);
-            TapLogger.info("table 为:","table->{}",tapTable.getId());
+            sqls.add(sql.toString());
+            TapLogger.info("table 为:", "table->{}", tapTable.getId());
             clickhouseJdbcContext.batchExecute(sqls);
         } catch (Throwable e) {
-            e.printStackTrace();
-            throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage());
+            throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage(), e);
         }
     }
 
@@ -246,8 +264,17 @@ public class ClickhouseConnector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
-        WriteListResult<TapRecordEvent> writeListResult = this.clickhouseWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
+        WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>();
+        TapTableWriter instance = clickhouseWriter.partition(clickhouseJdbcContext, tapTable, this::isAlive);
+        for (TapRecordEvent event : tapRecordEvents) {
+            if (!isAlive()) {
+                throw new InterruptedException("node not alive");
+            }
+            instance.addBath(event, writeListResult);
+        }
+        instance.summit(writeListResult);
         consumer.accept(writeListResult);
+        instance.optimizeTable(); // 去除重复数据
     }
 
     //需要改写成ck的创建索引方式
@@ -257,8 +284,8 @@ public class ClickhouseConnector extends ConnectorBase {
             if (EmptyKit.isNotEmpty(createIndexEvent.getIndexList())) {
                 createIndexEvent.getIndexList().stream().filter(i -> !i.isPrimary()).forEach(i ->
                         sqls.add("CREATE " + (i.isUnique() ? "UNIQUE " : " ") + "INDEX " +
-                                (EmptyKit.isNotNull(i.getName()) ? "IF NOT EXISTS \"" + i.getName() + "\"" : "") + " ON \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId() + "\"(" +
-                                i.getIndexFields().stream().map(f -> "\"" + f.getName() + "\" " + (f.getFieldAsc() ? "ASC" : "DESC"))
+                                (EmptyKit.isNotNull(i.getName()) ? "IF NOT EXISTS " + TapTableWriter.sqlQuota(i.getName()) : "") + " ON " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId()) + "(" +
+                                i.getIndexFields().stream().map(f -> TapTableWriter.sqlQuota(f.getName()) + " " + (f.getFieldAsc() ? "ASC" : "DESC"))
                                         .collect(Collectors.joining(",")) + ')'));
             }
             clickhouseJdbcContext.batchExecute(sqls);
@@ -270,7 +297,7 @@ public class ClickhouseConnector extends ConnectorBase {
     }
 
     private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
-        String sql = "SELECT * FROM \"" + clickhouseConfig.getDatabase() + "\".\"" + table.getId() + "\" " + CommonSqlMaker.buildSqlByAdvanceFilter(filter);
+        String sql = "SELECT * FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), table.getId()) + " " + CommonSqlMaker.buildSqlByAdvanceFilter(filter);
         clickhouseJdbcContext.query(sql, resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet!=null && resultSet.next()) {
@@ -294,7 +321,7 @@ public class ClickhouseConnector extends ConnectorBase {
 
     // 不支持偏移量
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
-        String sql = "SELECT * FROM \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId()+"\"";
+        String sql = "SELECT * FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId());
         clickhouseJdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
             //get all column names
@@ -320,7 +347,7 @@ public class ClickhouseConnector extends ConnectorBase {
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         AtomicLong count = new AtomicLong(0);
-        String sql = "SELECT COUNT(1) FROM \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId() + "\"";
+        String sql = "SELECT COUNT(1) FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId());
         clickhouseJdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
         return count.get();
     }
@@ -328,7 +355,7 @@ public class ClickhouseConnector extends ConnectorBase {
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
             if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
-                clickhouseJdbcContext.execute("TRUNCATE TABLE \"" + clickhouseConfig.getDatabase() + "\".\"" + tapClearTableEvent.getTableId() + "\"");
+                clickhouseJdbcContext.execute("TRUNCATE TABLE " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapClearTableEvent.getTableId()));
             }
         } catch (Throwable e) {
             e.printStackTrace();
@@ -339,7 +366,7 @@ public class ClickhouseConnector extends ConnectorBase {
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
             if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() == 1) {
-                clickhouseJdbcContext.execute("DROP TABLE IF EXISTS \"" + clickhouseConfig.getDatabase() + "\".\"" + tapDropTableEvent.getTableId() + "\"");
+                clickhouseJdbcContext.execute("DROP TABLE IF EXISTS " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapDropTableEvent.getTableId()));
             }
         } catch (Throwable e) {
             e.printStackTrace();
