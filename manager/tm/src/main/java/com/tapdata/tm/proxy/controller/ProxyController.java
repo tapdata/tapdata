@@ -150,7 +150,7 @@ public class ProxyController extends BaseController {
 
     @GetMapping("callback/{token}")
     public void get(@PathVariable("token") String token, HttpServletRequest request, HttpServletResponse response){
-
+        System.out.println("ping...");
     }
 
     @Operation(summary = "External callback url")

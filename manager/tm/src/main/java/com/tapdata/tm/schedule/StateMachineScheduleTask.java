@@ -80,6 +80,12 @@ public class StateMachineScheduleTask {
 	@Scheduled(fixedDelay = 5 * 1000)
 	@SchedulerLock(name ="checkScheduledDataFlow", lockAtMostFor = "5s", lockAtLeastFor = "5s")
 	public void checkScheduledDataFlow() {
+
+		//云版不需要这个重新调度的逻辑
+		Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+		final boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+
+
 		Object jobHeartTimeout = settingsService.getValueByCategoryAndKey(CategoryEnum.JOB, KeyEnum.JOB_HEART_TIMEOUT);
 		if (jobHeartTimeout == null || Long.parseLong(jobHeartTimeout.toString()) <= 0){
 			log.warn("The setting of jobHeartTimeout must be greater than 0, jobHeartTimeout: {}", jobHeartTimeout);
@@ -96,8 +102,18 @@ public class StateMachineScheduleTask {
 		List<TaskDto> taskDtos = taskService.findAll(query);
 		taskDtos.forEach(taskDto -> {
 			try {
-				log.info("checkScheduledDataFlow start,dataFlowId: {}, status: {}", taskDto.getId().toHexString(), taskDto.getStatus());
+				//如果任务的agent掉线了，在云版环境是不能重新调度的，云版的agent与tm的网络环境不会很好，掉线是经常的事情。
+				//但是如果agent如果已经被删除了，是应该重新调度的。
 				UserDetail userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
+				if (isCloud) {
+					String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetail);
+					if ("offline".equals(status)) {
+						log.debug("The cloud version does not need this rescheduling");
+						return;
+					}
+				}
+
+				log.info("checkScheduledDataFlow start,dataFlowId: {}, status: {}", taskDto.getId().toHexString(), taskDto.getStatus());
 				if (taskDto.getRestartFlag()){
 					taskDto.setAgentId(null);
 					workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());
