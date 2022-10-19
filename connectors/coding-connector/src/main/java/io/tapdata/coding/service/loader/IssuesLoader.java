@@ -413,7 +413,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData) {
         CodingEvent issueEvent = this.getRowDataCallBackEvent(issueEventData);
         if (null == issueEvent || !TABLE_NAME.equals(issueEvent.getEventGroup())) return null;//拒绝处理非此表相关事件
-        String evenType = issueEvent.getEventType();
+        String eventType = issueEvent.getEventType();
         Object issueObj = issueEventData.get("issue");
         if (Checker.isEmpty(issueObj)) {
             TapLogger.debug(TAG, "An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
@@ -453,7 +453,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }
         Map<String, Object> issueDetail = issueMap;
         this.composeIssue(contextConfig.getProjectName(),contextConfig.getTeamName(),issueMap);
-        if (!DELETED_EVENT.equals(evenType)) {
+        if (!DELETED_EVENT.equals(eventType)) {
             HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", this.contextConfig.getToken());
             HttpEntity<String, Object> issueDetialBody = HttpEntity.create()
                     .builder("Action", "DescribeIssue")
@@ -470,21 +470,22 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             if (Checker.isEmptyCollection(issueDetail)){
                 return null;
             }
-            String modeName = this.tapConnectionContext.getConnectionConfig().getString("connectionMode");
-            ConnectionMode instance = ConnectionMode.getInstanceByName(this.tapConnectionContext, modeName);
-            if (null == instance){
-                throw new CoreException("Connection Mode is not empty or not null.");
-            }
+//            String modeName = this.tapConnectionContext.getConnectionConfig().getString("connectionMode");
+//            ConnectionMode instance = ConnectionMode.getInstanceByName(this.tapConnectionContext, modeName);
+//            if (null == instance){
+//                throw new CoreException("Connection Mode is not empty or not null.");
+//            }
             //if (instance instanceof CSVMode) {
             //    issueDetail = instance.attributeAssignment(issueDetail);
             //}else {
             //}
         }
-        switch (evenType){
+        switch (eventType){
             case DELETED_EVENT:{
                 issueDetail = (Map<String, Object>) issueObj;
-                issueDetail.put("teamName",this.contextConfig.getTeamName());
-                issueDetail.put("projectName",this.contextConfig.getProjectName());
+                this.composeIssue(this.contextConfig.getProjectName(), this.contextConfig.getTeamName(), issueDetail);
+//                issueDetail.put("teamName",this.contextConfig.getTeamName());
+//                issueDetail.put("projectName",this.contextConfig.getProjectName());
                 event = TapSimplify.deleteDMLEvent(issueDetail, TABLE_NAME).referenceTime(referenceTime)  ;
             }break;
             case UPDATE_EVENT:{
@@ -494,6 +495,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 event = TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(referenceTime)  ;
             }break;
         }
+        TapLogger.debug(TAG,"From WebHook coding completed a event [{}] for [{}] table: event data is - {}",eventType,TABLE_NAME,issueDetail);
         return Collections.singletonList(event);
     }
 
