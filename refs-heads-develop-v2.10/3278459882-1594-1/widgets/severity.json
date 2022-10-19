@@ -1,0 +1,191 @@
+[ {
+  "uid" : "5eb20ef2902a9c54",
+  "name" : "test get job status",
+  "time" : {
+    "start" : 1666148945272,
+    "stop" : 1666148945301,
+    "duration" : 29
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "26debf4da2e40ea6",
+  "name" : "config job",
+  "time" : {
+    "start" : 1666148945198,
+    "stop" : 1666148945212,
+    "duration" : 14
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "3277ff58b905d7a6",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1666148945102,
+    "stop" : 1666148945120,
+    "duration" : 18
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "a26ddd10d38e6d80",
+  "name" : "test_check",
+  "time" : {
+    "start" : 1666148945366,
+    "stop" : 1666148945383,
+    "duration" : 17
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "a6da96c5d1283b08",
+  "name" : "rename column in sync",
+  "time" : {
+    "start" : 1666148945067,
+    "stop" : 1666148945092,
+    "duration" : 25
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "a91f99fbbd434e83",
+  "name" : "create Kafka datasource with form",
+  "time" : {
+    "start" : 1666148944901,
+    "stop" : 1666148944901,
+    "duration" : 0
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "8d692b4fd4e25488",
+  "name" : "real time database migrate between mongodb",
+  "time" : {
+    "start" : 1666148944939,
+    "stop" : 1666148944974,
+    "duration" : 35
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "29276cb67e5ed569",
+  "name" : "test stop job",
+  "time" : {
+    "start" : 1666148945232,
+    "stop" : 1666148945247,
+    "duration" : 15
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "b1e3d88522dc677",
+  "name" : "filter column in sync",
+  "time" : {
+    "start" : 1666148945044,
+    "stop" : 1666148945058,
+    "duration" : 14
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "5d239cd34132a584",
+  "name" : "filter row in sync",
+  "time" : {
+    "start" : 1666148945016,
+    "stop" : 1666148945034,
+    "duration" : 18
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "d7038c2c3d218cbb",
+  "name" : "real time table sync between mongodb",
+  "time" : {
+    "start" : 1666148944983,
+    "stop" : 1666148944997,
+    "duration" : 14
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "dd51c627d6bc1965",
+  "name" : "create PG datasource with form",
+  "time" : {
+    "start" : 1666148934627,
+    "stop" : 1666148944893,
+    "duration" : 10266
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "1e27e679d4ce6ab9",
+  "name" : "test monitor job status",
+  "time" : {
+    "start" : 1666148945316,
+    "stop" : 1666148945338,
+    "duration" : 22
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "1e3bb58e2f460811",
+  "name" : "create mongodb datasource with uri",
+  "time" : {
+    "start" : 1666148919154,
+    "stop" : 1666148929427,
+    "duration" : 10273
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "55a70c7f92501111",
+  "name" : "create datasource with mongodb uri",
+  "time" : {
+    "start" : 1666148908160,
+    "stop" : 1666148913913,
+    "duration" : 5753
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "4e8b85deb030f712",
+  "name" : "test mysql form valid",
+  "time" : {
+    "start" : 1666148929433,
+    "stop" : 1666148934620,
+    "duration" : 5187
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "96cab9ee66f5d690",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1666148945160,
+    "stop" : 1666148945184,
+    "duration" : 24
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "137c7d9d2df36139",
+  "name" : "create mongodb datasource with form",
+  "time" : {
+    "start" : 1666148913978,
+    "stop" : 1666148919140,
+    "duration" : 5162
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "47a4424d9a7fcbdd",
+  "name" : "table merge in sync",
+  "time" : {
+    "start" : 1666148945129,
+    "stop" : 1666148945144,
+    "duration" : 15
+  },
+  "status" : "broken",
+  "severity" : "normal"
+} ]
