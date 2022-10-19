@@ -23,7 +23,7 @@ if [[ $_in_docker == "" ]]; then
 fi
 
 components=""
-all_components=("iengine" "manager" "plugin-kit" "connectors-common" "connectors")
+all_components=("plugin-kit" "connectors-common" "manager" "iengine" "connectors")
 package_all_components=("iengine" "manager")
 source_components=("plugin-kit" "connectors-common" "connectors" "tapshell" "build")
 output="package"

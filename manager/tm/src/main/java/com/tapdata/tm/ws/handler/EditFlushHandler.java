@@ -159,6 +159,16 @@ public class EditFlushHandler implements WebSocketHandler {
         }
     }
 
+    public static void sendEditFlushMessage(String taskId, Object data, String opType){
+        List<EditFlushCache> editFlushCaches = editFlushMap.get(taskId);
+        if (CollectionUtils.isEmpty(editFlushCaches)) {
+            return;
+        }
+        for (EditFlushCache cache : editFlushCaches) {
+            sendEditFlushMessage(cache.getReceiver(), taskId, data, opType);
+        }
+    }
+
 	public static void sendEditFlushMessage(String receiver, String taskId, Object data, String opType){
 
 		try {
