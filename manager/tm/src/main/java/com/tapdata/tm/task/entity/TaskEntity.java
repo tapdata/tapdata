@@ -159,6 +159,7 @@ public class TaskEntity extends BaseEntity {
      * 界面展示的任务开始时间
      */
     private Date startTime;
+    private Long lastStartDate;
     private Date stopTime;
 
     private HashSet<String> heartbeatTasks;
@@ -211,6 +212,7 @@ public class TaskEntity extends BaseEntity {
     private List<AlarmRuleDto> alarmRules;
 
     private Map<String, Object> logSetting;
+    private Integer resetTimes;
 
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";

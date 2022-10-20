@@ -156,9 +156,21 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @PostMapping("callback/{token}")
-    public void rawDataCallback(@PathVariable("token") String token, @RequestBody Map<String, Object> content, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if(content == null)
-            throw new BizException("content is illegal, " + null);
+    public void rawDataCallback(@PathVariable("token") String token, @RequestBody Object content, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if(content == null) {
+            response.sendError(SC_BAD_REQUEST, "content is illegal");
+            return;
+        }
+        if(!(content instanceof Collection) && !(content instanceof Map)) {
+            response.sendError(SC_BAD_REQUEST, "content must be collection or map");
+            return;
+        }
+        Map<String, Object> value = null;
+        if(content instanceof Collection) {
+            value = map(entry("array", content));
+        } else {
+            value = (Map<String, Object>) content;
+        }
         byte[] data = null;
         try {
             data = CommonUtils.decryptWithRC4(Base64.getUrlDecoder().decode(token.getBytes(StandardCharsets.US_ASCII)), ProxyService.KEY);
@@ -188,7 +200,7 @@ public class ProxyController extends BaseController {
 
         EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class, "sync");
         if(eventQueueService != null) {
-            MessageEntity message = new MessageEntity().content(content).time(new Date()).subscribeId(subscribeId).service(service);
+            MessageEntity message = new MessageEntity().content(value).time(new Date()).subscribeId(subscribeId).service(service);
             eventQueueService.offer(message);
         }
         response.setStatus(SC_OK);

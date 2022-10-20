@@ -21,7 +21,7 @@ import java.util.Map;
  */
 @Data
 public class TaskDto extends ParentTaskDto {
-    /** migrate迁移  logCollector 挖掘任务*/
+    /** migrate迁移  logColleshareCachector 挖掘任务*/
     public static final String SYNC_TYPE_SYNC = "sync";
     public static final String SYNC_TYPE_MIGRATE = "migrate";
     public static final String SYNC_TYPE_LOG_COLLECTOR = "logCollector";
@@ -97,6 +97,12 @@ public class TaskDto extends ParentTaskDto {
     /** 编辑中 待启动 */
     public static final String STATUS_WAIT_START = "wait_start";
 
+    public static final String STATUS_RENEWING = "renewing";
+    public static final String STATUS_DELETING = "deleting";
+    public static final String STATUS_RENEW_FAILED = "renew_failed";
+    public static final String STATUS_DELETE_FAILED = "delete_failed";
+
+
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)
     private DAG tempDag;
@@ -110,6 +116,8 @@ public class TaskDto extends ParentTaskDto {
 
     private List<AlarmSettingDto> alarmSettings;
     private List<AlarmRuleDto> alarmRules;
+
+    private Integer resetTimes;
 
     public DAG getDag() {
         if (dag != null) {
