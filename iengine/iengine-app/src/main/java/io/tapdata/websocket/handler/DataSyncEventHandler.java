@@ -29,11 +29,11 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastM
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
@@ -46,7 +46,6 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -149,7 +148,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 		databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
 		if (null == databaseType) return;
 		Connections finalConnections = connections;
-		PdkStateMap pdkStateMap = new PdkStateMap(node.getId(), HazelcastTaskService.getHazelcastInstance());
+		PdkStateMap pdkStateMap = new PdkStateMap(node.getId(), HazelcastTaskService.getHazelcastInstance(), PdkStateMap.StateMapMode.HTTP_TM);
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(HazelcastTaskService.getHazelcastInstance());
 		PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
 				databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
