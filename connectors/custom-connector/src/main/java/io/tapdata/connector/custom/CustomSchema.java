@@ -77,7 +77,11 @@ public class CustomSchema {
                         if (v == null) {
                             field.dataType("String");
                         } else {
-                            field.dataType(v.getClass().getSimpleName());
+                            if (v instanceof String && ((String) v).length() > 200) {
+                                field.dataType("Text");
+                            } else {
+                                field.dataType(v.getClass().getSimpleName());
+                            }
                         }
                         if (uniqueKeysMap.containsKey(k.trim())) {
                             field.setPrimaryKey(true);
