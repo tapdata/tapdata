@@ -52,8 +52,12 @@ public class AlarmContentTemplate {
 
     /**
      * 【Critical】任务[$taskName] 使用的源连接 [MySQL-Test]当前无法正常连接，请尽快处理！时间：2022-08-08 12:23:12
+     * 【Critical】任务[MySQL-2-Oracle] 使用的源连接 [MySQL-Test]当前无法正常连接，已持续5分钟，请尽快处理！时间：2022-08-08 12:23:12
+     * 【Recovery】任务[MySQL-2-Oracle] 使用的源连接 [MySQL-Test]已恢复正常连接。时间：2022-08-08 12:23:12
      */
     public static final String DATANODE_SOURCE_CANNOT_CONNECT = "任务[$taskName] 使用的源连接 [{0}]当前无法正常连接，请尽快处理！时间：{1}";
+    public static final String DATANODE_SOURCE_CANNOT_CONNECT_ALWAYS = "任务[$taskName] 使用的源连接 [{0}]当前无法正常连接，已持续{1}分钟，请尽快处理！时间：{2}";
+    public static final String DATANODE_SOURCE_CANNOT_CONNECT_RECOVER = "任务[$taskName] 使用的源连接 [{0}]已恢复正常连接。时间：{1}";
 
     /**
      * 【Warning】任务[MySQL-2-Oracle] 使用的源连接 [MySQL-Test]网络连接耗时超过阈值500ms，当前值：899ms，请关注！时间：2022-08-08 12:23:12
@@ -90,11 +94,6 @@ public class AlarmContentTemplate {
     public static final String PROCESSNODE_AVERAGE_HANDLE_CONSUME_START = "任务[$taskName]的处理节点[{0}]平均处理耗时超过阈值{1}ms，当前值：{2}ms，请关注！时间：{3}";
     public static final String PROCESSNODE_AVERAGE_HANDLE_CONSUME_ALWAYS = "任务[$taskName]的处理节点[{0}]平均处理耗时超过阈值{1}ms，已持续{2}分钟，当前值：{3}ms，请关注！时间：{4}";
     public static final String PROCESSNODE_AVERAGE_HANDLE_CONSUME_RECOVER = "任务[$taskName]的处理节点[{0}]平均处理耗时已恢复正常，当前值：{1}ms。时间：{2}";
-
-    /**
-     * 【Critical】任务[MySQL-2-Oracle] 使用的目标连接 [Oracle-Test]当前无法正常连接，请尽快处理！时间：2022-08-08 12:23:12
-     */
-    public static final String DATANODE_TARGET_CANNOT_CONNECT = "任务[$taskName] 使用的源连接 [{0}]当前无法正常连接，请尽快处理！时间：{1}";
 
     /**
      * 【Warning】任务[MySQL-2-Oracle] 使用的目标连接 [Oracle-Test]网络连接耗时超过阈值500ms，当前值：899ms，请关注！时间：2022-08-08 12:23:12
