@@ -180,7 +180,7 @@
       "projectName": "project name",
       "teamName": "Team name",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": "Generate Service URL",
 
       "iterationCodes": "Iteration",
       "issueType": "Issue Type",
@@ -225,7 +225,7 @@
       "projectName": "项目名称",
       "teamName": "团队名称",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": "生成服务 URL",
 
       "iterationCodes": "迭代",
       "issueType": "事项类型",
@@ -269,7 +269,7 @@
       "projectName": "項目名稱",
       "teamName": "團隊名稱",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": "生成服務URL",
 
       "iterationCodes": "迭代",
       "issueType": "事項类型",
