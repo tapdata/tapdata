@@ -18,13 +18,13 @@ public abstract class EventBaseEntity<T> {
     protected void config(Map<String, Object> issueEventData){
         if (Checker.isEmpty(issueEventData)) return;
         Object eventTime = issueEventData.get("eventTime");
-        this.eventTime(Checker.isEmpty(eventTime)?0:(Long)eventTime);
+        this.eventTime(Checker.isEmpty(eventTime)?0:Long.parseLong(String.valueOf(eventTime)));
 
         Object eventType = issueEventData.get("eventType");
         this.eventType(null == eventType?null:(String)eventType);
 
         Object orgId = issueEventData.get("orgId");
-        this.orgId(null == orgId?0:(Long)orgId);
+        this.orgId(null == orgId?0:Long.parseLong(String.valueOf(orgId)));
 
         Object payload = issueEventData.get("payload");
         this.payload(null == payload?null:(Map<String,Object>)payload);
@@ -41,7 +41,7 @@ public abstract class EventBaseEntity<T> {
             if (Checker.isEmpty(typeObj)) return null;
             WebHookEvent event = WebHookEvent.event((String) typeObj);
             if (Checker.isEmpty(event)) return null;
-            clz = Class.forName("io.tapdata.zoho.entity.webHook.doMain."+event.getTapEvent()+"Entity");
+            clz = Class.forName(EventBaseEntity.class.getPackage().getName()+".doMain."+event.getTapEvent()+"Entity");
             return (EventBaseEntity) ((EventBaseEntity)clz.newInstance()).event(issueEventData);
         } catch (ClassNotFoundException e) {
             TapLogger.debug(TAG,"Class not found | EventBaseEntity");

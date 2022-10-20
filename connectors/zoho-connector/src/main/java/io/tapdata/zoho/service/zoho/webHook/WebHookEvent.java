@@ -59,6 +59,7 @@ public enum  WebHookEvent {
     WebHookEvent(String type,String tapEvent,String eventTable){
         this.type = type;
         this.tapEvent = tapEvent;
+        this.eventTable = eventTable;
     }
 
     public String getType() {
