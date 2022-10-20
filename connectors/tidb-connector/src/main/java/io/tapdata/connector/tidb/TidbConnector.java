@@ -197,8 +197,10 @@ public class TidbConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         if (EmptyKit.isNotNull(tidbContext)) {
+            DataSourcePool.removeJdbcContext(tidbConfig);
             tidbContext.finish(connectionContext.getId());
         }
+
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
