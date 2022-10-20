@@ -9,6 +9,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -34,8 +35,8 @@ public class TaskResetSchedule {
     private UserService userService;
 
 
-    @Scheduled(fixedDelay = 10 * 1000)
-   // @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "10s", lockAtLeastFor = "60s")
+    @Scheduled(fixedDelay = 30 * 1000)
+    @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "15s", lockAtLeastFor = "15s")
     public void checkTaskReset() {
         checkNoResponseOp();
         resetRetry();
@@ -113,7 +114,7 @@ public class TaskResetSchedule {
         try {
             //查询重置删除失败的任务，并且重试次数少于3次
             Criteria criteria = Criteria.where("status").in(TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_DELETE_FAILED).and("is_deleted").ne(true)
-                    .orOperator(Criteria.where("resetTimes").exists(false), Criteria.where("resetTimes").lt(3));
+                    .orOperator(Criteria.where("resetTimes").exists(false), Criteria.where("resetTimes").lt(2));
             Query query = new Query(criteria);
             List<TaskDto> taskDtos = taskService.findAll(query);
             if (CollectionUtils.isEmpty(taskDtos)) {
