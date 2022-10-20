@@ -31,8 +31,8 @@ public class UpdateEventEntity extends EventBaseEntity<UpdateEventEntity> {
 
     @Override
     public TapEvent outputTapEvent(String table, ConnectionMode instance) {
-        return TapSimplify.updateDMLEvent(
-                instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.prevState,table):this.prevState,
+        return TapSimplify.insertRecordEvent(
+//                instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.prevState,table):this.prevState,
                 instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.payload(),table):this.payload(),
                 table)
                 .referenceTime(this.eventTime());
