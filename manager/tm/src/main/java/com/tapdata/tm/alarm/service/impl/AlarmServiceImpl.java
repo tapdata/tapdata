@@ -85,6 +85,7 @@ public class AlarmServiceImpl implements AlarmService {
             info.setId(one.getId());
             info.setTally(one.getTally() + 1);
             info.setLastUpdAt(date);
+            info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
             info.setLastOccurrenceTime(date);
 
             mongoTemplate.save(info);
@@ -208,7 +209,9 @@ public class AlarmServiceImpl implements AlarmService {
 
             CompletableFuture.runAsync(() -> sendMessage(info, taskDto));
 
-            CompletableFuture.runAsync(() -> sendMail(info, taskDto));
+            if (info.getLastNotifyTime() == null) {
+                CompletableFuture.runAsync(() -> sendMail(info, taskDto));
+            }
 
         });
 
@@ -483,10 +486,14 @@ public class AlarmServiceImpl implements AlarmService {
 
         Map<String, Milestone> collect = milestones.stream().collect(Collectors.toMap(Milestone::getCode, Function.identity(), (e1, e2) -> e1));
 
+        if (collect.isEmpty()) {
+            return;
+        }
+
         AlarmService alarmService = SpringUtil.getBean(AlarmService.class);
 
         String now = DateUtil.now();
-        if ("finish".equals(collect.get("WRITE_SNAPSHOT").getStatus())) {
+        if (Objects.nonNull(collect.get("WRITE_SNAPSHOT")) && "finish".equals(collect.get("WRITE_SNAPSHOT").getStatus())) {
             Milestone milestone = collect.get("WRITE_SNAPSHOT");
             String summary = MessageFormat.format(AlarmContentTemplate.TASK_FULL_COMPLETE, milestone.getEnd() - milestone.getStart(), now);
 
@@ -502,7 +509,7 @@ public class AlarmServiceImpl implements AlarmService {
             alarmService.save(alarmInfo);
         }
 
-        if ("running".equals(collect.get("WRITE_CDC_EVENT").getStatus())) {
+        if (Objects.nonNull(collect.get("WRITE_CDC_EVENT")) && "running".equals(collect.get("WRITE_CDC_EVENT").getStatus())) {
             String summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_START, now);
             Map<String, Object> param = Maps.newHashMap();
             param.put("cdcTime", now);

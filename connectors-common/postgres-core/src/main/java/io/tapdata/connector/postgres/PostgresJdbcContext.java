@@ -34,7 +34,7 @@ public class PostgresJdbcContext extends JdbcContext {
         try {
             queryWithNext("SHOW server_version_num", resultSet -> version.set(resultSet.getString(1)));
         } catch (Throwable e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
         return version.get();
     }

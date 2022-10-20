@@ -127,14 +127,14 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                 if (node.isDataNode()) {
                     if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
                         alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_CANNOT_CONNECT));
-                        alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
-                        alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
+                        //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
+                        //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
                         alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
                     }
 
                     if (CollectionUtils.isEmpty(node.getAlarmRules())) {
-                        alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
-                        alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
+                        //alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
+                        //alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
                         alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
                     }
 

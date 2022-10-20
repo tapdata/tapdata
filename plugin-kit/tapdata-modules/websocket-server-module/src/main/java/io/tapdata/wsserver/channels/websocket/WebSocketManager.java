@@ -43,7 +43,7 @@ public class WebSocketManager {
                         .childOption(ChannelOption.TCP_NODELAY, true).childHandler(initializer);
                 ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.ADVANCED);
                 bootstrap.bind(webSocketProperties.getPort()).sync();
-                TapLogger.info(TAG, "Websocket server started at port " + webSocketProperties.getPort());
+                TapLogger.debug(TAG, "Websocket server started at port " + webSocketProperties.getPort());
             } catch(Throwable throwable) {
                 throwable.printStackTrace();
                 throw new CoreException(NetErrors.WEBSOCKET_SERVER_START_FAILED, "Websocket server start failed, {}", throwable.getMessage());

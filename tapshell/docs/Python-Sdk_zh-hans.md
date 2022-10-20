@@ -2,6 +2,11 @@
 
 [English](https://github.com/tapdata/tapdata/tree/master/tapshell/docs/Python-Sdk.md)
 
+*适用版本*
+
+- tapshell / Python-Sdk: ^2.3.0
+- tapdata: ^2.9
+
 ## 安装
 
 1. 安装 python3.7、pip；
@@ -27,15 +32,9 @@ cli.init(server, access_code)
 
 ### 创建数据源
 
-目前sdk支持以下数据源的操作：
+使用Python sdk创建数据源，主要有两种模式，分别是form和uri模式
 
-- Mongo
-- Mysql
-- Postgres
-- Oracle
-- Kafka
-
-创建Mysql/Mongo/Postgres，通过以下方式：
+如uri模式创建MongoDB数据源：
 
 ```python
 from tapdata_cli import cli
@@ -46,7 +45,7 @@ mongo.uri("mongodb://localhost:8080")  # 数据源uri
 mongo.save()
 ```
 
-或者，通过以下方式：
+或者是form模式创建数据源：
 
 ```python
 from tapdata_cli import cli
@@ -57,30 +56,7 @@ mongo.type("source")  # 数据源类型，source -> 只可作为源，target -> 
 mongo.save()  # success -> True, Failure -> False
 ```
 
-创建Oracle数据源：
-
-```python
-from tapdata_cli import cli
-
-datasource_name = "ds_name"  # 数据源名称，自定义
-oracle = cli.Oracle(datasource_name)
-oracle.thinType("SERVICE_NAME")  # 连接方式 SID/SERVER_NAME (数据库/服务名)
-oracle.host("106.55.169.3").password("Gotapd8!").port("3521").schema("TAPDATA").db("TAPDATA").username("tapdata")
-oracle.save()
-```
-
-创建Kafka数据源：
-
-```python
-from tapdata_cli import cli
-
-database_name = "kafka_name"
-kafka = cli.Kafka(database_name)
-kafka.host("106.55.169.3").port("9092")
-kafka.save()
-```
-
-*关于Kafka/Oracle的创建方式存在异构，未来将以DataSource的方式提供统一的接口，同时向后兼容，不影响现有版本。*
+更多关于创建数据源的信息请查看[这个文件](https://github.com/tapdata/tapdata/blob/master/tapshell/docs/Param-Check_zh-hans.md)，可以获取更多接口。
 
 ### 数据源列表
 
@@ -105,9 +81,9 @@ cli.DataSource().list()
         "definitionGroup": "",
         "definitionPdkId": "",
         ...
-    }]
-}
-```
+        }]
+        }
+        ```
 
 ### 根据ID/name获取数据源信息
 
@@ -120,17 +96,28 @@ cli.DataSource(name="")  # 根据name获取数据源信息
 
 ## Pipeline
 
-### 一个简单的数据迁移任务
+### 数据迁移任务
 
 ```python
 from tapdata_cli import cli
 
 # 创建数据源
-source = cli.DataSource("mongodb", name="source").uri("").save()
-target = cli.DataSource("mongodb", name="target").uri("").save()
+cli.DataSource("mongodb", name="source").uri("").save()
+cli.DataSource("mongodb", name="target").uri("").save()
+
+# 创建source和target节点
+source = cli.Source("source")
+target = cli.Sink("target")
+
+# 默认复制所有表；
+# 如果想要自定义多张表，创建源节点时增加table字段
+# 如果想要筛选表，传入table_re字段进行正则匹配
+source = cli.Source("source", table=["table_1", "table_2", "table_3"], table_re="table_*")
+source.config({"migrateTableSelectType": "custom"})  # 更新 migrateTableSelectType配置: 从 all 到 custom
+
 # 创建Pipeline
 p = cli.Pipeline(name="example_job")
-p.readFrom("source").writeTo("target")
+p.readFrom(source).writeTo(target)
 # 启动
 p.start()
 # 停止
@@ -160,16 +147,17 @@ job.start() # success -> True, failure -> False
 ```python
 from tapdata_cli import cli
 
-source = cli.DataSource("mongodb", name="source").uri("").save()
-target = cli.DataSource("mongodb", name="target").uri("").save()
-p = cli.Pipeline(name="")
-p = p.readFrom("source.player") # source is db, player is table
-p.dag.jobType = cli.JobType.sync
-```
+cli.DataSource("mongodb", name="source").uri("").save()  # 创建源
+cli.DataSource("mongodb", name="target").uri("").save()  # 创建目标
+p = cli.Pipeline(name="sync_job", mode="sync")  # 设置模式为sync 或者可以沿用 p.dag.jobType = JobType.sync
+p.mode(cli.JobType.sync)  # 也可以通过这种方式来修改mode
 
-再进行具体的各种操作：
+# 读取节点
+p = p.readFrom("source.player") # source is db, player is table  # 快速选择方式 datasource.table
+p = p.readFrom(cli.Source("source", table="player", mode="sync"))  # 传入sync模式下源节点
 
-```python
+# 再进行具体的操作
+
 # filter cli.FilterType.keep (keep data) / cli.FilterType.delete (delete data)
 p = p.filter("id > 2", cli.FilterType.keep)
 
@@ -180,7 +168,7 @@ p = p.filterColumn(["name"], cli.FilterType.delete)
 p = p.rename("name", "player_name")
 
 # valueMap
-p = p.valueMap("position", 1) 
+p = p.valueMap("position", 1)
 
 # js
 p = p.js("return record;")

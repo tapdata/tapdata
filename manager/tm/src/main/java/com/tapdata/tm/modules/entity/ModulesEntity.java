@@ -86,4 +86,6 @@ public class ModulesEntity extends BaseEntity {
     private String connectionType;
 
     private String connectionName;
+
+    private String description;
 }
