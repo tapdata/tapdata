@@ -5,31 +5,23 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.kit.EmptyKit;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 public class ScriptCore extends Core {
 
     private static final String TAG = ScriptCore.class.getSimpleName();
     private final String collectionName;
-    private final Consumer<List<TapEvent>> eventConsumer;
-    private final AtomicReference<List<TapEvent>> atomicReference = new AtomicReference<>(new ArrayList<>());
-    private final int eventBatchSize;
+    private final LinkedBlockingQueue<TapEvent> eventQueue = new LinkedBlockingQueue<>(5000);
 
-    public ScriptCore(String collectionName, int eventBatchSize, Consumer<List<TapEvent>> eventConsumer) {
+    public ScriptCore(String collectionName) {
         this.collectionName = collectionName;
-        this.eventConsumer = eventConsumer;
-        this.eventBatchSize = eventBatchSize;
     }
 
-    public void pullAll() {
-        if (atomicReference.get().size() > 0) {
-            eventConsumer.accept(atomicReference.get());
-            atomicReference.set(new ArrayList<>());
-        }
+    public LinkedBlockingQueue<TapEvent> getEventQueue() {
+        return eventQueue;
     }
 
     @Override
@@ -46,10 +38,12 @@ public class ScriptCore extends Core {
                 if (datum instanceof Map) {
                     Map<String, Object> dataMap = (Map) datum;
                     if (EmptyKit.isNotEmpty(dataMap)) {
-                        atomicReference.get().add(TapSimplify.insertRecordEvent(dataMap, collectionName));
-                        if (atomicReference.get().size() == eventBatchSize) {
-                            eventConsumer.accept(atomicReference.get());
-                            atomicReference.set(new ArrayList<>());
+                        try {
+                            while (!eventQueue.offer(TapSimplify.insertRecordEvent(dataMap, collectionName), 1, TimeUnit.SECONDS)) {
+                                TapLogger.warn(TAG, "log queue is full, waiting...");
+                            }
+                        } catch (InterruptedException ignored) {
+
                         }
                     }
                 }
