@@ -116,8 +116,8 @@ public class TaskAlarmScheduler {
     }
 
 
-    @Scheduled(initialDelay = 5000, fixedDelay = 5*60*1000)
-    @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    //@Scheduled(initialDelay = 5000, fixedDelay = 5*60*1000)
+    //@SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
                 .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)

@@ -112,3 +112,4 @@ tap_table_ehcache/
 imap-cache-data/
 CacheObserveLogs/
 /node_modules/
+/manager/tm/src/main/resources/test3/
