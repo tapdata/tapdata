@@ -76,18 +76,18 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 		try {
 			Document filter = new Document("message.service", service).append("message.subscribeId", subscribeId);
 			if(offset != null) {
-				filter.append("_id", new Document("$gt", offset));
+				filter.append("_id", new Document("$gt", Long.valueOf(offset)));
 			}
 			FindIterable<NodeMessageEntity> iterable = nodeMessageV2DAO.getMongoCollection().find(filter).limit(limit);
 			cursor = iterable.cursor();
 			List<MessageEntity> list = Lists.newArrayList();
-			String lastObjectId = null;
+			Long lastObjectId = null;
 			while (cursor.hasNext()) {
 				NodeMessageEntity nodeMessageEntity = cursor.next();
 				list.add(nodeMessageEntity.getMessage());
-				lastObjectId = (String) nodeMessageEntity.getId();
+				lastObjectId = (Long) nodeMessageEntity.getId();
 			}
-			return new FetchNewDataResult().messages(list).offset(lastObjectId);
+			return new FetchNewDataResult().messages(list).offset(String.valueOf(lastObjectId));
 		} finally {
 			if (cursor != null) {
 				try {

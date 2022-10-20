@@ -10,7 +10,7 @@ import org.bson.Document;
 public class NodeMessageEntity implements ToDocument {
 	private static final String TAG = NodeMessageEntity.class.getSimpleName();
 	public static final String FIELD_MESSAGE = "message";
-	private String _id;
+	private Long _id;
 	private MessageEntity message;
 
 	private static OrderedIdGenerator orderedIdGenerator;
@@ -21,7 +21,7 @@ public class NodeMessageEntity implements ToDocument {
 	}
 
 	public NodeMessageEntity(MessageEntity message) {
-		_id = String.valueOf(orderedIdGenerator.nextId());
+		_id = orderedIdGenerator.nextId();
 		if(message == null) {
 			throw new CoreException(MongodbErrors.ILLEGAL_ARGUMENTS, "message is null");
 		}
@@ -33,7 +33,7 @@ public class NodeMessageEntity implements ToDocument {
 		return _id;
 	}
 
-	public void setId(String id) {
+	public void setId(Long id) {
 		this._id = id;
 	}
 
