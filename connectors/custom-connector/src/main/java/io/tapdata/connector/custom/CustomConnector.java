@@ -18,7 +18,9 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -39,6 +41,7 @@ import java.util.function.Consumer;
 public class CustomConnector extends ConnectorBase {
 
     private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class); //script factory
+    private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private CustomConfig customConfig;
     private ScriptEngine initScriptEngine;
 
@@ -135,7 +138,9 @@ public class CustomConnector extends ConnectorBase {
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws ScriptException {
         ScriptCore scriptCore = new ScriptCore(tapTable.getId(), eventBatchSize,
-                eventList -> eventsOffsetConsumer.accept(eventList, new CustomOffset()));
+                eventList -> eventsOffsetConsumer.accept(eventList, new CustomOffset())
+//                eventList -> System.out.println(jsonParser.toJson(eventList))
+        );
         assert scriptFactory != null;
         ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getHistoryScript(), true));
