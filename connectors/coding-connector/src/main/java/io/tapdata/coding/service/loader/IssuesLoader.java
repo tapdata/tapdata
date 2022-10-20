@@ -2,6 +2,7 @@ package io.tapdata.coding.service.loader;
 
 import cn.hutool.http.HttpRequest;
 import cn.hutool.json.JSONArray;
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IssueParam;
@@ -543,6 +544,11 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
     }
 
+    CodingConnector codingConnector;
+    public IssuesLoader connectorInit(CodingConnector codingConnector){
+        this.codingConnector = codingConnector;
+        return this;
+    }
     public void readVIP(
             Long readStartTime,
             Long readEndTime,
@@ -587,13 +593,13 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 }
                 queuePage.addAll(resultList.stream().map(obj -> (Integer) (obj.get("Code"))).collect(Collectors.toList()));
                 //pageCount.getAndAdd(1);
-            } while (currentQueryCount >= batchReadPageSize);
+            } while (currentQueryCount >= batchReadPageSize && codingConnector.isAlive());
         }, "PAGE_THREAD");
         pageThread.setDaemon(true);
         pageThread.start();
 
         //详情查询线程
-        while (true) {
+        while (codingConnector.isAlive()) {
             if (!pageThread.isAlive() && queuePage.isEmpty()) break;
             if (!queuePage.isEmpty()) {
                 int threadCount = total.get() / 500;
@@ -610,7 +616,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                          * start page ,and add page to queuePage;
                          * */
                         try {
-                            while (!queuePage.isEmpty() || pageThread.isAlive()) {
+                            while ((!queuePage.isEmpty() || pageThread.isAlive()) && codingConnector.isAlive()) {
                                 Integer peekId = queuePage.poll();
                                 Map<String, Object> issueDetail = this.get(IssueParam.create().issueCode(peekId));
                                 if (Checker.isNotEmpty(issueDetail)) {
@@ -631,7 +637,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }
 
         //主线程生成事件
-        while (pageThread.isAlive() || itemThreadCount.get() > 0 || !queuePage.isEmpty() || !queueItem.isEmpty()) {
+        while ((pageThread.isAlive() || itemThreadCount.get() > 0 || !queuePage.isEmpty() || !queueItem.isEmpty())&& codingConnector.isAlive()) {
             /**
              * 从queueItem取数据生成事件
              * **/
