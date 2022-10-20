@@ -8,6 +8,7 @@ import io.tapdata.kit.EmptyKit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public class ScriptCore extends Core {
@@ -15,7 +16,7 @@ public class ScriptCore extends Core {
     private static final String TAG = ScriptCore.class.getSimpleName();
     private final String collectionName;
     private final Consumer<List<TapEvent>> eventConsumer;
-    private final List<TapEvent> eventList = new ArrayList<>();
+    private final AtomicReference<List<TapEvent>> atomicReference = new AtomicReference<>(new ArrayList<>());
     private final int eventBatchSize;
 
     public ScriptCore(String collectionName, int eventBatchSize, Consumer<List<TapEvent>> eventConsumer) {
@@ -25,9 +26,9 @@ public class ScriptCore extends Core {
     }
 
     public void pullAll() {
-        if (eventList.size() > 0) {
-            eventConsumer.accept(eventList);
-            eventList.clear();
+        if (atomicReference.get().size() > 0) {
+            eventConsumer.accept(atomicReference.get());
+            atomicReference.set(new ArrayList<>());
         }
     }
 
@@ -45,10 +46,10 @@ public class ScriptCore extends Core {
                 if (datum instanceof Map) {
                     Map<String, Object> dataMap = (Map) datum;
                     if (EmptyKit.isNotEmpty(dataMap)) {
-                        eventList.add(TapSimplify.insertRecordEvent(dataMap, collectionName));
-                        if (eventList.size() == eventBatchSize) {
-                            eventConsumer.accept(eventList);
-                            eventList.clear();
+                        atomicReference.get().add(TapSimplify.insertRecordEvent(dataMap, collectionName));
+                        if (atomicReference.get().size() == eventBatchSize) {
+                            eventConsumer.accept(atomicReference.get());
+                            atomicReference.set(new ArrayList<>());
                         }
                     }
                 }
