@@ -46,6 +46,10 @@ public class TaskResetEventDto extends BaseDto implements Serializable {
 	private Long elapsedTime;
 	private Date time;
 
+	private int resetTimes;
+	private int resetInterval;
+	private int resetAllTimes;
+
 	public TaskResetEventDto succeed() {
 		this.status = ResetStatusEnum.SUCCEED;
 		this.level = Level.INFO;
