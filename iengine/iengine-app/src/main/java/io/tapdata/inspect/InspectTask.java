@@ -11,10 +11,10 @@ import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.inspect.cdc.InspectCdcUtils;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections.MapUtils;
@@ -350,7 +350,7 @@ public abstract class InspectTask implements Runnable {
 						InspectTask.class.getSimpleName() + "-" + srcNodeId,
 						sourceConn.getConfig(),
 						new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(srcNodeId)),
-						new PdkStateMap(srcNodeId, HazelcastUtil.getInstance()),
+						new PdkStateMap(srcNodeId, HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
 						PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
 				));
 			}
@@ -365,7 +365,7 @@ public abstract class InspectTask implements Runnable {
 						InspectTask.class.getSimpleName() + "-" + tgtNodeId,
 						targetConn.getConfig(),
 						new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(tgtNodeId)),
-						new PdkStateMap(tgtNodeId, HazelcastUtil.getInstance()),
+						new PdkStateMap(tgtNodeId, HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
 						PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
 				));
 			}

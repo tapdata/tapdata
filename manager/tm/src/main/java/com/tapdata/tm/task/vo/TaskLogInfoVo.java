@@ -50,4 +50,8 @@ public class TaskLogInfoVo {
     private Integer failedEvent;
     private Long elapsedTime;
     private Date time;
+
+    private int resetTimes;
+    private int resetInterval;
+    private int resetAllTimes;
 }

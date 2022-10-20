@@ -39,8 +39,9 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
     public TaskResetEventDto save(TaskResetEventDto resetEventDto, UserDetail user) {
          //封装成为日志上报给前端。
         TaskDto taskDto = taskService.checkExistById(new ObjectId(resetEventDto.getTaskId()), user);
-
+        int resetTimes = taskDto.getResetTimes() == null ? 0 : taskDto.getResetTimes();
         resetEventDto.setTime(new Date());
+        resetEventDto.setResetTimes(resetTimes);
         switch (resetEventDto.getStatus()) {
             case TASK_SUCCEED:
                 //根据任务的状态，如果是重置中，则继续重置的操作，如果为删除中，则删除继续删除的操作
@@ -57,6 +58,8 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
                 } else if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
                     taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_DELETE_FAILED);
                 }
+                resetEventDto.setResetInterval(30);
+                resetEventDto.setResetAllTimes(2);
                 break;
             default:
                 break;
