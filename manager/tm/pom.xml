@@ -89,16 +89,6 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>io.tapdata</groupId>
-			<artifactId>tapdata-proxy</artifactId>
-			<version>1.0-SNAPSHOT</version>
-		</dependency>
-		<dependency>
-			<groupId>io.tapdata</groupId>
-			<artifactId>mongodb-storage-module</artifactId>
-			<version>1.0-SNAPSHOT</version>
-		</dependency>
-		<dependency>
 			<groupId>com.tapdata</groupId>
 			<artifactId>common</artifactId>
 			<version>2.2.2</version>
@@ -385,6 +375,12 @@
 		<dependency>
 			<groupId>org.quartz-scheduler</groupId>
 			<artifactId>quartz</artifactId>
+			<exclusions>
+				<exclusion>
+					<artifactId>slf4j-api</artifactId>
+					<groupId>org.slf4j</groupId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>com.novemberain</groupId>

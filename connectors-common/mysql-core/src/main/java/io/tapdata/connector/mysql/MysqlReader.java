@@ -4,6 +4,8 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
+import io.debezium.time.Date;
+import io.debezium.time.MicroTimestamp;
 import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.common.ddl.type.DDLParserType;
@@ -12,6 +14,7 @@ import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.entity.MysqlStreamEvent;
 import io.tapdata.connector.mysql.entity.MysqlStreamOffset;
+import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.connector.mysql.util.StringCompressUtil;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -84,9 +87,16 @@ public class MysqlReader implements Closeable {
 	private DDLParserType ddlParserType = DDLParserType.MYSQL_CCJ_SQL_PARSER;
 	private final int MIN_BATCH_SIZE = 1000;
 
-	public MysqlReader(MysqlJdbcContext mysqlJdbcContext) {
+	private   String  DB_TIME_ZONE;
+
+	public MysqlReader(MysqlJdbcContext mysqlJdbcContext)  {
 		this.mysqlJdbcContext = mysqlJdbcContext;
 		this.running = new AtomicBoolean(true);
+		try {
+			this.DB_TIME_ZONE = mysqlJdbcContext.timezone();
+		}catch (Exception ignore){
+
+		}
 	}
 
 	public void readWithOffset(TapConnectorContext tapConnectorContext, TapTable tapTable, MysqlSnapshotOffset mysqlSnapshotOffset,
@@ -96,6 +106,7 @@ public class MysqlReader implements Closeable {
 		Collection<String> pks = tapTable.primaryKeys(true);
 		AtomicLong row = new AtomicLong(0L);
 		try {
+			Set<String> dateTypeSet = dateFields(tapTable);
 			this.mysqlJdbcContext.queryWithStream(sql, rs -> {
 				ResultSetMetaData metaData = rs.getMetaData();
 				while ((null == stop || !stop.test(null)) && rs.next()) {
@@ -105,6 +116,9 @@ public class MysqlReader implements Closeable {
 						String columnName = metaData.getColumnName(i + 1);
 						try {
 							Object value = rs.getObject(i + 1);
+							if (null == value && dateTypeSet.contains(columnName)) {
+								value = rs.getString(i + 1);
+							}
 							data.put(columnName, value);
 							if (pks.contains(columnName)) {
 								mysqlSnapshotOffset.getOffset().put(columnName, value);
@@ -131,6 +145,7 @@ public class MysqlReader implements Closeable {
 		String sql = sqlMaker.selectSql(tapConnectorContext, tapTable, tapAdvanceFilter);
 		AtomicLong row = new AtomicLong(0L);
 		try {
+			Set<String> dateTypeSet = dateFields(tapTable);
 			this.mysqlJdbcContext.queryWithStream(sql, rs -> {
 				ResultSetMetaData metaData = rs.getMetaData();
 				while (rs.next()) {
@@ -143,6 +158,9 @@ public class MysqlReader implements Closeable {
 						String columnName = metaData.getColumnName(i + 1);
 						try {
 							Object value = rs.getObject(i + 1);
+							if (null == value && dateTypeSet.contains(columnName)) {
+								value = rs.getString(i + 1);
+							}
 							data.put(columnName, value);
 						} catch (Exception e) {
 							throw new Exception("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
@@ -487,6 +505,15 @@ public class MysqlReader implements Closeable {
 		for (Field field : schema.fields()) {
 			String fieldName = field.name();
 			Object value = struct.get(fieldName);
+			if (null != field.schema().name() && field.schema().name().startsWith("io.debezium.time.")) {
+				if (field.schema().type() == Schema.Type.INT64 && value instanceof Long && Long.MIN_VALUE == ((Long) value)) {
+					result.put(fieldName, "0000-00-00 00:00:00");
+					continue;
+				} else if (field.schema().type() == Schema.Type.INT32 && value instanceof Integer && Integer.MIN_VALUE == ((Integer) value)) {
+					result.put(fieldName, "0000-00-00");
+					continue;
+				}
+			}
 			if (value instanceof ByteBuffer) {
 				value = ((ByteBuffer) value).array();
 			}
@@ -507,6 +534,7 @@ public class MysqlReader implements Closeable {
 		TapType tapType = tapField.getTapType();
 		if (tapType instanceof TapDateTime) {
 			if (((TapDateTime) tapType).getFraction().equals(0) && value instanceof Long) {
+				value = MysqlUtil.convertTimestamp((Long) value, TimeZone.getTimeZone(DB_TIME_ZONE), TimeZone.getTimeZone("GMT"));
 				value = ((Long) value) / 1000;
 			} else if (value instanceof String) {
 				try {
@@ -595,4 +623,21 @@ public class MysqlReader implements Closeable {
 			return map.get(op);
 		}
 	}
+
+	private Set<String> dateFields(TapTable tapTable) {
+		Set<String> dateTypeSet = new HashSet<>();
+		tapTable.getNameFieldMap().forEach((n, v) -> {
+			switch (v.getTapType().getType()) {
+				case TapType.TYPE_DATE:
+				case TapType.TYPE_DATETIME:
+					dateTypeSet.add(n);
+					break;
+				default:
+					break;
+			}
+		});
+		return dateTypeSet;
+	}
+
+
 }

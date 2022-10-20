@@ -185,7 +185,12 @@ public class MysqlConnector extends ConnectorBase {
             try {
                 this.mysqlJdbcContext.execute(createIndexSql);
             } catch (Throwable e) {
-                throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                // mysql index  less than  3072 bytes。
+                if (e.getMessage() != null && e.getMessage().contains("42000 1071")) {
+                    TapLogger.warn(TAG, "Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                } else {
+                    throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                }
             }
         }
     }
@@ -306,7 +311,12 @@ public class MysqlConnector extends ConnectorBase {
     }
 
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
-        mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, DDL_PARSER_TYPE, consumer);
+        try {
+            mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, DDL_PARSER_TYPE, consumer);
+        } catch (Throwable e) {
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {

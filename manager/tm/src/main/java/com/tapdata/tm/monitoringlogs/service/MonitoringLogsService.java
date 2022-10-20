@@ -256,4 +256,8 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         save(builder.build(), user);
     }
 
+    public void delLogsWhenTaskReset(String taskId) {
+        mongoOperations.remove(new Query(Criteria.where("taskId").is(taskId)), MonitoringLogsEntity.class);
+    }
+
 }

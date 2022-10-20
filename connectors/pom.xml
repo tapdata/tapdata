@@ -24,7 +24,6 @@
 		<module>clickhouse-connector</module>
 		<module>mariadb-connector</module>
 		<module>hive1-connector</module>
-		<module>coding-connector</module>
 		<module>custom-connector</module>
 	</modules>
 	<properties>
