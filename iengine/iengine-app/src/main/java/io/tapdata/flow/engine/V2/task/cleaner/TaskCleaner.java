@@ -183,7 +183,7 @@ public abstract class TaskCleaner {
 		databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
 		if (null == databaseType) return;
 		Connections finalConnections = connections;
-		PdkStateMap pdkStateMap = new PdkStateMap(node.getId(), HazelcastTaskService.getHazelcastInstance());
+		PdkStateMap pdkStateMap = new PdkStateMap(node.getId(), HazelcastTaskService.getHazelcastInstance(), PdkStateMap.StateMapMode.HTTP_TM);
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(HazelcastTaskService.getHazelcastInstance());
 		PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
 				databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
