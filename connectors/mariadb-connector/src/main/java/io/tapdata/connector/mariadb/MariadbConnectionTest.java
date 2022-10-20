@@ -57,7 +57,7 @@ public class MariadbConnectionTest extends MysqlConnectionTest {
         try {
             String version = mysqlJdbcContext.getMysqlVersion();
             if (StringUtils.isNotBlank(version)) {
-                if (!version.startsWith(MARIADB_VERSION_5) && version.startsWith(MARIADB_VERSION_10)) {
+                if (!version.startsWith(MARIADB_VERSION_5) && !version.startsWith(MARIADB_VERSION_10)) {
                     return testItem(MysqlTestItem.CHECK_VERSION.getContent(), TestItem.RESULT_FAILED, "Unsupported this MYSQL database version: " + version);
                 }
             }
