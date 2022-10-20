@@ -274,7 +274,6 @@ public class ClickhouseConnector extends ConnectorBase {
         }
         instance.summit(writeListResult);
         consumer.accept(writeListResult);
-        instance.optimizeTable(); // 去除重复数据
     }
 
     //需要改写成ck的创建索引方式
