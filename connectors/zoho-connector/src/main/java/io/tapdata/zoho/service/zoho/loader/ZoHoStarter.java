@@ -89,12 +89,14 @@ public class ZoHoStarter {
         String clientSecret = connectionConfigConfigMap.getString("clientSecret");
         String orgId = connectionConfigConfigMap.getString("orgId");
         String generateCode = connectionConfigConfigMap.getString("generateCode");
+        String connectionMode = connectionConfigConfigMap.getString("connectionMode");
         ContextConfig config = ContextConfig.create().refreshToken(refreshToken)
                 .accessToken(accessToken)
                 .clientId(clientId)
                 .clientSecret(clientSecret)
                 .orgId(orgId)
-                .generateCode(generateCode);
+                .generateCode(generateCode)
+                .connectionMode(connectionMode);
         if (this.tapConnectionContext instanceof TapConnectorContext) {
             KVMap<Object> stateMap = ((TapConnectorContext) this.tapConnectionContext).getStateMap();
             if (null != stateMap) {
