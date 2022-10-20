@@ -16,13 +16,7 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
-import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
-import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
-import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
-import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
-import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
@@ -38,7 +32,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import java.text.MessageFormat;
 import java.util.Map;
 import java.util.Objects;
 
@@ -83,7 +76,6 @@ public class PipeHandler implements WebSocketHandler {
 						String userId = extParam.getString("userId");
 						String nodeId = extParam.getString("nodeId");
 						String nodeName = extParam.getString("nodeName");
-						String dataNodeType = extParam.getString("type");
 						boolean alarmCheck = (Boolean) extParam.getOrDefault("alarmCheck", false);
 
 						if (StringUtils.isNotBlank(templateEnum)) {
@@ -96,18 +88,9 @@ public class PipeHandler implements WebSocketHandler {
 								taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
 										true, true, DateUtil.now(), jsonObject.getJSONObject("response_body").toJSONString());
 							} else if (grade == Level.ERROR) {
-								String summary;
-								if ("source".equals(dataNodeType)) {
-									summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT, agentId, DateUtil.now());
-								} else {
-									summary = MessageFormat.format(AlarmContentTemplate.DATANODE_TARGET_CANNOT_CONNECT, agentId, DateUtil.now());
-								}
-								AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.CRITICAL).component(AlarmComponentEnum.FE)
-										.type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
-										.name(taskName).summary(summary).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
-										.nodeId(nodeId).node(nodeName)
-										.build();
-								alarmService.save(alarmInfo);
+								alarmService.connectFailAlarm(agentId, taskId, taskName, nodeId, nodeName);
+							} else {
+								alarmService.connectPassAlarm(agentId, taskId, taskName, nodeId, nodeName);
 							}
 						}
 					}

@@ -22,6 +22,7 @@ import io.tapdata.common.*;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.*;
+import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
 import io.tapdata.observable.metric.TaskSampleReporter;
 import io.tapdata.observable.metric.TaskSampleRetriever;
@@ -284,6 +285,8 @@ public class ConnectorManager {
 		SchemaProxy.schemaProxy = schemaProxy;
 
 		ConnectorConstant.clientMongoOperator = clientMongoOperator;
+
+		GlobalConstant.getInstance().configurationCenter(configCenter);
 	}
 
 	@PreDestroy
