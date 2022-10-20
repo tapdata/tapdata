@@ -24,14 +24,13 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.map;
@@ -341,7 +340,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         //current read end as next read begin
         codingOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(TABLE_NAME,readEnd);}});
         this.verifyConnectionConfig();
-        this.readV2(null,readEnd,batchCount,codingOffset,consumer);
+        this.readVIP(null,readEnd,batchCount,codingOffset,consumer);
     }
 
     @Override
@@ -506,156 +505,146 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     }
 
 
-    public void readV2(
+    public void defineHttpAttributes(Long readStartTime,Long readEndTime,int readSize,HttpEntity<String,String> header,HttpEntity<String,Object> pageBody){
+        List<Map<String,Object>> coditions = io.tapdata.entity.simplify.TapSimplify.list(map(
+                entry("Key","UPDATED_AT"),
+                entry("Value", this.longToDateStr(readStartTime)+"_"+ this.longToDateStr(readEndTime)))
+        );
+        header.builder("Authorization",contextConfig.getToken());
+        String projectName = contextConfig.getProjectName();
+        String iterationCodes = contextConfig.getIterationCodes();
+        if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes) && !"-1".equals(iterationCodes)) {
+            //-1时表示全选
+            //String[] iterationCodeArr = iterationCodes.split(",");
+            //@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
+            //选择的迭代编号不需要验证
+            coditions.add(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)));
+        }
+        pageBody.builder("Action","DescribeIssueListWithPage")
+                .builder("ProjectName",projectName)
+                .builder("SortKey","UPDATED_AT")
+                .builder("PageSize",readSize)
+                .builder("SortValue","ASC")
+                .builder("IssueType",
+                        Checker.isNotEmpty(contextConfig) && Checker.isNotEmpty(contextConfig.getIssueType())?
+                                IssueType.verifyType(contextConfig.getIssueType().getName())
+                                :"ALL")
+                .builder("Conditions",coditions);
+
+    }
+
+    public void readVIP(
             Long readStartTime,
             Long readEndTime,
             int readSize,
             Object offsetState,
             BiConsumer<List<TapEvent>, Object> consumer){
-        final int MAX_THREAD = 10;
-        Queue<Map<String,Object>> queuePage = new ConcurrentLinkedQueue();
-        AtomicBoolean pageFlag = new AtomicBoolean(true);
-
+        final int MAX_THREAD = 20;
+        Queue<Integer> queuePage = new ConcurrentLinkedQueue();
         Queue<Map<String,Object>> queueItem = new ConcurrentLinkedQueue();
         AtomicInteger itemThreadCount = new AtomicInteger(0);
 
-        List<Map<String,Object>> coditions = io.tapdata.entity.simplify.TapSimplify.list(map(
-                entry("Key","UPDATED_AT"),
-                entry("Value", this.longToDateStr(readStartTime)+"_"+ this.longToDateStr(readEndTime)))
-        );
-
-        final List<TapEvent>[] events = new List[]{new CopyOnWriteArrayList()};
-        HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",contextConfig.getToken());
-        String projectName = contextConfig.getProjectName();
-        HttpEntity<String,Object> pageBody = HttpEntity.create()
-                .builder("Action","DescribeIssueListWithPage")
-                .builder("ProjectName",projectName)
-                .builder("SortKey","UPDATED_AT")
-                .builder("PageSize",readSize)
-                .builder("SortValue","ASC");
-        if (Checker.isNotEmpty(contextConfig) && Checker.isNotEmpty(contextConfig.getIssueType())){
-            pageBody.builder("IssueType", IssueType.verifyType(contextConfig.getIssueType().getName()));
-        }else {
-            pageBody.builder("IssueType","ALL");
-        }
-
-        String iterationCodes = contextConfig.getIterationCodes();
-        if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes)) {
-            if (!"-1".equals(iterationCodes)) {
-                //-1时表示全选
-                //String[] iterationCodeArr = iterationCodes.split(",");
-                //@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
-                //选择的迭代编号不需要验证
-                coditions.add(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)));
-            }
-        }
-        pageBody.builder("Conditions",coditions);
         String teamName = contextConfig.getTeamName();
-        if (Checker.isEmpty(offsetState)) {
-            offsetState = new CodingOffset();
-        }
-        CodingOffset offset = (CodingOffset)offsetState;
+        List<TapEvent> events = new ArrayList<>();
+        HttpEntity<String,String> header = HttpEntity.create();
+        HttpEntity<String,Object> pageBody = HttpEntity.create();
+        this.defineHttpAttributes(readStartTime,readEndTime,readSize,header,pageBody);
+        CodingOffset offset = (CodingOffset)(offsetState = Checker.isEmpty(offsetState)?new CodingOffset():offsetState);
 
         AtomicInteger total = new AtomicInteger(-1);
         //分页线程
-        new Thread(()->{
-            pageFlag.set(true);
-            int currentQueryCount = 0,queryIndex = 0 ;
-            do{
-                /**
-                 * start page ,and add page to queuePage;
-                 * */
-                pageBody.builder("PageNumber",queryIndex++);
-                Map<String,Object> dataMap = this.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
-                if (null == dataMap || null == dataMap.get("List")) {
-                    TapLogger.error(TAG, "Paging result request failed, the Issue list is empty: page index = {}",queryIndex);
-                    pageFlag.set(false);
-                    throw new RuntimeException("Paging result request failed, the Issue list is empty: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
-                }
-                List<Map<String,Object>> resultList = (List<Map<String,Object>>) dataMap.get("List");
-                currentQueryCount = resultList.size();
-                batchReadPageSize = null != dataMap.get("PageSize") ? (int)(dataMap.get("PageSize")) : batchReadPageSize;
-                if (total.get()<0){
-                    total .set((int)(dataMap.get("TotalCount")));
-                }
-                queuePage.addAll(resultList);
-            }while (currentQueryCount >= batchReadPageSize );
+        Thread pageThread = new Thread(() -> {
+            int currentQueryCount = 0, queryIndex = 0;
+                do {
+                    /**
+                     * start page ,and add page to queuePage;
+                     * */
+                    pageBody.builder("PageNumber", queryIndex++);
+                    Map<String, Object> dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
+                    if (null == dataMap || null == dataMap.get("List")) {
+                        TapLogger.error(TAG, "Paging result request failed, the Issue list is empty: page index = {}", queryIndex);
+                        throw new RuntimeException("Paging result request failed, the Issue list is empty: " + CodingStarter.OPEN_API_URL + "?Action=DescribeIssueListWithPage");
+                    }
+                    List<Map<String, Object>> resultList = (List<Map<String, Object>>) dataMap.get("List");
+                    currentQueryCount = resultList.size();
+                    batchReadPageSize = null != dataMap.get("PageSize") ? (int) (dataMap.get("PageSize")) : batchReadPageSize;
+                    if (total.get() < 0) {
+                        total.set((int) (dataMap.get("TotalCount")));
+                    }
+                    queuePage.addAll(resultList.stream().map(obj -> (Integer) (obj.get("Code"))).collect(Collectors.toList()));
+                } while (currentQueryCount >= batchReadPageSize);
+        }, "PAGE_THREAD");
+        pageThread.setDaemon(true);
+        pageThread.start();
 
-            pageFlag.set(false);
-        },"PAGE_THREAD").start();
-
-        Runnable runnable = ()->{
-            itemThreadCount.getAndAdd(1);
-            /**
-             * start page ,and add page to queuePage;
-             * */
-            while (!queuePage.isEmpty() || pageFlag.get()){
-                Map<String, Object> peek = queuePage.poll();
-                Object code = peek.get("Code");
-                Map<String,Object> issueDetail = this.get(IssueParam.create().issueCode((Integer)code));
-                if (Checker.isNotEmpty(issueDetail)){
-                    queueItem.add(issueDetail);
-                }
-            }
-            itemThreadCount.getAndAdd(-1);
-        };
         //详情查询线程
         while (true){
-            if (!pageFlag.get() && queuePage.isEmpty()){
-                break;
-            }
+            if (!pageThread.isAlive() && queuePage.isEmpty()) break;
             if (!queuePage.isEmpty()){
-                int threadCount = total.get()/1000;
+                int threadCount = total.get()/500;
                 threadCount = Math.min(threadCount, MAX_THREAD);
-                final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(threadCount + 1);
+                final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(threadCount + 1, run -> {
+                    Thread thread = new Thread(run);
+                    thread.setDaemon(true);
+                    return thread;
+                });
                 for (int i = 0; i < threadCount; i++) {
-                    executor.schedule(runnable,1, TimeUnit.SECONDS);
+                    executor.schedule(()->{
+                        itemThreadCount.getAndAdd(1);
+                        /**
+                         * start page ,and add page to queuePage;
+                         * */
+                        try {
+                            while (!queuePage.isEmpty() || pageThread.isAlive()){
+                                Integer peekId = queuePage.poll();
+                                Map<String,Object> issueDetail = this.get(IssueParam.create().issueCode(peekId));
+                                if (Checker.isNotEmpty(issueDetail)){
+                                    queueItem.add(issueDetail);
+                                }
+                            }
+                        }catch (Exception e){
+                            throw e;
+                        }finally {
+                            itemThreadCount.getAndAdd(-1);
+                        }
+                    },1, TimeUnit.SECONDS);
                 }
                 break;
             }
         }
 
         //主线程生成事件
-        while (pageFlag.get() || itemThreadCount.get()>0 || !queuePage.isEmpty() || !queueItem.isEmpty()){
+        while (pageThread.isAlive() || itemThreadCount.get()>0 || !queuePage.isEmpty() || !queueItem.isEmpty()){
             /**
              * 从queueItem取数据生成事件
              * **/
             if (queueItem.isEmpty()) continue;
             Map<String,Object> issueDetail = queueItem.poll();
-            if (Checker.isNotEmptyCollection(issueDetail)){
-                Long referenceTime = (Long) issueDetail.get("UpdatedAt");
-                Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
-                Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
+            if (Checker.isEmptyCollection(issueDetail)) continue;
 
-                //issueDetial的更新时间字段值是否属于当前时间片段，并且issueDiteal的hashcode是否在上一次批量读取同一时间段内
-                //如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
-                //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
-                if (!lastTimeSplitIssueCode.contains(issueDetialHash)) {
-                    events[0].add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+            Long referenceTime = (Long) issueDetail.get("UpdatedAt");
+            Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
+            Integer issueDetailHash = MapUtil.create().hashCode(issueDetail);
+            //issueDetial的更新时间字段值是否属于当前时间片段，并且issueDetail的hashcode是否在上一次批量读取同一时间段内
+            //如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
+            //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
 
-                    if (null == currentTimePoint || !currentTimePoint.equals(lastTimePoint)) {
-                        lastTimePoint = currentTimePoint;
-                        lastTimeSplitIssueCode = new ArrayList<Integer>();
-                    }
-                    lastTimeSplitIssueCode.add(issueDetialHash);
+            if (!lastTimeSplitIssueCode.contains(issueDetailHash)) {
+                events.add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                if (null == currentTimePoint || !currentTimePoint.equals(lastTimePoint)) {
+                    lastTimePoint = currentTimePoint;
+                    lastTimeSplitIssueCode = new ArrayList<Integer>();
                 }
-
-                if (Checker.isEmpty(offsetState)) {
-                    offsetState = new CodingOffset();
-                }
-                ((CodingOffset) offsetState).getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
-
-
-                if (events[0].size() == readSize) {
-                    consumer.accept(events[0], offsetState);
-                    events[0] = new ArrayList<>();
-                }
+                lastTimeSplitIssueCode.add(issueDetailHash);
             }
+            ((CodingOffset) offsetState).getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
+            if (events.size() != readSize) continue;
+            consumer.accept(events, offsetState);
+            events = new ArrayList<>();
         }
 
-        if (!events[0].isEmpty()) {
-            consumer.accept(events[0], offset);
-        }
+        if (events.isEmpty()) return;
+        consumer.accept(events, offset);
     }
     /**
      * 分页读取事项列表，并依次查询事项详情
