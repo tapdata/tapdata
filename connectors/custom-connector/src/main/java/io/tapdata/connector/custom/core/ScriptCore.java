@@ -5,6 +5,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.kit.EmptyKit;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -45,10 +46,11 @@ public class ScriptCore extends Core {
             TapLogger.debug(TAG, "Received data, data size: {}", data.size());
             for (Object datum : data) {
                 if (datum instanceof Map) {
-                    Map<String, Object> dataMap = (Map) datum;
+                    Map<String, Object> dataMap = (Map<String, Object>) datum;
                     if (EmptyKit.isNotEmpty(dataMap)) {
+                        Map<String, Object> newMap = new HashMap<>(dataMap);
                         try {
-                            while (!eventQueue.offer(TapSimplify.insertRecordEvent(dataMap, collectionName).referenceTime(System.currentTimeMillis()), 1, TimeUnit.SECONDS)) {
+                            while (!eventQueue.offer(TapSimplify.insertRecordEvent(newMap, collectionName).referenceTime(System.currentTimeMillis()), 1, TimeUnit.SECONDS)) {
                                 TapLogger.warn(TAG, "log queue is full, waiting...");
                             }
                         } catch (InterruptedException ignored) {
