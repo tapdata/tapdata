@@ -272,7 +272,7 @@ public class ClickhouseConnector extends ConnectorBase {
             }
             instance.addBath(event, writeListResult);
         }
-        instance.summit(writeListResult);
+        instance.commit(writeListResult);
         consumer.accept(writeListResult);
     }
 

@@ -73,14 +73,14 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
         Type type = Type.parse(recordEvent);
         String statementKey = statementKey(type, recordEvent);
         if (!statementKey.equals(lastStatementKey)) {
-            summit(writeListResult);
+            commit(writeListResult);
             lastStatementKey = statementKey;
             lastStatementType = type;
         }
 
         batchCounts++;
         if (batchCounts >= batchLimit) {
-            summit(writeListResult);
+            commit(writeListResult);
         }
         switch (type) {
             case Insert: {
@@ -126,7 +126,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
     }
 
     @Override
-    public void summit(WriteListResult<TapRecordEvent> result) throws Exception {
+    public void commit(WriteListResult<TapRecordEvent> result) throws Exception {
         if (batchCounts > 0 && null != lastStatementType && null != lastStatementKey && null != lastStatement) {
             for (int i = 1; i < 4 && isRunning.get(); i++) {
                 try {

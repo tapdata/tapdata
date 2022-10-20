@@ -29,5 +29,5 @@ public interface IWriter<T, R> extends AutoCloseable {
 
     void addBath(T record, R result) throws Exception;
 
-    void summit(R result) throws Exception;
+    void commit(R result) throws Exception;
 }
