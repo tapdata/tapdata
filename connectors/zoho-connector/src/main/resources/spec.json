@@ -249,7 +249,7 @@
       "accessToken": "AccessToken",
       "orgId": "Organization",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": " Generate URL to notify ",
       "tokenButton": "Get Token",
 
       "iterationCodes": "Iteration",
@@ -297,7 +297,7 @@
       "accessToken": "访问令牌",
       "orgId": "组织",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": "生成要通知的URL",
       "tokenButton": "获取令牌",
 
       "connectionMode": "连接模式",
@@ -336,7 +336,7 @@
       "accessToken": "訪問權杖",
       "orgId": "組織",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": "生成要通知的URL",
       "tokenButton": "獲取權杖",
 
       "connectionMode": "連接模式",
