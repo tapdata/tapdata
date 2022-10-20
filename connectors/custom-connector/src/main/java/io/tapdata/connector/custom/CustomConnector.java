@@ -1,7 +1,6 @@
 package io.tapdata.connector.custom;
 
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.connector.custom.bean.CustomOffset;
 import io.tapdata.connector.custom.config.CustomConfig;
 import io.tapdata.connector.custom.core.Core;
 import io.tapdata.connector.custom.core.ScriptCore;
@@ -15,12 +14,17 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapDateValue;
+import io.tapdata.entity.schema.value.TapRawValue;
+import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
@@ -34,6 +38,7 @@ import javax.script.ScriptException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -41,7 +46,6 @@ import java.util.function.Consumer;
 public class CustomConnector extends ConnectorBase {
 
     private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class); //script factory
-    private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private CustomConfig customConfig;
     private ScriptEngine initScriptEngine;
 
@@ -71,9 +75,19 @@ public class CustomConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+        codecRegistry.registerFromTapValue(TapRawValue.class, "STRING", tapRawValue -> {
+            if (tapRawValue != null && tapRawValue.getValue() != null) return tapRawValue.getValue().toString();
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS"));
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
+
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchRead);
+        connectorFunctions.supportStreamRead(this::streamRead);
+        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
     }
 
     @Override
@@ -132,8 +146,8 @@ public class CustomConnector extends ConnectorBase {
         writeListResultConsumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
     }
 
-    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-        return 200;
+    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) {
+        return 0;
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws ScriptException {
@@ -160,7 +174,7 @@ public class CustomConnector extends ConnectorBase {
                 if (EmptyKit.isNotNull(event)) {
                     eventList.add(event);
                     if (eventList.size() == eventBatchSize) {
-                        eventsOffsetConsumer.accept(eventList, new CustomOffset());
+                        eventsOffsetConsumer.accept(eventList, new HashMap<>());
                         eventList = new ArrayList<>();
                     }
                 }
@@ -169,11 +183,61 @@ public class CustomConnector extends ConnectorBase {
             }
         }
         if (EmptyKit.isNotEmpty(eventList)) {
-            eventsOffsetConsumer.accept(eventList, new CustomOffset());
+            eventsOffsetConsumer.accept(eventList, new HashMap<>());
         }
         if (t.isAlive()) {
             t.stop();
         }
+    }
+
+    private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws ScriptException {
+        ScriptCore scriptCore = new ScriptCore(tableList.get(0));
+        scriptCore.setContextMap(offsetState);
+        assert scriptFactory != null;
+        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getCdcScript(), false));
+        scriptEngine.put("core", scriptCore);
+        scriptEngine.put("log", new CustomLog());
+        Object lastContextMap = scriptCore.getContextMap();
+        Runnable runnable = () -> {
+            Invocable invocable = (Invocable) scriptEngine;
+            try {
+                while (isAlive()) {
+                    invocable.invokeFunction(ScriptUtil.SOURCE_FUNCTION_NAME, scriptCore.getContextMap());
+                    TapSimplify.sleep(2000);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
+        Thread t = new Thread(runnable);
+        t.start();
+        List<TapEvent> eventList = new ArrayList<>();
+        while (isAlive() && t.isAlive()) {
+            try {
+                TapEvent event = scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS);
+                if (EmptyKit.isNotNull(event)) {
+                    eventList.add(event);
+                    if (eventList.size() == recordSize) {
+                        consumer.accept(eventList, lastContextMap);
+                        eventList = new ArrayList<>();
+                    }
+                }
+            } catch (Exception e) {
+                break;
+            }
+        }
+        if (EmptyKit.isNotEmpty(eventList)) {
+            consumer.accept(eventList, scriptCore.getContextMap());
+        }
+        if (t.isAlive()) {
+            t.stop();
+        }
+
+    }
+
+    private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
+        return new HashMap<>();
     }
 
 }
