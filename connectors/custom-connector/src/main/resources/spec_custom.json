@@ -22,7 +22,8 @@
             ],
             "fulfill": {
               "schema": {
-                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" ? null:\"none\"}}"
+                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"target\" ? true:false}}"
               }
             }
           },
@@ -41,7 +42,8 @@
             ],
             "fulfill": {
               "schema": {
-                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" ? null:\"none\"}}"
+                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"target\" ? true:false}}"
               }
             }
           },
@@ -75,7 +77,8 @@
             ],
             "fulfill": {
               "schema": {
-                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" ? null:\"none\"}}"
+                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"target\" ? true:false}}"
               }
             }
           },
@@ -151,7 +154,8 @@
             ],
             "fulfill": {
               "schema": {
-                "x-decorator-props.style.display": "{{$deps[0]!==\"source\" ? null:\"none\"}}"
+                "x-decorator-props.style.display": "{{$deps[0]!==\"source\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"source\" ? true:false}}"
               }
             }
           },
@@ -205,7 +209,8 @@
             ],
             "fulfill": {
               "schema": {
-                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" && $deps[1]!==\"initial_sync\" ? null:\"none\"}}"
+                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" && $deps[1]!==\"initial_sync\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"target\" && $deps[1]!==\"initial_sync\" ? true:false}}"
               }
             }
           },
@@ -232,7 +237,8 @@
             ],
             "fulfill": {
               "schema": {
-                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" && $deps[1]!==\"cdc\" ? null:\"none\"}}"
+                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" && $deps[1]!==\"cdc\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"target\" && $deps[1]!==\"cdc\" ? true:false}}"
               }
             }
           },
