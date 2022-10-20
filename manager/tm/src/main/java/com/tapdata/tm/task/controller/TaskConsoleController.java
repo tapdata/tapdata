@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @Tag(name = "复制dag信息输出")
 @RestController
@@ -66,7 +67,14 @@ public class TaskConsoleController extends BaseController {
                 taskDagCheckLogVo.setList(taskLogInfoVos);
             }
             taskLogInfoVos.addAll(taskResetLogVo.getList());
-            taskDagCheckLogVo.setOver(taskDagCheckLogVo.isOver() && taskResetLogVo.isOver());
+            boolean over = taskDagCheckLogVo.isOver() && taskResetLogVo.isOver();
+            taskDagCheckLogVo.setOver(over);
+
+            // over=true => To prevent the front-end parallel request from getting old data
+            if (over) {
+                CompletableFuture.runAsync(() -> taskDagCheckLogService.removeAllByTaskId(taskId));
+            }
+
             return success(taskDagCheckLogVo);
         }
     }
