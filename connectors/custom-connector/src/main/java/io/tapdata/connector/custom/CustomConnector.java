@@ -17,8 +17,6 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
-import io.tapdata.entity.simplify.TapSimplify;
-import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
@@ -30,9 +28,11 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
+import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -137,29 +137,43 @@ public class CustomConnector extends ConnectorBase {
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws ScriptException {
-        ScriptCore scriptCore = new ScriptCore(tapTable.getId(), eventBatchSize,
-                eventList -> eventsOffsetConsumer.accept(eventList, new CustomOffset())
-//                eventList -> System.out.println(jsonParser.toJson(eventList))
-        );
+        ScriptCore scriptCore = new ScriptCore(tapTable.getId());
         assert scriptFactory != null;
         ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getHistoryScript(), true));
         scriptEngine.put("core", scriptCore);
         scriptEngine.put("log", new CustomLog());
-        Runnable runnable = ScriptUtil.createScriptRunnable(scriptEngine, ScriptUtil.SOURCE_FUNCTION_NAME);
+        Runnable runnable = () -> {
+            Invocable invocable = (Invocable) scriptEngine;
+            try {
+                invocable.invokeFunction(ScriptUtil.SOURCE_FUNCTION_NAME);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
         Thread t = new Thread(runnable);
         t.start();
-        while (isAlive()) {
-            if (t.isAlive()) {
-                TapSimplify.sleep(1000);
-            } else {
+        List<TapEvent> eventList = new ArrayList<>();
+        while (isAlive() && t.isAlive()) {
+            try {
+                TapEvent event = scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS);
+                if (EmptyKit.isNotNull(event)) {
+                    eventList.add(event);
+                    if (eventList.size() == eventBatchSize) {
+                        eventsOffsetConsumer.accept(eventList, new CustomOffset());
+                        eventList = new ArrayList<>();
+                    }
+                }
+            } catch (Exception e) {
                 break;
             }
+        }
+        if (EmptyKit.isNotEmpty(eventList)) {
+            eventsOffsetConsumer.accept(eventList, new CustomOffset());
         }
         if (t.isAlive()) {
             t.stop();
         }
-        scriptCore.pullAll();
     }
 
 }
