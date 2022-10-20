@@ -89,7 +89,7 @@ public class TapDateTimeMapping extends TapDateBase {
                         tapResult.addItem(new ResultItem("TapDateTimeMapping MIN_FRACTION", TapResult.RESULT_SUCCESSFULLY_WITH_WARN, "Fraction " + fraction + " from source exceeded the minimum of target fraction " + this.minFraction + ", expression " + typeExpression));
                         fraction = minFraction;
                     } else if(maxFraction < fraction) {
-                        tapResult.addItem(new ResultItem("TapDateTimeMapping MAX_PRECISION", TapResult.RESULT_SUCCESSFULLY_WITH_WARN, "Precision " + fraction + " from source exceeded the maximum of target fraction " + this.maxFraction + ", expression " + typeExpression));
+                        tapResult.addItem(new ResultItem("TapDateTimeMapping MAX_FRACTION", TapResult.RESULT_SUCCESSFULLY_WITH_WARN, "Precision " + fraction + " from source exceeded the maximum of target fraction " + this.maxFraction + ", expression " + typeExpression));
                         fraction = maxFraction;
                     }
                 }

@@ -91,6 +91,29 @@ public class TidbContext extends JdbcContext{
 
     @Override
     public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) {
+        List<String> temp = list();
+        String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND TABLE_NAME IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
+        try {
+            query(String.format(TIDB_ALL_TABLE, getConfig().getDatabase())+ tableSql,
+                    resultSet -> {
+                        while (resultSet.next()) {
+                            String tableName = resultSet.getString("TABLE_NAME");
+                            if (null != tableName && !"".equals(tableName.trim())) {
+                                temp.add(tableName);
+                            }
+                            if (temp.size() >= batchSize) {
+                                consumer.accept(temp);
+                                temp.clear();
+                            }
+                        }
+                    });
+            if (!temp.isEmpty()) {
+                consumer.accept(temp);
+                temp.clear();
+            }
+        } catch (Throwable e) {
+            TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
+        }
 
     }
 

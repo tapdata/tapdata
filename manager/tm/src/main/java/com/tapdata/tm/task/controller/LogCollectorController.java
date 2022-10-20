@@ -9,11 +9,14 @@ import com.tapdata.tm.task.bean.LogCollectorDetailVo;
 import com.tapdata.tm.task.bean.LogCollectorEditVo;
 import com.tapdata.tm.task.bean.LogCollectorVo;
 import com.tapdata.tm.task.bean.LogSystemConfigDto;
+import com.tapdata.tm.task.service.LogCollectorExtendService;
 import com.tapdata.tm.task.service.LogCollectorService;
+import com.tapdata.tm.task.vo.LogCollectorRelateTaskVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -30,10 +33,10 @@ import java.util.Map;
 @Tag(name = "LogCollector", description = "Task相关接口")
 @RestController
 @RequestMapping("/api/logcollector")
+@Setter(onMethod_ = {@Autowired})
 public class LogCollectorController extends BaseController {
-
-    @Autowired
     private LogCollectorService logCollectorService;
+    private LogCollectorExtendService logCollectorExtendService;
 
     /**
      *  查询挖掘任务列表
@@ -62,23 +65,6 @@ public class LogCollectorController extends BaseController {
         }
     }
 
-//    /** 根据连接名称模糊查询挖掘任务列表
-//     * @param connectionName 连接名称
-//     * @return 挖掘任务列表
-//     */
-//    @GetMapping("/byConnectionName/{connectionName}")
-//    @Operation(summary = "根据连接名称模糊查询挖掘任务列表")
-//    public ResponseMessage<Page<LogCollectorVo>> findByConnectionName(@PathVariable("connectionName") String connectionName,
-//                                                                      @RequestParam(value = "skip", required = false, defaultValue = "0") int skip,
-//                                                                      @RequestParam(value = "limit", required = false, defaultValue = "20") int limit)  {
-//        return success(logCollectorService.findByConnectionName(",", connectionName, getLoginUser(), skip, limit));
-//    }
-
-    /**
-     * 更新挖掘任务
-     * @param logCollectorEditVo
-     * @return
-     */
     @PatchMapping("{id}")
     @Operation(summary = "更新挖掘任务")
     public ResponseMessage<Void> update(@PathVariable("id") String id, @RequestBody LogCollectorEditVo logCollectorEditVo) {
@@ -108,18 +94,6 @@ public class LogCollectorController extends BaseController {
     public ResponseMessage<List<LogCollectorVo>> findByTaskId(@PathVariable("taskId")String taskId) {
         return success(logCollectorService.findByTaskId(taskId, getLoginUser()));
     }
-
-//    /**
-//     *  通过同步子任务查询被用到的挖掘任务列表
-//     * @param subTaskId 任务id
-//     * @return 挖掘任务列表
-//     */
-//    @GetMapping("/bySubTaskId/{subTaskId}")
-//    @Operation(summary = "通过同步子任务查询被用到的挖掘任务列表")
-//    public ResponseMessage<List<LogCollectorVo>> findBySubTaskId(@PathVariable("subTaskId")String subTaskId) {
-//        return success(logCollectorService.findBySubTaskId(subTaskId, getLoginUser()));
-//    }
-
 
     @GetMapping("/system/config")
     public ResponseMessage<LogSystemConfigDto> findSystemConfig() {
@@ -154,6 +128,16 @@ public class LogCollectorController extends BaseController {
                                                                      @RequestParam(value = "limit", required = false, defaultValue = "20") int limit)  {
         return  success(logCollectorService.findCallTableNames(taskId, callSubId, skip, limit, getLoginUser()));
     }
+
+    @GetMapping("/relate_tasks")
+    @Operation(summary = "共享挖掘关联的数据复制/开发任务列表")
+    public ResponseMessage<Page<LogCollectorRelateTaskVo>> getRelateTasks(@RequestParam String taskId,
+                                                                          @RequestParam String type,
+                                                                          @RequestParam(defaultValue = "1") Integer page,
+                                                                          @RequestParam(defaultValue = "20") Integer size) {
+        return success(logCollectorExtendService.getRelationTask(taskId, type, page, size));
+    }
+
 
 
 }

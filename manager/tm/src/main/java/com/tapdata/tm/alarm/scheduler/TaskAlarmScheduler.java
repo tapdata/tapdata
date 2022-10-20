@@ -69,7 +69,7 @@ public class TaskAlarmScheduler {
     private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
 
 
-    @Scheduled(initialDelay = 5000, fixedRate = 60000)
+    @Scheduled(initialDelay = 5000, fixedDelay = 30*60*1000)
     @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskDataNodeConnectAlarm() {
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
@@ -116,7 +116,7 @@ public class TaskAlarmScheduler {
     }
 
 
-    @Scheduled(initialDelay = 5000, fixedRate = 30000)
+    @Scheduled(initialDelay = 5000, fixedDelay = 5*60*1000)
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
