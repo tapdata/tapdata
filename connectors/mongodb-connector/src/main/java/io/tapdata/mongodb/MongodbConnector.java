@@ -371,14 +371,26 @@ public class MongodbConnector extends ConnectorBase {
 //        connectorFunctions.supportStreamOffset((connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer) -> streamOffset(connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer));
 	}
 
+
 	private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
 		RetryOptions retryOptions = RetryOptions.create();
-		if (null != matchThrowable(throwable, MongoTimeoutException.class)
+		if ( null != matchThrowable(throwable, MongoClientException.class)
 				|| null != matchThrowable(throwable, MongoSocketException.class)
+				|| null != matchThrowable(throwable, MongoConnectionPoolClearedException.class)
+				|| null != matchThrowable(throwable, MongoSecurityException.class)
+				|| null != matchThrowable(throwable, MongoServerException.class)
+				|| null != matchThrowable(throwable, MongoConfigurationException.class)
+		        || null != matchThrowable(throwable, MongoTimeoutException.class)
+				|| null != matchThrowable(throwable, MongoSocketReadException.class)
+				|| null != matchThrowable(throwable, MongoSocketClosedException.class)
+				|| null != matchThrowable(throwable, MongoSocketOpenException.class)
+				|| null != matchThrowable(throwable, MongoSocketWriteException.class)
+				|| null != matchThrowable(throwable, MongoSocketReadTimeoutException.class)
+				|| null != matchThrowable(throwable, MongoWriteConcernException.class)
+				|| null != matchThrowable(throwable, MongoWriteException.class)
+				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)
 				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
 				|| null != matchThrowable(throwable, MongoServerUnavailableException.class)
-				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)
-				|| null != matchThrowable(throwable, MongoSocketReadTimeoutException.class)
 				|| null != matchThrowable(throwable, IOException.class)) {
 			retryOptions.needRetry(true);
 			return retryOptions;
