@@ -387,6 +387,8 @@ public class JdbcValueConverters implements ValueConverterProvider {
 	 * @throws IllegalArgumentException if the value could not be converted but the column does not allow nulls
 	 */
 	protected Object convertTimestampWithZone(Column column, Field fieldDefn, Object data) {
+		if (data instanceof Long && Long.MIN_VALUE == (Long) data) return data;
+
 		return convertValue(column, fieldDefn, data, fallbackTimestampWithTimeZone, (r) -> {
 			try {
 				r.deliver(ZonedTimestamp.toIsoString(data, defaultOffset, adjuster));
@@ -456,6 +458,8 @@ public class JdbcValueConverters implements ValueConverterProvider {
 	 * @throws IllegalArgumentException if the value could not be converted but the column does not allow nulls
 	 */
 	protected Object convertTimestampToEpochMillis(Column column, Field fieldDefn, Object data) {
+		if (data instanceof Long && Long.MIN_VALUE == (Long) data) return data;
+
 		// epoch is the fallback value
 		return convertValue(column, fieldDefn, data, 0L, (r) -> {
 			try {
@@ -481,6 +485,8 @@ public class JdbcValueConverters implements ValueConverterProvider {
 	 * @throws IllegalArgumentException if the value could not be converted but the column does not allow nulls
 	 */
 	protected Object convertTimestampToEpochMicros(Column column, Field fieldDefn, Object data) {
+		if (data instanceof Long && Long.MIN_VALUE == (Long) data) return data;
+
 		// epoch is the fallback value
 		return convertValue(column, fieldDefn, data, 0L, (r) -> {
 			try {
@@ -506,6 +512,8 @@ public class JdbcValueConverters implements ValueConverterProvider {
 	 * @throws IllegalArgumentException if the value could not be converted but the column does not allow nulls
 	 */
 	protected Object convertTimestampToEpochNanos(Column column, Field fieldDefn, Object data) {
+		if (data instanceof Long && Long.MIN_VALUE == (Long) data) return data;
+
 		// epoch is the fallback value
 		return convertValue(column, fieldDefn, data, 0L, (r) -> {
 			try {
@@ -531,6 +539,8 @@ public class JdbcValueConverters implements ValueConverterProvider {
 	 * @throws IllegalArgumentException if the value could not be converted but the column does not allow nulls
 	 */
 	protected Object convertTimestampToEpochMillisAsDate(Column column, Field fieldDefn, Object data) {
+		if (data instanceof Integer && Integer.MIN_VALUE == (Integer) data) return data;
+
 		// epoch is the fallback value
 		return convertValue(column, fieldDefn, data, new java.util.Date(0L), (r) -> {
 			try {
