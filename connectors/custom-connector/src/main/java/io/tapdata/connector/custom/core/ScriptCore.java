@@ -15,6 +15,7 @@ public class ScriptCore extends Core {
     private static final String TAG = ScriptCore.class.getSimpleName();
     private final String collectionName;
     private final LinkedBlockingQueue<TapEvent> eventQueue = new LinkedBlockingQueue<>(5000);
+    private Object contextMap;
 
     public ScriptCore(String collectionName) {
         this.collectionName = collectionName;
@@ -22,6 +23,14 @@ public class ScriptCore extends Core {
 
     public LinkedBlockingQueue<TapEvent> getEventQueue() {
         return eventQueue;
+    }
+
+    public Object getContextMap() {
+        return contextMap;
+    }
+
+    public void setContextMap(Object contextMap) {
+        this.contextMap = contextMap;
     }
 
     @Override
@@ -39,7 +48,7 @@ public class ScriptCore extends Core {
                     Map<String, Object> dataMap = (Map) datum;
                     if (EmptyKit.isNotEmpty(dataMap)) {
                         try {
-                            while (!eventQueue.offer(TapSimplify.insertRecordEvent(dataMap, collectionName), 1, TimeUnit.SECONDS)) {
+                            while (!eventQueue.offer(TapSimplify.insertRecordEvent(dataMap, collectionName).referenceTime(System.currentTimeMillis()), 1, TimeUnit.SECONDS)) {
                                 TapLogger.warn(TAG, "log queue is full, waiting...");
                             }
                         } catch (InterruptedException ignored) {
@@ -48,6 +57,7 @@ public class ScriptCore extends Core {
                     }
                 }
             }
+            this.contextMap = contextMap;
         }
     }
 
