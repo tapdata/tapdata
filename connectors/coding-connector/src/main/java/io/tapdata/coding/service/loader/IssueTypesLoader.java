@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.loader;
 
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IssueTypeParam;
 import io.tapdata.coding.utils.collection.MapUtil;
@@ -26,7 +27,11 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
     public static IssueTypesLoader create(TapConnectionContext context){
         return new IssueTypesLoader(context);
     }
-
+    CodingConnector codingConnector;
+    public IssueTypesLoader connectorInit(CodingConnector codingConnector){
+        this.codingConnector = codingConnector;
+        return this;
+    }
     private boolean stopRead = false;
     public void stopRead(){
         stopRead = true;

@@ -1,6 +1,7 @@
 package io.tapdata.coding.service.loader;
 
 import cn.hutool.json.JSONUtil;
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IterationParam;
@@ -145,7 +146,11 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
 
         return matterList;
     }
-
+    CodingConnector codingConnector;
+    public IterationsLoader connectorInit(CodingConnector codingConnector){
+        this.codingConnector = codingConnector;
+        return this;
+    }
     private boolean stopRead = false;
     public void stopRead(){
         stopRead = true;

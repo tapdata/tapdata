@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.loader;
 
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.Param;
@@ -30,6 +31,13 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
     public void stopRead(){
         stopRead = true;
     }
+
+    CodingConnector codingConnector;
+    public ProjectsLoader connectorInit(CodingConnector codingConnector){
+        this.codingConnector = codingConnector;
+        return this;
+    }
+
     public List<Map<String,Object>> myProjectList(){
         Map<String,Object> user = this.myselfInfo();
         if (Checker.isNotEmptyCollection(user)){

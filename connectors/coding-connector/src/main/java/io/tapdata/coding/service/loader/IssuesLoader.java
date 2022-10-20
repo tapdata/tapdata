@@ -59,6 +59,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     ContextConfig contextConfig;
     private AtomicBoolean stopRead = new AtomicBoolean(false);
 
+    CodingConnector codingConnector;
+    public IssuesLoader connectorInit(CodingConnector codingConnector){
+        this.codingConnector = codingConnector;
+        return this;
+    }
+
     public void stopRead() {
         stopRead.set(true);
     }
@@ -544,11 +550,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
     }
 
-    CodingConnector codingConnector;
-    public IssuesLoader connectorInit(CodingConnector codingConnector){
-        this.codingConnector = codingConnector;
-        return this;
-    }
     public void readVIP(
             Long readStartTime,
             Long readEndTime,

@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.loader;
 
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.CommentParam;
@@ -28,6 +29,13 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
     public static CommentsLoader create(TapConnectionContext tapConnectionContext) {
         return new CommentsLoader(tapConnectionContext);
     }
+
+    CodingConnector codingConnector;
+    public CommentsLoader connectorInit(CodingConnector codingConnector){
+        this.codingConnector = codingConnector;
+        return this;
+    }
+
     private boolean stopRead = false;
     public void stopRead(){
         stopRead = true;

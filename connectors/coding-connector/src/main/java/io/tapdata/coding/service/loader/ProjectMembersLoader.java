@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.loader;
 
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.entity.param.ProjectMemberParam;
@@ -39,6 +40,11 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         return 5*60*1000l;
     }
 
+    CodingConnector codingConnector;
+    public ProjectMembersLoader connectorInit(CodingConnector codingConnector){
+        this.codingConnector = codingConnector;
+        return this;
+    }
     private boolean stopRead = false;
     public void stopRead(){
         stopRead = true;

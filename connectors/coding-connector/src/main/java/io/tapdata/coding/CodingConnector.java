@@ -473,7 +473,7 @@ public class CodingConnector extends ConnectorBase {
 		return this.batchCountV2(tapConnectorContext, tapTable);
 	}
 	private long batchCountV2(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-		CodingLoader<Param> loader = CodingLoader.loader(tapConnectorContext, tapTable.getId());
+		CodingLoader<Param> loader = CodingLoader.loader(tapConnectorContext, tapTable.getId()).connectorInit(this);
 		if (Checker.isNotEmpty(loader)) {
 			int count = loader.batchCount();
 			return Long.parseLong(String.valueOf(count));

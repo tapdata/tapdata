@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.loader;
 
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IssueFieldParam;
 import io.tapdata.coding.utils.collection.MapUtil;
@@ -26,7 +27,11 @@ public class IssueFieldsLoader extends CodingStarter implements CodingLoader<Iss
     public static IssueFieldsLoader create(TapConnectionContext tapConnectionContext){
         return new IssueFieldsLoader(tapConnectionContext);
     }
-
+    CodingConnector codingConnector;
+    public IssueFieldsLoader connectorInit(CodingConnector codingConnector){
+        this.codingConnector = codingConnector;
+        return this;
+    }
     private boolean stopRead = false;
     public void stopRead(){
         stopRead = true;
