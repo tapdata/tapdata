@@ -84,7 +84,7 @@
           "x-component": "AsyncSelect",
           "x-component-props": {
             "method": "{{loadCommandList}}",
-            "params": "{{ {$values: $values, command: \"DescribeCodingProjects\"} }}"
+            "params": "{{ {$values: $values, command: \"DescribeUserProjects\"} }}"
           },
           "x-index": 30,
           "x-reactions": [
@@ -167,7 +167,8 @@
             }
           },
           "x-component": "Input",
-          "x-index": 70
+          "x-index": 70,
+          "actionOnCopy" : "NEW_WEB_HOOK_URL"
         }
       }
     }
@@ -179,7 +180,7 @@
       "projectName": "project name",
       "teamName": "Team name",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": "Generate Service URL",
 
       "iterationCodes": "Iteration",
       "issueType": "Issue Type",
@@ -224,7 +225,7 @@
       "projectName": "项目名称",
       "teamName": "团队名称",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": "生成服务 URL",
 
       "iterationCodes": "迭代",
       "issueType": "事项类型",
@@ -268,7 +269,7 @@
       "projectName": "項目名稱",
       "teamName": "團隊名稱",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": "生成服務URL",
 
       "iterationCodes": "迭代",
       "issueType": "事項类型",

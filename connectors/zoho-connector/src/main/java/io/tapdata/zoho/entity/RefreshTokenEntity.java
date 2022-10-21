@@ -1,6 +1,6 @@
 package io.tapdata.zoho.entity;
 
-import io.tapdata.zoho.service.zoho.ZoHoBase;
+import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
 
 import java.io.Serializable;
 import java.util.Map;

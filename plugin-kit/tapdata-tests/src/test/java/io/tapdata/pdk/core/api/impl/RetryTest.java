@@ -34,7 +34,7 @@ public class RetryTest {
         ConnectionNode node = new ConnectionNode();
         Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field.setAccessible(true);
-        field.set(node, new TapConnectionContext(null, null));
+        field.set(node, new TapConnectionContext(null, null, null));
 
         node.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
@@ -71,7 +71,7 @@ public class RetryTest {
         ConnectionNode node = new ConnectionNode();
         Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field.setAccessible(true);
-        field.set(node, new TapConnectionContext(null, null));
+        field.set(node, new TapConnectionContext(null, null, null));
 
         node.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
@@ -111,7 +111,7 @@ public class RetryTest {
         ConnectionNode node = new ConnectionNode();
         Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field.setAccessible(true);
-        field.set(node, new TapConnectionContext(null, null));
+        field.set(node, new TapConnectionContext(null, null, null));
 
         node.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
@@ -171,7 +171,7 @@ public class RetryTest {
         ConnectionNode node = new ConnectionNode();
         Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field.setAccessible(true);
-        field.set(node, new TapConnectionContext(null, null));
+        field.set(node, new TapConnectionContext(null, null, null));
 
         node.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
@@ -232,7 +232,7 @@ public class RetryTest {
         ConnectionNode node = new ConnectionNode();
         Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field.setAccessible(true);
-        field.set(node, new TapConnectionContext(null, null));
+        field.set(node, new TapConnectionContext(null, null, null));
 
         node.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
@@ -246,7 +246,7 @@ public class RetryTest {
         ConnectionNode node2 = new ConnectionNode();
         Field field2 = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field2.setAccessible(true);
-        field2.set(node2, new TapConnectionContext(null, null));
+        field2.set(node2, new TapConnectionContext(null, null, null));
 
         node2.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions2 = node2.getConnectionFunctions();

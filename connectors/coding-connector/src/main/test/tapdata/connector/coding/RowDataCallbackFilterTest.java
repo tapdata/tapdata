@@ -19,7 +19,7 @@ public class RowDataCallbackFilterTest {
        config.put("token","token 0190b04d98dec1cdd7a2825388c17a81fdebd08f");//token 68042a4bad082da78dc44118b4d3e3ec4bd44c6d
        config.put("teamName","testhookgavin");//tapdata
        config.put("projectName","TestIssue");//DFS
-       TapConnectionContext context = new TapConnectionContext(null,config);
+       TapConnectionContext context = new TapConnectionContext(null,config,DataMap.create());
        String command = "DescribeIterationList";//"DescribeIterationList";
        String action = "search";
        Map<String, Object> argMap = map(
@@ -35,7 +35,7 @@ public class RowDataCallbackFilterTest {
        config.put("token","token 0190b04d98dec1cdd7a2825388c17a81fdebd08f");//token 68042a4bad082da78dc44118b4d3e3ec4bd44c6d
        config.put("teamName","testhookgavin");//tapdata
        config.put("projectName","TestIssue");//DFS
-       TapConnectionContext context = new TapConnectionContext(null,config);
+       TapConnectionContext context = new TapConnectionContext(null,config,DataMap.create());
        String command = "DescribeIterationList";//"DescribeIterationList";
        String action = "list";
        Map<String, Object> argMap = map(
@@ -50,7 +50,7 @@ public class RowDataCallbackFilterTest {
        config.put("token","token 0190b04d98dec1cdd7a2825388c17a81fdebd08f");//token 68042a4bad082da78dc44118b4d3e3ec4bd44c6d
        config.put("teamName","testhookgavin");//tapdata
        config.put("projectName","TestIssue");//DFS
-       TapConnectionContext context = new TapConnectionContext(null,config);
+       TapConnectionContext context = new TapConnectionContext(null,config,DataMap.create());
        String command = "DescribeCodingProjects";//"DescribeIterationList";
        String action = "search";
        Map<String, Object> argMap = map(
@@ -66,7 +66,7 @@ public class RowDataCallbackFilterTest {
        config.put("token","token 0190b04d98dec1cdd7a2825388c17a81fdebd08f");//token 68042a4bad082da78dc44118b4d3e3ec4bd44c6d
        config.put("teamName","testhookgavin");//tapdata
        config.put("projectName","TestIssue");//DFS
-       TapConnectionContext context = new TapConnectionContext(null,config);
+       TapConnectionContext context = new TapConnectionContext(null,config,DataMap.create());
        String command = "DescribeCodingProjects";//"DescribeIterationList";
        String action = "list";
        Map<String, Object> argMap = map(
@@ -82,7 +82,7 @@ public class RowDataCallbackFilterTest {
        config.put("token","token 0190b04d98dec1cdd7a2825388c17a81fdebd08f");//token 68042a4bad082da78dc44118b4d3e3ec4bd44c6d
        config.put("teamName","testhookgavin");//tapdata
        config.put("projectName","TestIssue");//DFS
-       TapConnectionContext context = new TapConnectionContext(null,config);
+       TapConnectionContext context = new TapConnectionContext(null,config,DataMap.create());
        ContextConfig configs = ContextConfig.create()
                .issueType("ALL").projectName("TestIssue").iterationCodes("1").teamName("testhookgavin").token("token 0190b04d98dec1cdd7a2825388c17a81fdebd08f");
 
@@ -104,7 +104,7 @@ public class RowDataCallbackFilterTest {
        config.put("token","token 0190b04d98dec1cdd7a2825388c17a81fdebd08f");//token 68042a4bad082da78dc44118b4d3e3ec4bd44c6d
        config.put("teamName","testhookgavin");//tapdata
        config.put("projectName","TestIssue");//DFS
-       TapConnectionContext context = new TapConnectionContext(null,config);
+       TapConnectionContext context = new TapConnectionContext(null,config,DataMap.create());
        ContextConfig configs = ContextConfig.create()
                .issueType("ALL").projectName("TestIssue").iterationCodes("1").teamName("testhookgavin").token("token 0190b04d98dec1cdd7a2825388c17a81fdebd08f");
 

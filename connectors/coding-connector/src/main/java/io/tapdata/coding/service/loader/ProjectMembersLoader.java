@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.loader;
 
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.entity.param.ProjectMemberParam;
@@ -10,6 +11,7 @@ import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -36,6 +38,18 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
     @Override
     public Long streamReadTime() {
         return 5*60*1000l;
+    }
+
+    CodingConnector codingConnector;
+    public ProjectMembersLoader connectorInit(CodingConnector codingConnector){
+        this.codingConnector = codingConnector;
+        return this;
+    }
+
+    @Override
+    public CodingLoader connectorOut() {
+        this.codingConnector = null;
+        return this;
     }
 
     private boolean stopRead = false;
@@ -180,7 +194,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         if (Checker.isEmpty(issueEvent)) return null;
         if (!TABLE_NAME.equals(issueEvent.getEventGroup())) return null;//拒绝处理非此表相关事件
 
-        String evenType = issueEvent.getEventType();
+        String eventType = issueEvent.getEventType();
         TapEvent event = null;
 
         Object iterationObj = issueEventData.get("member");
@@ -198,7 +212,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         Object referenceTimeObj = schemaMap.get("UpdatedAt");
         Long referenceTime = Checker.isEmpty(referenceTimeObj)?System.currentTimeMillis():(Long)referenceTimeObj;
 
-        switch (evenType){
+        switch (eventType){
             case DELETED_EVENT:{
                 event = TapSimplify.deleteDMLEvent(schemaMap, TABLE_NAME).referenceTime(referenceTime)  ;
             };break;
@@ -209,7 +223,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                 event = TapSimplify.insertRecordEvent(schemaMap, TABLE_NAME).referenceTime(referenceTime)  ;
             };break;
         }
-
+        TapLogger.debug(TAG,"From WebHook coding completed a event [{}] for [{}] table: event data is - {}",eventType,TABLE_NAME,schemaMap);
         return Collections.singletonList(event);
     }
 

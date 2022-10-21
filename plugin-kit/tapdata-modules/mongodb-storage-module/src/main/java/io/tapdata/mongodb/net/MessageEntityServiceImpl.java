@@ -14,10 +14,10 @@ import io.tapdata.modules.api.net.message.MessageEntity;
 import io.tapdata.modules.api.net.service.MessageEntityService;
 import io.tapdata.modules.api.proxy.data.FetchNewDataResult;
 import io.tapdata.mongodb.entity.NodeMessageEntity;
-import io.tapdata.mongodb.net.dao.NodeMessageDAO;
+import io.tapdata.mongodb.net.dao.NodeMessageV2DAO;
 import org.bson.Document;
-import org.bson.types.ObjectId;
 
+import java.time.Instant;
 import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
@@ -27,11 +27,11 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 
 	private static final String TAG = MessageEntityServiceImpl.class.getSimpleName();
 	@Bean
-	private NodeMessageDAO nodeMessageDAO;
+	private NodeMessageV2DAO nodeMessageV2DAO;
 
 	@Override
 	public void save(MessageEntity message) {
-		nodeMessageDAO.insertOne(new NodeMessageEntity(message));
+		nodeMessageV2DAO.insertOne(new NodeMessageEntity(message));
 	}
 
 	@Override
@@ -48,7 +48,7 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 				TapLogger.error(TAG, "Message missing service {} or subscribeId {}, message {}", service, subscribeId, toJson(message));
 			}
 		}
-		nodeMessageDAO.getMongoCollection().bulkWrite(writeModels, new BulkWriteOptions().ordered(true));
+		nodeMessageV2DAO.getMongoCollection().bulkWrite(writeModels, new BulkWriteOptions().ordered(true));
 		if(listener != null) {
 			List<Subscription> subscriptions = new ArrayList<>();
 			for(String changed : changedSet) {
@@ -63,7 +63,7 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 	public String getOffsetByTimestamp(Long startTime) {
 		if(startTime == null)
 			startTime = System.currentTimeMillis();
-		NodeMessageEntity nodeMessageEntity = nodeMessageDAO.findOne(new Document("message.time", new Document("$lte", new Date(startTime))), "_id");
+		NodeMessageEntity nodeMessageEntity = nodeMessageV2DAO.findOne(new Document("message.time", new Document("$lte", Date.from(Instant.ofEpochMilli(startTime)))), new Document("message.time", -1), "_id");
 		if(nodeMessageEntity != null)
 			return nodeMessageEntity.getId().toString();
 		return null;
@@ -76,18 +76,18 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 		try {
 			Document filter = new Document("message.service", service).append("message.subscribeId", subscribeId);
 			if(offset != null) {
-				filter.append("_id", new Document("$gt", new ObjectId(offset)));
+				filter.append("_id", new Document("$gt", Long.valueOf(offset)));
 			}
-			FindIterable<NodeMessageEntity> iterable = nodeMessageDAO.getMongoCollection().find(filter).limit(limit);
+			FindIterable<NodeMessageEntity> iterable = nodeMessageV2DAO.getMongoCollection().find(filter).limit(limit);
 			cursor = iterable.cursor();
 			List<MessageEntity> list = Lists.newArrayList();
-			ObjectId lastObjectId = null;
+			Long lastObjectId = null;
 			while (cursor.hasNext()) {
 				NodeMessageEntity nodeMessageEntity = cursor.next();
 				list.add(nodeMessageEntity.getMessage());
-				lastObjectId = (ObjectId) nodeMessageEntity.getId();
+				lastObjectId = (Long) nodeMessageEntity.getId();
 			}
-			return new FetchNewDataResult().messages(list).offset(lastObjectId != null ? lastObjectId.toHexString() : null);
+			return new FetchNewDataResult().messages(list).offset(String.valueOf(lastObjectId));
 		} finally {
 			if (cursor != null) {
 				try {
@@ -101,6 +101,6 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 
 	@Override
 	public void remove(String service, String subscribeId) {
-		nodeMessageDAO.delete(new Document("message.service", service).append("message.subscribeId", subscribeId));
+		nodeMessageV2DAO.delete(new Document("message.service", service).append("message.subscribeId", subscribeId));
 	}
 }

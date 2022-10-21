@@ -166,7 +166,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         } catch(Throwable throwable) {
             theError = throwable;
 
-            CoreException coreException = new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, throwable.getMessage(), throwable);
+            CoreException coreException = new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, throwable, throwable.getMessage());
             if(errorConsumer != null) {
                 errorConsumer.accept(coreException);
             } else {

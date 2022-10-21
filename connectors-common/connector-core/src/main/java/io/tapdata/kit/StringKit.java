@@ -199,4 +199,12 @@ public class StringKit {
             return str.toLowerCase();
         }
     }
+
+    public static boolean equalsIgnoreCase(String str1, String str2) {
+        if (EmptyKit.isNull(str1) || EmptyKit.isNull(str2)) {
+            return false;
+        } else {
+            return str1.equalsIgnoreCase(str2);
+        }
+    }
 }
