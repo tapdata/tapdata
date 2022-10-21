@@ -43,7 +43,7 @@ public class TaskResetSchedule {
     private int timeoutInterval;
 
 
-    @Scheduled(fixedDelayString = "${task.reset.interval: 30000}")
+    @Scheduled(fixedDelayString = "30000")
     @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "15s", lockAtLeastFor = "15s")
     public void checkTaskReset() {
         checkNoResponseOp();
