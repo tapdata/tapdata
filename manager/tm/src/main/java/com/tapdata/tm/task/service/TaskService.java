@@ -745,6 +745,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         } catch (Exception e) {
             log.warn("remove task, but remove schema error, task name = {}", taskDto.getName());
         }
+
+        //删除收集的对象
+        taskCollectionObjService.deleteById(taskDto.getId());
     }
 
     /**
@@ -1879,6 +1882,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 taskDto.setUserId(null);
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
+                Map<String, Object> attrs = taskDto.getAttrs();
+                attrs.remove("edgeMilestones");
+                attrs.remove("syncProgress");
                 jsonList.add(new TaskUpAndLoadDto("Task", JsonUtil.toJsonUseJackson(taskDto)));
                 DAG dag = taskDto.getDag();
                 List<Node> nodes = dag.getNodes();
@@ -2284,6 +2290,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //                log.info((DataSyncMq.OP_TYPE_RESET.equals(opType) ? "reset" : "delete") + "Task reset timeout.");
 //                throw new BizException(DataSyncMq.OP_TYPE_RESET.equals(opType) ? "Task.ResetTimeout" : "Task.DeleteTimeout");
 //            }
+        } else {
+            if (DataSyncMq.OP_TYPE_RESET.equals(opType)) {
+                afterRenew(taskDto, user);
+            } else {
+                afterRemove(taskDto, user);
+            }
         }
     }
 
