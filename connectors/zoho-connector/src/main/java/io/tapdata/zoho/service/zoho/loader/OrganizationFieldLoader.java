@@ -1,11 +1,9 @@
-package io.tapdata.zoho.service.zoho.impl;
+package io.tapdata.zoho.service.zoho.loader;
 
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.*;
 import io.tapdata.zoho.enums.FieldModelType;
 import io.tapdata.zoho.enums.HttpCode;
-import io.tapdata.zoho.service.zoho.ZoHoBase;
-import io.tapdata.zoho.service.zoho.ZoHoStarter;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 
@@ -27,13 +25,7 @@ public class OrganizationFieldLoader extends ZoHoStarter implements ZoHoBase {
         if (Checker.isEmpty(model)){
             return null;
         }
-        ContextConfig contextConfig = super.veryContextConfigAndNodeConfig();
-        HttpEntity<String,String> header = HttpEntity.create()
-                .build("Authorization",this.accessTokenFromConfig());
-        String orgId = contextConfig.orgId();
-        if (Checker.isNotEmpty(orgId)){
-            header.build("orgId",orgId);
-        }
+        HttpEntity<String, String> header = requestHeard();
         HttpEntity<String,Object> form = HttpEntity.create().build("module",model.getModel());
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,"/api/v1/organizationFields"), HttpType.GET,header).form(form);
         HttpResult httpResult = this.readyAccessToken(http);
@@ -105,5 +97,10 @@ public class OrganizationFieldLoader extends ZoHoStarter implements ZoHoBase {
                     .collect(Collectors.toMap(field->(String)field.get("apiName"), field -> field));
         }
         return fieldMap;
+    }
+
+    @Override
+    public TapConnectionContext getContext() {
+        return null;
     }
 }

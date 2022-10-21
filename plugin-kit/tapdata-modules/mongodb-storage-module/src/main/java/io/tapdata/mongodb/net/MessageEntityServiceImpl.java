@@ -63,7 +63,7 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 	public String getOffsetByTimestamp(Long startTime) {
 		if(startTime == null)
 			startTime = System.currentTimeMillis();
-		NodeMessageEntity nodeMessageEntity = nodeMessageV2DAO.findOne(new Document("message.time", new Document("$lte", Date.from(Instant.ofEpochMilli(startTime)))), "_id");
+		NodeMessageEntity nodeMessageEntity = nodeMessageV2DAO.findOne(new Document("message.time", new Document("$lte", Date.from(Instant.ofEpochMilli(startTime)))), new Document("message.time", -1), "_id");
 		if(nodeMessageEntity != null)
 			return nodeMessageEntity.getId().toString();
 		return null;
