@@ -5,7 +5,12 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.codec.detector.impl.NewFieldDetector;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.conversion.TargetTypesGenerator;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapMap;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.*;
@@ -16,10 +21,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -189,7 +191,8 @@ public class TapCodecsFilterManagerTest {
                 entry("floatNegativeMax", -Float.MAX_VALUE),
                 entry("floatMin", Float.MIN_VALUE),
                 entry("floatOverflow", Float.MAX_VALUE + 1),
-                entry("double", 343.324d)
+                entry("double", 343.324d),
+                entry("int", 5)
         );
 
         Map<String, TapField> sourceNameFieldMap = new HashMap<>();
@@ -212,6 +215,7 @@ public class TapCodecsFilterManagerTest {
         assertEquals(map.get("floatMin"), Float.MIN_VALUE);
         assertEquals(map.get("floatOverflow"), Float.valueOf(String.valueOf(Float.MAX_VALUE + 1)));
         assertEquals(map.get("double"), 343.324d);
+        assertEquals(map.get("int"), 5);
     }
 
     @Test
@@ -334,5 +338,101 @@ public class TapCodecsFilterManagerTest {
         assertEquals(3423.234234324d, map.get("double"));
 
 
+    }
+
+
+    @Test
+    public void testMySQL2ClickHouseLossScale() {
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+
+        String sourceTypeExpression = "{" +
+                "    \"double[($precision,$scale)][unsigned]\": {\n" +
+                "\t  \"to\": \"TapNumber\",\n" +
+                "\t  \"precision\": [\n" +
+                "\t\t1,\n" +
+                "\t\t255\n" +
+                "\t  ],\n" +
+                "\t  \"scale\": [\n" +
+                "\t\t0,\n" +
+                "\t\t30\n" +
+                "\t  ],\n" +
+                "\t  \"value\": [\n" +
+                "\t\t\"-1.7976931348623157E+308\",\n" +
+                "\t\t\"1.7976931348623157E+308\"\n" +
+                "\t  ],\n" +
+                "\t  \"unsigned\": \"unsigned\",\n" +
+                "\t  \"fixed\": false\n" +
+                "\t}\n"
+                + "}";
+
+        String targetTypeExpression = "{\n" +
+                "\"Float32[($precision,$scale)]\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"name\": \"float\",\n" +
+                "      \"precision\": [\n" +
+                "        1,\n" +
+                "        30\n" +
+                "      ],\n" +
+                "      \"scale\": [\n" +
+                "        0,\n" +
+                "        30\n" +
+                "      ],\n" +
+                "      \"unsigned\": \"unsigned\",\n" +
+                "      \"fixed\": false\n" +
+                "    },\n" +
+                "    \"Float64\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"precision\": [\n" +
+                "        0,\n" +
+                "        30\n" +
+                "      ],\n" +
+                "      \"scale\": [\n" +
+                "        0,\n" +
+                "        30\n" +
+                "      ],\n" +
+                "      \"fixed\": false\n" +
+                "    },\n" +
+                "    \"Decimal[($precision,$scale)]\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"precision\": [\n" +
+                "        1,\n" +
+                "        76\n" +
+                "      ],\n" +
+                "      \"scale\": [\n" +
+                "        0,\n" +
+                "        38\n" +
+                "      ],\n" +
+                "      \"defaultPrecision\": 10,\n" +
+                "      \"defaultScale\": 0\n" +
+                "    }" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("double(15,4)", "double(15,4)"))
+
+        ;
+
+        TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+        TargetTypesGenerator targetTypesGenerator = InstanceFactory.instance(TargetTypesGenerator.class);
+        TapCodecsRegistry codecRegistry = TapCodecsRegistry.create();
+        TapCodecsFilterManager targetCodecFilterManager = TapCodecsFilterManager.create(codecRegistry);
+
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+        Map<String, Object> map = map(
+                entry("double(15,4)", 12345678900.5678)
+        );
+
+        //read from source, transform to TapValue out from source connector.
+        codecsFilterManager.transformToTapValueMap(map, sourceTable.getNameFieldMap());
+
+        //before enter a processor, transform to value from TapValue.
+        codecsFilterManager.transformFromTapValueMap(map);
+        assertEquals(12345678900.5678, map.get("double(15,4)"));
+//        assertEquals(((DateTime)map.get("nano")).getNano(), 123123213);
     }
 }

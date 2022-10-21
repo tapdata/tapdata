@@ -30,8 +30,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class MongodbTest {
 	@BeforeEach
 	public void before() {
-//		CommonUtils.setProperty("tapdata_proxy_mongodb_uri", "mongodb://127.0.0.1:27017/tapdata?authSource=admin");
-		CommonUtils.setProperty("tapdata_proxy_mongodb_uri", "mongodb://139.198.127.204:30506/tapdata-tests?authSource=admin");
+		CommonUtils.setProperty("tapdata_proxy_mongodb_uri", "mongodb://127.0.0.1:27017/tapdata?authSource=admin");
+//		CommonUtils.setProperty("tapdata_proxy_mongodb_uri", "mongodb://139.198.127.204:30506/tapdata-tests?authSource=admin");
 		TapRuntime.getInstance();
 	}
 
@@ -200,8 +200,5 @@ public class MongodbTest {
 		assertTrue(bool);
 		assertNull(proxySubscriptionService.get("n3"));
 	}
-
-
-
 
 }

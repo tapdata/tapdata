@@ -128,7 +128,7 @@ public class CommonUtils {
                         if (errThrowable instanceof CoreException) {
                             throw (CoreException) errThrowable;
                         }
-                        throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + errThrowable.getMessage(), errThrowable);
+                        throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, errThrowable, message + " execute failed, " + errThrowable.getMessage(), errThrowable);
                     }
                     break;
                 case ALWAYS:

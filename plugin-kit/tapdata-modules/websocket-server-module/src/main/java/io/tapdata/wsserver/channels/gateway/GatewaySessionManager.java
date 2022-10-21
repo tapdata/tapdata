@@ -147,7 +147,7 @@ public class GatewaySessionManager implements HealthWeightListener, MemoryFetche
                 }
                 for (GatewaySessionHandler gatewaySessionHandler : deletedHandlers) {
                     if (System.currentTimeMillis() - gatewaySessionHandler.getTouch() > sessionInactiveExpireTime) {
-                        TapLogger.info(TAG, "GatewaySessionHandler expired, will be removed, id {}. last touch time {} sessionInactiveExpireTime {}", gatewaySessionHandler.getId(), new Date(gatewaySessionHandler.getTouch()), sessionInactiveExpireTime);
+                        TapLogger.debug(TAG, "GatewaySessionHandler expired, will be removed, id {}. last touch time {} sessionInactiveExpireTime {}", gatewaySessionHandler.getId(), new Date(gatewaySessionHandler.getTouch()), sessionInactiveExpireTime);
                         closeSession(gatewaySessionHandler.getId());
                     }
                 }
@@ -197,14 +197,14 @@ public class GatewaySessionManager implements HealthWeightListener, MemoryFetche
     }
 
     public void stop() {
-        TapLogger.info(TAG, "GatewaySessionManager is stopping...");
+        TapLogger.debug(TAG, "GatewaySessionManager is stopping...");
         long time = System.currentTimeMillis();
         Collection<String> userIds = new ArrayList<String>(userIdGatewaySessionHandlerMap.keySet());
         for (String userId : userIds) {
             closeSession(userId);
         }
         webSocketManager.stop();
-        TapLogger.info(TAG, "RoomSessionManager stopped, takes {}", System.currentTimeMillis() - time);
+        TapLogger.debug(TAG, "RoomSessionManager stopped, takes {}", System.currentTimeMillis() - time);
     }
 
     public SingleThreadBlockingQueue<UserAction> removeUserActionQueue(String userId) {
