@@ -40,7 +40,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
-@WebSocketMessageHandler(type = MessageType.DATA_FLOW_INSIGHT)
+//@WebSocketMessageHandler(type = MessageType.DATA_FLOW_INSIGHT)
 @Slf4j
 public class DataFlowInsightHandler implements WebSocketHandler{
 
@@ -64,7 +64,7 @@ public class DataFlowInsightHandler implements WebSocketHandler{
 			try {
 				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Message data cannot be null"));
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -118,7 +118,7 @@ public class DataFlowInsightHandler implements WebSocketHandler{
 			}
 
 		}catch (Exception e){
-			log.error("DataFlowInsightExecutor error,message: {}", e.getMessage(), e);
+			log.error("DataFlowInsightExecutor error,message: {}", e.getMessage());
 		}
 	}
 
@@ -187,7 +187,7 @@ public class DataFlowInsightHandler implements WebSocketHandler{
 			map.put("collection", "DataFlowInsight");
 			WebSocketManager.sendMessageBySessionId(dataFlowInsightCache.getSessionId(), JsonUtil.toJson(map));
 		} catch (Exception e) {
-			log.error("WebSocket send dataFlow insight failed,message: {}", e.getMessage(), e);
+			log.error("WebSocket send dataFlow insight failed,message: {}", e.getMessage());
 		}
 	}
 }

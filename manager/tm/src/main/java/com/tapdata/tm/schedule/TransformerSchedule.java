@@ -6,6 +6,7 @@ import com.tapdata.tm.task.bean.TransformWsResp;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.commons.schema.MetadataTransformerDto;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
+import com.tapdata.tm.utils.ThrowableUtils;
 import com.tapdata.tm.ws.handler.TransformerStatusPushHandler;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +54,7 @@ public class TransformerSchedule {
             Update update = new Update().set("status", MetadataTransformerDto.StatusEnum.error.name());
             transformerService.update(query, update);
         } catch (Exception e) {
-            log.error("TransformerSchedule error", e);
+            log.error("TransformerSchedule error {}", ThrowableUtils.getStackTraceByPn(e));
         }
     }
 

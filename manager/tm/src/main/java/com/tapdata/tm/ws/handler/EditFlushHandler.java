@@ -58,7 +58,7 @@ public class EditFlushHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Message data cannot be null"));
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -67,7 +67,7 @@ public class EditFlushHandler implements WebSocketHandler {
             try {
                 WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("task id is blank"));
             } catch (Exception e) {
-                log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+                log.error("WebSocket send message failed, message: {}", e.getMessage());
             }
             return;
         }
@@ -77,7 +77,7 @@ public class EditFlushHandler implements WebSocketHandler {
             try {
                 WebSocketManager.sendMessage(context.getSender(), "operation type is blank");
             } catch (Exception e) {
-                log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+                log.error("WebSocket send message failed, message: {}", e.getMessage());
             }
             return;
         }
@@ -127,7 +127,7 @@ public class EditFlushHandler implements WebSocketHandler {
             try {
                 container.stop();
             }catch (Exception e){
-                log.error("Disable changestream failed,message: {}", e.getMessage() ,e);
+                log.error("Disable changestream failed,message: {}", e.getMessage());
             }
 
         }
@@ -179,7 +179,7 @@ public class EditFlushHandler implements WebSocketHandler {
 			map.put("data", data);
 			WebSocketManager.sendMessage(receiver, JsonUtil.toJsonUseJackson(map));
 		} catch (Exception e) {
-			log.error("WebSocket send watch message failed,message: {}", e.getMessage(), e);
+			log.error("WebSocket send watch message failed,message: {}", e.getMessage());
 		}
 	}
 }

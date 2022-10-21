@@ -387,6 +387,7 @@ public class TaskAlarmScheduler {
 
                     alarmInfo.setId(first.get().getId());
                     alarmInfo.setLevel(Level.RECOVERY);
+                    alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
                     alarmInfo.setSummary(summary);
                     alarmInfo.setRecoveryTime(DateUtil.date());
                     alarmService.save(alarmInfo);

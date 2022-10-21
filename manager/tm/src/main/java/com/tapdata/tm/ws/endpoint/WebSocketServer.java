@@ -125,6 +125,7 @@ public class WebSocketServer extends TextWebSocketHandler {
 		if (webSocketInfo != null){
 			userId = webSocketInfo.getUserId();
 		}
+		log.info("WebSocket receive. message, userId {},id {}", userId, id);
 
 		if (msg.startsWith(MessageInfoV1.VERSION)) {
 			MessageInfoV1 messageInfo = MessageInfoV1.parse(msg);
@@ -170,7 +171,7 @@ public class WebSocketServer extends TextWebSocketHandler {
 					log.warn("Handle message error,handler is empty");
 				}
 			}catch (Exception e){
-				log.error("Handle message error,sessionMsg: {} message: {}",JsonUtil.toJson(message), e.getMessage(), e);
+				log.error("Handle message error,sessionMsg: {} message: {}",JsonUtil.toJson(message), e.getMessage());
 //				try {
 //					WebSocketManager.sendMessageBySessionId(session.getId(), String.format("Handle message error,message: %s", e.getMessage()));
 //					session.sendMessage(new TextMessage(String.format("Handle message error,message: %s", e.getMessage())));
@@ -389,7 +390,7 @@ public class WebSocketServer extends TextWebSocketHandler {
 				return queryStrMap.get("agentId");
 			}
 		}catch (Exception e){
-			log.error("WebSocket get agentId error,message: {}", e.getMessage(), e);
+			log.error("WebSocket get agentId error,message: {}", e.getMessage());
 		}
 		return null;
 	}
@@ -407,7 +408,7 @@ public class WebSocketServer extends TextWebSocketHandler {
 				return userId != null ? userId.toHexString() : null;
 			}
 		}catch (Exception e){
-			log.error("WebSocket get userId error,message: {}", e.getMessage(), e);
+			log.error("WebSocket get userId error,message: {}", e.getMessage());
 		}
 
 		return null;

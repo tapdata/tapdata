@@ -77,7 +77,7 @@ public class EditFlushListener implements MessageListener<ChangeStreamDocument<D
 			}
 		}catch (Exception e){
 			log.error("ChangeStream handle message error, body: {},message: {}",
-					JsonUtil.toJsonUseJackson(message.getBody()), e.getMessage(), e);
+					JsonUtil.toJsonUseJackson(message.getBody()), e.getMessage());
 		}
 	}
 }

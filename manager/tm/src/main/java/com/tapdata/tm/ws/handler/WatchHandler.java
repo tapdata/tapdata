@@ -60,7 +60,7 @@ public class WatchHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Message data cannot be null"));
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -69,7 +69,7 @@ public class WatchHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("CollectionName is empty"));
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -83,7 +83,7 @@ public class WatchHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Where is empty"));
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -151,7 +151,7 @@ public class WatchHandler implements WebSocketHandler {
 					collectionWatchCache.getContainer().stop();
 					watchCacheMap.remove(collectionName);
 				}catch (Exception e){
-					log.error("Disable changestream failed,message: {}", e.getMessage() ,e);
+					log.error("Disable changestream failed,message: {}", e.getMessage());
 				}
 			}
 		}
@@ -174,7 +174,7 @@ public class WatchHandler implements WebSocketHandler {
 			map.put("data", data);
 			WebSocketManager.sendMessage(receiver, JsonUtil.toJson(map));
 		} catch (Exception e) {
-			log.error("WebSocket send watch message failed,message: {}", e.getMessage(), e);
+			log.error("WebSocket send watch message failed,message: {}", e.getMessage());
 		}
 	}
 }

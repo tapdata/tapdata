@@ -88,7 +88,7 @@ public class WebSocketManager {
 			LogsHandler.removeSession(id);
 			WatchHandler.removeSession(id);
 			NotificationHandler.removeSession(id);
-			DataFlowInsightHandler.removeSession(id);
+			//DataFlowInsightHandler.removeSession(id);
 			EditFlushHandler.removeSession(id);
 		}else {
 			log.warn("Websocket cache remove seesion skip, id is blank");
@@ -116,9 +116,8 @@ public class WebSocketManager {
 		WebSocketInfo sessionInfo = getSessionByUid(id);
 		if(sessionInfo != null && sessionInfo.getSession() != null){
 			sessionInfo.getSession().sendMessage(new TextMessage(message));
-			log.info("WebSocket send message successfully,receiver: {}, message: {}", id, message);
 		}else{
-			log.warn("Can not send message,session does not exist, id: {}, message: {}", id, message);
+			log.warn("Can not send message,session does not exist, id: {}", id);
 		}
 	}
 
@@ -147,10 +146,9 @@ public class WebSocketManager {
 			WebSocketInfo webSocketInfo = getSessionById(id);
 			if (webSocketInfo != null){
 				webSocketInfo.getSession().sendMessage(new TextMessage(message));
-				log.info("WebSocket send message successfully,receiver: {}, message: {}", id, message);
 			}
 		}else{
-			log.warn("Can not send message,session does not exist, id: {}, message: {}", id, message);
+			log.warn("Can not send message,session does not exist, id: {}", id);
 		}
 	}
 

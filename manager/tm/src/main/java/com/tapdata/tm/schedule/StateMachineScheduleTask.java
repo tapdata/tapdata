@@ -61,7 +61,7 @@ public class StateMachineScheduleTask {
 				StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
 				log.info("checkScheduledTask complete, result: {}", JsonUtil.toJson(result));
 			} catch (Throwable e) {
-				log.error("Failed to execute state machine,taskId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
+				log.error("Failed to execute state machine,taskId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage());
 			}
 		});
 	}
@@ -77,7 +77,7 @@ public class StateMachineScheduleTask {
 				StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
 				log.info("checkStoppingTask complete, result: {}", JsonUtil.toJson(result));
 			} catch (Throwable e) {
-				log.error("Failed to execute state machine,taskId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
+				log.error("Failed to execute state machine,taskId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage());
 			}
 		});
 	}
@@ -134,7 +134,7 @@ public class StateMachineScheduleTask {
 				}
 
 			} catch (Throwable e) {
-				log.error("checkScheduledDataFlow Failed to execute state machine,dataFlowId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
+				log.error("checkScheduledDataFlow Failed to execute state machine,dataFlowId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage());
 			}
 		});
 	}

@@ -15,6 +15,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -29,6 +30,11 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
 
     @Autowired
     private TaskService taskService;
+
+    @Value("${task.reset.times: 2}")
+    private int resetAllTimes;
+    @Value("${task.reset.interval: 30000}")
+    private int resetInterval;
 
     public TaskResetLogServiceImpl(MongoTemplate mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
@@ -58,8 +64,8 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
                 } else if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
                     taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_DELETE_FAILED);
                 }
-                resetEventDto.setResetInterval(30);
-                resetEventDto.setResetAllTimes(2);
+                resetEventDto.setResetInterval(resetInterval / 1000);
+                resetEventDto.setResetAllTimes(resetAllTimes);
                 break;
             default:
                 break;
@@ -100,6 +106,7 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
         Query query = new Query(criteria);
         List<TaskResetEventDto> taskResetEventDtos = mongoTemplate.find(query, TaskResetEventDto.class);
 
+        //将重置的数据封装成为前端日志需要展示的数据模型
         LinkedHashMap<String, String> nodeMap = new LinkedHashMap<>();
         LinkedList<TaskLogInfoVo> taskLogInfoVos = new LinkedList<>();
         TaskDagCheckLogVo taskDagCheckLogVo = new TaskDagCheckLogVo();
@@ -110,6 +117,8 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
             BeanUtils.copyProperties(taskResetEventDto, taskLogInfoVo);
             taskLogInfoVo.setId(taskResetEventDto.getId().toHexString());
             taskLogInfoVos.add(taskLogInfoVo);
+
+            //如果已经存在任务完成，或者任务失败的消息，则说明本次任务的reset操作已经结束，这个over按照前端约定，应该是true， 否则为false
             if (taskResetEventDto.getStatus().equals(TaskResetEventDto.ResetStatusEnum.TASK_FAILED)
                     || taskResetEventDto.getStatus().equals(TaskResetEventDto.ResetStatusEnum.TASK_SUCCEED)) {
                 taskDagCheckLogVo.setOver(true);

@@ -10,7 +10,6 @@ import com.mongodb.client.model.changestream.FullDocument;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.changestream.config.ChangeStreamManager;
-import com.tapdata.tm.dataflow.entity.DataFlow;
 import com.tapdata.tm.log.dto.LogDto;
 import com.tapdata.tm.log.entity.LogEntityElastic;
 import com.tapdata.tm.log.service.LogService;
@@ -90,17 +89,14 @@ public class LogsHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("DataFlowId is illegal"));
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}else {
-			DataFlow dataFlow = mongoTemplate.findOne(Query.query(Criteria.where("_id").is(toObjectId(dataFlowId)).and("user_id").is(context.getUserId())), DataFlow.class);
-			if (dataFlow == null) {
-				TaskEntity entity = mongoTemplate.findOne(Query.query(Criteria.where("_id").is(toObjectId(dataFlowId)).and("user_id").is(context.getUserId())), TaskEntity.class);
-				if (entity == null) {
-					WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("DataFlow info was not found"));
-					return;
-				}
+			TaskEntity entity = mongoTemplate.findOne(Query.query(Criteria.where("_id").is(toObjectId(dataFlowId)).and("user_id").is(context.getUserId())), TaskEntity.class);
+			if (entity == null) {
+				WebSocketManager.sendMessage(context.getSender(), "DataFlow info was not found");
+				return;
 			}
 		}
 
@@ -165,7 +161,7 @@ public class LogsHandler implements WebSocketHandler {
 			log.info("Handler message end,sessionId: {}", context.getSessionId());
 			logsCache.setEnabled(false);
 		} catch (Exception e) {
-			log.error("WebSocket send history log message failed,message: {}", e.getMessage(), e);
+			log.error("WebSocket send history log message failed,message: {}", e.getMessage());
 			logsCache.setEnabled(false);
 		}
 	}
@@ -188,7 +184,7 @@ public class LogsHandler implements WebSocketHandler {
 			try {
 				container.stop();
 			}catch (Exception e){
-				log.error("Disable changestream failed,message: {}", e.getMessage() ,e);
+				log.error("Disable changestream failed,message: {}", e.getMessage());
 			}
 
 		}
@@ -363,7 +359,7 @@ public class LogsHandler implements WebSocketHandler {
 			map.put("data", data);
 			WebSocketManager.sendMessage(receiver, JsonUtil.toJsonUseJackson(map));
 		} catch (Exception e) {
-			log.error("WebSocket send log message failed,message: {}", e.getMessage(), e);
+			log.error("WebSocket send log message failed,message: {}", e.getMessage());
 		}
 	}
 

@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.loader;
 
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.Param;
@@ -30,6 +31,71 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
     public void stopRead(){
         stopRead = true;
     }
+
+    CodingConnector codingConnector;
+    public ProjectsLoader connectorInit(CodingConnector codingConnector){
+        this.codingConnector = codingConnector;
+        return this;
+    }
+
+    @Override
+    public CodingLoader connectorOut() {
+        this.codingConnector = null;
+        return this;
+    }
+
+    public List<Map<String,Object>> myProjectList(){
+        Map<String,Object> user = this.myselfInfo();
+        if (Checker.isNotEmptyCollection(user)){
+            Object userIdObj = user.get("Id");
+            if (Checker.isEmpty(userIdObj)) return null;
+            return this.userProjectList((Integer)userIdObj);
+        }
+        return null;
+    }
+    public List<Map<String,Object>> userProjectList(Integer userId){
+        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
+        HttpEntity<String,String> header = HttpEntity.create()
+                .builder("Authorization",contextConfig.getToken());
+        HttpEntity<String,Object> body = HttpEntity.create()
+                .builderIfNotAbsent("Action","DescribeUserProjects")
+                .builder("userId",userId);
+        Map<String, Object> post = CodingHttp.create(
+                header.getEntity(),
+                body.getEntity(),
+                String.format(OPEN_API_URL, contextConfig.getTeamName())).post();
+        if (null == post || post.isEmpty()){
+            return null;
+        }
+        Object responseObj = post.get("Response");
+        if (Checker.isEmptyCollection(responseObj)){
+            return null;
+        }
+        Object ProjectListObj = ((Map<String,Object>)responseObj).get("ProjectList");
+        return Checker.isNotEmptyCollection(ProjectListObj)?(List<Map<String, Object>>)ProjectListObj:null;
+    }
+
+    public Map<String,Object> myselfInfo(){
+        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
+        HttpEntity<String,String> header = HttpEntity.create()
+                .builder("Authorization",contextConfig.getToken());
+        HttpEntity<String,Object> body = HttpEntity.create()
+                .builderIfNotAbsent("Action","DescribeCodingCurrentUser");
+        Map<String, Object> post = CodingHttp.create(
+                header.getEntity(),
+                body.getEntity(),
+                String.format(OPEN_API_URL, contextConfig.getTeamName())).post();
+        if (null == post || post.isEmpty()){
+            return null;
+        }
+        Object responseObj = post.get("Response");
+        if (Checker.isEmptyCollection(responseObj)){
+            return null;
+        }
+        Object userObj = ((Map<Object, Object>)responseObj).get("User");
+        return Checker.isNotEmptyCollection(userObj)?(Map<String, Object>)userObj:null;
+    }
+
     @Override
     public Long streamReadTime() {
         return 5*60*1000l;

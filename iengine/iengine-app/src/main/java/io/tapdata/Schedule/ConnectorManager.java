@@ -19,7 +19,6 @@ import io.tapdata.TapInterface;
 import io.tapdata.aspect.LoginSuccessfullyAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.*;
-import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.*;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;

@@ -44,7 +44,7 @@ public class DataSyncHandler implements WebSocketHandler{
             try {
                 WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Message data cannot be null"));
             } catch (Exception e) {
-                log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+                log.error("WebSocket send message failed, message: {}", e.getMessage());
             }
             return;
         }

@@ -4,6 +4,7 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
@@ -39,6 +40,7 @@ public class SubscribeMap implements MemoryFetcher {
 				}
 			}
 		}, subscribeMapCleanupPeriod, subscribeMapCleanupPeriod, TimeUnit.SECONDS);
+		PDKIntegration.registerMemoryFetcher(SubscribeMap.class.getSimpleName(), this);
 	}
 	public void unbindSubscribeIds(EngineSessionHandler engineSessionHandler) {
 		for(Map.Entry<String, List<EngineSessionHandler>> entry : subscribeIdSessionMap.entrySet()) {

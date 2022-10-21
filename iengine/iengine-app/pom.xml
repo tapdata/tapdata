@@ -45,6 +45,11 @@
             <artifactId>deduction-module</artifactId>
             <version>0.5.2-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>service-skeleton-module</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
         <dependency> <!-- exclude掉spring-boot的默认log配置 -->
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>

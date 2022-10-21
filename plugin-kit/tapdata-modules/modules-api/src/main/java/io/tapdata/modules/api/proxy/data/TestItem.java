@@ -4,6 +4,7 @@ import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.modules.api.net.message.TapEntityEx;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,7 +13,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Implementation(value = TapEntity.class, type = "TestItem")
-public class TestItem implements TapEntity {
+public class TestItem extends TapEntityEx {
 	private String action;
 	public TestItem action(String action) {
 		this.action = action;

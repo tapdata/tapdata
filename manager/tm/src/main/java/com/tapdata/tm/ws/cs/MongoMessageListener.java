@@ -71,7 +71,7 @@ public class MongoMessageListener implements MessageListener<ChangeStreamDocumen
                 }*/
             }
         } catch (Exception e) {
-            log.error("ChangeStream handle message error,message: {}", e.getMessage(), e);
+            log.error("ChangeStream handle message error,message: {}", e.getMessage());
         }
     }
 }

@@ -105,7 +105,6 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
         try {
             jsResult = service.getJsResult(getId(), target.getId(), taskDtoCopy);
         } catch (Exception e) {
-            log.error("MigrateJsProcessorNode getJsResult ERROR", e);
             throw new RuntimeException(e);
         }
         if (CollectionUtils.isEmpty(jsResult)) {

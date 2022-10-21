@@ -11,7 +11,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import javax.servlet.*;
-import javax.servlet.annotation.WebFilter;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -62,20 +61,10 @@ public class RequestFilter implements Filter {
 		ThreadLocalUtils.set(ThreadLocalUtils.REQUEST_ID, reqId);
 		Thread.currentThread().setName(ip + "-" + Thread.currentThread().getId() + "-" + reqId);
 
-		if (log.isDebugEnabled()) {
-			logReq(httpServletRequest);
-		}
-
 		try {
 			filterChain.doFilter(httpServletRequest, httpServletResponse);
 		} catch (Throwable e){
 			log.error("Process request error", e);
-		} finally {
-			log.info("{} {} {} {}ms ", Thread.currentThread().getName(), httpServletRequest.getMethod(), requestURI, System.currentTimeMillis() - startTime);
-		}
-
-		if (log.isDebugEnabled()) {
-			logRes(httpServletResponse);
 		}
 	}
 

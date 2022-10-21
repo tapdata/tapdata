@@ -52,7 +52,7 @@ public class NotificationHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("UserId is blank"));
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -81,7 +81,7 @@ public class NotificationHandler implements WebSocketHandler {
 			try {
 				container.stop();
 			}catch (Exception e){
-				log.error("Disable changestream failed,message: {}", e.getMessage() ,e);
+				log.error("Disable changestream failed,message: {}", e.getMessage());
 			}
 
 		}
@@ -145,7 +145,7 @@ public class NotificationHandler implements WebSocketHandler {
 			map.put("data", dataMap);
 			WebSocketManager.sendMessage(receiver, JsonUtil.toJsonUseJackson(map));
 		} catch (Exception e) {
-			log.error("WebSocket send notification failed,message: {}", e.getMessage(), e);
+			log.error("WebSocket send notification failed,message: {}", e.getMessage());
 		}
 	}
 }
