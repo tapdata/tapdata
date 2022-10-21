@@ -73,7 +73,7 @@
               }
             }
           }],
-          "x-content": "hookButton",
+          "x-content": "${hookButton}",
           "x-component": "Button",
           "x-index": 41
         },
@@ -198,7 +198,7 @@
         },
         "hookButton": {
           "type": "void",
-          "title": "${hookButton}",
+          "title": " ",
           "x-decorator": "FormItem",
           "x-component-props": {
             "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
@@ -211,13 +211,13 @@
               }
             }
           },
-          "x-content": "hookButton",
+          "x-content": "${hookButton}",
           "x-component": "Button",
           "x-index": 100
         },
         "hookText": {
           "type": "string",
-          "title": " ",
+          "title": "${hookButtonTitle}",
           "x-decorator": "FormItem",
           "x-decorator-props": {
             "colon": false
@@ -247,8 +247,9 @@
       "accessToken": "AccessToken",
       "orgId": "Organization",
       "webHook": "Service Hook",
-      "hookButton": " Generate URL to notify ",
-      "tokenButton": " Get access rights and tokens ",
+      "hookButton": "Generate URL to notify",
+      "hookButtonTitle": "URL to notify",
+      "tokenButton": "Get access rights and tokens",
       "accessTokenButton": "Refresh token",
       "refreshTokenButtonMsg": "Refresh Now",
       "getTokenButtonMsgA": "Authorized, click to retrieve",
@@ -300,6 +301,7 @@
       "orgId": "组织",
       "webHook": "Service Hook",
       "hookButton": "生成要通知的URL",
+      "hookButtonTitle": "要通知的URL",
       "tokenButton": "获取访问权限和令牌",
       "accessTokenButton": "刷新令牌",
       "refreshTokenButtonMsg": "立即刷新",
@@ -343,6 +345,7 @@
       "orgId": "組織",
       "webHook": "Service Hook",
       "hookButton": "生成要通知的URL",
+      "hookButtonTitle": "要通知的URL",
       "tokenButton": "獲取存取權限和權杖",
       "accessTokenButton": "重繪權杖",
       "refreshTokenButtonMsg": "立即重繪",
