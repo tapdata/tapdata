@@ -2,47 +2,47 @@
 
 如果您感興趣的話，不妨前往ZoHo提供的OpenAPI檔案以及WebHook檔案，詳細瞭解全部內容：
 
+- OpenAPI檔案：[https://desk.zoho.com.cn/support/APIDocument.do#Introduction](https://desk.zoho.com.cn/support/APIDocument.do#Introduction)
 
-- OpenAPI檔案： https://desk.zoho.com.cn/support/APIDocument.do#Introduction
+- WebHook檔案：[https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction](https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction)
 
-- WebHook檔案： https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction
-
--工作流配寘檔案： https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html
-
+-工作流配寘檔案：[https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html](https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html)
 
 當然您也可以瀏覽以下內容，快速上手ZoHo資料來源的配寘流程。
 
+---
+
 ### 1.内容說明
 
-1.用戶端ID碼（Client ID）：用戶端ID碼需要用戶前往ZoHoDesk手動獲取並複製粘貼到此；
+1.機构ID（org ID）：您的數據來源機构，需要您手動進入ZoHo Desk獲取並配寘到此處； 
 
+2.用戶端ID碼（Client ID）：用戶端ID碼需要用戶前往ZoHoDesk手動獲取並複製粘貼到此；
 
-2.用戶端機密碼（Client Secret）：用戶端機密碼與用戶端ID碼獲取管道一致，您獲取用戶端ID碼的同時也可以看到用戶端機密碼，輸入用戶端ID碼和用戶端機密碼後即可輸入應用生成碼；
+3.用戶端機密碼（Client Secret）：用戶端機密碼與用戶端ID碼獲取管道一致，您獲取用戶端ID碼的同時也可以看到用戶端機密碼，輸入用戶端ID碼和用戶端機密碼後即可輸入應用生成碼；
 
+4.應用生成碼（Generate Code）：應用生成碼需要與用戶端ID碼和用戶端機密碼配合使用，用於獲取OpenAPI訪問秘鑰和秘鑰重繪權杖。
 
-3.應用生成碼（Generate Code）：應用生成碼需要與用戶端ID碼和用戶端機密碼配合使用，用於獲取OpenAPI訪問秘鑰和秘鑰重繪權杖。
+5.連接模式：連接模式供用戶選擇，默認普通檔案模式，可選有普通檔案模式、CSV模式（暫未提供）。
 
+6.增量管道：局限於ZoHo的OpenAPI，ZoHo資料來源僅支持WebHook增量管道，詳細的說明見下方說明。
 
-4.連接模式：連接模式供用戶選擇，默認普通檔案模式，可選有普通檔案模式、CSV模式（暫未提供）。
+7.服務URL：服務URL是用於配寘WebHook，需要您把此處生成的服務URL複製粘貼到ZoHoDesk的WebHook配寘項，具體的配寘流程見下方說明。
 
-
-5.增量管道：局限於ZoHo的OpenAPI，ZoHo資料來源僅支持WebHook增量管道，詳細的說明見下方說明。
-
-
-6.服務URL：服務URL是用於配寘WebHook，需要您把此處生成的服務URL複製粘貼到ZoHoDesk的WebHook配寘項，具體的配寘流程見下方說明。
-
+---
 
 ### 2.配寘步驟
 
 #### 2.1基礎配寘
 
-1.進入Api Console點擊右上角ADD CLIENT按鈕，選擇Self Client；
+1.獲取**機构ID**：進入您的ZoHo Desk，點擊右上角的Setting，點擊開發者空間下的API選單，滑動到底部，您可以看到一個標題“Zoho服務通信（ZSC）金鑰”，這個表單下麵有機构ID欄位，複製這個機构ID到這裡即可。 
 
--點擊連結進入API Console： https://api-console.zoho.com.cn/
+2.進入Api Console點擊右上角ADD CLIENT按鈕，選擇Self Client；
 
-2.點擊功能表列中的Client Secret可獲取Client ID和Client Secret；
+-點擊連結進入API Console： [https://api-console.zoho.com.cn/](https://api-console.zoho.com.cn/)
 
-3.接下來再去獲取Generate Code，輸入Scope，輸入完整的scope有利於api獲取數據：
+3.點擊功能表列中的Client Secret可獲取Client ID和Client Secret；
+
+4.接下來再去獲取Generate Code，輸入Scope，輸入完整的scope有利於api獲取數據：
 
 ```
 Desk.tickets.ALL，Desk.contacts.READ，Desk.contacts.WRITE，Desk.contacts.UPDATE，Desk.contacts.CREATE，Desk.tasks.ALL，Desk.basic.READ，Desk.basic.CREATE，Desk.settings.ALL，Desk.events.ALL，Desk.articles.READ，Desk.articles.CREATE，Desk.articles.UPDATE，Desk.articles.DELETE
@@ -50,13 +50,13 @@ Desk.tickets.ALL，Desk.contacts.READ，Desk.contacts.WRITE，Desk.contacts.UPDA
 
 您也可以嘗試去打開以下連結前往官方檔案自己拼接合適的scope，記得用英文符號逗號分隔：
 
-https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes
+[https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes](https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes)
 
-4.選擇一個Time Duration，可選項為3minutes、5minutes、7minutes、10minutes。 這個選項表示您接下來需要在此時間內回到TapData創建連接頁面獲取訪問Token和重繪Token。
+5.選擇一個Time Duration，可選項為3minutes、5minutes、7minutes、10minutes。 這個選項表示您接下來需要在此時間內回到TapData創建連接頁面獲取訪問Token和重繪Token。
 
-5.點擊Create按鈕後，需要您手動選擇關聯的項目也就是ZoHo所說的門戶，選擇的門戶就是接下來數據的來源。
+6.點擊Create按鈕後，需要您手動選擇關聯的項目也就是ZoHo所說的門戶，選擇的門戶就是接下來數據的來源。
 
-6.Generate Code生成後請在Time Duration配寘的這段時間內回到TapData創建連接頁面一件獲取Token，超出時間後或許希望您再次按如上步驟獲取Generate Code。
+7.Generate Code生成後請在Time Duration配寘的這段時間內回到TapData創建連接頁面一件獲取Token，超出時間後或許希望您再次按如上步驟獲取Generate Code。
 
 #### 2.2 WebHook配寘
 
@@ -88,6 +88,8 @@ https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes
 
 8.第七步，編輯Notification Message後，點擊保存。 這樣您就完整配寘好了一個工作流。
 
+---
+
 ### 3.錶說明
 
 1.Tickets：工單錶。
@@ -102,14 +104,13 @@ https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes
 
 ……
 
-### 4.注意事項
+---
 
+### 4.注意事項
 
 - 您在配寘ZoHo資料來源時需要生成服務URL並到ZoHo Desk中進行對應得配寘，否則增量事件將不會生效；
 
-
 - 您在複製一個ZoHo資料來源時同樣需要到ZoHo Desk中為其配寘新的WebHook，因為服務URL對每個ZoHo資料來源來說都是獨一無二的。
-
 
 - 請不要使用同一套Client ID和Client Secret創建過多ZoHo資料來源，因為同一套Client生成的訪問秘鑰是有限的，以防止全量複製過程中發生OpenAPI限流措施導致您產生不必要的損失，僅僅是ZoHo Desk只為客戶提供了少得那麼可憐的OpenAPI訪問連接數，即便您是尊貴的VIP。
 
