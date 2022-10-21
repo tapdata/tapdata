@@ -77,6 +77,7 @@ public class CustomSchema {
                         if (v == null) {
                             field.dataType("String");
                         } else {
+                            //long String => Text
                             if (v instanceof String && ((String) v).length() > 200) {
                                 field.dataType("Text");
                             } else {

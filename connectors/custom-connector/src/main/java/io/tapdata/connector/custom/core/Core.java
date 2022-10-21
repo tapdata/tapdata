@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * key word "core" for script
+ */
 public abstract class Core {
 
-    protected final static int DEFAULT_READ_BATCH_SIZE = 25000;
     public static final String MESSAGE_OPERATION_INSERT = "i";
     public static final String MESSAGE_OPERATION_DELETE = "d";
     public static final String MESSAGE_OPERATION_UPDATE = "u";
