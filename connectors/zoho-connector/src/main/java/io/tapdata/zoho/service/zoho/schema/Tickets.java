@@ -49,7 +49,7 @@ public class Tickets implements Schema {
                     // sentiment     channelRelatedInfo  layoutDetails   team category
                     // subCategory   source    sharedDepartments   contact  secondaryContacts assignee   entitySkills
                     table(Schemas.Tickets.getTableName())
-                            .add(field("id","Long").isPrimaryKey(true).primaryKeyPos(1))
+                            .add(field("id","StringMinor").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("modifiedTime","DateTime"))
                             .add(field("description","Textarea"))
                             .add(field("subCategory","Map"))//Object
