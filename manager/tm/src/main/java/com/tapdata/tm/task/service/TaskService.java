@@ -745,6 +745,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         } catch (Exception e) {
             log.warn("remove task, but remove schema error, task name = {}", taskDto.getName());
         }
+
+        //删除收集的对象
+        taskCollectionObjService.deleteById(taskDto.getId());
     }
 
     /**
