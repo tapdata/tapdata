@@ -183,8 +183,8 @@ public class ZoHoStarter {
             this.addNewAccessTokenToStateMap(newAccessToken);
             header.build("Authorization",newAccessToken);
             httpResult = http.http();
-            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(((Map<String,Object>)httpResult.getResult()).get("data"))){
-                throw new CoreException("Try to get ticket list , but faild.");
+            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) ){// || Checker.isEmpty(((Map<String,Object>)httpResult.getResult()).get("data"))){
+                throw new CoreException("AccessToken refresh succeed, but retry http failed. ");
             }
         }
         return httpResult;

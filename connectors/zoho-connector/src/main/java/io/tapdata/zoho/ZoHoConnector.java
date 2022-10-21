@@ -154,6 +154,7 @@ public class ZoHoConnector extends ConnectorBase {
 		TapConnectionContext context = zoHoStarter.getContext();
 		String modeName = contextConfig.connectionMode();
 		ConnectionMode instance = ConnectionMode.getInstanceByName(context, modeName);
+
 		if (null == instance){
 			throw new CoreException("Connection Mode must be not empty or not null.");
 		}

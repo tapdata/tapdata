@@ -69,7 +69,7 @@
             "dependencies": ["refreshToken"],
             "fulfill": {
               "state": {
-                "content": "{{$deps[0] ? \"已授权，点击将会重新授权\" : \"请点击授权\"}}"
+                "content": "{{$deps[0] ? \"${getTokenButtonMsgA}\" : \"${getTokenButtonMsgB}\"}}"
               }
             }
           }],
@@ -100,7 +100,7 @@
         },
         "getRefreshTokenButton": {
           "type": "void",
-          "title": "${tokenButton}",
+          "title": "${accessTokenButton}",
           "x-decorator": "FormItem",
           "x-component-props": {
             "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'RefreshTokenCommand' })}}"
@@ -113,7 +113,7 @@
               }
             }
           }],
-          "x-content": "重新授权",
+          "x-content": "${refreshTokenButtonMsg}",
           "x-component": "Button",
           "x-index": 43
         },
@@ -148,8 +148,7 @@
           },
           "apiServerKey": "database_host",
           "x-index": 50,
-          "hidden": true,
-          "required": true
+          "x-display": "hidden"
         },
         "accessToken": {
           "type": "String",
@@ -161,8 +160,7 @@
           },
           "apiServerKey": "database_host",
           "x-index": 60,
-          "hidden": true,
-          "required": true
+          "x-display": "hidden"
         },
         "connectionMode": {
           "type": "String",
@@ -215,7 +213,7 @@
           },
           "x-content": "hookButton",
           "x-component": "Button",
-          "x-index": 1000
+          "x-index": 100
         },
         "hookText": {
           "type": "string",
@@ -250,7 +248,11 @@
       "orgId": "Organization",
       "webHook": "Service Hook",
       "hookButton": " Generate URL to notify ",
-      "tokenButton": "Get Token",
+      "tokenButton": " Get access rights and tokens ",
+      "accessTokenButton": "Refresh token",
+      "refreshTokenButtonMsg": "Refresh Now",
+      "getTokenButtonMsgA": "Authorized, click to retrieve",
+      "getTokenButtonMsgB": "Please click to get",
 
       "iterationCodes": "Iteration",
       "issueType": "Issue Type",
@@ -298,7 +300,11 @@
       "orgId": "组织",
       "webHook": "Service Hook",
       "hookButton": "生成要通知的URL",
-      "tokenButton": "获取令牌",
+      "tokenButton": "获取访问权限和令牌",
+      "accessTokenButton": "刷新令牌",
+      "refreshTokenButtonMsg": "立即刷新",
+      "getTokenButtonMsgA": "已授权，点击将会重新获取",
+      "getTokenButtonMsgB": "请点击获取",
 
       "connectionMode": "连接模式",
       "document": "普通文档格式",
@@ -337,7 +343,11 @@
       "orgId": "組織",
       "webHook": "Service Hook",
       "hookButton": "生成要通知的URL",
-      "tokenButton": "獲取權杖",
+      "tokenButton": "獲取存取權限和權杖",
+      "accessTokenButton": "重繪權杖",
+      "refreshTokenButtonMsg": "立即重繪",
+      "getTokenButtonMsgA": "已授權，點擊將會重新獲取 ",
+      "getTokenButtonMsgB": "請點擊獲取",
 
       "connectionMode": "連接模式",
       "document": "普通文檔格式",
