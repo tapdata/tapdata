@@ -48,8 +48,10 @@ public class ScriptCore extends Core {
                 if (datum instanceof Map) {
                     Map<String, Object> dataMap = (Map<String, Object>) datum;
                     if (EmptyKit.isNotEmpty(dataMap)) {
+                        //deep copy to resolve problem with multi thread
                         Map<String, Object> newMap = new HashMap<>(dataMap);
                         try {
+                            //put into the queue
                             while (!eventQueue.offer(TapSimplify.insertRecordEvent(newMap, collectionName).referenceTime(System.currentTimeMillis()), 1, TimeUnit.SECONDS)) {
                                 TapLogger.warn(TAG, "log queue is full, waiting...");
                             }

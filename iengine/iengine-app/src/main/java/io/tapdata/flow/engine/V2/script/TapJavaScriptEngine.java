@@ -37,6 +37,7 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
         JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
         ScriptEngine scriptEngine;
         if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
+            //need to change as engine classLoader
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
             try {
@@ -52,6 +53,7 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
                                         )
                         );
             } finally {
+                //return pdk classLoader
                 Thread.currentThread().setContextClassLoader(classLoader);
             }
 
@@ -62,10 +64,11 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
     }
 
     @Override
-    public Object eval(String script, ScriptContext context) throws ScriptException {
-        return this.scriptEngine.eval(combineFunctions(script), context);
+    public Object eval(String script, ScriptContext context) {
+        return applyClassLoaderContext(() -> scriptEngine.eval(combineFunctions(script), context));
     }
 
+    //merge customize functions
     private String combineFunctions(String script) {
         return buildInScript + "\n" + script;
     }

@@ -7,6 +7,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * core for schema(sample)
+ */
 public class LoadSchemaCore extends Core {
 
     private final Map<String, Object> data;
@@ -23,6 +26,7 @@ public class LoadSchemaCore extends Core {
                 if (datum instanceof Map) {
                     if (EmptyKit.isNotEmpty((Map) datum)) {
                         this.data.putAll(((Map) datum));
+                        //sample first row, then stop
                         throw new StopException();
                     }
                 }

@@ -10,11 +10,11 @@ public class CustomConfig implements Serializable {
 
     private static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
 
-    private String __connectionType;
+    private String __connectionType; //add this system config to recognise
     private String collectionName;
     private String uniqueKeys;
     private String syncType = "initial_sync";
-    private String jsEngineName = "graal.js";
+    private String jsEngineName = "graal.js"; //new version
     private Boolean customBeforeOpr;
     private String customBeforeScript = "";
     private String targetScript = "";
