@@ -17,6 +17,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -55,10 +56,21 @@ public class AlarmSettingServiceImpl implements AlarmSettingService {
         return CglibUtil.copyList(alarmSettings, AlarmSettingDto::new);
     }
 
+
+
     @Override
     public void updateSystemNotify(UpdateRuleDto ruleDto) {
         Query query = new Query(Criteria.where("key").is(ruleDto.getKey()));
         Update update = new Update().set("systemNotify", ruleDto.isNotify());
         mongoTemplate.updateFirst(query, update, AlarmSetting.class);
+    }
+
+    @Override
+    public AlarmSettingDto findByKey(AlarmKeyEnum keyEnum) {
+        AlarmSetting one = mongoTemplate.findOne(new Query(), AlarmSetting.class);
+        if (Objects.isNull(one)) {
+            return null;
+        }
+        return CglibUtil.copy(one, AlarmSettingDto.class);
     }
 }
