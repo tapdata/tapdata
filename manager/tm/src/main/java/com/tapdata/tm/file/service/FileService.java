@@ -11,6 +11,7 @@ import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
+import com.tapdata.tm.utils.ThrowableUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.IOUtils;
@@ -107,7 +108,7 @@ public class FileService {
 
             return count;
         } catch (IOException e) {
-            log.error("Read file({}) failed", gridFSFile.getId(), e);
+            log.error("Read file({}) failed, {}", gridFSFile.getId(), e.getMessage());
         }
         return 0;
     }
@@ -216,7 +217,7 @@ public class FileService {
             /** 采用压缩方式，则需注释调这段代码-结束 **/
             out.flush();
         } catch (Exception e) {
-            log.error("viewImg1 error", e);
+            log.error("viewImg1 error {}", ThrowableUtils.getStackTraceByPn(e));
         }
     }
 

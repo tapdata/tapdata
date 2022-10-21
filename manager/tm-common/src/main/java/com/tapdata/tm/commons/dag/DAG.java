@@ -868,7 +868,7 @@ public class DAG implements Serializable, Cloneable {
                         try {
                             nodeEventListener.onTransfer(inputSchemaList, schema, outputSchema, nodeId);
                         } catch (Exception e) {
-                            logger.error("Trigger transfer listener failed", e);
+                            logger.error("Trigger transfer listener failed {}", e.getMessage());
                         }
                     });
                 }
@@ -879,7 +879,7 @@ public class DAG implements Serializable, Cloneable {
                         try {
                             nodeEventListener.schemaTransformResult(nodeId, schemaTransformerResults);
                         } catch (Exception e) {
-                            logger.error("Trigger transfer listener failed", e);
+                            logger.error("Trigger transfer listener failed {}", e.getMessage());
                         }
                     });
                 }

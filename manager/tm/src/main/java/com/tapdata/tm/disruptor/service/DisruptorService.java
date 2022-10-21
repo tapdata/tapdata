@@ -9,6 +9,7 @@ import com.tapdata.tm.disruptor.Element;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.handler.DisruptorExceptionHandler;
 import com.tapdata.tm.disruptor.handler.DistributeEventHandler;
+import io.tapdata.common.executor.ExecutorsManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
 @Service
@@ -26,6 +28,7 @@ public class DisruptorService{
 
     private final DistributeEventHandler distributeEventHandler;
     private final DisruptorExceptionHandler disruptorExceptionHandler;
+    private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
     private Disruptor<Element> elementDisruptor;
 
     public DisruptorService(DistributeEventHandler distributeEventHandler, DisruptorExceptionHandler disruptorExceptionHandler) {
@@ -33,12 +36,12 @@ public class DisruptorService{
         this.disruptorExceptionHandler = disruptorExceptionHandler;
     }
 
+    /**
+     * 初始化disruptor
+     */
     @PostConstruct
     @SuppressWarnings("unchecked")
     private void init() {
-        //初始化disruptor
-        // 生产者的线程工厂
-        ThreadFactory threadFactory = r -> new Thread(r, "simpleThread");
         // RingBuffer生产工厂,初始化RingBuffer的时候使用
         EventFactory<Element> factory = Element::new;
         // 阻塞策略
@@ -46,7 +49,7 @@ public class DisruptorService{
         // 指定RingBuffer的大小
         int bufferSize = 64;
         // 创建disruptor，采用单生产者模式
-        elementDisruptor = new Disruptor<>(factory, bufferSize, threadFactory, ProducerType.SINGLE, strategy);
+        elementDisruptor = new Disruptor<>(factory, bufferSize, executorService, ProducerType.SINGLE, strategy);
         // 设置EventHandler 并且后置清理消费过的数据
         elementDisruptor.handleEventsWith(distributeEventHandler);
         elementDisruptor.handleExceptionsFor(distributeEventHandler).with(disruptorExceptionHandler);

@@ -493,7 +493,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				try {
 					connectionString = new ConnectionString(uri);
 				} catch (Exception e) {
-					log.error("Parse connection string failed ({})", uri, e);
+					log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
 				}
 
 				if (connectionString != null) {
@@ -857,7 +857,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			try {
 				connectionString = new ConnectionString(databaseUri);
 			} catch (Exception e) {
-				log.error("Parse connection string failed ({})", databaseUri, e);
+				log.error("Parse connection string failed ({}) {}", databaseUri, e.getMessage());
 			}
 
 			if (connectionString != null) {

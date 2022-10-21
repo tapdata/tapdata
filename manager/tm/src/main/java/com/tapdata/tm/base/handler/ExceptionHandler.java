@@ -6,6 +6,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.utils.MessageUtil;
+import com.tapdata.tm.utils.ThrowableUtils;
 import com.tapdata.tm.utils.WebUtils;
 import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +41,7 @@ public class ExceptionHandler extends BaseController {
 
 	@org.springframework.web.bind.annotation.ExceptionHandler(Throwable.class)
 	public ResponseMessage<Void> handlerException(Throwable e, HttpServletRequest request) throws Throwable {
-		log.error(e.getMessage(), e);
+		log.error("System error:{}", ThrowableUtils.getStackTraceByPn(e));
 
 		Locale locale = WebUtils.getLocale(request);
 
@@ -72,8 +73,6 @@ public class ExceptionHandler extends BaseController {
 
 	private String collectValidResult(Locale locale, BindingResult result , Exception e) {
 		try {
-			// BindingResult result = e.getBindingResult();
-			//e.getParameter()
 			return result.getAllErrors().stream().map(new Function<ObjectError, Object>() {
 				@Override
 				public Object apply(ObjectError objectError) {
@@ -126,7 +125,7 @@ public class ExceptionHandler extends BaseController {
 
 	@org.springframework.web.bind.annotation.ExceptionHandler(BizException.class)
 	public ResponseMessage handlerException(BizException e, HttpServletRequest request, HttpServletResponse response) {
-		log.error(e.getMessage(), e);
+		log.error("System error:{}", ThrowableUtils.getStackTraceByPn(e));
 
 		if ("NotLogin".equals(e.getErrorCode())){
 			response.setStatus(HttpStatus.SC_UNAUTHORIZED);
@@ -165,5 +164,4 @@ public class ExceptionHandler extends BaseController {
 		res.setData(messageMap);
 		return res;
 	}
-
 }

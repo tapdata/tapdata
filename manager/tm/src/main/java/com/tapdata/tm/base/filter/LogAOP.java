@@ -3,6 +3,7 @@ package com.tapdata.tm.base.filter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
+import com.tapdata.tm.utils.ThrowableUtils;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.Signature;
 import org.aspectj.lang.annotation.*;
@@ -93,7 +94,7 @@ public class LogAOP {
 	@AfterThrowing( throwing = "e", pointcut = "restApiLog()")
 	public void error(JoinPoint joinPoint, Throwable e){
 		Logger logger = getLogger(joinPoint.getTarget().getClass());
-		logger.error(joinPoint.getSignature().getName() + ", error", e);
+		logger.error(joinPoint.getSignature().getName() + ", error", ThrowableUtils.getStackTraceByPn(e));
 	}
 
 	@AfterReturning(returning = "result", pointcut = "restApiLog()")
