@@ -588,7 +588,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 inspectService.saveInspect(taskDto, userDetail);
             }
         } catch (Exception e) {
-            log.error("新建校验任务出错", e);
+            log.error("新建校验任务出错 {}", e.getMessage());
         }
     }
 
@@ -761,7 +761,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         try {
             stop(id, user, true);
         } catch (Exception e) {
-            log.error("停止异常，但是共享缓存仍然删除", e);
+            log.error("停止异常，但是共享缓存仍然删除 {}", e.getMessage());
         }
         //将任务删除标识改成true
         update(new Query(Criteria.where("_id").is(id)), Update.update("is_deleted", true));

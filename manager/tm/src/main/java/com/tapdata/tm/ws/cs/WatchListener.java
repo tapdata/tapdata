@@ -59,7 +59,7 @@ public class WatchListener implements MessageListener<ChangeStreamDocument<Docum
 						});
 					});
 				}catch (Exception e){
-					log.error("ChangeStream handle message error, body: {},message: {}", JsonUtil.toJson(message.getBody()), e.getMessage(), e);
+					log.error("ChangeStream handle message error, body: {},message: {}", JsonUtil.toJson(message.getBody()), e.getMessage());
 				}
 			}
 		}

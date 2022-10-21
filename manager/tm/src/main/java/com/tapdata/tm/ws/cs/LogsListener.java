@@ -64,7 +64,7 @@ public class LogsListener implements MessageListener<ChangeStreamDocument<Docume
 			}
 		}catch (Exception e){
 			log.error("ChangeStream handle message error, body: {},message: {}",
-					message == null?null:JsonUtil.toJson(message.getBody()), e.getMessage(), e);
+					JsonUtil.toJson(message.getBody()), e.getMessage());
 		}
 	}
 }

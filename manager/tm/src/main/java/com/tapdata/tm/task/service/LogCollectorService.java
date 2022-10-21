@@ -487,7 +487,7 @@ public class LogCollectorService {
             try {
                 connectionString = new ConnectionString(value2);
             } catch (Exception e) {
-                log.error("Parse connection string failed ({})", value2, e);
+                log.error("Parse connection string failed ({}), {}", value2, e.getMessage());
             }
 
             if (connectionString != null ) {

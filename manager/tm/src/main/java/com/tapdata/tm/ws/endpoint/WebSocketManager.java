@@ -66,7 +66,7 @@ public class WebSocketManager {
 			LogsHandler.removeSession(id);
 			WatchHandler.removeSession(id);
 			NotificationHandler.removeSession(id);
-			DataFlowInsightHandler.removeSession(id);
+			//DataFlowInsightHandler.removeSession(id);
 			EditFlushHandler.removeSession(id);
 		}else {
 			log.warn("Websocket cache remove seesion skip, id is blank");
