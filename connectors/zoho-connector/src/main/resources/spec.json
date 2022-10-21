@@ -244,7 +244,7 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "docs/zoho_zh_CN.md",
+      "doc": "docs/zoho_en_US.md",
       "clientID": "Client ID",
       "clientSecret": "Client Secret",
       "generateCode": "Generate Code",
