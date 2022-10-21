@@ -580,7 +580,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 //        AtomicInteger itemCount = new AtomicInteger(0);
 //        AtomicInteger eventCount= new AtomicInteger(0);
 
-        AtomicInteger total = new AtomicInteger(0);
+        AtomicInteger total = new AtomicInteger(-1);
         //分页线程
         Thread pageThread = new Thread(() -> {
             int currentQueryCount = 0, queryIndex = 1;
