@@ -15,6 +15,15 @@
     "connection": {
       "type": "object",
       "properties": {
+        "orgId": {
+          "type": "String",
+          "title": "${orgId}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 10,
+          "required": true
+        },
         "clientID": {
           "type": "String",
           "title": "${clientID}",
@@ -241,7 +250,7 @@
       "generateCode": "Generate Code",
       "refreshToken": "Refresh Token",
       "accessToken": "AccessToken",
-      "orgId": "Organization",
+      "orgId": "Organization ID",
       "webHook": "Service Hook",
       "hookButton": "Generate URL to notify",
       "hookButtonTitle": "URL to notify",
@@ -294,7 +303,7 @@
       "generateCode": "应用生成码",
       "refreshToken": "刷新令牌",
       "accessToken": "访问令牌",
-      "orgId": "组织",
+      "orgId": "机构 ID",
       "webHook": "Service Hook",
       "hookButton": "生成要通知的URL",
       "hookButtonTitle": "要通知的URL",
@@ -338,7 +347,7 @@
       "generateCode": "應用生成碼",
       "refreshToken": "重繪權杖",
       "accessToken": "訪問權杖",
-      "orgId": "組織",
+      "orgId": "組織 ID",
       "webHook": "Service Hook",
       "hookButton": "生成要通知的URL",
       "hookButtonTitle": "要通知的URL",
