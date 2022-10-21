@@ -192,7 +192,7 @@ public class RegisterCli extends CommonCli {
                     jsons.add(jsonString);
                 }
                 if(file.isFile()) {
-                    System.out.println(file.getName() + " uploading...");
+                    System.out.println(file.getName() + " uploading... to url " + tmUrl);
                     UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken);
                     System.out.println(file.getName() + " registered successfully");
                 } else {
