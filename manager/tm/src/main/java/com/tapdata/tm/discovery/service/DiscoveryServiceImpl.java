@@ -544,6 +544,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 Query query = new Query(apiCriteria);
                 query.skip(skip- metaTotal - taskTotal);
                 query.limit(param.getPageSize());
+                query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "Modules");
                 unionQueryResults.addAll(apiUnionQueryResults);
             } else if (metaTotal <= skip) {
@@ -552,11 +553,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 Query query = new Query(taskCriteria);
                 query.skip(skip - metaTotal);
                 query.limit(param.getPageSize());
+                query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryApi = new Query(apiCriteria);
                 queryApi.skip(skip - metaTotal - taskTotal);
                 queryApi.limit(param.getPageSize() - taskUnionQueryResults.size());
+                queryApi.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryApi, UnionQueryResult.class, "Modules");
                 unionQueryResults.addAll(taskUnionQueryResults);
                 unionQueryResults.addAll(apiUnionQueryResults);
@@ -566,15 +569,18 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 Query query = new Query(metadataCriteria);
                 query.skip(skip);
                 query.limit(param.getPageSize());
+                query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> metaUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
 
                 Query queryTask = new Query(taskCriteria);
                 queryTask.skip(skip - metaTotal);
                 queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
+                queryTask.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryApi = new Query(apiCriteria);
                 queryApi.skip(skip - metaTotal - taskTotal);
+                queryApi.with(Sort.by("createTime").descending());
                 queryApi.limit(param.getPageSize() - metaUnionQueryResults.size() + taskUnionQueryResults.size());
                 List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryApi, UnionQueryResult.class, "Modules");
                 unionQueryResults.addAll(metaUnionQueryResults);
@@ -1030,6 +1036,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             Query query = new Query(metadataCriteria);
             query.skip(skip);
             query.limit(param.getPageSize());
+            query.with(Sort.by("createTime").descending());
             List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
             unionQueryResults.addAll(metaUnionQueryResults);
         } else if (metaTotal + taskTotal >=  skip + param.getPageSize()) {
@@ -1038,6 +1045,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 Query query = new Query(taskCriteria);
                 query.skip(skip - metaTotal);
                 query.limit(param.getPageSize());
+                query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
                 unionQueryResults.addAll(taskUnionQueryResults);
             } else {
@@ -1045,11 +1053,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 Query query = new Query(metadataCriteria);
                 query.skip(skip);
                 query.limit(param.getPageSize());
+                query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
 
                 Query queryTask = new Query(taskCriteria);
                 queryTask.skip(skip - metaTotal);
                 queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
+                queryTask.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
                 unionQueryResults.addAll(metaUnionQueryResults);
                 unionQueryResults.addAll(taskUnionQueryResults);
@@ -1061,6 +1071,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 Query query = new Query(apiCriteria);
                 query.skip(skip- metaTotal - taskTotal);
                 query.limit(param.getPageSize());
+                query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "Modules");
                 unionQueryResults.addAll(apiUnionQueryResults);
             } else if (metaTotal <= skip) {
@@ -1069,11 +1080,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 Query query = new Query(taskCriteria);
                 query.skip(skip - metaTotal);
                 query.limit(param.getPageSize());
+                query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryTask = new Query(apiCriteria);
                 queryTask.skip(skip - metaTotal - taskTotal);
                 queryTask.limit(param.getPageSize() - taskUnionQueryResults.size());
+                queryTask.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "Modules");
                 unionQueryResults.addAll(taskUnionQueryResults);
                 unionQueryResults.addAll(apiUnionQueryResults);
@@ -1083,16 +1096,20 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 Query query = new Query(metadataCriteria);
                 query.skip(skip);
                 query.limit(param.getPageSize());
+                query.with(Sort.by("createTime").descending());
+
                 List<UnionQueryResult> metaUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
 
                 Query queryTask = new Query(taskCriteria);
                 queryTask.skip(skip - metaTotal);
                 queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
+                queryTask.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryApi = new Query(apiCriteria);
                 queryApi.skip(skip - metaTotal - taskTotal);
                 queryApi.limit(param.getPageSize() - metaUnionQueryResults.size() + taskUnionQueryResults.size());
+                queryApi.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryApi, UnionQueryResult.class, "Modules");
                 unionQueryResults.addAll(metaUnionQueryResults);
                 unionQueryResults.addAll(taskUnionQueryResults);

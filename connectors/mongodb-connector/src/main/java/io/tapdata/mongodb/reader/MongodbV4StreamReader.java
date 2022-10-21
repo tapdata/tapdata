@@ -133,7 +133,8 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 																final Document documentKey = new DocumentCodec().decode(new BsonDocumentReader(event.getDocumentKey()), DecoderContext.builder().build());
 																before.put("_id", documentKey.get("_id"));
 																final Map lookupData = MongodbLookupUtil.findDeleteCacheByOid(connectionString, collectionName, documentKey.get("_id"), globalStateMap);
-																TapDeleteRecordEvent recordEvent = deleteDMLEvent(MapUtils.isNotEmpty(lookupData) ? lookupData : before, collectionName);
+																TapDeleteRecordEvent recordEvent = deleteDMLEvent(MapUtils.isNotEmpty(lookupData) && lookupData.containsKey("data") && lookupData.get("data") instanceof Map
+																		? (Map<String, Object>) lookupData.get("data") : before, collectionName);
 																recordEvent.setReferenceTime((long) (event.getClusterTime().getTime()) * 1000);
 																tapEvents.add(recordEvent);
 														} else {
