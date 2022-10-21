@@ -58,29 +58,36 @@ public class MysqlAddColumnDDLWrapper extends MysqlDDLWrapper {
                     columnSpec = columnSpec.toLowerCase();
                     switch (columnSpec) {
                         case "not":
+                        case "NOT":
                         case "default":
+                        case "DEFAULT":
                         case "comment":
+                        case "COMMENT":
                             preSpec = columnSpec;
                             break;
                         case "null":
-                            tapField.nullable(!"not".equals(preSpec));
+                        case "NULL":
+                            boolean nullable = !"not".equals(preSpec) || !"NOT".equals(preSpec);
+                            tapField.nullable(nullable);
                             preSpec = "";
                             break;
                         case "key":
+                        case "KEY":
                             if (EmptyKit.isBlank(preSpec)) {
                                 tapField.primaryKeyPos(null != tapTable ? (tapTable.getMaxPKPos() + 1) : 1);
                                 preSpec = "";
                             }
                             break;
                         case "auto_increment":
+                        case "AUTO_INCREMENT":
                             tapField.autoInc(true);
                             preSpec = "";
                             break;
                         default:
-                            if ("default".equals(preSpec)) {
+                            if ("default".equals(preSpec) || "DEFAULT".equals(preSpec) ) {
                                 tapField.defaultValue(StringKit.removeHeadTail(columnSpec, "'", null));
                                 preSpec = "";
-                            } else if ("comment".equals(preSpec)) {
+                            } else if ("comment".equals(preSpec) || "COMMENT".equals(preSpec)) {
                                 tapField.comment(StringKit.removeHeadTail(columnSpec, "'", null));
                                 preSpec = "";
                             }
