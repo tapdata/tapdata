@@ -37,6 +37,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -63,11 +64,16 @@ public class LoadSchemaRunner implements Runnable {
 	private LoadSchemaProgress loadSchemaProgress;
 	private String schemaVersion;
 	private Long lastUpdate = System.currentTimeMillis();
+	private Map<String, Object> nodeConfig;
 
 	public LoadSchemaRunner(Connections connections, ClientMongoOperator clientMongoOperator, int tableCount) {
+		this(connections, clientMongoOperator, tableCount, null);
+	}
+	public LoadSchemaRunner(Connections connections, ClientMongoOperator clientMongoOperator, int tableCount, Map<String, Object> nodeConfig) {
 		this.connections = connections;
 		this.clientMongoOperator = clientMongoOperator;
 		this.schemaVersion = UUIDGenerator.uuid();
+		this.nodeConfig = nodeConfig;
 		this.loadSchemaProgress = new LoadSchemaProgress(connections.getId(), tableCount, 0);
 		List<RelateDataBaseTable> tables = new ArrayList<>();
 		List<TapTable> tapTables = new ArrayList<>();
@@ -154,9 +160,8 @@ public class LoadSchemaRunner implements Runnable {
 					try {
 						DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
 						connectionNode = PDKIntegration.createConnectionConnectorBuilder()
-								.withConnectionConfig(new DataMap() {{
-									putAll(connections.getConfig());
-								}})
+								.withConnectionConfig(DataMap.create(connections.getConfig()))
+								.withNodeConfig(DataMap.create(nodeConfig))
 								.withGroup(databaseType.getGroup())
 								.withPdkId(databaseType.getPdkId())
 								.withAssociateId(connections.getName() + "_" + ts)
@@ -238,8 +243,10 @@ public class LoadSchemaRunner implements Runnable {
 	public static void pdkDiscoverSchema(ConnectionNode connectionNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
 		DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
 		PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
-				() -> connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE,
-						tables -> consumeTapTable(tableConsumer, dataTypesMap, tables)), TAG);
+				() -> {
+					connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE,
+							tables -> consumeTapTable(tableConsumer, dataTypesMap, tables));
+				}, TAG);
 	}
 
 	public static void pdkDiscoverSchema(ConnectorNode connectorNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {

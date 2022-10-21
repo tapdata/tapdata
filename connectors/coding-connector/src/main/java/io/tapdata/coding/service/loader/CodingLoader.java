@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.loader;
 
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.enums.CodingEvent;
 import io.tapdata.coding.service.schema.SchemaStart;
@@ -26,6 +27,10 @@ public interface CodingLoader<T extends Param> {
     static final String TAG = CodingLoader.class.getSimpleName();
     public Long streamReadTime();
     public void stopRead();
+
+    public CodingLoader connectorInit(CodingConnector codingConnector);
+
+    public CodingLoader connectorOut();
 
     public static CodingLoader<Param> loader(TapConnectionContext tapConnectionContext, String tableName){
         Class clz = null;

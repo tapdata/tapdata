@@ -352,10 +352,11 @@ public class MysqlReader implements Closeable {
 		Object serverNameFromStateMap = stateMap.get(SERVER_NAME_KEY);
 		if (serverNameFromStateMap instanceof String) {
 			this.serverName = String.valueOf(serverNameFromStateMap);
+			stateMap.put(SERVER_NAME_KEY, serverNameFromStateMap);
 			stateMap.put(FIRST_TIME_KEY, false);
 		} else {
-			stateMap.put(SERVER_NAME_KEY, this.serverName);
 			stateMap.put(FIRST_TIME_KEY, true);
+			stateMap.put(SERVER_NAME_KEY, this.serverName);
 		}
 	}
 

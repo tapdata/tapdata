@@ -70,7 +70,7 @@ public class IMClientImpl implements IMClient {
     @Override
     public void start() {
         stop();
-        TapLogger.info(TAG, "IMClient started");
+        TapLogger.debug(TAG, "IMClient started");
         monitorThread = new MonitorThread<>(WebsocketPushChannel.class/*TcpPushChannel.class*/);
         monitorThread.setImClient(this);
 //        messageWorkerQueue.setHandler(monitorThread.new PushHandler());
@@ -92,7 +92,7 @@ public class IMClientImpl implements IMClient {
     @Override
     public CompletableFuture<Result> sendData(IncomingData data, Integer expireSeconds) {
         if(expireSeconds == null)
-            expireSeconds = 600;
+            expireSeconds = 60;
         CompletableFuture<Result> future = new CompletableFuture<>();
         String msgId = data.getId();
         long counter = msgCounter.getAndIncrement();
