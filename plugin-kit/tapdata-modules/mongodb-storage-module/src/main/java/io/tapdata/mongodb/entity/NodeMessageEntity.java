@@ -1,21 +1,27 @@
 package io.tapdata.mongodb.entity;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.message.MessageEntity;
 import io.tapdata.mongodb.error.MongodbErrors;
+import io.tapdata.pdk.apis.utils.OrderedIdGenerator;
 import org.bson.Document;
-import org.bson.codecs.pojo.annotations.BsonId;
-import org.bson.types.ObjectId;
 
 public class NodeMessageEntity implements ToDocument {
 	private static final String TAG = NodeMessageEntity.class.getSimpleName();
 	public static final String FIELD_MESSAGE = "message";
-	@BsonId
-	private ObjectId id;
+	private Long _id;
 	private MessageEntity message;
+
+	private static OrderedIdGenerator orderedIdGenerator;
+	static {
+		orderedIdGenerator = InstanceFactory.instance(OrderedIdGenerator.class);
+	}
 	public NodeMessageEntity() {
 	}
+
 	public NodeMessageEntity(MessageEntity message) {
+		_id = orderedIdGenerator.nextId();
 		if(message == null) {
 			throw new CoreException(MongodbErrors.ILLEGAL_ARGUMENTS, "message is null");
 		}
@@ -24,11 +30,11 @@ public class NodeMessageEntity implements ToDocument {
 
 	@Override
 	public Object getId() {
-		return id;
+		return _id;
 	}
 
-	public void setId(ObjectId id) {
-		this.id = id;
+	public void setId(Long id) {
+		this._id = id;
 	}
 
 	public MessageEntity getMessage() {
@@ -42,7 +48,7 @@ public class NodeMessageEntity implements ToDocument {
 	@Override
 	public Document toDocument(Document document) {
 		if(document != null) {
-			document.append(FIELD_ID, id)
+			document.append(FIELD_ID, _id)
 					.append(FIELD_MESSAGE, message);
 		}
 		return document;
