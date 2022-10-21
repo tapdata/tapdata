@@ -40,106 +40,79 @@
 
 -點擊連結進入API Console： https://api-console.zoho.com.cn/
 
-
 2.點擊功能表列中的Client Secret可獲取Client ID和Client Secret；
-
 
 3.接下來再去獲取Generate Code，輸入Scope，輸入完整的scope有利於api獲取數據：
 
-
 ```
-
 Desk.tickets.ALL，Desk.contacts.READ，Desk.contacts.WRITE，Desk.contacts.UPDATE，Desk.contacts.CREATE，Desk.tasks.ALL，Desk.basic.READ，Desk.basic.CREATE，Desk.settings.ALL，Desk.events.ALL，Desk.articles.READ，Desk.articles.CREATE，Desk.articles.UPDATE，Desk.articles.DELETE
-
 ```
-
 
 您也可以嘗試去打開以下連結前往官方檔案自己拼接合適的scope，記得用英文符號逗號分隔：
 
 https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes
 
-
 4.選擇一個Time Duration，可選項為3minutes、5minutes、7minutes、10minutes。 這個選項表示您接下來需要在此時間內回到TapData創建連接頁面獲取訪問Token和重繪Token。
-
 
 5.點擊Create按鈕後，需要您手動選擇關聯的項目也就是ZoHo所說的門戶，選擇的門戶就是接下來數據的來源。
 
-
 6.Generate Code生成後請在Time Duration配寘的這段時間內回到TapData創建連接頁面一件獲取Token，超出時間後或許希望您再次按如上步驟獲取Generate Code。
-
 
 #### 2.2 WebHook配寘
 
-
 配寘webHook後，您可以實現數據的時實更新。
-
 
 一：全域配寘WebHook
 
-
 1.第一步，您需要點擊生成服務URl按鈕生成資料來源對應的服務URL，ZoHoDesk會根據這個URL來向您傳達更新事件；
-
 
 2.第二步，您需要打開您的ZoHoDesk，進入右上角Setting面板，選擇開發者空間，進入WebHook。 在選擇新建webHook。 需要您手動輸入webHook名稱，並把上一步生成的服務URL粘貼到要通知的URL輸入框。 選擇並新增您需要關注的事件。
 
-
 3.點擊保存後，WebHook即生效。
-
 
 二：工作流配寘Webhook
 
-
 1.如果您配寘的全域WebHook無效的話，或許您需要嘗試在工作流配寘這樣一個WebHook；
-
 
 2.第一步，進入Setting面板，找到“自動化”選項，選擇“工作流”選單，再選擇“規則”選單，點擊右側新建規則；
 
-
 3.第二步，新建規則，選擇規則需要對應的模塊，給規則起一個響亮的名稱，然後點擊下一步；
-
 
 4.第三步，選擇執行時間（我覺得應該叫執行事件，ZoHoDesk的中文翻譯不太準確），這是為了選擇觸發此工作流的操作；
 
-
 5.第四步，選擇條件，可選可不選，此選項在於篩選過濾出特定的事件，如果需要的話可以選擇並設定，點擊下一步；
-
 
 6.第五步，選擇一個操作，這裡我們需要配寘的是WebHook，所有您需要在選擇表格頭的左上角選擇所有操作，然後再點擊表格頭的右上角的“+”號選擇並選擇外部操作下的Send Cliq Notification；
 
-
 7.第六步，編輯您的操作名稱，再降您在TapData創建ZoHo資料來源時生成的服務URL粘貼到InComing WebHook URL對應得輸入框中；
-
 
 8.第七步，編輯Notification Message後，點擊保存。 這樣您就完整配寘好了一個工作流。
 
-
 ### 3.錶說明
 
-1. Tickets：工單錶。
+1.Tickets：工單錶。
 
+2.Departments：部門錶。
 
-2. Departments：部門錶。
+3.Products：產品錶。
 
+4.OrganizationFields：自訂屬性欄位錶。
 
-3. Products：產品錶。
-
-
-4. OrganizationFields：自訂屬性欄位錶。
-
-
-5. Contracts：契约錶。
-
+5.Contracts：契约錶。
 
 ……
-
 
 ### 4.注意事項
 
 
--您在配寘ZoHo資料來源時需要生成服務URL並到ZoHo Desk中進行對應得配寘，否則增量事件將不會生效；
+- 您在配寘ZoHo資料來源時需要生成服務URL並到ZoHo Desk中進行對應得配寘，否則增量事件將不會生效；
 
 
--您在複製一個ZoHo資料來源時同樣需要到ZoHo Desk中為其配寘新的WebHook，因為服務URL對每個ZoHo資料來源來說都是獨一無二的。
+- 您在複製一個ZoHo資料來源時同樣需要到ZoHo Desk中為其配寘新的WebHook，因為服務URL對每個ZoHo資料來源來說都是獨一無二的。
 
 
--請不要使用同一套Client ID和Client Secret創建過多ZoHo資料來源，因為同一套Client生成的訪問秘鑰是有限的，以防止全量複製過程中發生OpenAPI限流措施導致您產生不必要的損失，僅僅是ZoHo Desk只為客戶提供了少得那麼可憐的OpenAPI訪問連接數，即便您是尊貴的VIP。
+- 請不要使用同一套Client ID和Client Secret創建過多ZoHo資料來源，因為同一套Client生成的訪問秘鑰是有限的，以防止全量複製過程中發生OpenAPI限流措施導致您產生不必要的損失，僅僅是ZoHo Desk只為客戶提供了少得那麼可憐的OpenAPI訪問連接數，即便您是尊貴的VIP。
+
+- WebHook增量模式下，如若您在ZoHo Desk上删除了某條工單或者其他被WebHook監聽的數據，那麼根據ZoHo Desk的規則，您將收到一條關於更新IsDel欄位的更新事件。 但是您若是此時重置並且重啓了這個個任務，你上次删除的記錄將不在被全量讀取操作獲取，因為ZoHo Open Api不會提供IsDel欄位為TRUE的記錄。
+
+- 關於服務URL，由於ZoHo WebHook的配寘要求：你需要保證你服務的URL在80或者443埠開放，類似於 http://xxx.xx.xxx:80/xxxxxxxx ，或者 https://xxx.xx.xxx:443/xxxxxx 。 囙此，需要您在80埠或者443埠收發ZoHo Desk推送給您的數據

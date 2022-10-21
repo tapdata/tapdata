@@ -91,3 +91,7 @@ https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes
 - 您在复制一个ZoHo数据源时同样需要到ZoHo Desk中为其配置新的WebHook，因为服务URL对每个ZoHo数据源来说都是独一无二的。
 
 - 请不要使用同一套Client ID 和 Client Secret 创建过多ZoHo 数据源，因为同一套Client生成的访问秘钥是有限的，以防止全量复制过程中发生OpenAPI限流措施导致您产生不必要的损失，仅仅是ZoHo Desk只为客户提供了少得那么可怜的OpenAPI访问连接数，即便您是尊贵的VIP。
+
+- WebHook增量模式下，如若您在ZoHo Desk上删除了某条工单或者其他被WebHook监听的数据，那么根据ZoHo Desk的规则，您将收到一条关于更新IsDel字段的更新事件。但是您若是此时重置并且重启了这个个任务，你上次删除的记录将不在被全量读取操作获取，因为ZoHo Open Api不会提供IsDel字段为TRUE的记录。
+
+- 关于服务URL，由于ZoHo WebHook的配置要求：你需要保证你服务的URL在80或者443端口开放，类似于http://xxx.xx.xxx:80/xxxxxxxx,或者https://xxx.xx.xxx:443/xxxxxx。因此，需要您在80端口或者443端口收发ZoHo Desk推送给您的数据。
