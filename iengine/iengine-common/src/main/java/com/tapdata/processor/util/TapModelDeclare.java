@@ -108,8 +108,11 @@ public class TapModelDeclare {
       logger.warn("field not found: " + fieldName);
       return;
     }
-    Optional<TapField> optionalTapField = tapTable.getNameFieldMap().entrySet().stream().filter(t -> StringUtils.equals(fieldName, t.getKey())).map(t -> t.getValue())
-            .peek(f -> f.setPrimaryKey(true)).findFirst();
+    Optional<TapField> optionalTapField = tapTable.getNameFieldMap().entrySet().stream().filter(t -> StringUtils.equals(fieldName, t.getKey())).map(Map.Entry::getValue)
+            .peek(f -> {
+              f.setPrimaryKey(true);
+              f.setPrimaryKeyPos(1);
+            }).findFirst();
 
     optionalTapField.ifPresent(f-> tapTable.getNameFieldMap().put(fieldName, f));
   }
@@ -119,8 +122,11 @@ public class TapModelDeclare {
       logger.warn("field not found: " + fieldName);
       return;
     }
-    Optional<TapField> optionalTapField = tapTable.getNameFieldMap().entrySet().stream().filter(t -> StringUtils.equals(fieldName, t.getKey())).map(t -> t.getValue())
-            .peek(f -> f.setPrimaryKey(false)).findFirst();
+    Optional<TapField> optionalTapField = tapTable.getNameFieldMap().entrySet().stream().filter(t -> StringUtils.equals(fieldName, t.getKey())).map(Map.Entry::getValue)
+            .peek(f -> {
+              f.setPrimaryKey(false);
+              f.setPrimaryKeyPos(null);
+            }).findFirst();
 
     optionalTapField.ifPresent(f-> tapTable.getNameFieldMap().put(fieldName, f));
   }
