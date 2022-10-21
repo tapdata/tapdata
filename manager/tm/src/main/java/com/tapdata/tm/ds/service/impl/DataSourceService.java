@@ -1029,10 +1029,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 
 	public void sendTestConnection(DataSourceConnectionDto connectionDto, boolean updateSchema, Boolean submit, UserDetail user) {
-		log.info("send test connection, connection = {}, updateSchema = {}， submit = {}", connectionDto, updateSchema, submit);
+		log.info("send test connection, connection = {}, updateSchema = {}， submit = {}", connectionDto.getName(), updateSchema, submit);
 
 		submit = submit != null && submit;
-		if (connectionDto == null || !submit) {
+		if (!submit) {
 			return;
 		}
 
@@ -1078,7 +1078,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		queueDto.setData(data);
 		queueDto.setType("pipe");
 
-		log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
+		log.info("build send test connection websocket context, processId = {}, userId = {}", processId, user.getUserId());
 		messageQueueService.sendMessage(queueDto);
 
 	}

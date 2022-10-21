@@ -31,7 +31,6 @@ import io.tapdata.pdk.apis.entity.message.EngineMessage;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
-//import io.tapdata.pdk.core.utils.JWTUtils;
 import io.tapdata.pdk.core.utils.JWTUtils;
 import io.tapdata.wsserver.channels.health.NodeHealthManager;
 import io.tapdata.wsserver.channels.websocket.impl.WebSocketProperties;

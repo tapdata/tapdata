@@ -65,7 +65,7 @@ public class WebSocketServer extends TextWebSocketHandler {
 		if (webSocketInfo != null){
 			userId = webSocketInfo.getUserId();
 		}
-		log.info("WebSocket receive.  message, userId,id: {}, {}, {}", msg, userId, id);
+		log.info("WebSocket receive. message, userId {},id {}", userId, id);
 
  		if(StringUtils.isNotBlank(msg)){
 			try {
