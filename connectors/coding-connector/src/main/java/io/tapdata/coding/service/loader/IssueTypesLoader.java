@@ -32,6 +32,13 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
         this.codingConnector = codingConnector;
         return this;
     }
+
+    @Override
+    public CodingLoader connectorOut() {
+        this.codingConnector = null;
+        return this;
+    }
+
     private boolean stopRead = false;
     public void stopRead(){
         stopRead = true;

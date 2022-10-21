@@ -30,6 +30,8 @@ public interface CodingLoader<T extends Param> {
 
     public CodingLoader connectorInit(CodingConnector codingConnector);
 
+    public CodingLoader connectorOut();
+
     public static CodingLoader<Param> loader(TapConnectionContext tapConnectionContext, String tableName){
         Class clz = null;
         try {

@@ -38,6 +38,12 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
         return this;
     }
 
+    @Override
+    public CodingLoader connectorOut() {
+        this.codingConnector = null;
+        return this;
+    }
+
     public List<Map<String,Object>> myProjectList(){
         Map<String,Object> user = this.myselfInfo();
         if (Checker.isNotEmptyCollection(user)){

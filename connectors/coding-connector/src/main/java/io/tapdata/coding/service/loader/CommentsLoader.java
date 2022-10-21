@@ -36,6 +36,12 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
         return this;
     }
 
+    @Override
+    public CodingLoader connectorOut() {
+        this.codingConnector = null;
+        return this;
+    }
+
     private boolean stopRead = false;
     public void stopRead(){
         stopRead = true;

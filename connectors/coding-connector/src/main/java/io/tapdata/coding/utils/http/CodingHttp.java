@@ -3,6 +3,7 @@ package io.tapdata.coding.utils.http;
 import cn.hutool.http.*;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.logger.TapLogger;
 import java.util.Collections;
 import java.util.HashMap;
@@ -107,6 +108,8 @@ public class CodingHttp {
 
     private final String errorKey = "ERROR";
     public String errorMsg(Map<String,Object> responseMap){
+        Object error = responseMap.get("Error");
+        if (Checker.isNotEmpty(error)) return String.valueOf(error);
         return String.valueOf(responseMap.get(errorKey));
     }
 

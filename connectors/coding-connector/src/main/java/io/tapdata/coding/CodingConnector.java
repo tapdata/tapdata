@@ -465,7 +465,9 @@ public class CodingConnector extends ConnectorBase {
 						  BiConsumer<List<TapEvent>, Object> consumer){
 		CodingLoader<Param> loader = CodingLoader.loader(connectorContext, table.getId());
 		if (Checker.isNotEmpty(loader)) {
+			loader.connectorInit(this);
 			loader.batchRead(offset, batchCount, consumer);
+			loader.connectorOut();
 		}
 	}
 
@@ -473,7 +475,7 @@ public class CodingConnector extends ConnectorBase {
 		return this.batchCountV2(tapConnectorContext, tapTable);
 	}
 	private long batchCountV2(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-		CodingLoader<Param> loader = CodingLoader.loader(tapConnectorContext, tapTable.getId()).connectorInit(this);
+		CodingLoader<Param> loader = CodingLoader.loader(tapConnectorContext, tapTable.getId());
 		if (Checker.isNotEmpty(loader)) {
 			int count = loader.batchCount();
 			return Long.parseLong(String.valueOf(count));

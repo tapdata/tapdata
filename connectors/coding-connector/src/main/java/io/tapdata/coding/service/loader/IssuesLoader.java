@@ -65,6 +65,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         return this;
     }
 
+    @Override
+    public CodingLoader connectorOut() {
+        this.codingConnector = null;
+        return this;
+    }
+
     public void stopRead() {
         stopRead.set(true);
     }
@@ -194,7 +200,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }
         Map<String, Object> issueDetail = (Map<String, Object>) issueDetailResponse.get("Issue");
         if (null == issueDetail) {
-            TapLogger.info(TAG, "Issue Detail acquisition failed: IssueCode {} - {}", code, codingHttp.errorMsg(issueDetail));
+            TapLogger.info(TAG, "Issue Detail acquisition failed: IssueCode {} - {}", code, codingHttp.errorMsg(issueDetailResponse));
             return null;
             //throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
         }
@@ -355,6 +361,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }});
         this.verifyConnectionConfig();
         this.readVIP(null, readEnd, batchCount, codingOffset, consumer);
+        //this.read(null, readEnd, batchCount, codingOffset, consumer);
     }
 
     @Override
@@ -502,10 +509,11 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         switch (eventType) {
             case DELETED_EVENT: {
                 issueDetail = (Map<String, Object>) issueObj;
-                this.composeIssue(this.contextConfig.getProjectName(), this.contextConfig.getTeamName(), issueDetail);
+                Map<String,Object> deleteMap = map(entry("Code",issueDetail.get("code")));
+                this.composeIssue(this.contextConfig.getProjectName(), this.contextConfig.getTeamName(), deleteMap);
 //                issueDetail.put("teamName",this.contextConfig.getTeamName());
 //                issueDetail.put("projectName",this.contextConfig.getProjectName());
-                event = TapSimplify.deleteDMLEvent(issueDetail, TABLE_NAME).referenceTime(referenceTime);
+                event = TapSimplify.deleteDMLEvent(deleteMap, TABLE_NAME).referenceTime(referenceTime);
             }
             break;
             case UPDATE_EVENT: {
@@ -572,11 +580,16 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 //        AtomicInteger itemCount = new AtomicInteger(0);
 //        AtomicInteger eventCount= new AtomicInteger(0);
 
-        AtomicInteger total = new AtomicInteger(-1);
+        AtomicInteger total = new AtomicInteger(0);
         //分页线程
         Thread pageThread = new Thread(() -> {
             int currentQueryCount = 0, queryIndex = 1;
             do {
+                synchronized (codingConnector){
+                    if (!codingConnector.isAlive()){
+                        break;
+                    }
+                }
                 /**
                  * start page ,and add page to queuePage;
                  * */
@@ -594,20 +607,26 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 }
                 queuePage.addAll(resultList.stream().map(obj -> (Integer) (obj.get("Code"))).collect(Collectors.toList()));
                 //pageCount.getAndAdd(1);
-            } while (currentQueryCount >= batchReadPageSize && codingConnector.isAlive());
+            } while (currentQueryCount >= batchReadPageSize );
         }, "PAGE_THREAD");
-        pageThread.setDaemon(true);
+        //pageThread.setDaemon(true);
         pageThread.start();
 
         //详情查询线程
-        while (codingConnector.isAlive()) {
+        while (true) {
+            synchronized (codingConnector){
+                if (!codingConnector.isAlive()){
+                    break;
+                }
+            }
             if (!pageThread.isAlive() && queuePage.isEmpty()) break;
             if (!queuePage.isEmpty()) {
-                int threadCount = total.get() / 500;
+                int threadCount = total.get() / 500 ;
                 threadCount = Math.min(threadCount, MAX_THREAD);
+                threadCount = Math.max(threadCount,1);
                 final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(threadCount + 1, run -> {
                     Thread thread = new Thread(run);
-                    thread.setDaemon(true);
+                    //thread.setDaemon(true);
                     return thread;
                 });
                 for (int i = 0; i < threadCount; i++) {
@@ -617,14 +636,19 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                          * start page ,and add page to queuePage;
                          * */
                         try {
-                            while ((!queuePage.isEmpty() || pageThread.isAlive()) && codingConnector.isAlive()) {
-                                Integer peekId = queuePage.poll();
-                                Map<String, Object> issueDetail = this.get(IssueParam.create().issueCode(peekId));
-                                if (Checker.isNotEmpty(issueDetail)) {
-                                    queueItem.add(issueDetail);
-                                    //queueItem.notify();
-                                    //itemCount.getAndAdd(1);
+                            while ((!queuePage.isEmpty() || pageThread.isAlive())) {
+                                synchronized (codingConnector){
+                                    if (!codingConnector.isAlive()){
+                                        break;
+                                    }
                                 }
+                                Integer peekId = queuePage.poll();
+                                if (Checker.isEmpty(peekId)) continue;
+                                Map<String, Object> issueDetail = this.get(IssueParam.create().issueCode(peekId));
+                                if (Checker.isEmpty(issueDetail)) continue;
+                                queueItem.add(issueDetail);
+                                //queueItem.notify();
+                                //itemCount.getAndAdd(1);
                             }
                         } catch (Exception e) {
                             throw e;
@@ -638,7 +662,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }
 
         //主线程生成事件
-        while ((pageThread.isAlive() || itemThreadCount.get() > 0 || !queuePage.isEmpty() || !queueItem.isEmpty())&& codingConnector.isAlive()) {
+        while ((!queuePage.isEmpty() || pageThread.isAlive() || itemThreadCount.get() > 0 || !queueItem.isEmpty()) ) {
+            synchronized (codingConnector){
+                if (!codingConnector.isAlive()){
+                    break;
+                }
+            }
             /**
              * 从queueItem取数据生成事件
              * **/
