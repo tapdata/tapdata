@@ -1,4 +1,4 @@
-package io.tapdata.zoho.service.zoho;
+package io.tapdata.zoho.service.zoho.loader;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
@@ -11,22 +11,35 @@ import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.HttpResult;
 import io.tapdata.zoho.entity.RefreshTokenEntity;
 import io.tapdata.zoho.enums.HttpCode;
-import io.tapdata.zoho.service.zoho.impl.TokenLoader;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 
 import java.util.Map;
 
-public abstract class ZoHoStarter {
+public class ZoHoStarter {
     private static final String TAG = ZoHoStarter.class.getSimpleName();
 
     protected TapConnectionContext tapConnectionContext;
     protected boolean isVerify;
-    protected ZoHoStarter(TapConnectionContext tapConnectionContext){
+    public ZoHoStarter(TapConnectionContext tapConnectionContext){
         this.tapConnectionContext = tapConnectionContext;
         this.isVerify = Boolean.FALSE;
     }
 
+    public HttpEntity<String,String> requestHeard(){
+        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
+        String accessToken = this.accessTokenFromConfig();
+        HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
+        String orgId = contextConfig.orgId();
+        if (Checker.isNotEmpty(orgId)){
+            header.build("orgId",orgId);
+        }
+        return header;
+    }
+
+    public TapConnectionContext getContext() {
+        return this.tapConnectionContext;
+    }
     /**
      * 校验connectionConfig配置字段
      */
@@ -76,12 +89,14 @@ public abstract class ZoHoStarter {
         String clientSecret = connectionConfigConfigMap.getString("clientSecret");
         String orgId = connectionConfigConfigMap.getString("orgId");
         String generateCode = connectionConfigConfigMap.getString("generateCode");
+        String connectionMode = connectionConfigConfigMap.getString("connectionMode");
         ContextConfig config = ContextConfig.create().refreshToken(refreshToken)
                 .accessToken(accessToken)
                 .clientId(clientId)
                 .clientSecret(clientSecret)
                 .orgId(orgId)
-                .generateCode(generateCode);
+                .generateCode(generateCode)
+                .connectionMode(connectionMode);
         if (this.tapConnectionContext instanceof TapConnectorContext) {
             KVMap<Object> stateMap = ((TapConnectorContext) this.tapConnectionContext).getStateMap();
             if (null != stateMap) {
@@ -168,8 +183,8 @@ public abstract class ZoHoStarter {
             this.addNewAccessTokenToStateMap(newAccessToken);
             header.build("Authorization",newAccessToken);
             httpResult = http.http();
-            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(((Map<String,Object>)httpResult.getResult()).get("data"))){
-                throw new CoreException("Try to get ticket list , but faild.");
+            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) ){// || Checker.isEmpty(((Map<String,Object>)httpResult.getResult()).get("data"))){
+                throw new CoreException("AccessToken refresh succeed, but retry http failed. ");
             }
         }
         return httpResult;

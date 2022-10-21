@@ -1,11 +1,9 @@
-package io.tapdata.zoho.service.zoho.impl;
+package io.tapdata.zoho.service.zoho.loader;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.*;
 import io.tapdata.zoho.enums.HttpCode;
-import io.tapdata.zoho.service.zoho.ZoHoBase;
-import io.tapdata.zoho.service.zoho.ZoHoStarter;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 
@@ -77,5 +75,10 @@ public class TokenLoader extends ZoHoStarter implements ZoHoBase {
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_TOKEN_URL,"/oauth/v2/token"), HttpType.POST).form(form);
         TapLogger.debug(TAG,"Try to get AccessToken and RefreshToken.");
         return TokenEntity.create().entity(http.post()) ;
+    }
+
+    @Override
+    public TapConnectionContext getContext() {
+        return this.tapConnectionContext;
     }
 }

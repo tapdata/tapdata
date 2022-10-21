@@ -1,4 +1,6 @@
-package io.tapdata.zoho.service.zoho;
+package io.tapdata.zoho.service.zoho.loader;
+
+import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 public interface ZoHoBase {
     String AUTHORIZATION_KEY = "Authorization";
@@ -10,4 +12,5 @@ public interface ZoHoBase {
     public static String builderAccessToken(String accessToken){
         return accessToken.startsWith(ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX)?accessToken:ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX+accessToken;
     }
+
 }
