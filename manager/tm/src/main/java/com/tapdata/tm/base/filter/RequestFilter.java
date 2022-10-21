@@ -99,8 +99,8 @@ public class RequestFilter implements Filter {
 				String requestBody = "";
 				String contentType = httpServletRequest.getContentType();
 				if ( contentType != null && contentType.contains("multipart/form-data")) {
-					//requestBody = "Ignore log for binary upload!!!!!!";
-					requestBody = ((HttpServletRequestWrapper) servletRequest).getContentAsString();
+					requestBody = "Ignore log for binary upload!!!!!!";
+					//requestBody = ((HttpServletRequestWrapper) servletRequest).getContentAsString();
 				} else {
 					requestBody = ((HttpServletRequestWrapper) servletRequest).getContentAsString();
 				}
