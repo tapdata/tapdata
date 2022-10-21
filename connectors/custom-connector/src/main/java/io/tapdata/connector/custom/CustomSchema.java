@@ -34,7 +34,10 @@ public class CustomSchema {
     public TapTable loadSchema() throws ScriptException {
         String uniqueKeys = customConfig.getUniqueKeys();
         String collectionName = customConfig.getCollectionName();
-        collectionName = StringUtils.isBlank(collectionName) ? "newCollections" : collectionName.trim();
+        if (EmptyKit.isBlank(collectionName)) {
+            return null;
+        }
+        collectionName = collectionName.trim();
         TapTable tapTable = TapSimplify.table(collectionName);
         String script;
         switch (SyncTypeEnum.fromValue(customConfig.getSyncType())) {
