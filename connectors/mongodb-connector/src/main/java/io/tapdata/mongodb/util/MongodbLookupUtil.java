@@ -54,8 +54,9 @@ public class MongodbLookupUtil {
 				List<Document> lookupDocuments = new ArrayList<>();
 
 				String mongodbUri = MongodbUtil.getSimpleMongodbUri(connectionString);
+				mongodbUri = handleMongodbUriSpecialChar(mongodbUri);
 
-				if (EmptyKit.isBlank(mongodbUri)) {
+			if (EmptyKit.isBlank(mongodbUri)) {
 						throw new Exception(String.format("Cannot get mongodb uri from target connection, connection uri: %s", connectionString));
 				}
 
@@ -92,7 +93,13 @@ public class MongodbLookupUtil {
 				return lookupDocuments;
 		}
 
-		private static String lookupAndSaveValidate(List<TapRecordEvent> tapRecordEvents,
+	private static String handleMongodbUriSpecialChar(String mongodbUri) {
+		mongodbUri = mongodbUri.replaceAll(":", "_")
+				.replaceAll("/", "_");
+		return mongodbUri;
+	}
+
+	private static String lookupAndSaveValidate(List<TapRecordEvent> tapRecordEvents,
 																								KVMap<Object> globalKVMap,
 																								ConnectionString connectionString,
 																								MongoCollection<Document> mongoCollection) {
@@ -123,6 +130,7 @@ public class MongodbLookupUtil {
 				}
 
 				String mongodbUri = MongodbUtil.getSimpleMongodbUri(connectionString);
+				mongodbUri = handleMongodbUriSpecialChar(mongodbUri);
 
 				final String json = (String) globalStateMap.get(DELETE_CACHE_KEY_PREFIX + "_" + mongodbUri + "_" + collectionName + "_" + id);
 				if (EmptyKit.isNotBlank(json)) {
