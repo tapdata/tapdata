@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -34,8 +35,15 @@ public class TaskResetSchedule {
     @Autowired
     private UserService userService;
 
+    @Value("${task.reset.times: 2}")
+    private int resetAllTimes;
 
-    @Scheduled(fixedDelay = 30 * 1000)
+
+    @Value("${task.reset.timeoutInterval: 50}")
+    private int timeoutInterval;
+
+
+    @Scheduled(fixedDelayString = "${task.reset.interval: 30000}")
     @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "15s", lockAtLeastFor = "15s")
     public void checkTaskReset() {
         checkNoResponseOp();
@@ -61,8 +69,9 @@ public class TaskResetSchedule {
 
 
             List<TaskDto> updateTask = new ArrayList<>();
-            long overTime = 50 * 1000;
             long curr = System.currentTimeMillis();
+
+            int timeout = timeoutInterval * 1000;
             for (TaskDto taskDto : taskDtos) {
                 List<TaskResetEventDto> taskResetEvents = taskLogMap.get(taskDto.getId().toHexString());
                 if (CollectionUtils.isNotEmpty(taskResetEvents)) {
@@ -77,12 +86,12 @@ public class TaskResetSchedule {
                     }
 
                     TaskResetEventDto taskResetEventDto = taskResetEvents.stream().max(Comparator.comparing(TaskResetEventDto::getTime)).get();
-                    if (curr - taskResetEventDto.getTime().getTime() >= overTime) {
+                    if (curr - taskResetEventDto.getTime().getTime() >= timeout) {
                         updateTask.add(taskDto);
                     }
 
                 } else {
-                    if (curr - taskDto.getLastUpdAt().getTime() >= overTime) {
+                    if (curr - taskDto.getLastUpdAt().getTime() >= timeout) {
                         updateTask.add(taskDto);
                     }
                 }
@@ -114,7 +123,7 @@ public class TaskResetSchedule {
         try {
             //查询重置删除失败的任务，并且重试次数少于3次
             Criteria criteria = Criteria.where("status").in(TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_DELETE_FAILED).and("is_deleted").ne(true)
-                    .orOperator(Criteria.where("resetTimes").exists(false), Criteria.where("resetTimes").lt(2));
+                    .orOperator(Criteria.where("resetTimes").exists(false), Criteria.where("resetTimes").lt(resetAllTimes));
             Query query = new Query(criteria);
             List<TaskDto> taskDtos = taskService.findAll(query);
             if (CollectionUtils.isEmpty(taskDtos)) {

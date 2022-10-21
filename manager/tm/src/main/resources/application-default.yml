@@ -138,3 +138,9 @@ access:
     ttl: 1209600
 
 mongodb_uri: ${TAPDATA_MONGO_URI}
+
+task:
+  reset:
+    times: 2  #任务重置重试次数
+    interval: 30000 #任务重置重试间隔，单位毫秒
+    timeoutInterval: 50 #任务重置引擎没有返回时的超时时间，单位秒
