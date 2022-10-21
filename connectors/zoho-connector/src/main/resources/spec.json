@@ -172,10 +172,6 @@
             {
               "label": "${document}",
               "value": "DocumentMode"
-            },
-            {
-              "label": "${csv}",
-              "value": "CSVMode"
             }
           ],
           "x-index": 80,

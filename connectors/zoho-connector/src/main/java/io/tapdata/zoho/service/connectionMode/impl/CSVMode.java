@@ -24,6 +24,13 @@ import java.util.Map;
 
 import static io.tapdata.base.ConnectorBase.*;
 
+/**
+ *
+ *  {
+ *    "label": "${csv}",
+ *    "value": "CSVMode"
+ *  }
+ * */
 public class CSVMode implements ConnectionMode {
     private static final String TAG = TicketLoader.class.getSimpleName();
     TapConnectionContext connectionContext;
