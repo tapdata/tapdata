@@ -1,0 +1,191 @@
+[ {
+  "uid" : "eb22fb796ea932ed",
+  "name" : "config job",
+  "time" : {
+    "start" : 1666438600400,
+    "stop" : 1666438600408,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "5b9702fef1015c86",
+  "name" : "real time table sync between mongodb",
+  "time" : {
+    "start" : 1666438600268,
+    "stop" : 1666438600277,
+    "duration" : 9
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "63d25d04678ee7a9",
+  "name" : "create mongodb datasource with uri",
+  "time" : {
+    "start" : 1666438574613,
+    "stop" : 1666438584871,
+    "duration" : 10258
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "774623d7641147d9",
+  "name" : "test monitor job status",
+  "time" : {
+    "start" : 1666438600442,
+    "stop" : 1666438600450,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "56670dd0e2788350",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1666438600385,
+    "stop" : 1666438600393,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "4316d36354c53d33",
+  "name" : "create datasource with mongodb uri",
+  "time" : {
+    "start" : 1666438563844,
+    "stop" : 1666438569405,
+    "duration" : 5561
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "1d549e90a91a251c",
+  "name" : "test_check",
+  "time" : {
+    "start" : 1666438600456,
+    "stop" : 1666438600463,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "cd697e2b51c8820",
+  "name" : "test stop job",
+  "time" : {
+    "start" : 1666438600415,
+    "stop" : 1666438600422,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "77f8bdb778080d7",
+  "name" : "create Kafka datasource with form",
+  "time" : {
+    "start" : 1666438600200,
+    "stop" : 1666438600200,
+    "duration" : 0
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "795f13e886d94f83",
+  "name" : "table merge in sync",
+  "time" : {
+    "start" : 1666438600365,
+    "stop" : 1666438600378,
+    "duration" : 13
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "72878fa9e3921d84",
+  "name" : "rename column in sync",
+  "time" : {
+    "start" : 1666438600321,
+    "stop" : 1666438600329,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "9f1d2d06dd59b9d1",
+  "name" : "test mysql form valid",
+  "time" : {
+    "start" : 1666438584876,
+    "stop" : 1666438590028,
+    "duration" : 5152
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "a951b6687a03553f",
+  "name" : "create PG datasource with form",
+  "time" : {
+    "start" : 1666438590034,
+    "stop" : 1666438600194,
+    "duration" : 10160
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "2b2237723d3d2dac",
+  "name" : "test get job status",
+  "time" : {
+    "start" : 1666438600428,
+    "stop" : 1666438600436,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "19134a5388a3ef0d",
+  "name" : "real time database migrate between mongodb",
+  "time" : {
+    "start" : 1666438600232,
+    "stop" : 1666438600260,
+    "duration" : 28
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "4c946effd919730e",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1666438600338,
+    "stop" : 1666438600356,
+    "duration" : 18
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "8d81133c2670ce0c",
+  "name" : "filter row in sync",
+  "time" : {
+    "start" : 1666438600285,
+    "stop" : 1666438600293,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "6bcf04b403d947ac",
+  "name" : "create mongodb datasource with form",
+  "time" : {
+    "start" : 1666438569465,
+    "stop" : 1666438574607,
+    "duration" : 5142
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "5871d6eb4fac571a",
+  "name" : "filter column in sync",
+  "time" : {
+    "start" : 1666438600300,
+    "stop" : 1666438600314,
+    "duration" : 14
+  },
+  "status" : "broken",
+  "severity" : "normal"
+} ]
