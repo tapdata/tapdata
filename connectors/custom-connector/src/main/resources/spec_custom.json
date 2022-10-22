@@ -339,7 +339,10 @@
     }
   },
   "dataTypes": {
-    "Object": {
+    "ScriptObjectMirror": {
+      "to": "TapMap"
+    },
+    "Map": {
       "to": "TapMap"
     },
     "List": {
@@ -360,6 +363,15 @@
       "priority": 1,
       "to": "TapNumber"
     },
+    "Short": {
+      "to": "TapNumber",
+      "bit": 16,
+      "value": [
+        -32768,
+        32767
+      ],
+      "precision": 5
+    },
     "Integer": {
       "bit": 32,
       "priority": 1,
@@ -367,6 +379,44 @@
         -2147483648,
         2147483647
       ],
+      "to": "TapNumber"
+    },
+    "Long": {
+      "to": "TapNumber",
+      "bit": 64,
+      "precision": 19,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ]
+    },
+    "Float": {
+      "bit": 32,
+      "priority": 2,
+      "precision": [
+        1,
+        6
+      ],
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "Double": {
+      "priority": 2,
+      "precision": [
+        1,
+        17
+      ],
+      "preferPrecision": 11,
+      "preferScale": 4,
+      "scale": [
+        0,
+        17
+      ],
+      "fixed": false,
       "to": "TapNumber"
     },
     "Boolean": {

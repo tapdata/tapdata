@@ -87,7 +87,7 @@ public class CustomConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
 
         connectorFunctions.supportWriteRecord(this::writeRecord);
-//        connectorFunctions.supportBatchCount(this::batchCount);
+        connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportStreamRead(this::streamRead);
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
