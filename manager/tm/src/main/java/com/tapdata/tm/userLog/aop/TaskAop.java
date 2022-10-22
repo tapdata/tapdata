@@ -50,7 +50,7 @@ public class TaskAop {
 
             Operation operation = force ? Operation.FORCE_STOP : Operation.STOP;
             if (null != taskDto) {
-                userLogService.addUserLog(Modular.MIGRATION, operation, userDetail, taskDto.getId().toString(), taskDto.getName());
+                userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION, operation, userDetail, taskDto.getId().toString(), taskDto.getName());
             }
         } else if (args[0] instanceof List<?>){
             List<?> list = (List<?>) args[0];
@@ -62,7 +62,7 @@ public class TaskAop {
             Operation operation = Operation.STOP;
             if (CollectionUtils.isNotEmpty(taskList)) {
                 taskList.forEach(taskDto ->
-                    userLogService.addUserLog(Modular.MIGRATION, operation, userDetail, taskDto.getId().toString(), taskDto.getName())
+                    userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION, operation, userDetail, taskDto.getId().toString(), taskDto.getName())
                 );
             }
         }
@@ -82,12 +82,12 @@ public class TaskAop {
             //查询任务是否存在
             TaskDto taskDto = taskService.checkExistById(id, userDetail);
             if (null != taskDto) {
-                userLogService.addUserLog(Modular.MIGRATION, Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
+                userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION, Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
             }
 
         } else if (arg instanceof TaskDto) {
             TaskDto taskDto = (TaskDto) arg;
-            userLogService.addUserLog(Modular.MIGRATION, Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
+            userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION, Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
 
         }else if (arg instanceof List<?>){
             List<?> list = (List<?>) arg;
@@ -98,7 +98,7 @@ public class TaskAop {
 
             if (CollectionUtils.isNotEmpty(taskList)) {
                 taskList.forEach(taskDto ->
-                        userLogService.addUserLog(Modular.MIGRATION, Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName())
+                        userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION, Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName())
                 );
             }
         }
