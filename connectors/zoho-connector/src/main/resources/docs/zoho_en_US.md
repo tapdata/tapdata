@@ -1,45 +1,56 @@
 ###  Write on the front 
  If you are interested, you can go to the OpenAPI document and WebHook document provided by ZoHo to learn more about them: 
 
-- OpenAPI Doc：https://desk.zoho.com.cn/support/APIDocument.do#Introduction
-- WebHook Doc：https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction
--  Workflow Configuration Document ：https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html
+- OpenAPI Doc：[https://desk.zoho.com.cn/support/APIDocument.do#Introduction](https://desk.zoho.com.cn/support/APIDocument.do#Introduction)
+- WebHook Doc：[https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction](https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction)
+-  Workflow Configuration Document ：[https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html](https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html)
 
  Of course, you can also browse the following content to quickly start the configuration process of the ZoHo data source. 
+
+---
+
 ### 1. Attribute Description 
-1. Client ID: The client ID needs the user to go to ZoHoDesk to obtain it manually, copy and paste it here;
 
-2. Client Secret: The client password is obtained in the same way as the client ID code. You can also see the client password when you obtain the client ID code. After entering the client ID code and client password, you can enter the application generation code; 
+1. Organization ID (org ID): your data source organization, you need to manually enter ZoHo Desk to obtain and configure here; 
 
-3. Application generation code: The application generation code needs to be used together with the client ID code and client machine password to obtain the OpenAPI access key and key refresh token. 
+2. Client ID: The client ID needs the user to go to ZoHoDesk to obtain it manually, copy and paste it here;
 
-4. Connection Mode: The connection mode is available for users to select. The default is the normal document mode, and the options are the normal document mode and CSV mode (not provided yet). 
+3. Client Secret: The client password is obtained in the same way as the client ID code. You can also see the client password when you obtain the client ID code. After entering the client ID code and client password, you can enter the application generation code; 
 
-5. Incremental mode: limited to ZoHo's OpenAPI. ZoHo data sources only support the WebHook incremental mode. See the following description for details. 
+4. Application generation code: The application generation code needs to be used together with the client ID code and client machine password to obtain the OpenAPI access key and key refresh token. 
 
-6. Service URL: Service URL is used to configure WebHook. You need to copy and paste the service URL generated here to the WebHook configuration item in ZoHoDesk. See the following description for the specific configuration process. 
+5. Connection Mode: The connection mode is available for users to select. The default is the normal document mode, and the options are the normal document mode and CSV mode (not provided yet). 
+
+6. Incremental mode: limited to ZoHo's OpenAPI. ZoHo data sources only support the WebHook incremental mode. See the following description for details. 
+
+7. Service URL: Service URL is used to configure WebHook. You need to copy and paste the service URL generated here to the WebHook configuration item in ZoHoDesk. See the following description for the specific configuration process. 
+
+---
 
 ### 2. Configuration Steps 
 #### 2.1 Basic configuration 
-1.Enter Api Console, click the ADD CLIENT button on the upper right corner, and select Self Client;
- - Click the link to enter the API Console: https://api-console.zoho.com.cn/
 
-2.Click Client Secret in the menu bar to obtain the Client ID and Client Secret;
+1.Get * * Organization ID * *: Enter your ZoHo Desk, click Setting in the upper right corner, click the API menu under the developer space, and slide to the bottom. You will see a title "Zoho Service Communication (ZSC) Key". There is an organization ID field below this form. Copy the organization ID here. 
 
-3.Next, get the Generate Code, enter the Scope, and enter the complete scope to facilitate the API to obtain data:
+2.Enter Api Console, click the ADD CLIENT button on the upper right corner, and select Self Client;
+ - Click the link to enter the API Console: [https://api-console.zoho.com.cn/](https://api-console.zoho.com.cn/)
+
+3.Click Client Secret in the menu bar to obtain the Client ID and Client Secret;
+
+4.Next, get the Generate Code, enter the Scope, and enter the complete scope to facilitate the API to obtain data:
 
 ```
 Desk.tickets.ALL,Desk.contacts.READ,Desk.contacts.WRITE,Desk.contacts.UPDATE,Desk.contacts.CREATE,Desk.tasks.ALL,Desk.basic.READ,Desk.basic.CREATE,Desk.settings.ALL,Desk.events.ALL,Desk.articles.READ,Desk.articles.CREATE,Desk.articles.UPDATE,Desk.articles.DELETE
 ```
 
  You can also try to open the following links to go to the official documents and splice the appropriate scopes yourself. Remember to separate them with English symbols and commas: 
-https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes
+[https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes](https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes)
 
-4.Select a Time Duration, including 3minutes, 5minutes, 7minutes, and 10minutes. This option means that you need to go back to the TapData Create Connection page to obtain the access token and refresh the token in this time. 
+5.Select a Time Duration, including 3minutes, 5minutes, 7minutes, and 10minutes. This option means that you need to go back to the TapData Create Connection page to obtain the access token and refresh the token in this time. 
 
-5.After clicking the Create button, you need to manually select the associated project, which is the portal in ZoHo. The selected portal is the next data source. 
+6.After clicking the Create button, you need to manually select the associated project, which is the portal in ZoHo. The selected portal is the next data source. 
 
-6.After the Generate Code is generated, please go back to the TapData creation connection page to obtain the Token within the time period of time duration configuration. After that, you may want to obtain the Generate Code again according to the above steps. 
+7.After the Generate Code is generated, please go back to the TapData creation connection page to obtain the Token within the time period of time duration configuration. After that, you may want to obtain the Generate Code again according to the above steps. 
 
 #### 2.2 WebHook Configuration 
 
@@ -71,6 +82,8 @@ https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes
 
 8. Step 7: After editing the Notification Message, click Save. This completes the configuration of a workflow. 
 
+---
+
 ### 3. Table Description 
 1.Tickets： Work Order Form 。
 
@@ -83,6 +96,8 @@ https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes
 5.Contracts： Contract Form 。
 
 ......
+
+---
 
 ### 4. matters needing attention 
 

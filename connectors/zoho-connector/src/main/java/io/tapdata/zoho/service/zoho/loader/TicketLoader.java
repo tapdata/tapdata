@@ -92,9 +92,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
             TapConnectorContext connectorContext = (TapConnectorContext)this.tapConnectionContext;
             DataMap nodeConfig = connectorContext.getNodeConfig();
             //@TODO 构建查询条件
-            return form
-                    .build("limit",100)
-                    .build("","");
+            return form.build("limit",100);
         }else {
             return form;
         }
