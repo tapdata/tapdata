@@ -1,45 +1,55 @@
 ### 写在前面
 如果您感兴趣的话，不妨前往ZoHo提供的OpenAPI文档以及WebHook文档，详细了解全部内容：
 
-- OpenAPI文档：https://desk.zoho.com.cn/support/APIDocument.do#Introduction
-- WebHook文档：https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction
-- 工作流配置文档：https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html
+- OpenAPI文档：[https://desk.zoho.com.cn/support/APIDocument.do#Introduction](https://desk.zoho.com.cn/support/APIDocument.do#Introduction)
+- WebHook文档：[https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction](https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction)
+- 工作流配置文档：[https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html](https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html)
 
 当然您也可以浏览以下内容，快速上手ZoHo数据源的配置流程。
+
+---
+
 ### 1.属性说明
-1. 客户端ID码(Client ID)：客户端ID码需要用户前往ZoHoDesk手动获取并复制粘贴到此；
 
-2. 客户端机密码(Client Secret)：客户端机密码与客户端ID码获取方式一致，您获取客户端ID码的同时也可以看到客户端机密码，输入客户端ID码和客户端机密码后即可输入应用生成码；
+1. 机构 ID(org ID)：您的数据来源机构，需要您手动进入ZoHo Desk获取并配置到此处；
 
-3. 应用生成码(Generate Code)：应用生成码需要与客户端ID码和客户端机密码配合使用，用于获取OpenAPI访问秘钥和秘钥刷新令牌。
+2. 客户端ID码(Client ID)：客户端ID码需要用户前往ZoHoDesk手动获取并复制粘贴到此；
 
-4. 连接模式：连接模式供用户选择，默认普通文档模式，可选有普通文档模式、CSV模式（暂未提供）。
+3. 客户端机密码(Client Secret)：客户端机密码与客户端ID码获取方式一致，您获取客户端ID码的同时也可以看到客户端机密码，输入客户端ID码和客户端机密码后即可输入应用生成码；
 
-5. 增量方式：局限于ZoHo的OpenAPI，ZoHo数据源仅支持WebHook增量方式，详细的说明见下方说明。
+4. 应用生成码(Generate Code)：应用生成码需要与客户端ID码和客户端机密码配合使用，用于获取OpenAPI访问秘钥和秘钥刷新令牌。
 
-6. 服务 URL：服务URL是用于配置WebHook，需要您把此处生成的服务URL复制粘贴到ZoHoDesk的WebHook配置项，具体的配置流程见下方说明。
+5. 连接模式：连接模式供用户选择，默认普通文档模式，可选有普通文档模式、CSV模式（暂未提供）。
+
+6. 增量方式：局限于ZoHo的OpenAPI，ZoHo数据源仅支持WebHook增量方式，详细的说明见下方说明。
+
+7. 服务 URL：服务URL是用于配置WebHook，需要您把此处生成的服务URL复制粘贴到ZoHoDesk的WebHook配置项，具体的配置流程见下方说明。
+
+---
 
 ### 2.配置步骤
 #### 2.1 基础配置
-1.进入Api Console 点击右上角 ADD CLIENT 按钮，选择Self Client;
- - 点击链接进入API Console : https://api-console.zoho.com.cn/
+1.获取 **机构 ID**：进入您的ZoHo Desk，点击右上角的Setting, 点击 开发者空间下 的 API 菜单，滑动到底部，您可以看到一个标题“Zoho服务通信（ZSC）密钥”，这个表单下面有 机构ID字段，复制这个机构ID到这里即可。
 
-2.点击菜单栏中的Client Secret 可获取Client ID 和Client Secret;
+2.进入Api Console 点击右上角 ADD CLIENT 按钮，选择Self Client;
+ - 点击链接进入API Console : [https://api-console.zoho.com.cn/](https://api-console.zoho.com.cn/)
 
-3.接下来再去获取Generate Code,输入Scope,输入完整的scope有利于api获取数据：
+3.点击菜单栏中的Client Secret 可获取Client ID 和Client Secret;
+
+4.接下来再去获取Generate Code,输入Scope,输入完整的scope有利于api获取数据：
 
 ```
 Desk.tickets.ALL,Desk.contacts.READ,Desk.contacts.WRITE,Desk.contacts.UPDATE,Desk.contacts.CREATE,Desk.tasks.ALL,Desk.basic.READ,Desk.basic.CREATE,Desk.settings.ALL,Desk.events.ALL,Desk.articles.READ,Desk.articles.CREATE,Desk.articles.UPDATE,Desk.articles.DELETE
 ```
 
 您也可以尝试去打开以下链接前往官方文档自己拼接合适的scope，记得用英文符号逗号分隔：
-https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes
+[https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes](https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes)
 
-4.选择一个Time Duration，可选项为3minutes、5minutes、7minutes、10minutes。这个选项表示您接下来需要在此时间内回到TapData创建连接页面获取访问Token和刷新Token。
+5.选择一个Time Duration，可选项为3minutes、5minutes、7minutes、10minutes。这个选项表示您接下来需要在此时间内回到TapData创建连接页面获取访问Token和刷新Token。
 
-5.点击Create按钮后，需要您手动选择关联的项目也就是ZoHo所说的门户，选择的门户就是接下来数据的来源。
+6.点击Create按钮后，需要您手动选择关联的项目也就是ZoHo所说的门户，选择的门户就是接下来数据的来源。
 
-6.Generate Code生成后请在Time Duration配置的这段时间内回到TapData创建连接页面一件获取Token，超出时间后或许希望您再次按如上步骤获取Generate Code。
+7.Generate Code生成后请在Time Duration配置的这段时间内回到TapData创建连接页面一件获取Token，超出时间后或许希望您再次按如上步骤获取Generate Code。
 
 #### 2.2 WebHook配置
 
@@ -71,6 +81,8 @@ https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes
 
 8. 第七步，编辑Notification Message后，点击保存。这样您就完整配置好了一个工作流。
 
+---
+
 ### 3.表说明
 1. Tickets：工单表。
 
@@ -83,6 +95,8 @@ https://desk.zoho.com.cn/support/APIDocument.do#OAuthScopes
 5. Contracts：合同表。
 
 ......
+
+---
 
 ### 4.注意事项
 
