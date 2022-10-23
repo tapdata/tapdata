@@ -1,14 +1,14 @@
 package io.tapdata.zoho.service.commandMode.impl;
 
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.zoho.annonation.LanguageEnum;
 import io.tapdata.zoho.entity.CommandResultV2;
 import io.tapdata.zoho.enums.FieldModelType;
 import io.tapdata.zoho.service.commandMode.CommandMode;
 import io.tapdata.zoho.service.commandMode.ConfigContextChecker;
-import io.tapdata.zoho.service.zoho.impl.OrganizationFieldLoader;
+import io.tapdata.zoho.service.zoho.loader.OrganizationFieldLoader;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.Map;

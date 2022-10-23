@@ -404,7 +404,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 //		}
 		StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
 		if (streamReadFunction != null || rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) {
-			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getOffsetObj());
+			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getStreamOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
 			cdcDelayCalculation.addHeartbeatTable(tables);
 			int batchSize = 1;
@@ -476,7 +476,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 												}
 											}
 										}).stateListener((oldState, newState) -> {
-											PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
+											if (StreamReadConsumer.STATE_STREAM_READ_ENDED != newState) {
+												PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
+											}
 											if (null != newState && StreamReadConsumer.STATE_STREAM_READ_STARTED == newState) {
 												// MILESTONE-READ_CDC_EVENT-FINISH
 												if (streamReadFuncAspect != null)

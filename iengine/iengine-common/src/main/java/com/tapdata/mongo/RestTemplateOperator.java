@@ -15,6 +15,8 @@ import io.tapdata.exception.RestDoNotRetryException;
 import io.tapdata.exception.RestException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpRequestInterceptor;
@@ -775,8 +777,20 @@ public class RestTemplateOperator {
 
 					ResponseEntity<Resource> responseEntity = restTemplate.exchange(queryString, HttpMethod.GET, httpEntity, Resource.class);
 					if (MediaType.APPLICATION_OCTET_STREAM.includes(responseEntity.getHeaders().getContentType())) {
-						File file = new File(path);
-						StreamUtils.copy(responseEntity.getBody().getInputStream(), new FileOutputStream(file));
+						File file = new File(path + ".bak");
+						if(file.exists()) {
+							FileUtils.deleteQuietly(file);
+						}
+						if(responseEntity.getBody() == null) {
+							return null;
+						}
+						FileUtils.copyInputStreamToFile(responseEntity.getBody().getInputStream(), file);
+						File realFile = new File(path);
+						if(realFile.exists()) {
+							FileUtils.deleteQuietly(realFile);
+						}
+						FileUtils.moveFile(file, realFile);
+//						StreamUtils.copy(responseEntity.getBody().getInputStream(), new FileOutputStream(file));
 						return file;
 					} else {
 						final Object body = responseEntity.getBody();

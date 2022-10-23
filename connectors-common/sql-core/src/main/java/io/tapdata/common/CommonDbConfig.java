@@ -21,6 +21,7 @@ public class CommonDbConfig implements Serializable {
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class); //json util
     private static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
 
+    private String __connectionType;
     private String dbType;
     private String host;
     private int port;
@@ -58,6 +59,8 @@ public class CommonDbConfig implements Serializable {
 
     public CommonDbConfig load(String json) {
         try {
+            assert beanUtils != null;
+            assert jsonParser != null;
             beanUtils.copyProperties(jsonParser.fromJson(json, this.getClass()), this);
             return this;
         } catch (Exception e) {
@@ -74,7 +77,16 @@ public class CommonDbConfig implements Serializable {
      * @return ? extends CommonDbConfig
      */
     public CommonDbConfig load(Map<String, Object> map) {
+        assert beanUtils != null;
         return beanUtils.mapToBean(map, this);
+    }
+
+    public String get__connectionType() {
+        return __connectionType;
+    }
+
+    public void set__connectionType(String __connectionType) {
+        this.__connectionType = __connectionType;
     }
 
     public String getDbType() {

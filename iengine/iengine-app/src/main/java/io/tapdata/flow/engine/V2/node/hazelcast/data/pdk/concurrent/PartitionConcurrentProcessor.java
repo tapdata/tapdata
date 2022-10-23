@@ -131,7 +131,9 @@ public class PartitionConcurrentProcessor {
 					if (watermarkEvent != null) {
 						final CountDownLatch countDownLatch = watermarkEvent.getCountDownLatch();
 						final TapdataEvent event = watermarkEvent.getEvent();
-						while (isRunning() && !countDownLatch.await(3, TimeUnit.SECONDS)) {
+						while (!countDownLatch.await(3, TimeUnit.SECONDS)) {
+							if (!isRunning()) return; // when task stop, do not need flush offset
+
 							if (logger.isInfoEnabled()) {
 								final Long sourceTime = event.getSourceTime();
 								logger.info("waiting watermark event for all thread process, ts {}", sourceTime != null ? new Date(sourceTime) : null);

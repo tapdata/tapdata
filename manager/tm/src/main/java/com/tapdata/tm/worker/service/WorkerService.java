@@ -108,6 +108,14 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return repository.findAll(query);
     }
 
+    public List<Worker> findAvailableAgentBySystem(List<String> processIdList) {
+        Query query = getAvailableAgentQuery();
+        if (CollectionUtils.isNotEmpty(processIdList)) {
+            query.addCriteria(Criteria.where("process_id").in(processIdList));
+        }
+        return repository.findAll(query);
+    }
+
     public List<Worker> findAvailableAgentByAccessNode(UserDetail userDetail, List<String> processIdList) {
         if (Objects.isNull(userDetail)) {
             return null;
@@ -328,19 +336,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 if (worker.getWeight() == null) {
                     worker.setWeight(1);
                 }
-                ArrayList<String> status = new ArrayList<>();
-                status.add("scheduled");
-                status.add("running");
-                Where q = new Where().and("status", new BasicDBObject().append("$in", status))
-                        .and("agentId", worker.getProcessId());
-                long workNum;
-                if (isCloud) {
-                    workNum = dataFlowService.count(q, userService.loadUserById(new ObjectId(entity.getUserId())));
-                } else {
-                    workNum = taskService.count(Query.query(Criteria.where("agentId").is(worker.getProcessId())
-                            .and("is_deleted").ne(true)
-                            .and("status").in(Lists.newArrayList(TaskDto.STATUS_RUNNING, TaskDto.STATUS_STOPPING, TaskDto.STATUS_ERROR))));
-                }
+                long workNum = taskService.count(Query.query(Criteria.where("agentId").is(worker.getProcessId())
+                        .and("is_deleted").ne(true)
+                        .and("status").is(TaskDto.STATUS_RUNNING)));
+
                 worker.setRunningThread((int) workNum);
                 threadLog.add(new BasicDBObject()
                         .append("process_id", worker.getProcessId())

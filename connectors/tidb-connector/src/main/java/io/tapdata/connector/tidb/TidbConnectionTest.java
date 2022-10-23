@@ -6,7 +6,6 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.util.NetUtil;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.IOException;
 import java.net.URI;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -62,7 +61,7 @@ public class TidbConnectionTest extends CommonDbTest {
 		try {
 			NetUtil.validateHostPortWithSocket(uri.getHost(), uri.getPort());
 			return testItem(PB_SERVER_SUCESS, TestItem.RESULT_SUCCESSFULLY);
-		} catch (IOException e) {
+		} catch (Exception e) {
 			return testItem(PB_SERVER_SUCESS, TestItem.RESULT_FAILED, e.getMessage());
 		}
 

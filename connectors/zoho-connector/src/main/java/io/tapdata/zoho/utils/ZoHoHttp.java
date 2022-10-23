@@ -11,7 +11,10 @@ import io.tapdata.zoho.enums.HttpCode;
 
 import java.util.Collections;
 import java.util.Map;
-
+/***
+ * 您可在两分钟内调用ZoHo API 100 次。如果您调用 100 次以上，则接下来 30 分钟将锁定特定 API 请求。
+ *
+ */
 public class ZoHoHttp {
     private static final String TAG = ZoHoHttp.class.getSimpleName();
     private HttpEntity<String,String> heard;
@@ -99,13 +102,11 @@ public class ZoHoHttp {
             if (null == httpCode){
                 return HttpResult.create(
                         HttpCode.ERROR,
-                        HttpEntity.create()
-                                .build(HttpCode.ERROR.getCode(), executeObject.get("message")).entity());
+                        HttpEntity.create().build(HttpCode.ERROR.getCode(), executeObject.get("message")).entity());
             }
             return HttpResult.create(
                     httpCode,
-                    HttpEntity.create()
-                            .build(httpCode.getCode(),httpCode.getMessage()).entity());
+                    HttpEntity.create().build(httpCode.getCode(),httpCode.getMessage()).entity());
         }
         return HttpResult.create(HttpCode.SUCCEED,executeObject);
     }

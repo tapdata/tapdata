@@ -283,11 +283,19 @@ public class MeasurementServiceV2 {
         List<String> fields = querySample.getFields();
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
+
             Map<String, Number> values = new HashMap<>();
             for (Map.Entry<String, Number> entry : sample.getVs().entrySet()) {
                 if (fields.contains(entry.getKey())) {
                     values.put(entry.getKey(), entry.getValue());
                 }
+            }
+
+            Number snapshotRowTotal = values.get("snapshotRowTotal");
+            Number snapshotInsertRowTotal = values.get("snapshotInsertRowTotal");
+            if (Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowTotal)
+                    && snapshotInsertRowTotal.longValue() > snapshotRowTotal.longValue()) {
+                values.put("snapshotRowTotal", snapshotInsertRowTotal);
             }
             sample.setVs(values);
         }

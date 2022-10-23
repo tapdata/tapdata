@@ -171,7 +171,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         try {
             updateConfigPropertiesTitle(dataSourceDefinition);
         } catch (Exception e) {
-            log.error("findByPdkHash updateConfigPropertiesTitle", e);
+            log.error("findByPdkHash updateConfigPropertiesTitle", e.getMessage());
         }
 
         return dataSourceDefinition;
@@ -373,7 +373,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
 
             return target;
         } catch (Exception e) {
-            log.error("Convert dto " + dtoClass + " failed.", e);
+            log.error("Convert dto " + dtoClass + " failed. {}", e.getMessage());
         }
         return null;
     }
@@ -401,7 +401,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
 
             return entity;
         } catch (Exception e) {
-            log.error("Convert entity " + entityClass + " failed.", e);
+            log.error("Convert entity " + entityClass + " failed. {}", e.getMessage());
         }
         return null;
     }

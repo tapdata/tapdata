@@ -137,13 +137,13 @@ public class SettingsService {
 
         if ("1".equals(decode)) {
             //todo 解密方法
-            settingsList.stream().filter(settings -> {
-                if ("smtp.server.password".equals(settings.getKey())) {
-                    settings.setValue(EncrptAndDencryUtil.Decrypt(String.valueOf(settings.getValue())));
-                    return true;
-                }
-                return false;
-            }).collect(Collectors.toList());
+            //settingsList.stream().filter(settings -> {
+            //    if ("smtp.server.password".equals(settings.getKey())) {
+            //        settings.setValue(EncrptAndDencryUtil.Decrypt(String.valueOf(settings.getValue())));
+            //        return true;
+            //    }
+            //    return false;
+            //}).collect(Collectors.toList());
         } else {
             settingsList.stream().filter(settings -> {
                 if ("smtp.server.password".equals(settings.getKey()))

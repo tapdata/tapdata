@@ -71,6 +71,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
+import com.tapdata.tm.ws.handler.EditFlushHandler;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -131,6 +132,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public static Set<String> runningStatus = new HashSet<>();
 
     private LogCollectorService logCollectorService;
+
+    private TaskResetLogService taskResetLogService;
 
     private TaskCollectionObjService taskCollectionObjService;
 
@@ -585,7 +588,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 inspectService.saveInspect(taskDto, userDetail);
             }
         } catch (Exception e) {
-            log.error("新建校验任务出错", e);
+            log.error("新建校验任务出错 {}", e.getMessage());
         }
     }
 
@@ -716,10 +719,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.warn("task current status not allow to delete, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
             throw new BizException("Task.DeleteStatusInvalid");
         }
-
+        taskResetLogService.clearLogByTaskId(id.toHexString());
         sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+        //afterRemove(taskDto, user);
+    }
 
+    public void afterRemove(TaskDto taskDto, UserDetail user) {
         //将任务删除标识改成true
+        ObjectId id = taskDto.getId();
         update(new Query(Criteria.where("_id").is(id)), Update.update("is_deleted", true));
 
         //delete AutoInspectResults
@@ -739,6 +746,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.warn("remove task, but remove schema error, task name = {}", taskDto.getName());
         }
 
+        //删除收集的对象
+        taskCollectionObjService.deleteById(taskDto.getId());
     }
 
     /**
@@ -752,7 +761,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         try {
             stop(id, user, true);
         } catch (Exception e) {
-            log.error("停止异常，但是共享缓存仍然删除", e);
+            log.error("停止异常，但是共享缓存仍然删除 {}", e.getMessage());
         }
         //将任务删除标识改成true
         update(new Query(Criteria.where("_id").is(id)), Update.update("is_deleted", true));
@@ -909,7 +918,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         log.debug("check task status complete, task name = {}", taskDto.getName());
+        taskResetLogService.clearLogByTaskId(id.toHexString());
         sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_RESET);
+        //afterRenew(taskDto, user);
+    }
+
+    public void afterRenew(TaskDto taskDto, UserDetail user) {
         renewNotSendMq(taskDto, user);
         renewAgentMeasurement(taskDto.getId().toString());
         log.debug("renew task complete, task name = {}", taskDto.getName());
@@ -996,6 +1010,25 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return taskDto;
     }
 
+    /**
+     * 根据id校验任务是否存在
+     *
+     * @param id   id
+     * @return
+     */
+    public TaskDto checkExistById(ObjectId id, String... fields) {
+        Query query = new Query(Criteria.where("_id").is(id));
+        if (fields != null && fields.length > 0) {
+            query.fields().include(fields);
+        }
+        TaskDto taskDto = findOne(query);
+        if (taskDto == null) {
+            throw new BizException("Task.NotFound", "The copied task does not exist");
+        }
+
+        return taskDto;
+    }
+
 
     public void batchStart(List<ObjectId> taskIds, UserDetail user) {
         List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
@@ -1063,6 +1096,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            filter.setWhere(where);
+        }
+        if (where.get("status") == null) {
+            Document statusCondition = new Document();
+            statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
+            where.put("status", statusCondition);
+        }
         //过滤掉挖掘任务
         String syncType = (String) where.get("syncType");
         if (StringUtils.isBlank(syncType)) {
@@ -1840,6 +1882,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 taskDto.setUserId(null);
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
+                Map<String, Object> attrs = taskDto.getAttrs();
+                attrs.remove("edgeMilestones");
+                attrs.remove("syncProgress");
                 jsonList.add(new TaskUpAndLoadDto("Task", JsonUtil.toJsonUseJackson(taskDto)));
                 DAG dag = taskDto.getDag();
                 List<Node> nodes = dag.getNodes();
@@ -2117,7 +2162,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void updateStatus(ObjectId taskId, String status) {
         Query query = Query.query(Criteria.where("_id").is(taskId));
-        Update update = Update.update("status", status);
+        Update update = Update.update("status", status).set("last_updated", new Date());
         update(query, update);
     }
 
@@ -2225,46 +2270,54 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-            //检查是否完成重置，设置8秒的超时时间
-            boolean checkFlag = false;
-            for (int i = 0; i < 60; i++) {
-                checkFlag = DataSyncMq.OP_TYPE_RESET.equals(opType) ? checkResetFlag(taskDto.getId(), user) : checkDeleteFlag(taskDto.getId(), user);
-                if (checkFlag) {
-                    break;
-                }
-                try {
-                    Thread.sleep(1000L);
-                } catch (InterruptedException e) {
-                    throw new BizException("SystemError");
-                }
-            }
+            updateStatus(taskDto.getId(), DataSyncMq.OP_TYPE_RESET.equals(opType) ? TaskDto.STATUS_RENEWING : TaskDto.STATUS_DELETING);
 
-            if (!checkFlag) {
-                log.info((DataSyncMq.OP_TYPE_RESET.equals(opType) ? "reset" : "delete") + "Task reset timeout.");
-                throw new BizException(DataSyncMq.OP_TYPE_RESET.equals(opType) ? "Task.ResetTimeout" : "Task.DeleteTimeout");
+//            //检查是否完成重置，设置8秒的超时时间
+//            boolean checkFlag = false;
+//            for (int i = 0; i < 60; i++) {
+//                checkFlag = DataSyncMq.OP_TYPE_RESET.equals(opType) ? checkResetFlag(taskDto.getId(), user) : checkDeleteFlag(taskDto.getId(), user);
+//                if (checkFlag) {
+//                    break;
+//                }
+//                try {
+//                    Thread.sleep(1000L);
+//                } catch (InterruptedException e) {
+//                    throw new BizException("SystemError");
+//                }
+//            }
+//
+//            if (!checkFlag) {
+//                log.info((DataSyncMq.OP_TYPE_RESET.equals(opType) ? "reset" : "delete") + "Task reset timeout.");
+//                throw new BizException(DataSyncMq.OP_TYPE_RESET.equals(opType) ? "Task.ResetTimeout" : "Task.DeleteTimeout");
+//            }
+        } else {
+            if (DataSyncMq.OP_TYPE_RESET.equals(opType)) {
+                afterRenew(taskDto, user);
+            } else {
+                afterRemove(taskDto, user);
             }
         }
     }
 
-    public boolean deleteById(TaskDto taskDto, UserDetail user) {
-        //如果子任务在运行中，将任务停止，再删除（在这之前，应该提示用户这个风险）
-        if (taskDto == null) {
-            return true;
-        }
-
-        sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
-
-        renewNotSendMq(taskDto, user);
-
-        if (runningStatus.contains(taskDto.getStatus())) {
-            log.warn("task is run, can not delete it");
-            throw new BizException("Task.DeleteTaskIsRun");
-        }
-
-        //TODO 删除当前模块的模型推演
-        resetFlag(taskDto.getId(), user, "deleteFlag");
-        return super.deleteById(taskDto.getId(), user);
-    }
+//    public boolean deleteById(TaskDto taskDto, UserDetail user) {
+//        //如果子任务在运行中，将任务停止，再删除（在这之前，应该提示用户这个风险）
+//        if (taskDto == null) {
+//            return true;
+//        }
+//
+//        sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+//
+//        renewNotSendMq(taskDto, user);
+//
+//        if (runningStatus.contains(taskDto.getStatus())) {
+//            log.warn("task is run, can not delete it");
+//            throw new BizException("Task.DeleteTaskIsRun");
+//        }
+//
+//        //TODO 删除当前模块的模型推演
+//        resetFlag(taskDto.getId(), user, "deleteFlag");
+//        return super.deleteById(taskDto.getId(), user);
+//    }
 
 
 
@@ -2562,8 +2615,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
 
-        Update update = Update.update("status", TaskDto.STATUS_RUNNING);
         Date now = DateUtil.date();
+        Update update = Update.update("status", TaskDto.STATUS_RUNNING)
+                .set("lastStartDate", now.getTime());
         if (taskDto.getStartTime() == null) {
             update.set("startTime", now);
         }

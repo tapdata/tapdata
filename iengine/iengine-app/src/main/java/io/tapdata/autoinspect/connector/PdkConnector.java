@@ -58,7 +58,7 @@ public class PdkConnector implements IPdkConnector {
                 associateId,
                 connections.getConfig(),
                 new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, nodeId, System.currentTimeMillis())),
-                new PdkStateMap(String.format("%s_%s", AutoInspectConstants.MODULE_NAME, nodeId), HazelcastUtil.getInstance()),
+                new PdkStateMap(String.format("%s_%s", AutoInspectConstants.MODULE_NAME, nodeId), HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
                 PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
         );
         PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);

@@ -27,6 +27,8 @@
 		<module>coding-connector</module>
 		<module>zoho-connector</module>
 		<module>tidb-connector</module>
+		<module>tablestore-connector</module>
+		<module>custom-connector</module>
 		<module>vika-connector</module>
 	</modules>
 	<properties>

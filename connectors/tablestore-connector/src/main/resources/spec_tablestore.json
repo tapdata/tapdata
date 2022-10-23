@@ -1,0 +1,140 @@
+{
+  "properties": {
+    "name": "Tablestore",
+    "icon": "icons/tablestore.png",
+    "doc" : "${doc}",
+    "id": "tablestore"
+  },
+  "configOptions": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "endpoint": {
+          "required": true,
+          "type": "string",
+          "title": "${endpoint}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_endpoint",
+          "x-index": 1
+        },
+        "instance": {
+          "required": true,
+          "type": "string",
+          "title": "${instance}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_instance",
+          "x-index": 2
+        },
+        "id": {
+          "required": true,
+          "type": "string",
+          "title": "${id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_id",
+          "x-index": 3
+        },
+        "key": {
+          "required": true,
+          "type": "string",
+          "title": "${key}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_key",
+          "x-index": 4
+        },
+        "token": {
+          "required": false,
+          "type": "string",
+          "title": "${token}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_token",
+          "x-index": 5
+        },
+        "clientType": {
+          "required": true,
+          "type": "string",
+          "title": "${clientType}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "apiServerKey": "database_token",
+          "x-index": 6,
+          "enum": [
+            {
+              "label": "宽表模型",
+              "value": "NORMAL"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/tablestore_en_US.md",
+      "endpoint": "endpoint",
+      "instance": "instance",
+      "id" : "AccessKey ID",
+      "key" : "AccessKey Secret",
+      "token" : "AccessKey Token",
+      "clientType" : "Client Type"
+    },
+    "zh_CN": {
+      "doc": "docs/tablestore_zh_CN.md",
+      "endpoint": "服务地址",
+      "instance": "实例名称",
+      "id" : "访问账号",
+      "key" : "密码",
+      "token" : "安全令牌",
+      "clientType" : "模型类型"
+    },
+    "zh_TW": {
+      "doc": "docs/tablestore_zh_TW.md",
+      "endpoint": "服务地址",
+      "instance": "实例名称",
+      "id" : "访问賬號",
+      "key" : "密碼",
+      "token" : "安全令牌",
+      "clientType" : "模型类型"
+    }
+  },
+  "dataTypes": {
+    "STRING": {
+      "byte": "16m",
+      "to": "TapString"
+    },
+    "INTEGER": {
+      "bit": 64,
+      "priority": 3,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "to": "TapNumber"
+    },
+    "DOUBLE": {
+      "precision": [
+        1,
+        17
+      ],
+      "preferPrecision": 11,
+      "scale": [
+        0,
+        17
+      ],
+      "preferScale": 4,
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "BOOLEAN": {
+      "to": "TapBoolean"
+    },
+    "BINARY": {
+      "to": "TapBinary"
+    }
+  }
+}

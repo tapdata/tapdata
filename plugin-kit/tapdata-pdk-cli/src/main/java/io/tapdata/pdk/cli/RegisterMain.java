@@ -36,6 +36,8 @@ public class RegisterMain {
         Coding(BASE_PATH + "connectors/dist/coding-connector-v1.0-SNAPSHOT.jar", "all", "coding"),
         ZoHo(BASE_PATH + "connectors/dist/zoho-connector-v1.0-SNAPSHOT.jar", "all", "zoho"),
         Tidb(BASE_PATH + "connectors/dist/tidb-connector-v1.0-SNAPSHOT.jar", "all", "tidb"),
+        Tablestore(BASE_PATH + "connectors/dist/tablestore-connector-v1.0-SNAPSHOT.jar", "all", "tablestore"),
+        Custom(BASE_PATH + "connectors/dist/custom-connector-v1.0-SNAPSHOT.jar", "all", "custom"),
         Vika(BASE_PATH + "connectors/dist/vika-connector-v1.0-SNAPSHOT.jar", "all", "vika"),
 
 

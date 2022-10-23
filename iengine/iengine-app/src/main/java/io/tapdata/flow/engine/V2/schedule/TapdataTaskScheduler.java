@@ -4,6 +4,7 @@ import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
+import com.tapdata.entity.AppType;
 import com.tapdata.entity.TapLog;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -67,6 +68,8 @@ public class TapdataTaskScheduler {
 
 	@Autowired
 	private MessageDao messageDao;
+
+	private final AppType appType = AppType.init();
 
 
 	@PostConstruct
@@ -166,10 +169,12 @@ public class TapdataTaskScheduler {
 				}
 			}
 
-			List<TaskDto> timeoutStoppingTasks = findStoppingTasks();
-			for (TaskDto timeoutStoppingTask : timeoutStoppingTasks) {
-				final String taskId = timeoutStoppingTask.getId().toHexString();
-				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+			if (!appType.isCloud()) {
+				List<TaskDto> timeoutStoppingTasks = findStoppingTasks();
+				for (TaskDto timeoutStoppingTask : timeoutStoppingTasks) {
+					final String taskId = timeoutStoppingTask.getId().toHexString();
+					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+				}
 			}
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);

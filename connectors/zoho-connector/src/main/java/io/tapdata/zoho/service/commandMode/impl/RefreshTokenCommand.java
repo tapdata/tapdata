@@ -2,7 +2,7 @@ package io.tapdata.zoho.service.commandMode.impl;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.zoho.annonation.LanguageEnum;
 import io.tapdata.zoho.entity.CommandResultV2;
@@ -10,7 +10,7 @@ import io.tapdata.zoho.entity.RefreshTokenEntity;
 import io.tapdata.zoho.enums.HttpCode;
 import io.tapdata.zoho.service.commandMode.CommandMode;
 import io.tapdata.zoho.service.commandMode.ConfigContextChecker;
-import io.tapdata.zoho.service.zoho.impl.TokenLoader;
+import io.tapdata.zoho.service.zoho.loader.TokenLoader;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.HashMap;

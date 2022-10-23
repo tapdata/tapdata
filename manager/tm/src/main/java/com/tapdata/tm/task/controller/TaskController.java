@@ -91,6 +91,8 @@ public class TaskController extends BaseController {
     private WorkerService workerService;
     private AlarmService alarmService;
 
+    private TaskResetLogService taskResetLogService;
+
     /**
      * Create a new instance of the model and persist it into the data source
      *
