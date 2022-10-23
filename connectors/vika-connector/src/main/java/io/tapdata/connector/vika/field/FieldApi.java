@@ -8,15 +8,15 @@ import cn.vika.core.http.HttpHeader;
 
 public class FieldApi extends AbstractApi {
 
-    private static final String GET_FIELD_PATH = "/v1/datasheets/%s/fields";
+    private static final String GET_FIELD_PATH = "/datasheets/%s/fields?viewId=%s";
 
     public FieldApi(ApiHttpClient apiHttpClient) {
         super(apiHttpClient);
     }
 
-    public FieldRespone getFields(String datasheetId) {
+    public FieldRespone getFields(String datasheetId, String viewId) {
 
-        final String path = String.format(GET_FIELD_PATH, datasheetId);
+        final String path = String.format(GET_FIELD_PATH, datasheetId, viewId);
 
         HttpResult<FieldRespone> result = getDefaultHttpClient().get(
                 path, new HttpHeader(),

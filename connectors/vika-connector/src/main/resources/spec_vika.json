@@ -9,23 +9,15 @@
     "connection": {
       "type": "object",
       "properties": {
-        "credential": {
+        "hostUrl": {
           "required": true,
           "type": "string",
-          "title": "${credential}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "database_token",
-          "x-index": 1
-        },
-        "hostUrl": {
-          "required": false,
-          "type": "string",
           "title": "${hostUrl}",
+          "default": "https://api.vika.cn",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_host",
-          "x-index": 2
+          "x-index": 1
         },
         "spaceId": {
           "required": true,
@@ -34,6 +26,15 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_host",
+          "x-index": 2
+        },
+        "credential": {
+          "required": true,
+          "type": "string",
+          "title": "${credential}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_token",
           "x-index": 3
         }
       }
@@ -78,49 +79,8 @@
       ],
       "to": "TapNumber"
     },
-    "Rating": {
-      "bit": 16,
-      "priority": 3,
-      "value": [
-        -32768,
-        32767
-      ],
-      "to": "TapNumber"
-    },
-    "Percent": {
-      "precision": [
-        1,
-        17
-      ],
-      "preferPrecision": 11,
-      "scale": [
-        0,
-        17
-      ],
-      "preferScale": 4,
-      "fixed": false,
-      "to": "TapNumber"
-    },
-    "Currency": {
-      "precision": [
-        1,
-        6
-      ],
-      "scale": [
-        0,
-        6
-      ],
-      "fixed": false,
-      "to": "TapNumber"
-    },
-    "Checkbox": {
-      "to": "TapBoolean"
-    },
     "DateTime": {
       "to": "TapDateTime"
-    },
-    "Attachment": {
-      "to": "TapBinary"
     }
   }
 }
