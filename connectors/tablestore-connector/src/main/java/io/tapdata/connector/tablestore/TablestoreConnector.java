@@ -110,9 +110,9 @@ public class TablestoreConnector extends ConnectorBase {
             if (tapMapValue != null && tapMapValue.getValue() != null) return toJson(tapMapValue.getValue());
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS"));
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
+        codecRegistry.registerFromTapValue(TapTimeValue.class, ColumnType.STRING.name(), tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, ColumnType.STRING.name(), tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS"));
+        codecRegistry.registerFromTapValue(TapDateValue.class, ColumnType.STRING.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
     }
 
     @Override
@@ -254,9 +254,7 @@ public class TablestoreConnector extends ConnectorBase {
                             for (String k : resSet) {
                                 ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
                                 Object value = after.get(k);
-                                if (ColumnType.INTEGER.equals(columnType)) {
-                                    value = Long.valueOf(value.toString());
-                                }
+                                transferValueType(columnType, value);
                                 pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                             }
                             putChange = new RowPutChange(tableId, pkBuilder.build());
@@ -291,7 +289,9 @@ public class TablestoreConnector extends ConnectorBase {
                             PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
                             for (String k : resSet) {
                                 ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
-                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(after.get(k), columnType)));
+                                Object value = after.get(k);
+                                transferValueType(columnType, value);
+                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                             }
                             updateChange = new RowUpdateChange(tableId, pkBuilder.build());
                         } else {
@@ -323,7 +323,9 @@ public class TablestoreConnector extends ConnectorBase {
                             PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
                             for (String k : resSet) {
                                 ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
-                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(before.get(k), columnType)));
+                                Object value = before.get(k);
+                                transferValueType(columnType, value);
+                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                             }
                             deleteChange = new RowDeleteChange(tableId, pkBuilder.build());
                         } else {
