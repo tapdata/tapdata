@@ -2,8 +2,10 @@ package io.tapdata.connector.tablestore;
 
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.kit.EmptyKit;
 
 import java.util.Map;
+import java.util.StringJoiner;
 
 public class TablestoreConfig {
     private static final BeanUtils BEAN_UTILS = InstanceFactory.instance(BeanUtils.class);
@@ -18,6 +20,13 @@ public class TablestoreConfig {
     public TablestoreConfig load(Map<String, Object> map) {
         assert BEAN_UTILS != null;
         return BEAN_UTILS.mapToBean(map, this);
+    }
+
+    public String getConnectionString() {
+        StringJoiner joiner = new StringJoiner("/");
+        joiner.add(endpoint);
+        joiner.add(instance);
+        return joiner.toString();
     }
 
     public String getEndpoint() {
