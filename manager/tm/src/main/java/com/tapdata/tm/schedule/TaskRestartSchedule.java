@@ -64,7 +64,7 @@ public class TaskRestartSchedule {
     @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
         long heartExpire;
-        Settings settings = settingsService.findAll().stream().filter(k -> "lastHeartbeat".equals(k.getKey())).findFirst().orElse(null);
+        Settings settings = settingsService.findAll().stream().filter(k -> "jobHeartTimeout".equals(k.getKey())).findFirst().orElse(null);
         if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
             heartExpire = Long.parseLong(settings.getValue().toString());
         } else {

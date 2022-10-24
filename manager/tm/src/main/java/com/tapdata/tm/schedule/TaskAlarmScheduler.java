@@ -47,6 +47,7 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -301,11 +302,16 @@ public class TaskAlarmScheduler {
         String avgName = template[1];
         if (collect.containsKey(alarmKeyEnum)) {
             AlarmRuleDto alarmRuleDto = collect.get(alarmKeyEnum);
+
+            AtomicInteger delay = new AtomicInteger(0);
             long count = samples.stream().filter(ss -> {
+                int current = (int) ss.getVs().getOrDefault(avgName, 0);
                 if (alarmRuleDto.getEqualsFlag() == -1) {
-                    return (int) ss.getVs().getOrDefault(avgName, 0) <= alarmRuleDto.getMs();
+                    delay.set(current);
+                    return current <= alarmRuleDto.getMs();
                 } else if (alarmRuleDto.getEqualsFlag() == 1) {
-                    return (int) ss.getVs().getOrDefault(avgName, 0) >= alarmRuleDto.getMs();
+                    delay.set(current);
+                    return current >= alarmRuleDto.getMs();
                 } else {
                     return false;
                 }
@@ -321,7 +327,7 @@ public class TaskAlarmScheduler {
             if (count >= alarmRuleDto.getPoint()) {
                 String summary;
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
-                Number current = samples.get(0).getVs().get(avgName);
+                Number current = delay.get();
                 if (first.isPresent()) {
                     AlarmInfo data = first.get();
                     alarmInfo.setId(data.getId());
