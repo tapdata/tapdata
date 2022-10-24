@@ -24,7 +24,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 @EnableSchedulerLock(defaultLockAtMostFor = "10m")
 public class ScheduleConfig {
 
-	//@Bean
+	@Bean
 	public TaskScheduler taskScheduler() {
 		final ThreadPoolTaskScheduler taskScheduler = new ThreadPoolTaskScheduler();
 		taskScheduler.setPoolSize(40);

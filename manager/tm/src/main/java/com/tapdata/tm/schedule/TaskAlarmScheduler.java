@@ -1,9 +1,8 @@
-package com.tapdata.tm.alarm.scheduler;
+package com.tapdata.tm.schedule;
 
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -14,27 +13,21 @@ import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
-import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
-import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
-import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -44,9 +37,7 @@ import io.tapdata.common.sample.request.Sample;
 import lombok.Setter;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -58,7 +49,6 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Component
 @Setter(onMethod_ = {@Autowired})
