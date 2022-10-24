@@ -365,6 +365,15 @@ public class TaskAlarmScheduler {
     }
 
     private void taskIncrementDelayAlarm(TaskDto task, String taskId, List<Sample> taskSamples, Map<AlarmKeyEnum, AlarmRuleDto> collect) {
+        // check task start cdc
+        if (CollectionUtils.isEmpty(task.getMilestones())) {
+            return;
+        }
+        boolean match = task.getMilestones().stream().anyMatch(m -> "WRITE_CDC_EVENT".equals(m.getCode()) && "running".equals(m.getStatus()));
+        if (!match) {
+            return;
+        }
+
         if (collect.containsKey(AlarmKeyEnum.TASK_INCREMENT_DELAY)) {
             AlarmRuleDto alarmRuleDto = collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY);
 
