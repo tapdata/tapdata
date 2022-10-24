@@ -944,7 +944,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param id   任务id
      * @param user 用户
      */
-    public void renew(ObjectId id, UserDetail user) {
+    public TaskDto renew(ObjectId id, UserDetail user) {
         TaskDto taskDto = checkExistById(id, user);
         String status = taskDto.getStatus();
 
@@ -959,6 +959,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskResetLogService.clearLogByTaskId(id.toHexString());
         sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_RESET);
         //afterRenew(taskDto, user);
+        return taskDto;
     }
 
     public void afterRenew(TaskDto taskDto, UserDetail user) {

@@ -30,7 +30,6 @@ import java.util.List;
 @Aspect
 @Component
 @Slf4j
-@Deprecated
 public class MessageAop {
 
     @Autowired
@@ -86,7 +85,7 @@ public class MessageAop {
      * @return
      * @throws Throwable
      */
-   /* @Around(value = "readAllPointcut()")
+    @Around(value = "readAllPointcut()")
     public Object afterReadAll(ProceedingJoinPoint joinPoint) throws Throwable {
         Object ret = null;
         Object[] args = joinPoint.getArgs();
@@ -96,7 +95,7 @@ public class MessageAop {
         ret = joinPoint.proceed(args);
         userLogService.addUserLog(Modular.MESSAGE, Operation.READ_ALL, userDetail.getUserId(), null, "全部通知");
         return ret;
-    }*/
+    }
 
 
     /**

@@ -194,4 +194,40 @@ public class TaskAop {
             log.warn("Ignore logging to delete task action log when params is null.");
         }
     }
+
+    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.renew(..))")
+    public void renew() {
+
+    }
+
+    @AfterReturning(value = "renew()", returning = "taskDto")
+    public void afterRenew(JoinPoint joinPoint, TaskDto taskDto) {
+        Object[] args = joinPoint.getArgs();
+        ObjectId taskId = null;
+        UserDetail userDetail = null;
+        if (args != null) {
+
+            if (args.length > 0 && args[0] instanceof ObjectId) {
+                taskId = (ObjectId) args[0];
+            } else {
+                log.warn("Ignore logging to renew task action log when params is not ObjectId");
+                return;
+            }
+            if (args.length > 1 && args[1] instanceof UserDetail) {
+                userDetail = (UserDetail) args[1];
+            } else {
+                log.warn("Ignore logging to renew task action log when params  is not UserDetail");
+                return;
+            }
+        } else {
+            return;
+        }
+
+        if (taskDto != null) {
+            userLogService.addUserLog(Modular.MIGRATION, Operation.RESET, userDetail,
+                    taskId.toHexString(), taskDto.getName());
+        } else {
+            log.warn("Ignore logging to renew task action log when returning is null");
+        }
+    }
 }
