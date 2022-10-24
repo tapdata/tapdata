@@ -409,11 +409,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			cdcDelayCalculation.addHeartbeatTable(tables);
 			int batchSize = 1;
 			String streamReadFunctionName = null;
-			if(rawDataCallbackFilterFunctionV2 != null)
+			if (rawDataCallbackFilterFunctionV2 != null)
 				streamReadFunctionName = rawDataCallbackFilterFunctionV2.getClass().getSimpleName();
-			if(rawDataCallbackFilterFunction != null && streamReadFunctionName == null)
+			if (rawDataCallbackFilterFunction != null && streamReadFunctionName == null)
 				streamReadFunctionName = rawDataCallbackFilterFunction.getClass().getSimpleName();
-			if(streamReadFunctionName == null)
+			if (streamReadFunctionName == null)
 				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
 			String finalStreamReadFunctionName = streamReadFunctionName;
 			PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create();
@@ -488,18 +488,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											}
 										});
 
-										if((rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) && streamReadFuncAspect != null) {
+										if ((rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) && streamReadFuncAspect != null) {
 											executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
-											while(isRunning()) {
-												if(!streamReadFuncAspect.waitRawData()) {
+											while (isRunning()) {
+												if (!streamReadFuncAspect.waitRawData()) {
 													break;
 												}
 											}
-											if(streamReadFuncAspect.getErrorDuringWait() != null) {
+											if (streamReadFuncAspect.getErrorDuringWait() != null) {
 												throw streamReadFuncAspect.getErrorDuringWait();
 											}
 										} else {
-											if(streamReadFunction != null) {
+											if (streamReadFunction != null) {
 												streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
 														syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
 											}
@@ -521,10 +521,35 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet()));
 		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
 				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		List<String> tables = new ArrayList<>(tapTableMap.keySet());
 		logger.info("Starting incremental sync, read from share log storage...");
 		// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
 		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext);
 		// Start listen message entity from share storage log
+		executeDataFuncAspect(StreamReadFuncAspect.class,
+				() -> new StreamReadFuncAspect()
+						.dataProcessorContext(getDataProcessorContext())
+						.tables(tables)
+						.eventBatchSize(1)
+						.offsetState(syncProgress.getStreamOffsetObj())
+						.start(),
+				streamReadFuncAspect -> this.shareCdcReader.listen((event, offsetObj) -> {
+					if (streamReadFuncAspect != null) {
+						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), Collections.singletonList(event));
+					}
+					TapdataEvent tapdataEvent = wrapTapdataEvent(event, SyncStage.CDC, offsetObj, true);
+					if (null == tapdataEvent) {
+						return;
+					}
+					List<TapdataEvent> tapdataEvents = Collections.singletonList(tapdataEvent);
+					if (streamReadFuncAspect != null)
+						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
+					tapdataEvent.setType(SyncProgress.Type.SHARE_CDC);
+					enqueue(tapdataEvent);
+					if (streamReadFuncAspect != null)
+						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
+				}));
 		this.shareCdcReader.listen((event, offsetObj) -> {
 			TapdataEvent tapdataEvent = wrapTapdataEvent(event, SyncStage.CDC, offsetObj, true);
 			if (null == tapdataEvent) {

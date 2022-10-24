@@ -924,14 +924,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public void afterRenew(TaskDto taskDto, UserDetail user) {
-        renewNotSendMq(taskDto, user);
         renewAgentMeasurement(taskDto.getId().toString());
         log.debug("renew task complete, task name = {}", taskDto.getName());
 
         String lastTaskRecordId = new ObjectId().toString();
         //更新任务信息
-        Update update = Update.update("status", TaskDto.STATUS_WAIT_START)
-                .set(TaskDto.LASTTASKRECORDID, lastTaskRecordId)
+        Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId)
                 .unset("temp");
         updateById(taskDto.getId(), update, user);
 
@@ -948,6 +946,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TaskEntity taskSnapshot = new TaskEntity();
         BeanUtil.copyProperties(taskDto, taskSnapshot);
         disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+        renewNotSendMq(taskDto, user);
     }
 
     /**
@@ -2187,7 +2186,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         Update set = Update.update("agentId", null).set("agentTags", null).set("scheduleTimes", null)
                 .set("scheduleTime", null)
-                .unset("milestones").unset("tmCurrentTime").set("messages", null).set("status", TaskDto.STATUS_EDIT);
+                .unset("milestones").unset("tmCurrentTime").set("messages", null).set("status", TaskDto.STATUS_WAIT_START);
 
 
         if (taskDto.getAttrs() != null) {
@@ -2228,7 +2227,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //            taskDto.setDag(taskDto.getTempDag());
 //        }
         beforeSave(taskDto, user);
-        set.unset("tempDag").set("isEdit", true).set("status", TaskDto.STATUS_WAIT_START);
+        set.unset("tempDag").set("isEdit", true);
 //        Update update = new Update();
 //        taskService.update(new Query(Criteria.where("_id").is(taskDto.getParentId())), update.unset("temp"));
         updateById(taskDto.getId(), set, user);
