@@ -1,0 +1,253 @@
+{
+  "uid" : "af57db54f80b728e",
+  "name" : "filter row in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_filter_sync",
+  "historyId" : "bed478de98ce244a78658abafc205420",
+  "time" : {
+    "start" : 1666577264177,
+    "stop" : 1666577264184,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "statusMessage" : "NameError: name 'source_name' is not defined",
+  "statusTrace" : "self = <test.test_pipeline.TestPipeline object at 0x7fea1078ab10>\n\n    @allure.title(\"filter row in sync\")\n    def test_filter_sync(self):\n        p = make_new_pipeline(f\"filter_sync_{random_str()}\")\n        p.dag.jobType = JobType.sync\n>       p1 = p.readFrom(f\"{source_name}.test\")\nE       NameError: name 'source_name' is not defined\n\ntest_pipeline.py:93: NameError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "42fc5457ed5c"
+  }, {
+    "name" : "thread",
+    "value" : "912-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Test defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 33,
+        "skipped" : 0,
+        "passed" : 0,
+        "unknown" : 0,
+        "total" : 33
+      },
+      "items" : [ {
+        "uid" : "1178cd5f3c4dc3c5",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666531094231,
+          "stop" : 1666531094245,
+          "duration" : 14
+        }
+      }, {
+        "uid" : "7dae97f62dbeda96",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666475884101,
+          "stop" : 1666475884110,
+          "duration" : 9
+        }
+      }, {
+        "uid" : "8d81133c2670ce0c",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666438600285,
+          "stop" : 1666438600293,
+          "duration" : 8
+        }
+      }, {
+        "uid" : "8ef5d1327dd2ac11",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666376778560,
+          "stop" : 1666376778571,
+          "duration" : 11
+        }
+      }, {
+        "uid" : "9702d8305951d6b4",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666374881929,
+          "stop" : 1666374881942,
+          "duration" : 13
+        }
+      }, {
+        "uid" : "6cc4bac229db7bd4",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666368338230,
+          "stop" : 1666368338239,
+          "duration" : 9
+        }
+      }, {
+        "uid" : "8cfa975ead4d3cdb",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666366526637,
+          "stop" : 1666366526649,
+          "duration" : 12
+        }
+      }, {
+        "uid" : "12da748f35e94740",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666357163735,
+          "stop" : 1666357163746,
+          "duration" : 11
+        }
+      }, {
+        "uid" : "737a69e3a33cf37d",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666350270069,
+          "stop" : 1666350270078,
+          "duration" : 9
+        }
+      }, {
+        "uid" : "4cb2f16a34a7b932",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666346548352,
+          "stop" : 1666346548361,
+          "duration" : 9
+        }
+      }, {
+        "uid" : "c26304098c9721ce",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666345453023,
+          "stop" : 1666345453030,
+          "duration" : 7
+        }
+      }, {
+        "uid" : "3b42b20a3ab18e59",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666341505815,
+          "stop" : 1666341505838,
+          "duration" : 23
+        }
+      }, {
+        "uid" : "ed3faa985bf935d1",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666339813635,
+          "stop" : 1666339813645,
+          "duration" : 10
+        }
+      }, {
+        "uid" : "17b9cf0b5b8ff277",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666338945807,
+          "stop" : 1666338945816,
+          "duration" : 9
+        }
+      }, {
+        "uid" : "d038c1e5db6fef40",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666335836586,
+          "stop" : 1666335836596,
+          "duration" : 10
+        }
+      }, {
+        "uid" : "5446bba7731f28e1",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666323324768,
+          "stop" : 1666323324775,
+          "duration" : 7
+        }
+      }, {
+        "uid" : "4fb8c94970a2f5b2",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666321591975,
+          "stop" : 1666321591986,
+          "duration" : 11
+        }
+      }, {
+        "uid" : "8dff5b1a44834bad",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666320766649,
+          "stop" : 1666320766659,
+          "duration" : 10
+        }
+      }, {
+        "uid" : "bb53a802b658b42b",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666261808486,
+          "stop" : 1666261808496,
+          "duration" : 10
+        }
+      }, {
+        "uid" : "34d627f3134a09ff",
+        "status" : "broken",
+        "statusDetails" : "NameError: name 'source_name' is not defined",
+        "time" : {
+          "start" : 1666259365030,
+          "stop" : 1666259365041,
+          "duration" : 11
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "af57db54f80b728e.json",
+  "parameterValues" : [ ]
+}
