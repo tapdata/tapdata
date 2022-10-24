@@ -73,7 +73,9 @@ public class CommonUtils {
         void run() throws Throwable;
     }
 
-
+    public interface AnyErrorConsumer<T>{
+        void accept(T t) throws Throwable;
+    }
 
     public static void awakenRetryObj(Object syncWaitObj) {
         if(syncWaitObj != null) {
