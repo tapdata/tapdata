@@ -20,6 +20,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -28,6 +29,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collector;
@@ -52,7 +54,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
     private final long streamExecutionGap = 5000;//util: ms
     private int batchReadPageSize = 500;//coding page 1~500,
-
     private Long lastTimePoint;
     private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
     int tableSize;
@@ -85,13 +86,11 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         return this;
     }
 
-
     public void discoverMatterOldVersion(List<String> filterTable, Consumer<List<TapTable>> consumer) {
         if (null == consumer) {
             throw new IllegalArgumentException("Consumer cannot be null");
         }
     }
-
 
     /**
      * 一次获取事项分页查询并返回Map结果
@@ -360,7 +359,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             put(TABLE_NAME, readEnd);
         }});
         this.verifyConnectionConfig();
-        this.readVIP(null, readEnd, batchCount, codingOffset, consumer);
+//        this.readV3(readEnd, batchCount, codingOffset, consumer);
+        this.readV2(null, readEnd, batchCount, codingOffset, consumer);
         //this.read(null, readEnd, batchCount, codingOffset, consumer);
     }
 
@@ -529,10 +529,13 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         return Collections.singletonList(event);
     }
 
+    private String sortKey(boolean isStreamRead){
+        return isStreamRead?"UPDATED_AT":"CREATED_AT";
+    }
 
-    public void defineHttpAttributes(Long readStartTime, Long readEndTime, int readSize, HttpEntity<String, String> header, HttpEntity<String, Object> pageBody) {
+    public void defineHttpAttributes(Long readStartTime, Long readEndTime, int readSize, HttpEntity<String, String> header, HttpEntity<String, Object> pageBody,boolean isStreamRead) {
         List<Map<String, Object>> coditions = io.tapdata.entity.simplify.TapSimplify.list(map(
-                entry("Key", "UPDATED_AT"),
+                entry("Key", this.sortKey(isStreamRead)),
                 entry("Value", this.longToDateStr(readStartTime) + "_" + this.longToDateStr(readEndTime)))
         );
         header.builder("Authorization", contextConfig.getToken());
@@ -547,7 +550,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }
         pageBody.builder("Action", "DescribeIssueListWithPage")
                 .builder("ProjectName", projectName)
-                .builder("SortKey", "UPDATED_AT")
+                .builder("SortKey", this.sortKey(isStreamRead))
                 .builder("PageSize", readSize)
                 .builder("SortValue", "ASC")
                 .builder("IssueType",
@@ -558,7 +561,32 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
     }
 
-    public void readVIP(
+    public void defineHttpAttributesV2(int readSize, HttpEntity<String, String> header, HttpEntity<String, Object> pageBody,boolean isStreamRead) {
+        List<Map<String, Object>> coditions = io.tapdata.entity.simplify.TapSimplify.list();
+        header.builder("Authorization", contextConfig.getToken());
+        String projectName = contextConfig.getProjectName();
+        String iterationCodes = contextConfig.getIterationCodes();
+        if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes) && !"-1".equals(iterationCodes)) {
+            //-1时表示全选
+            //String[] iterationCodeArr = iterationCodes.split(",");
+            //@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
+            //选择的迭代编号不需要验证
+            coditions.add(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)));
+            pageBody.builder("Conditions", coditions);
+        }
+        pageBody.builder("Action", "DescribeIssueListWithPage")
+                .builder("ProjectName", projectName)
+                .builder("SortKey", this.sortKey(isStreamRead))
+                .builder("PageSize", readSize)
+                .builder("PageNumber", 1)
+                .builder("SortValue", "ASC")
+                .builder("IssueType",
+                        Checker.isNotEmpty(contextConfig) && Checker.isNotEmpty(contextConfig.getIssueType()) ?
+                                IssueType.verifyType(contextConfig.getIssueType().getName())
+                                : "ALL");
+    }
+
+    public void readV2(
             Long readStartTime,
             Long readEndTime,
             int readSize,
@@ -573,7 +601,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         List<TapEvent> events = new ArrayList<>();
         HttpEntity<String, String> header = HttpEntity.create();
         HttpEntity<String, Object> pageBody = HttpEntity.create();
-        this.defineHttpAttributes(readStartTime, readEndTime, readSize, header, pageBody);
+        this.defineHttpAttributes(readStartTime, readEndTime, readSize, header, pageBody,false);
         CodingOffset offset = (CodingOffset) (Checker.isEmpty(offsetState) ? new CodingOffset() : offsetState);
 
 //        AtomicInteger pageCount = new AtomicInteger(0);
@@ -699,6 +727,155 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             events = new ArrayList<>();
         }
         //TapLogger.info(TAG,"Issues batch read - {} pages, {} issues, output {} events. ",pageCount.get(),itemCount.get(),eventCount.get());
+        if (events.isEmpty()) return;
+        consumer.accept(events, offset);
+    }
+
+    public void readV3(
+            Long readEndTime,
+            int readSize,
+            Object offsetState,
+            BiConsumer<List<TapEvent>, Object> consumer) {
+        final int MAX_THREAD = 20;
+        Queue<Integer> queuePage = new ConcurrentLinkedQueue<>();
+        Queue<Map<String, Object>> queueItem = new ConcurrentLinkedQueue<>();
+        AtomicInteger itemThreadCount = new AtomicInteger(0);
+
+        String teamName = contextConfig.getTeamName();
+        List<TapEvent> events = new ArrayList<>();
+        HttpEntity<String, String> header = HttpEntity.create();
+        HttpEntity<String, Object> pageBody = HttpEntity.create();
+        this.defineHttpAttributesV2( readSize, header, pageBody,false);
+        CodingOffset offset = (CodingOffset) (Checker.isEmpty(offsetState) ? new CodingOffset() : offsetState);
+
+        AtomicInteger total = new AtomicInteger(-1);
+        //分页线程
+        Thread pageThread = new Thread(() -> {
+            int currentQueryCount = 0;
+            AtomicInteger queryIndex = new AtomicInteger(1);
+            /**
+             * start page ,and add page to queuePage;
+             * */
+            Object conditionsObj = pageBody.getEntity().get("Conditions");
+
+            Object referenceTimeObj = offset.getTableUpdateTimeMap().get(TABLE_NAME);
+            AtomicLong referenceTime = new AtomicLong(Checker.isEmpty(referenceTimeObj)?null:(Long)referenceTimeObj);
+            List<Map<String, Object>> coditions = Checker.isEmpty(conditionsObj)?io.tapdata.entity.simplify.TapSimplify.list():(List<Map<String, Object>>)conditionsObj;
+            Entry sortEntry = entry("Value", null);//this.longToDateStr(readStartTime) + "_" + this.longToDateStr(readEndTime));
+            coditions.add(map(entry("Key", this.sortKey(false)),sortEntry));
+
+            do {
+                synchronized (codingConnector){
+                    if (!codingConnector.isAlive()){
+                        break;
+                    }
+                }
+                sortEntry.setValue(this.longToDateStr(referenceTime.get()) + "_" + this.longToDateStr(readEndTime));
+                Map<String, Object> dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
+                if (null == dataMap || null == dataMap.get("List")) {
+                    TapLogger.error(TAG, "Paging result request failed, the Issue list is empty: page index = {}", queryIndex.get());
+                    throw new RuntimeException("Paging result request failed, the Issue list is empty: " + CodingStarter.OPEN_API_URL + "?Action=DescribeIssueListWithPage");
+                }
+                List<Map<String, Object>> resultList = (List<Map<String, Object>>) dataMap.get("List");
+                currentQueryCount = resultList.size();
+                batchReadPageSize = null != dataMap.get("PageSize") ? (int) (dataMap.get("PageSize")) : batchReadPageSize;
+                if (total.get() < 0) {
+                    total.set((int) (dataMap.get("TotalCount")));
+                }
+                queuePage.addAll(resultList.stream().map(obj ->{
+                    Object cretaeAtObj = obj.get("CreatedAt");
+                    Long time = Checker.isEmpty(cretaeAtObj)?null:(Long)cretaeAtObj;
+                    //pageBody.builder("PageNumber", time.equals(referenceTime.get()) ? queryIndex.addAndGet(1) : queryIndex.addAndGet(1-queryIndex.get()));
+                    referenceTime.set(time);
+                    Integer issueCode = (Integer) (obj.get("Code"));
+                    Long currentTimePoint = time - time % (24 * 60 * 60 * 1000);//时间片段
+                    if (!lastTimeSplitIssueCode.contains(issueCode)) {
+                        if (null == currentTimePoint || !currentTimePoint.equals(lastTimePoint)) {
+                            lastTimePoint = currentTimePoint;
+                            lastTimeSplitIssueCode = new ArrayList<Integer>();
+                        }
+                        lastTimeSplitIssueCode.add(issueCode);
+                        return issueCode;
+                    }
+                    return null;
+                }).filter(Objects::nonNull).collect(Collectors.toList()));
+            } while (currentQueryCount >= batchReadPageSize );
+        }, "PAGE_THREAD");
+        //pageThread.setDaemon(true);
+        pageThread.start();
+
+        //详情查询线程
+        while (true) {
+            synchronized (codingConnector){
+                if (!codingConnector.isAlive()){
+                    break;
+                }
+            }
+            if (!pageThread.isAlive() && queuePage.isEmpty()) break;
+            if (!queuePage.isEmpty()) {
+                int threadCount = total.get() / 500 ;
+                threadCount = Math.min(threadCount, MAX_THREAD);
+                threadCount = Math.max(threadCount,1);
+                final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(threadCount + 1, run -> {
+                    Thread thread = new Thread(run);
+                    //thread.setDaemon(true);
+                    return thread;
+                });
+                for (int i = 0; i < threadCount; i++) {
+                    executor.schedule(() -> {
+                        itemThreadCount.getAndAdd(1);
+                        /**
+                         * start page ,and add page to queuePage;
+                         * */
+                        try {
+                            while ((!queuePage.isEmpty() || pageThread.isAlive())) {
+                                synchronized (codingConnector){
+                                    if (!codingConnector.isAlive()){
+                                        break;
+                                    }
+                                }
+                                Integer peekId = queuePage.poll();
+                                if (Checker.isEmpty(peekId)) continue;
+                                Map<String, Object> issueDetail = this.get(IssueParam.create().issueCode(peekId));
+                                if (Checker.isEmpty(issueDetail)) continue;
+                                queueItem.add(issueDetail);
+                                //queueItem.notify();
+                                //itemCount.getAndAdd(1);
+                            }
+                        } catch (Exception e) {
+                            throw e;
+                        } finally {
+                            itemThreadCount.getAndAdd(-1);
+                        }
+                    }, 1, TimeUnit.SECONDS);
+                }
+                break;
+            }
+        }
+
+        //主线程生成事件
+        while ((!queuePage.isEmpty() || pageThread.isAlive() || itemThreadCount.get() > 0 || !queueItem.isEmpty()) ) {
+            synchronized (codingConnector){
+                if (!codingConnector.isAlive()){
+                    break;
+                }
+            }
+            /**
+             * 从queueItem取数据生成事件
+             * **/
+            if (queueItem.isEmpty()) {
+                continue;
+            }
+            Map<String, Object> issueDetail = queueItem.poll();
+            if (Checker.isEmptyCollection(issueDetail)) continue;
+
+            Long referenceTime = (Long) issueDetail.get("CreatedAt");
+            events.add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+            offset.getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
+            if (events.size() != readSize) continue;
+            consumer.accept(events, offset);
+            events = new ArrayList<>();
+        }
         if (events.isEmpty()) return;
         consumer.accept(events, offset);
     }

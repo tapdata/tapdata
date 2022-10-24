@@ -93,6 +93,12 @@ public class ZoHoHttp {
         }
         String body = execute.body();
         if (Checker.isEmpty(body)){
+            if(execute.getStatus() == 200){
+                return HttpResult.create("SUCCEED",true);
+            }
+            if (execute.isOk()){
+                return HttpResult.create("WARN",false);
+            }
             return EMPTY;
         }
         JSONObject executeObject = JSONUtil.parseObj(body);

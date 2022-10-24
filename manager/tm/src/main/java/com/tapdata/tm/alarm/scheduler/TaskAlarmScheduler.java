@@ -5,6 +5,9 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
@@ -22,6 +25,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
@@ -40,6 +44,7 @@ import io.tapdata.common.sample.request.Sample;
 import lombok.Setter;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -65,6 +70,7 @@ public class TaskAlarmScheduler {
     private WorkerService workerService;
     private UserService userService;
     private DataSourceService dataSourceService;
+    private SettingsService settingsService;
 
     private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
 
@@ -80,39 +86,52 @@ public class TaskAlarmScheduler {
             return;
         }
 
-        List<String> userIds = taskDtos.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
+        Set<String> connectionIds = Sets.newHashSet();
+        Map<String, List<String>> taskMap = Maps.newHashMap();
+        for (TaskDto taskDto : taskDtos) {
+            String taskId = taskDto.getId().toHexString();
+            DAG dag = taskDto.getDag();
+            dag.getNodes().stream().filter(node -> node instanceof DataParentNode).forEach(node -> {
+                String connectionId = ((DataParentNode<?>) node).getConnectionId();
+                connectionIds.add(connectionId);
+
+                if (taskMap.containsKey(connectionId)) {
+                    List<String> list = taskMap.get(connectionId);
+                    list.add(taskId);
+                    taskMap.put(connectionId, list);
+                } else {
+                    taskMap.put(connectionId, Lists.of(taskId));
+                }
+            });
+        }
+
+        if (CollectionUtils.isEmpty(connectionIds)) {
+            return;
+        }
+
+        List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAllByIds(new ArrayList<>(connectionIds));
+        if (CollectionUtils.isEmpty(connectionDtos)) {
+            return;
+        }
+
+        List<String> userIds = connectionDtos.stream().map(DataSourceConnectionDto::getUserId).distinct().collect(Collectors.toList());
         List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
-        for (TaskDto taskDto : taskDtos) {
+        for (DataSourceConnectionDto connectionDto : connectionDtos) {
+            String key = connectionDto.getId().toHexString();
 
-            DAG dag = taskDto.getDag();
-            dag.getNodes().stream().filter(node -> node instanceof DataParentNode).forEach(node -> {
-                DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(((DataParentNode<?>) node).getConnectionId()));
+            Map<String, Object> extParam = Maps.newHashMap();
+            extParam.put("nodeName", connectionDto.getName());
+            extParam.put("connectId", key);
+            extParam.put("templateEnum", AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT);
+            extParam.put("alarmCheck", true);
+            extParam.put("taskIds", taskMap.get(key));
+            connectionDto.setExtParam(extParam);
 
-                DagOutputTemplateEnum templateEnum;
-                String type;
-                if (dag.getSources().contains(node)) {
-                    templateEnum = DagOutputTemplateEnum.SOURCE_CONNECT_CHECK;
-                    type = "source";
-                } else {
-                    templateEnum = DagOutputTemplateEnum.TARGET_CONNECT_CHECK;
-                    type = "target";
-                }
-                Map<String, Object> extParam = Maps.newHashMap();
-                extParam.put("taskId", taskDto.getId().toHexString());
-                extParam.put("templateEnum", templateEnum);
-                extParam.put("userId", taskDto.getUserId());
-                extParam.put("type", type);
-                extParam.put("agentId", taskDto.getAgentId());
-                extParam.put("taskName", taskDto.getName());
-                extParam.put("nodeName", connectionDto.getName());
-                extParam.put("alarmCheck", true);
-                connectionDto.setExtParam(extParam);
-
-                dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(taskDto.getUserId()));
-            });
+            dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(connectionDto.getUserId()));
         }
+
     }
 
 
@@ -136,9 +155,17 @@ public class TaskAlarmScheduler {
             return;
         }
 
+        long heartExpire;
+        Settings settings = settingsService.findAll().stream().filter(k -> "lastHeartbeat".equals(k.getKey())).findFirst().orElse(null);
+        if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
+            heartExpire = (Long.parseLong(settings.getValue().toString()) + 48 ) * 1000;
+        } else {
+            heartExpire = 108000;
+        }
+
         Map<String, WorkerDto> stopEgineMap = workers.stream().filter(w -> (Objects.nonNull(w.getIsDeleted()) && w.getIsDeleted()) ||
                         (Objects.nonNull(w.getStopping()) && w.getStopping()) ||
-                        w.getPingTime() < (System.currentTimeMillis() - 1000 * 60))
+                        w.getPingTime() < (System.currentTimeMillis() - heartExpire))
                 .collect(Collectors.toMap(WorkerDto::getProcessId, Function.identity(), (e1, e2) -> e1));
         if (stopEgineMap.isEmpty()) {
             return;

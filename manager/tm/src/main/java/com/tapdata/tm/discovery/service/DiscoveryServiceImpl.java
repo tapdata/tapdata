@@ -3,6 +3,10 @@ import java.util.Date;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.apiServer.dto.ApiServerDto;
 import com.tapdata.tm.apiServer.service.ApiServerService;
+import com.tapdata.tm.cluster.dto.ClusterStateDto;
+import com.tapdata.tm.cluster.dto.SystemInfo;
+import com.tapdata.tm.cluster.entity.ClusterStateEntity;
+import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -75,6 +79,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     private DataSourceService dataSourceService;
 
 
+    private ClusterStateService clusterStateService;
     private WorkerService workerService;
 
     private ApiServerService apiServerService;
@@ -378,7 +383,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setTotal(0);
 
         Criteria taskCriteria = Criteria.where("is_deleted").ne(true);
-        Criteria apiCriteria = Criteria.where("status").is("active");
+        Criteria apiCriteria = Criteria.where("status").is("active").and("is_deleted").ne(true);
 
         Criteria metadataCriteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
                 .and("taskId").exists(false)
@@ -600,13 +605,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
         if (CollectionUtils.isNotEmpty(agentIds)) {
             Map<String, String> agentMap = new HashMap<>();
-            Criteria agentIdCriteria = Criteria.where("agentId").in(agentIds).and("worker_type").is("connector");
+            Criteria agentIdCriteria = Criteria.where("systemInfo.process_id").in(agentIds).and("status").is("running");
             Query query = new Query(agentIdCriteria);
-            query.fields().include("hostname", "process_id");
-            List<Worker> workers = workerService.findAll(query, user);
+            query.fields().include("systemInfo");
+            List<ClusterStateDto> workers = clusterStateService.findAll(query);
             if (CollectionUtils.isNotEmpty(workers)) {
-                agentMap = workers.stream().collect(Collectors.toMap(Worker::getProcessId, Worker::getHostname, (w1, w2) -> w1));
+                agentMap = workers.stream().collect(Collectors.toMap(w -> w.getSystemInfo().getProcess_id(), w -> w.getSystemInfo().getIp(), (w1, w2) -> w1));
             }
+
             for (UnionQueryResult unionQueryResult : unionQueryResults) {
                 if (StringUtils.isNotBlank(unionQueryResult.getAgentId())) {
                     unionQueryResult.setSourceInfo(agentMap.get(unionQueryResult.getAgentId()));
@@ -748,16 +754,26 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         dto.setCategory(DataObjCategoryEnum.job);
         dto.setType(taskDto.getSyncType());
         dto.setSourceCategory(DataSourceCategoryEnum.pipe);
-        dto.setSourceType(taskDto.getAgentId());
+        dto.setSourceType("数据管道");
 
 
         if (StringUtils.isNotBlank(taskDto.getAgentId())) {
-            Criteria criteria = Criteria.where("process_id").is(taskDto.getAgentId());
+            Criteria criteria = Criteria.where("systemInfo.process_id").is(taskDto.getAgentId()).and("status").is("running");
             Query query = new Query(criteria);
-            query.fields().include("hostname");
-            WorkerDto one = workerService.findOne(query, user);
-            dto.setSourceInfo(one.getHostname());
-            dto.setAgentDesc(one.getHostname());
+            query.fields().include("systemInfo");
+            ClusterStateDto one = clusterStateService.findOne(query);
+            if (one != null) {
+                dto.setSourceInfo(one.getSystemInfo().getIp());
+                dto.setAgentDesc(one.getSystemInfo().getIp());
+                dto.setAgentName(one.getSystemInfo().getHostname());
+            } else {
+                Criteria agentIdCriteria = Criteria.where("process_id").is(taskDto.getAgentId()).and("worker_type").is("connector");
+                Query query1 = new Query(agentIdCriteria);
+                query.fields().include("hostname", "process_id");
+                WorkerDto one1 = workerService.findOne(query1, user);
+                dto.setAgentName(one1.getHostname());
+
+            }
         }
 
 
@@ -860,14 +876,19 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         dto.setFields(modulesDto.getFields());
         dto.setCreateAt(modulesDto.getCreateAt());
         dto.setLastUpdAt(modulesDto.getLastUpdAt());
-        dto.setInputParamNum(2);
+        int inputParamNum = 4;
+        if (CollectionUtils.isNotEmpty(modulesDto.getPaths())) {
+            inputParamNum = modulesDto.getPaths().get(0).getParams().size();
+        }
+        dto.setInputParamNum(inputParamNum);
         dto.setOutputParamNum(modulesDto.getFields().size());
         dto.setId(id);
-        dto.setDescription(modulesDto.getDescription());
 
         String clientURI = getClientURI(user);
 
         dto.setSourceInfo(clientURI);
+        dto.setDescription(clientURI);
+        dto.setSourceType("数据服务");
         dto.setCategory(DataObjCategoryEnum.api);
         dto.setType(modulesDto.getApiType());
         dto.setSourceCategory(DataSourceCategoryEnum.server);
@@ -937,7 +958,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setTotal(0);
 
         Criteria taskCriteria = Criteria.where("is_deleted").ne(true).and("agentId").exists(true);
-        Criteria apiCriteria = Criteria.where("status").is("active");
+        Criteria apiCriteria = Criteria.where("status").is("active").and("is_deleted").ne(true);
 
         Criteria metadataCriteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
                 .and("taskId").exists(false)
@@ -1650,6 +1671,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDiscoveryDto.setSourceCategory(DataSourceCategoryEnum.server);
             dataDiscoveryDto.setName(unionQueryResult.getName());
             dataDiscoveryDto.setSourceInfo(unionQueryResult.getSourceInfo());
+            dataDiscoveryDto.setSourceType("API Server");
         }
 
         if (listtagsOld != null) {
