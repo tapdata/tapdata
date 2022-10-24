@@ -750,6 +750,10 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             Entry sortEntry = entry("Value", null);//this.longToDateStr(readStartTime) + "_" + this.longToDateStr(readEndTime));
             coditions.add(map(entry("Key", this.sortKey(false)),sortEntry));
 
+            if (Checker.isEmpty(pageBody.getEntity().get("Conditions"))){
+                pageBody.getEntity().put("Conditions",coditions);
+            }
+            final Set<Integer>[] issuesLastPageCache = new HashSet[]{new HashSet<>()};
             do {
                 synchronized (codingConnector){
                     if (!codingConnector.isAlive()){
@@ -768,23 +772,21 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 if (total.get() < 0) {
                     total.set((int) (dataMap.get("TotalCount")));
                 }
+
+                Set<Integer> issuesCurrentPageCache = new HashSet<>();
                 queuePage.addAll(resultList.stream().map(obj ->{
                     Object cretaeAtObj = obj.get("CreatedAt");
                     Long time = Checker.isEmpty(cretaeAtObj)?null:(Long)cretaeAtObj;
-                    //pageBody.builder("PageNumber", time.equals(referenceTime.get()) ? queryIndex.addAndGet(1) : queryIndex.addAndGet(1-queryIndex.get()));
                     referenceTime.set(time);
+                    //pageBody.builder("PageNumber", time.equals(referenceTime.get()) ? queryIndex.addAndGet(1) : queryIndex.addAndGet(1-queryIndex.get()));
                     Integer issueCode = (Integer) (obj.get("Code"));
-                    Long currentTimePoint = time - time % (24 * 60 * 60 * 1000);//时间片段
-                    if (!lastTimeSplitIssueCode.contains(issueCode)) {
-                        if (null == currentTimePoint || !currentTimePoint.equals(lastTimePoint)) {
-                            lastTimePoint = currentTimePoint;
-                            lastTimeSplitIssueCode = new ArrayList<Integer>();
-                        }
-                        lastTimeSplitIssueCode.add(issueCode);
+                    if (!issuesLastPageCache[0].contains(issueCode)) {
+                        issuesCurrentPageCache.add(issueCode);
                         return issueCode;
                     }
                     return null;
                 }).filter(Objects::nonNull).collect(Collectors.toList()));
+                issuesLastPageCache[0] = issuesCurrentPageCache;
             } while (currentQueryCount >= batchReadPageSize );
         }, "PAGE_THREAD");
         //pageThread.setDaemon(true);

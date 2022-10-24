@@ -11,17 +11,24 @@
       "type": "object",
       "properties": {
         "DescribeIterationList":  {
-            "title": "${iterationCodes}",
             "type": "string",
-            "required": true,
-            "x-decorator": "FormItem",
-            "x-component": "AsyncSelect",
-            "x-index": 1,
-            "x-component-props": {
-              "method": "{{loadCommandList}}",
-              "params": "{{ {$values: $values, command: \"DescribeIterationList\"} }}"
-            }
+            "x-display": "hidden"
+        },
+        "DescribeIterationArray":{
+          "x-decorator": "FormItem",
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"DescribeIterationList\"} }}",
+            "multiple": true,
+            "currentLabel": "{{ $values.nodeConfig.DescribeIterationArrayLabel }}",
+            "@change-label": "{{ val => $values.nodeConfig.DescribeIterationArrayLabel = val }}",
+            "@change": "{{ val => $values.nodeConfig.DescribeIterationList = val.join() || \"-1\" }}"
           },
+          "title": "${iterationCodes}",
+          "type": "array",
+          "x-index": 0
+        },
         "issueType": {
           "type": "String",
           "default": "ALL",
