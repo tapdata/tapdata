@@ -9,6 +9,8 @@ import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 public abstract class CodingStarter {
@@ -60,6 +62,10 @@ public abstract class CodingStarter {
                 //throw new IllegalArgumentException("TapTable' NodeConfig cannot be null");
             }else{
                 //iterationName is Multiple selection values separated by commas
+//                Object iterationCodeList = nodeConfigMap.getObject("iterations");
+//                if (iterationCodeList instanceof Collection){
+//                    ((List)iterationCodeList).spliterator().
+//                }
                 String iterationCodeArr = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
                 if (null != iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
                 String issueType = nodeConfigMap.getString("issueType");

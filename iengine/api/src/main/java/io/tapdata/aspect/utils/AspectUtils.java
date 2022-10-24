@@ -51,7 +51,7 @@ public class AspectUtils {
 		return null;
 	}
 
-	public static <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
+	public static <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> consumer) {
 		T aspect = null;
 		if(aspectManager != null && aspectManager.hasInterceptorOrObserver(aspectClass)) {
 			try {
@@ -70,13 +70,17 @@ public class AspectUtils {
 				} catch(Throwable throwable) {
 					aspect.throwable(throwable).state(DataFunctionAspect.STATE_END);
 					aspectManager.executeAspect(aspect);
-					throw throwable;
+					throw new RuntimeException(throwable);
 				}
 			} else {
 				return interceptResult;
 			}
 		} else {
-			consumer.accept(null);
+			try {
+				consumer.accept(null);
+			} catch (Throwable e) {
+				throw new RuntimeException(e);
+			}
 		}
 
 		return null;
