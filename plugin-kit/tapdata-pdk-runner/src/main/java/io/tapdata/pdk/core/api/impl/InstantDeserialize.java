@@ -2,9 +2,14 @@ package io.tapdata.pdk.core.api.impl;
 
 import com.alibaba.fastjson.parser.DefaultJSONParser;
 import com.alibaba.fastjson.parser.deserializer.ObjectDeserializer;
+import org.apache.commons.lang3.time.DateFormatUtils;
 
 import java.lang.reflect.Type;
+import java.text.ParseException;
 import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
 import java.util.List;
 
 public class InstantDeserialize implements ObjectDeserializer {
@@ -35,6 +40,11 @@ public class InstantDeserialize implements ObjectDeserializer {
     }
     if(seconds != null) {
       return Instant.ofEpochSecond(seconds, nanoSeconds != null ? nanoSeconds.longValue() : 0);
+    }
+    try {
+      TemporalAccessor temporalAccessor = DateTimeFormatter.ISO_INSTANT.parse(str);
+      return Instant.ofEpochSecond(temporalAccessor.getLong(ChronoField.INSTANT_SECONDS), temporalAccessor.get(ChronoField.NANO_OF_SECOND));
+    } catch (Throwable ignored) {
     }
     return null;
   }
