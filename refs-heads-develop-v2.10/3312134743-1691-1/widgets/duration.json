@@ -1,0 +1,191 @@
+[ {
+  "uid" : "3fc2cd20bf7ddea0",
+  "name" : "test monitor job status",
+  "time" : {
+    "start" : 1666609988346,
+    "stop" : 1666609988355,
+    "duration" : 9
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "b91f535ccf74ed85",
+  "name" : "filter column in sync",
+  "time" : {
+    "start" : 1666609988222,
+    "stop" : 1666609988238,
+    "duration" : 16
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "48305ae5ea957791",
+  "name" : "create mongodb datasource with uri",
+  "time" : {
+    "start" : 1666609962612,
+    "stop" : 1666609972806,
+    "duration" : 10194
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "e6e85f0f56d12f0e",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1666609988258,
+    "stop" : 1666609988266,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "e96281842368fa0c",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1666609988287,
+    "stop" : 1666609988297,
+    "duration" : 10
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "3deaeb8f4de405f9",
+  "name" : "create datasource with mongodb uri",
+  "time" : {
+    "start" : 1666609951921,
+    "stop" : 1666609957428,
+    "duration" : 5507
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "88428842d6eb857f",
+  "name" : "table merge in sync",
+  "time" : {
+    "start" : 1666609988273,
+    "stop" : 1666609988280,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "19540d74099a4e1b",
+  "name" : "create mongodb datasource with form",
+  "time" : {
+    "start" : 1666609957486,
+    "stop" : 1666609962607,
+    "duration" : 5121
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "41fc0adfbb192729",
+  "name" : "test mysql form valid",
+  "time" : {
+    "start" : 1666609972811,
+    "stop" : 1666609977956,
+    "duration" : 5145
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "fc8086eb4d17e153",
+  "name" : "real time database migrate between mongodb",
+  "time" : {
+    "start" : 1666609988154,
+    "stop" : 1666609988183,
+    "duration" : 29
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "d93d12e72682328a",
+  "name" : "create Kafka datasource with form",
+  "time" : {
+    "start" : 1666609988126,
+    "stop" : 1666609988126,
+    "duration" : 0
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "205c08c39628d005",
+  "name" : "test get job status",
+  "time" : {
+    "start" : 1666609988333,
+    "stop" : 1666609988340,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "e3698cbba4f63dcd",
+  "name" : "test stop job",
+  "time" : {
+    "start" : 1666609988318,
+    "stop" : 1666609988326,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "f8a39eb9bcc954b5",
+  "name" : "rename column in sync",
+  "time" : {
+    "start" : 1666609988244,
+    "stop" : 1666609988252,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "2ed52ebfd910cc9f",
+  "name" : "filter row in sync",
+  "time" : {
+    "start" : 1666609988204,
+    "stop" : 1666609988215,
+    "duration" : 11
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "344ebaff18539c34",
+  "name" : "real time table sync between mongodb",
+  "time" : {
+    "start" : 1666609988190,
+    "stop" : 1666609988198,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "206944ce064c0678",
+  "name" : "create PG datasource with form",
+  "time" : {
+    "start" : 1666609977961,
+    "stop" : 1666609988121,
+    "duration" : 10160
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "e9048b4c45905d07",
+  "name" : "test_check",
+  "time" : {
+    "start" : 1666609988361,
+    "stop" : 1666609988373,
+    "duration" : 12
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "ab3241ed2a93d01",
+  "name" : "config job",
+  "time" : {
+    "start" : 1666609988303,
+    "stop" : 1666609988312,
+    "duration" : 9
+  },
+  "status" : "broken",
+  "severity" : "normal"
+} ]
