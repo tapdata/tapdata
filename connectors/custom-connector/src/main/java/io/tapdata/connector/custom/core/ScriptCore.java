@@ -53,6 +53,7 @@ public class ScriptCore extends Core {
                     if (EmptyKit.isNotEmpty(dataMap)) {
                         //deep copy to resolve problem with multi thread
                         Map<String, Object> newMap = (Map) objectSerializable.toObject(objectSerializable.fromObject(new HashMap<>(dataMap)));
+                        contextMap = objectSerializable.toObject(objectSerializable.fromObject(contextMap));
                         try {
                             //put into the queue
                             while (!eventQueue.offer(new CustomEventMessage()
