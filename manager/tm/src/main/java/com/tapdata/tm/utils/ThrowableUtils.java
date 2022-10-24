@@ -12,7 +12,7 @@ public class ThrowableUtils {
         StringBuilder s = new StringBuilder("\n").append(e);
         for (StackTraceElement traceElement : e.getStackTrace()) {
             if (!traceElement.getClassName().contains(name)) {
-                break;
+                continue;
             }
             s.append("\n\tat ").append(traceElement);
         }

@@ -108,6 +108,14 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return repository.findAll(query);
     }
 
+    public List<Worker> findAvailableAgentBySystem(List<String> processIdList) {
+        Query query = getAvailableAgentQuery();
+        if (CollectionUtils.isNotEmpty(processIdList)) {
+            query.addCriteria(Criteria.where("process_id").in(processIdList));
+        }
+        return repository.findAll(query);
+    }
+
     public List<Worker> findAvailableAgentByAccessNode(UserDetail userDetail, List<String> processIdList) {
         if (Objects.isNull(userDetail)) {
             return null;
@@ -403,7 +411,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         UpdateResult updateResult = update(query, update);
 
         BsonValue upsertedId = updateResult.getUpsertedId();
-        BsonDocument bsonDocument = upsertedId.asDocument();
+
+        if (upsertedId != null) {
+            BsonDocument bsonDocument = upsertedId.asDocument();
+        }
 
         log.info("clean worker :{}", updateResult.getModifiedCount());
     }

@@ -49,10 +49,10 @@ public class ScriptCore extends Core {
             TapLogger.debug(TAG, "Received data, data size: {}", data.size());
             for (Object datum : data) {
                 if (datum instanceof Map) {
-                    Map<String, Object> dataMap = (HashMap<String, Object>) datum;
+                    Map<String, Object> dataMap = (Map) datum;
                     if (EmptyKit.isNotEmpty(dataMap)) {
                         //deep copy to resolve problem with multi thread
-                        Map<String, Object> newMap = (HashMap<String, Object>) objectSerializable.toObject(objectSerializable.fromObject(dataMap));
+                        Map<String, Object> newMap = (Map) objectSerializable.toObject(objectSerializable.fromObject(new HashMap<>(dataMap)));
                         try {
                             //put into the queue
                             while (!eventQueue.offer(new CustomEventMessage()

@@ -59,13 +59,12 @@ public class PipeHandler implements WebSocketHandler {
 				if (Objects.nonNull(jsonObject)) {
 					JSONObject extParam = jsonObject.getJSONObject("extParam");
 					if (Objects.nonNull(extParam) && "testConnectionResult".equals(data.get("type").toString())) {
-						String agentId = extParam.getString("agentId");
 						String taskId = extParam.getString("taskId");
-						String taskName = extParam.getString("taskName");
 						String templateEnum = extParam.getString("templateEnum");
 						String userId = extParam.getString("userId");
-						String nodeId = extParam.getString("nodeId");
 						String nodeName = extParam.getString("nodeName");
+						String connectId = extParam.getString("connectId");
+						JSONArray taskIds = extParam.getJSONArray("taskIds");
 						boolean alarmCheck = (Boolean) extParam.getOrDefault("alarmCheck", false);
 
 						if (StringUtils.isNotBlank(templateEnum)) {
@@ -78,9 +77,9 @@ public class PipeHandler implements WebSocketHandler {
 								taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
 										true, true, DateUtil.now(), jsonObject.getJSONObject("response_body").toJSONString());
 							} else if (grade == Level.ERROR) {
-								alarmService.connectFailAlarm(agentId, taskId, taskName, nodeId, nodeName);
+								alarmService.connectFailAlarm(taskIds, nodeName, connectId);
 							} else {
-								alarmService.connectPassAlarm(agentId, taskId, taskName, nodeId, nodeName);
+								alarmService.connectPassAlarm(taskIds, nodeName, connectId);
 							}
 						}
 					}

@@ -146,6 +146,8 @@ public class JsProcessorNode extends ProcessorNode {
                         field1.setDataType(field.getDataType());
                         field1.setColumnPosition(field.getColumnPosition());
                         field1.setTapType(field.getTapType());
+                        field1.setPrimaryKey(field.getPrimaryKey());
+                        field1.setPrimaryKeyPosition(field.getPrimaryKeyPosition());
                         BeanUtils.copyProperties(field1, field);
                     } else {
                         field.setSourceDbType(sourceDbType);
