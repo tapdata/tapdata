@@ -1,6 +1,7 @@
 package io.tapdata.coding.utils.tool;
 
 import cn.hutool.core.date.DateUtil;
+import io.tapdata.coding.service.sync.Sync;
 
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
@@ -44,7 +45,22 @@ public class Checker {
 //            System.out.println(fromPageIndex);
 //            fromPageIndex += 100 ;
 //        }
-        Map<String,Object> map = new HashMap<>();
-        System.out.println(isEmptyCollection(map));
+//        Map<String,Object> map = new HashMap<>();
+//        System.out.println(isEmptyCollection(map));
+
+        int max = 0;
+        final int m = 10000000;
+        long s = System.nanoTime();
+
+        for (;max++<m;){}
+        long e = System.nanoTime();
+
+        while (max-->0){}
+        long e2 = System.nanoTime();
+
+        do{}while (max++<m);
+        long e3 = System.nanoTime();
+
+        System.out.println((e-s) +"\n"+(e2-e)+"\n"+(e3-e2));
     }
 }

@@ -172,18 +172,13 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }
     }
 
-    public Long dateStrToLong(String date) {
-        return null;
-    }
-
     public Map<String, Object> readIssueDetail(
             HttpEntity<String, Object> issueDetailBody,
             CodingHttp authorization,
             HttpRequest requestDetail,
             Integer code,
             String projectName,
-            String teamName
-    ) {
+            String teamName ) {
         //查询事项详情
         issueDetailBody.builder("IssueCode", code);
         CodingHttp codingHttp = authorization.body(issueDetailBody.getEntity());
@@ -603,16 +598,11 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         HttpEntity<String, Object> pageBody = HttpEntity.create();
         this.defineHttpAttributes(readStartTime, readEndTime, readSize, header, pageBody,false);
         CodingOffset offset = (CodingOffset) (Checker.isEmpty(offsetState) ? new CodingOffset() : offsetState);
-
-//        AtomicInteger pageCount = new AtomicInteger(0);
-//        AtomicInteger itemCount = new AtomicInteger(0);
-//        AtomicInteger eventCount= new AtomicInteger(0);
-
         AtomicInteger total = new AtomicInteger(-1);
         //分页线程
         Thread pageThread = new Thread(() -> {
-            int currentQueryCount = 0, queryIndex = 1;
-            do {
+            int currentQueryCount = batchReadPageSize, queryIndex = 1;
+            while (currentQueryCount >= batchReadPageSize ) {
                 synchronized (codingConnector){
                     if (!codingConnector.isAlive()){
                         break;
@@ -635,9 +625,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 }
                 queuePage.addAll(resultList.stream().map(obj -> (Integer) (obj.get("Code"))).collect(Collectors.toList()));
                 //pageCount.getAndAdd(1);
-            } while (currentQueryCount >= batchReadPageSize );
+            }
         }, "PAGE_THREAD");
-        //pageThread.setDaemon(true);
         pageThread.start();
 
         //详情查询线程
@@ -654,7 +643,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 threadCount = Math.max(threadCount,1);
                 final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(threadCount + 1, run -> {
                     Thread thread = new Thread(run);
-                    //thread.setDaemon(true);
                     return thread;
                 });
                 for (int i = 0; i < threadCount; i++) {
@@ -675,8 +663,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                                 Map<String, Object> issueDetail = this.get(IssueParam.create().issueCode(peekId));
                                 if (Checker.isEmpty(issueDetail)) continue;
                                 queueItem.add(issueDetail);
-                                //queueItem.notify();
-                                //itemCount.getAndAdd(1);
                             }
                         } catch (Exception e) {
                             throw e;
@@ -705,7 +691,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             Map<String, Object> issueDetail = queueItem.poll();
             if (Checker.isEmptyCollection(issueDetail)) continue;
 
-            Long referenceTime = (Long) issueDetail.get("UpdatedAt");
+            Long referenceTime = (Long) issueDetail.get("CreatedAt");
             Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
             Integer issueDetailHash = MapUtil.create().hashCode(issueDetail);
             //issueDetial的更新时间字段值是否属于当前时间片段，并且issueDetail的hashcode是否在上一次批量读取同一时间段内
