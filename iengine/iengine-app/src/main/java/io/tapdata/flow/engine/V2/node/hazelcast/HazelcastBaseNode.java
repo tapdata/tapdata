@@ -141,8 +141,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
 	}
 
-	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
-		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, consumer);
+	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
+		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, anyErrorConsumer);
 	}
 
 	public <T extends Aspect> AspectInterceptResult executeAspect(Class<T> aspectClass, Callable<T> aspectCallable) {

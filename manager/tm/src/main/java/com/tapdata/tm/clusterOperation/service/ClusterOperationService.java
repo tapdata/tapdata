@@ -1,6 +1,5 @@
 package com.tapdata.tm.clusterOperation.service;
 
-import cn.hutool.core.map.MapProxy;
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.JsonUtil;
@@ -24,10 +23,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 /**
