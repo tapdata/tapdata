@@ -1934,8 +1934,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<LocalDate> localDates = new ArrayList<>();
         LocalDate now = LocalDate.now();
         LocalDate lastMonthDay = now.minusMonths(1);
+        Map<LocalDate, Long> allInputNumMap = new HashMap<>();
         while (!now.equals(lastMonthDay)) {
             localDates.add(now);
+            allInputNumMap.put(now, 0L);
             now = now.minusDays(1);
         }
         List<Date> localDateTimes = new ArrayList<>();
@@ -1959,7 +1961,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         Map<String, List<MeasurementEntity>> taskMap = measurementEntities.stream().collect(Collectors.groupingBy(m -> m.getTags().get("taskId")));
 
-        Map<LocalDate, Long> allInputNumMap = new HashMap<>();
+
+
 
         taskMap.forEach((k1, v1) -> {
             Map<LocalDate, Long> inputNumMap = new HashMap<>();

@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
  * 定时执行，检查license
  */
 @Slf4j
-@Component
+//@Component
 @Setter(onMethod_ = {@Autowired})
 public class LicenseRunner implements ApplicationRunner {
     private SettingsService settingsService;
