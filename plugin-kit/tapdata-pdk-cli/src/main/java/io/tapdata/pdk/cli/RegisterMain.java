@@ -34,6 +34,7 @@ public class RegisterMain {
         Hive1(BASE_PATH + "connectors/dist/hive1-connector-v1.0-SNAPSHOT.jar", "all", "hive1"),
         Coding(BASE_PATH + "connectors/dist/coding-connector-v1.0-SNAPSHOT.jar", "all", "coding"),
         Mariadb(BASE_PATH + "connectors/dist/mariadb-connector-v1.0-SNAPSHOT.jar", "all", "mariadb"),
+        Custom(BASE_PATH + "connectors/dist/custom-connector-v1.0-SNAPSHOT.jar", "all", "custom"),
         ;
 
         private final String path;
