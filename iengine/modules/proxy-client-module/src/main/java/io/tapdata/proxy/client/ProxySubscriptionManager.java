@@ -51,6 +51,8 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 
 	private MaxFrequencyLimiter maxFrequencyLimiter;
 
+	private String userId;
+	private String processId;
 
 	@Bean
 	private SkeletonService skeletonService;
@@ -357,7 +359,13 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 			Set<String> keys = typeConnectionIdSubscribeInfosMap.keySet(); //all typeConnectionIds
 			this.typeConnectionIdSubscribeInfosMap = typeConnectionIdSubscribeInfosMap;
 
-			IncomingData incomingData = new IncomingData().message(new NodeSubscribeInfo().subscribeIds(keys));
+			HashSet<String> allKeys = new HashSet<>(keys);
+			if(processId != null)
+				allKeys.add("processId_" + processId);
+			if(userId != null)
+				allKeys.add("userId_" + userId);
+
+			IncomingData incomingData = new IncomingData().message(new NodeSubscribeInfo().subscribeIds(allKeys));
 			enterAsyncProcess = true;
 			imClient.sendData(incomingData).whenComplete((result1, throwable) -> {
 				if(throwable != null)
@@ -395,5 +403,21 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 		//TODO not finished
 
 		return null;
+	}
+
+	public String getUserId() {
+		return userId;
+	}
+
+	public void setUserId(String userId) {
+		this.userId = userId;
+	}
+
+	public String getProcessId() {
+		return processId;
+	}
+
+	public void setProcessId(String processId) {
+		this.processId = processId;
 	}
 }

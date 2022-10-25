@@ -212,6 +212,7 @@ public class ProxyController extends BaseController {
         if(commandInfo == null)
             throw new BizException("commandInfo is illegal");
         UserDetail userDetail = getLoginUser();
+        commandInfo.subscribeIds("userId_" + userDetail.getUserId());
         Locale locale = WebUtils.getLocale(request);
         commandInfo.setId(UUID.randomUUID().toString().replace("-", ""));
         if(locale != null)
@@ -441,6 +442,7 @@ public class ProxyController extends BaseController {
             throw new BizException("Missing method");
 
         UserDetail userDetail = getLoginUser();
+        serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
 //        Locale locale = WebUtils.getLocale(request);
         serviceCaller.setId(UUID.randomUUID().toString().replace("-", ""));
         serviceCaller.setReturnClass(Object.class.getName());
