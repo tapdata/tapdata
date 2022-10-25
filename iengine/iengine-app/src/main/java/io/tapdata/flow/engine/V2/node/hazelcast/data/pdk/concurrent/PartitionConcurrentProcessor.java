@@ -2,7 +2,10 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent;
 
 import com.google.common.collect.Queues;
 import com.tapdata.constant.ExecutorUtil;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult;
@@ -59,6 +62,7 @@ public class PartitionConcurrentProcessor {
 
 	private Consumer<TapdataEvent> flushOffset;
 	private ErrorHandler<Throwable, String> errorHandler;
+	private SubTaskDto subTaskDto;
 
 	public PartitionConcurrentProcessor(
 			int partitionSize,
@@ -68,12 +72,11 @@ public class PartitionConcurrentProcessor {
 			Consumer<List<TapdataEvent>> eventProcessor,
 			Consumer<TapdataEvent> flushOffset,
 			ErrorHandler<Throwable, String> errorHandler,
-			String taskId,
-			String taskName
+			SubTaskDto subTaskDto
 	) {
 
-		this.concurrentProcessThreadNamePrefix = "concurrent-process-thread-" + taskId + "-" + taskName + "-";
-
+		this.concurrentProcessThreadNamePrefix = "concurrent-process-thread-" + subTaskDto.getId().toHexString() + "-" + subTaskDto.getName() + "-";
+		this.subTaskDto = subTaskDto;
 		this.batchSize = batchSize;
 
 		this.partitionSize = partitionSize;
@@ -109,7 +112,8 @@ public class PartitionConcurrentProcessor {
 		this.flushOffset = flushOffset;
 		this.executorService.submit(() -> {
 			while (running.get()) {
-				Thread.currentThread().setName(taskId + "-" + taskName + "-watermark-event-process");
+				Log4jUtil.setThreadContext(subTaskDto);
+				Thread.currentThread().setName(subTaskDto.getId().toHexString() + "-" + subTaskDto.getName() + "-watermark-event-process");
 				try {
 					final WatermarkEvent watermarkEvent = watermarkQueue.poll(3, TimeUnit.SECONDS);
 					if (watermarkEvent != null) {
@@ -138,6 +142,7 @@ public class PartitionConcurrentProcessor {
 			final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> linkedBlockingQueue = partitionsQueue.get(partition);
 			int finalPartition = partition;
 			executorService.submit(() -> {
+				Log4jUtil.setThreadContext(subTaskDto);
 				Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
 				List<TapdataEvent> processEvents = new ArrayList<>();
 				while (running.get()) {
