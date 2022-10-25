@@ -81,6 +81,7 @@ public class LogCollectorExtendServiceImpl implements LogCollectorExtendService 
                 .forEach(node -> connectionIds.addAll(((LogCollectorNode) node).getConnectionIds()));
 
         return Criteria.where("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and("shareCdcEnable").is(true)
                 .and("is_deleted").is(false)
                 .and("dag.nodes.type").ne(NodeEnum.mem_cache.name())
                 .and("dag.nodes.connectionId").in(connectionIds);
