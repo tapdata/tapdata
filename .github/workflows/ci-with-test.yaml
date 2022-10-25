@@ -1,5 +1,4 @@
 name: LDP Continuous Integration With TEST
-runs-on: self-hosted
 
 on:
   push:
@@ -19,7 +18,7 @@ env:
 jobs:
 
   Code-Style-Check:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       check-style: ${{ steps.check-style.outputs.error }}
     steps:
@@ -44,7 +43,7 @@ jobs:
           echo "::set-output name=error::true"
 
   Integration-Testing:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: Code-Style-Check
     timeout-minutes: 60
     if: needs.Code-Style-Check.outputs.check-style != 'true'
