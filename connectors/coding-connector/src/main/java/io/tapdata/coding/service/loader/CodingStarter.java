@@ -81,8 +81,7 @@ public abstract class CodingStarter {
                 //if (Checker.isEmpty(issueType)) {
                     //TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
                 //}
-                config.issueType(issueType).iterationCodes(iterationCodeArr);
-                config.iterationCodes(issueCodes);
+                config.issueType(issueType).iterationCodes(iterationCodeArr).issueCodes(issueCodes);
             }
         }
         return config;

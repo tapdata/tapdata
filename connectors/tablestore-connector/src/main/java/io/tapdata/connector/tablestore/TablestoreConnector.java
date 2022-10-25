@@ -110,9 +110,9 @@ public class TablestoreConnector extends ConnectorBase {
             if (tapMapValue != null && tapMapValue.getValue() != null) return toJson(tapMapValue.getValue());
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS"));
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
+        codecRegistry.registerFromTapValue(TapTimeValue.class, ColumnType.STRING.name(), tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, ColumnType.STRING.name(), tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS"));
+        codecRegistry.registerFromTapValue(TapDateValue.class, ColumnType.STRING.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
     }
 
     @Override
@@ -189,28 +189,37 @@ public class TablestoreConnector extends ConnectorBase {
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
         tablestoreConfig = new TablestoreConfig().load(connectionContext.getConnectionConfig());
         TestItem testConnect;
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
+        SyncClient syncClient = null;
+        TimeseriesClient timeseriesClientTemp = null;
         try {
+            connectionOptions.connectionString(tablestoreConfig.getConnectionString());
             if ("NORMAL".equals(tablestoreConfig.getClientType())) {
-                SyncClient syncClient = createInternalClient();
+                syncClient = createInternalClient();
                 syncClient.listTable();
                 testConnect = testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
-                syncClient.shutdown();
             } else if ("TIMESERIES".equals(tablestoreConfig.getClientType())) {
-                TimeseriesClient timeseriesClientTemp = createTimeseriesClient();
+                timeseriesClientTemp = createTimeseriesClient();
                 timeseriesClientTemp.listTimeseriesTable();
                 testConnect = testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
-                timeseriesClientTemp.shutdown();
             } else {
                 testConnect = testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Elasticsearch client ping failed!");
             }
             consumer.accept(testConnect);
-            return null;
+            return connectionOptions;
         } catch (Exception e) {
             testConnect = testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage());
+            consumer.accept(testConnect);
+            return connectionOptions;
+        } finally {
+            if (Objects.nonNull(syncClient)) {
+                syncClient.shutdown();
+            }
+            if (Objects.nonNull(timeseriesClientTemp)) {
+                timeseriesClientTemp.shutdown();
+            }
         }
 
-        consumer.accept(testConnect);
-        return null;
     }
 
     @Override
@@ -244,94 +253,98 @@ public class TablestoreConnector extends ConnectorBase {
                 long deleteCount = 0L;
                 for (TapRecordEvent recordEvent : tapRecordEvents) {
                     if (recordEvent instanceof TapInsertRecordEvent) {
-                        Map<String, Object> after = ((TapInsertRecordEvent) recordEvent).getAfter();
-
-                        HashSet<String> resSet = new HashSet<>(primaryKeySet);
-                        RowPutChange putChange;
-                        resSet.retainAll(after.keySet());
-                        if (EmptyKit.isNotEmpty(resSet)) {
-                            PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
-                            for (String k : resSet) {
-                                ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
-                                Object value = after.get(k);
-                                if (ColumnType.INTEGER.equals(columnType)) {
-                                    value = Long.valueOf(value.toString());
-                                }
-                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
-                            }
-                            putChange = new RowPutChange(tableId, pkBuilder.build());
-                        } else {
-                            putChange = new RowPutChange(tableId);
-                        }
-
-                        for (Map.Entry<String, Object> entry : after.entrySet()) {
-                            String fieldName = entry.getKey();
-                            if (resSet.contains(fieldName)) {
-                                continue;
-                            }
-                            ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
-                            Object value = entry.getValue();
-                            value = transferValueType(columnType, value);
-                            putChange.addColumn(fieldName, new ColumnValue(value, columnType));
-                        }
                         try {
+                            Map<String, Object> after = ((TapInsertRecordEvent) recordEvent).getAfter();
+
+                            HashSet<String> resSet = new HashSet<>(primaryKeySet);
+                            RowPutChange putChange;
+                            resSet.retainAll(after.keySet());
+                            if (EmptyKit.isNotEmpty(resSet)) {
+                                PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
+                                for (String k : resSet) {
+                                    ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
+                                    Object value = after.get(k);
+                                    transferValueType(columnType, value);
+                                    pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
+                                }
+                                putChange = new RowPutChange(tableId, pkBuilder.build());
+                            } else {
+                                putChange = new RowPutChange(tableId);
+                            }
+
+                            for (Map.Entry<String, Object> entry : after.entrySet()) {
+                                String fieldName = entry.getKey();
+                                if (resSet.contains(fieldName)) {
+                                    continue;
+                                }
+                                ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
+                                Object value = entry.getValue();
+                                value = transferValueType(columnType, value);
+                                putChange.addColumn(fieldName, new ColumnValue(value, columnType));
+                            }
                             client.putRow(new PutRowRequest(putChange));
-                            insertCount ++;
+                            insertCount++;
                         } catch (Exception e) {
                             listResult.addError(recordEvent, e);
                         }
 
                     } else if (recordEvent instanceof TapUpdateRecordEvent) {
-                        Map<String, Object> after = ((TapUpdateRecordEvent) recordEvent).getAfter();
-
-                        HashSet<String> resSet = new HashSet<>(primaryKeySet);
-                        RowUpdateChange updateChange;
-                        resSet.retainAll(after.keySet());
-                        if (EmptyKit.isNotEmpty(resSet)) {
-                            PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
-                            for (String k : resSet) {
-                                ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
-                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(after.get(k), columnType)));
-                            }
-                            updateChange = new RowUpdateChange(tableId, pkBuilder.build());
-                        } else {
-                            updateChange = new RowUpdateChange(tableId);
-                        }
-
-                        for (Map.Entry<String, Object> entry : after.entrySet()) {
-                            String fieldName = entry.getKey();
-                            if (resSet.contains(fieldName)) {
-                                continue;
-                            }
-                            ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
-                            Object value = entry.getValue();
-                            value = transferValueType(columnType, value);
-                            updateChange.put(fieldName, new ColumnValue(value, columnType));
-                        }
                         try {
+                            Map<String, Object> after = ((TapUpdateRecordEvent) recordEvent).getAfter();
+
+                            HashSet<String> resSet = new HashSet<>(primaryKeySet);
+                            RowUpdateChange updateChange;
+                            resSet.retainAll(after.keySet());
+                            if (EmptyKit.isNotEmpty(resSet)) {
+                                PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
+                                for (String k : resSet) {
+                                    ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
+                                    Object value = after.get(k);
+                                    transferValueType(columnType, value);
+                                    pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
+                                }
+                                updateChange = new RowUpdateChange(tableId, pkBuilder.build());
+                            } else {
+                                updateChange = new RowUpdateChange(tableId);
+                            }
+
+                            for (Map.Entry<String, Object> entry : after.entrySet()) {
+                                String fieldName = entry.getKey();
+                                if (resSet.contains(fieldName)) {
+                                    continue;
+                                }
+                                ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
+                                Object value = entry.getValue();
+                                value = transferValueType(columnType, value);
+                                updateChange.put(fieldName, new ColumnValue(value, columnType));
+                            }
+
                             client.updateRow(new UpdateRowRequest(updateChange));
-                            updateCount ++;
+                            updateCount++;
                         }  catch (Exception e) {
                             listResult.addError(recordEvent, e);
                         }
                     } else if (recordEvent instanceof TapDeleteRecordEvent) {
-                        Map<String, Object> before = ((TapDeleteRecordEvent) recordEvent).getBefore();
-                        RowDeleteChange deleteChange;
-                        HashSet<String> resSet = new HashSet<>(primaryKeySet);
-                        resSet.retainAll(before.keySet());
-                        if (EmptyKit.isNotEmpty(resSet)) {
-                            PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
-                            for (String k : resSet) {
-                                ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
-                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(before.get(k), columnType)));
-                            }
-                            deleteChange = new RowDeleteChange(tableId, pkBuilder.build());
-                        } else {
-                            deleteChange = new RowDeleteChange(tableId);
-                        }
                         try {
+                            Map<String, Object> before = ((TapDeleteRecordEvent) recordEvent).getBefore();
+                            RowDeleteChange deleteChange;
+                            HashSet<String> resSet = new HashSet<>(primaryKeySet);
+                            resSet.retainAll(before.keySet());
+                            if (EmptyKit.isNotEmpty(resSet)) {
+                                PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
+                                for (String k : resSet) {
+                                    ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
+                                    Object value = before.get(k);
+                                    transferValueType(columnType, value);
+                                    pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
+                                }
+                                deleteChange = new RowDeleteChange(tableId, pkBuilder.build());
+                            } else {
+                                deleteChange = new RowDeleteChange(tableId);
+                            }
+
                             client.deleteRow(new DeleteRowRequest(deleteChange));
-                            deleteCount ++;
+                            deleteCount++;
                         }  catch (Exception e) {
                             listResult.addError(recordEvent, e);
                         }
@@ -350,9 +363,11 @@ public class TablestoreConnector extends ConnectorBase {
 
     private Object transferValueType(ColumnType columnType, Object value) {
         if (ColumnType.INTEGER.equals(columnType)) {
-            value = Long.valueOf(value.toString());
+            value = Objects.isNull(value) ? 0L : Long.parseLong(value.toString());
         } else if (ColumnType.DOUBLE.equals(columnType)) {
-            value = Double.valueOf(value.toString());
+            value = Objects.isNull(value) ? 0 :  Double.parseDouble(value.toString());
+        } else if (ColumnType.STRING.equals(columnType)) {
+            value = Objects.isNull(value) ? "" :  value;
         }
         return value;
     }

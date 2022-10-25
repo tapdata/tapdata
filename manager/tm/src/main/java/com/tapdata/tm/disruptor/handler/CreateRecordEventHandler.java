@@ -22,7 +22,7 @@ public class CreateRecordEventHandler implements BaseEventHandler<TaskRecord, Bo
         TaskRecordService taskRecordService = SpringUtil.getBean(TaskRecordService.class);
         taskRecordService.createRecord(event.getData());
 
-        SpringUtil.getBean(AlarmService.class).closeWhenTaskRunning(event.getData().getTaskId());
+        SpringUtil.getBean(AlarmService.class).delAlarm(event.getData().getTaskId());
 
         SpringUtil.getBean(MeasurementServiceV2.class).delDataWhenTaskReset(event.getData().getTaskId());
         SpringUtil.getBean(MonitoringLogsService.class).delLogsWhenTaskReset(event.getData().getTaskId());

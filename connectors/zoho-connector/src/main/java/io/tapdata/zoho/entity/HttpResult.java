@@ -8,6 +8,7 @@ import java.util.Map;
 public class HttpResult {
     String code;
     Object result;
+    Integer httpCode;
     public static HttpResult create(String code,Object result){
         return new HttpResult(code, result);
     }
@@ -25,7 +26,13 @@ public class HttpResult {
     public Object getResult() {
         return result;
     }
-
+    public HttpResult httpCode(Integer code){
+        this.httpCode = code;
+        return this;
+    }
+    public Integer httpCode(){
+        return this.httpCode;
+    }
     public void setResult(Object result) {
         this.result = result;
     }
