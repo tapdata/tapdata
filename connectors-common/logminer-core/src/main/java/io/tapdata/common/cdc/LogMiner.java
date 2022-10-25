@@ -82,7 +82,7 @@ public abstract class LogMiner implements ILogMiner {
     protected void enqueueRedoLogContent(RedoLogContent redoLogContent) {
         try {
             while (!logQueue.offer(redoLogContent, 1, TimeUnit.SECONDS)) {
-                TapLogger.warn(TAG, "log queue is full, waiting...");
+                TapLogger.info(TAG, "log queue is full, waiting...");
             }
         } catch (InterruptedException ignore) {
         }
