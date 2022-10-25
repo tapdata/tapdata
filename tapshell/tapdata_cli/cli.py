@@ -1988,6 +1988,24 @@ class Pipeline:
                 break
         return False
 
+    # BUG:
+    # TODO:
+    def wait_cdc_delay(self, t=30, quiet=True):
+        if self.job is None:
+            logger.warn("pipeline not start, no status can show")
+            return self
+        s = time.time()
+        last_stats = self.job.stats()
+        while True:
+            time.sleep(6)
+            now_stats = self.job.stats()
+            if last_stats.input_insert == now_stats.input_insert and last_stats.input_update == now_stats.input_update and last_stats.input_delete == now_stats.input_delete:
+                return self
+            last_stats = now_stats
+            if time.time() - s > t:
+                break
+        return False
+
     @help_decorate("get pipeline job stats", args="p.stats()")
     def stats(self, quiet=True):
         self.monitor(t=2)

@@ -108,16 +108,20 @@ jobs:
         run:
           build/build.sh -c connectors
       - name: package module and make image
-        run: build/build.sh -p 1 -o image
-      - name: run unittest
-        run: ls -al
-      - name: run integrate test
+        run: |
+          docker_tag="ghcr.io/tapdata/${{ env.TAG_BRANCH }}:${{ env.TAG }}"
+          echo "docker_tag=$docker_tag" >> $GITHUB_ENV
+          sudo build/build.sh -p 1 -o image -t $docker_tag
+      - name: "启动本地测试环境"
+        run: |
+          source $GITHUB_ENV
+          docker run -itd -p 3030:3030 -p 27017:27017 $docker_tag bash
+      - name: "基本用例集成测试"
         env:
-          RUN_ID: ${{ github.run_id }}
-          RUN_NUMBER: ${{ github.run_number }}
-          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
-          BRANCH: ${{ github.ref }}
-        run: chmod u+x build/quick-test.sh && build/quick-test.sh && ls -al ./tapshell/test/report/integrate.html/
+          CASE_CONFIG: ${{ secrets.CASE_CONFIG }}
+        run: |
+          cd auto-test && chmod +x ./test.sh && bash ./test.sh
+          sleep 3600
       - name: Setup Poetry
         uses: Gr1N/setup-poetry@v7
       - name: publish pip package if push
@@ -143,17 +147,3 @@ jobs:
         run: |
           BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
           echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
-#       - name: Send notices to feishu
-#         if : ${{ failure() }}
-#         run: |
-#           pip install requests GitPython
-#           python build/feishu_notice.py \
-#             --branch ${{ env.CURRENT_BRANCH}} \
-#             --runner "LDP Continuous Integration" \
-#             --detail_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-#             --token ${{ secrets.GITHUB_TOKEN }} \
-#             --job_id ${{ github.run_id }} \
-#             --person_in_charge ${{ env.FEISHU_PERSON_IN_CHARGE }} \
-#             --app_id ${{ env.FEISHU_APP_ID }} \
-#             --app_secret ${{ env.FEISHU_APP_SECRET}} \
-#             --chat_id ${{ env.FEISHU_CHAT_ID }}

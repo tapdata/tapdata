@@ -97,8 +97,8 @@ def gen_support_datasources(datasources):
 
 def run_jobs(test_case, run_params_template):
     timeout = args.bench / 100
-    if timeout < 30:
-        timeout = 30
+    if timeout < 60:
+        timeout = 60
 
     def run_job(p, test_case, run_param):
         fn = test_case.test
@@ -116,10 +116,9 @@ def run_jobs(test_case, run_params_template):
         if not wait_job_initial(p, timeout):
             return
 
-        if p.job.setting.get("type") == "initial_sync":
-            return
+        if p.job.setting.get("type") == "initial_sync+cdc":
+            test_cdc(p, run_param)
 
-        test_cdc(p, run_param)
         stop_and_clean(p)
         manual_check(test_case, run_param)
 
@@ -156,7 +155,11 @@ def run_jobs(test_case, run_params_template):
             logger.error("job NOT into sync in {}s, will skip it", timeout)
             return False
 
-        logger.info("job into cdc sync now, wait time is: {} seconds", int(time.time() - s))
+        if not p.wait_cdc_delay(quiet=False, t=timeout):
+            logger.error("job NOT into make cdc delay OK in {}s, will skip it", timeout)
+            return False
+
+        logger.info("job into cdc sync and delay almost ok now, wait time is: {} seconds", int(time.time() - s))
         return True
 
     def test_cdc(p, run_param):
@@ -181,12 +184,13 @@ def run_jobs(test_case, run_params_template):
                 before = getattr(p.job.stats(), "input_" + event)
                 getattr(db_client, event)()
                 s = time.time()
-                stats = {"input_" + event: before + 1}
-                if p.wait_stats(stats):
+                wait_stats = {"input_" + event: before + 1}
+                if p.wait_stats(wait_stats):
                     logger.info("metrics input {} changes from {} to {}, wait time is: {} seconds", event, before,
-                                before + 1, int(time.time() - s))
+                                wait_stats, int(time.time() - s))
                     continue
-                logger.error("metrics input {}: {} vs {} wait fail after {} seconds", event, before, stats,
+                now_stats = p.job.stats().__dict__
+                logger.error("metrics input {} expect {} vs now {} wait fail after {} seconds", event, wait_stats, now_stats,
                              int(time.time() - s))
 
             if args.bench == 0 or not hasattr(db_client, "bench"):
@@ -203,9 +207,10 @@ def run_jobs(test_case, run_params_template):
                 wait_time = time.time() - s + 0.1
                 qps = int(args.bench / wait_time)
                 logger.info("metrics input insert changes from {} to {}, wait time is: {} seconds, qps is: {}", before,
-                            before + args.bench, int(wait_time), qps)
+                            wait_stats, int(wait_time), qps)
                 continue
-            logger.error("metrics input insert: {} vs {} wait fail after {} seconds", before_input_insert, wait_stats,
+            now_stats = p.job.stats().input_insert
+            logger.error("metrics input insert expect {} vs now {} wait fail after {} seconds", wait_stats, now_stats,
                          int(time.time() - s))
 
     def stop_and_clean(p):
