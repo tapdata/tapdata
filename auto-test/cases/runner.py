@@ -96,7 +96,7 @@ def gen_support_datasources(datasources):
 
 
 def run_jobs(test_case, run_params_template):
-    timeout = args.bench / 100
+    timeout = args.bench / 10
     if timeout < 60:
         timeout = 60
 
