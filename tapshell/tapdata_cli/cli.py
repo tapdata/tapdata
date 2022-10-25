@@ -823,6 +823,11 @@ class op_object_command(Magics):
         return self.__common_op("stats", line)
 
     @line_magic
+    @help_decorate("[Job] display a job milestones", "milestones job $job_name")
+    def milestones(self, line):
+        return self.__common_op("milestones", line)
+
+    @line_magic
     @help_decorate("[Job,Datasource,Api,Table] desc a object", "desc object $object_name")
     def desc(self, line):
         if line == "":
@@ -1568,7 +1573,6 @@ class JobType:
 
 
 class JobStats:
-
     qps = 0
     total = 0
     input_insert = 0
@@ -1828,6 +1832,16 @@ class Pipeline:
         self.dag.config(resp)
         return self
 
+    def include_cdc(self):
+        self.config({"type": "initial_sync+cdc"})
+        return self
+
+    def only_cdc(self, start_time=None):
+        self.config({"type": "cdc"})
+        if start_time is not None:
+            self.config_cdc_start_time(start_time)
+        return self
+
     def readLogFrom(self, logMiner):
         return self
 
@@ -1910,15 +1924,65 @@ class Pipeline:
         logger.info("job {} status is: {}", self.name, status)
         return status
 
-    def wait_status(self, status, t=30):
+    @help_decorate("get pipeline job milestones", args="p.milestones()")
+    def milestones(self):
+        if self.job is None:
+            logger.warn("pipeline not start, no status can show")
+            return self
+        milestones = self.job.milestones()
+        logger.info("job {} milestones is: {}", self.name, milestones)
+        return milestones
+
+    def wait_status(self, status, t=30, quiet=True):
+        if self.job is None:
+            logger.warn("pipeline not start, no status can show")
+            return self
+        s = time.time()
+        if type(status) == type(""):
+            status == [status]
+        while True:
+            if self.job.status() in status:
+                return True
+            if self.job.status() == JobStatus.error and JobStatus.error not in status:
+                return False
+            time.sleep(1)
+            if time.time() - s > t:
+                break
+        return False
+
+    def wait_stats(self, stats, t=30, quiet=True):
         if self.job is None:
             logger.warn("pipeline not start, no status can show")
             return self
         s = time.time()
         while True:
-            if self.job.status() == status:
-                time.sleep(10)
+            job_stats = self.job.stats().__dict__
+            ok = True
+            for k, v in stats.items():
+                if k not in job_stats:
+                    ok = False
+                    continue
+                if job_stats[k] != v:
+                    ok = False
+            if ok:
                 return True
+            time.sleep(1)
+            if time.time() - s > t:
+                break
+        return False
+
+    def wait_initial_sync(self, t=30, quiet=True):
+        if self.job is None:
+            logger.warn("pipeline not start, no status can show")
+            return self
+        s = time.time()
+        while True:
+            milestones = self.job.milestones()
+            for milestone in milestones:
+                if milestone["code"] == "WRITE_SNAPSHOT" and milestone["status"] == "finish":
+                    if not quiet:
+                        logger.info("job {} initial sync finish, wait time is: {} seconds", self.job.name, int(time.time() - s))
+                    return True
             time.sleep(1)
             if time.time() - s > t:
                 break
@@ -2461,6 +2525,8 @@ class Job:
             self._get_by_name()
 
     def stop(self, t=30):
+        if self.status() != JobStatus.running:
+            return False
         if self.id is None:
             return False
         res = req.put('/Task/batchStop', params={'taskIds': self.id})
@@ -2470,7 +2536,6 @@ class Job:
                 return False
             time.sleep(1)
             status = self.status()
-            print(status)
             if status == JobStatus.stop or status == JobStatus.stopping:
                 return True
         return False
@@ -2505,7 +2570,6 @@ class Job:
             if self.validateConfig is not None:
                 self.job["validateConfig"] = self.validateConfig
         self.job.update(self.setting)
-        print(json.dumps(self.job, indent=4))
         res = req.patch("/Task", json=self.job)
         res = res.json()
         if res["code"] != "ok":
@@ -2527,7 +2591,6 @@ class Job:
         try:
             status = self.status()
         except (KeyError, TypeError) as e:
-            logger.info("job is not save, it will be save soon")
             resp = self.save()
             if not resp:
                 logger.warn("job {} save failed.", self.name)
@@ -2556,6 +2619,16 @@ class Job:
         if not quiet:
             logger.info("job status is: {}", status)
         return status
+
+    def milestones(self, res=None, quiet=True):
+        if res is None:
+            res = req.get("/Task/" + self.id).json()
+        if "milestones" not in res["data"]:
+            return []
+        milestones = res["data"]["milestones"]
+        if not quiet:
+            logger.info("job milestones is: {}", milestones)
+        return milestones
 
     def get_sub_task_ids(self):
         sub_task_ids = []
@@ -2928,6 +3001,7 @@ class DataSource:
             self.validate(quiet=False)
             return True
         else:
+            self.validate(quiet=False, load_schema=True)
             logger.warn("save Connection fail, err is: {}", data["message"])
         return False
 
@@ -2943,7 +3017,7 @@ class DataSource:
         return False
 
     @help_decorate("validate this datasource")
-    def validate(self, quiet=False):
+    def validate(self, quiet=False, load_schema=False):
         res = True
 
         async def l():
@@ -2956,7 +3030,8 @@ class DataSource:
                     })
                 payload = {
                     "type": "testConnection",
-                    "data": data
+                    "data": data,
+                    "updateSchema": load_schema,
                 }
                 logger.info("start validate datasource config, please wait for a while ...")
                 await websocket.send(json.dumps(payload))
