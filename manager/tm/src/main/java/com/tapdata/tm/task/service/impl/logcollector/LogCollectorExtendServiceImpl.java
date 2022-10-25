@@ -63,13 +63,18 @@ public class LogCollectorExtendServiceImpl implements LogCollectorExtendService 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
         DAG dag = taskDto.getDag();
         List<String> connectionIds = Lists.newArrayList();
+        List<String> tableNames = Lists.newArrayList();
         dag.getNodes().stream().filter(node -> node instanceof TableNode)
-                .forEach(node -> connectionIds.add(((TableNode) node).getConnectionId()));
+                .forEach(node -> {
+                    connectionIds.add(((TableNode) node).getConnectionId());
+                    tableNames.add(((TableNode) node).getTableName());
+                });
 
         return Criteria.where("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
                 .and("is_deleted").is(false)
                 .and("dag.nodes.type").ne(NodeEnum.mem_cache.name())
-                .and("dag.nodes.connectionId").in(connectionIds);
+                .and("dag.nodes.connectionId").in(connectionIds)
+                .and("dag.nodes.syncObjects.objectNames").in(tableNames);
     }
 
     @NotNull
