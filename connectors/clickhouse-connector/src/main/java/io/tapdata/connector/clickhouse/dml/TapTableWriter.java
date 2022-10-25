@@ -27,10 +27,8 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
     private final String connectorTag;
     private final Connection connection;
     private final String database;
-    private final TapTable tapTable;
     private final Supplier<Boolean> isRunning;
 
-    private final LinkedHashSet<String> uniqueCondition;
     private final String insertPolicy;
     private final String updatePolicy;
 
@@ -43,18 +41,16 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
     protected int batchLimit = 1000;
     protected boolean optimizeTable = true;
 
-    public TapTableWriter(String connectorTag, Connection connection, String database, TapTable tapTable, Supplier<Boolean> isRunning, String insertPolicy, String updatePolicy) {
+    public TapTableWriter(String connectorTag, Connection connection, String database, Supplier<Boolean> isRunning, String insertPolicy, String updatePolicy) {
         this.connectorTag = connectorTag;
         this.connection = connection;
         this.database = database;
-        this.tapTable = tapTable;
         this.isRunning = isRunning;
         this.insertPolicy = insertPolicy;
         this.updatePolicy = updatePolicy;
-        this.uniqueCondition = new LinkedHashSet<>(tapTable.primaryKeys(false));
     }
 
-    public void optimizeTable() throws SQLException {
+    public void optimizeTable(TapTable tapTable) throws SQLException {
         if (optimizeTable) {
             try (Statement s = connection.createStatement()) {
                 s.execute("optimize table `" + tapTable.getId() + "` final");
@@ -69,7 +65,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
     }
 
     @Override
-    public void addBath(TapRecordEvent recordEvent, WriteListResult<TapRecordEvent> writeListResult) throws Exception {
+    public void addBath(TapTable tapTable, TapRecordEvent recordEvent, WriteListResult<TapRecordEvent> writeListResult) throws Exception {
         Type type = Type.parse(recordEvent);
         String statementKey = statementKey(type, recordEvent);
         if (!statementKey.equals(lastStatementKey)) {
@@ -90,12 +86,13 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
                 } else if (insertRecordEvent.getAfter().isEmpty()) {
                     throw new RuntimeException("Record event after data is empty: " + insertRecordEvent);
                 }
-                lastStatement = getInsertStatement(statementKey, insertRecordEvent.getAfter());
+                lastStatement = getInsertStatement(tapTable, statementKey, insertRecordEvent.getAfter());
                 doInsert(insertRecordEvent.getAfter());
                 break;
             }
             case Update: {
                 TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
+                LinkedHashSet<String> uniqueCondition = new LinkedHashSet<>(tapTable.primaryKeys(false));
                 if (uniqueCondition.isEmpty()) {
                     throw new RuntimeException("DML update operations without associated conditions are not supported");
                 } else if (null == updateRecordEvent.getAfter()) {
@@ -103,12 +100,13 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
                 } else if (updateRecordEvent.getAfter().isEmpty()) {
                     throw new RuntimeException("Record event after data is empty: " + updateRecordEvent);
                 }
-                lastStatement = getUpdateStatement(statementKey, updateRecordEvent.getBefore(), updateRecordEvent.getAfter());
-                doUpdate(updateRecordEvent);
+                lastStatement = getUpdateStatement(tapTable, uniqueCondition, statementKey, updateRecordEvent.getBefore(), updateRecordEvent.getAfter());
+                doUpdate(uniqueCondition, updateRecordEvent);
                 break;
             }
             case Delete: {
                 TapDeleteRecordEvent deleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
+                LinkedHashSet<String> uniqueCondition = new LinkedHashSet<>(tapTable.primaryKeys(false));
                 if (uniqueCondition.isEmpty()) {
                     throw new RuntimeException("DML delete operations without associated conditions are not supported");
                 } else if (null == deleteRecordEvent.getBefore()) {
@@ -116,8 +114,8 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
                 } else if (deleteRecordEvent.getBefore().isEmpty()) {
                     throw new RuntimeException("Record event before data is empty: " + deleteRecordEvent);
                 }
-                lastStatement = getDeleteStatement(statementKey);
-                doDelete((TapDeleteRecordEvent) recordEvent);
+                lastStatement = getDeleteStatement(tapTable, uniqueCondition, statementKey);
+                doDelete(uniqueCondition, (TapDeleteRecordEvent) recordEvent);
                 break;
             }
             default:
@@ -171,7 +169,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
         }
     }
 
-    private boolean checkExists(Map<String, Object> data) throws SQLException {
+    private boolean checkExists(TapTable tapTable, Map<String, Object> data) throws SQLException {
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
         if (CollectionUtils.isEmpty(primaryKeys)) {
             return false;
@@ -226,7 +224,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
         lastStatement.addBatch();
     }
 
-    protected void doUpdate(TapUpdateRecordEvent event) throws Exception {
+    protected void doUpdate(LinkedHashSet<String> uniqueCondition, TapUpdateRecordEvent event) throws Exception {
         // Not all sources can provide Before data and need to be compatible
         Map<String, Object> beforeData = event.getBefore();
         if (null == beforeData || beforeData.isEmpty()) {
@@ -248,7 +246,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
         lastStatement.addBatch();
     }
 
-    protected void doDelete(TapDeleteRecordEvent event) throws Exception {
+    protected void doDelete(LinkedHashSet<String> uniqueCondition, TapDeleteRecordEvent event) throws Exception {
         int i = 1;
         Map<String, Object> data = event.getBefore();
         for (String field : uniqueCondition) {
@@ -258,7 +256,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
         lastStatement.addBatch();
     }
 
-    protected PreparedStatement getInsertStatement(String statementKey, Map<String, Object> afterData) throws Exception {
+    protected PreparedStatement getInsertStatement(TapTable tapTable, String statementKey, Map<String, Object> afterData) throws Exception {
         return statementMap.computeIfAbsent(statementKey, k -> {
             try {
                 Set<String> fields = afterData.keySet();
@@ -282,7 +280,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
         });
     }
 
-    protected PreparedStatement getUpdateStatement(String statementKey, Map<String, Object> beforeData, Map<String, Object> afterData) {
+    protected PreparedStatement getUpdateStatement(TapTable tapTable, LinkedHashSet<String> uniqueCondition, String statementKey, Map<String, Object> beforeData, Map<String, Object> afterData) {
         // Not support change condition keys
         Object afterValue, beforeValue;
 
@@ -327,7 +325,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
         });
     }
 
-    protected PreparedStatement getDeleteStatement(String statementKey) {
+    protected PreparedStatement getDeleteStatement(TapTable tapTable, LinkedHashSet<String> uniqueCondition, String statementKey) {
         return statementMap.computeIfAbsent(statementKey, k -> {
             if (uniqueCondition.isEmpty())
                 throw new RuntimeException("DML delete operations without associated conditions are not supported");
