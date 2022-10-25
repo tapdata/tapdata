@@ -52,11 +52,13 @@ start_server() {
     if [[ "x"$mode == "xuse" ]]; then
         cd /tapdata/apps/tapshell
         bash register-all-connectors.sh
+        echo "register_connector_complete !"
     fi
 
     if [[ "x"$mode == "xtest" ]]; then
         cd /tapdata-source/tapshell
         bash register-all-connectors.sh
+        echo "register_connector_complete !"
         cp ../build/test.sh ./
         cp -r ../build/test ./
         chmod u+x test.sh

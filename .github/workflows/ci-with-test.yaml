@@ -112,12 +112,23 @@ jobs:
       - name: "启动本地测试环境"
         run: |
           echo $docker_tag
-          docker run -e mode=use -itd -p 3000:3000 -p 27017:27017 $docker_tag bash
+          docker run -e mode=use --name tapd -itd -p 3000:3000 $docker_tag bash
+          i="."
+          while [[ 1 ]]; do
+            if [[ $i == "....." ]]; then
+              break
+            fi
+            sleep 10
+            i=$i"."
+            docker logs tapd|grep register_connector_complete
+            if [[ $? -eq 0 ]]; then
+              break
+            fi
+          done
       - name: "基本用例集成测试"
         env:
           CASE_CONFIG: ${{ secrets.CASE_CONFIG }}
         run: |
-          echo $CASE_CONFIG
           sudo apt update -y
           sudo apt install -y libmysqlclient-dev
           pip3 install poetry
