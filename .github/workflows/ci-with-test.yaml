@@ -118,6 +118,7 @@ jobs:
         env:
           CASE_CONFIG: ${{ secrets.CASE_CONFIG }}
         run: |
+          echo $CASE_CONFIG
           sudo apt update -y
           sudo apt install -y libmysqlclient-dev
           pip3 install poetry
