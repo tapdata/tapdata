@@ -214,7 +214,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
             default:
                 throw new RuntimeException("not support type: " + type);
         }
-        return type + "-" + String.join(",", data.keySet());
+        return type + "-" + record.getTableId() + "-" + String.join(",", data.keySet());
     }
 
     protected void doInsert(Map<String, Object> afterData) throws Exception {
