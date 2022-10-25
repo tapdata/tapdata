@@ -1,1 +1,2 @@
-pymongo==4.3.2
+pymongo
+mysql-connector-python

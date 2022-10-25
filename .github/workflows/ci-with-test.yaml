@@ -112,12 +112,16 @@ jobs:
         uses: mxschmitt/action-tmate@v3
       - name: "启动本地测试环境"
         run: |
-          source $GITHUB_ENV
           docker run -e mode=use -itd -p 3000:3000 -p 27017:27017 $docker_tag bash
       - name: "基本用例集成测试"
         env:
           CASE_CONFIG: ${{ secrets.CASE_CONFIG }}
         run: |
+          sudo apt update -y
+          sudo apt install -y libmysqlclient-dev
+          pip3 install poetry
+          cd tapshell && pip3 install . && cd ..
+          cd auto-test && pip3 install -r requirements.txt && cd -
           cd auto-test && chmod +x ./test.sh && bash ./test.sh
           sleep 3600
       - name: Setup Poetry
