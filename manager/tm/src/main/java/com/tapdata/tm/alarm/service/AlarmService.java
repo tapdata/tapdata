@@ -42,4 +42,6 @@ public interface AlarmService {
     void connectPassAlarm(JSONArray taskIds, String nodeName, String connectId);
 
     void connectFailAlarm(JSONArray taskIds, String nodeName, String connectId);
+
+    void delAlarm(String taskId);
 }

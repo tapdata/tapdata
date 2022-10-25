@@ -165,7 +165,7 @@ public class TidbConnector extends ConnectorBase {
 
     private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) throws Throwable {
         List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
-        SqlMaker sqlMaker =  new TidbSqlMaker();
+        SqlMaker sqlMaker = new TidbSqlMaker();
         for (TapIndex tapIndex : indexList) {
             String createIndexSql;
             try {
@@ -176,7 +176,12 @@ public class TidbConnector extends ConnectorBase {
             try {
                 tidbContext.execute(createIndexSql);
             } catch (Throwable e) {
-                throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                // tidb index  less than  3072 bytes。
+                if (e.getMessage() != null && e.getMessage().contains("42000 1071")) {
+                    TapLogger.warn(TAG, "Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                } else {
+                    throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                }
             }
         }
     }

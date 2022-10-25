@@ -27,13 +27,13 @@ public class ClickhouseBatchWriter implements IPartitionsWriter<ClickhouseJdbcCo
     }
 
     @Override
-    public TapTableWriter partition(ClickhouseJdbcContext jdbcContext, TapTable tapTable, Supplier<Boolean> isRunning) throws Exception {
+    public TapTableWriter partition(ClickhouseJdbcContext jdbcContext, Supplier<Boolean> isRunning) throws Exception {
         String partition = partitionKey();
 
         synchronized (writerMap) {
             TapTableWriter writer = writerMap.get(partition);
             if (null == writer) {
-                writer = new TapTableWriter(connectorTag, jdbcContext.getConnection(), jdbcContext.getConfig().getDatabase(), tapTable, isRunning, insertPolicy, updatePolicy);
+                writer = new TapTableWriter(connectorTag, jdbcContext.getConnection(), jdbcContext.getConfig().getDatabase(), isRunning, insertPolicy, updatePolicy);
                 writerMap.put(partition, writer);
             }
             return writer;
