@@ -4,6 +4,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -27,7 +28,7 @@ public interface IWriter<T, R> extends AutoCloseable {
         }
     }
 
-    void addBath(T record, R result) throws Exception;
+    void addBath(TapTable tapTable, T record, R result) throws Exception;
 
     void commit(R result) throws Exception;
 }
