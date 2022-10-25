@@ -28,7 +28,6 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
     private final Connection connection;
     private final String database;
     private final Supplier<Boolean> isRunning;
-
     private final String insertPolicy;
     private final String updatePolicy;
 
