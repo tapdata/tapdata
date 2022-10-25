@@ -106,6 +106,8 @@ jobs:
           docker_tag="ghcr.io/tapdata/${{ env.TAG_BRANCH }}:${{ env.TAG }}"
           echo "docker_tag=$docker_tag" >> $GITHUB_ENV
           sudo build/build.sh -p 1 -o image -t $docker_tag
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
       - name: "启动本地测试环境"
         run: |
           source $GITHUB_ENV
