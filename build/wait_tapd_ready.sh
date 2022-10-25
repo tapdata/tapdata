@@ -1,6 +1,6 @@
 i="."
 while [[ 1 ]]; do
-  if [[ $i == "......" ]]; then
+  if [[ $i == "............" ]]; then
     break
   fi
   sleep 10
