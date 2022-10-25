@@ -1,27 +1,49 @@
-import com.opencsv.CSVReader;
-import com.opencsv.CSVReaderBuilder;
-import com.opencsv.CSVWriter;
-import com.opencsv.bean.CsvToBean;
-import com.opencsv.bean.CsvToBeanBuilder;
+import io.tapdata.common.FileProtocolEnum;
+import io.tapdata.connector.csv.CsvSchema;
+import io.tapdata.connector.csv.config.CsvConfig;
+import io.tapdata.entity.utils.BeanUtils;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.file.TapFile;
+import io.tapdata.file.TapFileStorage;
+import io.tapdata.file.TapFileStorageBuilder;
 
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class Main {
     public static void main(String[] args) throws Exception {
-        Reader reader = new InputStreamReader(Files.newInputStream(Paths.get("/Users/jarad/Desktop/file1.csv")), "GBK");
-        CSVReader csvReader = new CSVReaderBuilder(reader).build();
-        CsvToBean<Map<String, Object>> csvToBean = new CsvToBeanBuilder(csvReader)
-                .withSeparator(CSVWriter.DEFAULT_SEPARATOR)
-                .withQuoteChar(CSVWriter.NO_QUOTE_CHARACTER)
+        BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
+        CsvConfig csvConfig = new CsvConfig();
+        csvConfig.setFileType("csv");
+        csvConfig.setProtocol("local");
+        csvConfig.setFilePathString("/Users/jarad/Desktop");
+        csvConfig.setIncludeRegString("*.csv");
+        csvConfig.setExcludeRegString(null);
+        csvConfig.setRecursive(true);
+        csvConfig.setDelimiter(",");
+        csvConfig.setIncludeHeader(true);
+        csvConfig.setDataStartLine(1);
+        csvConfig.setModelName("GG");
+//        csvConfig.setHeader("name,value,age,date");
+        Map<String, Object> dataMap = beanUtils.beanToMap(csvConfig);
+        csvConfig = (CsvConfig) new CsvConfig().load(dataMap);
+        String clazz = FileProtocolEnum.fromValue(csvConfig.getProtocol()).getStorage();
+        TapFileStorage storage = new TapFileStorageBuilder()
+                .withClassLoader(Class.forName(clazz).getClassLoader())
+                .withParams(dataMap)
+                .withStorageClassName(clazz)
                 .build();
-        List<Map<String, Object>> list = csvToBean.parse();
-        list.forEach(o -> o.forEach((k,v) -> System.out.println(k + "=" + v)));
-        csvReader.close();
-        reader.close();
+        Set<TapFile> csvFiles = new HashSet<>();
+        for (String path : csvConfig.getFilePathSet()) {
+            storage.getFilesInDirectory(path, csvConfig.getIncludeRegs(), csvConfig.getExcludeRegs(), csvConfig.getRecursive(), 10, csvFiles::addAll);
+        }
+        ConcurrentMap<String, TapFile> csvFileMap = csvFiles.stream().collect(Collectors.toConcurrentMap(TapFile::getPath, Function.identity()));
+        CsvSchema csvSchema = new CsvSchema(csvConfig, storage);
+        csvSchema.sampleFixedFileData(csvFileMap);
+        storage.destroy();
     }
 }

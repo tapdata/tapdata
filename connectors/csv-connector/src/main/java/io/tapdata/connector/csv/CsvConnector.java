@@ -6,13 +6,16 @@ import io.tapdata.common.FileTest;
 import io.tapdata.connector.csv.config.CsvConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapDateValue;
 import io.tapdata.entity.schema.value.TapRawValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
 import io.tapdata.file.TapFileStorageBuilder;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -21,9 +24,15 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @TapConnectorClass("spec_csv.json")
 public class CsvConnector extends ConnectorBase {
@@ -72,12 +81,32 @@ public class CsvConnector extends ConnectorBase {
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         //as file-connector: nodeConfig is supported, so initConnection can be used
         initConnection(connectionContext);
-//        storage.getFilesInDirectory(csvConfig.getFilePathSet());
-        onStop(connectionContext);
+        TapTable tapTable = table(csvConfig.getModelName());
+        ConcurrentMap<String, TapFile> csvFileMap = getFilteredFiles();
+        CsvSchema csvSchema = new CsvSchema(csvConfig, storage);
+        Map<String, String> sample;
+        //csv has column header
+        if (EmptyKit.isNotBlank(csvConfig.getHeader())) {
+            sample = csvSchema.sampleFixedFileData(csvFileMap);
+        } else //analyze every csv file
+        {
+            sample = csvSchema.sampleEveryFileData(csvFileMap);
+        }
+        for (String col : csvConfig.getHeader().split(",")) {
+            TapField field = new TapField();
+            field.name(col);
+
+        }
+
+        storage.destroy();
     }
 
-    private void sampleFile() {
-
+    private ConcurrentMap<String, TapFile> getFilteredFiles() throws Exception {
+        Set<TapFile> csvFiles = new HashSet<>();
+        for (String path : csvConfig.getFilePathSet()) {
+            storage.getFilesInDirectory(path, csvConfig.getIncludeRegs(), csvConfig.getExcludeRegs(), csvConfig.getRecursive(), 10, csvFiles::addAll);
+        }
+        return csvFiles.stream().collect(Collectors.toConcurrentMap(TapFile::getPath, Function.identity()));
     }
 
     @Override
