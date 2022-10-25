@@ -1,0 +1,191 @@
+[ {
+  "uid" : "62bf914d5a5336af",
+  "name" : "test stop job",
+  "time" : {
+    "start" : 1666670689346,
+    "stop" : 1666670689353,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "9df0a1461df25c61",
+  "name" : "table merge in sync",
+  "time" : {
+    "start" : 1666670689303,
+    "stop" : 1666670689310,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "4d0b6719b524f891",
+  "name" : "real time table sync between mongodb",
+  "time" : {
+    "start" : 1666670689224,
+    "stop" : 1666670689231,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "95a212d7d7158d9d",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1666670689317,
+    "stop" : 1666670689325,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "ead5d687e87ff349",
+  "name" : "test monitor job status",
+  "time" : {
+    "start" : 1666670689376,
+    "stop" : 1666670689383,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "29c28964ed320c44",
+  "name" : "test get job status",
+  "time" : {
+    "start" : 1666670689359,
+    "stop" : 1666670689369,
+    "duration" : 10
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "119e067ac80a15e7",
+  "name" : "config job",
+  "time" : {
+    "start" : 1666670689332,
+    "stop" : 1666670689340,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "8fd577e08bb653f0",
+  "name" : "test mysql form valid",
+  "time" : {
+    "start" : 1666670673937,
+    "stop" : 1666670679023,
+    "duration" : 5086
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "68c565f122775548",
+  "name" : "create mongodb datasource with uri",
+  "time" : {
+    "start" : 1666670663767,
+    "stop" : 1666670673932,
+    "duration" : 10165
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "da419e6c5d8f45d8",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1666670689284,
+    "stop" : 1666670689296,
+    "duration" : 12
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "d178863ddd96b6da",
+  "name" : "test_check",
+  "time" : {
+    "start" : 1666670689389,
+    "stop" : 1666670689396,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "5c818cc3ae6bfc66",
+  "name" : "create datasource with mongodb uri",
+  "time" : {
+    "start" : 1666670653094,
+    "stop" : 1666670658573,
+    "duration" : 5479
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "22354bf1cd5a7244",
+  "name" : "filter row in sync",
+  "time" : {
+    "start" : 1666670689237,
+    "stop" : 1666670689248,
+    "duration" : 11
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "d878aa6352b71415",
+  "name" : "filter column in sync",
+  "time" : {
+    "start" : 1666670689254,
+    "stop" : 1666670689262,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "f5571452cff6d68e",
+  "name" : "create Kafka datasource with form",
+  "time" : {
+    "start" : 1666670689164,
+    "stop" : 1666670689164,
+    "duration" : 0
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "afbf6f23ec1ac0ad",
+  "name" : "create mongodb datasource with form",
+  "time" : {
+    "start" : 1666670658629,
+    "stop" : 1666670663762,
+    "duration" : 5133
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "4497ceec114c8000",
+  "name" : "rename column in sync",
+  "time" : {
+    "start" : 1666670689268,
+    "stop" : 1666670689277,
+    "duration" : 9
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "70a801810bd5a385",
+  "name" : "create PG datasource with form",
+  "time" : {
+    "start" : 1666670679029,
+    "stop" : 1666670689159,
+    "duration" : 10130
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "3c4ac1c9b90c41f4",
+  "name" : "real time database migrate between mongodb",
+  "time" : {
+    "start" : 1666670689192,
+    "stop" : 1666670689217,
+    "duration" : 25
+  },
+  "status" : "broken",
+  "severity" : "normal"
+} ]
