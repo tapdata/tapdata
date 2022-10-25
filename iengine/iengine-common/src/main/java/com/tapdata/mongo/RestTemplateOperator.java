@@ -878,7 +878,12 @@ public class RestTemplateOperator {
 		}
 		if (responseBody == null) {
 			throw new ManagementException("Request management failed, response body is empty.");
-		} else if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument")) {
+		}
+
+		logger.error("Request {} fail, error code {}, error message {}, request id {}",
+				uri, responseBody.getCode(), responseBody.getMsg(), responseBody.getReqId());
+
+		if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument")) {
 			throw new RestDoNotRetryException(uri, method, param, responseBody);
 		} else if ("110403".equals(responseBody.getCode())) {
 			throw new RestAuthException(uri, method, param, responseBody);
