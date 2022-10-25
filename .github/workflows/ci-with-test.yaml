@@ -103,7 +103,9 @@ jobs:
           build/build.sh -c connectors
       - name: package module and make image
         run: |
-          docker_tag="ghcr.io/tapdata/${{ env.TAG_BRANCH }}:${{ env.TAG }}"
+          cur_timestamp=$((`date '+%s'`))
+          tag=`git describe --tag --long HEAD | awk -F '-' '{print $3}'`"-${cur_timestamp}"
+          docker_tag="ghcr.io/tapdata/${{ env.TAG_BRANCH }}:$tag"
           echo "docker_tag=$docker_tag" >> $GITHUB_ENV
           sudo build/build.sh -p 1 -o image -t $docker_tag
       - name: Setup tmate session
@@ -111,8 +113,7 @@ jobs:
       - name: "启动本地测试环境"
         run: |
           source $GITHUB_ENV
-          sleep 7200
-          docker run -itd -p 3030:3030 -p 27017:27017 $docker_tag bash
+          docker run -e mode=use -itd -p 3000:3000 -p 27017:27017 $docker_tag bash
       - name: "基本用例集成测试"
         env:
           CASE_CONFIG: ${{ secrets.CASE_CONFIG }}
