@@ -7,6 +7,8 @@ import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IterationParam;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.enums.CodingEvent;
+import io.tapdata.coding.service.openApi.IssuesOpenApi;
+import io.tapdata.coding.service.openApi.IterationsOpenApi;
 import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
@@ -14,18 +16,25 @@ import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.util.*;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
+import static io.tapdata.base.ConnectorBase.writeListResult;
 import static io.tapdata.coding.enums.TapEventTypes.*;
 
-public class IterationsLoader extends CodingStarter implements CodingLoader<IterationParam> {
+public class IterationsLoader extends CodingStarter implements CodingLoader<IterationParam>,TargetLoader {
     private static final String TAG = IterationsLoader.class.getSimpleName();
     public static final String TABLE_NAME = "Iterations";
     Map<String,Object> queryMap ;
@@ -433,5 +442,36 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
             }
         }
         if (events.size() > 0)  consumer.accept(events, offset);
+    }
+
+    @Override
+    public void writeRecord(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
+        long inserted = 0L; //insert count
+        long updated = 0L; //update count
+        long deleted = 0L; //delete count
+        WriteListResult<TapRecordEvent> writeListResult = writeListResult();
+        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", this.contextConfig.getToken());
+        IterationsOpenApi issuesOpenApi = IterationsOpenApi.create(header.getEntity(), String.format(OPEN_API_URL, this.contextConfig.getTeamName()));
+        for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+            Map<String, Object> info = null;
+            if (tapRecordEvent instanceof TapDeleteRecordEvent){
+                info = ((TapDeleteRecordEvent) tapRecordEvent).getBefore();
+                deleted++;
+            }
+            else if (tapRecordEvent instanceof TapInsertRecordEvent) {
+                info = ((TapInsertRecordEvent) tapRecordEvent).getAfter();
+                inserted++;
+            }
+            else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
+                info = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+                updated++;
+            }
+            if (Checker.isNotEmptyCollection(info)) {
+                info.put("ProjectName",contextConfig.getProjectName());
+                //info.put("TeamName",contextConfig.getTeamName());
+                issuesOpenApi.createCodingProjectAsSimpleResultBack(info);
+            }
+        }
+        writeListResultConsumer.accept(writeListResult.insertedCount(inserted).modifiedCount(updated).removedCount(deleted));
     }
 }

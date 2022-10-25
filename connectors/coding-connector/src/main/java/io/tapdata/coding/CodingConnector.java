@@ -19,6 +19,7 @@ import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
@@ -29,6 +30,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
@@ -89,9 +91,20 @@ public class CodingConnector extends ConnectorBase {
 				//.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
 				.supportRawDataCallbackFilterFunctionV2(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
+				.supportWriteRecord(this::write)
 		;
 		this.connectorFunctions = connectorFunctions;
 	}
+
+	private void write(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
+		TargetLoader loader = TargetLoader.loader(connectorContext,tapTable.getId());
+		if (Checker.isNotEmpty(loader)){
+			loader.writeRecord(tapRecordEvents,writeListResultConsumer);
+			return;
+		}
+		TapLogger.info(TAG,"Not find table name {},Coding write record error.",tapTable.getId());
+	}
+
 	private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo){
 		return this.handleCommandV2(tapConnectionContext, commandInfo);
 	}

@@ -8,9 +8,17 @@ import io.tapdata.entity.logger.TapLogger;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class CodingHttp {
+    public static final String URL_PATTERN = "^([hH][tT]{2}[pP]://|[hH][tT]{2}[pP][sS]://)(([A-Za-z0-9-~]+).)+([A-Za-z0-9-~\\/])+$";
+    public static boolean isUrl(String openUrl){
+        return null != openUrl && Pattern.compile(URL_PATTERN).matcher(openUrl).matches();
+    }
+//    public static void main(String[] args) {
+//        System.out.println(Pattern.compile(URL_PATTERN).matcher("http://tapdata.coding.net/open-api").matches());
+//    }
     private static final String TAG = CodingHttp.class.getSimpleName();
     private Map<String,Object> body;
     private Map<String,String> heads;

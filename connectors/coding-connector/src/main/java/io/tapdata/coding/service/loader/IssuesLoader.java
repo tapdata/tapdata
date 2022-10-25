@@ -10,12 +10,17 @@ import io.tapdata.coding.enums.CodingEvent;
 import io.tapdata.coding.enums.IssueType;
 import io.tapdata.coding.service.connectionMode.CSVMode;
 import io.tapdata.coding.service.connectionMode.ConnectionMode;
+import io.tapdata.coding.service.openApi.IssuesOpenApi;
 import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -24,6 +29,7 @@ import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -35,6 +41,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import static io.tapdata.base.ConnectorBase.writeListResult;
 import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 import static io.tapdata.coding.enums.TapEventTypes.*;
@@ -44,7 +51,7 @@ import static io.tapdata.coding.enums.TapEventTypes.*;
  * @Description
  * @create 2022-08-26 11:49
  **/
-public class IssuesLoader extends CodingStarter implements CodingLoader<IssueParam> {
+public class IssuesLoader extends CodingStarter implements CodingLoader<IssueParam>,TargetLoader {
     private static final String TAG = IssuesLoader.class.getSimpleName();
     public static final String TABLE_NAME = "Issues";
 
@@ -57,7 +64,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     private Long lastTimePoint;
     private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
     int tableSize;
-    ContextConfig contextConfig;
     private AtomicBoolean stopRead = new AtomicBoolean(false);
 
     CodingConnector codingConnector;
@@ -78,7 +84,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
     public IssuesLoader(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);
-        this.contextConfig = this.veryContextConfigAndNodeConfig();
     }
 
     public IssuesLoader setTableSize(int tableSize) {
@@ -978,30 +983,36 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         //startRead.set(false);
     }
 
-    public Map<String,Object> addIssue(Map<String,Object> issues){
-        HttpEntity<String, String> header = HttpEntity.create()
-                .builder("Authorization", this.contextConfig.getToken());
-        HttpEntity<String, Object> body = HttpEntity.create()
-                .builderIfNotAbsent("Action", "CreateIssue")
-                .builder("ProjectName", this.contextConfig.getProjectName())
-                .builder("Type","")
-                .builder("Name","")
-                .builder("Priority","")
-                .builderIfNotAbsent("IssueTypeId","");
-        Map<String, Object> resultMap = CodingHttp.create(
-                header.getEntity(),
-                body.getEntity(),
-                String.format(OPEN_API_URL, this.contextConfig.getTeamName())).post();
-        Object response = resultMap.get("Response");
-        if (null == response) {
-            return null;
+    @Override
+    public void writeRecord(
+            List<TapRecordEvent> tapRecordEvents,
+            Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
+        long inserted = 0L; //insert count
+        long updated = 0L; //update count
+        long deleted = 0L; //delete count
+        WriteListResult<TapRecordEvent> writeListResult = writeListResult();
+        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", this.contextConfig.getToken());
+        IssuesOpenApi issuesOpenApi = IssuesOpenApi.create(header.getEntity(), String.format(OPEN_API_URL, this.contextConfig.getTeamName()));
+        for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+            Map<String, Object> info = null;
+            if (tapRecordEvent instanceof TapDeleteRecordEvent){
+                info = ((TapDeleteRecordEvent) tapRecordEvent).getBefore();
+                deleted++;
+            }
+            else if (tapRecordEvent instanceof TapInsertRecordEvent) {
+                info = ((TapInsertRecordEvent) tapRecordEvent).getAfter();
+                inserted++;
+            }
+            else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
+                info = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+                updated++;
+            }
+            if (Checker.isNotEmptyCollection(info)) {
+                info.put("ProjectName",contextConfig.getProjectName());
+                info.put("TeamName",contextConfig.getTeamName());
+                issuesOpenApi.createIssueAsSimpleResultBack(info);
+            }
         }
-        Map<String, Object> responseMap = (Map<String, Object>) response;
-        Object dataObj = responseMap.get("Issue");
-        Map<String, Object> result = null != dataObj ? (Map<String, Object>) dataObj : null;
-        if (Checker.isNotEmpty(result)) {
-            this.composeIssue(this.contextConfig.getProjectName(), this.contextConfig.getTeamName(), result);
-        }
-        return result;
+        writeListResultConsumer.accept(writeListResult.insertedCount(inserted).modifiedCount(updated).removedCount(deleted));
     }
 }

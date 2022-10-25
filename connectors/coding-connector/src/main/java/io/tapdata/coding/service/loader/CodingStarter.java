@@ -23,7 +23,8 @@ public abstract class CodingStarter {
 
     protected TapConnectionContext tapConnectionContext;
     protected boolean isVerify;
-    CodingStarter(TapConnectionContext tapConnectionContext){
+    ContextConfig contextConfig;
+    public CodingStarter(TapConnectionContext tapConnectionContext){
         this.tapConnectionContext = tapConnectionContext;
         this.isVerify = Boolean.FALSE;
     }
@@ -84,6 +85,7 @@ public abstract class CodingStarter {
                 config.issueType(issueType).iterationCodes(iterationCodeArr).issueCodes(issueCodes);
             }
         }
+        this.contextConfig = config;
         return config;
     }
 
