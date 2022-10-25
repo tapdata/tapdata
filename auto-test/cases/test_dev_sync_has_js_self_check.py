@@ -1,6 +1,6 @@
 import os, sys
 
-sys.path.append(os.path.dirname(__file__) + "/../utils")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../utils")
 from factory import newDB
 
 

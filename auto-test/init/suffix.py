@@ -3,7 +3,7 @@ import os
 import random
 import time
 
-table_suffix_cache_file = os.path.dirname(__file__) + "/.table_suffix_cache_file"
+table_suffix_cache_file = os.path.dirname(os.path.abspath(__file__)) + "/.table_suffix_cache_file"
 
 
 def get_test_table(datasource, table):

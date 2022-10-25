@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os, sys
 
-sys.path.append(os.path.dirname(__file__) + "/../init")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../init")
 from env import *
 
 
@@ -14,7 +14,7 @@ def get_sources():
             continue
         tables.append(f.split(".")[0])
 
-    with open(os.path.dirname(__file__) + "/../config.yaml", "r") as fd:
+    with open(os.path.dirname(os.path.abspath(__file__)) + "/../config.yaml", "r") as fd:
         sources = yaml.safe_load(fd)
         for source in sources:
             config = sources[source]

@@ -1,5 +1,5 @@
 import os, sys
-sys.path.append(os.path.dirname(__file__) + "/../init")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../init")
 from env import *
 
 # use a datasource => new datasource, to make new datasource data change, mock cdc

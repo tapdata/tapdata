@@ -3,15 +3,15 @@
 import os, sys
 import yaml, random, argparse
 import pymongo
-data_path = os.path.dirname(__file__) + "/data"
+data_path = os.path.dirname(os.path.abspath(__file__)) + "/data"
 sys.path.append(data_path)
 from importlib import import_module
 from copy import deepcopy
 
-sys.path.append(os.path.dirname(__file__))
-sys.path.append(os.path.dirname(__file__) + "/../init")
-sys.path.append(os.path.dirname(__file__) + "/../../tapshell")
-sys.path.append(os.path.dirname(__file__) + "/../utils")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../init")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../tapshell")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../utils")
 from log import logger as logger2
 logger = logger2  # use log from utils, not from tapdata cli
 
@@ -29,7 +29,7 @@ if server is None:
     access_token = os.getenv("access_token")
 
 if server is None:
-    with open(os.path.dirname(__file__) + "/../config.yaml", "r") as fd:
+    with open(os.path.dirname(os.path.abspath(__file__)) + "/../config.yaml", "r") as fd:
         env = yaml.safe_load(fd).get("env")
         if env is not None:
             server = env.get("server")
