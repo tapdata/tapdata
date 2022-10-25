@@ -21,6 +21,7 @@ import org.apache.commons.lang3.StringUtils;
 import picocli.CommandLine;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.*;
 
@@ -38,6 +39,12 @@ public class RegisterCli extends CommonCli {
 
     @CommandLine.Option(names = {"-a", "--auth"}, required = true, description = "Provide auth token to register")
     private String authToken;
+
+    @CommandLine.Option(names = {"-ak", "--accessKey"}, required = true, description = "Provide auth accessKey")
+    private String ak;
+
+    @CommandLine.Option(names = {"-sk", "--secretKey"}, required = true, description = "Provide auth secretKey")
+    private String sk;
 
     @CommandLine.Option(names = {"-t", "--tm"}, required = true, description = "Tapdata TM url")
     private String tmUrl;
@@ -193,7 +200,7 @@ public class RegisterCli extends CommonCli {
                 }
                 if(file.isFile()) {
                     System.out.println(file.getName() + " uploading... to url " + tmUrl);
-                    UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken);
+                    UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken, ak, sk);
                     System.out.println(file.getName() + " registered successfully");
                 } else {
                     System.out.println("File " + file + " doesn't exists");
