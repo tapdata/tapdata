@@ -109,24 +109,11 @@ jobs:
           echo $docker_tag > build/image/tag
           echo "docker_tag=$docker_tag" >> $GITHUB_ENV
           sudo build/build.sh -p 1 -o image
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
       - name: "启动本地测试环境"
         run: |
           echo $docker_tag
-          docker run -e mode=use --name tapd -itd -p 3000:3000 $docker_tag bash
-          i="."
-          while [[ 1 ]]; do
-            if [[ $i == "....." ]]; then
-              break
-            fi
-            sleep 10
-            i=$i"."
-            docker logs tapd|grep register_connector_complete
-            if [[ $? -eq 0 ]]; then
-              break
-            fi
-          done
+          docker run -e mode=use --name tapd -d -p 3000:3000 $docker_tag bash
+          bash build/wait_tapd_ready.sh
       - name: "基本用例集成测试"
         env:
           CASE_CONFIG: ${{ secrets.CASE_CONFIG }}
@@ -137,9 +124,7 @@ jobs:
           cd tapshell && pip3 install . && cd ..
           cd auto-test && pip3 install -r requirements.txt && cd -
           cd auto-test && chmod +x ./test.sh && bash ./test.sh
-          if [[ -f /tmp/fail ]]; then
-            echo "auto test case fail."
-          fi
+          ls -al /tmp/fail
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
       - name: Setup Poetry
