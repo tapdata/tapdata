@@ -977,4 +977,31 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }
         //startRead.set(false);
     }
+
+    public Map<String,Object> addIssue(Map<String,Object> issues){
+        HttpEntity<String, String> header = HttpEntity.create()
+                .builder("Authorization", this.contextConfig.getToken());
+        HttpEntity<String, Object> body = HttpEntity.create()
+                .builderIfNotAbsent("Action", "CreateIssue")
+                .builder("ProjectName", this.contextConfig.getProjectName())
+                .builder("Type","")
+                .builder("Name","")
+                .builder("Priority","")
+                .builderIfNotAbsent("IssueTypeId","");
+        Map<String, Object> resultMap = CodingHttp.create(
+                header.getEntity(),
+                body.getEntity(),
+                String.format(OPEN_API_URL, this.contextConfig.getTeamName())).post();
+        Object response = resultMap.get("Response");
+        if (null == response) {
+            return null;
+        }
+        Map<String, Object> responseMap = (Map<String, Object>) response;
+        Object dataObj = responseMap.get("Issue");
+        Map<String, Object> result = null != dataObj ? (Map<String, Object>) dataObj : null;
+        if (Checker.isNotEmpty(result)) {
+            this.composeIssue(this.contextConfig.getProjectName(), this.contextConfig.getTeamName(), result);
+        }
+        return result;
+    }
 }
