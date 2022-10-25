@@ -2,7 +2,7 @@ name: LDP Continuous Integration With TEST
 
 on:
   push:
-    branches: ["cases-.*"]
+    branches: ["cases-v2.10"]
 
 env:
   REGISTRY: ghcr.io
