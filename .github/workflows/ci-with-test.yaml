@@ -123,7 +123,9 @@ jobs:
           cd tapshell && pip3 install . && cd ..
           cd auto-test && pip3 install -r requirements.txt && cd -
           cd auto-test && chmod +x ./test.sh && bash ./test.sh
-          sleep 3600
+          if [[ -f /tmp/fail ]]; then
+            echo "auto test case fail."
+          fi
       - name: Setup Poetry
         uses: Gr1N/setup-poetry@v7
       - name: publish pip package if push

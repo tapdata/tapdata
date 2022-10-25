@@ -70,6 +70,8 @@ class Logger:
     def error(self, *args, **kargs):
         msg = args[0].replace("{}", "\033[1;31m{}\033[0m")
         self._print(msg.format(*args[1:]), **kargs)
+        with open("/tmp/fail", "w+") as fd:
+            fd.write("msg")
 
     def fatal(self, *args, **kargs):
         msg = args[0].replace("{}", "\033[1;31m{}\033[0m")
