@@ -47,6 +47,7 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -301,11 +302,18 @@ public class TaskAlarmScheduler {
         String avgName = template[1];
         if (collect.containsKey(alarmKeyEnum)) {
             AlarmRuleDto alarmRuleDto = collect.get(alarmKeyEnum);
+
+            String flag = alarmRuleDto.getEqualsFlag() == -1 ? "小于" : "大于";
+
+            AtomicInteger delay = new AtomicInteger(0);
             long count = samples.stream().filter(ss -> {
+                int current = (int) ss.getVs().getOrDefault(avgName, 0);
                 if (alarmRuleDto.getEqualsFlag() == -1) {
-                    return (int) ss.getVs().getOrDefault(avgName, 0) <= alarmRuleDto.getMs();
+                    delay.set(current);
+                    return current <= alarmRuleDto.getMs();
                 } else if (alarmRuleDto.getEqualsFlag() == 1) {
-                    return (int) ss.getVs().getOrDefault(avgName, 0) >= alarmRuleDto.getMs();
+                    delay.set(current);
+                    return current >= alarmRuleDto.getMs();
                 } else {
                     return false;
                 }
@@ -321,17 +329,17 @@ public class TaskAlarmScheduler {
             if (count >= alarmRuleDto.getPoint()) {
                 String summary;
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
-                Number current = samples.get(0).getVs().get(avgName);
+                Number current = delay.get();
                 if (first.isPresent()) {
                     AlarmInfo data = first.get();
                     alarmInfo.setId(data.getId());
                     alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
 
                     long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
-                    summary = MessageFormat.format(template[3], nodeName, alarmRuleDto.getMs(), continued, current, DateUtil.now());
+                    summary = MessageFormat.format(template[3], nodeName, alarmRuleDto.getMs(), continued, current, DateUtil.now(), flag);
                 } else {
                     alarmInfo.setStatus(AlarmStatusEnum.ING);
-                    summary = MessageFormat.format(template[2], nodeName, alarmRuleDto.getMs(), current, DateUtil.now());
+                    summary = MessageFormat.format(template[2], nodeName, alarmRuleDto.getMs(), current, DateUtil.now(), flag);
                 }
                 alarmInfo.setLevel(Level.WARNING);
                 alarmInfo.setSummary(summary);
@@ -343,8 +351,8 @@ public class TaskAlarmScheduler {
             } else {
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
                 if (first.isPresent()) {
-                    Number current = samples.get(0).getVs().get(avgName);
-                    String summary = MessageFormat.format(template[4], nodeName, current, DateUtil.now());
+                    //Number current = samples.get(0).getVs().get(avgName);
+                    String summary = MessageFormat.format(template[4], nodeName, delay, DateUtil.now(), flag);
 
                     alarmInfo.setId(first.get().getId());
                     alarmInfo.setLevel(Level.RECOVERY);
@@ -357,13 +365,30 @@ public class TaskAlarmScheduler {
     }
 
     private void taskIncrementDelayAlarm(TaskDto task, String taskId, List<Sample> taskSamples, Map<AlarmKeyEnum, AlarmRuleDto> collect) {
+        // check task start cdc
+        if (CollectionUtils.isEmpty(task.getMilestones())) {
+            return;
+        }
+        boolean match = task.getMilestones().stream().anyMatch(m -> "WRITE_CDC_EVENT".equals(m.getCode()) && "running".equals(m.getStatus()));
+        if (!match) {
+            return;
+        }
+
         if (collect.containsKey(AlarmKeyEnum.TASK_INCREMENT_DELAY)) {
             AlarmRuleDto alarmRuleDto = collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY);
+
+            String flag = alarmRuleDto.getEqualsFlag() == -1 ? "小于" : "大于";
+
+            AtomicInteger delay = new AtomicInteger(0);
             long count = taskSamples.stream().filter(ss -> {
+                int replicateLag = (int) ss.getVs().getOrDefault("replicateLag", 0);
+
                 if (alarmRuleDto.getEqualsFlag() == -1) {
-                    return (int) ss.getVs().getOrDefault("replicateLag", 0) <= alarmRuleDto.getMs();
+                    delay.set(replicateLag);
+                    return replicateLag <= alarmRuleDto.getMs();
                 } else if (alarmRuleDto.getEqualsFlag() == 1) {
-                    return (int) ss.getVs().getOrDefault("replicateLag", 0) >= alarmRuleDto.getMs();
+                    delay.set(replicateLag);
+                    return replicateLag >= alarmRuleDto.getMs();
                 } else {
                     return false;
                 }
@@ -378,19 +403,18 @@ public class TaskAlarmScheduler {
             if (count >= alarmRuleDto.getPoint()) {
                 String summary;
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
-                Number current = taskSamples.get(0).getVs().get("replicateLag");
                 if (first.isPresent()) {
                     AlarmInfo data = first.get();
                     alarmInfo.setId(data.getId());
                     alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
 
                     long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
-                    summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_ALWAYS, alarmRuleDto.getMs(), continued, current, DateUtil.now());
+                    summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_ALWAYS, alarmRuleDto.getMs(), continued, delay, DateUtil.now(), flag);
                 } else {
                     alarmInfo.setStatus(AlarmStatusEnum.ING);
-                    summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_START, alarmRuleDto.getMs(), current, DateUtil.now());
+                    summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_START, alarmRuleDto.getMs(), delay, DateUtil.now(), flag);
                     Map<String, Object> param = Maps.newHashMap();
-                    param.put("time", current);
+                    param.put("time", delay);
                     alarmInfo.setParam(param);
                 }
                 alarmInfo.setLevel(Level.WARNING);
@@ -399,8 +423,8 @@ public class TaskAlarmScheduler {
             } else {
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
                 if (first.isPresent()) {
-                    Number current = taskSamples.get(0).getVs().get("replicateLag");
-                    String summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_RECOVER, current, DateUtil.now());
+                    //Number current = taskSamples.get(0).getVs().get("replicateLag");
+                    String summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_RECOVER, delay, DateUtil.now());
 
                     alarmInfo.setId(first.get().getId());
                     alarmInfo.setLevel(Level.RECOVERY);

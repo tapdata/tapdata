@@ -2442,6 +2442,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
+            this.update(new Query(Criteria.where("id").is(taskDto.getId())), Update.update("startTime", null));
+
             updateStatus(taskDto.getId(), DataSyncMq.OP_TYPE_RESET.equals(opType) ? TaskDto.STATUS_RENEWING : TaskDto.STATUS_DELETING);
 
 //            //检查是否完成重置，设置8秒的超时时间

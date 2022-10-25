@@ -32,9 +32,9 @@ public class CustomTest {
         CustomSchema customSchema = new CustomSchema(customConfig);
         try {
             customSchema.loadSchema();
-            return testItem(CHECK_CUSTOM_SCRIPT, TestItem.RESULT_SUCCESSFULLY);
+            return testItem(CHECK_CUSTOM_LOAD_SCHEMA, TestItem.RESULT_SUCCESSFULLY);
         } catch (ScriptException e) {
-            return testItem(CHECK_CUSTOM_SCRIPT, TestItem.RESULT_FAILED, e.getMessage());
+            return testItem(CHECK_CUSTOM_LOAD_SCHEMA, TestItem.RESULT_FAILED, e.getMessage());
         }
     }
 

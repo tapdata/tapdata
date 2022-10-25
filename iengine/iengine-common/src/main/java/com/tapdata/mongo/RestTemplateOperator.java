@@ -219,6 +219,12 @@ public class RestTemplateOperator {
 	}
 
 	public Exception retryExceptionHandle(Exception e, String uri, String method, Object param, ResponseBody responseBody) {
+		if (e instanceof HttpClientErrorException) {
+			// If the parameter is incorrect, no retry will be performed
+			if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {
+				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), e.getMessage()), e);
+			}
+		}
 		logger.warn(
 				"Request {} server failed {}, uri {}, method {}, param {}, response body {}, stack {}, will retry after {}.", baseURL, e.getMessage(), uri, param, responseBody, method, Log4jUtil.getStackString(e), retryInterval
 		);

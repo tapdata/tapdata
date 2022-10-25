@@ -324,9 +324,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					// the event is considered been output to the next node.
 					TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
 					TapEvent tapEvent = dataEvent.getTapEvent();
-					if (sourceMode == SourceMode.NORMAL) {
-						tapRecordToTapValue(tapEvent, codecsFilterManager);
-					}
+					tapRecordToTapValue(tapEvent, codecsFilterManager);
 				}
 			}
 

@@ -11,8 +11,10 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 
+import static io.tapdata.entity.simplify.TapSimplify.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -67,6 +69,11 @@ public class JsonTest {
 				"}]";
 
 		JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
+		TapTable table = table("aaaa").add(field("field1", "varchar").tapType(tapDateTime().min(Instant.MIN).max(Instant.MAX)));
+		String tableJson = jsonParser.toJson(table);
+		TapTable tapTable = jsonParser.fromJson(tableJson, TapTable.class);
+		assertEquals("+1000000000-12-31T23:59:59.999999999Z", ((TapDateTime)tapTable.getNameFieldMap().get("field1").getTapType()).getMax().toString());
+		assertEquals("-1000000000-01-01T00:00:00Z", ((TapDateTime)tapTable.getNameFieldMap().get("field1").getTapType()).getMin().toString());
 		List<TapTable> list = jsonParser.fromJson(json, new TypeHolder<List<TapTable>>(){});
 		assertNotNull(list);
 		assertEquals(1, list.size());

@@ -87,19 +87,17 @@ public class ZoHoHttp {
             }
         }
     }
+
+    /**
+     *  Please do not use null as the return value of this method
+     * */
     private HttpResult afterSend(HttpResponse execute){
         if (Checker.isEmpty(execute) ){
             return EMPTY;
         }
         String body = execute.body();
         if (Checker.isEmpty(body)){
-//            if(execute.getStatus() == 200){
-//                return HttpResult.create("SUCCEED",true);
-//            }
-//            if (execute.isOk()){
-//                return HttpResult.create("WARN",false);
-//            }
-            return EMPTY;
+            return EMPTY.httpCode(execute.getStatus());
         }
         JSONObject executeObject = JSONUtil.parseObj(body);
         String executeResult = executeObject.getStr("errorCode");

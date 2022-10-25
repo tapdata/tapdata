@@ -348,4 +348,70 @@ public class MongodbUtil {
 
 		return uri;
 	}
+
+	/**
+	 * If the association condition does not contain the _id and the write circuit is empty, the _id needs to be removed.
+	 * When the record _id of the source database is changed (written again), the target mongodb _id cannot be updated.
+	 *
+	 * @param pks
+	 * @param value
+	 */
+	public static void removeIdIfNeed(Collection<String> pks, Map<String, Object> value) {
+		if (EmptyKit.isEmpty(pks)) {
+			return;
+		}
+		if (!pks.contains("_id")) {
+			if (EmptyKit.isNotEmpty(value) && value.containsKey("_id")) {
+				value.remove("_id");
+			}
+		}
+	}
+
+	/**
+	 * If the association condition does not contain the _id and the write circuit is empty,
+	 * the _id needs to be removed.
+	 * (When the record _id of the source database is changed (written again), the target mongodb _id cannot be updated.)
+	 *
+	 * @param joinCondition
+	 * @param targetPath    Position to write to the catalog
+	 * @param value
+	 */
+	public static void removeIdIfNeed(List<Map<String, String>> joinCondition, String targetPath, Map<String, Object> value) {
+		// 写入内嵌字段时，不会发生_id冲突的问题，无需移除
+		if (EmptyKit.isNotBlank(targetPath)) {
+			return;
+		}
+		if (!MongodbUtil.containIdInCondition(joinCondition)) {
+			if (EmptyKit.isNotEmpty(value) && value.containsKey("_id")) {
+				value.remove("_id");
+			}
+		}
+	}
+
+	/**
+	 * Check whether the association condition contains the _id field
+	 *
+	 * @param joinCondition
+	 * @return
+	 */
+	public static boolean containIdInCondition(List<Map<String, String>> joinCondition) {
+		boolean containId = false;
+
+		if (CollectionUtils.isNotEmpty(joinCondition)) {
+			for (Map<String, String> condition : joinCondition) {
+				for (Map.Entry<String, String> entry : condition.entrySet()) {
+					String fieldName = entry.getValue();
+					if ("_id".equals(fieldName)) {
+						containId = true;
+						break;
+					}
+				}
+
+				if (containId) {
+					break;
+				}
+			}
+		}
+		return containId;
+	}
 }

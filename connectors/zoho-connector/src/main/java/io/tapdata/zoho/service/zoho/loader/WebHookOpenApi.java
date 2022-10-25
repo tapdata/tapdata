@@ -57,10 +57,9 @@ public class WebHookOpenApi extends ZoHoStarter implements ZoHoBase  {
     public boolean delete(String webHookId){
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,DELETE_URL), HttpType.GET,requestHeard())
                 .resetFull(HttpEntity.create().build("webhook_id",webHookId));
-        Object data = this.readyAccessToken(http).getResult();
-        if (Checker.isEmpty(data)) return false;
-        if (data instanceof Boolean) return (Boolean)data;
-        return false;
+        HttpResult httpResult = this.readyAccessToken(http);
+        Integer httpCode = httpResult.httpCode();
+        return Checker.isEmpty(httpCode) && httpCode.equals(200);
     }
 
     //update of WebHook is PATCH
