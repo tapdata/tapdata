@@ -44,7 +44,6 @@ public class DelayCalculation {
                 @Override
                 public void accept(DelayCalculation ins) {
                     if (System.currentTimeMillis() - lastTimes > logInterval) {
-                        TapLogger.info(TAG, "delay info: {}", ins);
                         lastTimes = System.currentTimeMillis();
                     }
                 }

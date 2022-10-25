@@ -31,20 +31,20 @@
 #### 2.1 基础配置
 1.获取 **机构 ID**：进入您的ZoHo Desk，点击右上角的Setting, 点击 开发者空间下 的 API 菜单，滑动到底部，您可以看到一个标题“Zoho服务通信（ZSC）密钥”，这个表单下面有 机构ID字段，复制这个机构ID到这里即可。
 
-![](../img/zoho-orgID.png)
+![](https://gitee.com/code-on-top/picture-temp/raw/master/picture/zoho_org_id.png)
 
 2.进入Api Console 点击右上角 ADD CLIENT 按钮，选择Self Client;
  - 点击链接进入API Console : [https://api-console.zoho.com.cn/](https://api-console.zoho.com.cn/)
 
-![](../img/zoho-api-colsole.png)
+![](https://gitee.com/code-on-top/picture-temp/raw/master/picture/zoho_api_colsole.png)
 
 3.点击菜单栏中的Client Secret 可获取Client ID 和Client Secret;
 
-![](../img/zoho-api-clientId.png)
+![](https://gitee.com/code-on-top/picture-temp/raw/master/picture/zoho_api_client_id.png)
 
 4.接下来再去获取Generate Code,输入Scope,输入完整的scope有利于api获取数据：
 
-![](../img/zoho-generateCode.png)
+![](https://gitee.com/code-on-top/picture-temp/raw/master/picture/zoho_generate_code.png)
 
 ```
 Desk.tickets.ALL,Desk.contacts.READ,Desk.contacts.WRITE,Desk.contacts.UPDATE,Desk.contacts.CREATE,Desk.tasks.ALL,Desk.basic.READ,Desk.basic.CREATE,Desk.settings.ALL,Desk.events.ALL,Desk.articles.READ,Desk.articles.CREATE,Desk.articles.UPDATE,Desk.articles.DELETE
@@ -57,11 +57,11 @@ Desk.tickets.ALL,Desk.contacts.READ,Desk.contacts.WRITE,Desk.contacts.UPDATE,Des
 
 6.点击Create按钮后，需要您手动选择关联的项目也就是ZoHo所说的门户，选择的门户就是接下来数据的来源。
 
-![](../img/zoho-generateCode-2.png)
+![](https://gitee.com/code-on-top/picture-temp/raw/master/picture/zoho_generate_code_2.png)
 
 7.Generate Code生成后请在Time Duration配置的这段时间内回到TapData创建连接页面一件获取Token，超出时间后或许希望您再次按如上步骤获取Generate Code。
 
-![](../img/zoho-generateCode-3.png)
+![](https://gitee.com/code-on-top/picture-temp/raw/master/picture/zoho_generate_code_3.png)
 
 #### 2.2 WebHook配置
 
@@ -71,15 +71,15 @@ Desk.tickets.ALL,Desk.contacts.READ,Desk.contacts.WRITE,Desk.contacts.UPDATE,Des
 
 1. 第一步，您需要点击生成服务URl按钮生成数据源对应的服务URL，ZoHoDesk会根据这个URL来向您传达更新事件；
 
-![](../img/zoho-webhook-1.png)
+![](https://gitee.com/code-on-top/picture-temp/raw/master/picture/zoho_webhook_1.png)
 
 2. 第二步，您需要打开您的ZoHoDesk，进入右上角Setting面板,选择开发者空间，进入WebHook。在选择新建webHook。需要您手动输入webHook名称，并把上一步生成的服务URL粘贴到要通知的URL输入框。选择并新增您需要关注的事件。
 
-![](../img/zoho-webhook-2.png)
+![](hhttps://gitee.com/code-on-top/picture-temp/raw/master/picture/zoho_webhook_2.png)
 
 3. 点击保存后，WebHook即生效。
 
-![](../img/zoho-webhook-3.png)
+![](https://gitee.com/code-on-top/picture-temp/raw/master/picture/zoho_webhook_3.png)
 
 二：工作流配置Webhook
 
