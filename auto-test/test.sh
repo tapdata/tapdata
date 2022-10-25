@@ -8,4 +8,4 @@ for case_file in `ls test_*`; do
     python3 runner.py "$case_file" --core --bench 12345
 done
 
-sleep 3600
+sleep 1000
