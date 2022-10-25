@@ -1,4 +1,5 @@
 name: LDP Continuous Integration With TEST
+runs-on: self-hosted
 
 on:
   push:
