@@ -31,7 +31,7 @@ import java.util.*;
 )
 public class RegisterCli extends CommonCli {
     private static final String TAG = RegisterCli.class.getSimpleName();
-    @CommandLine.Parameters(paramLabel = "FILE", description = "One ore more pdk jar files")
+    @CommandLine.Parameters(paramLabel = "FILE", description = "One or more pdk jar files")
     File[] files;
 
     @CommandLine.Option(names = {"-l", "--latest"}, required = false, defaultValue = "true", description = "whether replace the latest version")
@@ -46,7 +46,7 @@ public class RegisterCli extends CommonCli {
     @CommandLine.Option(names = {"-sk", "--secretKey"}, required = false, description = "Provide auth secretKey")
     private String sk;
 
-    @CommandLine.Option(names = {"-b", "--beta"}, required = false, defaultValue = "false", description = "")
+    @CommandLine.Option(names = {"-b", "--beta"}, required = false, defaultValue = "false", description = "Beta")
     private boolean beta;
 
     @CommandLine.Option(names = {"-t", "--tm"}, required = true, description = "Tapdata TM url")
