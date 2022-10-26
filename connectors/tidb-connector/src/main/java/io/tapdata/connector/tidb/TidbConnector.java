@@ -97,7 +97,14 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SSSSSS"));
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> {
+            if (tapTimeValue.getOriginValue() instanceof Long) {
+                long time = (long)tapTimeValue.getOriginValue() / 1000;
+                return toHHmmss(time);
+            } else {
+                return tapTimeValue.getValue().toTime();
+            }
+        });
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
                 tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
@@ -333,6 +340,15 @@ public class TidbConnector extends ConnectorBase {
         }
         ConnectionCheckItem testConnection = tidbConnectionTest.testConnection();
         consumer.accept(testConnection);
+    }
+
+    private static String toHHmmss ( long time){
+        String timeTemp;
+        int hours = (int) (time % (1000 * 60 * 60 * 24) / (1000 * 60 * 60));
+        int minutes = (int) (time % (1000 * 60 * 60) / (1000 * 60));
+        int seconds = (int) (time % (1000 * 60) / 1000);
+        timeTemp = (hours < 10 ? ("0" + hours) : hours) + ":" + (minutes < 10 ? ("0" + minutes) : minutes) + ":" + (seconds < 10 ? ("0" + seconds) : seconds);
+        return timeTemp;
     }
 }
 
