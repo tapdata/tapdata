@@ -2,7 +2,7 @@
 
 start_mongo() {
     mkdir -p /tapdata/data/logs
-    mongod --dbpath=/tapdata/data/db/ --replSet=rs0 --bind_ip_all --logpath=/tapdata/data/logs/mongod.log --fork
+    mongod --dbpath=/tapdata/data/db/ --replSet=rs0 --wiredTigerCacheSizeGB=1 --bind_ip_all --logpath=/tapdata/data/logs/mongod.log --fork
     while [[ 1 ]]; do
         mongo --quiet --eval "db" &> /dev/null
         if [[ $? -eq 0 ]]; then
