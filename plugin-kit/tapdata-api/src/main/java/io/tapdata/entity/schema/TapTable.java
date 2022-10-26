@@ -146,20 +146,18 @@ public class TapTable extends TapItem<TapField> {
 		if (!posPrimaryKeyName.isEmpty())
 			return posPrimaryKeyName.values();
 
-		if (isLogic) {
-			if (indexList != null) {
-				List<String> primaryKeys = new ArrayList<>();
-				for (TapIndex tapIndex : indexList) {
-					if (((tapIndex.getUnique() != null && tapIndex.getUnique()) || (tapIndex.getPrimary() != null && tapIndex.getPrimary())) && tapIndex.getIndexFields() != null && !tapIndex.getIndexFields().isEmpty()) {
-						for (TapIndexField indexField : tapIndex.getIndexFields()) {
-							primaryKeys.add(indexField.getName());
-						}
-						break;
+		if (indexList != null) {
+			List<String> primaryKeys = new ArrayList<>();
+			for (TapIndex tapIndex : indexList) {
+				if (((tapIndex.getUnique() != null && tapIndex.getUnique()) || (tapIndex.getPrimary() != null && tapIndex.getPrimary())) && tapIndex.getIndexFields() != null && !tapIndex.getIndexFields().isEmpty()) {
+					for (TapIndexField indexField : tapIndex.getIndexFields()) {
+						primaryKeys.add(indexField.getName());
 					}
+					break;
 				}
-				if (!primaryKeys.isEmpty())
-					return primaryKeys;
 			}
+			if (!primaryKeys.isEmpty())
+				return primaryKeys;
 		}
 		return Collections.emptyList();
 	}
