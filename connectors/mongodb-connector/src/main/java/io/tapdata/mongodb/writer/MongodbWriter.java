@@ -126,6 +126,8 @@ public class MongodbWriter {
 				if (ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS.equals(mongodbConfig.getInsertDmlPolicy())) {
 					operation = "$setOnInsert";
 				}
+
+				MongodbUtil.removeIdIfNeed(pks, insertRecordEvent.getAfter());
 				writeModel = new UpdateManyModel<>(pkFilter, new Document().append(operation, insertRecordEvent.getAfter()), options);
 			} else {
 				writeModel = new InsertOneModel<>(new Document(insertRecordEvent.getAfter()));
@@ -141,6 +143,7 @@ public class MongodbWriter {
 			if (ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(mongodbConfig.getUpdateDmlPolicy())) {
 				options.upsert(false);
 			}
+			MongodbUtil.removeIdIfNeed(pks, after);
 			writeModel = new UpdateManyModel<>(pkFilter, new Document().append("$set", after), options);
 			updated.incrementAndGet();
 		} else if (recordEvent instanceof TapDeleteRecordEvent && CollectionUtils.isNotEmpty(pks)) {
@@ -175,4 +178,6 @@ public class MongodbWriter {
 
 		return filter;
 	}
+
+
 }
