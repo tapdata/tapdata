@@ -43,7 +43,7 @@ public class ProxyMain {
 			}
 			biConsumer.accept(result, coreException);
 		})) {
-			biConsumer.accept(null, new CoreException(NetErrors.ENGINE_MESSAGE_CALL_LOCAL_FAILED, "Call local failed"));
+			biConsumer.accept(null, new CoreException(NetErrors.ENGINE_MESSAGE_CALL_LOCAL_FAILED, "Call RPCCall failed, no session available"));
 		}
 	}
 
@@ -53,7 +53,7 @@ public class ProxyMain {
 	}
 
 	private void handleCommandInfo(String nodeId, CommandInfo commandInfo, BiConsumer<Object, Throwable> biConsumer) {
-		engineMessageExecutionService.callLocal(commandInfo, (result, throwable) -> {
+		if(!engineMessageExecutionService.callLocal(commandInfo, (result, throwable) -> {
 			CoreException coreException = null;
 			if(throwable != null) {
 				if(throwable instanceof CoreException) {
@@ -63,6 +63,8 @@ public class ProxyMain {
 				}
 			}
 			biConsumer.accept(result, coreException);
-		});
+		})) {
+			biConsumer.accept(null, new CoreException(NetErrors.ENGINE_MESSAGE_CALL_LOCAL_FAILED, "Call command failed, no session available"));
+		}
 	}
 }

@@ -131,7 +131,7 @@ public class EngineMessageExecutionServiceImpl implements EngineMessageExecution
 			while ((index = randomDraw.next()) != -1) {
 				String id = list.get(index);
 				NodeConnection nodeConnection = nodeConnectionFactory.getNodeConnection(id);
-				if (nodeConnection != null && nodeConnection.isReady()) {
+				if (nodeConnection != null && nodeConnection.isReady() && nodeHealthManager.getAliveNode(id) != null) {
 					try {
 						//noinspection unchecked
 						T response = nodeConnection.send(type, engineMessage, tClass);
