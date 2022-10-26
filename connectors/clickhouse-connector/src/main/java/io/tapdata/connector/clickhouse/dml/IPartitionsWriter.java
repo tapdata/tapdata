@@ -11,7 +11,7 @@ import java.util.function.Supplier;
  */
 public interface IPartitionsWriter<CTX, E extends TapRecordEvent, R, T extends IWriter<E, R>> extends AutoCloseable {
 
-    T partition(CTX jdbcContext, TapTable tapTable, Supplier<Boolean> isRunning) throws Exception;
+    T partition(CTX jdbcContext, Supplier<Boolean> isRunning) throws Exception;
 
     void setInsertPolicy(String insertPolicy);
 

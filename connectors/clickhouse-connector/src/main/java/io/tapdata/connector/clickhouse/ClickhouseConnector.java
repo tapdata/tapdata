@@ -266,16 +266,15 @@ public class ClickhouseConnector extends ConnectorBase {
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>();
-        TapTableWriter instance = clickhouseWriter.partition(clickhouseJdbcContext, tapTable, this::isAlive);
+        TapTableWriter instance = clickhouseWriter.partition(clickhouseJdbcContext, this::isAlive);
         for (TapRecordEvent event : tapRecordEvents) {
             if (!isAlive()) {
                 throw new InterruptedException("node not alive");
             }
-            instance.addBath(event, writeListResult);
+            instance.addBath(tapTable, event, writeListResult);
         }
         instance.summit(writeListResult);
         consumer.accept(writeListResult);
-        instance.optimizeTable(); // 去除重复数据
     }
 
     //需要改写成ck的创建索引方式
