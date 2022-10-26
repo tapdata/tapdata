@@ -35,7 +35,7 @@ jobs:
       - name: Set env
         run: |
           message=`git log -1 --pretty=%B`
-          echo "COMMIT_MESSAGE=$message" >> $GITHUB_ENV
+          echo "COMMIT_MESSAGE="$message"" >> $GITHUB_ENV
       - name: check commit message
         id: check-style
         if: (!startsWith(env.COMMIT_MESSAGE, 'feat')) && 
