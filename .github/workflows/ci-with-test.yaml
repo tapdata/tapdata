@@ -124,7 +124,6 @@ jobs:
           cd tapshell && pip3 install . && cd ..
           cd auto-test && pip3 install -r requirements.txt && cd -
           cd auto-test && chmod +x ./test.sh && bash ./test.sh
-          ls -al /tmp/fail
       - name: Setup Poetry
         uses: Gr1N/setup-poetry@v7
       - name: publish pip package if push
