@@ -1,0 +1,271 @@
+{
+  "uid" : "80b1bc1a4733eee5",
+  "name" : "create mongodb datasource with form",
+  "fullName" : "test_datasource.TestDataSource#test_create_datasource_by_form",
+  "historyId" : "ddf870f23649642ae2268b7cafe0abf6",
+  "time" : {
+    "start" : 1666770121542,
+    "stop" : 1666770126780,
+    "duration" : 5238
+  },
+  "status" : "failed",
+  "statusMessage" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+  "statusTrace" : "self = <test.test_datasource.TestDataSource object at 0x7f7ead934790>\n\n    @allure.title(\"create mongodb datasource with form\")\n    def test_create_datasource_by_form(self):\n        ds = DataSource(\"mongodb\", name=f\"form_{random_str()}\")\n        ds.host(env['database_1.HOST']).database(env['database_1.DB']).user(env['database_1.USERNAME']) \\\n            .password(env['database_1.PASSWORD']).additionalString(env['database_1.PROPS'])\n        assert ds.save()\n>       assert ds.status() == \"ready\"\nE       AssertionError: assert 'invalid' == 'ready'\nE         - ready\nE         + invalid\n\ntest_datasource.py:29: AssertionError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "failed",
+    "statusMessage" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+    "statusTrace" : "self = <test.test_datasource.TestDataSource object at 0x7f7ead934790>\n\n    @allure.title(\"create mongodb datasource with form\")\n    def test_create_datasource_by_form(self):\n        ds = DataSource(\"mongodb\", name=f\"form_{random_str()}\")\n        ds.host(env['database_1.HOST']).database(env['database_1.DB']).user(env['database_1.USERNAME']) \\\n            .password(env['database_1.PASSWORD']).additionalString(env['database_1.PROPS'])\n        assert ds.save()\n>       assert ds.status() == \"ready\"\nE       AssertionError: assert 'invalid' == 'ready'\nE         - ready\nE         + invalid\n\ntest_datasource.py:29: AssertionError",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "806bead8dcb84666",
+      "name" : "stdout",
+      "source" : "806bead8dcb84666.txt",
+      "type" : "text/plain",
+      "size" : 412
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : true,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "bee0938508b1"
+  }, {
+    "name" : "thread",
+    "value" : "953-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Product defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "history" : {
+      "statistic" : {
+        "failed" : 63,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 0,
+        "unknown" : 0,
+        "total" : 63
+      },
+      "items" : [ {
+        "uid" : "c33c1ac12166da6d",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666767891830,
+          "stop" : 1666767896960,
+          "duration" : 5130
+        }
+      }, {
+        "uid" : "940a996bd5cbcabd",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666765181687,
+          "stop" : 1666765186834,
+          "duration" : 5147
+        }
+      }, {
+        "uid" : "48e1bddd37f3b25f",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666758826174,
+          "stop" : 1666758831325,
+          "duration" : 5151
+        }
+      }, {
+        "uid" : "e888382075799c64",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666757323910,
+          "stop" : 1666757329063,
+          "duration" : 5153
+        }
+      }, {
+        "uid" : "7e67460bc1c7bbc5",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666754866649,
+          "stop" : 1666754871830,
+          "duration" : 5181
+        }
+      }, {
+        "uid" : "b13ce30693b5cf43",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666708001866,
+          "stop" : 1666708007063,
+          "duration" : 5197
+        }
+      }, {
+        "uid" : "df4cf1b158c8e5e",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666705420766,
+          "stop" : 1666705425932,
+          "duration" : 5166
+        }
+      }, {
+        "uid" : "cfaa8425f4af8134",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666695208088,
+          "stop" : 1666695213241,
+          "duration" : 5153
+        }
+      }, {
+        "uid" : "b7c7d19183a87783",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666693901136,
+          "stop" : 1666693906254,
+          "duration" : 5118
+        }
+      }, {
+        "uid" : "8e37a4f835f9de38",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666690369139,
+          "stop" : 1666690374345,
+          "duration" : 5206
+        }
+      }, {
+        "uid" : "130dff42cf01c1af",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666685611814,
+          "stop" : 1666685616953,
+          "duration" : 5139
+        }
+      }, {
+        "uid" : "74bbf8d93dfb416f",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666682904063,
+          "stop" : 1666682909227,
+          "duration" : 5164
+        }
+      }, {
+        "uid" : "c9c48e3578adb3d2",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666672105226,
+          "stop" : 1666672110357,
+          "duration" : 5131
+        }
+      }, {
+        "uid" : "afbf6f23ec1ac0ad",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666670658629,
+          "stop" : 1666670663762,
+          "duration" : 5133
+        }
+      }, {
+        "uid" : "3bbd6ec059d6d57e",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666669653626,
+          "stop" : 1666669658795,
+          "duration" : 5169
+        }
+      }, {
+        "uid" : "2a532cfbfbb14525",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666668741194,
+          "stop" : 1666668746299,
+          "duration" : 5105
+        }
+      }, {
+        "uid" : "2ee84976a3c8ddfe",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666667453209,
+          "stop" : 1666667458299,
+          "duration" : 5090
+        }
+      }, {
+        "uid" : "106cd900dcec72b4",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666664380205,
+          "stop" : 1666664385376,
+          "duration" : 5171
+        }
+      }, {
+        "uid" : "ee4a8b6b45395a94",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666622386693,
+          "stop" : 1666622391821,
+          "duration" : 5128
+        }
+      }, {
+        "uid" : "2d40547efeb08987",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1666615328563,
+          "stop" : 1666615333742,
+          "duration" : 5179
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "80b1bc1a4733eee5.json",
+  "parameterValues" : [ ]
+}
