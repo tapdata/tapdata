@@ -88,6 +88,8 @@ public class DataSourceDefinitionDto extends BaseDto {
 
     private List<Capability> capabilities;
 
+    private Boolean beta;
+
 
     public String calculatePdkHash(String customerId){
         List<String> input = new ArrayList<>();
