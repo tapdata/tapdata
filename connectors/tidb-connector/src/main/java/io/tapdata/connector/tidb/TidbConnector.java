@@ -342,7 +342,7 @@ public class TidbConnector extends ConnectorBase {
         consumer.accept(testConnection);
     }
 
-    private static String toHHmmss ( long time){
+    private static String toHHmmss(long time) {
         String timeTemp;
         int hours = (int) (time % (1000 * 60 * 60 * 24) / (1000 * 60 * 60));
         int minutes = (int) (time % (1000 * 60 * 60) / (1000 * 60));
