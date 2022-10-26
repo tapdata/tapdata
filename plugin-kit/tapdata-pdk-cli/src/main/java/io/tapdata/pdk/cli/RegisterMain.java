@@ -35,10 +35,9 @@ public class RegisterMain {
 //        Mariadb(BASE_PATH + "connectors/dist/mariadb-connector-v1.0-SNAPSHOT.jar", false, "all", "mariadb"),
 //        Coding(BASE_PATH + "connectors/dist/coding-connector-v1.0-SNAPSHOT.jar", false, "all", "coding"),
 //        ZoHo(BASE_PATH + "connectors/dist/zoho-connector-v1.0-SNAPSHOT.jar", false, "all", "zoho"),
-//        Tidb(BASE_PATH + "connectors/dist/tidb-connector-v1.0-SNAPSHOT.jar", false, "all", "tidb"),
+        Tidb(BASE_PATH + "connectors/dist/tidb-connector-v1.0-SNAPSHOT.jar", true, "all", "tidb"),
 //        Tablestore(BASE_PATH + "connectors/dist/tablestore-connector-v1.0-SNAPSHOT.jar", false, "all", "tablestore"),
-//        Custom(BASE_PATH + "connectors/dist/custom-connector-v1.0-SNAPSHOT.jar", false, "all", "custom"),
-        HuaWeiRds(BASE_PATH + "connectors/dist/huawei-cloud-rds-mysql-connector-v1.0-SNAPSHOT.jar", true, "all", "jdbc"),
+//        Custom(BASE_PATH + "connectors/dist/custom-connector-v1.0-SNAPSHOT.jar", false, "all", "custom"),//       HuaWeiRds(BASE_PATH + "connectors/dist/huawei-cloud-rds-mysql-connector-v1.0-SNAPSHOT.jar", true, "all", "jdbc"),
         ;
 
         private final String path;
@@ -96,8 +95,9 @@ public class RegisterMain {
 
         List<String> postList = new ArrayList<>();
         List<String> postBetaList;
-        //String server = System.getProperty("server", "https://v3.test.cloud.tapsdata.net/tm");
+        //String server = System.getProperty("server", "https://v3.test.cloud.tapdata.net/tm");
         String server = System.getProperty("server", "http://localhost:3000");
+        //String server = System.getProperty("server", "http://192.168.1.189:30205");
         Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "", "-t", server);
 
         postBetaList = new ArrayList<>(postList);

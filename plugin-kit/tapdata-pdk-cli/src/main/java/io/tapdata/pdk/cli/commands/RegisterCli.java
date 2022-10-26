@@ -37,7 +37,7 @@ public class RegisterCli extends CommonCli {
     @CommandLine.Option(names = {"-l", "--latest"}, required = false, defaultValue = "true", description = "whether replace the latest version")
     private boolean latest;
 
-    @CommandLine.Option(names = {"-a", "--auth"}, required = true, description = "Provide auth token to register")
+    @CommandLine.Option(names = {"-a", "--auth"}, required = false, description = "Provide auth token to register")
     private String authToken;
 
     @CommandLine.Option(names = {"-ak", "--accessKey"}, required = false, description = "Provide auth accessKey")

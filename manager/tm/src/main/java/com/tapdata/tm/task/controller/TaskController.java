@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONArray;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.google.gson.reflect.TypeToken;
+import com.networknt.schema.ValidationResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
@@ -439,6 +440,11 @@ public class TaskController extends BaseController {
             Document _body = new Document();
             _body.put("$set", update);
             update = _body;
+        } else if (update.containsKey("$set")) {
+           Document ping = (Document) update.get("$set");
+           if (ping.containsKey("pingTime")) {
+               ping.put("pingTime", System.currentTimeMillis());
+           }
         }
 
         long count = taskService.updateByWhere(where, update, getLoginUser());
