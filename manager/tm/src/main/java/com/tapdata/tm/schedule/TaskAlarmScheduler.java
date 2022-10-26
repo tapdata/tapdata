@@ -403,15 +403,14 @@ public class TaskAlarmScheduler {
             if (count >= alarmRuleDto.getPoint()) {
                 String summary;
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
+                alarmInfo.setStatus(AlarmStatusEnum.ING);
                 if (first.isPresent()) {
                     AlarmInfo data = first.get();
                     alarmInfo.setId(data.getId());
-                    alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
 
                     long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
                     summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_ALWAYS, alarmRuleDto.getMs(), continued, delay, DateUtil.now(), flag);
                 } else {
-                    alarmInfo.setStatus(AlarmStatusEnum.ING);
                     summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_START, alarmRuleDto.getMs(), delay, DateUtil.now(), flag);
                     Map<String, Object> param = Maps.newHashMap();
                     param.put("time", delay);
