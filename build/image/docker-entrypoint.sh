@@ -2,7 +2,7 @@
 
 start_mongo() {
     mkdir -p /tapdata/data/logs
-    mongod --dbpath=/tapdata/data/db/ --replSet=rs0 --bind_ip_all --logpath=/tapdata/data/logs/mongod.log --fork
+    mongod --dbpath=/tapdata/data/db/ --replSet=rs0 --wiredTigerCacheSizeGB=1 --bind_ip_all --logpath=/tapdata/data/logs/mongod.log --fork
     while [[ 1 ]]; do
         mongo --quiet --eval "db" &> /dev/null
         if [[ $? -eq 0 ]]; then
@@ -52,11 +52,13 @@ start_server() {
     if [[ "x"$mode == "xuse" ]]; then
         cd /tapdata/apps/tapshell
         bash register-all-connectors.sh
+        echo "register_connector_complete !"
     fi
 
     if [[ "x"$mode == "xtest" ]]; then
         cd /tapdata-source/tapshell
         bash register-all-connectors.sh
+        echo "register_connector_complete !"
         cp ../build/test.sh ./
         cp -r ../build/test ./
         chmod u+x test.sh
