@@ -1,0 +1,253 @@
+{
+  "uid" : "86f1402239997442",
+  "name" : "create Kafka datasource with form",
+  "fullName" : "test_datasource.TestDataSource#test_kafka",
+  "historyId" : "93cd385d45fab8e0a4ef410091f20aa6",
+  "time" : {
+    "start" : 1666757354592,
+    "stop" : 1666757354593,
+    "duration" : 1
+  },
+  "status" : "broken",
+  "statusMessage" : "AttributeError: item not found in .env file or env",
+  "statusTrace" : "self = <test.Args object at 0x7f83bf9620d0>, item = 'kafka.HOST'\n\n    def __getitem__(self, item) -> T:\n    \n        try:\n            key_1, key_2 = item.split(SEP)\n>           result = self.get_value(key_1)[key_2]\n\n__init__.py:32: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ncls = <class 'test.Args'>, k = 'kafka'\n\n    @classmethod\n    def get_value(cls, k):\n>       return cls._ini_read[k]\n\n__init__.py:41: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <configparser.ConfigParser object at 0x7f83bf959350>, key = 'kafka'\n\n    def __getitem__(self, key):\n        if key != self.default_section and not self.has_section(key):\n>           raise KeyError(key)\nE           KeyError: 'kafka'\n\n/usr/lib/python3.7/configparser.py:958: KeyError\n\nDuring handling of the above exception, another exception occurred:\n\nself = <test.test_datasource.TestDataSource object at 0x7f83bdba6750>\n\n    @allure.title(\"create Kafka datasource with form\")\n    def test_kafka(self):\n        test_ds = DataSource(\"kafka\", f\"test_kafka_{random_str()}\")\n>       test_ds.nameSrvAddr(env['kafka.HOST'])\n\ntest_datasource.py:65: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <test.Args object at 0x7f83bf9620d0>, item = 'kafka.HOST'\n\n    def __getitem__(self, item) -> T:\n    \n        try:\n            key_1, key_2 = item.split(SEP)\n            result = self.get_value(key_1)[key_2]\n        except KeyError:\n            if not os.getenv(item):\n>               raise AttributeError(\"item not found in .env file or env\")\nE               AttributeError: item not found in .env file or env\n\n__init__.py:35: AttributeError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "30e506acd061"
+  }, {
+    "name" : "thread",
+    "value" : "953-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Test defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 59,
+        "skipped" : 0,
+        "passed" : 0,
+        "unknown" : 0,
+        "total" : 59
+      },
+      "items" : [ {
+        "uid" : "27b9c27b63893c38",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666754897631,
+          "stop" : 1666754897632,
+          "duration" : 1
+        }
+      }, {
+        "uid" : "a845528d9c1127c9",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666708032669,
+          "stop" : 1666708032669,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "abb4ad1f3a816764",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666705451517,
+          "stop" : 1666705451518,
+          "duration" : 1
+        }
+      }, {
+        "uid" : "81790ddf51162c5e",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666695238703,
+          "stop" : 1666695238704,
+          "duration" : 1
+        }
+      }, {
+        "uid" : "974447d64c4aba34",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666693931779,
+          "stop" : 1666693931780,
+          "duration" : 1
+        }
+      }, {
+        "uid" : "536469d0f97aa4b1",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666690400105,
+          "stop" : 1666690400106,
+          "duration" : 1
+        }
+      }, {
+        "uid" : "17a476ba1a527a7d",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666685642464,
+          "stop" : 1666685642464,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "2dc5b0cb179408c5",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666682934754,
+          "stop" : 1666682934754,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "b20220cd6cbe74f9",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666672135803,
+          "stop" : 1666672135803,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "f5571452cff6d68e",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666670689164,
+          "stop" : 1666670689164,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "d152205d135d3e8d",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666669684441,
+          "stop" : 1666669684441,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "cbe6bf5e890c9d5f",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666668771716,
+          "stop" : 1666668771716,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "c5d595cfd4c135ba",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666667483667,
+          "stop" : 1666667483668,
+          "duration" : 1
+        }
+      }, {
+        "uid" : "edada1837b5f61b5",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666664410931,
+          "stop" : 1666664410931,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "40603788eca4b96",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666622417228,
+          "stop" : 1666622417228,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "e4cdb4fcc69b14b6",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666615359328,
+          "stop" : 1666615359329,
+          "duration" : 1
+        }
+      }, {
+        "uid" : "d93d12e72682328a",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666609988126,
+          "stop" : 1666609988126,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "2e949d618a55d385",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666607414922,
+          "stop" : 1666607414923,
+          "duration" : 1
+        }
+      }, {
+        "uid" : "6a9887e10c6cec8a",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666604365765,
+          "stop" : 1666604365765,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "a97eeb097370f752",
+        "status" : "broken",
+        "statusDetails" : "AttributeError: item not found in .env file or env",
+        "time" : {
+          "start" : 1666601999960,
+          "stop" : 1666601999960,
+          "duration" : 0
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "86f1402239997442.json",
+  "parameterValues" : [ ]
+}
