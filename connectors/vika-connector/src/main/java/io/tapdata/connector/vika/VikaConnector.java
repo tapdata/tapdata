@@ -12,6 +12,7 @@ import cn.vika.client.api.model.field.property.TextFieldProperty;
 import cn.vika.client.api.model.field.property.option.DateFormatEnum;
 import cn.vika.client.api.model.field.property.option.PrecisionEnum;
 import cn.vika.client.api.model.field.property.option.TimeFormatEnum;
+import cn.vika.core.utils.CollectionUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.tapdata.base.ConnectorBase;
@@ -43,13 +44,11 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -63,8 +62,10 @@ public class VikaConnector extends ConnectorBase {
     private volatile FieldApi fieldApi;
     private String spaceId;
 
+    private final Integer groupNum = 10;
+
     // {api: {count: 5, time:45395435345}}
-    private final Map<String, Pair<Integer, Long>> limitMap = new ConcurrentHashMap<>();
+//    private final Map<String, Pair<Integer, Long>> limitMap = new ConcurrentHashMap<>();
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -296,115 +297,190 @@ public class VikaConnector extends ConnectorBase {
         return createTableOptions;
     }
 
+    /**
+     * 频率限制
+     * 同一个用户对同一张表的 API 请求频率上限为 5 次/秒。
+     * 请求频率超过限制时，会提示错误“操作太频繁”（错误状态码 429）。
+     * 接口限制
+     * 获取记录接口：一次最多获取 1000 行记录。
+     * 比如想批量获取 10000 行记录，至少需要调用 10 次获取记录接口。
+     * 创建记录接口：一次最多创建 10 行记录。
+     * 比如想批量创建 1000 行记录，至少需要调用 100 次创建记录接口。
+     * 更新记录接口：一次最多更新 10 行记录。
+     * 比如想批量更新 1000 行记录，至少需要调用 100 次更新记录接口。
+     * 删除记录接口：一次最多删除 10 行记录。
+     * 比如想批量删除 1000 行记录，至少需要调用 100 次删除记录接口。
+     * 上传附件接口：一次只可上传 1 个附件。
+     * 如果需要上传多份文件，需要重复调用此接口。
+     *
+     */
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
         String tableId = tapTable.getId();
         List<Node> nodes = vikaApiClient.getNodeApi().getNodes(spaceId);
         Node nodeTemp = nodes.stream().filter(node -> tableId.equals(node.getName())).findAny().orElse(null);
         boolean match = Objects.nonNull(nodeTemp);
         if (match) {
+            if (tapRecordEvents.size() > 4) {
+//                Thread.sleep(1000);
+            }
+
             String datasheetId = nodeTemp.getId();
             WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
-            long insertCount = 0L;
-            long updateCount = 0L;
-            long deleteCount = 0L;
+            AtomicInteger insertCount = new AtomicInteger(0);
+            AtomicInteger updateCount = new AtomicInteger(0);
+            AtomicInteger deleteCount = new AtomicInteger(0);
 
-            List<List<TapRecordEvent>> partition = Lists.partition(tapRecordEvents, 4);
+            Map<Integer, List<TapRecordEvent>> listMap = tapRecordEvents.stream().collect(Collectors.groupingBy(TapRecordEvent::getType));
+            for (Map.Entry<Integer, List<TapRecordEvent>> entry : listMap.entrySet()) {
+                if (TapInsertRecordEvent.TYPE == entry.getKey()) {
+                    List<TapInsertRecordEvent> collect = entry.getValue().stream().map(event -> (TapInsertRecordEvent) event).collect(Collectors.toList());
+                    List<List<TapInsertRecordEvent>> partition = Lists.partition(collect, groupNum);
+                    for (int i = 1; i <= partition.size(); i++) {
+                        if (i % 5 == 0) {
+//                            Thread.sleep(1000);
+                        }
 
-            for (List<TapRecordEvent> recordEvents : partition) {
-                for (TapRecordEvent recordEvent : recordEvents) {
-                    if (recordEvent instanceof TapInsertRecordEvent) {
-                        TapInsertRecordEvent event = (TapInsertRecordEvent) recordEvent;
-                        Map<String, Object> after = event.getAfter();
+                        List<TapInsertRecordEvent> insertRecordEvents = partition.get(i-1);
 
                         List<RecordMap> records = Lists.newArrayList();
-                        RecordMap recordMap = new RecordMap();
-                        for (Map.Entry<String, Object> entry : after.entrySet()) {
-                            String fieldName = entry.getKey();
-                            Object value = entry.getValue();
+                        for (TapInsertRecordEvent event : insertRecordEvents) {
+                            Map<String, Object> after = event.getAfter();
 
                             Map<String, Object> fields = Maps.newHashMap();
-                            fields.put(fieldName, value);
-                            recordMap.withFields(fields);
+                            for (Map.Entry<String, Object> ent : after.entrySet()) {
+                                String fieldName = ent.getKey();
+                                Object value = ent.getValue();
+                                fields.put(fieldName, value);
+                            }
+
+                            records.add(new RecordMap().withFields(fields));
                         }
-                        records.add(recordMap);
 
                         CreateRecordRequest record = new CreateRecordRequest();
                         record.setFieldKey(FieldKey.Name);
-                        record.setRecords(records);
+                        record.setRecords(Lists.newArrayList(records));
 
                         try {
                             vikaApiClient.getRecordApi().addRecords(datasheetId, record);
-                            insertCount ++;
+                            insertCount.addAndGet(records.size());
                         } catch (Exception e) {
-                            listResult.addError(recordEvent, e);
+                            listResult.addError(insertRecordEvents.get(0), e);
                         }
-                    } else if (recordEvent instanceof TapUpdateRecordEvent) {
-                        TapUpdateRecordEvent event = (TapUpdateRecordEvent) recordEvent;
-                        Map<String, Object> after = event.getAfter();
+                    }
 
-                        List<UpdateRecord> records = Lists.newArrayList();
-                        UpdateRecord updateRecord = new UpdateRecord();
-                        for (Map.Entry<String, Object> entry : after.entrySet()) {
-                            String fieldName = entry.getKey();
-                            Object value = entry.getValue();
+                } else if (TapUpdateRecordEvent.TYPE == entry.getKey()) {
+                    List<TapUpdateRecordEvent> collect = entry.getValue().stream().map(event -> (TapUpdateRecordEvent) event).collect(Collectors.toList());
 
-                            updateRecord.withField(fieldName, value);
+                    List<UpdateRecord> recordList = Lists.newArrayList();
+                    for (int i = 1; i <= collect.size(); i++) {
+                        if (i % 3 == 0) {
+//                            Thread.sleep(1000);
                         }
-                        records.add(updateRecord);
 
-                        UpdateRecordRequest record = new UpdateRecordRequest();
-                        record.setFieldKey(FieldKey.Name);
-                        record.setRecords(records);
-
-                        try {
-                            vikaApiClient.getRecordApi().updateRecords(tableId, record);
-                            insertCount ++;
-                        } catch (Exception e) {
-                            listResult.addError(recordEvent, e);
-                        }
-                    } else if (recordEvent instanceof TapDeleteRecordEvent) {
-                        TapDeleteRecordEvent event = (TapDeleteRecordEvent) recordEvent;
+                        TapUpdateRecordEvent event = collect.get(i-1);
                         Map<String, Object> before = event.getBefore();
 
                         List<String> querys = Lists.newArrayList();
-                        for (Map.Entry<String, Object> entry : before.entrySet()) {
-                            String key = entry.getKey();
-                            Object value = entry.getValue();
-                            StringJoiner joiner = new StringJoiner("=", key, "\"" + value.toString() + "\"");
-                            querys.add(joiner.toString());
+                        for (Map.Entry<String, Object> ent : before.entrySet()) {
+                            String key = ent.getKey();
+                            Object value = ent.getValue();
+                            querys.add(key + "=\"" + value.toString() + "\"");
+                        }
+
+                        int first = 1;
+                        ApiQueryParam queryParam = new ApiQueryParam(first, 1000);
+                        queryParam.withFilter(StringUtils.join(querys, "&&"));
+                        Pager<Record> recordPager = vikaApiClient.getRecordApi().getRecords(datasheetId, queryParam);
+                        List<Record> all = recordPager.all();
+                        while (first < recordPager.getTotalPages()) {
+                            if (first % 5 == 0) {
+//                                Thread.sleep(1000);
+                            }
+
+                            first ++;
+                            ApiQueryParam quertTemp = new ApiQueryParam(first, 1000);
+                            quertTemp.withFilter(StringUtils.join(querys, "&&"));
+                            Pager<Record> recordPagerTemp = vikaApiClient.getRecordApi().getRecords(datasheetId, quertTemp);
+                            all.addAll(recordPagerTemp.all());
+                        }
+
+                        Map<String, Object> after = event.getAfter();
+                        all.forEach(l -> {
+                            UpdateRecord updateRecord = new UpdateRecord();
+                            updateRecord.withRecordId(l.getRecordId());
+                            updateRecord.setFields(after);
+                            recordList.add(updateRecord);
+                        });
+                    }
+
+                    List<List<UpdateRecord>> partition = Lists.partition(recordList, 10);
+                    for (int i = 1; i <= partition.size(); i++) {
+                        if (i % 5 == 0) {
+//                            Thread.sleep(1000);
+                        }
+                        UpdateRecordRequest request = new UpdateRecordRequest();
+                        request.setFieldKey(FieldKey.Name);
+                        request.setRecords(partition.get(i -1));
+
+                        try {
+                            vikaApiClient.getRecordApi().updateRecords(datasheetId, request);
+                            updateCount.addAndGet(request.getRecords().size());
+                        } catch (Exception e) {
+                            listResult.addError(collect.get(0), e);
+                        }
+                    }
+
+                } else if (TapDeleteRecordEvent.TYPE == entry.getKey()) {
+                    List<TapDeleteRecordEvent> collect = entry.getValue().stream().map(event -> (TapDeleteRecordEvent) event).collect(Collectors.toList());
+
+                    for (int i = 1; i <= collect.size(); i++) {
+                        if (i % 3 == 0) {
+//                            Thread.sleep(1000);
+                        }
+
+                        TapDeleteRecordEvent event = collect.get(i-1);
+                        Map<String, Object> before = event.getBefore();
+
+                        List<String> querys = Lists.newArrayList();
+                        for (Map.Entry<String, Object> ent : before.entrySet()) {
+                            String key = ent.getKey();
+                            Object value = ent.getValue();
+                            querys.add(key + "=\"" + value.toString() + "\"");
                         }
 
                         ApiQueryParam queryParam = new ApiQueryParam();
                         queryParam.withFilter(StringUtils.join(querys, "&&"));
-                        Pager<Record> records = vikaApiClient.getRecordApi().getRecords(tableId, queryParam);
+                        Pager<Record> records = vikaApiClient.getRecordApi().getRecords(datasheetId, queryParam);
                         if (records.getTotalItems() > 0) {
                             try {
                                 List<String> recordList = records.stream().map(Record::getRecordId).collect(Collectors.toList());
-                                vikaApiClient.getRecordApi().deleteRecords(tableId, recordList);
-                                insertCount ++;
+                                List<List<String>> splitList = CollectionUtil.splitListParallel(recordList, 10);
+                                splitList.forEach(list -> {
+                                    vikaApiClient.getRecordApi().deleteRecords(datasheetId, list);
+                                    deleteCount.addAndGet(list.size());
+                                });
                             } catch (Exception e) {
-                                listResult.addError(recordEvent, e);
+                                listResult.addError(event, e);
                             }
                         }
                     }
-                }
 
-                Thread.sleep(900);
+                }
             }
 
-
-            writeListResultConsumer.accept(listResult.insertedCount(insertCount)
-                    .modifiedCount(updateCount)
-                    .removedCount(deleteCount));
+            writeListResultConsumer.accept(listResult.insertedCount(insertCount.get())
+                    .modifiedCount(updateCount.get())
+                    .removedCount(deleteCount.get()));
         }
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
         String tableId = tapClearTableEvent.getTableId();
-        vikaApiClient.getRecordApi().deleteAllRecords(tableId);
-    }
-
-    private void calculateApiLimit(String datasheetId) {
-
+        List<Node> nodes = vikaApiClient.getNodeApi().getNodes(spaceId);
+        Node nodeTemp = nodes.stream().filter(node -> tableId.equals(node.getName())).findAny().orElse(null);
+        boolean match = Objects.nonNull(nodeTemp);
+        if (match) {
+            vikaApiClient.getRecordApi().deleteAllRecords(nodeTemp.getId());
+        }
     }
 }
