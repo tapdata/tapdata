@@ -1,0 +1,191 @@
+[ {
+  "uid" : "33a818591f743f1a",
+  "name" : "test get job status",
+  "time" : {
+    "start" : 1666774293207,
+    "stop" : 1666774293216,
+    "duration" : 9
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "f3a69051ca08ea9",
+  "name" : "test_check",
+  "time" : {
+    "start" : 1666774293234,
+    "stop" : 1666774293241,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "f022bd953f8143b",
+  "name" : "real time table sync between mongodb",
+  "time" : {
+    "start" : 1666774293097,
+    "stop" : 1666774293107,
+    "duration" : 10
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "da46dee626ba7cad",
+  "name" : "create datasource with mongodb uri",
+  "time" : {
+    "start" : 1666774257170,
+    "stop" : 1666774262509,
+    "duration" : 5339
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "7d0fd95dfdfd25a5",
+  "name" : "rename column in sync",
+  "time" : {
+    "start" : 1666774293135,
+    "stop" : 1666774293142,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "4dd2e2cbdfe593ac",
+  "name" : "test stop job",
+  "time" : {
+    "start" : 1666774293196,
+    "stop" : 1666774293202,
+    "duration" : 6
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "5681673bcdd8ee38",
+  "name" : "filter column in sync",
+  "time" : {
+    "start" : 1666774293123,
+    "stop" : 1666774293130,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "bc5cca611fc63979",
+  "name" : "test monitor job status",
+  "time" : {
+    "start" : 1666774293221,
+    "stop" : 1666774293229,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "da4f68746cf81131",
+  "name" : "table merge in sync",
+  "time" : {
+    "start" : 1666774293161,
+    "stop" : 1666774293168,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "c890ec6df30482a4",
+  "name" : "create PG datasource with form",
+  "time" : {
+    "start" : 1666774282926,
+    "stop" : 1666774293042,
+    "duration" : 10116
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "7a0e59b3f95d0855",
+  "name" : "test mysql form valid",
+  "time" : {
+    "start" : 1666774277826,
+    "stop" : 1666774282922,
+    "duration" : 5096
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "5967381be7281c8e",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1666774293147,
+    "stop" : 1666774293155,
+    "duration" : 8
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "edfe6afe5bb72fc9",
+  "name" : "filter row in sync",
+  "time" : {
+    "start" : 1666774293112,
+    "stop" : 1666774293118,
+    "duration" : 6
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "2d2e801b2895188f",
+  "name" : "config job",
+  "time" : {
+    "start" : 1666774293185,
+    "stop" : 1666774293191,
+    "duration" : 6
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "cf15c50d31defc05",
+  "name" : "create mongodb datasource with form",
+  "time" : {
+    "start" : 1666774262547,
+    "stop" : 1666774267633,
+    "duration" : 5086
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "94d39dd58172a7f3",
+  "name" : "create mongodb datasource with uri",
+  "time" : {
+    "start" : 1666774267637,
+    "stop" : 1666774277823,
+    "duration" : 10186
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "e0231874b53c61c8",
+  "name" : "real time database migrate between mongodb",
+  "time" : {
+    "start" : 1666774293065,
+    "stop" : 1666774293092,
+    "duration" : 27
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "e8341f2b4a8aba3d",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1666774293173,
+    "stop" : 1666774293180,
+    "duration" : 7
+  },
+  "status" : "broken",
+  "severity" : "normal"
+}, {
+  "uid" : "59a366e485e563f5",
+  "name" : "create Kafka datasource with form",
+  "time" : {
+    "start" : 1666774293045,
+    "stop" : 1666774293046,
+    "duration" : 1
+  },
+  "status" : "broken",
+  "severity" : "normal"
+} ]
