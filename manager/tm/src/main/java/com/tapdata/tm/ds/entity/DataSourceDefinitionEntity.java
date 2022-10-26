@@ -92,4 +92,5 @@ public class DataSourceDefinitionEntity extends BaseEntity {
     private LinkedHashMap<String, Object> messages;
 
     private List<Capability> capabilities;
+    private Boolean beta;
 }
