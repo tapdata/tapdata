@@ -23,7 +23,6 @@ import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.proxy.ProxyObject;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -115,12 +114,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     Map<String, Object> context = this.processContextThreadLocal.get();
     context.putAll(contextMap);
     ((ScriptEngine) this.engine).put("context", context);
-    Object obj;
-    if (engine instanceof GraalJSScriptEngine) {
-      obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, ProxyObject.fromMap(record));
-    } else {
-      obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record);
-    }
+    Object obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record);
     context.clear();
 
     if (obj == null) {
