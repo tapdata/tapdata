@@ -43,8 +43,7 @@ import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -77,6 +76,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private int cdcConcurrentWriteNum;
 	private PartitionConcurrentProcessor initialPartitionConcurrentProcessor;
 	private PartitionConcurrentProcessor cdcPartitionConcurrentProcessor;
+	private LinkedBlockingQueue<TapdataEvent> tapEventQueue;
+	private final ExecutorService queueConsumerThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), r -> {
+		Thread thread = new Thread(r);
+		thread.setName(String.format("Target-Queue-Consumer-%s[%s]", getNode().getName(), getNode().getId()));
+		return thread;
+	});
 	private boolean inCdc = false;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
@@ -133,46 +138,86 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (TaskDto.TYPE_INITIAL_SYNC.equals(type)) {
 			putInGlobalMap(getCompletedInitialKey(), false);
 		}
+		this.tapEventQueue = new LinkedBlockingQueue<>(dataProcessorContext.getTaskDto().getReadBatchSize() * 2);
+		this.queueConsumerThreadPool.submit(this::queueConsume);
 	}
 
 	@Override
 	final public void process(int ordinal, @NotNull Inbox inbox) {
 		try {
-			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			if (!inbox.isEmpty()) {
 				while (isRunning()) {
 					List<TapdataEvent> tapdataEvents = new ArrayList<>();
 					final int count = inbox.drainTo(tapdataEvents, dataProcessorContext.getTaskDto().getReadBatchSize());
 					if (count > 0) {
-						if (!inCdc) {
-							List<TapdataEvent> partialCdcEvents = new ArrayList<>();
-							final Iterator<TapdataEvent> iterator = tapdataEvents.iterator();
-							while (iterator.hasNext()) {
-								final TapdataEvent tapdataEvent = iterator.next();
-								if (tapdataEvent instanceof TapdataStartCdcEvent || inCdc) {
-									inCdc = true;
-									partialCdcEvents.add(tapdataEvent);
-									iterator.remove();
+						for (TapdataEvent tapdataEvent : tapdataEvents) {
+							while (isRunning()) {
+								if (tapEventQueue.offer(tapdataEvent, 1L, TimeUnit.SECONDS)) {
+									break;
 								}
 							}
-
-							// initial events and cdc events both in the queue
-							if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
-								initialProcessEvents(tapdataEvents, false);
-								// process partial cdc event
-								if (this.initialPartitionConcurrentProcessor != null) {
-									this.initialPartitionConcurrentProcessor.stop();
-								}
-								cdcProcessEvents(partialCdcEvents);
-							} else {
-								initialProcessEvents(tapdataEvents, true);
-							}
-						} else {
-							cdcProcessEvents(tapdataEvents);
 						}
 					} else {
 						break;
 					}
+				}
+			}
+		} catch (Throwable e) {
+			errorHandle(e, "Drain from inbox failed: " + e.getMessage());
+			throw sneakyThrow(e);
+		} finally {
+			ThreadContext.clearAll();
+		}
+	}
+
+	private void processTargetEvents(List<TapdataEvent> tapdataEvents) {
+		if (!inCdc) {
+			List<TapdataEvent> partialCdcEvents = new ArrayList<>();
+			final Iterator<TapdataEvent> iterator = tapdataEvents.iterator();
+			while (iterator.hasNext()) {
+				final TapdataEvent tapdataEvent = iterator.next();
+				if (tapdataEvent instanceof TapdataStartCdcEvent || inCdc) {
+					inCdc = true;
+					partialCdcEvents.add(tapdataEvent);
+					iterator.remove();
+				}
+			}
+
+			// initial events and cdc events both in the queue
+			if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
+				initialProcessEvents(tapdataEvents, false);
+				// process partial cdc event
+				if (this.initialPartitionConcurrentProcessor != null) {
+					this.initialPartitionConcurrentProcessor.stop();
+				}
+				cdcProcessEvents(partialCdcEvents);
+			} else {
+				initialProcessEvents(tapdataEvents, true);
+			}
+		} else {
+			cdcProcessEvents(tapdataEvents);
+		}
+	}
+
+	private void queueConsume() {
+		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
+		try {
+			List<TapdataEvent> tapdataEvents = new ArrayList<>();
+			long lastProcessTime = System.currentTimeMillis();
+			while (isRunning()) {
+				TapdataEvent tapdataEvent = tapEventQueue.poll();
+				if (null != tapdataEvent) {
+					tapdataEvents.add(tapdataEvent);
+				}
+				if (tapdataEvents.size() >= dataProcessorContext.getTaskDto().getReadBatchSize()) {
+					processTargetEvents(tapdataEvents);
+					tapdataEvents.clear();
+					lastProcessTime = System.currentTimeMillis();
+				}
+				if (System.currentTimeMillis() - lastProcessTime >= 2000 && CollectionUtils.isNotEmpty(tapdataEvents)) {
+					processTargetEvents(tapdataEvents);
+					tapdataEvents.clear();
+					lastProcessTime = System.currentTimeMillis();
 				}
 			}
 		} catch (Throwable e) {
@@ -493,6 +538,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 			CommonUtils.ignoreAnyError(() -> removeGlobalMap(getCompletedInitialKey()), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.queueConsumerThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
 		} finally {
 			super.doClose();
 		}

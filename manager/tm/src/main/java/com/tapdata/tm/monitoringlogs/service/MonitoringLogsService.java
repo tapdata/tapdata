@@ -34,6 +34,7 @@ import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -73,6 +74,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         List<MonitoringLogsEntity> monitoringLogsEntities = convertToEntity(MonitoringLogsEntity.class, monitoringLoges);
 
         for (MonitoringLogsEntity monitoringLogsEntity : monitoringLogsEntities) {
+            monitoringLogsEntity.setTimestamp(System.currentTimeMillis());
             repository.applyUserDetail(monitoringLogsEntity, user);
             bulkOperations.insert(monitoringLogsEntity);
         }
@@ -95,9 +97,9 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             return new Page<>(0, new ArrayList<>());
         }
 
-        Date startDate = DateUtil.offsetMinute(DateUtil.date(param.getStart()), -1);
-        Date endDate = DateUtil.offsetMinute(DateUtil.date(param.getEnd()), 10);
-        criteria.and("date").gte(startDate).lt(endDate);
+//        Date startDate = Date.from(Instant.ofEpochMilli(param.getStart()));
+//        Date endDate = Date.from(Instant.ofEpochMilli(param.getEnd()));
+        criteria.and("timestamp").gte(param.getStart()).lt(param.getEnd());
 
         if (StringUtils.isNotEmpty(param.getNodeId())) {
             criteria.and("nodeId").is(param.getNodeId());
@@ -202,10 +204,10 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             throw new BizException("Invalid value for start or end");
         }
 
-        criteria.and("date").gte(new Date(param.getStart())).lt(new Date(param.getEnd()));
+        criteria.and("timestamp").gte(param.getStart()).lt(param.getEnd());
 
         Query query = new Query(criteria);
-        query.with(Sort.by("date").ascending());
+        query.with(Sort.by("timestamp").ascending());
 
         CloseableIterator<MonitoringLogsEntity> iter = mongoOperations.stream(query, MonitoringLogsEntity.class);
         AtomicLong count = new AtomicLong();
