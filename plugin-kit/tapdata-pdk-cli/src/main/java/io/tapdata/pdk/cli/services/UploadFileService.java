@@ -89,8 +89,6 @@ public class UploadFileService {
       for (Map.Entry<String, InputStream> entry : inputStreamMap.entrySet()) {
         String k = entry.getKey();
         InputStream v = entry.getValue();
-        int i = k.lastIndexOf("/");
-        String substring = k.substring(i + 1);
         if (cloud) {
           byte[] in_b = new byte[0];
           try {
@@ -100,7 +98,7 @@ public class UploadFileService {
           }
           v = new ByteArrayInputStream(in_b);
           digest.update("file".getBytes(UTF_8));
-          digest.update(substring.getBytes(UTF_8));
+          digest.update(k.getBytes(UTF_8));
           digest.update(in_b);
           inputStreamMap.put(k, v);
         }
@@ -173,8 +171,6 @@ public class UploadFileService {
     if (inputStreamMap != null) {
       for (Map.Entry<String, InputStream> entry : inputStreamMap.entrySet()) {
         String k = entry.getKey();
-        int i = k.lastIndexOf("/");
-        k = k.substring(i + 1);
         request.part("file", k, "image/*", entry.getValue());
       }
     }
