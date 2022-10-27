@@ -173,11 +173,11 @@ public class WriteRecord {
             for (Map<String, Object> map : record) {
                 sql.append(" 1 = 1 ");
                 for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
-                    sql.append(" AND ").append(key).append(" = ").append(sqlValue(map.get(key.getKey()),key.getValue())).append(" ");
+                    sql.append(" AND ").append(key.getKey()).append(" = ").append(sqlValue(map.get(key.getKey()),key.getValue())).append(" ");
                 }
             }
             sql.append(" ) ");
-            return sql.toString().replaceAll("1=2  OR","").replaceAll("1=1  AND","");
+            return sql.toString().replaceAll("1=2  OR","").replaceAll("1 = 1  AND","");
         }
         return null;
     }
