@@ -48,14 +48,17 @@ public class TableInsertRowsWithoutRowIds {
       Map<String, Object> rowContent2 = new HashMap<>();
       rowContent2.put("id", "112");
 //      rowContent2.put("name", "boy");
+
       InsertAllResponse response =
           bigquery.insertAll(
               InsertAllRequest.newBuilder(TableId.of(projectId,datasetName, tableName))
                   .setRows(
                       ImmutableList.of(
                           InsertAllRequest.RowToInsert.of(rowContent1),
-                          InsertAllRequest.RowToInsert.of(rowContent2)))
-                  .build());
+                          InsertAllRequest.RowToInsert.of(rowContent2)
+                      )
+                  ).build()
+          );
 
       if (response.hasErrors()) {
         // If any of the insertions failed, this lets you inspect the errors

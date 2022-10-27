@@ -4,6 +4,7 @@ package io.tapdata.bigquery;
 import cn.hutool.core.date.DateUtil;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.bigquery.service.OpenApiWriteRecoder;
+import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
@@ -59,9 +60,7 @@ public class BigQueryConnector extends ConnectorBase {
 	}
 
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
-
-
-
+		WriteRecord.create(connectorContext).write(tapRecordEvents, tapTable, writeListResultConsumer);
 	}
 
 
