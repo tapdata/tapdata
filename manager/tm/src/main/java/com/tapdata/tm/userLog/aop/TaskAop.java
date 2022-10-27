@@ -1,7 +1,9 @@
 package com.tapdata.tm.userLog.aop;
 
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.task.controller.TaskController;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.userLog.constant.Modular;
@@ -17,7 +19,10 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -122,7 +127,8 @@ public class TaskAop {
 
         if (taskDto != null && userDetail != null) {
             String taskId = taskDto.getId() != null ? taskDto.getId().toHexString() : null;
-            userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION, Operation.CREATE, userDetail, taskId, taskDto.getName());
+            userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
+                    Operation.CREATE, userDetail, taskId, taskDto.getName());
         } else {
             log.warn("Ignore logging to create task action log when params is null.");
         }
@@ -195,30 +201,30 @@ public class TaskAop {
         }
     }
 
-    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.renew(..))")
+    @Pointcut("execution(* com.tapdata.tm.task.controller.TaskController.renew(..))")
     public void renew() {
 
     }
 
-    @AfterReturning(value = "renew()", returning = "taskDto")
-    public void afterRenew(JoinPoint joinPoint, TaskDto taskDto) {
+    @After(value = "renew()")
+    public void afterRenew(JoinPoint joinPoint) {
         Object[] args = joinPoint.getArgs();
         ObjectId taskId = null;
         UserDetail userDetail = null;
+        TaskDto taskDto = null;
         if (args != null) {
 
-            if (args.length > 0 && args[0] instanceof ObjectId) {
-                taskId = (ObjectId) args[0];
+            if (args.length > 0 && args[0] instanceof String) {
+                taskId = new ObjectId((String) args[0]);
             } else {
                 log.warn("Ignore logging to renew task action log when params is not ObjectId");
                 return;
             }
-            if (args.length > 1 && args[1] instanceof UserDetail) {
-                userDetail = (UserDetail) args[1];
-            } else {
-                log.warn("Ignore logging to renew task action log when params  is not UserDetail");
-                return;
-            }
+            TaskController taskController = (TaskController) joinPoint.getThis();
+            userDetail = taskController.getLoginUser();
+            taskDto = taskService.findById(taskId, new Field(){{
+                put("name", 1);
+            }}, userDetail);
         } else {
             return;
         }
@@ -226,6 +232,46 @@ public class TaskAop {
         if (taskDto != null) {
             userLogService.addUserLog(Modular.MIGRATION, Operation.RESET, userDetail,
                     taskId.toHexString(), taskDto.getName());
+        } else {
+            log.warn("Ignore logging to renew task action log when returning is null");
+        }
+    }
+
+    @Pointcut("execution(* com.tapdata.tm.task.controller.TaskController.batchRenew(..))")
+    public void batchRenew() {
+
+    }
+
+    @After(value = "batchRenew()")
+    public void afterBatchRenew(JoinPoint joinPoint) {
+        Object[] args = joinPoint.getArgs();
+        List<String> taskIds = null;
+        UserDetail userDetail = null;
+        List<TaskEntity> tasks = null;
+        if (args != null) {
+
+            if (args.length > 0 && args[0] instanceof List) {
+                taskIds = (List<String>) args[0];
+            } else {
+                log.warn("Ignore logging to renew task action log when params is not ObjectId");
+                return;
+            }
+            TaskController taskController = (TaskController) joinPoint.getThis();
+            userDetail = taskController.getLoginUser();
+            List<ObjectId> ids = taskIds.stream().map(ObjectId::new).collect(Collectors.toList());
+            Query query = Query.query(Criteria.where("_id").in(ids));
+            query.fields().include("name", "id", "_id");
+            tasks = taskService.findAll(query, userDetail);
+        } else {
+            return;
+        }
+
+        if (tasks != null) {
+            UserDetail finalUserDetail = userDetail;
+            tasks.forEach(task -> {
+                userLogService.addUserLog(Modular.MIGRATION, Operation.RESET, finalUserDetail,
+                        task.getId().toHexString(), task.getName());
+            });
         } else {
             log.warn("Ignore logging to renew task action log when returning is null");
         }

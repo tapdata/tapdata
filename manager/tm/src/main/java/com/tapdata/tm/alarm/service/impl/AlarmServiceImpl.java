@@ -76,8 +76,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void save(AlarmInfo info) {
-        Criteria criteria = Criteria.where("taskId").is(info.getTaskId()).and("metric").is(info.getMetric())
-                .and("level").is(info.getLevel());
+        Criteria criteria = Criteria.where("taskId").is(info.getTaskId()).and("metric").is(info.getMetric().name());
         if (StringUtils.isNotBlank(info.getNodeId())) {
             criteria.and("nodeId").is(info.getNodeId());
         }
@@ -90,6 +89,7 @@ public class AlarmServiceImpl implements AlarmService {
             info.setLastUpdAt(date);
             info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
             info.setLastOccurrenceTime(date);
+            info.setLastNotifyTime(one.getLastNotifyTime());
 
             mongoTemplate.save(info);
         } else {
@@ -184,7 +184,11 @@ public class AlarmServiceImpl implements AlarmService {
             CompletableFuture.runAsync(() -> sendMessage(info, taskDto));
 
             if (info.getLastNotifyTime() == null) {
-                CompletableFuture.runAsync(() -> sendMail(info, taskDto));
+                CompletableFuture.runAsync(() -> {
+                    sendMail(info, taskDto);
+                    info.setLastNotifyTime(DateUtil.date());
+                    this.save(info);
+                });
             }
 
         });
@@ -542,13 +546,16 @@ public class AlarmServiceImpl implements AlarmService {
             String nodeId = nodeTemp.getId();
 
             List<AlarmInfo> alarmInfos = this.find(taskId, nodeId, AlarmKeyEnum.DATANODE_CANNOT_CONNECT);
-            Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
+            Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
             if (first.isPresent()) {
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.RECOVER).level(Level.RECOVERY).component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
                         .name(taskName).summary(summary).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
                         .nodeId(nodeId).node(nodeName).recoveryTime(DateUtil.date())
+                        .firstOccurrenceTime(first.get().getFirstOccurrenceTime())
+                        .lastOccurrenceTime(DateUtil.date())
                         .build();
+                alarmInfo.setId(first.get().getId());
                 this.save(alarmInfo);
             }
         }
@@ -585,11 +592,14 @@ public class AlarmServiceImpl implements AlarmService {
                     .build();
 
             List<AlarmInfo> alarmInfos = this.find(taskId, nodeId, AlarmKeyEnum.DATANODE_CANNOT_CONNECT);
-            Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
+            Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
             String summary;
             if (first.isPresent()) {
                 long between = DateUtil.between(first.get().getLastOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
                 summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_ALWAYS, nodeName, between, DateUtil.now());
+                alarmInfo.setId(first.get().getId());
+                alarmInfo.setFirstOccurrenceTime(first.get().getFirstOccurrenceTime());
+                alarmInfo.setLastOccurrenceTime(DateUtil.date());
             } else {
                 summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT, nodeName, DateUtil.now());
             }

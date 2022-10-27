@@ -385,12 +385,27 @@ public class WebSocketServer extends TextWebSocketHandler {
 
 	private String getAgentId(WebSocketSession session){
 		try {
+			String id = getAttr(session, "agentId");
+			if (StringUtils.isNotBlank(id)) {
+				return id;
+			}
 			if (session.getUri() != null){
 				Map<String, String> queryStrMap = queryStr2Map(session.getUri().getQuery());
+				session.getAttributes().putAll(queryStrMap);
 				return queryStrMap.get("agentId");
 			}
 		}catch (Exception e){
 			log.error("WebSocket get agentId error,message: {}", e.getMessage());
+		}
+		return null;
+	}
+
+	private String getAttr(WebSocketSession session, String attrName) {
+		if (session != null && session.getAttributes().containsKey(attrName)) {
+			Object val = session.getAttributes().get("agentId");
+			if ( val != null) {
+				return val.toString();
+			}
 		}
 		return null;
 	}

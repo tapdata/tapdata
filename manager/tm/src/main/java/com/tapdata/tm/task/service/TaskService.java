@@ -2442,7 +2442,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-            this.update(new Query(Criteria.where("id").is(taskDto.getId())), Update.update("startTime", null));
+            this.update(new Query(Criteria.where("id").is(taskDto.getId())), Update.update("startTime", null).set("lastStartDate", null));
 
             updateStatus(taskDto.getId(), DataSyncMq.OP_TYPE_RESET.equals(opType) ? TaskDto.STATUS_RENEWING : TaskDto.STATUS_DELETING);
 
@@ -3220,8 +3220,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public void startPlanMigrateDagTask() {
-        Criteria migrateCriteria = Criteria.where("syncType").is("migrate")
-                .and("status").is(TaskDto.STATUS_WAIT_START)
+        Criteria migrateCriteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_START)
                 .and("planStartDateFlag").is(true)
                 .and("planStartDate").lte(DateUtil.current());
         Query taskQuery = new Query(migrateCriteria);

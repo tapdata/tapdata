@@ -6,6 +6,8 @@ import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
+import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
+import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -56,7 +58,7 @@ public class MysqlConnector extends ConnectorBase {
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         this.mysqlJdbcContext = new MysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
-            this.mysqlWriter = new MysqlJdbcOneByOneWriter(mysqlJdbcContext);
+            this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
             this.version = mysqlJdbcContext.getMysqlVersion();
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -212,12 +214,18 @@ public class MysqlConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         try {
+            Optional.ofNullable(this.mysqlReader).ifPresent(MysqlReader::close);
+        } catch (Exception ignored) {
+        }
+        try {
+            Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
+        } catch (Exception ignored) {
+        }
+        try {
             this.mysqlJdbcContext.close();
         } catch (Exception e) {
             TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
         }
-        Optional.ofNullable(this.mysqlReader).ifPresent(MysqlReader::close);
-        Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {

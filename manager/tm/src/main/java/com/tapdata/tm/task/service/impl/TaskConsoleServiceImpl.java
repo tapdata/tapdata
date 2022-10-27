@@ -38,12 +38,12 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
 
         List<RelationTaskInfoVo> result = Lists.newArrayList();
         if (RelationTaskRequest.type_logCollector.equals(request.getType())) {
-            getLogCollector(connectionIds, result, request);
+            getLogCollector(connectionIds, result, request, taskDto);
         } else if (RelationTaskRequest.type_shareCache.equals(request.getType())) {
             getShareCache(connectionIds, result, request);
         //} else if (RelationTaskRequest.type_inspect.equals(request.getType())) {
         } else {
-            getLogCollector(connectionIds, result, request);
+            getLogCollector(connectionIds, result, request, taskDto);
             getShareCache(connectionIds, result, request);
 
             result = result.stream().sorted(Comparator.nullsFirst(Comparator.comparing(RelationTaskInfoVo::getStartTime).reversed()))
@@ -69,7 +69,11 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         });
     }
 
-    private void getLogCollector(List<String> connectionIds, List<RelationTaskInfoVo> result, RelationTaskRequest request) {
+    private void getLogCollector(List<String> connectionIds, List<RelationTaskInfoVo> result, RelationTaskRequest request, TaskDto taskDto) {
+        if (Objects.nonNull(taskDto.getShareCache()) && !taskDto.getShareCache()) {
+            return;
+        }
+
         Criteria criteria = Criteria.where("is_deleted").is(false).and("syncType").is("logCollector")
                 .and("dag.nodes.type").is(NodeEnum.logCollector.name())
                 .and("dag.nodes.connectionIds").in(connectionIds);
