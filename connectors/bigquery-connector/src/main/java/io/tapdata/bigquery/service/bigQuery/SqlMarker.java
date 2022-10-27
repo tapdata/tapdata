@@ -60,7 +60,7 @@ public class SqlMarker {
 
     private BigQueryResult excute(String sql) throws InterruptedException {
         QueryJobConfiguration queryConfig = QueryJobConfiguration.newBuilder(sql).build();
-        return (BigQueryResult)this.bigQuery.query(queryConfig);
+        return BigQueryResult.create(this.bigQuery.query(queryConfig));
     }
 
     private void bigQuery(){

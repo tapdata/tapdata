@@ -13,6 +13,11 @@ public class BigQueryResult extends TableResult {
         super(schema, totalRows, pageNoSchema);
     }
 
+    public static BigQueryResult create(TableResult result){
+        if (null == result) return new BigQueryResult(null,0,null);
+        return new BigQueryResult(result.getSchema(),result.getTotalRows(),result.getNextPage());
+    }
+
     public List<Map<String,Object>> result(){
         Schema schema = this.getSchema();
         if (null == schema) return new ArrayList<>();
