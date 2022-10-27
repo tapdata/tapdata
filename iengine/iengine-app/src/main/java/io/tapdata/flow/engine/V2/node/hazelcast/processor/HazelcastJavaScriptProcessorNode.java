@@ -18,12 +18,12 @@ import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.proxy.ProxyObject;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -70,7 +70,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
               null,
               null,
               ((DataProcessorContext) processorBaseContext).getCacheService(),
-              logger
+              new ObsScriptLogger(obsLogger)
       );
 
     this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
@@ -115,12 +115,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     Map<String, Object> context = this.processContextThreadLocal.get();
     context.putAll(contextMap);
     ((ScriptEngine) this.engine).put("context", context);
-    Object obj;
-    if (engine instanceof GraalJSScriptEngine) {
-      obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, ProxyObject.fromMap(record));
-    } else {
-      obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record);
-    }
+    Object obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record);
     context.clear();
 
     if (obj == null) {

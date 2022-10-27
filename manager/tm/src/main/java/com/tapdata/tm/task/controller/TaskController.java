@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONArray;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.google.gson.reflect.TypeToken;
+import com.networknt.schema.ValidationResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
@@ -434,13 +435,18 @@ public class TaskController extends BaseController {
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
-        log.info("subTask updateByWhere, whereJson:{},reqBody:{}",whereJson,reqBody);
+//        log.info("subTask updateByWhere, whereJson:{},reqBody:{}",whereJson,reqBody);
         Where where = parseWhere(whereJson);
         Document update = Document.parse(reqBody);
         if (!update.containsKey("$set") && !update.containsKey("$setOnInsert") && !update.containsKey("$unset")) {
             Document _body = new Document();
             _body.put("$set", update);
             update = _body;
+        } else if (update.containsKey("$set")) {
+           Document ping = (Document) update.get("$set");
+           if (ping.containsKey("pingTime")) {
+               ping.put("pingTime", System.currentTimeMillis());
+           }
         }
 
         long count = taskService.updateByWhere(where, update, getLoginUser());

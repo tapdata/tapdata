@@ -84,8 +84,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@Override
 	public void startSourceRunner() {
 		try {
-			Node<?> node = dataProcessorContext.getNode();
-			Thread.currentThread().setName("PDK-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
 			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			try {
@@ -523,9 +521,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
-		logger.info("Starting incremental sync, read from share log storage...");
 		// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
 		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext);
+		logger.info("Starting incremental sync, read from share log storage...");
 		// Start listen message entity from share storage log
 		executeDataFuncAspect(StreamReadFuncAspect.class,
 				() -> new StreamReadFuncAspect()

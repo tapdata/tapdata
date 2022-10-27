@@ -85,7 +85,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	public static final long PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT = 10L;
 	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
 	protected SyncProgress syncProgress;
-	protected ExecutorService sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
+	protected ExecutorService sourceRunner;
 	protected ScheduledExecutorService tableMonitorResultHandler;
 	protected SnapshotProgressManager snapshotProgressManager;
 
@@ -147,6 +147,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
+		this.sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
+				r -> {
+					Thread thread = new Thread(r);
+					thread.setName(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()));
+					return thread;
+				});
 		sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
 		initTableMonitor();
 	}
@@ -292,6 +298,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 						obsLogger.warn("Call timestamp to stream offset function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+						this.offsetFromTimeError = e;
 					} else {
 						throw new NodeException("Call timestamp to stream offset function failed, will stop task, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e)).context(getProcessorBaseContext());
@@ -432,7 +439,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 										this.sourceRunnerFirstTime.set(false);
 										if (null != getConnectorNode()) {
 											//Release webhook waiting thread before stop connectorNode.
-											if(streamReadFuncAspect != null) {
+											if (streamReadFuncAspect != null) {
 												streamReadFuncAspect.noMoreWaitRawData();
 												streamReadFuncAspect = null;
 											}
