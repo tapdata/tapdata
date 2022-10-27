@@ -12,6 +12,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
@@ -21,18 +22,20 @@ import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.list;
 
-public class WriteRecord {
+public class WriteRecord extends BigQueryStart{
 
-    TapConnectorContext connectorContext;
-
-    public WriteRecord(TapConnectorContext connectorContext){
-        this.connectorContext = connectorContext;
+    public WriteRecord(TapConnectionContext connectorContext){
+        super(connectorContext);
     }
-    public static WriteRecord create(TapConnectorContext connectorContext){
+    public static WriteRecord create(TapConnectionContext connectorContext){
         return new WriteRecord(connectorContext);
     }
 
-    private String sql =  " `vibrant-castle-366614.tableSet001.table1` ";
+    //private String fullTableString = " `vibrant-castle-366614.tableSet001.table1` ";
+    public String fullSqlTable(String tableId){
+        return "`"+this.config.projectId() + "." + this.config.tableSet() + "."+tableId+"`";
+    }
+
     public String str = "{\n" +
             "  \"type\": \"service_account\",\n" +
             "  \"project_id\": \"vibrant-castle-366614\",\n" +
@@ -89,16 +92,6 @@ public class WriteRecord {
 
     private final AtomicBoolean running = new AtomicBoolean(true);
 
-    public static void main(String[] args) {
-        WriteRecord.create(null).main("vibrant-castle-366614","tableSet001","table1");
-
-    }
-
-
-    public void main(String project,String dataset,String tableId) {
-        System.out.println(SqlMarker.create(this.str).executeOnce("SELECT * FROM `" + project + "." + dataset + "." + tableId + "`").result());
-    }
-
     public void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
         SqlMarker sqlMarker = SqlMarker.create(this.str);
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
@@ -134,8 +127,6 @@ public class WriteRecord {
                     }else if(tapRecordEvent instanceof TapDeleteRecordEvent){
                         writeListResult.incrementRemove(totalRows);
                     }
-
-
                 }catch (Throwable e) {
                     errorRecord = tapRecordEvent;
                     throw e;
@@ -162,7 +153,7 @@ public class WriteRecord {
     }
     public String delSql(List<Map<String,Object>> record,TapTable tapTable){
         StringBuilder sql = new StringBuilder(" DELETE FROM ");
-        sql.append(this.sql).append(" WHERE 1=2 ");
+        sql.append(this.fullSqlTable(tapTable.getId())).append(" WHERE 1=2 ");
         Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null != nameFieldMap && !nameFieldMap.isEmpty() && null != record && !record.isEmpty()){
             sql.append( " OR ( " );
@@ -203,7 +194,7 @@ public class WriteRecord {
                 continue;
             }
             StringBuilder sqlBuilder = new StringBuilder(" UPDATE ");
-            sqlBuilder.append(this.sql).append(" SET ");
+            sqlBuilder.append(this.fullSqlTable(tapTable.getId())).append(" SET ");
             StringBuilder whereBuilder = new StringBuilder(" WHERE ");
             for (Map.Entry<String,TapField> field : nameFieldMap.entrySet()) {
                 if (null == field) continue;
@@ -236,7 +227,7 @@ public class WriteRecord {
                 continue;
             }
             StringBuilder sqlBuilder = new StringBuilder(" INSERT INTO ");
-            sqlBuilder.append(this.sql);
+            sqlBuilder.append(this.fullSqlTable(tapTable.getId()));
             StringBuilder keyBuilder = new StringBuilder();
             StringBuilder valuesBuilder = new StringBuilder();
 
@@ -264,7 +255,7 @@ public class WriteRecord {
         if (null == record || null == tapTable) return null;
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null == nameFieldMap || nameFieldMap.isEmpty()) return "";
-        StringBuilder sql = new StringBuilder(" SELECT * FROM ").append(this.sql).append(" WHERE 1=1 ");
+        StringBuilder sql = new StringBuilder(" SELECT * FROM ").append(this.fullSqlTable(tapTable.getId())).append(" WHERE 1=1 ");
         for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
             if (null == key) continue;
             if (key.getValue().getPrimaryKey()) {
