@@ -37,7 +37,7 @@ public class ProxyService {
         SubscribeToken subscribeToken = new SubscribeToken();
         subscribeToken.setSubscribeId(subscribeDto.getSubscribeId());
         subscribeToken.setService(subscribeDto.getService());
-        subscribeToken.setExpireAt(System.currentTimeMillis() + (subscribeDto.getExpireSeconds() * 1000));
+        subscribeToken.setExpireAt(System.currentTimeMillis() + (subscribeDto.getExpireSeconds() * 1000L));
         byte[] tokenBytes;
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             subscribeToken.to(baos);
