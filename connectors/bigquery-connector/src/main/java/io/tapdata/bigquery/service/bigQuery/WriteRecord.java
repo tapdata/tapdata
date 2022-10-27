@@ -232,7 +232,7 @@ public class WriteRecord {
                 continue;
             }
             StringBuilder sqlBuilder = new StringBuilder(" INSERT INTO ");
-            sqlBuilder.append(this.sql).append(" ( ");
+            sqlBuilder.append(this.sql);
             StringBuilder keyBuilder = new StringBuilder();
             StringBuilder valuesBuilder = new StringBuilder();
 
