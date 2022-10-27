@@ -167,13 +167,13 @@ public class WriteRecord {
     public String delSql(List<Map<String,Object>> record,TapTable tapTable){
         StringBuilder sql = new StringBuilder(" DELETE FROM ");
         sql.append(this.sql).append(" WHERE 1=2 ");
-        List<String> keys = tapTable.getDefaultPrimaryKeys();
-        if (null != keys && !keys.isEmpty() && null != record && !record.isEmpty()){
+        Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (null != nameFieldMap && !nameFieldMap.isEmpty() && null != record && !record.isEmpty()){
             sql.append( " OR ( " );
             for (Map<String, Object> map : record) {
                 sql.append(" 1 = 1 ");
-                for (String key : keys) {
-                    sql.append(" AND ").append(key).append(" = ").append(map.get(key)).append(" ");
+                for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
+                    sql.append(" AND ").append(key).append(" = ").append(sqlValue(map.get(key.getKey()),key.getValue())).append(" ");
                 }
             }
             sql.append(" ) ");
@@ -212,10 +212,11 @@ public class WriteRecord {
                 String fieldName = field.getKey();
                 Object value = recordItem.get(fieldName);
                 if (null==value) continue;
+                String sqlValue = sqlValue(value, field.getValue());
                 if (!field.getValue().getPrimaryKey()){
-                    sqlBuilder.append(fieldName).append(" = ").append(value).append(" , ");
+                    sqlBuilder.append(fieldName).append(" = ").append(sqlValue).append(" , ");
                 }else {
-                    whereBuilder.append(fieldName).append(" = ").append(value).append(" AND ");
+                    whereBuilder.append(fieldName).append(" = ").append(sqlValue).append(" AND ");
                 }
             }
             sqlBuilder.append("@").append(whereBuilder.append("@"));
@@ -250,7 +251,7 @@ public class WriteRecord {
                 //@TODO 对不同值处理
                 Object value = recordItem.get(fieldName);
                 if (null != value) {
-                    valuesBuilder.append(value).append(" , ");
+                    valuesBuilder.append(sqlValue(value,field.getValue())).append(" , ");
                 }
             }
             keyBuilder.append("@");
@@ -269,9 +270,13 @@ public class WriteRecord {
         for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
             if (null == key) continue;
             if (key.getValue().getPrimaryKey()) {
-                sql.append(" AND ").append(key.getKey()).append(" = ").append(record.get(key.getKey())).append(" ");
+                sql.append(" AND ").append(key.getKey()).append(" = ").append(sqlValue(record.get(key.getKey()),key.getValue())).append(" ");
             }
         }
         return sql.toString().replaceAll("1=1  AND","");
+    }
+    public String sqlValue(Object value,TapField field){
+        if (value instanceof String) return "\""+value+"\"";
+        else return "+"+value+"+";
     }
 }
