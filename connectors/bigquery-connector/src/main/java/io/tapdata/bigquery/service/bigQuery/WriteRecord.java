@@ -12,6 +12,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -19,10 +20,7 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 
 public class WriteRecord {
@@ -98,7 +96,7 @@ public class WriteRecord {
 
 
     public void main(String project,String dataset,String tableId) {
-        System.out.println(SqlMarker.create(this.str).excuteOnce("SELECT * FROM `" + project + "." + dataset + "." + tableId + "`").getTotalRows());
+        System.out.println(SqlMarker.create(this.str).excuteOnce("SELECT * FROM `" + project + "." + dataset + "." + tableId + "`").result());
     }
 
     public void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
@@ -179,14 +177,23 @@ public class WriteRecord {
                 }
             }
             sql.append(" ) ");
-            return sql.toString().replaceAll("1=2 OR","").replaceAll("1=1 AND","");
+            return sql.toString().replaceAll("1=2  OR","").replaceAll("1=1  AND","");
         }
         return null;
     }
 
     public String[] updateSql(List<Map<String,Object>> record,TapTable tapTable){
-        List<String> keys = tapTable.getDefaultPrimaryKeys();
-        if (null == keys || keys.isEmpty()) return insertSql(record, tapTable);
+        Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (null == nameFieldMap || nameFieldMap.isEmpty()) return null;
+
+        boolean hasKey = false;
+        for (Map.Entry<String, TapField> stringTapFieldEntry : nameFieldMap.entrySet()) {
+            if (null != stringTapFieldEntry && stringTapFieldEntry.getValue().getPrimaryKey()) {
+                hasKey = true;
+                break;
+            }
+        }
+        if (!hasKey) return insertSql(record, tapTable);
 
         if (null == record || record.isEmpty()) return null;
         int size = record.size();
@@ -197,30 +204,30 @@ public class WriteRecord {
                 sql[i] = null;
                 continue;
             }
-            StringBuilder sqlBuilder = new StringBuilder(" INSERT INTO ");
-            sqlBuilder.append(this.sql).append(" ( ");
-            StringBuilder keyBuilder = new StringBuilder();
-            StringBuilder valuesBuilder = new StringBuilder();
-            Set<Map.Entry<String, Object>> entries = recordItem.entrySet();
-            for (Map.Entry<String, Object> entry : entries) {
-                if (null == entry) continue;
-                if (null == entry.getKey()) continue;
-                if ("".equals(entry.getKey())) continue;
-                keyBuilder.append(entry.getKey()).append(" , ");
-
-                //@TODO 对不同值处理
-                valuesBuilder.append(entry.getValue()).append(" , ");
+            StringBuilder sqlBuilder = new StringBuilder(" UPDATE ");
+            sqlBuilder.append(this.sql).append(" SET ");
+            StringBuilder whereBuilder = new StringBuilder(" WHERE ");
+            for (Map.Entry<String,TapField> field : nameFieldMap.entrySet()) {
+                if (null == field) continue;
+                String fieldName = field.getKey();
+                Object value = recordItem.get(fieldName);
+                if (null==value) continue;
+                if (!field.getValue().getPrimaryKey()){
+                    sqlBuilder.append(fieldName).append(" = ").append(value).append(" , ");
+                }else {
+                    whereBuilder.append(fieldName).append(" = ").append(value).append(" AND ");
+                }
             }
-            keyBuilder.append("@");
-            valuesBuilder.append("@");
-            sqlBuilder.append(" ( ").append(keyBuilder.toString().replaceAll(", @","")).append(" ) ").append(" VALUES ( ").append(valuesBuilder.toString().replaceAll(", @","")).append(" ) ");
-            sql[i] = sqlBuilder.toString();
+            sqlBuilder.append("@").append(whereBuilder.append("@"));
+            sql[i] = sqlBuilder.toString().replaceAll(", @","").replaceAll("AND @","");
         }
         return sql;
     }
 
     public String[] insertSql(List<Map<String,Object>> record,TapTable tapTable){
         if (null == record || record.isEmpty()) return null;
+        Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (null == nameFieldMap || nameFieldMap.isEmpty()) return null;
         int size = record.size();
         String []sql = new String[size];
         for (int i = 0; i < size ; i++) {
@@ -233,15 +240,18 @@ public class WriteRecord {
             sqlBuilder.append(this.sql).append(" ( ");
             StringBuilder keyBuilder = new StringBuilder();
             StringBuilder valuesBuilder = new StringBuilder();
-            Set<Map.Entry<String, Object>> entries = recordItem.entrySet();
-            for (Map.Entry<String, Object> entry : entries) {
-                if (null == entry) continue;
-                if (null == entry.getKey()) continue;
-                if ("".equals(entry.getKey())) continue;
-                keyBuilder.append(entry.getKey()).append(" , ");
+
+            for (Map.Entry<String, TapField> field : nameFieldMap.entrySet()) {
+                if (null == field) continue;
+                String fieldName = field.getKey();
+                if (null == fieldName || "".equals(fieldName)) continue;
+                keyBuilder.append(fieldName).append(" , ");
 
                 //@TODO 对不同值处理
-                valuesBuilder.append(entry.getValue()).append(" , ");
+                Object value = recordItem.get(fieldName);
+                if (null != value) {
+                    valuesBuilder.append(value).append(" , ");
+                }
             }
             keyBuilder.append("@");
             valuesBuilder.append("@");
@@ -253,12 +263,15 @@ public class WriteRecord {
 
     public String selectSql(Map<String,Object> record,TapTable tapTable){
         if (null == record || null == tapTable) return null;
-        List<String> defaultPrimaryKeys = tapTable.getDefaultPrimaryKeys();
-        if (null == defaultPrimaryKeys || defaultPrimaryKeys.isEmpty()) return "";
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (null == nameFieldMap || nameFieldMap.isEmpty()) return "";
         StringBuilder sql = new StringBuilder(" SELECT * FROM ").append(this.sql).append(" WHERE 1=1 ");
-        for (String key : defaultPrimaryKeys) {
-            sql.append(" AND ").append(key).append(" = ").append(record.get(key)).append(" ");
+        for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
+            if (null == key) continue;
+            if (key.getValue().getPrimaryKey()) {
+                sql.append(" AND ").append(key.getKey()).append(" = ").append(record.get(key.getKey())).append(" ");
+            }
         }
-        return sql.toString().replaceAll("1=1 AND","");
+        return sql.toString().replaceAll("1=1  AND","");
     }
 }
