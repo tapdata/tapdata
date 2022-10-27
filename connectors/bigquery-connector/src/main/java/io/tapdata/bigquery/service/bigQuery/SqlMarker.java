@@ -6,8 +6,7 @@ import com.google.cloud.bigquery.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class SqlMarker {
     GoogleCredentials credentials;
@@ -50,7 +49,7 @@ public class SqlMarker {
         return results;
     }
 
-    public TableResult excuteOnce(String sql){
+    public BigQueryResult excuteOnce(String sql){
         try {
             return excute(sql);
         }catch (BigQueryException | InterruptedException e){
@@ -59,12 +58,13 @@ public class SqlMarker {
         return null;
     }
 
-    private TableResult excute(String sql) throws InterruptedException {
+    private BigQueryResult excute(String sql) throws InterruptedException {
         QueryJobConfiguration queryConfig = QueryJobConfiguration.newBuilder(sql).build();
-        return this.bigQuery.query(queryConfig);
+        return (BigQueryResult)this.bigQuery.query(queryConfig);
     }
 
     private void bigQuery(){
         this.bigQuery = BigQueryOptions.newBuilder().setCredentials(this.credentials).build().getService();
     }
+
 }
