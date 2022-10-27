@@ -275,6 +275,7 @@ public class WriteRecord {
         }
         return sql.toString().replaceAll("1=1  AND","");
     }
+
     public String sqlValue(Object value,TapField field){
         if (value instanceof String) return "\""+value+"\"";
         else return "+"+value+"+";
