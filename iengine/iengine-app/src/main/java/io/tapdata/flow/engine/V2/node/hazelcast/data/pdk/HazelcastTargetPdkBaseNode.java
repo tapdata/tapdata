@@ -214,12 +214,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					tapdataEvents.clear();
 					lastProcessTime = System.currentTimeMillis();
 				}
-				if (System.currentTimeMillis() - lastProcessTime >= 2000 && CollectionUtils.isNotEmpty(tapdataEvents)) {
+				if (System.currentTimeMillis() - lastProcessTime >= 500 && CollectionUtils.isNotEmpty(tapdataEvents)) {
 					processTargetEvents(tapdataEvents);
 					tapdataEvents.clear();
 					lastProcessTime = System.currentTimeMillis();
 				}
 			}
+		} catch (InterruptedException ignored) {
 		} catch (Throwable e) {
 			errorHandle(e, "Target process failed " + e.getMessage());
 			throw sneakyThrow(e);

@@ -18,6 +18,7 @@ import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
@@ -69,7 +70,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
               null,
               null,
               ((DataProcessorContext) processorBaseContext).getCacheService(),
-              logger
+              new ObsScriptLogger(obsLogger)
       );
 
     this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
