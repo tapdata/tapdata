@@ -8,22 +8,22 @@ import com.google.cloud.bigquery.TableResult;
 
 import java.util.*;
 
-public class BigQueryResult extends TableResult {
-    public BigQueryResult(Schema schema, long totalRows, Page<FieldValueList> pageNoSchema) {
-        super(schema, totalRows, pageNoSchema);
+public class BigQueryResult {
+    TableResult tableResult;
+    public BigQueryResult(TableResult result) {
+        this.tableResult= result;
     }
 
     public static BigQueryResult create(TableResult result){
-        if (null == result) return new BigQueryResult(null,0,null);
-        return new BigQueryResult(result.getSchema(),result.getTotalRows(),result.getNextPage());
+        return new BigQueryResult(result);
     }
 
     public List<Map<String,Object>> result(){
-        Schema schema = this.getSchema();
+        Schema schema = this.tableResult.getSchema();
         if (null == schema) return new ArrayList<>();
         FieldList fields = schema.getFields();
         if (null == fields && fields.isEmpty()) return new ArrayList<>();
-        Iterator<FieldValueList> iterator = this.getValues().iterator();
+        Iterator<FieldValueList> iterator = this.tableResult.getValues().iterator();
         if (null == iterator ) return new ArrayList<>();
         List<Map<String,Object>> result = new ArrayList<>();
         while (iterator.hasNext()){
