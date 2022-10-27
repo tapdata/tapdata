@@ -435,7 +435,7 @@ public class TaskController extends BaseController {
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
-        log.info("subTask updateByWhere, whereJson:{},reqBody:{}",whereJson,reqBody);
+//        log.info("subTask updateByWhere, whereJson:{},reqBody:{}",whereJson,reqBody);
         Where where = parseWhere(whereJson);
         Document update = Document.parse(reqBody);
         if (!update.containsKey("$set") && !update.containsKey("$setOnInsert") && !update.containsKey("$unset")) {

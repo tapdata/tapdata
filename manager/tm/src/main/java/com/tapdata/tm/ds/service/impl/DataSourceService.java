@@ -752,7 +752,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 						int lastCharIndex = keyValue.lastIndexOf('/') + 1;
 						int lenOfToken = keyValue.length();
 						SubscribeDto subscribeDto = new SubscribeDto();
-						subscribeDto.setExpireSeconds(100000000);
+						subscribeDto.setExpireSeconds(Integer.MAX_VALUE);
 						subscribeDto.setSubscribeId("source#" + entityId);
 						SubscribeResponseDto subscribeResponseDto = ProxyService.create().generateSubscriptionToken(subscribeDto, user);
 						String webHookUrl = keyValue.substring(0, Math.min(lastCharIndex, lenOfToken)) + subscribeResponseDto.getToken();
