@@ -1,9 +1,6 @@
 package io.tapdata.bigquery.service.bigQuery;
 
 import cn.hutool.json.JSONUtil;
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.auth.oauth2.ServiceAccountCredentials;
-import com.google.cloud.bigquery.*;
 import io.tapdata.bigquery.util.http.Http;
 import io.tapdata.bigquery.util.http.HttpEntity;
 import io.tapdata.bigquery.util.http.HttpResult;
@@ -17,9 +14,6 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -96,7 +90,7 @@ public class WriteRecord {
 
 
     public void main(String project,String dataset,String tableId) {
-        System.out.println(SqlMarker.create(this.str).excuteOnce("SELECT * FROM `" + project + "." + dataset + "." + tableId + "`").result());
+        System.out.println(SqlMarker.create(this.str).executeOnce("SELECT * FROM `" + project + "." + dataset + "." + tableId + "`").result());
     }
 
     public void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
@@ -136,13 +130,13 @@ public class WriteRecord {
         String[] insertSql = insertSql(deleteRecord,tapTable);
 
         if (null != insertSql) {
-            sqlMarker.excute(insertSql);
+            sqlMarker.execute(insertSql);
         }
         if (updateSql != null) {
-            sqlMarker.excute(updateSql);
+            sqlMarker.execute(updateSql);
         }
         if (null != delSql) {
-            sqlMarker.excuteOnce(delSql);
+            sqlMarker.executeOnce(delSql);
         }
     }
     public Boolean hasRecord(SqlMarker sqlMarker,Map<String,Object> record,TapTable tapTable){
@@ -151,7 +145,7 @@ public class WriteRecord {
         if ("".equals(selectSql)){
             return false;
         }
-        BigQueryResult tableResult = sqlMarker.excuteOnce(selectSql);
+        BigQueryResult tableResult = sqlMarker.executeOnce(selectSql);
         return null != tableResult && tableResult.getTotalRows()>0;
     }
 //    public void insert(SqlMarker sqlMarker,Map<String,Object> record,TapTable tapTable){

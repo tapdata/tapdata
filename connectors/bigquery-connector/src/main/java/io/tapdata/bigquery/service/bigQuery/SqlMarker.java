@@ -33,13 +33,13 @@ public class SqlMarker {
         return new SqlMarker(credentials);
     }
 
-    public List<BigQueryResult> excute(String ...sql){
+    public List<BigQueryResult> execute(String ...sql){
         List<BigQueryResult> results = new ArrayList<>();
         try {
             for (String subSql : sql) {
                 if (null == subSql) continue;
-                BigQueryResult excute = excute(subSql);
-                if (null!=excute) results.add(excute);
+                BigQueryResult execute = execute(subSql);
+                if (null!=execute) results.add(execute);
             }
             //results.iterateAll().forEach(row -> row.forEach(val -> System.out.printf("%s,", val.toString())));
             //System.out.println("Query performed successfully.");
@@ -49,16 +49,16 @@ public class SqlMarker {
         return results;
     }
 
-    public BigQueryResult excuteOnce(String sql){
+    public BigQueryResult executeOnce(String sql){
         try {
-            return excute(sql);
+            return execute(sql);
         }catch (BigQueryException | InterruptedException e){
 
         }
         return null;
     }
 
-    private BigQueryResult excute(String sql) throws InterruptedException {
+    private BigQueryResult execute(String sql) throws InterruptedException {
         QueryJobConfiguration queryConfig = QueryJobConfiguration.newBuilder(sql).build();
         return BigQueryResult.create(this.bigQuery.query(queryConfig));
     }

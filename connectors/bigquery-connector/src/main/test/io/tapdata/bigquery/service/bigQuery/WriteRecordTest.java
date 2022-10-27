@@ -3,14 +3,11 @@ package io.tapdata.bigquery.service.bigQuery;
 import io.tapdata.entity.schema.TapTable;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Integer;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_String;
-import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WriteRecordTest {
@@ -34,44 +31,25 @@ class WriteRecordTest {
             field("id", JAVA_String).isPrimaryKey(true).primaryKeyPos(1)
     );
 
-
     @Test
-    void hasRecord() {
-        Map<String,Object> record = new HashMap<String,Object>(){{
-            put("id","111");
-        }};
-        Boolean aBoolean = writeRecord.hasRecord(sqlMarker,record,tapTable);
-        assertTrue(aBoolean);
-    }
-
-    @Test
-    void delSql() {
-        Map<String, Object> map = map(entry("id", "111"));
-        String delSql = writeRecord.delSql(list(map),tapTable);
-        Boolean aBoolean1 = writeRecord.hasRecord(sqlMarker,map,tapTable);
-        sqlMarker.excuteOnce(delSql);
-        Boolean aBoolean2 = writeRecord.hasRecord(sqlMarker,map,tapTable);
-        assertTrue(aBoolean1 && !aBoolean2);
-    }
-
-    @Test
-    void updateSql() {
-        Map<String, Object> map = map(entry("id", "111"),entry("type",22.2));
-        String[] delSql = writeRecord.updateSql(list(map),tapTable);
-        List<BigQueryResult> excute1 = sqlMarker.excute(writeRecord.selectSql(map, tapTable));
-        sqlMarker.excute(delSql);
-        List<BigQueryResult> excute2 = sqlMarker.excute(writeRecord.selectSql(map, tapTable));
-        assertTrue(String.valueOf(excute1).equals(String.valueOf(excute2)));
-    }
-
-    @Test
-    void insertSql() {
-        Map<String, Object> map = map(entry("id", "10080"));
+    void execute() {
+        Map<String, Object> map = map(entry("id","Gavin-test"));
         String insertSql = writeRecord.delSql(list(map),tapTable);
-        Boolean aBoolean1 = writeRecord.hasRecord(sqlMarker,map,tapTable);
-        sqlMarker.excuteOnce(insertSql);
+        sqlMarker.executeOnce(insertSql);
         Boolean aBoolean2 = writeRecord.hasRecord(sqlMarker,map,tapTable);
-        assertTrue(!aBoolean1 && aBoolean2);
+        assertTrue(aBoolean2);
+
+        map.put("type",22.2);
+        String[] updateSql = writeRecord.updateSql(list(map),tapTable);
+        sqlMarker.execute(updateSql);
+        List<BigQueryResult> excute2 = sqlMarker.execute(writeRecord.selectSql(map, tapTable));
+        assertTrue(String.valueOf(map.get("type")).equals(String.valueOf(excute2.get(0).result().get(0).get("type"))));
+
+
+        String delSql = writeRecord.delSql(list(map),tapTable);
+        sqlMarker.executeOnce(delSql);
+        Boolean aBoolean = writeRecord.hasRecord(sqlMarker,map,tapTable);
+        assertTrue(!aBoolean);
     }
 
 }
