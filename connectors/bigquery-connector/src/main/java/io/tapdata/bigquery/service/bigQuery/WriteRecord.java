@@ -93,7 +93,7 @@ public class WriteRecord extends BigQueryStart{
     private final AtomicBoolean running = new AtomicBoolean(true);
 
     public void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
-        SqlMarker sqlMarker = SqlMarker.create(this.str);
+        SqlMarker sqlMarker = SqlMarker.create(this.config.serviceAccount());
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
         TapRecordEvent errorRecord = null;
         try {
