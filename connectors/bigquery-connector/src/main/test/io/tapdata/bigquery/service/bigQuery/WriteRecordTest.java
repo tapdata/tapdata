@@ -53,4 +53,22 @@ class WriteRecordTest {
         assertTrue(!aBoolean);
     }
 
+    @Test
+    public void sql(){
+        Map<String, Object> map = map(entry("id","Gavin-test"));
+        String[] insertSql = writeRecord.insertSql(list(map),tapTable);
+        assertTrue(((" INSERT INTO "+sql+"( `id` ) VALUES ( \"Gavin-test\" ) ").replaceAll(" ","")).equals(insertSql[0].replaceAll(" ","")));
+
+        String selectSql = writeRecord.selectSql(map,tapTable);
+        assertTrue(((" SELECT * FROM "+sql+" WHERE `id` = \"Gavin-test\" " ).replaceAll(" ","")).equals(selectSql.replaceAll(" ","")));
+
+        map.put("type",22.3);
+        String[] updateSql = writeRecord.updateSql(list(map),tapTable);
+        assertTrue(((" UPDATE "+sql+" SET `type` = 22.3 WHERE `id` = \"Gavin-test\" ").replaceAll(" ","")).equals(updateSql[0].replaceAll(" ","")));
+
+
+        String delSql = writeRecord.delSql(list(map),tapTable);
+        assertTrue(((" DELETE FROM "+sql+" WHERE (`id` = \"Gavin-test\")").replaceAll(" ","")).equals(delSql.replaceAll(" ","")));
+    }
+
 }

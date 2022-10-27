@@ -5,6 +5,7 @@ import io.tapdata.bigquery.util.http.Http;
 import io.tapdata.bigquery.util.http.HttpEntity;
 import io.tapdata.bigquery.util.http.HttpResult;
 import io.tapdata.bigquery.util.http.HttpType;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -15,7 +16,10 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+
+import static io.tapdata.base.ConnectorBase.list;
 
 public class WriteRecord {
 
@@ -83,6 +87,8 @@ public class WriteRecord {
         System.out.println(result.getResult());
     }
 
+    private final AtomicBoolean running = new AtomicBoolean(true);
+
     public static void main(String[] args) {
         WriteRecord.create(null).main("vibrant-castle-366614","tableSet001","table1");
 
@@ -94,49 +100,55 @@ public class WriteRecord {
     }
 
     public void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
-        Long insert = 0L;
-        Long update = 0L;
-        Long delete = 0L;
         SqlMarker sqlMarker = SqlMarker.create(this.str);
+        WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
+        TapRecordEvent errorRecord = null;
+        try {
+            for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+                if (!running.get()) break;
+                try {
+                    String sql = null;
+                    if (! ( tapRecordEvent instanceof TapDeleteRecordEvent )){
+                        Map<String, Object> after =
+                                tapRecordEvent instanceof TapInsertRecordEvent ?
+                                        ((TapInsertRecordEvent) tapRecordEvent).getAfter()
+                                        : ( tapRecordEvent instanceof TapUpdateRecordEvent ? ((TapUpdateRecordEvent) tapRecordEvent).getAfter(): null);
+                        if (null == after){
+                            writeListResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
+                            continue;
+                        }
+                        Boolean aBoolean = hasRecord(sqlMarker, after, tapTable);
+                        if (null == aBoolean) continue;
+                        String[] sqls = aBoolean? updateSql(list(after),tapTable) : insertSql(list(after),tapTable);
+                        sql = null!=sqls?sqls[0]:null;
+                    }else{
+                        sql = delSql(list(((TapDeleteRecordEvent)tapRecordEvent).getBefore()),tapTable);
+                    }
+                    BigQueryResult bigQueryResult = sqlMarker.executeOnce(sql);
+                    long totalRows = bigQueryResult.getTotalRows();
+                    totalRows = totalRows>0?totalRows:0;
+                    if (tapRecordEvent instanceof TapInsertRecordEvent){
+                        writeListResult.incrementInserted(totalRows);
+                    }else if(tapRecordEvent instanceof TapUpdateRecordEvent){
+                        writeListResult.incrementModified(totalRows);
+                    }else if(tapRecordEvent instanceof TapDeleteRecordEvent){
+                        writeListResult.incrementRemove(totalRows);
+                    }
 
-        List<Map<String,Object>> insertRecord = new ArrayList<>();
-        List<Map<String,Object>> updateRecord = new ArrayList<>();
-        List<Map<String,Object>> deleteRecord = new ArrayList<>();
-        for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
-            if (tapRecordEvent instanceof TapInsertRecordEvent){
-                Map<String, Object> after = ((TapInsertRecordEvent) tapRecordEvent).getAfter();
-                Boolean aBoolean = hasRecord(sqlMarker, after, tapTable);
-                if (null == aBoolean) continue;
-                if (!aBoolean) {
-                    insertRecord.add(after);
-                }else {
-                    updateRecord.add(after);
+
+                }catch (Throwable e) {
+                    errorRecord = tapRecordEvent;
+                    throw e;
                 }
-            }else if(tapRecordEvent instanceof TapUpdateRecordEvent){
-                Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
-                Boolean aBoolean = hasRecord(sqlMarker, after, tapTable);
-                if (null == aBoolean) continue;
-                if (!aBoolean) {
-                    insertRecord.add(after);
-                }else {
-                    updateRecord.add(after);
-                }
-            }else if(tapRecordEvent instanceof TapDeleteRecordEvent){
-                deleteRecord.add(((TapDeleteRecordEvent)tapRecordEvent).getBefore());
             }
-        }
-        String delSql = delSql(insertRecord,tapTable);
-        String[] updateSql = updateSql(updateRecord,tapTable);
-        String[] insertSql = insertSql(deleteRecord,tapTable);
-
-        if (null != insertSql) {
-            sqlMarker.execute(insertSql);
-        }
-        if (updateSql != null) {
-            sqlMarker.execute(updateSql);
-        }
-        if (null != delSql) {
-            sqlMarker.executeOnce(delSql);
+        }catch (Throwable e) {
+            writeListResult.setInsertedCount(0);
+            writeListResult.setModifiedCount(0);
+            writeListResult.setRemovedCount(0);
+            if (null != errorRecord) writeListResult.addError(errorRecord, e);
+            throw e;
+        }finally {
+            writeListResultConsumer.accept(writeListResult);
         }
     }
     public Boolean hasRecord(SqlMarker sqlMarker,Map<String,Object> record,TapTable tapTable){
@@ -148,16 +160,6 @@ public class WriteRecord {
         BigQueryResult tableResult = sqlMarker.executeOnce(selectSql);
         return null != tableResult && tableResult.getTotalRows()>0;
     }
-//    public void insert(SqlMarker sqlMarker,Map<String,Object> record,TapTable tapTable){
-//        String insertSql = insertSql(record,tapTable);
-//        sqlMarker.excuteOnce(insertSql);
-//    }
-//    public void update(SqlMarker sqlMarker,Map<String,Object> record,TapTable tapTable){
-//        String updateSql = updateSql(record,tapTable);
-//        sqlMarker.excuteOnce(updateSql);
-//    }
-
-
     public String delSql(List<Map<String,Object>> record,TapTable tapTable){
         StringBuilder sql = new StringBuilder(" DELETE FROM ");
         sql.append(this.sql).append(" WHERE 1=2 ");
@@ -168,7 +170,7 @@ public class WriteRecord {
                 sql.append(" 1 = 1 ");
                 for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
                     if (key.getValue().getPrimaryKey()) {
-                        sql.append(" AND ").append(key.getKey()).append(" = ").append(sqlValue(map.get(key.getKey()), key.getValue())).append(" ");
+                        sql.append(" AND `").append(key.getKey()).append("` = ").append(sqlValue(map.get(key.getKey()), key.getValue())).append(" ");
                     }
                 }
             }
@@ -210,9 +212,9 @@ public class WriteRecord {
                 if (null==value) continue;
                 String sqlValue = sqlValue(value, field.getValue());
                 if (!field.getValue().getPrimaryKey()){
-                    sqlBuilder.append(fieldName).append(" = ").append(sqlValue).append(" , ");
+                    sqlBuilder.append("`").append(fieldName).append("` = ").append(sqlValue).append(" , ");
                 }else {
-                    whereBuilder.append(fieldName).append(" = ").append(sqlValue).append(" AND ");
+                    whereBuilder.append("`").append(fieldName).append("` = ").append(sqlValue).append(" AND ");
                 }
             }
             sqlBuilder.append("@").append(whereBuilder.append("@"));
@@ -246,7 +248,7 @@ public class WriteRecord {
                 //@TODO 对不同值处理
                 Object value = recordItem.get(fieldName);
                 if (null != value ) {
-                    keyBuilder.append(fieldName).append(" , ");
+                    keyBuilder.append("`").append(fieldName).append("` , ");
                     valuesBuilder.append(sqlValue(value,field.getValue())).append(" , ");
                 }
             }
@@ -266,7 +268,7 @@ public class WriteRecord {
         for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
             if (null == key) continue;
             if (key.getValue().getPrimaryKey()) {
-                sql.append(" AND ").append(key.getKey()).append(" = ").append(sqlValue(record.get(key.getKey()),key.getValue())).append(" ");
+                sql.append(" AND `").append(key.getKey()).append("` = ").append(sqlValue(record.get(key.getKey()),key.getValue())).append(" ");
             }
         }
         return sql.toString().replaceAll("1=1  AND","");
