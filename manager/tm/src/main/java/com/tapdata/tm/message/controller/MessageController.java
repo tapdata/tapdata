@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,12 +47,9 @@ import java.util.stream.Collectors;
 @RestController
 @Slf4j
 @RequestMapping("/api/Messages")
+@Setter(onMethod_ = {@Autowired})
 public class MessageController extends BaseController {
-
-    @Autowired
     private MessageService messageService;
-
-
 
     /**
      * 获取消息通知列表

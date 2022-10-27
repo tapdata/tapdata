@@ -117,7 +117,7 @@ public class MessageService extends BaseService {
         long total = messageRepository.getMongoOperations().count(query, MessageEntity.class);
         List<MessageEntity> messageEntityList = messageRepository.getMongoOperations().find(query.with(tmPageable), MessageEntity.class);
 
-        List<MessageListVo> messageListVoList = CglibUtil.copyList(messageEntityList, MessageListVo::new);
+        List<MessageListVo> messageListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(messageEntityList, MessageListVo.class);
         messageListVoList.forEach(messageListVo -> {
             if (StringUtils.isEmpty(messageListVo.getServerName())) {
                 messageListVo.setServerName(messageListVo.getAgentName());
