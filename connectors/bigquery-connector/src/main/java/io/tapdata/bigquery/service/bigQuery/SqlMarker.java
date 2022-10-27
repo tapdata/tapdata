@@ -67,4 +67,8 @@ public class SqlMarker {
         this.bigQuery = BigQueryOptions.newBuilder().setCredentials(this.credentials).build().getService();
     }
 
+    public BigQuery query(){
+        return this.bigQuery;
+    }
+
 }

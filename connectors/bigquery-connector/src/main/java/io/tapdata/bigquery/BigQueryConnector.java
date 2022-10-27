@@ -3,7 +3,9 @@ package io.tapdata.bigquery;
 
 import cn.hutool.core.date.DateUtil;
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.bigquery.enums.BigQueryTestItem;
 import io.tapdata.bigquery.service.OpenApiWriteRecoder;
+import io.tapdata.bigquery.service.bigQuery.BigQueryConnectionTest;
 import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
@@ -12,6 +14,7 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -23,6 +26,7 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import org.junit.jupiter.api.Test;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -46,8 +50,9 @@ public class BigQueryConnector extends ConnectorBase {
 
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+//		codecRegistry.registerFromTapValue(TapMapValue.class, "json")
 		connectorFunctions.supportWriteRecord(this::writeRecord)
-				.supportCreateTable(this::createTable)
+//				.supportCreateTable(this::createTable)
 
 		;
 	}
@@ -71,6 +76,14 @@ public class BigQueryConnector extends ConnectorBase {
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
 		ConnectionOptions connectionOptions = ConnectionOptions.create();
+		BigQueryConnectionTest bigQueryConnectionTest = BigQueryConnectionTest.create(connectionContext);
+		TestItem testItem = bigQueryConnectionTest.testServiceAccount();
+		consumer.accept(testItem);
+		if ( testItem.getResult() == TestItem.RESULT_FAILED){
+			return connectionOptions;
+		}
+		TestItem tableSetItem = bigQueryConnectionTest.testTableSet();
+		consumer.accept(tableSetItem);
 		return connectionOptions;
 	}
 	@Override
