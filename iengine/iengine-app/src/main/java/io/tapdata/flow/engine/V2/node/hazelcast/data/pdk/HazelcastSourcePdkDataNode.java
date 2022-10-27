@@ -84,8 +84,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@Override
 	public void startSourceRunner() {
 		try {
-			Node<?> node = dataProcessorContext.getNode();
-			Thread.currentThread().setName("PDK-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
 			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			try {

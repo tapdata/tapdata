@@ -59,6 +59,7 @@ api-gateway/.*
 /api-gateway/api-gateway.jar
 /build/agent/tapdata-agent-*.tar.gz
 apig/
+/auto-test/config.yaml
 
 dump
 dev.sh
