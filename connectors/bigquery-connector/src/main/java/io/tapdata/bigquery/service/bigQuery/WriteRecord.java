@@ -167,7 +167,9 @@ public class WriteRecord {
             for (Map<String, Object> map : record) {
                 sql.append(" 1 = 1 ");
                 for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
-                    sql.append(" AND ").append(key.getKey()).append(" = ").append(sqlValue(map.get(key.getKey()),key.getValue())).append(" ");
+                    if (key.getValue().getPrimaryKey()) {
+                        sql.append(" AND ").append(key.getKey()).append(" = ").append(sqlValue(map.get(key.getKey()), key.getValue())).append(" ");
+                    }
                 }
             }
             sql.append(" ) ");
@@ -240,11 +242,11 @@ public class WriteRecord {
                 if (null == field) continue;
                 String fieldName = field.getKey();
                 if (null == fieldName || "".equals(fieldName)) continue;
-                keyBuilder.append(fieldName).append(" , ");
 
                 //@TODO 对不同值处理
                 Object value = recordItem.get(fieldName);
-                if (null != value) {
+                if (null != value ) {
+                    keyBuilder.append(fieldName).append(" , ");
                     valuesBuilder.append(sqlValue(value,field.getValue())).append(" , ");
                 }
             }
@@ -272,6 +274,6 @@ public class WriteRecord {
 
     public String sqlValue(Object value,TapField field){
         if (value instanceof String) return "\""+value+"\"";
-        else return "+"+value+"+";
+        else return ""+value;
     }
 }

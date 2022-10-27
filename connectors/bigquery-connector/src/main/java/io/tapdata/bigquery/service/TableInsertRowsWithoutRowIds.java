@@ -43,21 +43,26 @@ public class TableInsertRowsWithoutRowIds {
       final BigQuery bigquery = defaultInstance.getService();
       // Create rows to insert
       Map<String, Object> rowContent1 = new HashMap<>();
-      rowContent1.put("id", "111");
+      rowContent1.put("id", "zzzzzzzz2");
 //      rowContent1.put("name", "Gavin");
       Map<String, Object> rowContent2 = new HashMap<>();
-      rowContent2.put("id", "112");
+      rowContent2.put("id", "xxxxxxxxx2");
 //      rowContent2.put("name", "boy");
+
+
 
       InsertAllResponse response =
           bigquery.insertAll(
               InsertAllRequest.newBuilder(TableId.of(projectId,datasetName, tableName))
-                  .setRows(
-                      ImmutableList.of(
-                          InsertAllRequest.RowToInsert.of(rowContent1),
-                          InsertAllRequest.RowToInsert.of(rowContent2)
-                      )
-                  ).build()
+                      .addRow("abc", rowContent1)
+                      .addRow("bcd", rowContent2)
+//                  .setRows(
+//                      ImmutableList.of(
+//                          InsertAllRequest.RowToInsert.of("abc", rowContent1),
+//                          InsertAllRequest.RowToInsert.of("bcd", rowContent2)
+//                      )
+//                  )
+                  .build()
           );
 
       if (response.hasErrors()) {

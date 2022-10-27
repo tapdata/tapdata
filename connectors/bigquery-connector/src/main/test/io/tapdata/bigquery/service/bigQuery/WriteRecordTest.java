@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Float;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_String;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -29,17 +30,17 @@ class WriteRecordTest {
 
     TapTable tapTable = table("table1").add(
             field("id", JAVA_String).isPrimaryKey(true).primaryKeyPos(1)
-    );
+    ).add(field("type",JAVA_Float));
 
     @Test
     void execute() {
         Map<String, Object> map = map(entry("id","Gavin-test"));
-        String insertSql = writeRecord.delSql(list(map),tapTable);
-        sqlMarker.executeOnce(insertSql);
+        String[] insertSql = writeRecord.insertSql(list(map),tapTable);
+        sqlMarker.execute(insertSql);
         Boolean aBoolean2 = writeRecord.hasRecord(sqlMarker,map,tapTable);
         assertTrue(aBoolean2);
 
-        map.put("type",22.2);
+        map.put("type",22.3);
         String[] updateSql = writeRecord.updateSql(list(map),tapTable);
         sqlMarker.execute(updateSql);
         List<BigQueryResult> excute2 = sqlMarker.execute(writeRecord.selectSql(map, tapTable));
