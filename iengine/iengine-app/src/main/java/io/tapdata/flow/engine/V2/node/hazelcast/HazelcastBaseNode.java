@@ -65,7 +65,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -114,14 +113,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
 
-		if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-			this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
-					processorBaseContext.getTaskDto(),
-					processorBaseContext.getNode().getId(),
-					processorBaseContext.getNode().getName()
-			);
-		}
+		this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
+						processorBaseContext.getTaskDto(),
+						processorBaseContext.getNode().getId(),
+						processorBaseContext.getNode().getName()
+		);
 
 		if (null != processorBaseContext.getConfigurationCenter()) {
 			this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);

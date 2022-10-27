@@ -18,8 +18,9 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.JavaTypesToTapTypes;
-import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.entity.utils.ReflectionUtil;
+import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
@@ -91,12 +92,9 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				} else {
 					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
 				}
-				this.engine = ScriptUtil.getScriptEngine(
-								declareScript,
-								null,
-								null,
+				this.engine = ScriptUtil.getScriptEngine(declareScript, null, null,
 								((DataProcessorContext) processorBaseContext).getCacheService(),
-								logger
+								new ObsScriptLogger(obsLogger)
 				);
 			}
 		}
