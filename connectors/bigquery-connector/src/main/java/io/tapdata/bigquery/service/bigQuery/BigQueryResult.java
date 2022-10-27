@@ -1,6 +1,5 @@
 package io.tapdata.bigquery.service.bigQuery;
 
-import com.google.api.gax.paging.Page;
 import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.FieldValueList;
 import com.google.cloud.bigquery.Schema;
@@ -35,5 +34,12 @@ public class BigQueryResult {
             result.add(line);
         }
         return result;
+    }
+
+    public long getTotalRows(){
+        return this.tableResult.getTotalRows();
+    }
+    public Iterable<FieldValueList> getValues(){
+        return this.tableResult.getValues();
     }
 }

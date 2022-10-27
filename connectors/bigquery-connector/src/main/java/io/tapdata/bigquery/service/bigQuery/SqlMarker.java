@@ -33,12 +33,12 @@ public class SqlMarker {
         return new SqlMarker(credentials);
     }
 
-    public List<TableResult> excute(String ...sql){
-        List<TableResult> results = new ArrayList<>();
+    public List<BigQueryResult> excute(String ...sql){
+        List<BigQueryResult> results = new ArrayList<>();
         try {
             for (String subSql : sql) {
                 if (null == subSql) continue;
-                TableResult excute = excute(subSql);
+                BigQueryResult excute = excute(subSql);
                 if (null!=excute) results.add(excute);
             }
             //results.iterateAll().forEach(row -> row.forEach(val -> System.out.printf("%s,", val.toString())));

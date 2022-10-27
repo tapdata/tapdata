@@ -153,7 +153,7 @@ public class WriteRecord {
         if ("".equals(selectSql)){
             return false;
         }
-        TableResult tableResult = sqlMarker.excuteOnce(selectSql);
+        BigQueryResult tableResult = sqlMarker.excuteOnce(selectSql);
         return null != tableResult && tableResult.getTotalRows()>0;
     }
 //    public void insert(SqlMarker sqlMarker,Map<String,Object> record,TapTable tapTable){
