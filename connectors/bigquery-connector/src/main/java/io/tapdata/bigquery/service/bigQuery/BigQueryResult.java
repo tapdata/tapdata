@@ -1,14 +1,11 @@
 package io.tapdata.bigquery.service.bigQuery;
 
-import com.google.cloud.bigquery.FieldList;
-import com.google.cloud.bigquery.FieldValueList;
-import com.google.cloud.bigquery.Schema;
-import com.google.cloud.bigquery.TableResult;
+import com.google.cloud.bigquery.*;
 
 import java.util.*;
 
 public class BigQueryResult {
-    TableResult tableResult;
+    private TableResult tableResult;
     public BigQueryResult(TableResult result) {
         this.tableResult= result;
     }
@@ -29,7 +26,11 @@ public class BigQueryResult {
             FieldValueList next = iterator.next();
             Map<String,Object> line = new HashMap<>();
             for (int index=0;index<fields.size();index++) {
-                line.put(fields.get(index).getName(),next.get(index));
+                Field field = fields.get(index);
+                FieldValue fieldValue = next.get(index);
+                if (null!= field) {
+                    line.put(field.getName(),null == fieldValue? null : fieldValue.getValue());
+                }
             }
             result.add(line);
         }

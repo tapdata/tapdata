@@ -98,7 +98,7 @@ public class WriteRecord {
 
 
     public void main(String project,String dataset,String tableId) {
-        System.out.println(SqlMarker.create(this.str).excuteOnce("SELECT * FROM `" + project + "." + dataset + "." + tableId + "`"));
+        System.out.println(SqlMarker.create(this.str).excuteOnce("SELECT * FROM `" + project + "." + dataset + "." + tableId + "`").getTotalRows());
     }
 
     public void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
