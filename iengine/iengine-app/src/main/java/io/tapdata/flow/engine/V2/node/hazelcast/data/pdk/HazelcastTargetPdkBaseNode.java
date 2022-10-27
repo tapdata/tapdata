@@ -205,7 +205,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
 			long lastProcessTime = System.currentTimeMillis();
 			while (isRunning()) {
-				TapdataEvent tapdataEvent = tapEventQueue.poll();
+				TapdataEvent tapdataEvent = tapEventQueue.poll(1L, TimeUnit.SECONDS);
 				if (null != tapdataEvent) {
 					tapdataEvents.add(tapdataEvent);
 				}
