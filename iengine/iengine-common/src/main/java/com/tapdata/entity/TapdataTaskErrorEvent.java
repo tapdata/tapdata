@@ -26,7 +26,7 @@ public class TapdataTaskErrorEvent extends TapdataEvent implements Serializable,
 
 	@Override
 	public Object clone() {
-		TapdataEvent tapdataEvent = new TapdataTaskErrorEvent();
+		TapdataEvent tapdataEvent = new TapdataTaskErrorEvent(throwable);
 		super.clone(tapdataEvent);
 		return tapdataEvent;
 	}
