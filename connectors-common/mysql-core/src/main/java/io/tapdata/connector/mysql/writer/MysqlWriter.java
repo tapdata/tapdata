@@ -1,5 +1,6 @@
-package io.tapdata.connector.mysql;
+package io.tapdata.connector.mysql.writer;
 
+import io.tapdata.connector.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -8,15 +9,16 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.collections4.map.LRUMap;
 
 import java.sql.Connection;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
@@ -27,21 +29,39 @@ import java.util.function.Consumer;
 public abstract class MysqlWriter {
 
 	private static final String TAG = MysqlWriter.class.getSimpleName();
-	protected static final String INSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values(%s)";
-	protected static final String UPDATE_SQL_TEMPLATE = "UPDATE `%s`.`%s` SET %s WHERE %s";
-	protected static final String DELETE_SQL_TEMPLATE = "DELETE FROM `%s`.`%s` WHERE %s";
-	protected static final String CHECK_ROW_EXISTS_TEMPLATE = "SELECT COUNT(1) as count FROM `%s`.`%s` WHERE %s";
 	protected MysqlJdbcContext mysqlJdbcContext;
 	protected Connection connection;
+	private final AtomicBoolean running;
 
 	public MysqlWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
 		this.mysqlJdbcContext = mysqlJdbcContext;
 		this.connection = mysqlJdbcContext.getConnection();
+		this.running = new AtomicBoolean(true);
+	}
+
+	protected String getDmlInsertPolicy(TapConnectorContext tapConnectorContext) {
+		String dmlInsertPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
+		if (null != tapConnectorContext.getConnectorCapabilities()
+				&& null != tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY)) {
+			dmlInsertPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
+		}
+		return dmlInsertPolicy;
+	}
+
+	protected String getDmlUpdatePolicy(TapConnectorContext tapConnectorContext) {
+		String dmlUpdatePolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
+		if (null != tapConnectorContext.getConnectorCapabilities()
+				&& null != tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY)) {
+			dmlUpdatePolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
+		}
+		return dmlUpdatePolicy;
 	}
 
 	abstract public WriteListResult<TapRecordEvent> write(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable;
 
-	abstract public void onDestroy();
+	public void onDestroy() {
+		this.running.set(false);
+	}
 
 	protected String getKey(TapTable tapTable, TapRecordEvent tapRecordEvent) {
 		Map<String, Object> after = getAfter(tapRecordEvent);
@@ -93,6 +113,24 @@ public abstract class MysqlWriter {
 		return after;
 	}
 
+	protected void dispatch(List<TapRecordEvent> tapRecordEvents, AnyErrorConsumer<List<TapRecordEvent>> consumer) throws Throwable {
+		if (CollectionUtils.isEmpty(tapRecordEvents)) return;
+		TapRecordEvent preEvent = null;
+		List<TapRecordEvent> consumeList = new ArrayList<>();
+		for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+			if (!isAlive()) break;
+			if (null != preEvent && !tapRecordEvent.getClass().getName().equals(preEvent.getClass().getName())) {
+				consumer.accept(consumeList);
+				consumeList.clear();
+			}
+			consumeList.add(tapRecordEvent);
+			preEvent = tapRecordEvent;
+		}
+		if (CollectionUtils.isNotEmpty(consumeList)) {
+			consumer.accept(consumeList);
+		}
+	}
+
 	protected static class LRUOnRemoveMap<K, V> extends LRUMap<K, V> {
 
 		private Consumer<Entry<K, V>> onRemove;
@@ -129,4 +167,14 @@ public abstract class MysqlWriter {
 			super.removeMapping(entry, hashIndex, previous);
 		}
 	}
+
+	protected interface AnyErrorConsumer<T> {
+		void accept(T t) throws Throwable;
+	}
+
+
+	protected boolean isAlive() {
+		return running.get();
+	}
+
 }

@@ -194,6 +194,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 		DataSourceEntity entity = convertToEntity(DataSourceEntity.class, updateDto);
 
+		//由于accessNodeProcessIdList的get方法会返回空数组，当调用这个接口，并且这个参数为空时，会默认将这个参数改成空数组。
+		if (updateDto.getTrueAccessNodeProcessIdList() == null) {
+			entity.setAccessNodeProcessIdList(null);
+		}
+
 		entity = repository.save(entity, user);
 		BeanUtils.copyProperties(entity, updateDto);
 		updateAfter(user, updateDto, oldName, submit);
@@ -747,7 +752,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 						int lastCharIndex = keyValue.lastIndexOf('/') + 1;
 						int lenOfToken = keyValue.length();
 						SubscribeDto subscribeDto = new SubscribeDto();
-						subscribeDto.setExpireSeconds(100000000);
+						subscribeDto.setExpireSeconds(Integer.MAX_VALUE);
 						subscribeDto.setSubscribeId("source#" + entityId);
 						SubscribeResponseDto subscribeResponseDto = ProxyService.create().generateSubscriptionToken(subscribeDto, user);
 						String webHookUrl = keyValue.substring(0, Math.min(lastCharIndex, lenOfToken)) + subscribeResponseDto.getToken();
