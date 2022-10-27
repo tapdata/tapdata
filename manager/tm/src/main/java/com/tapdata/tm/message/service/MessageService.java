@@ -108,7 +108,6 @@ public class MessageService extends BaseService {
         Query query = parseWhereCondition(filter.getWhere(), userDetail);
         List<String> collect = Arrays.stream(MsgTypeEnum.values()).filter(t -> t != MsgTypeEnum.ALARM).map(MsgTypeEnum::getValue).collect(Collectors.toList());
         query.addCriteria(Criteria.where("msg").in(collect));
-        query.with(tmPageable);
         return getMessageListVoPage(query, tmPageable);
     }
 
