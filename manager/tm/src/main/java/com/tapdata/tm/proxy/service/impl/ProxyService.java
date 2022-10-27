@@ -31,13 +31,14 @@ public class ProxyService {
             throw new BizException("SubscribeId is null");
         if(subscribeDto.getService() == null)
             subscribeDto.setService("engine");
+        subscribeDto.setExpireSeconds(Integer.MAX_VALUE);
         if(subscribeDto.getExpireSeconds() == null)
             throw new BizException("SubscribeDto expireSeconds is null");
         SubscribeToken subscribeToken = new SubscribeToken();
         subscribeToken.setSubscribeId(subscribeDto.getSubscribeId());
         subscribeToken.setService(subscribeDto.getService());
-        subscribeToken.setExpireAt(System.currentTimeMillis() + (subscribeDto.getExpireSeconds() * 1000));
-        byte[] tokenBytes = null;
+        subscribeToken.setExpireAt(System.currentTimeMillis() + (subscribeDto.getExpireSeconds() * 1000L));
+        byte[] tokenBytes;
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             subscribeToken.to(baos);
             tokenBytes = baos.toByteArray();
