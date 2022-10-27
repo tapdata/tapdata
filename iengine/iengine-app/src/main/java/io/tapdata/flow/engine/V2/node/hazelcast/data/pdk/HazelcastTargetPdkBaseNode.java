@@ -277,6 +277,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					handleTapdataCompleteSnapshotEvent();
 				} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
 					handleTapdataStartCdcEvent(tapdataEvent);
+				} else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
+					throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
 				} else if (tapdataEvent instanceof TapdataShareLogEvent) {
 					handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
 				} else {
