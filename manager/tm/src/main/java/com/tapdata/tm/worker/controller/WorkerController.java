@@ -69,7 +69,7 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping("/health")
     public ResponseMessage<WorkerDto> health(@RequestBody WorkerDto worker) {
-        worker.setPingTime(new Date().getTime());
+        worker.setPingTime(System.currentTimeMillis());
         return success(workerService.health(worker, getLoginUser()));
     }
 
