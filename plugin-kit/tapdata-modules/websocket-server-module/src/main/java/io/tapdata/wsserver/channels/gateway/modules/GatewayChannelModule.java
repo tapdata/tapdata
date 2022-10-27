@@ -160,15 +160,17 @@ public class GatewayChannelModule implements MemoryFetcher {
         Attribute<UserChannel> attribute = channel.attr(AttributeKey.valueOf(KEY_GATEWAY_USER));
         UserChannel userChannel = attribute.get();
 
-        GatewaySessionHandler gatewaySessionHandler = gatewaySessionManager.getUserIdGatewaySessionHandlerMap().get(userChannel.getUserId());
-        if(gatewaySessionHandler != null)
-            gatewaySessionManager.channelDisconnected(gatewaySessionHandler);
+        if(userChannel != null) {
+            GatewaySessionHandler gatewaySessionHandler = gatewaySessionManager.getUserIdGatewaySessionHandlerMap().get(userChannel.getUserId());
+            if(gatewaySessionHandler != null)
+                gatewaySessionManager.channelDisconnected(gatewaySessionHandler);
 
-        final UserChannel userSession = attribute.getAndSet(null);
-        if (userSession != null) {
-            boolean bool = userIdChannelMap.remove(userSession.getUserId(), channelInActiveEvent.getCtx());
-            if (!bool) {
-                TapLogger.warn(TAG, "userIdChannelMap remove userId {} failed, because channel not the same, closed channel {} not removed channel {}", userSession.getUserId(), channelInActiveEvent.getCtx(), userIdChannelMap.get(userSession.getUserId()));
+            final UserChannel userSession = attribute.getAndSet(null);
+            if (userSession != null) {
+                boolean bool = userIdChannelMap.remove(userSession.getUserId(), channelInActiveEvent.getCtx());
+                if (!bool) {
+                    TapLogger.warn(TAG, "userIdChannelMap remove userId {} failed, because channel not the same, closed channel {} not removed channel {}", userSession.getUserId(), channelInActiveEvent.getCtx(), userIdChannelMap.get(userSession.getUserId()));
+                }
             }
         }
     }
