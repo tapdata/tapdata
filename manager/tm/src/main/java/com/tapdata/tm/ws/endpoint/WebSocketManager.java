@@ -30,7 +30,7 @@ import org.springframework.web.socket.TextMessage;
 @Slf4j
 public class WebSocketManager {
 
-	private static final Map<String, List<WebSocketHandler>> webSocketHandlerMap = new ConcurrentHashMap<>();
+	private static final Map<String, WebSocketHandler> webSocketHandlerMap = new ConcurrentHashMap<>();
 
 	private static final Map<String, WebSocketInfo> wsCache = new ConcurrentHashMap<>();
 
@@ -153,20 +153,20 @@ public class WebSocketManager {
 	}
 
 	public static void addHandler(String type, WebSocketHandler handler){
-		if (StringUtils.isNotBlank(type)){
-			List<WebSocketHandler> webSocketHandlers = webSocketHandlerMap.get(type);
-			if (webSocketHandlers == null){
-				webSocketHandlers = new ArrayList<>();
+		if (StringUtils.isNotBlank(type) && handler != null){
+			handler = webSocketHandlerMap.get(type);
+			if (webSocketHandlerMap.containsKey(type)){
+				log.warn("A message handler of type {}({}) already exists and will be replaced with {}",
+						type, webSocketHandlerMap.get(type), handler);
 			}
-			webSocketHandlers.add(handler);
-			webSocketHandlerMap.put(type, webSocketHandlers);
+			webSocketHandlerMap.put(type, handler);
 		}else {
 			log.warn("Websocket handlerMap add handler failed, type can not be blank");
 		}
 
 	}
 
-	public static List<WebSocketHandler> getHandler(String type){
+	public static WebSocketHandler getHandler(String type){
 		if (StringUtils.isBlank(type)){
 			log.warn("Websocket handlerMap get handler failed, type can not be blank");
 			return null;

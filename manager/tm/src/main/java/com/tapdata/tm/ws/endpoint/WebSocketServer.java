@@ -148,10 +148,12 @@ public class WebSocketServer extends TextWebSocketHandler {
 						Object type = data.get("type");
 						if (type instanceof String) {
 							if (((String)type).startsWith(MessageType.DATA_SYNC.getType())) {
-								List<WebSocketHandler> handlers = WebSocketManager.getHandler(MessageType.DATA_SYNC.getType());
-								WebSocketContext webSocketContext = new WebSocketContext(session.getId(), id, userId, messageInfo);
-								for (WebSocketHandler handler : handlers) {
+								WebSocketHandler handler = WebSocketManager.getHandler(MessageType.DATA_SYNC.getType());
+								if (handler != null) {
+									WebSocketContext webSocketContext = new WebSocketContext(session.getId(), id, userId, messageInfo);
 									handler.handleMessage(webSocketContext);
+								} else {
+									log.warn("Not found message handler for type {}, ignore handler message", messageInfo.getType());
 								}
 								return;
 							}
@@ -159,16 +161,14 @@ public class WebSocketServer extends TextWebSocketHandler {
 					}
 				}
 
-				List<WebSocketHandler> handlers = WebSocketManager.getHandler(messageInfo.getType());
-				if (CollectionUtils.isNotEmpty(handlers)){
+				WebSocketHandler handler = WebSocketManager.getHandler(messageInfo.getType());
+				if (handler != null){
 					WebSocketContext webSocketContext = new WebSocketContext(session.getId(), id, userId, messageInfo);
-					for (WebSocketHandler handler : handlers) {
-						handler.handleMessage(webSocketContext);
-					}
-				}else {
+					handler.handleMessage(webSocketContext);
+				} else {
 //					WebSocketManager.sendMessageBySessionId(session.getId(), "Handle message error,handler is empty");
 //					session.sendMessage(new TextMessage("Handle message error,handler is empty"));
-					log.warn("Handle message error,handler is empty");
+					log.warn("Not found message handler for type {}, ignore handler message", messageInfo.getType());
 				}
 			}catch (Exception e){
 				log.error("Handle message error,sessionMsg: {} message: {}",JsonUtil.toJson(message), e.getMessage());
