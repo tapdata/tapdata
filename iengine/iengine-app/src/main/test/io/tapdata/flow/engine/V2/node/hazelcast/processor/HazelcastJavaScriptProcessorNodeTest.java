@@ -2,7 +2,9 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import base.BaseTest;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
+import com.tapdata.processor.Log4jScriptLogger;
 import com.tapdata.processor.LoggingOutputStream;
+import com.tapdata.processor.ScriptLogger;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.graalvm.polyglot.Context;
@@ -27,7 +29,7 @@ public class HazelcastJavaScriptProcessorNodeTest extends BaseTest {
             .allowAllAccess(true)
             .option("engine.WarnInterpreterOnly", "false")
             .logHandler(System.err)
-            .out(new LoggingOutputStream(logger, Level.INFO)).build()) {
+            .out(new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO)).build()) {
 
       context.eval("js", "console.info('fdasfdsafdsafad')");
 
@@ -55,7 +57,7 @@ public class HazelcastJavaScriptProcessorNodeTest extends BaseTest {
 
 
     SimpleScriptContext ctxt = new SimpleScriptContext();
-    ctxt.setWriter(new OutputStreamWriter(new LoggingOutputStream(logger, Level.INFO)));
+    ctxt.setWriter(new OutputStreamWriter(new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO)));
     graalJSScriptEngine.eval("console.info('fdasfdsafdsafad')", ctxt);
 
     graalJSScriptEngine.close();

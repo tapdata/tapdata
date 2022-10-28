@@ -18,8 +18,10 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.JavaTypesToTapTypes;
-import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.entity.utils.ReflectionUtil;
+import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections4.MapUtils;
@@ -31,10 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import org.voovan.tools.collection.CacheMap;
 
 import javax.script.Invocable;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 
@@ -80,7 +79,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			throw new IllegalArgumentException("HazelcastSchemaTargetNode only allows one predecessor node");
 		}
 		Node<?> deductionSchemaNode = preNodes.get(0);
-		this.oldTapTableMap = TapTableUtil.getTapTableMap(deductionSchemaNode, null);
+		this.oldTapTableMap = TapTableUtil.getTapTableMap("predecessor_" + getNode().getId() + "_", deductionSchemaNode, null);
 
 		if (deductionSchemaNode instanceof JsProcessorNode
 				|| deductionSchemaNode instanceof MigrateJsProcessorNode
@@ -93,12 +92,9 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				} else {
 					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
 				}
-				this.engine = ScriptUtil.getScriptEngine(
-								declareScript,
-								null,
-								null,
+				this.engine = ScriptUtil.getScriptEngine(declareScript, null, null,
 								((DataProcessorContext) processorBaseContext).getCacheService(),
-								logger
+								new ObsScriptLogger(obsLogger)
 				);
 			}
 		}
@@ -157,6 +153,12 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		} finally {
 			ThreadContext.clearAll();
 		}
+	}
+
+	@Override
+	protected void doClose() throws Exception {
+		super.doClose();
+		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.oldTapTableMap).ifPresent(TapTableMap::reset), HazelcastSchemaTargetNode.class.getSimpleName());
 	}
 
 	@NotNull

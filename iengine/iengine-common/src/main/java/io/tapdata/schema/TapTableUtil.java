@@ -50,6 +50,11 @@ public class TapTableUtil {
 		return TapTableMap.create(prefix, nodeId, tableNameQualifiedNameMap, time);
 	}
 
+	@NotNull
+	public static TapTableMap<String, TapTable> getTapTableMap(Node<?> node, Long tmCurrentTime) {
+		return getTapTableMap(null, node, tmCurrentTime);
+	}
+
 	/**
 	 * 获取节点的模型
 	 * @param node
@@ -57,7 +62,7 @@ public class TapTableUtil {
 	 * @return
 	 */
 	@NotNull
-	public static TapTableMap<String, TapTable> getTapTableMap(Node<?> node, Long tmCurrentTime) {
+	public static TapTableMap<String, TapTable> getTapTableMap(String prefix, Node<?> node, Long tmCurrentTime) {
 
 		Object schema = node.getSchema();
 		if (schema == null) {
@@ -75,7 +80,7 @@ public class TapTableUtil {
 		TapTableMap<String, TapTable> tapTableMap;
 		if (CollectionUtils.isNotEmpty(schemaList)) {
 			List<TapTable> tapTableList = schemaList.stream().map(PdkSchemaConvert::toPdk).collect(Collectors.toList());
-			tapTableMap = TapTableMap.create(node.getId(), tapTableList, tmCurrentTime);
+			tapTableMap = TapTableMap.create(prefix, node.getId(), tapTableList, tmCurrentTime);
 		} else {
 			tapTableMap = TapTableMap.create(node.getId());
 		}

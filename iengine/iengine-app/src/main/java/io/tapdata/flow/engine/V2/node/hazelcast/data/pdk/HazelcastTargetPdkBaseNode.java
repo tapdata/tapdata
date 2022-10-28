@@ -205,7 +205,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
 			long lastProcessTime = System.currentTimeMillis();
 			while (isRunning()) {
-				TapdataEvent tapdataEvent = tapEventQueue.poll();
+				TapdataEvent tapdataEvent = tapEventQueue.poll(1L, TimeUnit.SECONDS);
 				if (null != tapdataEvent) {
 					tapdataEvents.add(tapdataEvent);
 				}
@@ -214,12 +214,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					tapdataEvents.clear();
 					lastProcessTime = System.currentTimeMillis();
 				}
-				if (System.currentTimeMillis() - lastProcessTime >= 2000 && CollectionUtils.isNotEmpty(tapdataEvents)) {
+				if (System.currentTimeMillis() - lastProcessTime >= 500 && CollectionUtils.isNotEmpty(tapdataEvents)) {
 					processTargetEvents(tapdataEvents);
 					tapdataEvents.clear();
 					lastProcessTime = System.currentTimeMillis();
 				}
 			}
+		} catch (InterruptedException ignored) {
 		} catch (Throwable e) {
 			errorHandle(e, "Target process failed " + e.getMessage());
 			throw sneakyThrow(e);
@@ -277,6 +278,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					handleTapdataCompleteSnapshotEvent();
 				} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
 					handleTapdataStartCdcEvent(tapdataEvent);
+				} else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
+					throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
 				} else if (tapdataEvent instanceof TapdataShareLogEvent) {
 					handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
 				} else {

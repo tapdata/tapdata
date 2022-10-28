@@ -523,12 +523,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
 													if (MapUtils.isNotEmpty(errorMap)) {
 														for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-															logger.error(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
-															obsLogger.error(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
-															logger.error("Error record: " + tapRecordEventThrowableEntry.getKey());
-															obsLogger.error("Error record: " + tapRecordEventThrowableEntry.getKey());
+															logger.warn(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
+															obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
+															logger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
+															obsLogger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
 														}
-														throw new RuntimeException("Write record failed, will stop task");
+														throw new RuntimeException("Write record failed");
 													}
 
 													if (writeRecordFuncAspect != null)

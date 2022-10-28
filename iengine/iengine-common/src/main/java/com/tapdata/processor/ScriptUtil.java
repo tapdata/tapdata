@@ -55,15 +55,10 @@ public class ScriptUtil {
 
 	public static final String SCRIPT_FUNCTION_NAME = "validate";
 
-	public static ScriptEngine getScriptEngine() {
-		return getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName(),
-						new LoggingOutputStream(logger, Level.INFO),
-						new LoggingOutputStream(logger, Level.ERROR));
-	}
 	public static ScriptEngine getScriptEngine(String jsEngineName) {
 		return getScriptEngine(jsEngineName,
-						new LoggingOutputStream(logger, Level.INFO),
-						new LoggingOutputStream(logger, Level.ERROR));
+						new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO),
+						new LoggingOutputStream(new Log4jScriptLogger(logger), Level.ERROR));
 	}
 	/**
 	 * 获取js引擎
@@ -71,7 +66,7 @@ public class ScriptUtil {
 	 * @param jsEngineName
 	 * @return
 	 */
-	public static ScriptEngine getScriptEngine(String jsEngineName, OutputStream out, OutputStream err) {
+	private static ScriptEngine getScriptEngine(String jsEngineName, OutputStream out, OutputStream err) {
 		JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
 		ScriptEngine scriptEngine;
 		if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
@@ -99,18 +94,13 @@ public class ScriptUtil {
 		}
 		return scriptEngine;
 	}
-
 	public static Invocable getScriptEngine(String script,
 																					List<JavaScriptFunctions> javaScriptFunctions,
 																					ClientMongoOperator clientMongoOperator,
 																					ICacheGetter memoryCacheGetter,
-																					Logger logger) throws ScriptException {
-		return getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName(),
-						script, javaScriptFunctions, clientMongoOperator,
-						null,
-						null,
-						memoryCacheGetter,
-						logger);
+																					ScriptLogger logger) throws ScriptException {
+		return getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName(), script, javaScriptFunctions, clientMongoOperator,
+						null, null, memoryCacheGetter, logger);
 	}
 
 	public static Invocable getScriptEngine(String jsEngineName,
@@ -121,6 +111,17 @@ public class ScriptUtil {
 																					ScriptConnection target,
 																					ICacheGetter memoryCacheGetter,
 																					Logger logger) throws ScriptException {
+		return getScriptEngine(jsEngineName, script, javaScriptFunctions, clientMongoOperator, source, target, memoryCacheGetter, new Log4jScriptLogger(logger));
+	}
+
+	public static Invocable getScriptEngine(String jsEngineName,
+																					String script,
+																					List<JavaScriptFunctions> javaScriptFunctions,
+																					ClientMongoOperator clientMongoOperator,
+																					ScriptConnection source,
+																					ScriptConnection target,
+																					ICacheGetter memoryCacheGetter,
+																					ScriptLogger logger) throws ScriptException {
 
 		if (StringUtils.isBlank(script)) {
 			script = "function process(record){\n" +

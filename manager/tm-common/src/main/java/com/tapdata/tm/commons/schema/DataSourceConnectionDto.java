@@ -287,6 +287,9 @@ public class DataSourceConnectionDto extends BaseDto {
                         return Lists.newArrayList();
                 }
         }
+        public List<String> getTrueAccessNodeProcessIdList() {
+                return accessNodeProcessIdList;
+        }
 
         public boolean isAccessNodeTypeEmpty() {
                 return StringUtils.isBlank(accessNodeType);
