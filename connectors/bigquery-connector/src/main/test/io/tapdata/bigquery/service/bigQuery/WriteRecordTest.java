@@ -1,6 +1,8 @@
 package io.tapdata.bigquery.service.bigQuery;
 
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -25,10 +27,11 @@ class WriteRecordTest {
             "  \"auth_provider_x509_cert_url\": \"https://www.googleapis.com/oauth2/v1/certs\",\n" +
             "  \"client_x509_cert_url\": \"https://www.googleapis.com/robot/v1/metadata/x509/bigquerywriter%40vibrant-castle-366614.iam.gserviceaccount.com\"\n" +
             "}\n";
-    WriteRecord writeRecord = WriteRecord.create(null);
+    TapConnectorContext context = new TapConnectorContext(null, DataMap.create().kv("serviceAccount",str).kv("tableSet","tableSet001"),null);
+    WriteRecord writeRecord = WriteRecord.create(context);
     SqlMarker sqlMarker= SqlMarker.create(str);
 
-    TapTable tapTable = table("table1").add(
+    TapTable tapTable = table("test").add(
             field("id", JAVA_String).isPrimaryKey(true).primaryKeyPos(1)
     ).add(field("type",JAVA_Float));
 
