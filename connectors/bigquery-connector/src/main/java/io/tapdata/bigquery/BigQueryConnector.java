@@ -36,15 +36,22 @@ public class BigQueryConnector extends ConnectorBase {
 	private static final String TAG = BigQueryConnector.class.getSimpleName();
 
 	private final Object streamReadLock = new Object();
+	WriteRecord writeRecord;
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
+		this.writeRecord = WriteRecord.create(connectionContext);
 	}
 
 	@Override
 	public void onStop(TapConnectionContext connectionContext) throws Throwable {
 		synchronized (this) {
 			this.notify();
+		}
+
+		try {
+			Optional.ofNullable(this.writeRecord).ifPresent(WriteRecord::onDestroy);
+		} catch (Exception ignored) {
 		}
 	}
 
@@ -65,7 +72,7 @@ public class BigQueryConnector extends ConnectorBase {
 	}
 
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
-		WriteRecord.create(connectorContext).write(tapRecordEvents, tapTable, writeListResultConsumer);
+		this.writeRecord.write(tapRecordEvents, tapTable, writeListResultConsumer);
 	}
 
 

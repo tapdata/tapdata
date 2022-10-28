@@ -81,7 +81,9 @@ public class WriteRecord extends BigQueryStart{
     }
 
     private final AtomicBoolean running = new AtomicBoolean(true);
-
+    public void onDestroy() {
+        this.running.set(false);
+    }
     public synchronized void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
         SqlMarker sqlMarker = SqlMarker.create(this.config.serviceAccount());
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
@@ -132,6 +134,7 @@ public class WriteRecord extends BigQueryStart{
             writeListResultConsumer.accept(writeListResult);
         }
     }
+
     public Boolean hasRecord(SqlMarker sqlMarker,Map<String,Object> record,TapTable tapTable){
         String selectSql = selectSql(record, tapTable);
         if (null == selectSql) return null;
@@ -141,6 +144,7 @@ public class WriteRecord extends BigQueryStart{
         BigQueryResult tableResult = sqlMarker.executeOnce(selectSql);
         return null != tableResult && tableResult.getTotalRows()>0;
     }
+
     public Boolean hasRecord(SqlMarker sqlMarker,Map<String,Object> record,TapTable tapTable,TapRecordEvent event){
         String selectSql = selectSql(record, tapTable,event);
         if (null == selectSql) return null;
@@ -150,6 +154,7 @@ public class WriteRecord extends BigQueryStart{
         BigQueryResult tableResult = sqlMarker.executeOnce(selectSql);
         return null != tableResult && tableResult.getTotalRows()>0;
     }
+
     public String delSql(List<Map<String,Object>> record,TapTable tapTable){
         StringBuilder sql = new StringBuilder(" DELETE FROM ");
         sql.append(this.fullSqlTable(tapTable.getId())).append(" WHERE 1=2 ");
@@ -169,6 +174,7 @@ public class WriteRecord extends BigQueryStart{
         }
         return null;
     }
+
     public String delSql(List<Map<String,Object>> record,TapTable tapTable,TapRecordEvent event){
         StringBuilder sql = new StringBuilder(" DELETE FROM ");
         sql.append(this.fullSqlTable(tapTable.getId())).append(" WHERE 1=2 ");
@@ -212,7 +218,7 @@ public class WriteRecord extends BigQueryStart{
             StringBuilder sqlBuilder = new StringBuilder(" UPDATE ");
             sqlBuilder.append(this.fullSqlTable(tapTable.getId())).append(" SET ");
             StringBuilder whereBuilder = new StringBuilder(" WHERE ");
-            filter.forEach((key,value)->whereBuilder.append("`").append(key).append("` = ").append(value).append(" AND "));
+            filter.forEach((key,value)->whereBuilder.append("`").append(key).append("` = ").append(sqlValue(value,nameFieldMap.get(key))).append(" AND "));
             for (Map.Entry<String,TapField> field : nameFieldMap.entrySet()) {
                 if (null == field) continue;
                 String fieldName = field.getKey();
