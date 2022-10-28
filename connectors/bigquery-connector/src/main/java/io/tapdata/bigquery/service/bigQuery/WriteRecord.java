@@ -102,7 +102,7 @@ public class WriteRecord extends BigQueryStart{
                         }
                         Boolean aBoolean = hasRecord(sqlMarker, after, tapTable);
                         if (null == aBoolean) continue;
-                        String[] sqls = aBoolean? updateSql(list(after),tapTable) : insertSql(list(after),tapTable);
+                        String[] sqls = aBoolean? updateSql(list(after),tapTable,tapRecordEvent) : insertSql(list(after),tapTable);
                         sql = null!=sqls?sqls[0]:null;
                     }else{
                         sql = delSql(list(((TapDeleteRecordEvent)tapRecordEvent).getBefore()),tapTable);
@@ -161,18 +161,18 @@ public class WriteRecord extends BigQueryStart{
         return null;
     }
 
-    public String[] updateSql(List<Map<String,Object>> record,TapTable tapTable){
+    public String[] updateSql(List<Map<String,Object>> record,TapTable tapTable,TapRecordEvent event){
         Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null == nameFieldMap || nameFieldMap.isEmpty()) return null;
-
-        boolean hasKey = false;
-        for (Map.Entry<String, TapField> stringTapFieldEntry : nameFieldMap.entrySet()) {
-            if (null != stringTapFieldEntry && stringTapFieldEntry.getValue().getPrimaryKey()) {
-                hasKey = true;
-                break;
-            }
-        }
-        if (!hasKey) return insertSql(record, tapTable);
+        Map<String, Object> filter = event.getFilter(tapTable.primaryKeys());
+//        boolean hasKey = false;
+//        for (Map.Entry<String, TapField> stringTapFieldEntry : nameFieldMap.entrySet()) {
+//            if (null != stringTapFieldEntry && stringTapFieldEntry.getValue().getPrimaryKey()) {
+//                hasKey = true;
+//                break;
+//            }
+//        }
+        if (null == filter || filter.isEmpty()) return insertSql(record, tapTable);
 
         if (null == record || record.isEmpty()) return null;
         int size = record.size();
