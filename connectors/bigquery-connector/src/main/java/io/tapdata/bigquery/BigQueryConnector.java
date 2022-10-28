@@ -26,7 +26,7 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
-import org.junit.jupiter.api.Test;
+
 
 import java.util.*;
 import java.util.function.Consumer;
