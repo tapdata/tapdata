@@ -84,6 +84,7 @@ public class WriteRecord extends BigQueryStart{
     public void onDestroy() {
         this.running.set(false);
     }
+
     public synchronized void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
         SqlMarker sqlMarker = SqlMarker.create(this.config.serviceAccount());
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
@@ -104,7 +105,7 @@ public class WriteRecord extends BigQueryStart{
                         }
                         Boolean aBoolean = hasRecord(sqlMarker, after, tapTable,tapRecordEvent);
                         if (null == aBoolean) continue;
-                        String[] sqls = aBoolean? updateSql(list(after),tapTable,tapRecordEvent) : insertSql(list(after),tapTable);
+                        String[] sqls = aBoolean ? updateSql(list(after),tapTable,tapRecordEvent) : insertSql(list(after),tapTable);
                         sql = null!=sqls?sqls[0]:null;
                     }else{
                         sql = delSql(list(((TapDeleteRecordEvent)tapRecordEvent).getBefore()),tapTable,tapRecordEvent);
@@ -305,6 +306,11 @@ public class WriteRecord extends BigQueryStart{
         return sql.toString().replaceAll("1=1  AND","");
     }
 
+
+    /**
+     * JSON :  INSERT INTO mydataset.table1 VALUES(1, JSON '{"name": "Alice", "age": 30}');
+     *
+     * */
     public String sqlValue(Object value,TapField field){
         if (value instanceof String) return "\""+value+"\"";
         else return ""+value;

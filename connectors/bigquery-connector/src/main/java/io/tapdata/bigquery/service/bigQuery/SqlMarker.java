@@ -3,12 +3,15 @@ package io.tapdata.bigquery.service.bigQuery;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.*;
+import io.tapdata.entity.logger.TapLogger;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
 
 public class SqlMarker {
+    private static final String TAG = SqlMarker.class.getSimpleName();
+
     GoogleCredentials credentials;
     BigQuery bigQuery;
     private SqlMarker(String credentialsJson){
@@ -53,7 +56,7 @@ public class SqlMarker {
         try {
             return execute(sql);
         }catch (BigQueryException | InterruptedException e){
-
+            TapLogger.error(TAG,"Big Query execute error, {}"+sql);
         }
         return null;
     }
