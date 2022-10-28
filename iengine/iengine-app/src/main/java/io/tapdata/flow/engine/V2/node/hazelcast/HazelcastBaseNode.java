@@ -500,6 +500,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				}
 			}, TAG);
 			if (error != null) {
+				obsLogger.error(errorMessage, error);
 				throw new RuntimeException(errorMessage, error);
 			}
 		} finally {
@@ -667,10 +668,12 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					hazelcastJob.cancel();
 				} else {
 					logger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
+					obsLogger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
 				}
 			}
 		} catch (Exception e) {
 			logger.warn("error handler failed: " + e.getMessage(), e);
+			obsLogger.warn("error handler failed: " + e.getMessage(), e);
 		}
 
 		return currentEx;

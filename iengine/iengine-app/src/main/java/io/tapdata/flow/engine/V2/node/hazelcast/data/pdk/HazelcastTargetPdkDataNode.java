@@ -32,7 +32,6 @@ import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
@@ -538,6 +537,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 										).logTag(TAG)
 										.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
 										.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
+										.logListener(logListener)
 						)));
 			} catch (Exception e) {
 				throw new NodeException(e).context(getDataProcessorContext()).events(events);
