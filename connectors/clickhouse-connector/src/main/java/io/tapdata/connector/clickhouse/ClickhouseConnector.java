@@ -211,10 +211,10 @@ public class ClickhouseConnector extends ConnectorBase {
 //        connectorFunctions.supportQueryByFilter(this::queryByFilter);
 
         // ddl
-        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
-        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
-        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
-        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
     }
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
