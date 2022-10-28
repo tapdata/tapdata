@@ -77,27 +77,31 @@ public class DateTime {
     public DateTime(Long time, int fraction) {
         if (time == null)
             throw new IllegalArgumentException("DateTime constructor time is null");
-
-        switch (fraction) {
-            case 0:
-                seconds = time;
-                nano = 0;
-                break;
-            case 3:
-                seconds = time / 1000;
-                nano = (int) ((time % 1000) * 1000000);
-                break;
-            case 6:
-                seconds = time / 1000000;
-                nano = (int) ((time % 1000000) * 1000);
-                break;
-            case 9:
-                seconds = time / 1000000000;
-                nano = (int) (time % 1000000000);
-                break;
-            default:
-                throw new IllegalArgumentException("Fraction must be 0, 3, 6, 9");
+        if (fraction > 9 || fraction < 0) {
+            throw new IllegalArgumentException("Fraction must be 0~9");
         }
+        seconds = time / ((Double) Math.pow(10, fraction)).longValue();
+        nano = (int) ((time % ((Double) Math.pow(10, fraction)).longValue()) * ((Double) Math.pow(10, 9 - fraction)).longValue());
+//        switch (fraction) {
+//            case 0:
+//                seconds = time;
+//                nano = 0;
+//                break;
+//            case 3:
+//                seconds = time / 1000;
+//                nano = (int) ((time % 1000) * 1000000);
+//                break;
+//            case 6:
+//                seconds = time / 1000000;
+//                nano = (int) ((time % 1000000) * 1000);
+//                break;
+//            case 9:
+//                seconds = time / 1000000000;
+//                nano = (int) (time % 1000000000);
+//                break;
+//            default:
+//                throw new IllegalArgumentException("Fraction must be 0, 3, 6, 9");
+//        }
     }
 
     /**
