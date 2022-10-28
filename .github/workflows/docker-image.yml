@@ -46,7 +46,7 @@ jobs:
             (!startsWith(env.COMMIT_MESSAGE, 'Merge'))
         run: |
           echo ${{ env.COMMIT_MESSAGE }}
-          echo "::set-output name=error::true"
+          echo "error=true" >>$GITHUB_OUTPUT
 
   Integration-Testing:
     runs-on: ubuntu-latest

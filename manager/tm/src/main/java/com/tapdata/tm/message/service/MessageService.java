@@ -50,6 +50,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -112,16 +113,17 @@ public class MessageService extends BaseService {
         Query query = parseWhereCondition(filter.getWhere(), userDetail);
         List<String> collect = Arrays.stream(MsgTypeEnum.values()).filter(t -> t != MsgTypeEnum.ALARM).map(MsgTypeEnum::getValue).collect(Collectors.toList());
         query.addCriteria(Criteria.where("msg").in(collect));
-        query.with(tmPageable);
         return getMessageListVoPage(query, tmPageable);
     }
 
     @NotNull
     private Page<MessageListVo> getMessageListVoPage(Query query, TmPageable tmPageable) {
         long total = messageRepository.getMongoOperations().count(query, MessageEntity.class);
-        List<MessageEntity> messageEntityList = messageRepository.getMongoOperations().find(query.with(tmPageable), MessageEntity.class);
+        query.with(Sort.by("createTime").descending());
+        query.with(tmPageable);
+        List<MessageEntity> messageEntityList = messageRepository.getMongoOperations().find(query, MessageEntity.class);
 
-        List<MessageListVo> messageListVoList = CglibUtil.copyList(messageEntityList, MessageListVo::new);
+        List<MessageListVo> messageListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(messageEntityList, MessageListVo.class);
         messageListVoList.forEach(messageListVo -> {
             if (StringUtils.isEmpty(messageListVo.getServerName())) {
                 messageListVo.setServerName(messageListVo.getAgentName());

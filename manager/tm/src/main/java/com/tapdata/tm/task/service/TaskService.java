@@ -898,6 +898,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setStartTime(null);
         taskDto.setStopTime(null);
         taskDto.setErrorTime(null);
+        Map<String, Object> attrs = taskDto.getAttrs();
+        attrs.remove("edgeMilestones");
+        attrs.remove("syncProgress");
         //taskDto.setTemp(null);
 
         //创建新任务， 直接调用事务不会生效

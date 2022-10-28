@@ -486,7 +486,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             if (node instanceof MigrateFieldRenameProcessorNode) {
                 LinkedList<TableFieldInfo> fieldsMapping = ((MigrateFieldRenameProcessorNode) node).getFieldsMapping();
 
-                return fieldsMapping.stream().anyMatch(table -> !table.getQualifiedName().endsWith(taskId));
+                return fieldsMapping != null && fieldsMapping.stream().anyMatch(table -> !table.getQualifiedName().endsWith(taskId));
             }
             return false;
         }).map(Node::getId)
