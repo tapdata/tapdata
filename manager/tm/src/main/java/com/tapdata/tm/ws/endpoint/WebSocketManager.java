@@ -154,7 +154,6 @@ public class WebSocketManager {
 
 	public static void addHandler(String type, WebSocketHandler handler){
 		if (StringUtils.isNotBlank(type) && handler != null){
-			handler = webSocketHandlerMap.get(type);
 			if (webSocketHandlerMap.containsKey(type)){
 				log.warn("A message handler of type {}({}) already exists and will be replaced with {}",
 						type, webSocketHandlerMap.get(type), handler);
