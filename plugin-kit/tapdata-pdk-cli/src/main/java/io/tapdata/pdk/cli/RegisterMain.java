@@ -38,6 +38,7 @@ public class RegisterMain {
         Tidb(BASE_PATH + "connectors/dist/tidb-connector-v1.0-SNAPSHOT.jar", true, "all", "tidb"),
         Tablestore(BASE_PATH + "connectors/dist/tablestore-connector-v1.0-SNAPSHOT.jar", false, "all", "tablestore"),
         Custom(BASE_PATH + "connectors/dist/custom-connector-v1.0-SNAPSHOT.jar", false, "all", "custom"),
+        Vika(BASE_PATH + "connectors/dist/vika-connector-v1.0-SNAPSHOT.jar", false, "all", "vika"),
         ;
 
         private final String path;

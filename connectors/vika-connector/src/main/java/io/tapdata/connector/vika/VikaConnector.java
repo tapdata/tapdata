@@ -32,6 +32,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.*;
@@ -110,7 +111,8 @@ public class VikaConnector extends ConnectorBase {
             return "null";
         });
         codecRegistry.registerFromTapValue(TapTimeValue.class, FieldTypeEnum.Text.name(), tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
-//        codecRegistry.registerFromTapValue(TapDateValue.class, FieldTypeEnum.Text.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
+        codecRegistry.registerFromTapValue(TapDateValue.class, FieldTypeEnum.Text.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, FieldTypeEnum.Text.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd HH:mm:ss"));
     }
 
     @Override
