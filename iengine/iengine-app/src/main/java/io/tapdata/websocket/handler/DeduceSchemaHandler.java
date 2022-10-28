@@ -106,7 +106,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 					}
 
 					if (CollectionUtils.isNotEmpty(schemaApplyResultList)) {
-						return schemaApplyResultList.stream().map(s -> new MigrateJsResultVo(s.getOp(),s.getFieldName(), s.getTapField()))
+						return schemaApplyResultList.stream().map(s -> new MigrateJsResultVo(s.getOp(),s.getFieldName(), s.getTapField(), s.getTapIndex()))
 										.collect(Collectors.toList());
 					}
 
