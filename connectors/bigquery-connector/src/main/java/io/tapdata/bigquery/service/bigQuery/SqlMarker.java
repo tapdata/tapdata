@@ -48,6 +48,7 @@ public class SqlMarker {
             //System.out.println("Query performed successfully.");
         } catch (BigQueryException | InterruptedException e) {
             //System.out.println("Insert operation not performed \n" + e.toString());
+            TapLogger.error(TAG,"Big Query execute error,{} , {}",e.getMessage(),sql);
         }
         return results;
     }
@@ -56,7 +57,7 @@ public class SqlMarker {
         try {
             return execute(sql);
         }catch (BigQueryException | InterruptedException e){
-            TapLogger.error(TAG,"Big Query execute error, {}"+sql);
+            TapLogger.error(TAG,"Big Query execute error,{} , {}",e.getMessage(),sql);
         }
         return null;
     }
