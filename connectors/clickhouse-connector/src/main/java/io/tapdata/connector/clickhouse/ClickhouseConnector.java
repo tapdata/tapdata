@@ -184,12 +184,12 @@ public class ClickhouseConnector extends ConnectorBase {
 //        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             DateTime datetime = tapDateTimeValue.getValue();
-            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+//            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
             return datetime.toTimestamp();
         });
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
             DateTime datetime = tapDateValue.getValue();
-            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+//            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
             return datetime.toSqlDate();
         });
 
