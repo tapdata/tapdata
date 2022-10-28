@@ -100,12 +100,12 @@ public class WriteRecord extends BigQueryStart{
                             writeListResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
                             continue;
                         }
-                        Boolean aBoolean = hasRecord(sqlMarker, after, tapTable);
+                        Boolean aBoolean = hasRecord(sqlMarker, after, tapTable,tapRecordEvent);
                         if (null == aBoolean) continue;
                         String[] sqls = aBoolean? updateSql(list(after),tapTable,tapRecordEvent) : insertSql(list(after),tapTable);
                         sql = null!=sqls?sqls[0]:null;
                     }else{
-                        sql = delSql(list(((TapDeleteRecordEvent)tapRecordEvent).getBefore()),tapTable);
+                        sql = delSql(list(((TapDeleteRecordEvent)tapRecordEvent).getBefore()),tapTable,tapRecordEvent);
                     }
                     BigQueryResult bigQueryResult = sqlMarker.executeOnce(sql);
                     long totalRows = bigQueryResult.getTotalRows();
@@ -141,6 +141,15 @@ public class WriteRecord extends BigQueryStart{
         BigQueryResult tableResult = sqlMarker.executeOnce(selectSql);
         return null != tableResult && tableResult.getTotalRows()>0;
     }
+    public Boolean hasRecord(SqlMarker sqlMarker,Map<String,Object> record,TapTable tapTable,TapRecordEvent event){
+        String selectSql = selectSql(record, tapTable,event);
+        if (null == selectSql) return null;
+        if ("".equals(selectSql)){
+            return false;
+        }
+        BigQueryResult tableResult = sqlMarker.executeOnce(selectSql);
+        return null != tableResult && tableResult.getTotalRows()>0;
+    }
     public String delSql(List<Map<String,Object>> record,TapTable tapTable){
         StringBuilder sql = new StringBuilder(" DELETE FROM ");
         sql.append(this.fullSqlTable(tapTable.getId())).append(" WHERE 1=2 ");
@@ -160,18 +169,35 @@ public class WriteRecord extends BigQueryStart{
         }
         return null;
     }
+    public String delSql(List<Map<String,Object>> record,TapTable tapTable,TapRecordEvent event){
+        StringBuilder sql = new StringBuilder(" DELETE FROM ");
+        sql.append(this.fullSqlTable(tapTable.getId())).append(" WHERE 1=2 ");
+        Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+
+        Map<String, Object> filter = event.getFilter(tapTable.primaryKeys());
+        if (null == filter || filter.isEmpty()) return null;
+
+        if (null != nameFieldMap && !nameFieldMap.isEmpty() && null != record && !record.isEmpty()){
+            sql.append( " OR ( " );
+            for (Map<String, Object> map : record) {
+                sql.append(" 1 = 1 ");
+                filter.forEach((key,value)->sql.append(" AND `").append(key).append("` = ").append(sqlValue(value, nameFieldMap.get(key))).append(" "));
+//                for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
+//                    if (key.getValue().getPrimaryKey()) {
+//                        sql.append(" AND `").append(key.getKey()).append("` = ").append(sqlValue(map.get(key.getKey()), key.getValue())).append(" ");
+//                    }
+//                }
+            }
+            sql.append(" ) ");
+            return sql.toString().replaceAll("1=2  OR","").replaceAll("1 = 1  AND","");
+        }
+        return null;
+    }
 
     public String[] updateSql(List<Map<String,Object>> record,TapTable tapTable,TapRecordEvent event){
         Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null == nameFieldMap || nameFieldMap.isEmpty()) return null;
         Map<String, Object> filter = event.getFilter(tapTable.primaryKeys());
-//        boolean hasKey = false;
-//        for (Map.Entry<String, TapField> stringTapFieldEntry : nameFieldMap.entrySet()) {
-//            if (null != stringTapFieldEntry && stringTapFieldEntry.getValue().getPrimaryKey()) {
-//                hasKey = true;
-//                break;
-//            }
-//        }
         if (null == filter || filter.isEmpty()) return insertSql(record, tapTable);
 
         if (null == record || record.isEmpty()) return null;
@@ -186,6 +212,7 @@ public class WriteRecord extends BigQueryStart{
             StringBuilder sqlBuilder = new StringBuilder(" UPDATE ");
             sqlBuilder.append(this.fullSqlTable(tapTable.getId())).append(" SET ");
             StringBuilder whereBuilder = new StringBuilder(" WHERE ");
+            filter.forEach((key,value)->whereBuilder.append("`").append(key).append("` = ").append(value).append(" AND "));
             for (Map.Entry<String,TapField> field : nameFieldMap.entrySet()) {
                 if (null == field) continue;
                 String fieldName = field.getKey();
@@ -252,6 +279,23 @@ public class WriteRecord extends BigQueryStart{
                 sql.append(" AND `").append(key.getKey()).append("` = ").append(sqlValue(record.get(key.getKey()),key.getValue())).append(" ");
             }
         }
+        return sql.toString().replaceAll("1=1  AND","");
+    }
+
+    public String selectSql(Map<String,Object> record,TapTable tapTable,TapRecordEvent event){
+        if (null == record || null == tapTable) return null;
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (null == nameFieldMap || nameFieldMap.isEmpty()) return "";
+        StringBuilder sql = new StringBuilder(" SELECT * FROM ").append(this.fullSqlTable(tapTable.getId())).append(" WHERE 1=1 ");
+        Map<String, Object> filter = event.getFilter(tapTable.primaryKeys());
+        if (null == filter || filter.isEmpty()) return null;
+        filter.forEach((key,value)->sql.append(" AND `").append(key).append("` = ").append(sqlValue(value,nameFieldMap.get(key))).append(" "));
+//        for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
+//            if (null == key) continue;
+//            if (key.getValue().getPrimaryKey()) {
+//                sql.append(" AND `").append(key.getKey()).append("` = ").append(sqlValue(record.get(key.getKey()),key.getValue())).append(" ");
+//            }
+//        }
         return sql.toString().replaceAll("1=1  AND","");
     }
 
