@@ -572,18 +572,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		return cdcStartTs;
 	}
 
-	@Override
-	public void doClose() throws Exception {
-		try {
-			if (null != getConnectorNode()) {
-				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.stop(getConnectorNode()), TAG);
-				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG), TAG);
-			}
-		} finally {
-			super.doClose();
-		}
-	}
-
 	private void setDefaultRowSizeMap() {
 		for (String tableName : dataProcessorContext.getTapTableMap().keySet()) {
 			if (null == snapshotRowSizeMap) {
