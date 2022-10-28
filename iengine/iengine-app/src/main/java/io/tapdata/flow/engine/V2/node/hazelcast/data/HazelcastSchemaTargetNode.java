@@ -169,22 +169,34 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		}
 		TapTable tapTable = new TapTable(tapEvent.getTableId());
 		if (MapUtils.isNotEmpty(after)) {
+			LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap(tapEvent.getTableId());
 			for (Map.Entry<String, Object> entry : after.entrySet()) {
+				String fieldName = entry.getKey();
 				if (logger.isDebugEnabled()) {
-					logger.debug("entry type: {} - {}", entry.getKey(), entry.getValue().getClass());
+					logger.debug("entry type: {} - {}", fieldName, entry.getValue().getClass());
 				}
 				if (entry.getValue() instanceof TapValue) {
 					TapValue<?, ?> tapValue = (TapValue<?, ?>) entry.getValue();
 					TapField tapField = new TapField()
-									.name(entry.getKey())
+									.name(fieldName)
 									.dataType(tapValue.getOriginType())
 									.tapType(tapValue.getTapType());
 					tapField.setTapType(tapValue.getTapType());
 					tapTable.add(tapField);
 				} else {
 					TapType tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
+					String dataType = null;
+					if (oldNameFieldMap != null) {
+						TapField oldTapField = oldNameFieldMap.get(fieldName);
+						if (oldTapField != null && oldTapField.getTapType() != null && tapType != null
+										&& oldTapField.getTapType().getType() == tapType.getType()) {
+							tapType = oldTapField.getTapType();
+							dataType = oldTapField.getDataType();
+						}
+					}
 					TapField tapField = new TapField()
-									.name(entry.getKey())
+									.name(fieldName)
+									.dataType(dataType)
 									.tapType(tapType);
 					tapTable.add(tapField);
 				}

@@ -1,9 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MapUtil;
-import com.tapdata.constant.MilestoneUtil;
+import com.tapdata.constant.*;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
@@ -136,9 +133,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		syncProgress = initSyncProgress(taskDto.getAttrs());
+		logger.info("Found sync progress: " + syncProgress);
+		obsLogger.info("Found sync progress: " + syncProgress);
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			initBatchAndStreamOffset(taskDto);
+			obsLogger.info(String.format("Node %s[%s] batch offset: %s", getNode().getName(), getNode().getId(), JSONUtil.obj2Json(syncProgress.getBatchOffsetObj())));
+			obsLogger.info(String.format("Node %s[%s] stream offset: %s", getNode().getName(), getNode().getId(), JSONUtil.obj2Json(syncProgress.getStreamOffsetObj())));
 		}
 		initDDLFilter();
 		this.sourceRunnerLock = new ReentrantLock(true);

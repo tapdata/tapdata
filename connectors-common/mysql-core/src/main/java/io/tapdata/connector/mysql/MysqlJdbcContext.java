@@ -325,6 +325,20 @@ public class MysqlJdbcContext implements AutoCloseable {
 		StringBuilder sb = new StringBuilder("GMT");
 		String[] split = timezone.split(":");
 		String str = split[0];
+		//Corrections -07:59:59 to GMT-08:00
+		int m = Integer.parseInt(split[1]);
+		if (m != 0) {
+			split[1] = "00";
+			int h = Math.abs(Integer.parseInt(str)) + 1;
+			if (h < 10) {
+				str = "0" + h;
+			} else {
+				str = h + "";
+			}
+			if (split[0].contains("-")) {
+				str = "-" + str;
+			}
+		}
 		if (str.contains("-")) {
 			if (str.length() == 3) {
 				sb.append(str);
@@ -345,7 +359,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 				sb.append("0").append(StringUtils.right(str, 1));
 			}
 		}
-		return sb.toString();
+		return sb.append(":").append(split[1]).toString();
 	}
 
 	@Override

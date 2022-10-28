@@ -7,6 +7,7 @@ import io.tapdata.connector.custom.core.ScriptCore;
 import io.tapdata.connector.custom.util.CustomLog;
 import io.tapdata.connector.custom.util.ScriptUtil;
 import io.tapdata.constant.ConnectionTypeEnum;
+import io.tapdata.constant.SyncTypeEnum;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -57,7 +58,7 @@ public class CustomConnector extends ConnectorBase {
         assert scriptFactory != null;
         initScriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
         initScriptEngine.eval(ScriptUtil.appendBeforeFunctionScript(customConfig.getCustomBeforeScript()) + "\n"
-                + ScriptUtil.appendAfterFunctionScript(customConfig.getCustomBeforeScript()));
+                + ScriptUtil.appendAfterFunctionScript(customConfig.getCustomAfterScript()));
         initScriptEngine.put("log", new CustomLog());
     }
 
@@ -71,6 +72,10 @@ public class CustomConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
+
+    }
+
+    private void beforeStop() {
         if (EmptyKit.isNotNull(customConfig) && customConfig.getCustomAfterOpr()) {
             ScriptUtil.executeScript(initScriptEngine, ScriptUtil.AFTER_FUNCTION_NAME);
         }
@@ -205,6 +210,9 @@ public class CustomConnector extends ConnectorBase {
         if (t.isAlive()) {
             t.stop();
         }
+        if (customConfig.getSyncType().equals(SyncTypeEnum.INITIAL_SYNC.getType())) {
+            beforeStop();
+        }
     }
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
@@ -258,6 +266,7 @@ public class CustomConnector extends ConnectorBase {
             t.stop();
         }
         consumer.streamReadEnded();
+        beforeStop();
     }
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {

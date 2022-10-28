@@ -25,6 +25,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,6 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNode {
     private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkAutoInspectNode.class);
+    public static final String TAG = HazelcastTargetPdkAutoInspectNode.class.getSimpleName();
 
     private enum STATUS {
         Init, Running, Stopping, Completed,
@@ -271,14 +273,19 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
 
     @Override
     public void doClose() throws Exception {
-        boolean changeStatus = status.compareAndSet(STATUS.Init, STATUS.Stopping) || status.compareAndSet(STATUS.Running, STATUS.Stopping);
-        while (isRunning() && STATUS.Completed != status.get()) {
-            try {
-                Thread.sleep(500L);
-            } catch (InterruptedException e) {
-                break;
-            }
+        try {
+            CommonUtils.ignoreAnyError(() -> {
+                boolean changeStatus = status.compareAndSet(STATUS.Init, STATUS.Stopping) || status.compareAndSet(STATUS.Running, STATUS.Stopping);
+                while (isRunning() && STATUS.Completed != status.get()) {
+                    try {
+                        Thread.sleep(500L);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+            }, TAG);
+        } finally {
+            super.doClose();
         }
-        super.doClose();
     }
 }
