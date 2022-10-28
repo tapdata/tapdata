@@ -230,6 +230,9 @@ public class CustomConnector extends ConnectorBase {
         Thread t = new Thread(runnable);
         t.start();
         consumer.streamReadStarted();
+        if (EmptyKit.isNotNull(scriptException.get())) {
+            throw scriptException.get();
+        }
         List<TapEvent> eventList = new ArrayList<>();
         Object lastContextMap = null;
         while (isAlive() && t.isAlive()) {
