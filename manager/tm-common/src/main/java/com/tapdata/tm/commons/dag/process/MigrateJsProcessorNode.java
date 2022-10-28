@@ -108,7 +108,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
             throw new RuntimeException(e);
         }
         if (CollectionUtils.isEmpty(jsResult)) {
-            result = getInputSchema().get(0);
+            result = Lists.newArrayList();
         } else {
             Map<String, MigrateJsResultVo> removeMap = jsResult.stream()
                     .filter(n -> "REMOVE".equals(n.getOp()))

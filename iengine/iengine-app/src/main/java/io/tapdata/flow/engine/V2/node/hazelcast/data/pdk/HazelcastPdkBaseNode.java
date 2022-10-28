@@ -16,6 +16,7 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
@@ -53,6 +54,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	protected MonitorManager monitorManager;
 	protected SyncProgress syncProgress;
 	protected String associateId;
+	protected TapLogger.LogListener logListener;
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -60,6 +62,37 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 		}
+		logListener = new TapLogger.LogListener() {
+			@Override
+			public void debug(String log) {
+				obsLogger.debug(log);
+			}
+
+			@Override
+			public void info(String log) {
+				obsLogger.info(log);
+			}
+
+			@Override
+			public void warn(String log) {
+				obsLogger.warn(log);
+			}
+
+			@Override
+			public void error(String log) {
+				obsLogger.error(log);
+			}
+
+			@Override
+			public void fatal(String log) {
+				obsLogger.fatal(log);
+			}
+
+			@Override
+			public void memory(String memoryLog) {
+				info(memoryLog);
+			}
+		};
 	}
 
 	protected void connectorNodeInit(DataProcessorContext dataProcessorContext) {
