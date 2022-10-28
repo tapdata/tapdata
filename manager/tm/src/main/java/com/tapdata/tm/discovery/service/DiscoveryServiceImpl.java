@@ -609,6 +609,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             Query query = new Query(agentIdCriteria);
             query.fields().include("systemInfo");
             List<ClusterStateDto> workers = clusterStateService.findAll(query);
+            workers = workers.stream().filter(Objects::nonNull).collect(Collectors.toList());
             if (CollectionUtils.isNotEmpty(workers)) {
                 agentMap = workers.stream().collect(Collectors.toMap(w -> w.getSystemInfo().getProcess_id(), w -> w.getSystemInfo().getIp(), (w1, w2) -> w1));
             }
