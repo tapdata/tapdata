@@ -32,6 +32,8 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
@@ -108,7 +110,7 @@ public class VikaConnector extends ConnectorBase {
             return "null";
         });
         codecRegistry.registerFromTapValue(TapTimeValue.class, FieldTypeEnum.Text.name(), tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
-        codecRegistry.registerFromTapValue(TapDateValue.class, FieldTypeEnum.Text.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
+//        codecRegistry.registerFromTapValue(TapDateValue.class, FieldTypeEnum.Text.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
     }
 
     @Override
@@ -264,7 +266,20 @@ public class VikaConnector extends ConnectorBase {
                     CreateFieldRequest<NumberFieldProperty> fieldRequest = new CreateFieldRequest<>();
                     NumberFieldProperty property = new NumberFieldProperty();
                     property.setDefaultValue(Objects.isNull(value.getDefaultValue()) ? "" : value.getDefaultValue().toString());
-                    property.setPrecision(PrecisionEnum.POINT4);
+                    TapNumber tapType = (TapNumber) value.getTapType();
+                    PrecisionEnum precisionEnum;
+                    if (Objects.isNull(tapType.getScale())) {
+                        precisionEnum = PrecisionEnum.POINT0;
+                    } else if (tapType.getScale() == PrecisionEnum.POINT1.getValue()){
+                        precisionEnum = PrecisionEnum.POINT1;
+                    } else if (tapType.getScale() == PrecisionEnum.POINT2.getValue()){
+                        precisionEnum = PrecisionEnum.POINT2;
+                    } else if (tapType.getScale() == PrecisionEnum.POINT3.getValue()){
+                        precisionEnum = PrecisionEnum.POINT3;
+                    } else {
+                        precisionEnum = PrecisionEnum.POINT4;
+                    }
+                    property.setPrecision(precisionEnum);
                     fieldRequest.setProperty(property);
                     fieldRequest.setName(value.getName());
                     fieldRequest.setType(type);
