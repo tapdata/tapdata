@@ -110,7 +110,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		SyncProgress syncProgress = initSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
 		if (null != syncProgress) return;
 		for (String tableId : tapTableMap.keySet()) {
-			if (!this.running.get()) {
+			if (!isRunning()) {
 				break;
 			}
 			TapTable tapTable = tapTableMap.get(tableId);
@@ -600,18 +600,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 		public void setCurrentTapEvent(TapEvent currentTapEvent) {
 			this.currentTapEvent = currentTapEvent;
-		}
-	}
-
-	@Override
-	public void doClose() throws Exception {
-		try {
-			if (null != getConnectorNode()) {
-				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.stop(getConnectorNode()), TAG);
-				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG), TAG);
-			}
-		} finally {
-			super.doClose();
 		}
 	}
 

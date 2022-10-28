@@ -110,7 +110,6 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 						}
 					}
 				}
-				logger.info("Init sync progress result: " + syncProgress);
 			} else {
 				if (null == syncProgressObj) {
 					logger.info("Sync progress not exists, will run task as first time");

@@ -474,7 +474,14 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void doClose() throws Exception {
-		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset), TAG);
+		CommonUtils.handleAnyError(()->{
+			Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset);
+			logger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
+			obsLogger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
+		}, err->{
+			logger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
+			obsLogger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
+		});
 	}
 
 	@Override
