@@ -8,7 +8,7 @@ import com.tapdata.entity.BaseEntity;
 import com.tapdata.entity.ResponseBody;
 import com.tapdata.entity.TapLog;
 import com.tapdata.interceptor.LoggingInterceptor;
-import com.tapdata.interceptor.VersionHeaderInterceptor;
+import com.tapdata.tm.sdk.interceptor.VersionHeaderInterceptor;
 import com.tapdata.tm.sdk.available.CloudRestTemplate;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import com.tapdata.tm.sdk.util.CloudSignUtil;

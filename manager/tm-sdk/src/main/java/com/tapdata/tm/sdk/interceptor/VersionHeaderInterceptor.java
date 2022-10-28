@@ -1,11 +1,11 @@
-package com.tapdata.interceptor;
+package com.tapdata.tm.sdk.interceptor;
 
-import com.tapdata.entity.Version;
-import org.apache.commons.lang3.StringUtils;
+import com.tapdata.tm.sdk.util.Version;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 
@@ -20,7 +20,7 @@ public class VersionHeaderInterceptor implements ClientHttpRequestInterceptor {
 	@Override
 	public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
 		String version = Version.get();
-		if (StringUtils.isNotEmpty(version)) {
+		if (!StringUtils.isEmpty(version)) {
 			request.getHeaders().add(HTTP_HEADER_USER_AGENT, version);
 		}
 		return execution.execute(request, body);

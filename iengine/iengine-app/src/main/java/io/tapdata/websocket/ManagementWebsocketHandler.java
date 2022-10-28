@@ -7,7 +7,7 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.PkgAnnoUtil;
 import com.tapdata.entity.AppType;
-import com.tapdata.entity.Version;
+import com.tapdata.tm.sdk.util.Version;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
