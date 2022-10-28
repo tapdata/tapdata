@@ -136,7 +136,7 @@
             "height": 240,
             "before": "function before() {",
             "after": "}",
-            "class": "dark"
+            "theme": "one_dark"
           },
           "x-index": 60
         },
@@ -174,7 +174,7 @@
             "height": 240,
             "before": "function onData(data) {",
             "after": "}",
-            "class": "dark"
+            "theme": "one_dark"
           },
           "x-reactions": {
             "dependencies": [
@@ -200,7 +200,7 @@
             "height": 240,
             "before": "function requestData(ctx) {",
             "after": "}",
-            "class": "dark"
+            "theme": "one_dark"
           },
           "x-reactions": {
             "dependencies": [
@@ -228,7 +228,7 @@
             "height": 240,
             "before": "function requestData() {",
             "after": "}",
-            "class": "dark"
+            "theme": "one_dark"
           },
           "x-reactions": {
             "dependencies": [
@@ -277,7 +277,7 @@
             "height": 240,
             "before": "function after() {",
             "after": "}",
-            "class": "dark"
+            "theme": "one_dark"
           },
           "x-index": 110
         }

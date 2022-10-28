@@ -1,8 +1,11 @@
 package io.tapdata.connector.custom.core;
 
 import io.tapdata.connector.custom.CustomEventMessage;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.kit.EmptyKit;
@@ -53,10 +56,25 @@ public class ScriptCore extends Core {
                     if (EmptyKit.isNotEmpty(dataMap)) {
                         //deep copy to resolve problem with multi thread
                         Map<String, Object> newMap = (Map) objectSerializable.toObject(objectSerializable.fromObject(new HashMap<>(dataMap)));
+                        contextMap = objectSerializable.toObject(objectSerializable.fromObject(contextMap));
                         try {
+                            TapEvent tapEvent;
+                            switch (op) {
+                                case MESSAGE_OPERATION_INSERT:
+                                    tapEvent = new TapInsertRecordEvent().init().table(collectionName).after(newMap).referenceTime(System.currentTimeMillis());
+                                    break;
+                                case MESSAGE_OPERATION_UPDATE:
+                                    tapEvent = new TapUpdateRecordEvent().init().table(collectionName).after(newMap).referenceTime(System.currentTimeMillis());
+                                    break;
+                                case MESSAGE_OPERATION_DELETE:
+                                    tapEvent = new TapDeleteRecordEvent().init().table(collectionName).before(newMap).referenceTime(System.currentTimeMillis());
+                                    break;
+                                default:
+                                    tapEvent = null;
+                                    break;
+                            }
                             //put into the queue
-                            while (!eventQueue.offer(new CustomEventMessage()
-                                    .tapEvent(TapSimplify.insertRecordEvent(newMap, collectionName).referenceTime(System.currentTimeMillis()))
+                            while (!eventQueue.offer(new CustomEventMessage().tapEvent(tapEvent)
                                     .contextMap(contextMap), 1, TimeUnit.SECONDS)) {
                                 TapLogger.warn(TAG, "log queue is full, waiting...");
                             }
