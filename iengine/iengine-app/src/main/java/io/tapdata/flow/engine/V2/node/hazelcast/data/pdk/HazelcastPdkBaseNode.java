@@ -98,6 +98,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 						() -> Log4jUtil.setThreadContext(taskDto)
 				)
 		);
+		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));
 		processorBaseContext.setPdkAssociateId(this.associateId);
 		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 	}
@@ -143,19 +144,37 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	@Override
 	public void doClose() throws Exception {
 		try {
-			if (this.monitorManager != null) {
-				this.monitorManager.close();
-			}
-			CommonUtils.ignoreAnyError(() -> {
-				logger.info("Starting stop and release PDK connector node: " + associateId);
+			CommonUtils.handleAnyError(() -> {
+				if (this.monitorManager != null) {
+					this.monitorManager.close();
+					logger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
+					obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
+				}
+			}, err -> {
+				logger.warn("Close monitor failed: " + err.getMessage());
+				obsLogger.warn("Close monitor failed: " + err.getMessage());
+			});
+			CommonUtils.handleAnyError(() -> {
 				Optional.ofNullable(getConnectorNode())
-						.ifPresent(connectorNode -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG));
+						.ifPresent(connectorNode -> {
+							PDKInvocationMonitor.stop(getConnectorNode());
+							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
+						});
 				logger.info("PDK connector node stopped: " + associateId);
+				obsLogger.info("PDK connector node stopped: " + associateId);
+			}, err -> {
+				logger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
+				obsLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
+			});
+			CommonUtils.handleAnyError(()->{
 				Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
-				logger.info("PDK connector node released: " + associateId);
 				ConnectorNodeService.getInstance().removeConnectorNode(associateId);
-				logger.info("Release PDK connector node completed: " + associateId);
-			}, TAG);
+				logger.info("PDK connector node released: " + associateId);
+				obsLogger.info("PDK connector node released: " + associateId);
+			},err->{
+				logger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
+				obsLogger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
+			});
 		} finally {
 			super.doClose();
 		}

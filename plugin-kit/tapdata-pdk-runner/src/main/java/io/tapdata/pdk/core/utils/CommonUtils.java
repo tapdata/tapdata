@@ -211,7 +211,6 @@ public class CommonUtils {
             TapLogger.warn(tag, "Error code {} message {} will be ignored. ", coreException.getCode(), ExceptionUtils.getStackTrace(coreException));
         } catch(Throwable throwable) {
             if(!(throwable instanceof QuiteException)) {
-                throwable.printStackTrace();
                 TapLogger.warn(tag, "Unknown error message {} will be ignored. ", ExceptionUtils.getStackTrace(throwable));
             }
         }

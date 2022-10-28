@@ -8,7 +8,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
-import io.tapdata.constructImpl.ConstructIMap;
+import io.tapdata.constructImpl.BytesIMap;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -48,8 +48,8 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 
 	private final static String IMAP_NAME_DELIMITER = "-";
 
-	private ConstructIMap<Map<String, Map<String, Object>>> leftJoinCache;
-	private ConstructIMap<Map<String, Map<String, Object>>> rightJoinCache;
+	private BytesIMap<Map<String, Map<String, Object>>> leftJoinCache;
+	private BytesIMap<Map<String, Map<String, Object>>> rightJoinCache;
 
 //  private List<String> keyFields;
 
@@ -98,7 +98,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		String rightNodeId = ((JoinProcessorNode) node).getRightNodeId();
 		HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance();
 		String leftJoinCacheMapName = joinCacheMapName(leftNodeId, "leftJoinCache");
-		ConstructIMap<Map<String, Map<String, Object>>> leftJoinCache = new ConstructIMap<>(
+		BytesIMap<Map<String, Map<String, Object>>> leftJoinCache = new BytesIMap<>(
 				hazelcastInstance,
 				leftJoinCacheMapName
 		);
@@ -108,7 +108,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 			throw new RuntimeException(String.format("Clear left join cache map occur an error: %s\n map name: %s", e.getMessage(), leftJoinCacheMapName), e);
 		}
 		String rightJoinCacheMapName = joinCacheMapName(rightNodeId, "rightCache");
-		ConstructIMap<Map<String, Map<String, Object>>> rightJoinCache = new ConstructIMap<>(
+		BytesIMap<Map<String, Map<String, Object>>> rightJoinCache = new BytesIMap<>(
 				hazelcastInstance,
 				rightJoinCacheMapName
 		);
@@ -146,11 +146,11 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		this.leftPrimaryKeys = joinNode.getLeftPrimaryKeys();
 		this.rightPrimaryKeys = joinNode.getRightPrimaryKeys();
 		pkChecker();
-		this.leftJoinCache = new ConstructIMap<>(
+		this.leftJoinCache = new BytesIMap<>(
 				context.hazelcastInstance(),
 				joinCacheMapName(leftNodeId, "leftJoinCache")
 		);
-		this.rightJoinCache = new ConstructIMap<>(
+		this.rightJoinCache = new BytesIMap<>(
 				context.hazelcastInstance(),
 				joinCacheMapName(rightNodeId, "rightCache")
 		);
@@ -200,7 +200,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		}
 
 		List<JoinResult> joinResults;
-		if (leftNodeId.equals(tapdataEvent.getNodeIds().get(0))) {
+		if (tapdataEvent.getNodeIds().contains(leftNodeId)) {
 			joinResults = leftJoinLeftProcess(before, after, opType);
 		} else {
 			joinResults = leftJoinRightProcess(before, after, opType);
@@ -399,7 +399,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		return leftJoinLeftRow(afterJoinKey, afterLeftKey, afterLeftRow, beforeJoinKey, beforeLeftKey, beforeLeftRow, opType);
 	}
 
-	private void deleteRowFromCache(String joinKey, String key, ConstructIMap<Map<String, Map<String, Object>>> joinCache) throws Exception {
+	private void deleteRowFromCache(String joinKey, String key, BytesIMap<Map<String, Map<String, Object>>> joinCache) throws Exception {
 		final Map<String, Map<String, Object>> keyCache = joinCache.find(joinKey);
 		String finalBeforeKey = key;
 		Optional.ofNullable(keyCache).ifPresent(m -> m.remove(finalBeforeKey));

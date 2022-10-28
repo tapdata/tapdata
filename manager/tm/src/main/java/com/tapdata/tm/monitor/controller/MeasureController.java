@@ -39,7 +39,7 @@ public class MeasureController extends BaseController {
 
     @PostMapping("points/v2")
     public ResponseMessage<Void> pointsV2(@RequestBody BulkRequest bulkRequest) {
-        log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
+//        log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
         List<SampleRequest> samples = bulkRequest.getSamples();
         //List statistics = bulkRequest.getStatistics();
         if (CollectionUtils.isNotEmpty(samples)) {
