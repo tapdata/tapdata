@@ -57,7 +57,7 @@ public class CustomConnector extends ConnectorBase {
         assert scriptFactory != null;
         initScriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
         initScriptEngine.eval(ScriptUtil.appendBeforeFunctionScript(customConfig.getCustomBeforeScript()) + "\n"
-                + ScriptUtil.appendAfterFunctionScript(customConfig.getCustomBeforeScript()));
+                + ScriptUtil.appendAfterFunctionScript(customConfig.getCustomAfterScript()));
         initScriptEngine.put("log", new CustomLog());
     }
 
