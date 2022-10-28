@@ -3074,7 +3074,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
 
             Map<String, UserDetail> finalUserMap = userMap;
-            taskList.forEach(taskDto -> run(taskDto, finalUserMap.get(taskDto.getUserId())));
+            for (TaskDto taskDto : taskList) {
+                run(taskDto, finalUserMap.get(taskDto.getUserId()));
+                //启动过后，应该更新掉这个自动启动计划
+                Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
+                updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
+            }
+
 
         }
     }
