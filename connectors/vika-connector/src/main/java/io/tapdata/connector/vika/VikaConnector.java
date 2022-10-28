@@ -395,12 +395,10 @@ public class VikaConnector extends ConnectorBase {
                         }
 
                         TapUpdateRecordEvent event = collect.get(i-1);
-                        Map<String, Object> before = event.getBefore();
-
+//                        Map<String, Object> before = event.getBefore();
                         List<String> querys = Lists.newArrayList();
-                        for (Map.Entry<String, Object> ent : before.entrySet()) {
-                            String key = ent.getKey();
-                            Object value = ent.getValue();
+                        for (String key : tapTable.primaryKeys()) {
+                            Object value = event.getAfter().get(key);
                             querys.add(key + "=\"" + value.toString() + "\"");
                         }
 
