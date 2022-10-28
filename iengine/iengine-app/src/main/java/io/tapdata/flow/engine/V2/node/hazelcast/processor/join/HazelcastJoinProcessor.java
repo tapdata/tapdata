@@ -98,7 +98,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		String rightNodeId = ((JoinProcessorNode) node).getRightNodeId();
 		HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance();
 		String leftJoinCacheMapName = joinCacheMapName(leftNodeId, "leftJoinCache");
-		ConstructIMap<Map<String, Map<String, Object>>> leftJoinCache = new ConstructIMap<>(
+		BytesIMap<Map<String, Map<String, Object>>> leftJoinCache = new BytesIMap<>(
 				hazelcastInstance,
 				leftJoinCacheMapName
 		);
@@ -108,7 +108,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 			throw new RuntimeException(String.format("Clear left join cache map occur an error: %s\n map name: %s", e.getMessage(), leftJoinCacheMapName), e);
 		}
 		String rightJoinCacheMapName = joinCacheMapName(rightNodeId, "rightCache");
-		ConstructIMap<Map<String, Map<String, Object>>> rightJoinCache = new ConstructIMap<>(
+		BytesIMap<Map<String, Map<String, Object>>> rightJoinCache = new BytesIMap<>(
 				hazelcastInstance,
 				rightJoinCacheMapName
 		);
