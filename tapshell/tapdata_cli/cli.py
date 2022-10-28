@@ -5,6 +5,7 @@ import json
 import shlex
 import sys
 import time
+import traceback
 import uuid
 import re
 from logging import *
@@ -307,6 +308,9 @@ client_cache = {
     "apis": {
         "name_index": {}
     },
+    "apiserver": {
+        "name_index": {}
+    },
     "connectors": {}
 }
 
@@ -556,6 +560,33 @@ def show_jobs(quiet=False):
         jobs["id_index"][data[i]["id"]] = data[i]
         jobs["number_index"][str(i)] = data[i]
     client_cache["jobs"] = jobs
+
+
+def show_apiserver(quite=False):
+    global client_cache
+    items = ApiServer.list()
+    if not quite:
+        logger.log(
+            "{} {} {}",
+            pad("id", 20),
+            pad("name", 20),
+            pad("uri", 40),
+            "debug", "debug", "debug"
+        )
+    for i, v in enumerate(items):
+        client_cache["apiserver"]["name_index"][v["clientName"]] = {
+            "id": v["id"],
+            "name": v["clientName"],
+            "uri": v["clientURI"],
+        }
+        if not quite:
+            logger.log(
+                "{} {} {}",
+                pad(v["id"][:6], 20),
+                pad(v["clientName"], 20),
+                pad(v["clientURI"], 40),
+                "notice", "info", "notice"
+            )
 
 
 # show all apis
@@ -1036,6 +1067,7 @@ class show_command(Magics):
         try:
             eval("show_" + line + "()")
         except Exception as e:
+            print(traceback.format_exc())
             eval("show_db('" + line + "')")
 
     @line_magic
@@ -1208,6 +1240,7 @@ def desc_table(line):
 
     display_fields = get_table_fields(line, source=connection_id)
     print(json.dumps(display_fields, indent=4))
+
 
 def login_with_access_code(server, access_code):
     global system_server_conf, req
@@ -1657,7 +1690,7 @@ class Pipeline:
                     db = sink.split(".")[0]
                     self.cache_sinks[sink] = Sink(db)
                 sink = self.cache_sinks[sink]
-        if self.dag.jobType == JobType.sync and type(relation) == type(MultiTableRelation()):
+        if self.dag.jobType == JobType.sync and isinstance(relation, MultiTableRelation):
             auto_association = []
             for pk in self.sources[len(self.sources) - 1].primary_key:
                 auto_association.append((pk, pk))
@@ -1998,7 +2031,8 @@ class Pipeline:
                 continue
             stats = self.check_job.stats()
             if self.check_job.status() == "running":
-                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False, logger_header=True)
+                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False,
+                            logger_header=True)
                 continue
             if self.check_job.status() == "done":
                 logger.log(
@@ -2318,6 +2352,14 @@ class Api:
         api_id = api["id"]
         self.id = api_id
 
+    def status(self, name):
+        res = req.get("/Modules")
+        data = res.json()["data"]["items"]
+        for i in data:
+            if i["name"] == name:
+                return i["status"]
+        return None
+
     def unpublish(self):
         if self.id is None:
             return
@@ -2342,6 +2384,76 @@ class Api:
             logger.info("delete api {} success", self.name)
         else:
             logger.warn("delete api {} fail, err is: {}", self.name, res["message"])
+
+
+class ApiServer:
+    def __init__(self, id=None, name=None, uri=None):
+        logger.warn("This feature is expected to be abandoned in the future")
+        self.id = id
+        self.name = name
+        self.uri = uri
+        self.processId = str(uuid.uuid4())
+
+    def save(self):
+        url = "/ApiServers"
+        # update
+        item = False
+        if self.id:
+            item = self.get()
+        if self.id and item:
+            if item.get("createTime"):
+                del item["createTime"]
+            if self.name is not None:
+                item.update({"clientName": self.name})
+            if self.uri is not None:
+                item.update({"clientURI": self.uri})
+            res = req.patch(url, json=item)
+            if res.json()["code"] == "ok":
+                return res.json()["data"]
+            else:
+                return False
+        # create
+        else:
+            if not self.processId or not self.name or not self.uri:
+                logger.error("no attribute: {} not found", 'processId or name or uri')
+                return False
+            payload = {
+                "processId": self.processId,
+                "clientName": self.name,
+                "clientURI": self.uri,
+            }
+            res = req.post(url, json=payload)
+            if res.json()["code"] == "ok":
+                return res.json()["data"]
+            else:
+                return False
+
+    def delete(self):
+        if not isinstance(self.id, str) and not self.id:
+            logger.error("id must be set")
+            return False
+        url = "/ApiServers/" + self.id
+        res = req.delete(url)
+        if res.json()["code"] == "ok":
+            return True
+        else:
+            return False
+
+    def get(self):
+        items = self.list()
+        for item in items:
+            if item["id"] == self.id:
+                return item
+        return False
+
+    @classmethod
+    def list(cls):
+        url = "/ApiServers"
+        res = req.get(url, params={"filter": '{"order":"clientName DESC","skip":0,"where":{}}'})
+        if res.json()["code"] == "ok":
+            return res.json()["data"]["items"]
+        else:
+            return False
 
 
 class Job:
@@ -2388,8 +2500,10 @@ class Job:
         return jobs
 
     def reset(self):
-        res = req.post("/DataFlows/" + self.id + "/reset").json()
-        return True
+        res = req.patch("/Task/batchRenew", params={"taskIds": self.id}).json()
+        if res["code"] == "ok":
+            return True
+        return False
 
     def _get_by_name(self):
         param = '{"where":{"name":{"like":"%s"}}}' % (self.name)
@@ -2439,13 +2553,11 @@ class Job:
         if self.status() in [JobStatus.running, JobStatus.scheduled]:
             logger.warn("job status is {}, please stop it first before delete it", self.status())
             return
-        res = req.post("/DataFlows/removeAll", params={"where": '{"_id":{"inq":["' + self.id + '"]}}'})
+        res = req.delete("/Task/batchDelete", params={"taskIds": self.id})
         if res.status_code != 200:
             return False
         res = res.json()
         if res["code"] != "ok":
-            return False
-        if len(res["data"]["success"]) != 1:
             return False
         return True
 
@@ -2729,6 +2841,8 @@ class DataSource():
         self._manual_options = []
         self._connector = ""
         self._schema = ""
+        self._uri = ""
+        self._sid = ""
         self.c = None
         if connector != "":
             self._connector = connector
@@ -2794,9 +2908,9 @@ class DataSource():
 
     def host(self, host):
         self._manual_options.append(sys._getframe().f_code.co_name)
-        self._host = host
+        self._host = host.split(":")[0]
         if ":" in host:
-            self._port = int(host.split(":")[1])
+            self.port(int(host.split(":")[1]))
         if self._connector == "mysql" or self._connector == "oracle":
             self._manual_options.append("port")
             if ":" in host:
@@ -2845,20 +2959,47 @@ class DataSource():
         self._type = connection_type
         return self
 
+    def sid(self, sid):
+        self._sid = sid
+        return self
+
     def props(self, options):
         self._options = options
         return self
 
     def to_pdk_dict(self):
         d = {}
+        if self._connector.lower() == "kafka":
+            if isinstance(self._uri, str) and len(self._uri) > 0:
+                d["nameSrvAddr"] = self._uri.replace("kafka://", "")
+            else:
+                d["nameSrvAddr"] = f"{self._host}:{self._port}"
+            d["kafkaAcks"] = "-1"
+            d["kafkaCompressionType"] = "gzip"
+            d["kafkaIgnoreInvalidRecord"] = False
+            d["kafkaIgnorePushError"] = False
+            d["kafkaSaslMechanism"] = "PLAIN"
+            d["krb5"] = False
+            return d
+        if self._connector.lower() == "oracle":
+            d["host"] = self._host
+            d["logPluginName"] = "logMiner"
+            d["password"] = self._password
+            d["port"] = "" if not self._port else int(self._port)
+            d["schema"] = self._schema
+            d["sid"] = self._sid
+            d["user"] = self._username
+            d["thinType"] = "SID"
+            d["timezone"] = ""
+            return d
         for i in self._manual_options:
+            if i == "sid":
+                continue
             d[i] = getattr(self, "_" + i)
         return d
 
     def to_dict(self):
-        if self.c is not None:
-            return self.c
-        if type(self._uri) == type(""):
+        if isinstance(self._uri, str):
             uri = self._uri
         else:
             uri = ""
@@ -2873,10 +3014,9 @@ class DataSource():
             "database_owner": self._schema,
             "database_username": self._username,
             "plain_password": self._password,
-            "isUrl": True if self._uri != "" else False,
             "name": self._name,
             "user_id": self.user_id,
-            "response_body": {}
+            "response_body": {},
         }
         for k, v in self.custom_options.items():
             d[k[1:]] = v
@@ -2891,6 +3031,9 @@ class DataSource():
         d["pdkHash"] = connector["pdkHash"]
         d["database_type"] = connector["name"]
         d["config"] = self.to_pdk_dict()
+        d["config"].update({
+            "isUri": True if uri else False,
+        })
         return d
 
     @staticmethod
@@ -2948,6 +3091,10 @@ class DataSource():
             async with websockets.connect(system_server_conf["ws_uri"]) as websocket:
                 data = self.to_dict()
                 data["updateSchema"] = True
+                data.update({
+                    "id": self.id,
+                    "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
+                })
                 payload = {
                     "type": "testConnection",
                     "data": data
@@ -2962,7 +3109,7 @@ class DataSource():
                         continue
                     if loadResult["data"]["type"] != "testConnectionResult":
                         continue
-                    if loadResult["data"]["result"]["status"] == None:
+                    if loadResult["data"]["result"]["status"] is None:
                         continue
 
                     if loadResult["data"]["result"]["status"] != "ready":
@@ -2971,7 +3118,7 @@ class DataSource():
                         res = True
 
                     if not quiet:
-                        if loadResult["data"]["result"] == None:
+                        if loadResult["data"]["result"] is None:
                             continue
                         for detail in loadResult["data"]["result"]["response_body"]["validate_details"]:
                             if detail["fail_message"] is not None:
@@ -2987,14 +3134,14 @@ class DataSource():
             asyncio.get_event_loop().run_until_complete(l())
         except Exception as e:
             logger.warn("load schema exception, err is: {}", e)
-
         logger.info("datasource valid finished, will check table schema now, please wait for a while ...")
         start_time = time.time()
         while True:
             try:
                 time.sleep(5)
-                res = req.get("/Connections/" + self.id).json()
-                if res["data"] == None:
+                res = req.get("/Connections/" + self.id)
+                res = res.json()
+                if res["data"] is None:
                     break
                 if "loadFieldsStatus" not in res["data"]:
                     continue
@@ -3009,15 +3156,61 @@ class DataSource():
         return res
 
 
+class Oracle(DataSource):
+    def __init__(self, name):
+        self.connector = "Oracle"
+        self._thinType = "SID"
+        super(Oracle, self).__init__(name=name, connector=self.connector)
+
+    def thinType(self, thin_type: str):
+        if not thin_type.upper() == "SERVICE_NAME" and not thin_type.upper() == "SID":
+            raise Exception("thinType must be SERVICE_NAME or SID")
+        self._thinType = thin_type
+        return self
+
+    def to_pdk_dict(self):
+        d = dict()
+        d["host"] = self._host
+        d["logPluginName"] = "logMiner"
+        d["password"] = self._password
+        d["port"] = "" if not self._port else int(self._port)
+        d["schema"] = self._schema
+        d["user"] = self._username
+        d["thinType"] = self._thinType
+        d["timezone"] = ""
+        if self._thinType == "SERVICE_NAME":
+            d.update({"database": self._database})
+        elif self._thinType == "SID":
+            d.update({"sid": self._database})
+        print(d)
+        return d
+
+
+class Kafka(DataSource):
+    def __init__(self, name):
+        self.connector = "Kafka"
+        super(Kafka, self).__init__(name=name, connector=self.connector)
+
+    def to_pdk_dict(self):
+        d = {}
+        if isinstance(self._uri, str) and len(self._uri) > 0:
+            d["nameSrvAddr"] = self._uri.replace("kafka://", "")
+        else:
+            d["nameSrvAddr"] = f"{self._host}:{self._port}"
+        d["kafkaAcks"] = "-1"
+        d["kafkaCompressionType"] = "gzip"
+        d["kafkaIgnoreInvalidRecord"] = False
+        d["kafkaIgnorePushError"] = False
+        d["kafkaSaslMechanism"] = "PLAIN"
+        d["krb5"] = False
+        return d
+
+
 class MongoDB(DataSource):
     def __init__(self, name):
+        self._uri = ""
         self.connector = "mongodb"
         super().__init__(name=name, connector="mongodb")
-
-    def uri(self, url):
-        self.url = url
-        self.is_url = True
-        return self
 
 
 class Mysql(DataSource):
@@ -3042,8 +3235,11 @@ class Postgres(DataSource):
 
     def to_dict(self):
         base_dict = super().to_dict()
+        config = super().to_pdk_dict()
+        config.update({"schema": self._schema, "user": self._username, "logPluginName": "PGOUTPUT"})
+        base_dict["config"] = config
         base_dict["database_owner"] = self._schema
-        base_dict["pgsql_log_decorder_plugin_name"] = "wal2json_streaming"
+        base_dict["pgsql_log_decorder_plugin_name"] = ""
         if self._log_decorder_plugin is not None:
             base_dict["pgsql_log_decorder_plugin_name"] = self._log_decorder_plugin
         return base_dict
@@ -3297,7 +3493,8 @@ class DataCheck:
             status = self.status()
             stats = self.stats()
             if status == "running":
-                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False, logger_header=True)
+                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False,
+                            logger_header=True)
             if status == "done":
                 logger.log(
                     "data check finished, check result is: {}, same row is number is: {}, diff row number is: {}",
