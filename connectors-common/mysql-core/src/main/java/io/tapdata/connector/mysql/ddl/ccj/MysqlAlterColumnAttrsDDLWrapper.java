@@ -54,23 +54,19 @@ public class MysqlAlterColumnAttrsDDLWrapper extends MysqlDDLWrapper {
                 List<String> columnSpecs = columnDataType.getColumnSpecs();
                 String preSpec = "";
                 for (String columnSpec : columnSpecs) {
-                    switch (columnSpec) {
+                    String lowerColumnSpec = columnSpec.toLowerCase();
+                    switch (lowerColumnSpec) {
                         case "not":
-                        case "NOT":
                         case "default":
-                        case "DEFAULT":
                         case "comment":
-                        case "COMMENT":
-                            preSpec = columnSpec;
+                            preSpec = lowerColumnSpec;
                             break;
                         case "null":
-                        case "NULL":
-                            boolean nullable = !"not".equals(preSpec) || !"NOT".equals(preSpec);
+                            boolean nullable = !"not".equals(preSpec);
                             tapAlterFieldAttributesEvent.nullable(ValueChange.create(nullable));
                             preSpec = "";
                             break;
                         case "key":
-                        case "KEY":
                             if (EmptyKit.isBlank(preSpec)) {
                                 int primaryPos = 1;
                                 if (null != tapTable) {
@@ -81,10 +77,10 @@ public class MysqlAlterColumnAttrsDDLWrapper extends MysqlDDLWrapper {
                             }
                             break;
                         default:
-                            if ("default".equals(preSpec) || "DEFAULT".equals(preSpec) ) {
+                            if ("default".equals(preSpec)) {
                                 tapAlterFieldAttributesEvent.defaultChange(ValueChange.create(StringKit.removeHeadTail(columnSpec, "'", null)));
                                 preSpec = "";
-                            } else if ("comment".equals(preSpec) || "COMMENT".equals(preSpec)) {
+                            } else if ("comment".equals(preSpec)) {
                                 tapAlterFieldAttributesEvent.comment(ValueChange.create(StringKit.removeHeadTail(columnSpec, "'", null)));
                                 preSpec = "";
                             }
