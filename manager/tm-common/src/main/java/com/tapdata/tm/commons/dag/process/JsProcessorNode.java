@@ -110,7 +110,7 @@ public class JsProcessorNode extends ProcessorNode {
         }
 
         if (StringUtils.isNotBlank(expression)) {
-            PdkSchemaConvert.tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+            PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
         }
         Schema schema = PdkSchemaConvert.fromPdkSchema(tapTable);
 

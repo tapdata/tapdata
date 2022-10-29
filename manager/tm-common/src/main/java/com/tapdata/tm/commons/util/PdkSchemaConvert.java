@@ -35,10 +35,36 @@ import org.springframework.beans.BeanUtils;
 @Slf4j
 public class PdkSchemaConvert {
 
-    public static final TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
-    public static final TargetTypesGenerator targetTypesGenerator = InstanceFactory.instance(TargetTypesGenerator.class);
+    //存在类加载顺序导致这几个为空，所以下面加了静态方法补救措施
+    public static TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+    public static TargetTypesGenerator targetTypesGenerator = InstanceFactory.instance(TargetTypesGenerator.class);
 
     private static  JsonParser instance = InstanceFactory.instance(JsonParser.class);
+
+
+    public static TableFieldTypesGenerator getTableFieldTypesGenerator() {
+        //存在类加载顺序导致这几个为空，所以下面加了静态方法补救措施
+        if (tableFieldTypesGenerator == null) {
+            tableFieldTypesGenerator =  InstanceFactory.instance(TableFieldTypesGenerator.class);
+        }
+        return tableFieldTypesGenerator;
+    }
+
+    public static TargetTypesGenerator getTargetTypesGenerator() {
+        //存在类加载顺序导致这几个为空，所以下面加了静态方法补救措施
+        if (targetTypesGenerator == null) {
+            targetTypesGenerator = InstanceFactory.instance(TargetTypesGenerator.class);
+        }
+        return targetTypesGenerator;
+    }
+
+    public static JsonParser getJsonParser() {
+        //存在类加载顺序导致这几个为空，所以下面加了静态方法补救措施
+        if (instance == null) {
+            instance = InstanceFactory.instance(JsonParser.class);
+        }
+        return instance;
+    }
 
     public static TapTable toPdk(MetadataInstancesDto schema) {
         TapTable tapTable = new TapTable(schema.getOriginalName() == null ? null : schema.getOriginalName());
@@ -105,7 +131,7 @@ public class PdkSchemaConvert {
                     try {
 
                         Class<? extends TapType> classByJson = getClassByJson(field.getTapType());
-                        tapType = instance.fromJson(field.getTapType(), classByJson);
+                        tapType = getJsonParser().fromJson(field.getTapType(), classByJson);
                     } catch (Exception e) {
                         tapType = JsonUtil.parseJsonUseJackson(field.getTapType(), new TypeReference<TapType>() {
                         });
@@ -249,7 +275,7 @@ public class PdkSchemaConvert {
                     try {
 
                         Class<? extends TapType> classByJson = getClassByJson(field.getTapType());
-                        tapType = instance.fromJson(field.getTapType(), classByJson);
+                        tapType = getJsonParser().fromJson(field.getTapType(), classByJson);
                     } catch (Exception e) {
                         tapType = JsonUtil.parseJsonUseJackson(field.getTapType(), new TypeReference<TapType>() {
                         });
@@ -362,7 +388,7 @@ public class PdkSchemaConvert {
                 field.setComment(tapField.getComment());
                 field.setPkConstraintName(tapField.getConstraint());
                 field.setPrimaryKey(tapField.getPrimaryKey());
-                field.setTapType(tapField.getTapType() == null ? null : instance.toJson(tapField.getTapType()));
+                field.setTapType(tapField.getTapType() == null ? null : getJsonParser().toJson(tapField.getTapType()));
 
                 if (tapField.getPartitionKey()) {
                     partitionSet.add(tapField.getPos());
@@ -512,7 +538,7 @@ public class PdkSchemaConvert {
                 field.setComment(tapField.getComment());
                 field.setPkConstraintName(tapField.getConstraint());
                 field.setPrimaryKey(tapField.getPrimaryKey());
-                field.setTapType(tapField.getTapType() == null ? null : instance.toJson(tapField.getTapType()));
+                field.setTapType(tapField.getTapType() == null ? null : getJsonParser().toJson(tapField.getTapType()));
 
                 if (tapField.getPartitionKey()) {
                     partitionSet.add(tapField.getPos());

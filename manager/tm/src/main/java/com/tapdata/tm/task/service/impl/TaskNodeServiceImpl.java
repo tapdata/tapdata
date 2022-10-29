@@ -548,7 +548,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             });
 
             if (updateFieldMap.size() != 0) {
-                PdkSchemaConvert.tableFieldTypesGenerator.autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(expression));
+                PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(expression));
 
                 updateFieldMap.forEach((k, v) -> {
                     tapTable.getNameFieldMap().replace(k, v);
@@ -559,7 +559,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 
         TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
-        TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.targetTypesGenerator.convert(nameFieldMap
+        TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap
                 , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
         LinkedHashMap<String, TapField> data = convert.getData();
 
