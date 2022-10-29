@@ -287,7 +287,12 @@ public class DataSourceConnectionDto extends BaseDto {
                 }
         }
         public List<String> getTrueAccessNodeProcessIdList() {
-                return accessNodeProcessIdList;
+                if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeType)
+                        &&StringUtils.isNotBlank(accessNodeProcessId)) {
+                        return Lists.newArrayList(accessNodeProcessId);
+                } else {
+                        return null;
+                }
         }
 
         public boolean isAccessNodeTypeEmpty() {
