@@ -42,7 +42,7 @@
  
  - 6.配置完成后，点击创建。我们会回到Credentital页面，可以在Service Account表格中看到我们刚刚创建好的服务账号：
  
- -[](../img/serviceAccount6.png)
+ ![](../img/serviceAccount6.png)
  
  - 7.点击这个创建好的Service account，进入Service account.此时我们开始配置访问秘钥，也就是我们创建数据源是需要用到的关键信息。我们选择Key是选项，点击Add key。创建一个新的key；
  
