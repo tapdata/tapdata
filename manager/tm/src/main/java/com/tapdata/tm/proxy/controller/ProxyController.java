@@ -1,6 +1,7 @@
 package com.tapdata.tm.proxy.controller;
 
 import cn.hutool.crypto.digest.MD5;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.async.AsyncContextManager;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -39,6 +40,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
@@ -49,6 +51,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
@@ -62,6 +65,10 @@ import static org.apache.http.HttpStatus.*;
 public class ProxyController extends BaseController {
     private static final String TAG = ProxyController.class.getSimpleName();
     private final AsyncContextManager asyncContextManager = new AsyncContextManager();
+    private Boolean isCloud = null;
+    private final int[] checkCloudLock = new int[0];
+    @Autowired
+    private SettingsService settingsService;
 
     private static final int wsPort = 8246;
     /**
@@ -104,7 +111,19 @@ public class ProxyController extends BaseController {
          *   server 10.50.1.5:11211;
          * }
          */
-        loginProxyResponseDto.setWsPath(loginProxyDto.getService() + "/" + MD5.create().digestHex(loginProxyDto.getClientId()));
+        if(isCloud == null) {
+            synchronized (checkCloudLock) {
+                if(isCloud == null) {
+                    Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+                    if (Objects.isNull(buildProfile)) {
+                        buildProfile = "DAAS";
+                    }
+                    isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+                }
+            }
+        }
+        String wsPath = loginProxyDto.getService() + "/" + MD5.create().digestHex(loginProxyDto.getClientId());
+        loginProxyResponseDto.setWsPath(isCloud ? "console/tm/" + wsPath : wsPath);
         return success(loginProxyResponseDto);
     }
     @Operation(summary = "Generate callback url token")
