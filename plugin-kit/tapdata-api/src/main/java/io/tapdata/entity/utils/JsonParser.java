@@ -33,6 +33,7 @@ public interface JsonParser {
     Object fromJsonWithClass(String json, ClassLoader classLoader);
 
     enum ToJsonFeature {
+        PrettyFormat,
         WriteMapNullValue;
     }
 

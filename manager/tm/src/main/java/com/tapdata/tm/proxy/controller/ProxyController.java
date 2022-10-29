@@ -17,6 +17,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.entity.SubscribeToken;
@@ -40,6 +41,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -424,9 +426,50 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @GetMapping("memory")
-    public void memoryGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        response.setContentType("application/json");
-        response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(null, "Detail").getBytes(StandardCharsets.UTF_8));
+    public void memoryGet(@RequestParam(name = "keys", required = false) String keys, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if(processId != null) {
+            ServiceCaller serviceCaller = new ServiceCaller()
+                    .className("MemoryService")
+                    .method("memory")
+                    .args(new Object[]{getFilterKeys(keys)});
+            serviceCaller.subscribeIds("processId_" + processId);
+//        Locale locale = WebUtils.getLocale(request);
+            executeServiceCaller(request, response, serviceCaller, null);
+        } else {
+            response.setContentType("application/json");
+            response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(getFilterKeys(keys), null, "Detail").getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @Nullable
+    private List<String> getFilterKeys(String keys) {
+        List<String> filterKeys = null;
+        if(keys != null) {
+            String[] theKeys = keys.split(",");
+            filterKeys = new ArrayList<>(Arrays.asList(theKeys));
+        }
+        return filterKeys;
+    }
+
+    private void executeServiceCaller(HttpServletRequest request, HttpServletResponse response, ServiceCaller serviceCaller, UserDetail userDetail) {
+        serviceCaller.setId(UUID.randomUUID().toString().replace("-", ""));
+        serviceCaller.setReturnClass(Object.class.getName());
+        Object[] args = serviceCaller.getArgs();
+        DataMap context = null;
+        if(userDetail != null)
+            context = DataMap.create().kv("userId", userDetail.getUserId()).kv("customerId", userDetail.getCustomerId());
+        if(args == null) {
+            serviceCaller.setArgs(new Object[]{context});
+        } else {
+            Object[] newArgs = new Object[args.length + 1];
+            System.arraycopy(args, 0, newArgs, 0, args.length);
+            newArgs[args.length] = context;
+            serviceCaller.setArgs(newArgs);
+        }
+
+//        if(locale != null)
+//            serviceCaller.setLocale(locale.toString());
+        executeEngineMessage(serviceCaller, request, response);
     }
 
     @Operation(summary = "External callback url")
@@ -435,19 +478,33 @@ public class ProxyController extends BaseController {
         response.setContentType("application/json");
         String keyRegex = null;
         String level = null;
+        List<String> keys = null;
+        String processId = null;
         if(memoryDto != null) {
             keyRegex = memoryDto.getKeyRegex();
             String theLevel = memoryDto.getLevel();
             if(theLevel != null && (theLevel.equals("Detail") || theLevel.equals("Summary"))) {
                 level = theLevel;
             }
+            keys = memoryDto.getKeys();
+            processId = memoryDto.getProcessId();
         }
         if(level == null)
             level = "Summary";
 
-        //exclude TapConnectorManager and PDKInvocationMonitor
-        //^((?!TapConnectorManager|PDKInvocationMonitor).)*$
-        response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(keyRegex, level).getBytes(StandardCharsets.UTF_8));
+        if(processId != null) {
+            ServiceCaller serviceCaller = new ServiceCaller()
+                    .className("MemoryService")
+                    .method("memory")
+                    .args(new Object[]{keys, keyRegex, level});
+            serviceCaller.subscribeIds("processId_" + processId);
+//        Locale locale = WebUtils.getLocale(request);
+            executeServiceCaller(request, response, serviceCaller, null);
+        } else {
+            //exclude TapConnectorManager and PDKInvocationMonitor
+            //^((?!TapConnectorManager|PDKInvocationMonitor).)*$
+            response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(keys, keyRegex, level).getBytes(StandardCharsets.UTF_8));
+        }
     }
 
     @Operation(summary = "External callback url")
@@ -463,22 +520,7 @@ public class ProxyController extends BaseController {
         UserDetail userDetail = getLoginUser();
         serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
 //        Locale locale = WebUtils.getLocale(request);
-        serviceCaller.setId(UUID.randomUUID().toString().replace("-", ""));
-        serviceCaller.setReturnClass(Object.class.getName());
-        Object[] args = serviceCaller.getArgs();
-        DataMap context = DataMap.create().kv("userId", userDetail.getUserId()).kv("customerId", userDetail.getCustomerId());
-        if(args == null) {
-            serviceCaller.setArgs(new Object[]{context});
-        } else {
-            Object[] newArgs = new Object[args.length + 1];
-            System.arraycopy(args, 0, newArgs, 0, args.length);
-            newArgs[args.length] = context;
-            serviceCaller.setArgs(newArgs);
-        }
-
-//        if(locale != null)
-//            serviceCaller.setLocale(locale.toString());
-        executeEngineMessage(serviceCaller, request, response);
+        executeServiceCaller(request, response, serviceCaller, userDetail);
     }
 
     private void executeEngineMessage(EngineMessage engineMessage, HttpServletRequest request, HttpServletResponse response) {
@@ -503,20 +545,20 @@ public class ProxyController extends BaseController {
                     code = coreException.getCode();
                 }
                 responseStr =
-                        "           {\n" +
-                                "                \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
-                                "                \"ts\": " + System.currentTimeMillis() + ",\n" +
-                                "                \"code\": \"" + code + "\",\n" +
-                                "                \"message\": \"" + error.getMessage() + "\"\n" +
-                                "            }";
+                        "{\n" +
+                        "    \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
+                        "    \"ts\": " + System.currentTimeMillis() + ",\n" +
+                        "    \"code\": \"" + code + "\",\n" +
+                        "    \"message\": \"" + error.getMessage() + "\"\n" +
+                        "}";
             } else {
                 responseStr =
-                        "           {\n" +
-                                "                \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
-                                "                \"ts\": " + System.currentTimeMillis() + ",\n" +
-                                "                \"data\": " + (result != null ? toJson(result) : "{}") + ",\n" +
-                                "                \"code\": \"ok\"\n" +
-                                "            }";
+                        "{\n" +
+                        "    \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
+                        "    \"ts\": " + System.currentTimeMillis() + ",\n" +
+                        "    \"data\": " + (result != null ? toJson(result, JsonParser.ToJsonFeature.PrettyFormat) : "{}") + ",\n" +
+                        "    \"code\": \"ok\"\n" +
+                        "}";
             }
 
             try {

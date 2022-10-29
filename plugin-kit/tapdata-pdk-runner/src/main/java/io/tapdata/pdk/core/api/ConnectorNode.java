@@ -20,6 +20,7 @@ public class ConnectorNode extends Node {
     List<String> tables;
 //    Queue<TapEvent> externalEvents;
 
+
     public void init(TapConnector tapNode, TapCodecsRegistry codecsRegistry, ConnectorFunctions connectorFunctions) {
         connector = tapNode;
         this.codecsRegistry = codecsRegistry;
@@ -84,7 +85,11 @@ public class ConnectorNode extends Node {
     }
 
     public void connectorStop() throws Throwable {
-        connector.stop(connectorContext);
+        try {
+            connector.stop(connectorContext);
+        } finally {
+            PDKIntegration.unregisterMemoryFetcher(id() + "_" + associateId);
+        }
     }
 
     public TapConnectorContext getConnectorContext() {

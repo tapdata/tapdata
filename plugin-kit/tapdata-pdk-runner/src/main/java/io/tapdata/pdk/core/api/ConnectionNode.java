@@ -33,7 +33,11 @@ public class ConnectionNode extends Node {
     }
 
     public void connectorStop() throws Throwable {
-        connector.stop(connectionContext);
+        try {
+            connector.stop(connectionContext);
+        } finally {
+            PDKIntegration.unregisterMemoryFetcher(id() + "_" + associateId);
+        }
     }
 
     public TapConnector getConnector() {
