@@ -172,10 +172,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Boolean submit = updateDto.getSubmit();
 		String oldName = updateCheck(user, updateDto);
 
-		if (updateDto.getLoadAllTables() != null && updateDto.getLoadAllTables()) {
-			updateDto.setTable_filter("");
-		}
-
 		Assert.isFalse(StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), updateDto.getAccessNodeType())
 				&& CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
 
@@ -198,6 +194,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if (StringUtils.equals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), updateDto.getAccessNodeType())) {
 			update.unset("accessNodeProcessId");
 			update.set("accessNodeProcessIdList", Lists.of());
+		}
+
+		if (updateDto.getLoadAllTables() != null && updateDto.getLoadAllTables()) {
+			update.set("table_filter", null);
 		}
 
 		updateById(updateDto.getId(), update, user);
