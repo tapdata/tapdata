@@ -5,6 +5,7 @@ import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.common.MemoryFetcherFunctionV2;
 
 import java.util.List;
 
@@ -76,6 +77,16 @@ public class ConnectorNode extends Node {
         return codecsRegistry;
     }
 
+    public void registerMemoryFetcher() {
+        MemoryFetcherFunctionV2 memoryFetcherFunctionV2 = connectorFunctions.getMemoryFetcherFunctionV2();
+        if(memoryFetcherFunctionV2 != null)
+            PDKIntegration.registerMemoryFetcher(id() + "_" + associateId, memoryFetcherFunctionV2::memory);
+    }
+
+    public void unregisterMemoryFetcher() {
+        PDKIntegration.unregisterMemoryFetcher(id() + "_" + associateId);
+    }
+
     public void registerCapabilities() {
         connector.registerCapabilities(connectorFunctions, codecsRegistry);
     }
@@ -88,7 +99,7 @@ public class ConnectorNode extends Node {
         try {
             connector.stop(connectorContext);
         } finally {
-            PDKIntegration.unregisterMemoryFetcher(id() + "_" + associateId);
+            unregisterMemoryFetcher();
         }
     }
 

@@ -562,7 +562,7 @@ public class ProxyController extends BaseController {
             }
 
             try {
-                response.setContentType("application/json");
+                response.setContentType("application/json; charset=utf-8");
                 response.getOutputStream().write(responseStr.getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
                 response.sendError(500, e.getMessage());

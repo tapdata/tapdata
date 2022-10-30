@@ -218,7 +218,6 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 					.build();
 
 			try {
-
 				if(commandInfo.getType().equals(CommandInfo.TYPE_NODE) && commandInfo.getConnectionConfig() == null && commandInfo.getConnectionId() != null) {
 					commandInfo.setConnectionConfig(pdkUtils.getConnectionConfig(commandInfo.getConnectionId()));
 				}
@@ -250,6 +249,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 					return null;
 				});
 			} finally {
+				connectionNode.unregisterMemoryFetcher();
 				PDKIntegration.releaseAssociateId(associateId);
 			}
 		} catch(Throwable throwable) {

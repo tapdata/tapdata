@@ -355,9 +355,7 @@ public class PDKIntegration {
             PDKInvocationMonitor.getInstance().invokePDKMethod(connectionNode, PDKMethod.REGISTER_CAPABILITIES,
                     connectionNode::registerCapabilities,
                     MessageFormat.format("call connection functions {0} associateId {1}", TapNodeSpecification.idAndGroup(pdkId, group, version), associateId), TAG);
-            MemoryFetcherFunctionV2 memoryFetcherFunctionV2 = connectionNode.getConnectionFunctions().getMemoryFetcherFunctionV2();
-            if(memoryFetcherFunctionV2 != null)
-                registerMemoryFetcher(connectionNode.id() + "_" + associateId, memoryFetcherFunctionV2::memory);
+            connectionNode.registerMemoryFetcher();
             return connectionNode;
         }
     }
@@ -388,9 +386,7 @@ public class PDKIntegration {
             PDKInvocationMonitor.getInstance().invokePDKMethod(connectorNode, PDKMethod.REGISTER_CAPABILITIES,
                     connectorNode::registerCapabilities,
                     MessageFormat.format("call source functions {0} associateId {1}", TapNodeSpecification.idAndGroup(pdkId, group, version), associateId), TAG);
-            MemoryFetcherFunctionV2 memoryFetcherFunctionV2 = connectorNode.getConnectorFunctions().getMemoryFetcherFunctionV2();
-            if(memoryFetcherFunctionV2 != null)
-                registerMemoryFetcher(connectorNode.id() + "_" + associateId, memoryFetcherFunctionV2::memory);
+            connectorNode.registerMemoryFetcher();
             return connectorNode;
         }
     }

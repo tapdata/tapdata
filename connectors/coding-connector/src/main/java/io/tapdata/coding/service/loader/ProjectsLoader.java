@@ -11,6 +11,7 @@ import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+
 
 public class ProjectsLoader extends CodingStarter implements CodingLoader<ProjectParam>{
     public static final String TABLE_NAME = "Projects";
@@ -46,12 +48,10 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
 
     public List<Map<String,Object>> myProjectList(){
         Map<String,Object> user = this.myselfInfo();
-        if (Checker.isNotEmptyCollection(user)){
-            Object userIdObj = user.get("Id");
-            if (Checker.isEmpty(userIdObj)) return null;
-            return this.userProjectList((Integer)userIdObj);
-        }
-        return null;
+        Object userIdObj = user.get("Id");
+        if (Checker.isEmpty(userIdObj))
+            throw new RuntimeException(FormatUtils.format("User Id can not be parsed"));
+        return this.userProjectList((Integer)userIdObj);
     }
     public List<Map<String,Object>> userProjectList(Integer userId){
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
@@ -65,14 +65,15 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
                 body.getEntity(),
                 String.format(OPEN_API_URL, contextConfig.getTeamName())).post();
         if (null == post || post.isEmpty()){
-            return null;
+            throw new RuntimeException(FormatUtils.format("Coding request return empty body, url {}", String.format(OPEN_API_URL, contextConfig.getTeamName())));
         }
-        Object responseObj = post.get("Response");
-        if (Checker.isEmptyCollection(responseObj)){
-            return null;
+        Object projectListObj = post.get("ProjectList");
+        if(Checker.isNotEmptyCollection(projectListObj)) {
+            return (List<Map<String, Object>>) projectListObj;
+        } else {
+            throw new RuntimeException(FormatUtils.format("Project List can not be parsed"));
         }
-        Object ProjectListObj = ((Map<String,Object>)responseObj).get("ProjectList");
-        return Checker.isNotEmptyCollection(ProjectListObj)?(List<Map<String, Object>>)ProjectListObj:null;
+//        return Checker.isNotEmptyCollection(projectListObj)?(List<Map<String, Object>>)projectListObj:null;
     }
 
     public Map<String,Object> myselfInfo(){
@@ -86,14 +87,15 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
                 body.getEntity(),
                 String.format(OPEN_API_URL, contextConfig.getTeamName())).post();
         if (null == post || post.isEmpty()){
-            return null;
+            throw new RuntimeException(FormatUtils.format("Coding request return empty body, url {}", String.format(OPEN_API_URL, contextConfig.getTeamName())));
+//            return null;
         }
-        Object responseObj = post.get("Response");
-        if (Checker.isEmptyCollection(responseObj)){
-            return null;
+        Object userObj = post.get("User");
+        if(Checker.isNotEmptyCollection(userObj)) {
+            return (Map<String, Object>) userObj;
+        } else {
+            throw new RuntimeException(FormatUtils.format("User can not be parsed"));
         }
-        Object userObj = ((Map<Object, Object>)responseObj).get("User");
-        return Checker.isNotEmptyCollection(userObj)?(Map<String, Object>)userObj:null;
     }
 
     @Override

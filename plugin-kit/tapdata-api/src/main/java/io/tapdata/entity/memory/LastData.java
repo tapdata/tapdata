@@ -1,6 +1,5 @@
 package io.tapdata.entity.memory;
 
-import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -16,9 +15,11 @@ public class LastData {
 		this.data = data;
 		return this;
 	}
-	private Throwable error;
-	public LastData error(Throwable error) {
+	private String error;
+//	private String errorStackTrace;
+	public LastData error(String error) {
 		this.error = error;
+//		this.errorStackTrace = Objects.requireNonNull(InstanceFactory.instance(TapUtils.class)).getStackTrace(error);
 		return this;
 	}
 
@@ -36,11 +37,11 @@ public class LastData {
 		this.data = data;
 	}
 
-	public Throwable getError() {
+	public String getError() {
 		return error;
 	}
 
-	public void setError(Throwable error) {
+	public void setError(String error) {
 		this.error = error;
 	}
 
@@ -60,11 +61,13 @@ public class LastData {
 		LastData lastData = new LastData().time(System.currentTimeMillis());
 		try {
 			T result = supplier.get();
-			lastData.data = lastData;
+			lastData.data = "Successfully";
 			return result;
 		} catch (Throwable throwable) {
-			lastData.error = throwable;
+			lastData.error(throwable.getMessage());
 			throw throwable;
+		} finally {
+			consumer.accept(lastData);
 		}
 	}
 }
