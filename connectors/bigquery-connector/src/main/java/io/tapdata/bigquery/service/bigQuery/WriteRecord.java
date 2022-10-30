@@ -5,11 +5,13 @@ import io.tapdata.bigquery.util.http.Http;
 import io.tapdata.bigquery.util.http.HttpEntity;
 import io.tapdata.bigquery.util.http.HttpResult;
 import io.tapdata.bigquery.util.http.HttpType;
+import io.tapdata.constant.TapLog;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -103,12 +105,12 @@ public class WriteRecord extends BigQueryStart{
                             writeListResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
                             continue;
                         }
-                        Boolean aBoolean = hasRecord(sqlMarker, after, tapTable,tapRecordEvent);
+                        Boolean aBoolean = hasRecord(sqlMarker, tapTable,tapRecordEvent);
                         if (null == aBoolean) continue;
                         String[] sqls = aBoolean ? updateSql(list(after),tapTable,tapRecordEvent) : insertSql(list(after),tapTable);
                         sql = null!=sqls?sqls[0]:null;
                     }else{
-                        sql = delSql(list(((TapDeleteRecordEvent)tapRecordEvent).getBefore()),tapTable,tapRecordEvent);
+                        sql = delSql(tapTable,tapRecordEvent);
                     }
                     BigQueryResult bigQueryResult = sqlMarker.executeOnce(sql);
                     long totalRows = bigQueryResult.getTotalRows();
@@ -136,6 +138,58 @@ public class WriteRecord extends BigQueryStart{
         }
     }
 
+    public synchronized void writeV2(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
+        SqlMarker sqlMarker = SqlMarker.create(this.config.serviceAccount());
+        WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
+        TapRecordEvent errorRecord = null;
+        try {
+            for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+                if (!running.get()) break;
+                try {
+                    if (tapRecordEvent instanceof TapInsertRecordEvent){
+                        String sql = this.insertIfExitsUpdate(
+                                ((TapInsertRecordEvent)tapRecordEvent).getAfter()
+                                ,tapTable
+                                ,tapRecordEvent
+                        );
+                        writeListResult.incrementInserted(this.executeSql(sqlMarker,sql));
+                    }else if(tapRecordEvent instanceof TapUpdateRecordEvent){
+                        String sql = this.insertIfExitsUpdate(
+                                ((TapInsertRecordEvent)tapRecordEvent).getAfter()
+                                ,tapTable
+                                ,tapRecordEvent
+                        );
+                        writeListResult.incrementModified(this.executeSql(sqlMarker,sql));
+                    }else if(tapRecordEvent instanceof TapDeleteRecordEvent){
+                        String sql = this.delSql(tapTable,tapRecordEvent);
+                        writeListResult.incrementRemove(this.executeSql(sqlMarker,sql));
+                    }else {
+                        writeListResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
+                    }
+                }catch (Throwable e) {
+                    errorRecord = tapRecordEvent;
+                    throw e;
+                }
+            }
+        }catch (Throwable e) {
+            writeListResult.setInsertedCount(0);
+            writeListResult.setModifiedCount(0);
+            writeListResult.setRemovedCount(0);
+            if (null != errorRecord) writeListResult.addError(errorRecord, e);
+            throw e;
+        }finally {
+            writeListResultConsumer.accept(writeListResult);
+        }
+    }
+    private long executeSql(SqlMarker sqlMarker,String sql){
+        BigQueryResult bigQueryResult = sqlMarker.executeOnce(sql);
+        long totalRows = bigQueryResult.getTotalRows();
+        return totalRows>0?totalRows:0L;
+    }
+
+    /**
+     * @deprecated
+     * */
     public Boolean hasRecord(SqlMarker sqlMarker,Map<String,Object> record,TapTable tapTable){
         String selectSql = selectSql(record, tapTable);
         if (null == selectSql) return null;
@@ -146,8 +200,8 @@ public class WriteRecord extends BigQueryStart{
         return null != tableResult && tableResult.getTotalRows()>0;
     }
 
-    public Boolean hasRecord(SqlMarker sqlMarker,Map<String,Object> record,TapTable tapTable,TapRecordEvent event){
-        String selectSql = selectSql(record, tapTable,event);
+    public Boolean hasRecord(SqlMarker sqlMarker,TapTable tapTable,TapRecordEvent event){
+        String selectSql = this.selectSql(tapTable,event);
         if (null == selectSql) return null;
         if ("".equals(selectSql)){
             return false;
@@ -156,51 +210,59 @@ public class WriteRecord extends BigQueryStart{
         return null != tableResult && tableResult.getTotalRows()>0;
     }
 
+    /**
+     * @deprecated
+     * */
     public String delSql(List<Map<String,Object>> record,TapTable tapTable){
         StringBuilder sql = new StringBuilder(" DELETE FROM ");
         sql.append(this.fullSqlTable(tapTable.getId())).append(" WHERE 1=2 ");
         Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null != nameFieldMap && !nameFieldMap.isEmpty() && null != record && !record.isEmpty()){
-            sql.append( " OR ( " );
             for (Map<String, Object> map : record) {
-                sql.append(" 1 = 1 ");
+                sql.append( " OR ( " );
+                StringJoiner whereSql = new StringJoiner(" ADN ");
                 for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
                     if (key.getValue().getPrimaryKey()) {
-                        sql.append(" AND `").append(key.getKey()).append("` = ").append(sqlValue(map.get(key.getKey()), key.getValue())).append(" ");
+                        whereSql.add(key.getKey()+"="+sqlValue(map.get(key.getKey()),key.getValue()));
                     }
                 }
+                sql.append(whereSql.toString()).append(" ) ");
             }
-            sql.append(" ) ");
-            return sql.toString().replaceAll("1=2  OR","").replaceAll("1 = 1  AND","");
+            return sql.toString();
         }
         return null;
     }
 
-    public String delSql(List<Map<String,Object>> record,TapTable tapTable,TapRecordEvent event){
+    public String delSql(TapTable tapTable,TapRecordEvent event){
+        return this.delBatchSql(tapTable, list(event));
+    }
+    public String delBatchSql(TapTable tapTable,List<TapRecordEvent> event){
         StringBuilder sql = new StringBuilder(" DELETE FROM ");
         sql.append(this.fullSqlTable(tapTable.getId())).append(" WHERE 1=2 ");
         Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-
-        Map<String, Object> filter = event.getFilter(tapTable.primaryKeys());
-        if (null == filter || filter.isEmpty()) return null;
-
-        if (null != nameFieldMap && !nameFieldMap.isEmpty() && null != record && !record.isEmpty()){
-            sql.append( " OR ( " );
-            for (Map<String, Object> map : record) {
-                sql.append(" 1 = 1 ");
-                filter.forEach((key,value)->sql.append(" AND `").append(key).append("` = ").append(sqlValue(value, nameFieldMap.get(key))).append(" "));
-//                for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
-//                    if (key.getValue().getPrimaryKey()) {
-//                        sql.append(" AND `").append(key.getKey()).append("` = ").append(sqlValue(map.get(key.getKey()), key.getValue())).append(" ");
-//                    }
-//                }
-            }
-            sql.append(" ) ");
-            return sql.toString().replaceAll("1=2  OR","").replaceAll("1 = 1  AND","");
+        if (null != nameFieldMap && !nameFieldMap.isEmpty() ){
+            event.forEach(eve->{
+                Map<String, Object> filter = eve.getFilter(tapTable.primaryKeys());
+                if (null == filter || filter.isEmpty()) {
+                    TapLogger.debug(TAG,"A tapEvent can not filter primary keys,event = {}",eve);
+                    return ;
+                }
+                int filterSize = filter.size();
+                sql.append( " OR " );
+                if (filterSize>1) sql.append("( ");
+                StringJoiner whereSql = new StringJoiner(" ADN ");
+                filter.forEach((primaryKey,value)-> whereSql.add(primaryKey+"="+sqlValue(value,nameFieldMap.get(primaryKey))));
+                sql.append(whereSql.toString());
+                if (filterSize>1) sql.append(" ) ");
+            });
+            return sql.toString();//.replaceAll("1=2  OR","");
         }
         return null;
     }
 
+    /**
+     * @deprecated please use the method name is insertIfExitsUpdate
+     * */
     public String[] updateSql(List<Map<String,Object>> record,TapTable tapTable,TapRecordEvent event){
         Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null == nameFieldMap || nameFieldMap.isEmpty()) return null;
@@ -238,6 +300,9 @@ public class WriteRecord extends BigQueryStart{
         return sql;
     }
 
+    /**
+     * @deprecated please use the method name is insertIfExitsUpdate
+     * */
     public String[] insertSql(List<Map<String,Object>> record,TapTable tapTable){
         if (null == record || record.isEmpty()) return null;
         Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
@@ -275,6 +340,9 @@ public class WriteRecord extends BigQueryStart{
         return sql;
     }
 
+    /**
+     * @deprecated please use the method name is insertIfExitsUpdate
+     * */
     public String selectSql(Map<String,Object> record,TapTable tapTable){
         if (null == record || null == tapTable) return null;
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
@@ -289,23 +357,61 @@ public class WriteRecord extends BigQueryStart{
         return sql.toString().replaceAll("1=1  AND","");
     }
 
-    public String selectSql(Map<String,Object> record,TapTable tapTable,TapRecordEvent event){
-        if (null == record || null == tapTable) return null;
+    /**
+     * @deprecated please use the method name is insertIfExitsUpdate
+     * */
+    public String selectSql(TapTable tapTable,TapRecordEvent event){
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null == nameFieldMap || nameFieldMap.isEmpty()) return "";
         StringBuilder sql = new StringBuilder(" SELECT * FROM ").append(this.fullSqlTable(tapTable.getId())).append(" WHERE 1=1 ");
         Map<String, Object> filter = event.getFilter(tapTable.primaryKeys());
         if (null == filter || filter.isEmpty()) return null;
         filter.forEach((key,value)->sql.append(" AND `").append(key).append("` = ").append(sqlValue(value,nameFieldMap.get(key))).append(" "));
-//        for (Map.Entry<String,TapField> key : nameFieldMap.entrySet()) {
-//            if (null == key) continue;
-//            if (key.getValue().getPrimaryKey()) {
-//                sql.append(" AND `").append(key.getKey()).append("` = ").append(sqlValue(record.get(key.getKey()),key.getValue())).append(" ");
-//            }
-//        }
         return sql.toString().replaceAll("1=1  AND","");
     }
 
+    /**
+     * DECLARE exits INT64;
+     * SET exits = (select 1 from `SchemaoOfJoinSet.JoinTestSchema` where _id = '2');
+     * if exits = 1 then
+     *   update `SchemaoOfJoinSet.JoinTestSchema` set name = 'update-test' where _id = '2';
+     * else
+     *   insert into `SchemaoOfJoinSet.JoinTestSchema` (_id,name) values ('2','test-insert');
+     * end if
+     * */
+    public String insertIfExitsUpdate(Map<String,Object> record,TapTable tapTable,TapRecordEvent event){
+        String whereSql = this.whereSql(tapTable,event);
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (null == nameFieldMap || nameFieldMap.isEmpty()) return "";
+        if (null == record || record.isEmpty()) return "";
+        final String delimiter = ",";
+        StringJoiner keyInsertSql = new StringJoiner(delimiter);
+        StringJoiner valueInsertSql = new StringJoiner(delimiter);
+        StringBuilder subUpdateSql = new StringBuilder(" SET ");
+        final String equals = "=";
+        nameFieldMap.forEach((key,field)->{
+            String value = this.sqlValue(record.get(key),field);
+            keyInsertSql.add(key);
+            valueInsertSql.add(value);
+            subUpdateSql.append(" ").append(key).append(equals).append(value).append(delimiter).append(" ");
+        });
+        String table = this.fullSqlTable(tapTable.getId());
+        StringBuilder insertIfExitsUpdateSql = new StringBuilder("DECLARE exits INT64;");
+        insertIfExitsUpdateSql.append("SET exits = (select 1 from ")
+                .append(table)
+                .append(whereSql).append(";")
+                .append(" if exits = 1 then ")
+                .append("  update ")
+                .append(table)
+                .append(subUpdateSql).append(";")
+                .append(whereSql)
+                .append(" ELSE ")
+                .append("  insert into ")
+                .append(table)
+                .append(" (").append(keyInsertSql.toString()).append(" ) VALUES ( ").append(valueInsertSql.toString()).append(" ); ")
+                .append("END IF");
+        return insertIfExitsUpdateSql.toString();
+    }
 
     /**
      * JSON :  INSERT INTO mydataset.table1 VALUES(1, JSON '{"name": "Alice", "age": 30}');
@@ -314,5 +420,59 @@ public class WriteRecord extends BigQueryStart{
     public String sqlValue(Object value,TapField field){
         if (value instanceof String) return "\""+value+"\"";
         else return ""+value;
+    }
+
+    /**
+     *
+     * (key1,key2,key3,...) VALUES (value1,value2,value3,...)
+     * */
+    private String subInsertSql(Map<String,Object> record,TapTable tapTable){
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (null == nameFieldMap || nameFieldMap.isEmpty()) return "";
+        if (null == record || record.isEmpty()) return "";
+        final String delimiter = ",";
+        StringJoiner keySql = new StringJoiner(delimiter);
+        StringJoiner valueSql = new StringJoiner(delimiter);
+        nameFieldMap.forEach((key,value)->{
+            keySql.add(key);
+            valueSql.add(this.sqlValue(record.get(key),value));
+        });
+        if (keySql.length()>0 && valueSql.length()>0){
+            return " (" + keySql.toString() + " ) VALUES ( " + valueSql.toString() + " ) ";
+        }else {
+            TapLogger.info(TAG,"A insert sql error ,keys or values can not be find. keys = {},values = {}",keySql.toString(),valueSql.toString());
+            return "";
+        }
+    }
+
+    /**
+     * SET key1=value1,key2=value2,...
+     * */
+    private String subUpdateSql(Map<String,Object> record,TapTable tapTable){
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (null==nameFieldMap || nameFieldMap.isEmpty()) return "";
+        if (null == record || record.isEmpty()) return "";
+        StringBuilder subSql = new StringBuilder(" SET ");
+        final String equals = "=";
+        final String delimiter = ",";
+        nameFieldMap.forEach((key,field)->{
+            subSql.append(" ").append(key).append(equals).append(this.sqlValue(record.get(key),field)).append(delimiter).append(" ");
+        });
+        if (subSql.length()<=0){
+            TapLogger.debug(TAG,"A update sql error, not key-value for subSql,record = {}",record);
+        }
+        return subSql.toString();
+    }
+    /**
+     * WHERE xxx = xxx ADN xxx = xxx ......
+     * */
+    private String whereSql(TapTable tapTable,TapRecordEvent event){
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (null==nameFieldMap || nameFieldMap.isEmpty()) return "";
+        Map<String, Object> filter = event.getFilter(tapTable.primaryKeys());
+        if (null == filter || filter.isEmpty()) return "";
+        StringJoiner whereSql = new StringJoiner(" ADN ");
+        filter.forEach((primaryKey,value)-> whereSql.add(primaryKey+"="+sqlValue(value,nameFieldMap.get(primaryKey))));
+        return whereSql.length()>0?" WHERE "+whereSql.toString():"";
     }
 }

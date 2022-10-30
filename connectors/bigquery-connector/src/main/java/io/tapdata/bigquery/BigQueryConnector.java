@@ -72,7 +72,7 @@ public class BigQueryConnector extends ConnectorBase {
 	}
 
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
-		this.writeRecord.write(tapRecordEvents, tapTable, writeListResultConsumer);
+		this.writeRecord.writeV2(tapRecordEvents, tapTable, writeListResultConsumer);
 	}
 
 
