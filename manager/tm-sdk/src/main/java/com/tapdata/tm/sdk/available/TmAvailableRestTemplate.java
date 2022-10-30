@@ -1,8 +1,6 @@
-package com.tapdata.mongo;
+package com.tapdata.tm.sdk.available;
 
-import com.tapdata.constant.JSONUtil;
-import com.tapdata.entity.ResponseBody;
-import org.jetbrains.annotations.NotNull;
+import com.tapdata.tm.sdk.util.JacksonUtil;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -22,6 +20,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 public class TmAvailableRestTemplate extends RestTemplate {
 
@@ -85,7 +85,6 @@ public class TmAvailableRestTemplate extends RestTemplate {
     return null;
   }
 
-  @NotNull
   private static AbstractClientHttpResponse getDefaultResponse() {
     return new AbstractClientHttpResponse() {
 
@@ -106,10 +105,11 @@ public class TmAvailableRestTemplate extends RestTemplate {
 
       @Override
       public InputStream getBody() throws IOException {
-        ResponseBody responseBody = new ResponseBody();
-        responseBody.setCode("503");
-        responseBody.setMsg("503 Service Unavailable");
-        String obj2Json = JSONUtil.obj2Json(responseBody);
+        Map<String, Object> responseBody = new HashMap<String, Object>() {{
+          put("code", "503");
+          put("msg", "503 Service Unavailable");
+        }};
+        String obj2Json = JacksonUtil.toJson(responseBody);
         byte[] bytes = obj2Json.getBytes(StandardCharsets.UTF_8);
         return new ByteArrayInputStream(bytes);
       }

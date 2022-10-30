@@ -17,7 +17,7 @@ public class ClusterStateDto extends BaseDto {
 
     private SystemInfo systemInfo;
 
-    private int reportInterval;
+    private Integer reportInterval;
     private Component engine;
 
     private Component management;

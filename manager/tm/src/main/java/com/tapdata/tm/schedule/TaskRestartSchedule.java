@@ -8,6 +8,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.service.WorkerService;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -37,6 +38,7 @@ public class TaskRestartSchedule {
     private TaskService taskService;
     private UserService userService;
     private SettingsService settingsService;
+    private WorkerService workerService;
 
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
@@ -63,6 +65,14 @@ public class TaskRestartSchedule {
     @Scheduled(fixedDelay = 5 * 60 * 1000)
     @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
+
+
+        //云版不需要这个重新调度的逻辑
+        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+        if (Objects.isNull(buildProfile)) {
+            buildProfile = "DAAS";
+        }
+        boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
         long heartExpire;
         Settings settings = settingsService.findAll().stream().filter(k -> "jobHeartTimeout".equals(k.getKey())).findFirst().orElse(null);
         if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
@@ -82,6 +92,16 @@ public class TaskRestartSchedule {
         List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
-        all.forEach(taskDto -> taskService.run(taskDto, userDetailMap.get(taskDto.getUserId())));
+        all.forEach(taskDto -> {
+
+            if (isCloud) {
+                String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
+                if ("offline".equals(status) || "online".equals(status)) {
+                    log.debug("The cloud version does not need this rescheduling");
+                    return;
+                }
+            }
+            taskService.run(taskDto, userDetailMap.get(taskDto.getUserId()));
+        });
     }
 }

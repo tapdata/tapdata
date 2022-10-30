@@ -18,8 +18,10 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.JavaTypesToTapTypes;
-import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.entity.utils.ReflectionUtil;
+import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections4.MapUtils;
@@ -31,10 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import org.voovan.tools.collection.CacheMap;
 
 import javax.script.Invocable;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 
@@ -80,7 +79,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			throw new IllegalArgumentException("HazelcastSchemaTargetNode only allows one predecessor node");
 		}
 		Node<?> deductionSchemaNode = preNodes.get(0);
-		this.oldTapTableMap = TapTableUtil.getTapTableMap(deductionSchemaNode, null);
+		this.oldTapTableMap = TapTableUtil.getTapTableMap("predecessor_" + getNode().getId() + "_", deductionSchemaNode, null);
 
 		if (deductionSchemaNode instanceof JsProcessorNode
 				|| deductionSchemaNode instanceof MigrateJsProcessorNode
@@ -93,12 +92,9 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				} else {
 					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
 				}
-				this.engine = ScriptUtil.getScriptEngine(
-								declareScript,
-								null,
-								null,
+				this.engine = ScriptUtil.getScriptEngine(declareScript, null, null,
 								((DataProcessorContext) processorBaseContext).getCacheService(),
-								logger
+								new ObsScriptLogger(obsLogger)
 				);
 			}
 		}
@@ -159,6 +155,12 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		}
 	}
 
+	@Override
+	protected void doClose() throws Exception {
+		super.doClose();
+		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.oldTapTableMap).ifPresent(TapTableMap::reset), HazelcastSchemaTargetNode.class.getSimpleName());
+	}
+
 	@NotNull
 	private TapTable getNewTapTable(TapRecordEvent tapEvent) {
 		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
@@ -167,22 +169,34 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		}
 		TapTable tapTable = new TapTable(tapEvent.getTableId());
 		if (MapUtils.isNotEmpty(after)) {
+			LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap(tapEvent.getTableId());
 			for (Map.Entry<String, Object> entry : after.entrySet()) {
+				String fieldName = entry.getKey();
 				if (logger.isDebugEnabled()) {
-					logger.debug("entry type: {} - {}", entry.getKey(), entry.getValue().getClass());
+					logger.debug("entry type: {} - {}", fieldName, entry.getValue().getClass());
 				}
 				if (entry.getValue() instanceof TapValue) {
 					TapValue<?, ?> tapValue = (TapValue<?, ?>) entry.getValue();
 					TapField tapField = new TapField()
-									.name(entry.getKey())
+									.name(fieldName)
 									.dataType(tapValue.getOriginType())
 									.tapType(tapValue.getTapType());
 					tapField.setTapType(tapValue.getTapType());
 					tapTable.add(tapField);
 				} else {
 					TapType tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
+					String dataType = null;
+					if (oldNameFieldMap != null) {
+						TapField oldTapField = oldNameFieldMap.get(fieldName);
+						if (oldTapField != null && oldTapField.getTapType() != null && tapType != null
+										&& oldTapField.getTapType().getType() == tapType.getType()) {
+							tapType = oldTapField.getTapType();
+							dataType = oldTapField.getDataType();
+						}
+					}
 					TapField tapField = new TapField()
-									.name(entry.getKey())
+									.name(fieldName)
+									.dataType(dataType)
 									.tapType(tapType);
 					tapTable.add(tapField);
 				}

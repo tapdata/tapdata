@@ -7,6 +7,8 @@ import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.*;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
+import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
+import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -54,7 +56,7 @@ public class MariadbConnector extends ConnectorBase {
         tapConnectionContext.getSpecification().setId("mysql");
         this.mysqlJdbcContext = new MysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
-            this.mysqlWriter = new MysqlJdbcOneByOneWriter(mysqlJdbcContext);
+            this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
             this.version = mysqlJdbcContext.getMysqlVersion();
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -87,6 +89,13 @@ public class MariadbConnector extends ConnectorBase {
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
         connectorFunctions.supportCreateTable(this::createTable);

@@ -84,8 +84,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@Override
 	public void startSourceRunner() {
 		try {
-			Node<?> node = dataProcessorContext.getNode();
-			Thread.currentThread().setName("PDK-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
 			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			try {
@@ -160,12 +158,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							}
 							if (this.removeTables != null && this.removeTables.contains(tableName)) {
 								logger.info("Table " + tableName + " is detected that it has been removed, the snapshot read will be skipped");
+								obsLogger.info("Table " + tableName + " is detected that it has been removed, the snapshot read will be skipped");
 								this.removeTables.remove(tableName);
 								continue;
 							}
 							TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 							Object tableOffset = ((Map<String, Object>) syncProgress.getBatchOffsetObj()).get(tapTable.getId());
 							logger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
+							obsLogger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 							int eventBatchSize = 100;
 
 							executeDataFuncAspect(BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
@@ -209,6 +209,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											.logTag(TAG)
 											.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
 											.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
+											.logListener(logListener)
 							));
 						} catch (Throwable throwable) {
 							Throwable throwableWrapper = throwable;
@@ -343,6 +344,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									).logTag(TAG)
 									.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
 									.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
+									.logListener(logListener)
 					));
 		}
 	}
@@ -376,6 +378,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				if (e.isContinueWithNormalCdc()) {
 					// If share cdc is unavailable, and continue with normal cdc is true
 					logger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
+					obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
 					doNormalCDC();
 				} else {
 					throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
@@ -508,6 +511,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							).logTag(TAG)
 							.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
 							.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
+							.logListener(logListener)
 			));
 		} else {
 			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
@@ -523,9 +527,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
-		logger.info("Starting incremental sync, read from share log storage...");
 		// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
 		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext);
+		logger.info("Starting incremental sync, read from share log storage...");
+		obsLogger.info("Starting incremental sync, read from share log storage...");
 		// Start listen message entity from share storage log
 		executeDataFuncAspect(StreamReadFuncAspect.class,
 				() -> new StreamReadFuncAspect()
@@ -572,18 +577,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			throw new NodeException("Get cdc start ts failed; Error: " + e.getMessage(), e).context(getProcessorBaseContext());
 		}
 		return cdcStartTs;
-	}
-
-	@Override
-	public void doClose() throws Exception {
-		try {
-			if (null != getConnectorNode()) {
-				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.stop(getConnectorNode()), TAG);
-				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG), TAG);
-			}
-		} finally {
-			super.doClose();
-		}
 	}
 
 	private void setDefaultRowSizeMap() {

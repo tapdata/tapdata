@@ -67,7 +67,7 @@ public class CodingConnector extends ConnectorBase {
 		switch (streamReadType){
 			//反向赋空，如果使用webhook那么取消polling能力，如果使用polling南无取消webhook能力,一山不容二虎.--------GavinXiao
 			case "WebHook":this.connectorFunctions.supportStreamRead(null);break;
-			case "Polling":this.connectorFunctions.supportRawDataCallbackFilterFunction(null);break;
+			case "Polling":this.connectorFunctions.supportRawDataCallbackFilterFunctionV2(null);break;
 //			default:
 //				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
 		}

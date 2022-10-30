@@ -16,6 +16,7 @@ import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -252,7 +253,7 @@ public class TidbContext extends JdbcContext{
 
     public String timezone() throws SQLException {
 
-        String timeZone = null;
+        String formatTimezone = null;
         TapLogger.debug(TAG, "Get timezone sql: " + DATABASE_TIMEZON_SQL);
         try (
                 Connection connection = getConnection();
@@ -260,10 +261,55 @@ public class TidbContext extends JdbcContext{
                 ResultSet resultSet = statement.executeQuery(DATABASE_TIMEZON_SQL)
         ) {
             while (resultSet.next()) {
-                timeZone = resultSet.getString(1);
-                return timeZone;
+                String timeZone = resultSet.getString(1);
+                formatTimezone = formatTimezone(timeZone);
             }
         }
-        return null;
+        return formatTimezone;
+    }
+
+    private static String formatTimezone(String timezone) {
+        StringBuilder sb = new StringBuilder("GMT");
+        String[] split = timezone.split(":");
+        String str = split[0];
+        //Corrections -07:59:59 to GMT-08:00
+        int m = Integer.parseInt(split[1]);
+        if (m != 0) {
+            split[1] = "00";
+            int h = Math.abs(Integer.parseInt(str)) + 1;
+            if (h < 10) {
+                str = "0" + h;
+            } else {
+                str = h + "";
+            }
+            if (split[0].contains("-")) {
+                str = "-" + str;
+            }
+        }
+        if (str.contains("-")) {
+            if (str.length() == 3) {
+                sb.append(str);
+            } else {
+                sb.append("-0").append(StringUtils.right(str, 1));
+            }
+        } else if (str.contains("+")) {
+            if (str.length() == 3) {
+                sb.append(str);
+            } else {
+                sb.append("+0").append(StringUtils.right(str, 1));
+            }
+        } else {
+            sb.append("+");
+            if (str.length() == 2) {
+                sb.append(str);
+            } else {
+                sb.append("0").append(StringUtils.right(str, 1));
+            }
+        }
+        return sb.append(":").append(split[1]).toString();
+    }
+
+    public static void main(String[] args) {
+        System.out.println(formatTimezone("07:59:59"));
     }
 }

@@ -7,6 +7,7 @@ import io.tapdata.connector.custom.core.ScriptCore;
 import io.tapdata.connector.custom.util.CustomLog;
 import io.tapdata.connector.custom.util.ScriptUtil;
 import io.tapdata.constant.ConnectionTypeEnum;
+import io.tapdata.constant.SyncTypeEnum;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -20,7 +21,6 @@ import io.tapdata.entity.schema.value.TapRawValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
-import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -57,7 +57,7 @@ public class CustomConnector extends ConnectorBase {
         assert scriptFactory != null;
         initScriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
         initScriptEngine.eval(ScriptUtil.appendBeforeFunctionScript(customConfig.getCustomBeforeScript()) + "\n"
-                + ScriptUtil.appendAfterFunctionScript(customConfig.getCustomBeforeScript()));
+                + ScriptUtil.appendAfterFunctionScript(customConfig.getCustomAfterScript()));
         initScriptEngine.put("log", new CustomLog());
     }
 
@@ -71,6 +71,10 @@ public class CustomConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
+
+    }
+
+    private void beforeStop() {
         if (EmptyKit.isNotNull(customConfig) && customConfig.getCustomAfterOpr()) {
             ScriptUtil.executeScript(initScriptEngine, ScriptUtil.AFTER_FUNCTION_NAME);
         }
@@ -205,6 +209,9 @@ public class CustomConnector extends ConnectorBase {
         if (t.isAlive()) {
             t.stop();
         }
+        if (customConfig.getSyncType().equals(SyncTypeEnum.INITIAL_SYNC.getType())) {
+            beforeStop();
+        }
     }
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
@@ -221,8 +228,9 @@ public class CustomConnector extends ConnectorBase {
             try {
                 while (isAlive()) {
                     invocable.invokeFunction(ScriptUtil.SOURCE_FUNCTION_NAME, contextMap.get());
-                    TapSimplify.sleep(2000);
+                    Thread.sleep(1000);
                 }
+            } catch (InterruptedException ignored) {
             } catch (Exception e) {
                 scriptException.set(e);
             }
@@ -230,6 +238,9 @@ public class CustomConnector extends ConnectorBase {
         Thread t = new Thread(runnable);
         t.start();
         consumer.streamReadStarted();
+        if (EmptyKit.isNotNull(scriptException.get())) {
+            throw scriptException.get();
+        }
         List<TapEvent> eventList = new ArrayList<>();
         Object lastContextMap = null;
         while (isAlive() && t.isAlive()) {
@@ -255,6 +266,7 @@ public class CustomConnector extends ConnectorBase {
             t.stop();
         }
         consumer.streamReadEnded();
+        beforeStop();
     }
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {

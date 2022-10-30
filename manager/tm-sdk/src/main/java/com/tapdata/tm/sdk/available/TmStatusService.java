@@ -1,9 +1,9 @@
-package com.tapdata.mongo;
+package com.tapdata.tm.sdk.available;
 
-import com.tapdata.entity.AppType;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
+
+import com.tapdata.tm.sdk.util.AppType;
 import org.apache.logging.log4j.ThreadContext;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +21,7 @@ public class TmStatusService {
 
   private final static Map<String, AtomicBoolean> taskReportStatusMap = new ConcurrentHashMap<>();
 
-  private final static List<Handler> toAvailableHandler = new ArrayList<>();
+  private final static List<Runnable> toAvailableHandler = new ArrayList<>();
 
   public static boolean isNotAvailable() {
     return !isAvailable();
@@ -51,8 +51,8 @@ public class TmStatusService {
       return;
     }
     available.set(true);
-    if (CollectionUtils.isNotEmpty(toAvailableHandler)) {
-      toAvailableHandler.forEach(Handler::run);
+    if (!toAvailableHandler.isEmpty()) {
+      toAvailableHandler.forEach(Runnable::run);
     }
   }
 
@@ -98,11 +98,11 @@ public class TmStatusService {
     return status == null || status.get();
   }
 
-  public static void registeredTmAvailableHandler(Handler handler) {
+  public static void registeredTmAvailableHandler(Runnable runnable) {
     if (!appType.isCloud()) {
       return;
     }
-    toAvailableHandler.add(handler);
+    toAvailableHandler.add(runnable);
   }
 
   public static void removeTask(String taskId) {

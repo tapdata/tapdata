@@ -1,12 +1,11 @@
-package com.tapdata.mongo;
+package com.tapdata.tm.sdk.util;
 
-import com.tapdata.entity.AppType;
+
 import com.tapdata.tm.sdk.auth.BasicCredentials;
 import com.tapdata.tm.sdk.auth.Signer;
-import com.tapdata.tm.sdk.util.SignUtil;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriUtils;
 
 import java.io.UnsupportedEncodingException;
@@ -30,7 +29,7 @@ public class CloudSignUtil {
 	static {
 		accessKey = System.getenv("accessKey");
 		secretKey = System.getenv("secretKey");
-		needSign = AppType.init().isCloud() && StringUtils.isNotEmpty(accessKey) && StringUtils.isNotEmpty(secretKey);
+		needSign = AppType.init().isCloud() && !StringUtils.isEmpty(accessKey) && !StringUtils.isEmpty(secretKey);
 		logger.info("ak/sk needSign {}, accessKey {}, secretKey {}", needSign, accessKey, secretKey);
 	}
 
@@ -42,21 +41,21 @@ public class CloudSignUtil {
 
 		String url1 = "http://test.cloud.tapdata.net/tm/api/Logs";
 		String body = "{\n" +
-				"  \"level\": \"ERROR\",\n" +
-				"  \"loggerName\": \"com.tapdata.validator.SchemaValidatorImpl\",\n" +
-				"  \"message\": \"Load schema error, schema name: ORACLE_NCLOB_TYPE, err msg: Invalid column name, will skip it\",\n" +
-				"  \"threadId\": 22423,\n" +
-				"  \"threadName\": \"LOAD-SCHEMA-FIELDS-[DM2]\",\n" +
-				"  \"threadPriority\": 5,\n" +
-				"  \"millis\": 1628478201231,\n" +
-				"  \"date\": 1628478201231,\n" +
-				"  \"thrown\": {\n" +
-				"    \"type\": \"java.sql.SQLException\",\n" +
-				"    \"message\": \"Invalid column name\\ndm.jdbc.dbaccess.DBError.throwSQLException(DBError.java:57)\\ndm.jdbc.driver.DmdbResultSet_bs.findColumn(DmdbResultSet_bs.java:1938)\\ndm.jdbc.driver.DmdbResultSet_bs.getString(DmdbResultSet_bs.java:1239)\\ndm.jdbc.driver.DmdbResultSet.do_getString(DmdbResultSet.java:5133)\\ndm.jdbc.filter.FilterChain.ResultSet_getString(FilterChain.java:4848)\\ndm.jdbc.driver.DmdbResultSet.getString(DmdbResultSet.java:637)\\ncom.tapdata.validator.SchemaValidatorImpl.validateSchema(SchemaValidatorImpl.java:176)\\ncom.tapdata.validator.mysql.MysqlSchemaValidatorImpl.validateSchema(MysqlSchemaValidatorImpl.java:29)\\ncom.tapdata.validator.SchemaValidatorImpl.validateSchema(SchemaValidatorImpl.java:51)\\ncom.tapdata.validator.SchemaFactory.loadSchemaList(SchemaFactory.java:86)\\nio.tapdata.Runnable.LoadSchemaRunner.run(LoadSchemaRunner.java:89)\\nio.tapdata.websocket.handler.TestConnectionHandler.lambda$handle$3(TestConnectionHandler.java:300)\\njava.lang.Thread.run(Thread.java:745)\\n\"\n" +
-				"  },\n" +
-				"  \"contextMap\": {},\n" +
-				"  \"contextStack\": []\n" +
-				"}";
+						"  \"level\": \"ERROR\",\n" +
+						"  \"loggerName\": \"com.tapdata.validator.SchemaValidatorImpl\",\n" +
+						"  \"message\": \"Load schema error, schema name: ORACLE_NCLOB_TYPE, err msg: Invalid column name, will skip it\",\n" +
+						"  \"threadId\": 22423,\n" +
+						"  \"threadName\": \"LOAD-SCHEMA-FIELDS-[DM2]\",\n" +
+						"  \"threadPriority\": 5,\n" +
+						"  \"millis\": 1628478201231,\n" +
+						"  \"date\": 1628478201231,\n" +
+						"  \"thrown\": {\n" +
+						"    \"type\": \"java.sql.SQLException\",\n" +
+						"    \"message\": \"Invalid column name\\ndm.jdbc.dbaccess.DBError.throwSQLException(DBError.java:57)\\ndm.jdbc.driver.DmdbResultSet_bs.findColumn(DmdbResultSet_bs.java:1938)\\ndm.jdbc.driver.DmdbResultSet_bs.getString(DmdbResultSet_bs.java:1239)\\ndm.jdbc.driver.DmdbResultSet.do_getString(DmdbResultSet.java:5133)\\ndm.jdbc.filter.FilterChain.ResultSet_getString(FilterChain.java:4848)\\ndm.jdbc.driver.DmdbResultSet.getString(DmdbResultSet.java:637)\\ncom.tapdata.validator.SchemaValidatorImpl.validateSchema(SchemaValidatorImpl.java:176)\\ncom.tapdata.validator.mysql.MysqlSchemaValidatorImpl.validateSchema(MysqlSchemaValidatorImpl.java:29)\\ncom.tapdata.validator.SchemaValidatorImpl.validateSchema(SchemaValidatorImpl.java:51)\\ncom.tapdata.validator.SchemaFactory.loadSchemaList(SchemaFactory.java:86)\\nio.tapdata.Runnable.LoadSchemaRunner.run(LoadSchemaRunner.java:89)\\nio.tapdata.websocket.handler.TestConnectionHandler.lambda$handle$3(TestConnectionHandler.java:300)\\njava.lang.Thread.run(Thread.java:745)\\n\"\n" +
+						"  },\n" +
+						"  \"contextMap\": {},\n" +
+						"  \"contextStack\": []\n" +
+						"}";
 		System.out.println(getQueryStr("POST", url1, body));
 	}
 
@@ -78,7 +77,7 @@ public class CloudSignUtil {
 		paramMap.put("accessKey", accessKey);
 
 		String strToSign = SignUtil.canonicalQueryString(paramMap);
-		if (StringUtils.isNotEmpty(reqMethod)) {
+		if (!StringUtils.isEmpty(reqMethod)) {
 			strToSign = String.format("%s:%s", reqMethod, strToSign);
 		}
 		/**
@@ -95,7 +94,7 @@ public class CloudSignUtil {
 
 		String queryStr = urlArr[0] + "?" + paramMap.entrySet().stream().map(CloudSignUtil::percentEncode).collect(Collectors.joining("&"));
 		logger.debug("cloud sign: url=[{}], requestMethod=[{}], body=[{}], signToStr=[{}], \n query: [{}]",
-				url, reqMethod, bodyStr, strToSign, queryStr);
+						url, reqMethod, bodyStr, strToSign, queryStr);
 		return queryStr;
 	}
 

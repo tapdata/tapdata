@@ -1,6 +1,8 @@
 package com.tapdata.tm.autoinspect.entity;
 
 import com.tapdata.tm.autoinspect.constants.CompareStatus;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapValue;
 import lombok.Data;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
@@ -33,7 +35,19 @@ public class CompareRecord {
         this.connectionId = connectionId;
         this.originalKey = originalKey;
         this.keyNames = keyNames;
-        this.data = data;
+        setData(data);
+    }
+
+    public void setData(Map<String, Object> data) {
+        if (null == data) {
+            this.data = null;
+            return;
+        }
+
+        this.data = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> en : data.entrySet()) {
+            this.data.put(en.getKey(), parse(en.getKey(), en.getValue()));
+        }
     }
 
     public Object getDataValue(@NonNull String key) {
@@ -59,7 +73,7 @@ public class CompareRecord {
                 return CompareStatus.MoveTarget;
             }
 
-            if (v1 instanceof Comparable && v2 instanceof Comparable) {
+            if (v1 instanceof Comparable && v1.getClass().equals(v2.getClass())) {
                 compareValue = ((Comparable) v1).compareTo(v2);
             } else {
                 compareValue = v1.hashCode() - v2.hashCode();
@@ -82,8 +96,8 @@ public class CompareRecord {
             Map<String, Object> omap = targetData.getData();
             for (String key : this.getData().keySet()) {
                 //check null value
-                odata = omap.compute(key, this::parse);
-                ndata = this.getData().compute(key, this::parse);
+                odata = omap.get(key);
+                ndata = this.getDataValue(key);
 
                 //filter keys
                 if (this.getKeyNames().contains(key)) continue;
@@ -113,12 +127,19 @@ public class CompareRecord {
     public Object parse(String k, Object v) {
         if (null == v) return null;
 
+        if (v instanceof TapValue) {
+            v = ((TapValue<?, ?>) v).getValue();
+        }
+
         if (v instanceof String) {
             return v;
         } else if (v instanceof ObjectId) {
             return ((ObjectId) v).toHexString();
+        } else if (v instanceof DateTime) {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SZ");
+            return sdf.format(((DateTime) v).toDate());
         } else if (v instanceof Date) {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM_dd HH:mm:ss.S");
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SZ");
             return sdf.format(v);
         }
         return v.toString();
