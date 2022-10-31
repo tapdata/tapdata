@@ -96,74 +96,78 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
         WebSocketFrame frame = (WebSocketFrame) msg;
         if(frame instanceof BinaryWebSocketFrame) {
 //            TapLogger.debug(TAG, "channel read");
-            BinaryWebSocketFrame binaryWebSocketFrame = (BinaryWebSocketFrame) frame;
-            ByteBuf byteBuf = binaryWebSocketFrame.content();
-            byte type = byteBuf.readByte();
-            byte encode = Data.ENCODE_JAVA_CUSTOM_SERIALIZER;
-            byte[] bytes = null;
-            if(byteBuf.readableBytes() > 0) {
-                encode = byteBuf.readByte();
-                bytes = new byte[byteBuf.readableBytes()];
-                byteBuf.readBytes(bytes);
-            }
-            Data data = DataVersioning.get(encode, type);
-            if(bytes != null) {
-                data.setData(bytes);
-                data.resurrect();
-            }
-
-            if(pushChannel != null && pushChannel.getImClient() != null) {
-                String prefix = pushChannel.getImClient().getPrefix();
-                //Any data received will cancel the ping timer.
-                if(pushChannel.pingFuture != null) {
-//                    TapLogger.debug(TAG, "ping timeout canceled");
-                    pushChannel.pingFuture.cancel(true);
-                    pushChannel.pingFuture = null;
+            try {
+                BinaryWebSocketFrame binaryWebSocketFrame = (BinaryWebSocketFrame) frame;
+                ByteBuf byteBuf = binaryWebSocketFrame.content();
+                byte type = byteBuf.readByte();
+                byte encode = Data.ENCODE_JAVA_CUSTOM_SERIALIZER;
+                byte[] bytes = null;
+                if(byteBuf.readableBytes() > 0) {
+                    encode = byteBuf.readByte();
+                    bytes = new byte[byteBuf.readableBytes()];
+                    byteBuf.readBytes(bytes);
                 }
-                switch (type) {
-                    case Ping.TYPE:
+                Data data = DataVersioning.get(encode, type);
+                if(bytes != null) {
+                    data.setData(bytes);
+                    data.resurrect();
+                }
+
+                if(pushChannel != null && pushChannel.getImClient() != null) {
+                    String prefix = pushChannel.getImClient().getPrefix();
+                    //Any data received will cancel the ping timer.
+                    if(pushChannel.pingFuture != null) {
+//                    TapLogger.debug(TAG, "ping timeout canceled");
+                        pushChannel.pingFuture.cancel(true);
+                        pushChannel.pingFuture = null;
+                    }
+                    switch (type) {
+                        case Ping.TYPE:
 //                        TapLogger.debug(TAG, "pong");
-                        break;
-                    case Result.TYPE:
-                        Result result = (Result) data;
-                        if(result.getCode() == 1 && !pushChannel.isConnected) {
-                            pushChannel.isConnected = true;
-                            TapLogger.debug(TAG, "PushChannel connected");
-                            eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_CONNECTED));
-                        } else if(result.getCode() == 11) {
-                            eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_OFFLINEMESSAGECONSUMED));
-                        } else if(result.getCode() == 1075) { //kicked
-                            TapLogger.debug(TAG, "PushChannel kicked");
-                            eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_KICKED));
-                        } else if(result.getCode() == 1094) {
-                            TapLogger.debug(TAG, "PushChannel byed");
-                            eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_BYE));
-                        } else {
-                            TapLogger.debug(TAG, "PushChannel receive result " + result);
-                            eventManager.sendEvent(prefix + ".result", result);
-                        }
-                        break;
-                    default:
-                        eventManager.sendEvent(prefix + "." + data.getClass().getSimpleName(), data);
-                        eventManager.sendEvent(prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType(), data);
-                        break;
+                            break;
+                        case Result.TYPE:
+                            Result result = (Result) data;
+                            if(result.getCode() == 1 && !pushChannel.isConnected) {
+                                pushChannel.isConnected = true;
+                                TapLogger.debug(TAG, "PushChannel connected");
+                                eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_CONNECTED));
+                            } else if(result.getCode() == 11) {
+                                eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_OFFLINEMESSAGECONSUMED));
+                            } else if(result.getCode() == 1075) { //kicked
+                                TapLogger.debug(TAG, "PushChannel kicked");
+                                eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_KICKED));
+                            } else if(result.getCode() == 1094) {
+                                TapLogger.debug(TAG, "PushChannel byed");
+                                eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_BYE));
+                            } else {
+                                TapLogger.debug(TAG, "PushChannel receive result " + result);
+                                eventManager.sendEvent(prefix + ".result", result);
+                            }
+                            break;
+                        default:
+                            eventManager.sendEvent(prefix + "." + data.getClass().getSimpleName(), data);
+                            eventManager.sendEvent(prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType(), data);
+                            break;
 //                        case HailPack.TYPE_OUT_OUTGOINGDATA:
 //                            OutgoingData outgoingData = (OutgoingData) data;
 //                            eventManager.sendEvent(prefix + ".data", outgoingData);
 //                            eventManager.sendEvent(prefix + ".data." + outgoingData.getContentType(), outgoingData);
 //                            break;
+                    }
                 }
+            } catch (Throwable throwable) {
+                TapLogger.error(TAG, "Receive message occurred error {}", ExceptionUtils.getStackTrace(throwable));
             }
         } else if (frame instanceof TextWebSocketFrame) {
             TextWebSocketFrame textFrame = (TextWebSocketFrame) frame;
             response(ctx, frame);
             
             channel.writeAndFlush(textFrame.text());
-            System.out.println("WebSocket Client received message: " + textFrame.text());
+            TapLogger.warn(TAG, "WebSocket Client received message: " + textFrame.text());
         } else if (frame instanceof PongWebSocketFrame) {
-            System.out.println("WebSocket Client received pong");
+            TapLogger.warn(TAG, "WebSocket Client received pong");
         } else if (frame instanceof CloseWebSocketFrame) {
-            System.out.println("WebSocket Client received closing");
+            TapLogger.warn(TAG, "WebSocket Client received closing");
             ch.close();
         }
     }
