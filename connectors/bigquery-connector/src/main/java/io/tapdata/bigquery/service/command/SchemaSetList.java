@@ -16,6 +16,10 @@ import java.util.*;
 import static io.tapdata.base.ConnectorBase.entry;
 import static io.tapdata.base.ConnectorBase.map;
 
+/**
+ * command  -> SchemaSetList
+ * io  -> https://cloud.google.com/bigquery/docs/listing-datasets
+ * */
 public class SchemaSetList implements Command {
     String SQL = "SELECT schema_name FROM #{projectId}.INFORMATION_SCHEMA.SCHEMATA;";
 

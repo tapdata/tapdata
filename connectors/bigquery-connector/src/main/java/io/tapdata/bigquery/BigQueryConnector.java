@@ -6,6 +6,7 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.bigquery.enums.BigQueryTestItem;
 import io.tapdata.bigquery.service.OpenApiWriteRecoder;
 import io.tapdata.bigquery.service.bigQuery.BigQueryConnectionTest;
+import io.tapdata.bigquery.service.bigQuery.TableCreate;
 import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.bigquery.service.command.Command;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -61,7 +62,7 @@ public class BigQueryConnector extends ConnectorBase {
 //		codecRegistry.registerFromTapValue(TapMapValue.class, "json")
 		connectorFunctions.supportWriteRecord(this::writeRecord)
 				.supportCommandCallbackFunction(this::command)
-//				.supportCreateTable(this::createTable)
+				.supportCreateTable(this::createTable)
 		;
 	}
 
@@ -70,10 +71,8 @@ public class BigQueryConnector extends ConnectorBase {
 	}
 
 	private void createTable(TapConnectorContext connectorContext, TapCreateTableEvent tapCreateTableEvent) {
-		OpenApiWriteRecoder recoder = new OpenApiWriteRecoder();
-		if (!recoder.tableExist(tapCreateTableEvent.getTableId())){
-
-		}
+		TableCreate tableCreate = TableCreate.create(connectorContext);
+		tableCreate.createSchema(tapCreateTableEvent);
 	}
 
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {

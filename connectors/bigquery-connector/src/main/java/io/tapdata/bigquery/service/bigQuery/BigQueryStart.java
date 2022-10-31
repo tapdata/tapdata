@@ -14,9 +14,11 @@ import java.util.Map;
 public abstract class BigQueryStart {
     ContextConfig config;
     TapConnectionContext connectorContext;
+    SqlMarker sqlMarker;
     public BigQueryStart(TapConnectionContext connectorContext) {
         this.connectorContext = connectorContext;
         this.config = config();
+        this.sqlMarker = SqlMarker.create(config.serviceAccount());
     }
     public static ContextConfig config(TapConnectionContext connectorContext){
         ContextConfig contextConfig = ContextConfig.create();

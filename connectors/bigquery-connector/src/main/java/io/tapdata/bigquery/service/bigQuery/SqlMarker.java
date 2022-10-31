@@ -56,7 +56,7 @@ public class SqlMarker{
         return results;
     }
 
-    public BigQueryResult executeOnce(String sql){
+    public BigQueryResult executeOnce(StringBuilder sql){
         try {
             return execute(sql);
         }catch (BigQueryException | InterruptedException e){

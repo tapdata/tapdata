@@ -73,7 +73,148 @@
     }
   },
   "dataTypes": {
-    "json": {
+    "BYTES[($bit)]": {
+      "to": "TapNumber",
+      "bit": 64,
+      "queryOnly": true
+    },
+    "BYTES": {
+      "to": "TapNumber",
+      "queryOnly": true
+    },
+    "STRING($byte)": {
+      "name": "STRING",
+      "to": "TapString",
+      "byte": 16358,
+      "defaultByte": 1,
+      "byteRatio": 4
+    },
+    "INTEGER": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        -2147483648,
+        2147483647
+      ]
+    },
+    "FLOAT": {
+      "to": "TapNumber",
+      "precision": [
+        1,
+        6
+      ],
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false
+    },
+    "NUMERIC($precision,$scale)[unsigned]": {
+      "to": "TapNumber",
+      "name": "float",
+      "precision": [
+        1,
+        30
+      ],
+      "scale": [
+        0,
+        9
+      ],
+      "value": [
+        "-3.402823466E+38",
+        "3.402823466E+38"
+      ],
+      "unsigned": "unsigned",
+      "fixed": false
+    },
+    "BIGNUMERIC": {
+      "to": "TapNumber",
+      "name": "float",
+      "precision": [
+        0,
+        76
+      ],
+      "scale": [
+        0,
+        38
+      ],
+      "value": [
+        "-3.402823466E+38",
+        "3.402823466E+38"
+      ],
+      "unsigned": "unsigned",
+      "fixed": false
+    },
+    "BOOLEAN": {
+      "to": "TapBoolean",
+      "value": [
+        "NULL","TRUE","FALSE"
+      ]
+    },
+    "TIMESTAMP": {
+      "to": "TapDateTime",
+      "range": [
+        "1970-01-01 00:00:01.000000",
+        "2038-01-19 03:14:07.999999"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
+      "fraction": [
+        0,
+        6
+      ],
+      "defaultFraction": 0,
+      "withTimeZone": true
+    },
+    "INTERVAL": {
+      "to": "TapDateTime",
+      "range": [
+        "-10000-0 -3660000 -87840000:0:0",
+        "10000-0 3660000 87840000:0:0"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
+      "fraction": [
+        0,
+        6
+      ],
+      "defaultFraction": 0,
+      "withTimeZone": true
+    },
+    "DATE": {
+      "to": "TapDate",
+      "range": [
+        "0001-01-01",
+        "9999-12-31"
+      ],
+      "pattern": "yyyy-MM-dd"
+    },
+    "TIME": {
+      "to": "TapTime",
+      "range": [
+        "0001-01-01 00:00:00",
+        "9999-12-31 23:59:59.999999"
+      ]
+    },
+    "DATETIME": {
+      "to": "TapDateTime",
+      "range": [
+        "1000-01-01 00:00:00.000000",
+        "9999-12-31 23:59:59.999999"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
+      "fraction": [
+        0,
+        6
+      ],
+      "defaultFraction": 0
+    },
+    "GEOGRAPHY": {
+
+    },
+    "RECORD": {
+      "to":"TapMap"
+    },
+    "JSON": {
 
     }
   }
