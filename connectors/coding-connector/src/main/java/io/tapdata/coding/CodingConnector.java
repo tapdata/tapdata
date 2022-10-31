@@ -97,7 +97,12 @@ public class CodingConnector extends ConnectorBase {
 	}
 
 	private DataMap memoryFetcher(String keyRegex, String memoryLevel) {
-		return DataMap.create().kv("lastCommandResult", lastCommandResult);
+		return DataMap.create().keyRegex(keyRegex)
+				.kv("streamExecutionGap", streamExecutionGap)
+				.kv("batchReadPageSize", batchReadPageSize)
+				.kv("lastCommandResult", lastCommandResult)
+				.kv("lastTimePoint", lastTimePoint)
+				;
 	}
 
 

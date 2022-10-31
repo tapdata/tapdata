@@ -58,13 +58,11 @@ public class LastData {
 			return null;
 		if(consumer == null)
 			return supplier.get();
-		LastData lastData = new LastData().time(System.currentTimeMillis());
+		LastData lastData = null;
 		try {
-			T result = supplier.get();
-			lastData.data = "Successfully";
-			return result;
+			return supplier.get();
 		} catch (Throwable throwable) {
-			lastData.error(throwable.getMessage());
+			lastData = new LastData().time(System.currentTimeMillis()).error(throwable.getMessage());
 			throw throwable;
 		} finally {
 			consumer.accept(lastData);

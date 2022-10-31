@@ -53,7 +53,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
@@ -431,18 +430,18 @@ public class ProxyController extends BaseController {
             ServiceCaller serviceCaller = new ServiceCaller()
                     .className("MemoryService")
                     .method("memory")
-                    .args(new Object[]{getFilterKeys(keys)});
+                    .args(new Object[]{splitStrings(keys)});
             serviceCaller.subscribeIds("processId_" + processId);
 //        Locale locale = WebUtils.getLocale(request);
             executeServiceCaller(request, response, serviceCaller, null);
         } else {
             response.setContentType("application/json");
-            response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(getFilterKeys(keys), null, "Detail").getBytes(StandardCharsets.UTF_8));
+            response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(splitStrings(keys), null, "Detail").getBytes(StandardCharsets.UTF_8));
         }
     }
 
     @Nullable
-    private List<String> getFilterKeys(String keys) {
+    private List<String> splitStrings(String keys) {
         List<String> filterKeys = null;
         if(keys != null) {
             String[] theKeys = keys.split(",");
