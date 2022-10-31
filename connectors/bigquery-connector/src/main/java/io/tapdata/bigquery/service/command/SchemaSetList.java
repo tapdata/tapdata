@@ -27,8 +27,7 @@ public class SchemaSetList implements Command {
             throw new CoreException("Connection Config must be null or empty.");
         }
         tapConnectionContext.setConnectionConfig(DataMap.create(connectionConfig));
-        BigQueryStart bigQueryStart = new BigQueryStart(tapConnectionContext){};
-        ContextConfig config = bigQueryStart.config();
+        ContextConfig config = BigQueryStart.config(tapConnectionContext);
         String credentialsJson = config.serviceAccount();
         if (Checker.isEmpty(connectionConfig)){
             throw new CoreException("Please sure your credentialsJson is accurate.");

@@ -18,6 +18,26 @@ public abstract class BigQueryStart {
         this.connectorContext = connectorContext;
         this.config = config();
     }
+    public static ContextConfig config(TapConnectionContext connectorContext){
+        ContextConfig contextConfig = ContextConfig.create();
+        if (null == connectorContext) return contextConfig;
+        DataMap connectionConfig = connectorContext.getConnectionConfig();
+        String serviceAccount = connectionConfig.getString("serviceAccount");
+        if (null == serviceAccount || "".equals(serviceAccount)){
+            throw new CoreException("Credentials is must not be null or not be empty.");
+        }
+        try {
+            JSONObject parse = JSONUtil.parseObj(serviceAccount);
+            Object projectId = parse.get("project_id");
+            if (null == projectId ){
+                throw new CoreException("Credentials is must not be null or not be empty.");
+            }
+            contextConfig.projectId(String.valueOf(projectId));
+        }catch (Exception e){
+            throw new CoreException("Credentials is must not be null or not be empty, can not get project id.");
+        }
+        return contextConfig.serviceAccount(serviceAccount);
+    }
 
     public ContextConfig config(){
         ContextConfig contextConfig = ContextConfig.create();
