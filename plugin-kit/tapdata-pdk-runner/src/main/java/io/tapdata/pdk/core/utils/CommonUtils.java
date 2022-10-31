@@ -152,8 +152,7 @@ public class CommonUtils {
                     synchronized (invoker) {
                         try {
                             invoker.wait(retryPeriodSeconds * 1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
+                        } catch (InterruptedException ignored) {
                         }
                     }
                     autoRetry(node, method, invoker);

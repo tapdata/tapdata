@@ -59,6 +59,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -699,42 +700,46 @@ public class TaskController extends BaseController {
     }
 
     @PutMapping("batchStart")
-    public ResponseMessage<Void> batchStart(@RequestParam("taskIds") List<String> taskIds) {
+    public ResponseMessage<List<MutiResponseMessage>> batchStart(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        taskService.batchStart(taskObjectIds, getLoginUser());
-        return success();
+        List<MutiResponseMessage> responseMessages = taskService.batchStart(taskObjectIds, getLoginUser(), request);
+        return success(responseMessages);
     }
 
     @PutMapping("batchStop")
-    public ResponseMessage<Void> batchStop(@RequestParam("taskIds") List<String> taskIds) {
+    public ResponseMessage<List<MutiResponseMessage>> batchStop(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        taskService.batchStop(taskObjectIds, getLoginUser());
+        List<MutiResponseMessage> responseMessages = taskService.batchStop(taskObjectIds, getLoginUser(), request);
 
         //add message
         List<TaskEntity> taskEntityList = taskService.findByIds(taskObjectIds);
-        if (CollectionUtils.isNotEmpty(taskEntityList)) {
-            for (TaskEntity task : taskEntityList) {
-                messageService.addMigration(task.getName(), task.getId().toString(), MsgTypeEnum.PAUSED, Level.INFO, getLoginUser());
+        try {
+            if (CollectionUtils.isNotEmpty(taskEntityList)) {
+                for (TaskEntity task : taskEntityList) {
+                    messageService.addMigration(task.getName(), task.getId().toString(), MsgTypeEnum.PAUSED, Level.INFO, getLoginUser());
+                }
             }
+        } catch (Exception e) {
+            log.warn("add migration message error");
         }
-        return success();
+        return success(responseMessages);
     }
 
     @DeleteMapping("batchDelete")
-    public ResponseMessage<Void> batchDelete(@RequestParam("taskIds") List<String> taskIds) {
+    public ResponseMessage<List<MutiResponseMessage>> batchDelete(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        taskService.batchDelete(taskObjectIds, getLoginUser());
+        List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskObjectIds, getLoginUser(), request);
 
 
-        return success();
+        return success(responseMessages);
     }
 
     @Operation(summary = "重置任务接口")
     @PatchMapping("batchRenew")
-    public ResponseMessage<Void> batchRenew(@RequestParam("taskIds") List<String> taskIds) {
+    public ResponseMessage<List<MutiResponseMessage>> batchRenew(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        taskService.batchRenew(taskObjectIds, getLoginUser());
-        return success();
+        List<MutiResponseMessage> responseMessages = taskService.batchRenew(taskObjectIds, getLoginUser(), request);
+        return success(responseMessages);
     }
 
     @GetMapping("search/logCollector")
