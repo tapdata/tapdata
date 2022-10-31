@@ -28,6 +28,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketHandshakeException;
 import io.netty.util.CharsetUtil;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 
 public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> {
     private static final String TAG = WebSocketClientHandler.class.getSimpleName();
@@ -197,7 +198,7 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        TapLogger.error(TAG, "exceptionCaught, " + ctx.name() + " cause " + cause.getMessage(), cause);
+        TapLogger.error(TAG, "exceptionCaught, " + ctx.name() + " cause " + cause.getMessage(), ExceptionUtils.getStackTrace(cause));
         cause.printStackTrace();
         if (!handshakeFuture.isDone()) {
             handshakeFuture.setFailure(cause);
