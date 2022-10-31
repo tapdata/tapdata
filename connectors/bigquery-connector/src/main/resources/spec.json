@@ -74,63 +74,57 @@
   },
   "dataTypes": {
     "BYTES[($bit)]": {
-      "to": "TapNumber",
-      "bit": 64,
-      "queryOnly": true
+      "name": "BYTES",
+      "to": "TapBinary",
+      "byte": 9223372036854775807,
+      "defaultByte": 9223372036854775807
     },
-    "BYTES": {
-      "to": "TapNumber",
-      "queryOnly": true
-    },
-    "STRING($byte)": {
+    "STRING[($byte)]": {
       "name": "STRING",
       "to": "TapString",
-      "byte": 16358,
-      "defaultByte": 1,
-      "byteRatio": 4
+      "byte": 9223372036854775807,
+      "defaultByte": 9223372036854775807
     },
     "INTEGER": {
       "to": "TapNumber",
       "bit": 32,
       "precision": 10,
       "value": [
-        -2147483648,
-        2147483647
+        -9223372036854775808,
+        9223372036854775807
       ]
     },
     "FLOAT": {
       "to": "TapNumber",
-      "precision": [
-        1,
-        6
-      ],
+      "bit": 64,
       "scale": [
         0,
         6
       ],
       "fixed": false
     },
-    "NUMERIC($precision,$scale)[unsigned]": {
+    "NUMERIC[($precision,$scale)]": {
       "to": "TapNumber",
-      "name": "float",
+      "name": "NUMERIC",
       "precision": [
         1,
-        30
+        38
       ],
       "scale": [
         0,
         9
       ],
+      "defaultPrecision": 29,
+      "defaultScale": 0,
       "value": [
-        "-3.402823466E+38",
-        "3.402823466E+38"
+        "-9.9999999999999999999999999999999999999E+28",
+        "9.9999999999999999999999999999999999999E+28"
       ],
-      "unsigned": "unsigned",
       "fixed": false
     },
-    "BIGNUMERIC": {
+    "BIGNUMERIC[($precision,$scale)]": {
       "to": "TapNumber",
-      "name": "float",
+      "name": "BIGNUMERIC",
       "precision": [
         0,
         76
@@ -139,6 +133,8 @@
         0,
         38
       ],
+      "defaultPrecision": 38,
+      "defaultScale": 0,
       "value": [
         "-3.402823466E+38",
         "3.402823466E+38"
@@ -147,10 +143,7 @@
       "fixed": false
     },
     "BOOLEAN": {
-      "to": "TapBoolean",
-      "value": [
-        "NULL","TRUE","FALSE"
-      ]
+      "to": "TapBoolean"
     },
     "TIMESTAMP": {
       "to": "TapDateTime",
@@ -159,26 +152,17 @@
         "2038-01-19 03:14:07.999999"
       ],
       "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
-      "fraction": [
-        0,
-        6
-      ],
-      "defaultFraction": 0,
-      "withTimeZone": true
+      "fraction": 6,
+      "withTimeZone": false
     },
     "INTERVAL": {
-      "to": "TapDateTime",
       "range": [
-        "-10000-0 -3660000 -87840000:0:0",
-        "10000-0 3660000 87840000:0:0"
+        "-99:59:59",
+        "99:59:59"
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
-      "fraction": [
-        0,
-        6
-      ],
-      "defaultFraction": 0,
-      "withTimeZone": true
+      "pattern": "HH:mm:ss",
+      "queryOnly": true,
+      "to": "TapTime"
     },
     "DATE": {
       "to": "TapDate",
