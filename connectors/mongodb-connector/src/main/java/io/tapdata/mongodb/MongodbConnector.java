@@ -81,6 +81,7 @@ public class MongodbConnector extends ConnectorBase {
 	private MongodbStreamReader mongodbStreamReader;
 
 	private volatile MongodbWriter mongodbWriter;
+	private Map<String, Integer> stringTypeValueMap;
 
 	private Bson queryCondition(String firstPrimaryKey, Object value) {
 		return gte(firstPrimaryKey, value);
@@ -108,6 +109,7 @@ public class MongodbConnector extends ConnectorBase {
 		final String version = MongodbUtil.getVersionString(mongoClient, mongoConfig.getDatabase());
 		MongoIterable<String> collectionNames = mongoDatabase.listCollectionNames();
 		TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+		this.stringTypeValueMap = new HashMap<>();
 
 		ThreadPoolExecutor executor = new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(30));
 
@@ -137,7 +139,7 @@ public class MongodbConnector extends ConnectorBase {
 					//List all the tables under the database.
 					List<TapTable> list = list();
 					nameList.forEach(name -> {
-						TapTable table = table(name).defaultPrimaryKeys(singletonList("_id"));
+						TapTable table = table(name).defaultPrimaryKeys("_id");
 						try {
 							MongodbUtil.sampleDataRow(documentMap.get(name), SAMPLE_SIZE_BATCH_SIZE, (dataRow) -> {
 								Set<String> fieldNames = dataRow.keySet();
@@ -174,7 +176,7 @@ public class MongodbConnector extends ConnectorBase {
 					//List all the tables under the database.
 					List<TapTable> list = list();
 					nameList.forEach(name -> {
-						TapTable table = table(name).defaultPrimaryKeys(singletonList("_id"));
+						TapTable table = table(name).defaultPrimaryKeys(singletonList(COLLECTION_ID_FIELD));
 						try (MongoCursor<BsonDocument> cursor = documentMap.get(name).find().iterator()) {
 							while (cursor.hasNext()) {
 								final BsonDocument document = cursor.next();
@@ -197,8 +199,7 @@ public class MongodbConnector extends ConnectorBase {
 		}
 	}
 
-	public static void getRelateDatabaseField(TapConnectionContext connectionContext, TableFieldTypesGenerator tableFieldTypesGenerator, BsonValue value, String fieldName, TapTable table) {
-
+	public void getRelateDatabaseField(TapConnectionContext connectionContext, TableFieldTypesGenerator tableFieldTypesGenerator, BsonValue value, String fieldName, TapTable table) {
 		if (value instanceof BsonDocument) {
 			BsonDocument bsonDocument = (BsonDocument) value;
 			for (Map.Entry<String, BsonValue> entry : bsonDocument.entrySet()) {
@@ -218,14 +219,33 @@ public class MongodbConnector extends ConnectorBase {
 				}
 			}
 		}
-		TapField field = null;
+		TapField field;
 		if (value != null) {
-			field = TapSimplify.field(fieldName, value.getBsonType().name());
+			BsonType bsonType = value.getBsonType();
+			if (BsonType.STRING.equals(bsonType)) {
+				if (!(value instanceof BsonString)) {
+					field = TapSimplify.field(fieldName, bsonType.name());
+				} else {
+					String valueString = ((BsonString) value).getValue();
+					int currentLength = valueString.getBytes().length;
+					Integer lastLength = stringTypeValueMap.get(fieldName);
+					if (currentLength > 0 && (null == lastLength || currentLength > lastLength)) {
+						stringTypeValueMap.put(fieldName, currentLength);
+					}
+					if (null != stringTypeValueMap.get(fieldName)) {
+						field = TapSimplify.field(fieldName, bsonType.name() + String.format("(%s)", stringTypeValueMap.get(fieldName)));
+					} else {
+						field = TapSimplify.field(fieldName, bsonType.name());
+					}
+				}
+			} else {
+				field = TapSimplify.field(fieldName, bsonType.name());
+			}
 		} else {
 			field = TapSimplify.field(fieldName, BsonType.NULL.name());
 		}
 
-		if ("_id".equals(fieldName)) {
+		if (COLLECTION_ID_FIELD.equals(fieldName)) {
 			field.primaryKeyPos(1);
 		}
 		tableFieldTypesGenerator.autoFill(field, connectionContext.getSpecification().getDataTypesMap());
