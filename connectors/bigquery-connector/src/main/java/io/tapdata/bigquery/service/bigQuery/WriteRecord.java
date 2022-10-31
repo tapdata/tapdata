@@ -242,7 +242,7 @@ public class WriteRecord extends BigQueryStart{
         Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null != nameFieldMap && !nameFieldMap.isEmpty() ){
             event.forEach(eve->{
-                Map<String, Object> filter = eve.getFilter(tapTable.primaryKeys());
+                Map<String, Object> filter = eve.getFilter(tapTable.primaryKeys(true));
                 if (null == filter || filter.isEmpty()) {
                     TapLogger.debug(TAG,"A tapEvent can not filter primary keys,event = {}",eve);
                     return ;
@@ -266,7 +266,7 @@ public class WriteRecord extends BigQueryStart{
     public String[] updateSql(List<Map<String,Object>> record,TapTable tapTable,TapRecordEvent event){
         Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null == nameFieldMap || nameFieldMap.isEmpty()) return null;
-        Map<String, Object> filter = event.getFilter(tapTable.primaryKeys());
+        Map<String, Object> filter = event.getFilter(tapTable.primaryKeys(true));
         if (null == filter || filter.isEmpty()) return insertSql(record, tapTable);
 
         if (null == record || record.isEmpty()) return null;
@@ -364,7 +364,7 @@ public class WriteRecord extends BigQueryStart{
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null == nameFieldMap || nameFieldMap.isEmpty()) return "";
         StringBuilder sql = new StringBuilder(" SELECT * FROM ").append(this.fullSqlTable(tapTable.getId())).append(" WHERE 1=1 ");
-        Map<String, Object> filter = event.getFilter(tapTable.primaryKeys());
+        Map<String, Object> filter = event.getFilter(tapTable.primaryKeys(true));
         if (null == filter || filter.isEmpty()) return null;
         filter.forEach((key,value)->sql.append(" AND `").append(key).append("` = ").append(sqlValue(value,nameFieldMap.get(key))).append(" "));
         return sql.toString().replaceAll("1=1  AND","");
@@ -469,7 +469,7 @@ public class WriteRecord extends BigQueryStart{
     private String whereSql(TapTable tapTable,TapRecordEvent event){
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null==nameFieldMap || nameFieldMap.isEmpty()) return "";
-        Map<String, Object> filter = event.getFilter(tapTable.primaryKeys());
+        Map<String, Object> filter = event.getFilter(tapTable.primaryKeys(true));
         if (null == filter || filter.isEmpty()) return "";
         StringJoiner whereSql = new StringJoiner(" ADN ");
         filter.forEach((primaryKey,value)-> whereSql.add(primaryKey+"="+sqlValue(value,nameFieldMap.get(primaryKey))));
