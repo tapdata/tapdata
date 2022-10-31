@@ -278,14 +278,18 @@ public class PostgresConnector extends ConnectorBase {
 
     //clear resource outer and jdbc context
     private void onDestroy(TapConnectorContext connectorContext) throws Throwable {
-        if (EmptyKit.isNotNull(cdcRunner)) {
-            cdcRunner.closeCdcRunner();
-            cdcRunner = null;
+        try {
+            onStart(connectorContext);
+            if (EmptyKit.isNotNull(cdcRunner)) {
+                cdcRunner.closeCdcRunner();
+                cdcRunner = null;
+            }
+            if (EmptyKit.isNotNull(slotName)) {
+                clearSlot();
+            }
+        } finally {
+            onStop(connectorContext);
         }
-        if (EmptyKit.isNotNull(slotName)) {
-            clearSlot();
-        }
-        //stateMap will be cleared by engine
     }
 
     //clear postgres slot
