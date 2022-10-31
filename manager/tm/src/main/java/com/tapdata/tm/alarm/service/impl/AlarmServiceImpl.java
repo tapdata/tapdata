@@ -5,8 +5,9 @@ import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
-import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -15,11 +16,12 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.constant.*;
 import com.tapdata.tm.alarm.dto.*;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
-import com.tapdata.tm.alarm.scheduler.Rule;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.Milestone;
@@ -33,6 +35,7 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.service.MessageService;
+import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MailUtils;
@@ -73,8 +76,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void save(AlarmInfo info) {
-        Criteria criteria = Criteria.where("taskId").is(info.getTaskId()).and("metric").is(info.getMetric())
-                .and("level").is(info.getLevel());
+        Criteria criteria = Criteria.where("taskId").is(info.getTaskId()).and("metric").is(info.getMetric().name());
         if (StringUtils.isNotBlank(info.getNodeId())) {
             criteria.and("nodeId").is(info.getNodeId());
         }
@@ -85,7 +87,9 @@ public class AlarmServiceImpl implements AlarmService {
             info.setId(one.getId());
             info.setTally(one.getTally() + 1);
             info.setLastUpdAt(date);
+            info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
             info.setLastOccurrenceTime(date);
+            info.setLastNotifyTime(one.getLastNotifyTime());
 
             mongoTemplate.save(info);
         } else {
@@ -95,15 +99,11 @@ public class AlarmServiceImpl implements AlarmService {
         }
     }
 
-    @Override
-    public boolean checkOpen(String taskId, String nodeId, AlarmKeyEnum key, NotifyEnum type) {
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-        return checkOpen(taskDto, nodeId, key, type);
-    }
-
     private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type) {
         boolean openTask = false;
-        if (Objects.nonNull(taskDto) && CollectionUtils.isNotEmpty(taskDto.getAlarmSettings())) {
+        if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key)) {
+            openTask = true;
+        } else if (Objects.nonNull(taskDto) && CollectionUtils.isNotEmpty(taskDto.getAlarmSettings())) {
             List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
             if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
                 openTask = alarmSettingDtos.stream().anyMatch(t ->
@@ -112,6 +112,7 @@ public class AlarmServiceImpl implements AlarmService {
         }
 
         boolean openSys = false;
+
         List<AlarmSettingDto> all = alarmSettingService.findAll();
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
@@ -137,8 +138,6 @@ public class AlarmServiceImpl implements AlarmService {
         } else {
             taskDto.getDag().getNodes().forEach(node -> alarmSettingDtos.addAll(Optional.ofNullable(node.getAlarmSettings()).orElse(Collections.emptyList())));
         }
-
-
         return alarmSettingDtos;
     }
 
@@ -160,27 +159,6 @@ public class AlarmServiceImpl implements AlarmService {
                 ruleMap.put(node.getId(), Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList()));
             });
             return ruleMap;
-        }
-        return null;
-    }
-
-    @Override
-    public List<Rule> findAllRuleWithMoreInfo(String taskId) {
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-        return getAlarmRules(taskDto);
-    }
-
-    @Nullable
-    @SuppressWarnings("unchecked")
-    private List<Rule> getAlarmRules(TaskDto taskDto) {
-        if (Objects.nonNull(taskDto)) {
-            List<AlarmRuleDto> ruleDtos = Lists.newArrayList();
-            ruleDtos.addAll(Optional.ofNullable(taskDto.getAlarmRules()).orElse(Collections.emptyList()));
-
-            taskDto.getDag().getNodes().forEach(node -> {
-                ruleDtos.addAll(Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList()));
-            });
-            return CglibUtil.copyList(ruleDtos, Rule::new);
         }
         return null;
     }
@@ -208,7 +186,13 @@ public class AlarmServiceImpl implements AlarmService {
 
             CompletableFuture.runAsync(() -> sendMessage(info, taskDto));
 
-            CompletableFuture.runAsync(() -> sendMail(info, taskDto));
+            if (info.getLastNotifyTime() == null) {
+                CompletableFuture.runAsync(() -> {
+                    sendMail(info, taskDto);
+                    info.setLastNotifyTime(DateUtil.date());
+                    this.save(info);
+                });
+            }
 
         });
 
@@ -236,8 +220,9 @@ public class AlarmServiceImpl implements AlarmService {
             messageService.addMessage(messageEntity);
 
             // update alarmInfo date
+            AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric());
             AlarmSettingDto setting = getAlarmSettingByKey(taskDto, info.getNodeId(), info.getMetric());
-            DateTime lastNotifyTime = DateUtil.offset(DateUtil.date(), parseDateUnit(setting.getUnit()), setting.getInterval());
+            DateTime lastNotifyTime = DateUtil.offset(DateUtil.date(), parseDateUnit(setting.getUnit()), alarmSettingDto.getInterval());
             info.setLastNotifyTime(lastNotifyTime);
             mongoTemplate.save(info);
         }
@@ -483,10 +468,14 @@ public class AlarmServiceImpl implements AlarmService {
 
         Map<String, Milestone> collect = milestones.stream().collect(Collectors.toMap(Milestone::getCode, Function.identity(), (e1, e2) -> e1));
 
+        if (collect.isEmpty()) {
+            return;
+        }
+
         AlarmService alarmService = SpringUtil.getBean(AlarmService.class);
 
         String now = DateUtil.now();
-        if ("finish".equals(collect.get("WRITE_SNAPSHOT").getStatus())) {
+        if (Objects.nonNull(collect.get("WRITE_SNAPSHOT")) && "finish".equals(collect.get("WRITE_SNAPSHOT").getStatus())) {
             Milestone milestone = collect.get("WRITE_SNAPSHOT");
             String summary = MessageFormat.format(AlarmContentTemplate.TASK_FULL_COMPLETE, milestone.getEnd() - milestone.getStart(), now);
 
@@ -502,7 +491,7 @@ public class AlarmServiceImpl implements AlarmService {
             alarmService.save(alarmInfo);
         }
 
-        if ("running".equals(collect.get("WRITE_CDC_EVENT").getStatus())) {
+        if (Objects.nonNull(collect.get("WRITE_CDC_EVENT")) && "running".equals(collect.get("WRITE_CDC_EVENT").getStatus())) {
             String summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_START, now);
             Map<String, Object> param = Maps.newHashMap();
             param.put("cdcTime", now);
@@ -534,4 +523,96 @@ public class AlarmServiceImpl implements AlarmService {
                 .receivers(Arrays.asList(split)).build();
     }
 
+    @Override
+    public void connectPassAlarm(JSONArray taskIds, String nodeName, String connectId) {
+        String summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_RECOVER, nodeName, DateUtil.now());
+
+        List<String> list = JSONObject.parseArray(taskIds.toJSONString(), String.class);
+
+        List<TaskDto> taskEntityList = taskService.findAllTasksByIds(list);
+
+        if (CollectionUtils.isEmpty(taskEntityList)) {
+            return;
+        }
+
+        for (TaskDto task : taskEntityList) {
+            String agentId = task.getAgentId();
+            String taskId = task.getId().toHexString();
+            String taskName = task.getName();
+
+            Node<?> nodeTemp = task.getDag().getNodes().stream()
+                    .filter(node -> node instanceof DataParentNode && connectId.equals(((DataParentNode<?>) node).getConnectionId()))
+                    .findFirst().orElse(null);
+            if (Objects.isNull(nodeName)) {
+                continue;
+            }
+            String nodeId = nodeTemp.getId();
+
+            List<AlarmInfo> alarmInfos = this.find(taskId, nodeId, AlarmKeyEnum.DATANODE_CANNOT_CONNECT);
+            Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
+            if (first.isPresent()) {
+                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.RECOVER).level(Level.RECOVERY).component(AlarmComponentEnum.FE)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
+                        .name(taskName).summary(summary).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
+                        .nodeId(nodeId).node(nodeName).recoveryTime(DateUtil.date())
+                        .firstOccurrenceTime(first.get().getFirstOccurrenceTime())
+                        .lastOccurrenceTime(DateUtil.date())
+                        .build();
+                alarmInfo.setId(first.get().getId());
+                this.save(alarmInfo);
+            }
+        }
+
+    }
+
+    @Override
+    public void connectFailAlarm(JSONArray taskIds, String nodeName, String connectId) {
+        List<String> list = JSONObject.parseArray(taskIds.toJSONString(), String.class);
+
+        List<TaskDto> taskEntityList = taskService.findAllTasksByIds(list);
+
+        if (CollectionUtils.isEmpty(taskEntityList)) {
+            return;
+        }
+
+        for (TaskDto task : taskEntityList) {
+            String agentId = task.getAgentId();
+            String taskId = task.getId().toHexString();
+            String taskName = task.getName();
+
+            Node<?> nodeTemp = task.getDag().getNodes().stream()
+                    .filter(node -> node instanceof DataParentNode && connectId.equals(((DataParentNode<?>) node).getConnectionId()))
+                    .findFirst().orElse(null);
+            if (Objects.isNull(nodeName)) {
+                continue;
+            }
+            String nodeId = nodeTemp.getId();
+
+            AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.CRITICAL).component(AlarmComponentEnum.FE)
+                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
+                    .name(taskName).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
+                    .nodeId(nodeId).node(nodeName)
+                    .build();
+
+            List<AlarmInfo> alarmInfos = this.find(taskId, nodeId, AlarmKeyEnum.DATANODE_CANNOT_CONNECT);
+            Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
+            String summary;
+            if (first.isPresent()) {
+                long between = DateUtil.between(first.get().getLastOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
+                summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_ALWAYS, nodeName, between, DateUtil.now());
+                alarmInfo.setId(first.get().getId());
+                alarmInfo.setFirstOccurrenceTime(first.get().getFirstOccurrenceTime());
+                alarmInfo.setLastOccurrenceTime(DateUtil.date());
+            } else {
+                summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT, nodeName, DateUtil.now());
+            }
+            alarmInfo.setSummary(summary);
+            this.save(alarmInfo);
+        }
+    }
+
+    @Override
+    public void delAlarm(String taskId) {
+        mongoTemplate.remove(Query.query(Criteria.where("taskId").is(taskId)), AlarmInfo.class);
+    }
 }

@@ -169,7 +169,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
             try {
                 session.sendMessage(new TextMessage("Handle message failed,message:" + e.getMessage()));
             } catch (Exception ignored) {
-                log.error("Websocket send message failed,message: {}", e.getMessage(), e);
+                log.error("Websocket send message failed,message: {}", e.getMessage());
             }
         }
     }

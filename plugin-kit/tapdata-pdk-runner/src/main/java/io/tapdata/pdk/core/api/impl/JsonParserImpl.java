@@ -15,6 +15,7 @@ import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.core.utils.TapConstants;
 
 import java.lang.reflect.Type;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -27,6 +28,7 @@ public class JsonParserImpl implements JsonParser {
 
     public JsonParserImpl() {
         configGlobalAbstractClassDetectors(TapType.class, TapConstants.abstractClassDetectors);
+        ParserConfig.global.putDeserializer(Instant.class, new InstantDeserialize());
     }
 
     @Override

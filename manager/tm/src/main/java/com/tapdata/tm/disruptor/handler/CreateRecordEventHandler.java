@@ -3,6 +3,8 @@ package com.tapdata.tm.disruptor.handler;
 import cn.hutool.extra.spring.SpringUtil;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.disruptor.Element;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskRecordService;
 import org.springframework.stereotype.Component;
@@ -20,7 +22,10 @@ public class CreateRecordEventHandler implements BaseEventHandler<TaskRecord, Bo
         TaskRecordService taskRecordService = SpringUtil.getBean(TaskRecordService.class);
         taskRecordService.createRecord(event.getData());
 
-        SpringUtil.getBean(AlarmService.class).closeWhenTaskRunning(event.getData().getTaskId());
+        SpringUtil.getBean(AlarmService.class).delAlarm(event.getData().getTaskId());
+
+        SpringUtil.getBean(MeasurementServiceV2.class).delDataWhenTaskReset(event.getData().getTaskId());
+        SpringUtil.getBean(MonitoringLogsService.class).delLogsWhenTaskReset(event.getData().getTaskId());
 
         return true;
     }

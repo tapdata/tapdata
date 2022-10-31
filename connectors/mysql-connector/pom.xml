@@ -85,6 +85,7 @@
                                 <filter>
                                     <artifact>io.debezium:debezium-core</artifact>
                                     <excludes>
+                                        <exclude>io/debezium/connector/mysql/RowDeserializers</exclude>
                                         <exclude>io/debezium/jdbc/JdbcValueConverters</exclude>
                                     </excludes>
                                 </filter>

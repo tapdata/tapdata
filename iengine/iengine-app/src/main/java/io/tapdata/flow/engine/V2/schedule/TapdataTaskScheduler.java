@@ -9,6 +9,7 @@ import com.tapdata.entity.TapLog;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
@@ -68,7 +69,7 @@ public class TapdataTaskScheduler {
 	@Autowired
 	private MessageDao messageDao;
 
-	private AppType appType;
+	private final AppType appType = AppType.init();
 
 
 	@PostConstruct
@@ -77,6 +78,36 @@ public class TapdataTaskScheduler {
 //    appType = (AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE);
 		instanceNo = (String) configCenter.getConfig(ConfigurationCenter.AGENT_ID);
 		logger.info("[Task scheduler] instance no: {}", instanceNo);
+
+		TmStatusService.registeredTmAvailableHandler(() -> {
+			//Reconnect tm, do something
+			/**
+			 * 1、查询还在跑的任务，如果agentId不匹配，则停止
+			 * 2、上报任务已停止/错误的状态信息
+			 */
+			try {
+				for (Map.Entry<String, TaskClient<TaskDto>> entry : taskClientMap.entrySet()) {
+					TaskClient<TaskDto> subTaskDtoTaskClient = entry.getValue();
+					final TaskDto taskDto = subTaskDtoTaskClient.getTask();
+					String taskId = taskDto.getId().toHexString();
+					Criteria rescheduleCriteria = where("_id").is(taskId).andOperator(where("agentId").ne(instanceNo));
+
+					Query query = new Query(rescheduleCriteria);
+					query.fields().include("id").include("status");
+					final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+					if (CollectionUtil.isNotEmpty(subTaskDtos)) {
+						stopTask(subTaskDtoTaskClient);
+					} else {
+						TmStatusService.setAllowReport(taskId);
+					}
+
+				}
+
+			} catch (Exception e) {
+				logger.error("Scan reschedule task failed {}", e.getMessage(), e);
+			}
+
+		});
 	}
 
 	/**
@@ -98,20 +129,23 @@ public class TapdataTaskScheduler {
 
 			TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
 			if (taskDto != null) {
+				if (taskClientMap.containsKey(taskDto.getId().toHexString())) {
+					logger.info("the [task {}, id {}] is being executed, ignore the scheduling.", taskDto.getName(), taskDto.getId().toHexString());
+					return;
+				}
 				try {
-					try {
-						Log4jUtil.setThreadContext(taskDto);
-						final String taskId = taskDto.getId().toHexString();
-						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
-						Log4jUtil.setThreadContext(taskDto);
-						final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
-						taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
-					} catch (ManagementException e) {
-						logger.warn(TapLog.JOB_WARN_0005.getMsg(), taskDto.getName(), Log4jUtil.getStackString(e));
-					} catch (Exception e) {
-						logger.error("Schedule task {} failed {}", taskDto.getName(), e.getMessage(), e);
-						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskDto.getId().toHexString(), TaskDto.class);
-					}
+					Log4jUtil.setThreadContext(taskDto);
+					logger.info("The task to be scheduled is found, task name {}, task id {}.", taskDto.getName(), taskDto.getId().toHexString());
+					final String taskId = taskDto.getId().toHexString();
+					TmStatusService.addNewTask(taskId);
+					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
+					final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
+					taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
+				} catch (ManagementException e) {
+					logger.warn(TapLog.JOB_WARN_0005.getMsg(), taskDto.getName(), Log4jUtil.getStackString(e));
+				} catch (Exception e) {
+					logger.error("Schedule task {} failed {}", taskDto.getName(), e.getMessage(), e);
+					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskDto.getId().toHexString(), TaskDto.class);
 				} finally {
 					ThreadContext.clearAll();
 				}
@@ -138,10 +172,12 @@ public class TapdataTaskScheduler {
 				}
 			}
 
-			List<TaskDto> timeoutStoppingTasks = findStoppingTasks();
-			for (TaskDto timeoutStoppingTask : timeoutStoppingTasks) {
-				final String taskId = timeoutStoppingTask.getId().toHexString();
-				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+			if (!appType.isCloud()) {
+				List<TaskDto> timeoutStoppingTasks = findStoppingTasks();
+				for (TaskDto timeoutStoppingTask : timeoutStoppingTasks) {
+					final String taskId = timeoutStoppingTask.getId().toHexString();
+					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+				}
 			}
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);
@@ -159,6 +195,10 @@ public class TapdataTaskScheduler {
 
 				Map.Entry<String, TaskClient<TaskDto>> entry = it.next();
 				TaskClient<TaskDto> subTaskDtoTaskClient = entry.getValue();
+				final String taskId = subTaskDtoTaskClient.getTask().getId().toHexString();
+				if (TmStatusService.isNotAllowReport(taskId)) {
+					continue;
+				}
 				final String status = subTaskDtoTaskClient.getStatus();
 				if (TaskDto.STATUS_ERROR.equals(status)) {
 					errorTask(subTaskDtoTaskClient);
@@ -201,6 +241,7 @@ public class TapdataTaskScheduler {
 				AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
 			}
 		}
+		TmStatusService.removeTask(taskId);
 	}
 
 	/**

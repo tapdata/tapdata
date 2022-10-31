@@ -5,6 +5,7 @@ import cn.hutool.json.JSONNull;
 import cn.hutool.json.JSONObject;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.Iterator;
@@ -13,7 +14,11 @@ import java.util.Map;
 
 public interface ConnectionMode {
     public List<TapTable> discoverSchema(List<String> tables, int tableSize);
-    public Map<String,Object> attributeAssignment(Map<String, Object> obj);
+    public List<TapTable> discoverSchemaV1(List<String> tables, int tableSize);
+
+    public Map<String,Object> attributeAssignment(Map<String, Object> obj,String tableName, ZoHoBase openApi);
+    public Map<String,Object> attributeAssignmentSelf(Map<String, Object> obj,String tableName);
+
     public ConnectionMode config(TapConnectionContext connectionContext);
     public default void removeJsonNull(Map<String, Object> map){
         if (null == map || map.isEmpty()) return;

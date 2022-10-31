@@ -54,12 +54,12 @@ public class MysqlAlterColumnAttrsDDLWrapper extends MysqlDDLWrapper {
                 List<String> columnSpecs = columnDataType.getColumnSpecs();
                 String preSpec = "";
                 for (String columnSpec : columnSpecs) {
-                    columnSpec = columnSpec.toLowerCase();
-                    switch (columnSpec) {
+                    String lowerColumnSpec = columnSpec.toLowerCase();
+                    switch (lowerColumnSpec) {
                         case "not":
                         case "default":
                         case "comment":
-                            preSpec = columnSpec;
+                            preSpec = lowerColumnSpec;
                             break;
                         case "null":
                             boolean nullable = !"not".equals(preSpec);

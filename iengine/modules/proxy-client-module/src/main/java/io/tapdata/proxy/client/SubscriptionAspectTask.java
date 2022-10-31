@@ -103,18 +103,22 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 
 	private void handleFetchNewDataResult(StreamReadFuncAspect streamReadFuncAspect, String subscribeId, Result result, Throwable throwable) {
 		if(!isStarted) {
+			stopFetchingNewData();
 			TapLogger.debug(TAG, "handleFetchNewDataResult will end because isStarted is false. isFetchingNewData {}", isFetchingNewData.get());
 			return;
 		}
 		if(throwable != null) {
+			stopFetchingNewData();
 			streamReadFuncAspect.noMoreWaitRawData(throwable);
 			return;
 		}
 		if(result == null) {
+			stopFetchingNewData();
 			streamReadFuncAspect.noMoreWaitRawData(new CoreException(NetErrors.RESULT_IS_NULL, "Result/Throwable are both null in handleFetchNewDataResult, subscribeId {} offset {}", subscribeId, currentOffset));
 			return;
 		}
 		if(result.getCode() != 1) {
+			stopFetchingNewData();
 			streamReadFuncAspect.noMoreWaitRawData(new CoreException(NetErrors.RESULT_CODE_FAILED, "Result code is not OK, message {}, subscribeId {} offset {}", result.getMessage(), subscribeId, currentOffset));
 			return;
 		}
@@ -175,6 +179,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 				}
 			}
 		} catch (Throwable throwable1) {
+			stopFetchingNewData();
 			streamReadFuncAspect.noMoreWaitRawData(throwable1);
 		}
 	}

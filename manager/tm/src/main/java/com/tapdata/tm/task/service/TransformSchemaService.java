@@ -212,6 +212,16 @@ public class TransformSchemaService {
     }
 
     public void transformSchema(TaskDto taskDto, UserDetail user) {
+        transformSchema(taskDto, user, true);
+    }
+
+    /**
+     *
+     * @param taskDto
+     * @param user
+     * @param checkJs 传true为需要检测js节点， false为补救措施，直接走tm推演。
+     */
+    public void transformSchema(TaskDto taskDto, UserDetail user, boolean checkJs) {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
         TransformerWsMessageDto transformParam = getTransformParam(taskDto, user);
 
@@ -219,9 +229,11 @@ public class TransformSchemaService {
 
         boolean taskContainJs = checkTaskContainJs(taskDto);
 
-        if (taskContainJs) {
-            sendTransformer(transformParam, user);
-            return;
+        if (checkJs) {
+            if (taskContainJs) {
+                sendTransformer(transformParam, user);
+                return;
+            }
         }
 
 

@@ -8,9 +8,9 @@ import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.mongo.CloudSignUtil;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
+import com.tapdata.tm.sdk.util.CloudSignUtil;
 import com.tapdata.validator.ConnectionValidateResult;
 import com.tapdata.validator.ConnectionValidator;
 import com.tapdata.validator.ValidatorConstant;
@@ -21,6 +21,7 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.*;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.*;
+import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
@@ -282,6 +283,8 @@ public class ConnectorManager {
 		SchemaProxy.schemaProxy = schemaProxy;
 
 		ConnectorConstant.clientMongoOperator = clientMongoOperator;
+
+		GlobalConstant.getInstance().configurationCenter(configCenter);
 	}
 
 	@PreDestroy

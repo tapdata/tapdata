@@ -1,6 +1,7 @@
 package com.tapdata.tm.monitoringlogs.service;
 
 import cn.hutool.core.date.DateUtil;
+import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.IOUtils;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -33,6 +34,7 @@ import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -72,6 +74,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         List<MonitoringLogsEntity> monitoringLogsEntities = convertToEntity(MonitoringLogsEntity.class, monitoringLoges);
 
         for (MonitoringLogsEntity monitoringLogsEntity : monitoringLogsEntities) {
+            monitoringLogsEntity.setTimestamp(System.currentTimeMillis());
             repository.applyUserDetail(monitoringLogsEntity, user);
             bulkOperations.insert(monitoringLogsEntity);
         }
@@ -89,9 +92,14 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             criteria.and("taskRecordId").is(param.getTaskRecordId());
         }
 
-        Date startDate = DateUtil.offsetMinute(DateUtil.date(param.getStart()), -1);
-        Date endDate = DateUtil.offsetMinute(DateUtil.date(param.getEnd()), 10);
-        criteria.and("date").gte(startDate).lt(endDate);
+        if (!param.isStartEndValid()) {
+            log.error("Invalid value for start or end param:{}", JSON.toJSONString(param));
+            return new Page<>(0, new ArrayList<>());
+        }
+
+//        Date startDate = Date.from(Instant.ofEpochMilli(param.getStart()));
+//        Date endDate = Date.from(Instant.ofEpochMilli(param.getEnd()));
+        criteria.and("timestamp").gte(param.getStart()).lt(param.getEnd());
 
         if (StringUtils.isNotEmpty(param.getNodeId())) {
             criteria.and("nodeId").is(param.getNodeId());
@@ -192,10 +200,14 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             criteria.and("taskRecordId").is(param.getTaskRecordId());
         }
 
-        criteria.and("date").gte(new Date(param.getStart())).lt(new Date(param.getEnd()));
+        if (!param.isStartEndValid()) {
+            throw new BizException("Invalid value for start or end");
+        }
+
+        criteria.and("timestamp").gte(param.getStart()).lt(param.getEnd());
 
         Query query = new Query(criteria);
-        query.with(Sort.by("date").ascending());
+        query.with(Sort.by("timestamp").ascending());
 
         CloseableIterator<MonitoringLogsEntity> iter = mongoOperations.stream(query, MonitoringLogsEntity.class);
         AtomicLong count = new AtomicLong();
@@ -254,6 +266,10 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         }
 
         save(builder.build(), user);
+    }
+
+    public void delLogsWhenTaskReset(String taskId) {
+        mongoOperations.remove(new Query(Criteria.where("taskId").is(taskId)), MonitoringLogsEntity.class);
     }
 
 }

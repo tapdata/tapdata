@@ -6,6 +6,8 @@ import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
+import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
+import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -56,7 +58,7 @@ public class MysqlConnector extends ConnectorBase {
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         this.mysqlJdbcContext = new MysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
-            this.mysqlWriter = new MysqlJdbcOneByOneWriter(mysqlJdbcContext);
+            this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
             this.version = mysqlJdbcContext.getMysqlVersion();
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -89,6 +91,14 @@ public class MysqlConnector extends ConnectorBase {
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
+
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
         connectorFunctions.supportCreateTable(this::createTable);
@@ -212,12 +222,18 @@ public class MysqlConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         try {
+            Optional.ofNullable(this.mysqlReader).ifPresent(MysqlReader::close);
+        } catch (Exception ignored) {
+        }
+        try {
+            Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
+        } catch (Exception ignored) {
+        }
+        try {
             this.mysqlJdbcContext.close();
         } catch (Exception e) {
             TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
         }
-        Optional.ofNullable(this.mysqlReader).ifPresent(MysqlReader::close);
-        Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
@@ -353,36 +369,38 @@ public class MysqlConnector extends ConnectorBase {
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
-        onStart(databaseContext);
         ConnectionOptions connectionOptions = ConnectionOptions.create();
-        MysqlConnectionTest mysqlConnectionTest = new MysqlConnectionTest(mysqlJdbcContext);
-        TestItem testHostPort = mysqlConnectionTest.testHostPort(databaseContext);
-        consumer.accept(testHostPort);
-        if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-            return null;
+        try (
+                MysqlConnectionTest mysqlConnectionTest = new MysqlConnectionTest(new MysqlJdbcContext(databaseContext))
+        ) {
+            TestItem testHostPort = mysqlConnectionTest.testHostPort(databaseContext);
+            consumer.accept(testHostPort);
+            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
+                return null;
+            }
+            TestItem testConnect = mysqlConnectionTest.testConnect();
+            consumer.accept(testConnect);
+            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
+                return null;
+            }
+            TestItem testDatabaseVersion = mysqlConnectionTest.testDatabaseVersion();
+            consumer.accept(testDatabaseVersion);
+            if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
+                return null;
+            }
+            TestItem binlogMode = mysqlConnectionTest.testBinlogMode();
+            TestItem binlogRowImage = mysqlConnectionTest.testBinlogRowImage();
+            TestItem cdcPrivileges = mysqlConnectionTest.testCDCPrivileges();
+            consumer.accept(binlogMode);
+            consumer.accept(binlogRowImage);
+            consumer.accept(cdcPrivileges);
+            consumer.accept(mysqlConnectionTest.testCreateTablePrivilege(databaseContext));
+            if (binlogMode.isSuccess() && binlogRowImage.isSuccess() && cdcPrivileges.isSuccess()) {
+                List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDL_PARSER_TYPE);
+                ddlCapabilities.forEach(connectionOptions::capability);
+            }
+            return connectionOptions;
         }
-        TestItem testConnect = mysqlConnectionTest.testConnect();
-        consumer.accept(testConnect);
-        if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-            return null;
-        }
-        TestItem testDatabaseVersion = mysqlConnectionTest.testDatabaseVersion();
-        consumer.accept(testDatabaseVersion);
-        if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
-            return null;
-        }
-        TestItem binlogMode = mysqlConnectionTest.testBinlogMode();
-        TestItem binlogRowImage = mysqlConnectionTest.testBinlogRowImage();
-        TestItem cdcPrivileges = mysqlConnectionTest.testCDCPrivileges();
-        consumer.accept(binlogMode);
-        consumer.accept(binlogRowImage);
-        consumer.accept(cdcPrivileges);
-        consumer.accept(mysqlConnectionTest.testCreateTablePrivilege(databaseContext));
-        if (binlogMode.isSuccess() && binlogRowImage.isSuccess() && cdcPrivileges.isSuccess()) {
-            List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDL_PARSER_TYPE);
-            ddlCapabilities.forEach(connectionOptions::capability);
-        }
-        return connectionOptions;
     }
 
     private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {

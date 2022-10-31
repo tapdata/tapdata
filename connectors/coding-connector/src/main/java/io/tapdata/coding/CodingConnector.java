@@ -7,6 +7,7 @@ import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.enums.CodingEvent;
 import io.tapdata.coding.enums.IssueType;
+import io.tapdata.coding.service.command.Command;
 import io.tapdata.coding.service.loader.*;
 import io.tapdata.coding.service.connectionMode.CSVMode;
 import io.tapdata.coding.service.connectionMode.ConnectionMode;
@@ -64,7 +65,7 @@ public class CodingConnector extends ConnectorBase {
 		switch (streamReadType){
 			//反向赋空，如果使用webhook那么取消polling能力，如果使用polling南无取消webhook能力,一山不容二虎.--------GavinXiao
 			case "WebHook":this.connectorFunctions.supportStreamRead(null);break;
-			case "Polling":this.connectorFunctions.supportRawDataCallbackFilterFunction(null);break;
+			case "Polling":this.connectorFunctions.supportRawDataCallbackFilterFunctionV2(null);break;
 //			default:
 //				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
 		}
@@ -91,8 +92,10 @@ public class CodingConnector extends ConnectorBase {
 		;
 		this.connectorFunctions = connectorFunctions;
 	}
-
-	private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+	private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo){
+		return this.handleCommandV2(tapConnectionContext, commandInfo);
+	}
+	private CommandResult handleCommandV1(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
 		String command = commandInfo.getCommand();
 		if(Checker.isEmpty(command)){
 			throw new CoreException("Command can not be NULL or not be empty.");
@@ -200,6 +203,9 @@ public class CodingConnector extends ConnectorBase {
 			throw new CoreException("Command only support [DescribeIterationList] or [DescribeCodingProjects].");
 		}
 		return new CommandResult().result(pageResult);
+	}
+	private CommandResult handleCommandV2(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+		return Command.command(tapConnectionContext,commandInfo);
 	}
 	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, List<String> tables, Map<String, Object> issueEventData){
 		return rawDataCallbackFilterFunctionV2(connectorContext,tables, issueEventData);
@@ -459,7 +465,9 @@ public class CodingConnector extends ConnectorBase {
 						  BiConsumer<List<TapEvent>, Object> consumer){
 		CodingLoader<Param> loader = CodingLoader.loader(connectorContext, table.getId());
 		if (Checker.isNotEmpty(loader)) {
+			loader.connectorInit(this);
 			loader.batchRead(offset, batchCount, consumer);
+			loader.connectorOut();
 		}
 	}
 

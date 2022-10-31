@@ -1,11 +1,12 @@
 package io.tapdata.coding.utils.http;
 
 import cn.hutool.http.*;
+import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.logger.TapLogger;
-
-import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -81,9 +82,37 @@ public class CodingHttp {
             TapLogger.info(TAG,"Read timed out:{}",e.getMessage());
             return Collections.emptyMap();
         }
-        return null == execute || execute.getStatus() != HttpStatus.HTTP_OK ?
-                Collections.emptyMap() : JSONUtil.parseObj(execute.body());
+        if (null == execute){
+            TapLogger.info(TAG,"Coding request error HttpResponse is null.");
+            return Collections.emptyMap();
+        }
+        if ( execute.getStatus() != HttpStatus.HTTP_OK){
+            TapLogger.info(TAG,"Coding request error http status:{}",execute.getStatus());
+            return Collections.emptyMap();
+        }
+        String body = execute.body();
+        if (null == body || "".equals(body)){
+            TapLogger.info(TAG,"Coding request error HttpResponse body is null or empty");
+            return Collections.emptyMap();
+        }
+        Map<String,Object> response = JSONUtil.parseObj(execute.body());
+        Object error = response.get("Error");
+        if (null != error){
+            String errorMessage = String.valueOf(((Map<String,Object>)error).get("Message"));
+            String code = String.valueOf(((Map<String,Object>)error).get("Code"));
+            //TapLogger.info(TAG,"Coding request error - message: {},code: {}",errorMessage,code);
+            return new HashMap<String,Object>(){{put(errorKey,"Coding request error - message: "+errorMessage+",code: "+code);}};
+        }
+        return response;
     }
+
+    private final String errorKey = "ERROR";
+    public String errorMsg(Map<String,Object> responseMap){
+        Object error = responseMap.get("Error");
+        if (Checker.isNotEmpty(error)) return String.valueOf(error);
+        return String.valueOf(responseMap.get(errorKey));
+    }
+
     public CodingHttp buildBody(String key,Object value){
         if (null != this.body) {
             this.body.put(key, value);
@@ -97,7 +126,7 @@ public class CodingHttp {
         return this;
     }
     public CodingHttp buildBodyIfAbsent(String key,Object value){
-        if (null != value && !( value instanceof Collection && ((Collection)value).isEmpty() )){
+        if (null != value && !( value instanceof Map && ((Map)value).isEmpty() )){
             this.buildBody(key, value);
         }
         return this;

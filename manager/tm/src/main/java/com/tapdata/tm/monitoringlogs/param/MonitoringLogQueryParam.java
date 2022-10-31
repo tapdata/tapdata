@@ -60,22 +60,6 @@ public class MonitoringLogQueryParam {
         return valid;
     }
 
-    public Long getStart() {
-        if (isStartEndValid()) {
-            return start;
-        }
-
-        throw new RuntimeException("Invalid value for start or end");
-    }
-
-    public Long getEnd() {
-        if (isStartEndValid()) {
-            return end;
-        }
-
-        throw new RuntimeException("Invalid value for start or end");
-    }
-
     public String getOrder() {
         if (isOrderValid()) {
             return order;

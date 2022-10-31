@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.alibaba.fastjson.JSON;
+import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -25,14 +26,14 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.util.*;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,6 +44,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNode {
     private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkAutoInspectNode.class);
+    public static final String TAG = HazelcastTargetPdkAutoInspectNode.class.getSimpleName();
+    private static final ExecutorService EXECUTORS = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<>());
 
     private enum STATUS {
         Init, Running, Stopping, Completed,
@@ -107,178 +110,185 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
     }
 
     @Override
-    public boolean complete() {
+    protected void doInit(@NonNull Processor.Context context) throws Exception {
+        super.doInit(context);
+
         TaskDto task = dataProcessorContext.getTaskDto();
         String taskId = task.getId().toHexString();
         TaskType taskType = TaskType.parseByTaskType(syncType.getSyncType());
         AutoInspectProgress progress = AutoInspectUtil.toAutoInspectProgress(task.getAttrs());
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
         HazelcastTargetPdkAutoInspectNode _thisNode = this;
-        try {
-            new PdkAutoInspectRunner(obsLogger, taskId, taskType, progress, (AutoInspectNode) dataProcessorContext.getNode(), clientMongoOperator, dataProcessorContext) {
-                @Override
-                public void run() {
+        EXECUTORS.submit(new PdkAutoInspectRunner(obsLogger, taskId, taskType, progress, (AutoInspectNode) dataProcessorContext.getNode(), clientMongoOperator, dataProcessorContext) {
+            @Override
+            public void run() {
+                try {
                     if (status.compareAndSet(STATUS.Init, STATUS.Running)) {
                         super.run();
                     } else {
                         logger.warn("{} status not init", AutoInspectConstants.MODULE_NAME);
                     }
+                } finally {
+                    status.set(STATUS.Completed);
                 }
+            }
 
-                @Override
-                protected void initialCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector, @NonNull IAutoCompare autoCompare) throws Exception {
-                    long beginTimes = System.currentTimeMillis();
-                    while (true) {
-                        if (!isRunning()) return;
-                        if (isInitialed.get()) break;
+            @Override
+            protected void initialCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector, @NonNull IAutoCompare autoCompare) throws Exception {
+                long beginTimes = System.currentTimeMillis();
+                while (true) {
+                    if (!isRunning()) return;
+                    if (isInitialed.get()) break;
 
-                        Thread.sleep(1000L);
-                    }
-                    obsLogger.info("Wait initial {}ms", System.currentTimeMillis() - beginTimes);
-
-                    super.initialCompare(sourceConnector, targetConnector, autoCompare);
+                    Thread.sleep(1000L);
                 }
+                obsLogger.info("Wait initial {}ms", System.currentTimeMillis() - beginTimes);
 
-                @Override
-                protected void incrementalCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector, @NonNull IAutoCompare autoCompare) throws Exception {
-                    List<TapEvent> tapEvents;
-                    while (isRunning()) {
-                        do {
-                            tapEvents = incrementQueue.poll(1, TimeUnit.SECONDS);
-                            if (!isRunning() || isStopping()) return;
+                super.initialCompare(sourceConnector, targetConnector, autoCompare);
+            }
+
+            @Override
+            protected void incrementalCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector, @NonNull IAutoCompare autoCompare) throws Exception {
+                List<TapEvent> tapEvents;
+                while (isRunning()) {
+                    do {
+                        tapEvents = incrementQueue.poll(1, TimeUnit.SECONDS);
+                        if (!isRunning() || isStopping()) return;
 
 //                        //Output log every 30 seconds
 //                        if (System.currentTimeMillis() / 1000 % 30 == 0) {
 //                            logger.info("Increment event is empty");
 //                        }
-                        } while (null == tapEvents);
+                    } while (null == tapEvents);
 
-                        // update from observable-module
-                        Optional.ofNullable(pipelineDelay.getDelay(taskId, dataNodeId)).ifPresent(processDelay::set);
-                        Optional.ofNullable(pipelineDelay.getEventReferenceTime(taskId, dataNodeId)).ifPresent(lastReferenceTimes::set);
+                    // update from observable-module
+                    Optional.ofNullable(pipelineDelay.getDelay(taskId, dataNodeId)).ifPresent(processDelay::set);
+                    Optional.ofNullable(pipelineDelay.getEventReferenceTime(taskId, dataNodeId)).ifPresent(lastReferenceTimes::set);
 
-                        CompareTableItem tableItem;
-                        CompareRecord sourceRecord;
-                        for (TapEvent tapEvent : tapEvents) {
-                            if (tapEvent instanceof TapRecordEvent) {
-                                String tableName = ((TapRecordEvent) tapEvent).getTableId();
-                                TapTable tapTable = sourceConnector.getTapTable(tableName);
+                    CompareTableItem tableItem;
+                    CompareRecord sourceRecord;
+                    for (TapEvent tapEvent : tapEvents) {
+                        if (tapEvent instanceof TapRecordEvent) {
+                            String tableName = ((TapRecordEvent) tapEvent).getTableId();
+                            TapTable tapTable = sourceConnector.getTapTable(tableName);
 
-                                // filter non-listening table
-                                tableItem = progress.getTableItem(tableName);
-                                if (null == tableItem) continue;
+                            // filter non-listening table
+                            tableItem = progress.getTableItem(tableName);
+                            if (null == tableItem) continue;
 
-                                // Enter A when the synchronization task is normal, Otherwise use B or C whichever is smaller
-                                // - A: referenceTimes < lastReferenceTimes
-                                // - B: processDelay*1.5 - (SystemTimes - eventTimes)
-                                // - C: 5 * 60 * 1000L
-                                if (Optional.ofNullable(((TapRecordEvent) tapEvent).getReferenceTime()).map(referenceTimes -> {
-                                    if (referenceTimes <= lastReferenceTimes.get()) {
-                                        return 0L;
-                                    } else {
-                                        long delay = 0;
-                                        if (null != tapEvent.getTime()) {
-                                            delay = Math.max(0, (long) (processDelay.get() * 1.5) - (System.currentTimeMillis() - tapEvent.getTime()));
-                                        }
-                                        return Math.min(delay, 5 * 60 * 1000L);
-                                    }
-                                }).map(delayTimes -> { // wait delay times
-                                    try {
-                                        long interval = 200;
-                                        while (delayTimes > 0) {
-                                            Thread.sleep(Math.min(interval, delayTimes));
-                                            if (!isRunning() || isStopping()) return true;
-                                            delayTimes -= interval;
-                                        }
-                                        return false;
-                                    } catch (InterruptedException e) {
-                                        return true;
-                                    }
-                                }).orElse(false)) return; // exit in true
-
-                                if (tapEvent instanceof TapUpdateRecordEvent) {
-                                    //update event
-                                    sourceRecord = toCompareRecord(sourceConnector.getConnId(), tapTable, ((TapUpdateRecordEvent) tapEvent).getAfter());
-                                } else if (tapEvent instanceof TapInsertRecordEvent) {
-                                    //insert event
-                                    sourceRecord = toCompareRecord(sourceConnector.getConnId(), tapTable, ((TapInsertRecordEvent) tapEvent).getAfter());
-                                } else if (tapEvent instanceof TapDeleteRecordEvent) {
-                                    //delete event
-                                    sourceRecord = toCompareRecord(sourceConnector.getConnId(), tapTable, ((TapDeleteRecordEvent) tapEvent).getBefore());
+                            // Enter A when the synchronization task is normal, Otherwise use B or C whichever is smaller
+                            // - A: referenceTimes < lastReferenceTimes
+                            // - B: processDelay*1.5 - (SystemTimes - eventTimes)
+                            // - C: 5 * 60 * 1000L
+                            if (Optional.ofNullable(((TapRecordEvent) tapEvent).getReferenceTime()).map(referenceTimes -> {
+                                if (referenceTimes <= lastReferenceTimes.get()) {
+                                    return 0L;
                                 } else {
-                                    //no support events
-                                    continue;
-                                }
-
-                                LinkedHashMap<String, Object> keymap = new LinkedHashMap<>();
-                                for (String k : sourceRecord.getKeyNames()) {
-                                    keymap.put(k, sourceRecord.getDataValue(k));
-                                }
-
-                                CompareRecord targetRecord = targetConnector.queryByKey(tableName, keymap, sourceRecord.getKeyNames());
-                                if (tapEvent instanceof TapDeleteRecordEvent) {
-                                    if (null != targetRecord) {
-                                        targetRecord.getOriginalKey().putAll(sourceRecord.getOriginalKey());
-                                        //target has more data
+                                    long delay = 0;
+                                    if (null != tapEvent.getTime()) {
+                                        delay = Math.max(0, (long) (processDelay.get() * 1.5) - (System.currentTimeMillis() - tapEvent.getTime()));
                                     }
-                                } else if (null == targetRecord) {
-                                    //source has more data
-                                    autoCompare.autoCompare(TaskAutoInspectResultDto.parseNoneTarget(taskId, sourceRecord, targetConnector.getConnId(), tableName));
-                                } else {
+                                    return Math.min(delay, 5 * 60 * 1000L);
+                                }
+                            }).map(delayTimes -> { // wait delay times
+                                try {
+                                    long interval = 200;
+                                    while (delayTimes > 0) {
+                                        Thread.sleep(Math.min(interval, delayTimes));
+                                        if (!isRunning() || isStopping()) return true;
+                                        delayTimes -= interval;
+                                    }
+                                    return false;
+                                } catch (InterruptedException e) {
+                                    return true;
+                                }
+                            }).orElse(false)) return; // exit in true
+
+                            if (tapEvent instanceof TapUpdateRecordEvent) {
+                                //update event
+                                sourceRecord = toCompareRecord(sourceConnector.getConnId(), tapTable, ((TapUpdateRecordEvent) tapEvent).getAfter());
+                            } else if (tapEvent instanceof TapInsertRecordEvent) {
+                                //insert event
+                                sourceRecord = toCompareRecord(sourceConnector.getConnId(), tapTable, ((TapInsertRecordEvent) tapEvent).getAfter());
+                            } else if (tapEvent instanceof TapDeleteRecordEvent) {
+                                //delete event
+                                sourceRecord = toCompareRecord(sourceConnector.getConnId(), tapTable, ((TapDeleteRecordEvent) tapEvent).getBefore());
+                            } else {
+                                //no support events
+                                continue;
+                            }
+
+                            LinkedHashMap<String, Object> keymap = new LinkedHashMap<>();
+                            for (String k : sourceRecord.getKeyNames()) {
+                                keymap.put(k, sourceRecord.getDataValue(k));
+                            }
+
+                            CompareRecord targetRecord = targetConnector.queryByKey(tableName, keymap, sourceRecord.getKeyNames());
+                            if (tapEvent instanceof TapDeleteRecordEvent) {
+                                if (null != targetRecord) {
                                     targetRecord.getOriginalKey().putAll(sourceRecord.getOriginalKey());
-                                    switch (sourceRecord.compare(targetRecord)) {
-                                        case MoveTarget:
-                                        case MoveSource:
-                                            logger.info("Difference data keys '{}': {}, '{}': {}", sourceRecord.getTableName(), JSON.toJSONString(sourceRecord.getOriginalKey()), sourceRecord.getTableName(), JSON.toJSONString(targetRecord.getOriginalKey()));
-                                            break;
-                                        case Diff:
-                                            autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceRecord, targetRecord));
-                                            break;
-                                        case Ok:
-                                            autoCompare.fix(TaskAutoInspectResultDto.parse(taskId, sourceRecord, targetRecord));
-                                            break;
-                                        default:
-                                            break;
-                                    }
+                                    //target has more data
+                                }
+                            } else if (null == targetRecord) {
+                                //source has more data
+                                autoCompare.autoCompare(TaskAutoInspectResultDto.parseNoneTarget(taskId, sourceRecord, targetConnector.getConnId(), tableName));
+                            } else {
+                                targetRecord.getOriginalKey().putAll(sourceRecord.getOriginalKey());
+                                switch (sourceRecord.compare(targetRecord)) {
+                                    case MoveTarget:
+                                    case MoveSource:
+                                        logger.info("Difference data keys '{}': {}, '{}': {}", sourceRecord.getTableName(), JSON.toJSONString(sourceRecord.getOriginalKey()), sourceRecord.getTableName(), JSON.toJSONString(targetRecord.getOriginalKey()));
+                                        break;
+                                    case Diff:
+                                        autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceRecord, targetRecord));
+                                        break;
+                                    case Ok:
+                                        autoCompare.fix(TaskAutoInspectResultDto.parse(taskId, sourceRecord, targetRecord));
+                                        break;
+                                    default:
+                                        break;
                                 }
                             }
                         }
                     }
-
                 }
+            }
 
-                @Override
-                protected boolean isRunning() {
-                    return _thisNode.isRunning() && !Thread.interrupted();
-                }
+            @Override
+            protected boolean isRunning() {
+                return _thisNode.isRunning() && !Thread.interrupted();
+            }
 
-                @Override
-                protected boolean isStopping() {
-                    return STATUS.Stopping == status.get();
-                }
+            @Override
+            protected boolean isStopping() {
+                return STATUS.Stopping == status.get();
+            }
 
-                @Override
-                protected void errorHandle(Throwable e, String msg) {
-                    _thisNode.errorHandle(e, msg);
-                }
-            }.run();
-        } finally {
-            status.set(STATUS.Completed);
-        }
-
-        return true;
+            @Override
+            protected void errorHandle(Throwable e, String msg) {
+                _thisNode.errorHandle(e, msg);
+            }
+        });
     }
 
     @Override
     public void doClose() throws Exception {
-        boolean changeStatus = status.compareAndSet(STATUS.Init, STATUS.Stopping) || status.compareAndSet(STATUS.Running, STATUS.Stopping);
-        while (isRunning() && STATUS.Completed != status.get()) {
-            try {
-                Thread.sleep(500L);
-            } catch (InterruptedException e) {
-                break;
-            }
+        try {
+            CommonUtils.ignoreAnyError(() -> {
+                if (status.compareAndSet(STATUS.Init, STATUS.Stopping)) return;
+
+                if (status.compareAndSet(STATUS.Running, STATUS.Stopping)) {
+                    while (isRunning() && STATUS.Completed != status.get()) {
+                        try {
+                            Thread.sleep(500L);
+                        } catch (InterruptedException e) {
+                            break;
+                        }
+                    }
+                }
+            }, TAG);
+        } finally {
+            super.doClose();
         }
-        super.doClose();
     }
 }

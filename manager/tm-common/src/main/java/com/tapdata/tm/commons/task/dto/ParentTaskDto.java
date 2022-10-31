@@ -179,6 +179,7 @@ public class ParentTaskDto extends SchedulableDto {
      * 界面展示的任务开始时间
      */
     private Date startTime;
+    private Long lastStartDate;
     private Date stopTime;
 
     /**
@@ -233,6 +234,15 @@ public class ParentTaskDto extends SchedulableDto {
     private Boolean transformed;
 
     private int transformDagHash;
+
+    // 1分钟内不能强制停止（不存库，根据 stoppingTime 来判断）
+    private Boolean canForceStopping;
+    public Boolean getCanForceStopping() {
+        if (null == stoppingTime) {
+            return null;
+        }
+        return System.currentTimeMillis() - stoppingTime.getTime() < 60 * 1000L;
+    }
 
     public List<String> getAccessNodeProcessIdList() {
         accessNodeProcessIdList = new ArrayList<>();

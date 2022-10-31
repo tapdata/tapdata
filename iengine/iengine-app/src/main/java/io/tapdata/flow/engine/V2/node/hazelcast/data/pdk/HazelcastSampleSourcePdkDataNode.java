@@ -32,7 +32,6 @@ import org.voovan.tools.collection.CacheMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 
@@ -107,8 +106,6 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 														tapEventList.addAll(events);
 													}
 												})).logTag(TAG)
-										.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
-										.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
 						);
 						sampleDataCacheMap.put(sampleDataId, tapEventList);
 					} catch (Exception e) {
