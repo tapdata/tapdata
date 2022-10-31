@@ -9,6 +9,7 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectionFunctions;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.common.MemoryFetcherFunctionV2;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -18,6 +19,16 @@ public class ConnectionNode extends Node {
     TapConnectionContext connectionContext;
 
     ConnectionFunctions<?> connectionFunctions;
+
+    public void registerMemoryFetcher() {
+        MemoryFetcherFunctionV2 memoryFetcherFunctionV2 = connectionFunctions.getMemoryFetcherFunctionV2();
+        if(memoryFetcherFunctionV2 != null)
+            PDKIntegration.registerMemoryFetcher(id() + "_" + associateId, memoryFetcherFunctionV2::memory);
+    }
+
+    public void unregisterMemoryFetcher() {
+        PDKIntegration.unregisterMemoryFetcher(id() + "_" + associateId);
+    }
 
     public void discoverSchema(List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         connector.discoverSchema(connectionContext, tables, tableSize, consumer);
@@ -33,7 +44,11 @@ public class ConnectionNode extends Node {
     }
 
     public void connectorStop() throws Throwable {
-        connector.stop(connectionContext);
+        try {
+            connector.stop(connectionContext);
+        } finally {
+            unregisterMemoryFetcher();
+        }
     }
 
     public TapConnector getConnector() {
