@@ -1,12 +1,5 @@
 package io.tapdata.bigquery.service.bigQuery;
 
-import cn.hutool.json.JSONUtil;
-import io.tapdata.bigquery.util.http.Http;
-import io.tapdata.bigquery.util.http.HttpEntity;
-import io.tapdata.bigquery.util.http.HttpResult;
-import io.tapdata.bigquery.util.http.HttpType;
-import io.tapdata.constant.TapLog;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -15,7 +8,6 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.util.*;

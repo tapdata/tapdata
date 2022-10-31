@@ -5,7 +5,7 @@ import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import io.tapdata.bigquery.util.objUtil.Checker;
+import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.logger.TapLogger;
 
 import java.util.Collections;

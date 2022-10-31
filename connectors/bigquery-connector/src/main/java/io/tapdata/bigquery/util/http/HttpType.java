@@ -1,6 +1,7 @@
 package io.tapdata.bigquery.util.http;
 
-import io.tapdata.bigquery.util.objUtil.Checker;
+
+import io.tapdata.bigquery.util.tool.Checker;
 
 public enum HttpType {
     POST("POST"),

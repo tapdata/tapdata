@@ -1,8 +1,6 @@
 package io.tapdata.bigquery.util.tool;
 
-import java.text.SimpleDateFormat;
 import java.util.Collection;
-import java.util.Date;
 import java.util.Map;
 
 public class Checker {

@@ -1,24 +1,15 @@
 package io.tapdata.bigquery;
 
-
-import cn.hutool.core.date.DateUtil;
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.bigquery.enums.BigQueryTestItem;
-import io.tapdata.bigquery.service.OpenApiWriteRecoder;
 import io.tapdata.bigquery.service.bigQuery.BigQueryConnectionTest;
 import io.tapdata.bigquery.service.bigQuery.TableCreate;
 import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.bigquery.service.command.Command;
 import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
-import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -27,7 +18,6 @@ import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 
 import java.util.*;
