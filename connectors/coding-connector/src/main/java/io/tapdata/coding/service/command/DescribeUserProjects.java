@@ -1,9 +1,7 @@
 package io.tapdata.coding.service.command;
 
-import io.tapdata.coding.service.loader.IterationsLoader;
 import io.tapdata.coding.service.loader.ProjectsLoader;
 import io.tapdata.coding.utils.tool.Checker;
-import io.tapdata.constant.TapLog;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;

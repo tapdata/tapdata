@@ -1,13 +1,11 @@
 package io.tapdata.coding.utils.http;
 
 import cn.hutool.http.*;
-import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.logger.TapLogger;
 
 import java.text.MessageFormat;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;

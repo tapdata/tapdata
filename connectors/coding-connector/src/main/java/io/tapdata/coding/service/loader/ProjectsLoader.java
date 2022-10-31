@@ -1,10 +1,8 @@
 package io.tapdata.coding.service.loader;
 
-import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.Param;
-import io.tapdata.coding.entity.param.ProjectMemberParam;
 import io.tapdata.coding.entity.param.ProjectParam;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;

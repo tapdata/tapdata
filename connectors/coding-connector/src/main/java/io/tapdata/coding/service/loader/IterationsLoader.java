@@ -1,7 +1,6 @@
 package io.tapdata.coding.service.loader;
 
 import cn.hutool.json.JSONUtil;
-import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IterationParam;

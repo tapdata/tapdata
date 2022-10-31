@@ -10,9 +10,6 @@ import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 
 public abstract class CodingStarter {
     private static final String TAG = CodingStarter.class.getSimpleName();
@@ -23,11 +20,6 @@ public abstract class CodingStarter {
     public static final String TOKEN_PREF = "token ";
 
     protected TapConnectionContext tapConnectionContext;
-
-//    protected boolean stopRead = false;
-//    public void stopRead(){
-//        stopRead = true;
-//    }
 
     CodingConnector codingConnector;
     public CodingStarter connectorInit(CodingConnector codingConnector){

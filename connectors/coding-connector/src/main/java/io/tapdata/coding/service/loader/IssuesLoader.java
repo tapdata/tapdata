@@ -2,19 +2,15 @@ package io.tapdata.coding.service.loader;
 
 import cn.hutool.http.HttpRequest;
 import cn.hutool.json.JSONArray;
-import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IssueParam;
 import io.tapdata.coding.enums.CodingEvent;
 import io.tapdata.coding.enums.IssueType;
-import io.tapdata.coding.service.connectionMode.CSVMode;
-import io.tapdata.coding.service.connectionMode.ConnectionMode;
 import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
-import io.tapdata.constant.TapLog;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -33,10 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
-
-import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 import static io.tapdata.coding.enums.TapEventTypes.*;
 

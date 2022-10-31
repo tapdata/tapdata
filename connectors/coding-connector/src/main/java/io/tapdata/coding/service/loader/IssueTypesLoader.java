@@ -1,6 +1,5 @@
 package io.tapdata.coding.service.loader;
 
-import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IssueTypeParam;
 import io.tapdata.coding.utils.collection.MapUtil;

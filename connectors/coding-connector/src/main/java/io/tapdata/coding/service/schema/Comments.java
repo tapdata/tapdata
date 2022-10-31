@@ -1,10 +1,8 @@
 package io.tapdata.coding.service.schema;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.field;
 import static io.tapdata.entity.simplify.TapSimplify.table;

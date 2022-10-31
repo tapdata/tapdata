@@ -1,12 +1,10 @@
 package io.tapdata.coding.service.loader;
 
-import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.entity.param.ProjectMemberParam;
 import io.tapdata.coding.enums.CodingEvent;
 import io.tapdata.coding.service.schema.SchemaStart;
-import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;

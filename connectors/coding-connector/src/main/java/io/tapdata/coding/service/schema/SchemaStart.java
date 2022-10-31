@@ -1,12 +1,10 @@
 package io.tapdata.coding.service.schema;
 
-import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import org.reflections.Reflections;
 
 import java.util.*;
 

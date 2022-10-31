@@ -1,12 +1,9 @@
 package io.tapdata.coding.service.schema;
 
-import io.tapdata.coding.utils.tool.Checker;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
