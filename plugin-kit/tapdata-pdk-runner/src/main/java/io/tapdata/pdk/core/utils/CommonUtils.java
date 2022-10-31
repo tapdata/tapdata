@@ -141,10 +141,9 @@ public class CommonUtils {
 
             long retryTimes = invoker.getRetryTimes();
             if (retryTimes > 0) {
+                TapLogger.warn(logTag, String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [{%s}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage()));
                 if (null != invoker.getLogListener()) {
                     invoker.getLogListener().warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [{%s}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage()));
-                } else {
-                    TapLogger.warn(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({}s) | error [{}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage());//, message
                 }
                 invoker.setRetryTimes(retryTimes - 1);
                 if (async) {

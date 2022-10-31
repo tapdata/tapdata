@@ -21,7 +21,6 @@ import io.tapdata.entity.schema.value.TapRawValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
-import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -229,8 +228,9 @@ public class CustomConnector extends ConnectorBase {
             try {
                 while (isAlive()) {
                     invocable.invokeFunction(ScriptUtil.SOURCE_FUNCTION_NAME, contextMap.get());
-                    TapSimplify.sleep(2000);
+                    Thread.sleep(1000);
                 }
+            } catch (InterruptedException ignored) {
             } catch (Exception e) {
                 scriptException.set(e);
             }
@@ -238,15 +238,9 @@ public class CustomConnector extends ConnectorBase {
         Thread t = new Thread(runnable);
         t.start();
         consumer.streamReadStarted();
-        if (EmptyKit.isNotNull(scriptException.get())) {
-            throw scriptException.get();
-        }
         List<TapEvent> eventList = new ArrayList<>();
         Object lastContextMap = null;
         while (isAlive() && t.isAlive()) {
-            if (EmptyKit.isNotNull(scriptException.get())) {
-                throw scriptException.get();
-            }
             CustomEventMessage message = scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS);
             if (EmptyKit.isNotNull(message)) {
                 eventList.add(message.getTapEvent());
@@ -257,6 +251,9 @@ public class CustomConnector extends ConnectorBase {
                     eventList = new ArrayList<>();
                 }
             }
+        }
+        if (EmptyKit.isNotNull(scriptException.get())) {
+            throw scriptException.get();
         }
         if (isAlive() && EmptyKit.isNotEmpty(eventList)) {
             consumer.accept(eventList, lastContextMap);

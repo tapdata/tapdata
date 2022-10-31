@@ -129,6 +129,12 @@ public class TaskAlarmScheduler {
     @Scheduled(initialDelay = 5000, fixedDelay = 5*60*1000)
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
+        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+        if (Objects.isNull(buildProfile)) {
+            buildProfile = "DAAS";
+        }
+        boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
                 .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
                 .and("is_deleted").is(false));
@@ -192,8 +198,10 @@ public class TaskAlarmScheduler {
                         .build();
                 alarmService.save(alarmInfo);
 
-                Update update = new Update().set("status", TaskDto.STATUS_SCHEDULING).set("restartFlag", true);
-                taskService.update(Query.query(Criteria.where("_id").is(data.getId())), update);
+                if (!isCloud) {
+                    Update update = new Update().set("status", TaskDto.STATUS_SCHEDULING).set("restartFlag", true);
+                    taskService.update(Query.query(Criteria.where("_id").is(data.getId())), update);
+                }
             }
         });
     }

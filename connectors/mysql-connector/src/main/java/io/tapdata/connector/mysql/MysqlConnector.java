@@ -116,18 +116,6 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportReleaseExternalFunction(this::releaseExternal);
-    }
-
-    private void releaseExternal(TapConnectorContext tapConnectorContext) {
-        try {
-            KVMap<Object> stateMap = tapConnectorContext.getStateMap();
-            if (null != stateMap) {
-                stateMap.clear();
-            }
-        } catch (Throwable throwable) {
-            TapLogger.warn(TAG, "Release mysql state map failed, error: " + throwable.getMessage());
-        }
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
