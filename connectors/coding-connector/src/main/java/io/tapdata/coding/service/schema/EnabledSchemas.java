@@ -77,7 +77,7 @@ public class EnabledSchemas {
                 headers,
                 HttpEntity.create().builderIfNotAbsent("Action","DescribeTeamMembers").builder("PageNumber",1).builder("PageSize",1).getEntity(),
                 String.format(CodingStarter.OPEN_API_URL,connectionConfig.get("teamName"))
-        ).post();
+        ).postWithError();
         //Response->Error->Code
         if (Checker.isEmpty(resultMap)){
             throw new CoreException("Http request error when execute DescribeTeamMembers action.");
@@ -110,7 +110,7 @@ public class EnabledSchemas {
                         .builderIfNotAbsent("Action","DescribeIterationList")
                         .builder("ProjectName",projectName).getEntity(),
                 String.format(CodingStarter.OPEN_API_URL,connectionConfig.get("teamName"))
-        ).post();
+        ).postWithError();
         //Response->Error->Code
         if (Checker.isEmpty(resultMap)){
             throw new CoreException("Http request error when execute DescribeIterationList action.");
@@ -146,7 +146,7 @@ public class EnabledSchemas {
                         .builder("PageNumber",1)
                         .builder("PageSize",1).getEntity(),
                 String.format(CodingStarter.OPEN_API_URL,connectionConfig.get("teamName"))
-        ).post();
+        ).postWithError();
         //Response->Error->Code
         if (Checker.isEmpty(resultMap)){
             throw new CoreException("Http request error when execute DescribeIssueListWithPage action.");
