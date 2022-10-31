@@ -41,7 +41,7 @@ public class CSVMode implements ConnectionMode {
 
     @Override
     public List<TapTable> discoverSchema(List<String> tables, int tableSize) {
-        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas();
+        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext);
         if (tables == null || tables.isEmpty()){
             List<TapTable> tapTables = list();
             schemaStart.forEach(schema -> {

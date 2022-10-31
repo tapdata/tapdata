@@ -20,7 +20,10 @@ public class Iterations implements SchemaStart {
     public String tableName() {
         return "Iterations";
     }
-
+    @Override
+    public boolean connection(TapConnectionContext tapConnectionContext) {
+        return false;
+    }
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
         /**

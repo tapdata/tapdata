@@ -57,6 +57,16 @@ public class CodingHttp {
         }
         return this.post(request);
     }
+    public Map<String,Object> postWithError(){
+        HttpRequest request = HttpUtil.createPost(url);
+        if (null != heads) {
+            request.addHeaders(this.heads.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> (String)e.getValue()))
+            );
+        }
+        return this.postWithError(request);
+    }
 
     /**
      * 这个post需要传参，能保持多次调用同一请求时避免创建重复的HttpRequest
@@ -64,6 +74,28 @@ public class CodingHttp {
      * @return
      */
     public Map<String,Object> post(HttpRequest request){
+        Map<String,Object> result = postWithError(request);
+        if(result == null)
+            throw new RuntimeException("Parse response empty, url: "+request.getUrl());
+        Map<String,Object> response = (Map<String, Object>) result.get("Response");
+        if(response == null)
+            throw new RuntimeException("Parse response empty, url: "+ request.getUrl());
+        Object error = result.get("Error");
+        if (null != error){
+            String errorMessage = String.valueOf(((Map<String,Object>)error).get("Message"));
+            //String code = String.valueOf(((Map<String,Object>)error).get("Code"));
+            return new HashMap<String,Object>(){{put(errorKey,"Coding request error - message: "+errorMessage);}};
+        }
+        error = response.get("Error");
+        if (null != error){
+            String errorMessage = String.valueOf(((Map<String,Object>)error).get("Message"));
+            //String code = String.valueOf(((Map<String,Object>)error).get("Code"));
+            throw new RuntimeException("Coding request error - message: " + errorMessage);
+        }
+        return result;
+    }
+
+    public Map<String,Object> postWithError(HttpRequest request){
         if (null == request){
             if (null != heads) {
                 request = HttpUtil.createPost(url).addHeaders(this.heads.entrySet()
@@ -100,23 +132,6 @@ public class CodingHttp {
             throw new RuntimeException("Coding request return empty body, url: "+request.getUrl());
         }
         Map<String,Object> result = JSONUtil.parseObj(execute.body());
-        if(result == null)
-            throw new RuntimeException("Parse response empty, url: "+request.getUrl());
-        Map<String,Object> response = (Map<String, Object>) result.get("Response");
-        if(response == null)
-            throw new RuntimeException("Parse response empty, url: "+ request.getUrl());
-        Object error = result.get("Error");
-        if (null != error){
-            String errorMessage = String.valueOf(((Map<String,Object>)error).get("Message"));
-            //String code = String.valueOf(((Map<String,Object>)error).get("Code"));
-            return new HashMap<String,Object>(){{put(errorKey,"Coding request error - message: "+errorMessage);}};
-        }
-        error = response.get("Error");
-        if (null != error){
-            String errorMessage = String.valueOf(((Map<String,Object>)error).get("Message"));
-            //String code = String.valueOf(((Map<String,Object>)error).get("Code"));
-            throw new RuntimeException("Coding request error - message: " + errorMessage);
-        }
         return result;
     }
 

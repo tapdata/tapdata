@@ -21,6 +21,11 @@ public class Comments implements SchemaStart {
     }
 
     @Override
+    public boolean connection(TapConnectionContext tapConnectionContext) {
+        return false;
+    }
+
+    @Override
     public TapTable document(TapConnectionContext connectionContext) {
         return table(tableName())
                 .add(field("CommentId", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(3))
