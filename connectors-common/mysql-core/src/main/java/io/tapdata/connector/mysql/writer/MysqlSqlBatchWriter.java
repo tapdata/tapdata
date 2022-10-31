@@ -71,6 +71,7 @@ public class MysqlSqlBatchWriter extends MysqlWriter {
 						writeListResult.get().incrementRemove(doDelete(tapConnectorContext, tapTable, consumeEvents));
 					}
 				} catch (Throwable e) {
+					this.connection.rollback();
 					if (isAlive()) {
 						TapLogger.warn(TAG, "Do batch operation failed: " + e.getMessage() + "\n Will try one by one mode");
 						doOneByOne(tapConnectorContext, tapTable, writeListResult, consumeEvents);

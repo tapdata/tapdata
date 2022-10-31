@@ -238,15 +238,9 @@ public class CustomConnector extends ConnectorBase {
         Thread t = new Thread(runnable);
         t.start();
         consumer.streamReadStarted();
-        if (EmptyKit.isNotNull(scriptException.get())) {
-            throw scriptException.get();
-        }
         List<TapEvent> eventList = new ArrayList<>();
         Object lastContextMap = null;
         while (isAlive() && t.isAlive()) {
-            if (EmptyKit.isNotNull(scriptException.get())) {
-                throw scriptException.get();
-            }
             CustomEventMessage message = scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS);
             if (EmptyKit.isNotNull(message)) {
                 eventList.add(message.getTapEvent());
@@ -257,6 +251,9 @@ public class CustomConnector extends ConnectorBase {
                     eventList = new ArrayList<>();
                 }
             }
+        }
+        if (EmptyKit.isNotNull(scriptException.get())) {
+            throw scriptException.get();
         }
         if (isAlive() && EmptyKit.isNotEmpty(eventList)) {
             consumer.accept(eventList, lastContextMap);

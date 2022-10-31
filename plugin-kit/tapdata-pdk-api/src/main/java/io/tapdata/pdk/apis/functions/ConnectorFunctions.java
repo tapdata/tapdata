@@ -16,7 +16,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> {
+public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> {
     protected ReleaseExternalFunction releaseExternalFunction;
     protected BatchReadFunction batchReadFunction;
     protected StreamReadFunction streamReadFunction;

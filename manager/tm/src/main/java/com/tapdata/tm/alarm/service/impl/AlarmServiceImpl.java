@@ -101,7 +101,9 @@ public class AlarmServiceImpl implements AlarmService {
 
     private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type) {
         boolean openTask = false;
-        if (Objects.nonNull(taskDto) && CollectionUtils.isNotEmpty(taskDto.getAlarmSettings())) {
+        if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key)) {
+            openTask = true;
+        } else if (Objects.nonNull(taskDto) && CollectionUtils.isNotEmpty(taskDto.getAlarmSettings())) {
             List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
             if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
                 openTask = alarmSettingDtos.stream().anyMatch(t ->
@@ -110,6 +112,7 @@ public class AlarmServiceImpl implements AlarmService {
         }
 
         boolean openSys = false;
+
         List<AlarmSettingDto> all = alarmSettingService.findAll();
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
