@@ -269,13 +269,15 @@ public class MongodbConnector extends ConnectorBase {
 		ConnectionOptions connectionOptions = ConnectionOptions.create();
 		try {
 			onStart(connectionContext);
-			try (final MongoCursor<String> mongoCursor = mongoDatabase.listCollectionNames().iterator();) {
+			try (final MongoCursor<String> mongoCursor = mongoDatabase.listCollectionNames().iterator()) {
 				mongoCursor.hasNext();
 			}
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
 		} catch (Throwable throwable) {
 			throwable.printStackTrace();
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
+		} finally {
+			onStop(connectionContext);
 		}
 		return connectionOptions;
 	}
