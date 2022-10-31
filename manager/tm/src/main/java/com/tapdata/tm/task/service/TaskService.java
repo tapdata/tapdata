@@ -2589,6 +2589,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //将状态改为暂停中，给flowengin发送暂停消息，在回调的消息中将任务改为已暂停
         Update update = Update.update("status", pauseStatus);
+        if (!force) {
+            update.set("stoppingTime", new Date());
+        }
         if (restart) {
             update.set("restartFlag", true).set("restartUserId", user.getUserId());
         }
