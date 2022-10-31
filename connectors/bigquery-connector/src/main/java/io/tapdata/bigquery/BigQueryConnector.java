@@ -7,6 +7,7 @@ import io.tapdata.bigquery.enums.BigQueryTestItem;
 import io.tapdata.bigquery.service.OpenApiWriteRecoder;
 import io.tapdata.bigquery.service.bigQuery.BigQueryConnectionTest;
 import io.tapdata.bigquery.service.bigQuery.WriteRecord;
+import io.tapdata.bigquery.service.command.Command;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
@@ -59,9 +60,13 @@ public class BigQueryConnector extends ConnectorBase {
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 //		codecRegistry.registerFromTapValue(TapMapValue.class, "json")
 		connectorFunctions.supportWriteRecord(this::writeRecord)
+				.supportCommandCallbackFunction(this::command)
 //				.supportCreateTable(this::createTable)
-
 		;
+	}
+
+	private CommandResult command(TapConnectionContext context, CommandInfo commandInfo) {
+		return Command.command(context,commandInfo);
 	}
 
 	private void createTable(TapConnectorContext connectorContext, TapCreateTableEvent tapCreateTableEvent) {
@@ -80,6 +85,8 @@ public class BigQueryConnector extends ConnectorBase {
 	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
 
 	}
+
+
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
 		ConnectionOptions connectionOptions = ConnectionOptions.create();

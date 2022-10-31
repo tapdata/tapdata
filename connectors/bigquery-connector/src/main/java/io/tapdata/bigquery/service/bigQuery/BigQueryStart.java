@@ -30,7 +30,7 @@ public abstract class BigQueryStart {
         }
         try {
             JSONObject parse = JSONUtil.parseObj(serviceAccount);
-            Object projectId = parse.get("project_id");;
+            Object projectId = parse.get("project_id");
             if (null == projectId ){
                 throw new CoreException("Credentials is must not be null or not be empty.");
             }

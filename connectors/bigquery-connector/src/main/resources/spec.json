@@ -30,11 +30,25 @@
         "tableSet": {
           "type": "String",
           "title": "${tableSet}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
           "apiServerKey": "database_host",
           "x-index": 20,
-          "required": true
+          "required": true,
+          "x-decorator": "FormItem",
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"SchemaSetList\"} }}"
+          },
+          "x-reactions": [
+            {
+              "dependencies": ["serviceAccount"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         }
       }
     }
