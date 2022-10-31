@@ -2376,7 +2376,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             Update update = Update.update("startTime", null).set("lastStartDate", null);
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
-            update.set("name", taskDto.getName() + nameSuffix);
+
+            if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
+                update.set("name", taskDto.getName() + "_" + nameSuffix);
+            }
             this.update(new Query(Criteria.where("id").is(taskDto.getId())), update);
 
             updateStatus(taskDto.getId(), DataSyncMq.OP_TYPE_RESET.equals(opType) ? TaskDto.STATUS_RENEWING : TaskDto.STATUS_DELETING);
