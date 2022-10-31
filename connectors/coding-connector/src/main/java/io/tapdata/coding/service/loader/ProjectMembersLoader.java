@@ -10,6 +10,7 @@ import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -40,33 +41,17 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         return 5*60*1000l;
     }
 
-    CodingConnector codingConnector;
-    public ProjectMembersLoader connectorInit(CodingConnector codingConnector){
-        this.codingConnector = codingConnector;
-        return this;
-    }
-
-    @Override
-    public CodingLoader connectorOut() {
-        this.codingConnector = null;
-        return this;
-    }
-
-    private boolean stopRead = false;
-    public void stopRead(){
-        stopRead = true;
-    }
     @Override
     public List<Map<String,Object>> list(ProjectMemberParam param) {
         Map<String,Object> resultMap = this.codingHttp(param).post();
         Object response = resultMap.get("Response");
         if (null == response){
-            return null;
+            throw new CoreException("can not get project members list, the 'Response' is empty or null.");
         }
         Map<String,Object> responseMap = (Map<String,Object>)response;
         Object dataObj = responseMap.get("Data");
         if (null == dataObj){
-            return null;
+            throw new CoreException("can not get project members list, the 'Data' is empty or null.");
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object projectMembersObj = data.get(TABLE_NAME);
@@ -128,16 +113,16 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                 .offset(startPage);
         CodingHttp codingHttp = this.codingHttp((ProjectMemberParam)param);
         List<TapEvent> events = new ArrayList<>();
-        while (true) {
+        while (this.sync()) {
             Map<String,Object> resultMap = codingHttp.buildBody("PageNumber",startPage).post();
             Object response = resultMap.get("Response");
             if (null == response){
-                return ;
+                throw new CoreException("can not get the project members's page which 'PageNumber' is "+startPage+", the 'Response' is empty or null.");
             }
             Map<String,Object> responseMap = (Map<String,Object>)response;
             Object dataObj = responseMap.get("Data");
             if (null == dataObj){
-                return ;
+                throw new CoreException("can not get the project members's page which 'PageNumber' is "+startPage+", the 'Data' is empty or null.");
             }
             Map<String,Object> data = (Map<String,Object>)dataObj;
             Object teamMembersObj = data.get(TABLE_NAME);
@@ -174,6 +159,9 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                 break;
             }
         }
+        if (!sync()){
+            this.connectorOut();
+        }
 //        if (!batchFlag) {
 //            List<TapEvent> delEvents = overlayQueryEventDifferentiator.delEvent(TABLE_NAME, "Id");
 //            if (!delEvents.isEmpty()) {
@@ -197,18 +185,19 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         String eventType = issueEvent.getEventType();
         TapEvent event = null;
 
-        Object iterationObj = issueEventData.get("member");
-        if (Checker.isEmpty(iterationObj)){
+        Object memberObj = issueEventData.get("member");
+        if (Checker.isEmpty(memberObj)){
+            TapLogger.info(TAG,"A event lack member data in project members row data call back method's param.");
             return null;
         }
-        Map<String,Object> iteration = (Map<String, Object>)iterationObj;
+        Map<String,Object> member = (Map<String, Object>)memberObj;
         Object teamObj = issueEventData.get("team");
         if (!Checker.isEmpty(teamObj)){
             Object teamId = ((Map<String,Object>)teamObj).get("team_id");
-            iteration.put("team_id",teamId);
+            member.put("team_id",teamId);
         }
-        iteration.put("project_id",this.currentProjectId);
-        Map<String, Object> schemaMap = SchemaStart.getSchemaByName(TABLE_NAME).autoSchema(iteration);
+        member.put("project_id",this.currentProjectId);
+        Map<String, Object> schemaMap = SchemaStart.getSchemaByName(TABLE_NAME).autoSchema(member);
         Object referenceTimeObj = schemaMap.get("UpdatedAt");
         Long referenceTime = Checker.isEmpty(referenceTimeObj)?System.currentTimeMillis():(Long)referenceTimeObj;
 

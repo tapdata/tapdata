@@ -2,6 +2,7 @@ package io.tapdata.coding.service.schema;
 
 import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.utils.tool.Checker;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -17,9 +18,13 @@ public interface SchemaStart {
 
     public TapTable document(TapConnectionContext connectionContext);
 
-    public TapTable csv(TapConnectionContext connectionContext);
+    public default TapTable csv(TapConnectionContext connectionContext) {
+        throw new CoreException("May be not support CSV for "+this.tableName()+" Schema.");
+    }
 
-    public Map<String,Object> autoSchema(Map<String,Object> eventData);
+    public default Map<String,Object> autoSchema(Map<String,Object> eventData) {
+        throw new CoreException("May be not support "+this.tableName()+" to autoSchema.");
+    }
 
     public static SchemaStart getSchemaByName(String schemaName){
         if (Checker.isEmpty(schemaName)) return null;

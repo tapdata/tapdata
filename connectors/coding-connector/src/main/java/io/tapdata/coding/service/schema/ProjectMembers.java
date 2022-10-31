@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.schema;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -63,11 +64,6 @@ public class ProjectMembers implements SchemaStart {
                 .add(field("GlobalKey", "StringMinor"))
                 .add(field("RolesRoles", JAVA_Array)) ;
 
-    }
-
-    @Override
-    public TapTable csv(TapConnectionContext connectionContext) {
-        return null;
     }
 
     /**

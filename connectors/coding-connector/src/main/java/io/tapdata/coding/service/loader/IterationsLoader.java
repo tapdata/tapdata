@@ -146,22 +146,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
 
         return matterList;
     }
-    CodingConnector codingConnector;
-    public IterationsLoader connectorInit(CodingConnector codingConnector){
-        this.codingConnector = codingConnector;
-        return this;
-    }
 
-    @Override
-    public CodingLoader connectorOut() {
-        this.codingConnector = null;
-        return this;
-    }
-
-    private boolean stopRead = false;
-    public void stopRead(){
-        stopRead = true;
-    }
     @Override
     public Long streamReadTime() {
         return 1*60*1000l;
@@ -176,12 +161,12 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         Map<String,Object> resultMap = http.post();
         Object response = resultMap.get("Response");
         if (null == response){
-            return null;
+            throw new CoreException("can not get iteration list, the 'Response' is empty or null.");
         }
         Map<String,Object> responseMap = (Map<String,Object>)response;
         Object dataObj = responseMap.get("data");
         if (null == dataObj){
-            return null;
+            throw new CoreException("can not get iteration list, the 'data' is empty or null.");
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object listObj = data.get("List");
@@ -386,7 +371,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                 .offset(startPage);
         CodingHttp codingHttp = this.codingHttp((IterationParam)param);
         List<TapEvent> events = new ArrayList<>();
-        while (true) {
+        while (this.sync()) {
             Map<String,Object> resultMap = codingHttp.buildBody("Offset",startPage).post();
             Object response = resultMap.get("Response");
             if (null == response){
@@ -431,6 +416,9 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
             }else {
                 break;
             }
+        }
+        if (!this.sync()) {
+            this.connectorOut();
         }
         if (events.size() > 0)  consumer.accept(events, offset);
     }

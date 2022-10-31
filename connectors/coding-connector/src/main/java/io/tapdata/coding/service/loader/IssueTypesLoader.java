@@ -7,6 +7,7 @@ import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -27,22 +28,7 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
     public static IssueTypesLoader create(TapConnectionContext context){
         return new IssueTypesLoader(context);
     }
-    CodingConnector codingConnector;
-    public IssueTypesLoader connectorInit(CodingConnector codingConnector){
-        this.codingConnector = codingConnector;
-        return this;
-    }
 
-    @Override
-    public CodingLoader connectorOut() {
-        this.codingConnector = null;
-        return this;
-    }
-
-    private boolean stopRead = false;
-    public void stopRead(){
-        stopRead = true;
-    }
     @Override
     public Long streamReadTime() {
         return 5 * 60 * 1000L;
@@ -53,10 +39,13 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
         Map<String,Object> resultMap = this.codingHttp(param).post();
         Object response = resultMap.get("Response");
         if (Checker.isEmpty(response)){
-            return null;
+            throw new CoreException("can not get issue type list, the 'Response' is empty or null.");
         }
         Object IssueTypesObj = ((Map<String,Object>)response).get("IssueTypes");
-        return null !=  IssueTypesObj? (List<Map<String, Object>>) IssueTypesObj : null;
+        if (Checker.isEmpty(IssueTypesObj)){
+            throw new CoreException("can not get issue type list, the 'IssueTypes' is empty or null.");
+        }
+        return (List<Map<String, Object>>) IssueTypesObj ;
     }
 
     @Override
@@ -85,10 +74,14 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
     private void read(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer){
         List<Map<String, Object>> list = list(null);
         if (null == list || list.isEmpty()){
-            return ;
+            throw new CoreException("can not get issue type list, the list is empty or null.");
         }
         List<TapEvent> events = new ArrayList<>();
         for (Map<String, Object> issueType : list) {
+            if (!this.sync()){
+                this.connectorOut();
+                break;
+            }
             Integer issueTypeId = (Integer) issueType.get("Id");
             Integer issueTypeHash = MapUtil.create().hashCode(issueType);
             switch (overlayQueryEventDifferentiator.createOrUpdateEvent(issueTypeId,issueTypeHash)){

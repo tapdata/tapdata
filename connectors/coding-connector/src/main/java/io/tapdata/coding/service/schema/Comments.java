@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.schema;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
@@ -32,15 +33,5 @@ public class Comments implements SchemaStart {
                 .add(field("Content", "StringLonger"))
                 .add(field("CreatedAt", JAVA_Long))
                 .add(field("UpdatedAt", JAVA_Long))   ;
-    }
-
-    @Override
-    public TapTable csv(TapConnectionContext connectionContext) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> autoSchema(Map<String, Object> eventData) {
-        return null;
     }
 }

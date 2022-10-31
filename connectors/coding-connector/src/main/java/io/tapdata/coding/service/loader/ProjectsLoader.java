@@ -29,22 +29,6 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
     public static ProjectsLoader create(TapConnectionContext tapConnectionContext) {
         return new ProjectsLoader(tapConnectionContext);
     }
-    private boolean stopRead = false;
-    public void stopRead(){
-        stopRead = true;
-    }
-
-    CodingConnector codingConnector;
-    public ProjectsLoader connectorInit(CodingConnector codingConnector){
-        this.codingConnector = codingConnector;
-        return this;
-    }
-
-    @Override
-    public CodingLoader connectorOut() {
-        this.codingConnector = null;
-        return this;
-    }
 
     public List<Map<String,Object>> myProjectList(){
         Map<String,Object> user = this.myselfInfo();
@@ -90,9 +74,8 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
                 header.getEntity(),
                 body.getEntity(),
                 String.format(OPEN_API_URL, contextConfig.getTeamName())).post();
-        if (null == post || post.isEmpty()){
+        if (Checker.isEmptyCollection(post)){
             throw new RuntimeException(FormatUtils.format("Coding request return empty body, url {}", String.format(OPEN_API_URL, contextConfig.getTeamName())));
-//            return null;
         }
         Object responseObj = post.get("Response");
         if (Checker.isEmptyCollection(responseObj))
@@ -126,7 +109,6 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
         Object listObj = data.get("ProjectList");
         if(listObj == null)
             throw new RuntimeException(FormatUtils.format("ProjectList can not be parsed"));
-
         return (List<Map<String, Object>>) listObj;
     }
 
@@ -211,7 +193,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
 //        if (Checker.isEmpty(issueCodes)){
 //            throw new RuntimeException(FormatUtils.format("issueCodes is empty"));
 //        }
-        while (!stopRead) {
+        while (this.sync() ){
             Map<String,Object> resultMap = codingHttp.buildBody("Offset",startPage).post();
             Object response = resultMap.get("Response");
             if (null == response){
@@ -243,6 +225,9 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
             }else {
                 throw new RuntimeException(FormatUtils.format("ProjectList can not be parsed"));
             }
+        }
+        if(!this.sync()){
+            this.connectorOut();
         }
         if (events.size() > 0)  consumer.accept(events, offset);
     }

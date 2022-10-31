@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.schema;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
@@ -62,15 +63,5 @@ public class Projects implements SchemaStart {
                 .add(field("IsDemo", JAVA_Boolean))
                 .add(field("Archived", JAVA_Boolean))
                 ;
-    }
-
-    @Override
-    public TapTable csv(TapConnectionContext connectionContext) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> autoSchema(Map<String, Object> eventData) {
-        return null;
     }
 }
