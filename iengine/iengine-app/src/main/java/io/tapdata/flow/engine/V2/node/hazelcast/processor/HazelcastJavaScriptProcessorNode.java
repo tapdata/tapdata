@@ -94,7 +94,6 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
       return;
     }
 
-
     String tableName = TapEventUtil.getTableId(tapEvent);
     ProcessResult processResult = getProcessResult(tableName);
     String op = TapEventUtil.getOp(tapEvent);
@@ -107,11 +106,17 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     SyncStage syncStage = tapdataEvent.getSyncStage();
     processContext.setSyncType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
 
-    if (processContext.getEvent() == null) {
-      processContext.setEvent(new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventTime));
+    ProcessContextEvent processContextEvent = processContext.getEvent();
+    if (processContextEvent == null) {
+      processContextEvent = new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventTime);
     }
-
+    Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
+    if (null != before) {
+      processContextEvent.setBefore(before);
+    }
+    Map<String, Object> eventMap = MapUtil.obj2Map(processContextEvent);
     Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
+    contextMap.put("event", eventMap);
     Map<String, Object> context = this.processContextThreadLocal.get();
     context.putAll(contextMap);
     ((ScriptEngine) this.engine).put("context", context);
