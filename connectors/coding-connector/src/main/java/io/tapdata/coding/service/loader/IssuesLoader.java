@@ -362,23 +362,26 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     .builder("PageSize", 1)
                     .builder("PageNumber", 1);
             try {
-                DataMap nodeConfigMap = ((TapConnectorContext) this.tapConnectionContext).getNodeConfig();
+                DataMap nodeConfigMap = this.tapConnectionContext.getNodeConfig();
+                if (null != nodeConfigMap) {
+                    String iterationCodes = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
+                    if (null != iterationCodes) iterationCodes = iterationCodes.trim();
+                    String issueType = nodeConfigMap.getString("issueType");
+                    if (null != issueType) issueType = issueType.trim();
 
-                String iterationCodes = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
-                if (null != iterationCodes) iterationCodes = iterationCodes.trim();
-                String issueType = nodeConfigMap.getString("issueType");
-                if (null != issueType) issueType = issueType.trim();
+                    body.builder("IssueType", IssueType.verifyType(issueType));
 
-                body.builder("IssueType", IssueType.verifyType(issueType));
-
-                if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes) && !"-1".equals(iterationCodes)) {
-                    //String[] iterationCodeArr = iterationCodes.split(",");
-                    //@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
-                    //选择的迭代编号不需要验证
-                    body.builder(
-                            "Conditions",
-                            io.tapdata.entity.simplify.TapSimplify.list(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)))
-                    );
+                    if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes) && !"-1".equals(iterationCodes)) {
+                        //String[] iterationCodeArr = iterationCodes.split(",");
+                        //@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
+                        //选择的迭代编号不需要验证
+                        body.builder(
+                                "Conditions",
+                                io.tapdata.entity.simplify.TapSimplify.list(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)))
+                        );
+                    }
+                }else {
+                    body.builder("IssueType", "ALL");
                 }
             } catch (Exception e) {
                 TapLogger.debug(TAG, "Count table error: {}", TABLE_NAME, e.getMessage());
