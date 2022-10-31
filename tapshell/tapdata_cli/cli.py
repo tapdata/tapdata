@@ -3083,21 +3083,33 @@ class DataSource():
             logger.warn("delete Connection fail, err is: {}", res.json())
         return False
 
+    @help_decorate("update schema")
+    def update_schema(self):
+        if not isinstance(self.id, str):
+            logger.warn("you must save this datasource first")
+            return
+        self.validate(quiet=True, load_schema=True)
+
     @help_decorate("validate this datasource")
-    def validate(self, quiet=False):
+    def validate(self, quiet=False, load_schema=True):
         res = True
 
         async def l():
             async with websockets.connect(system_server_conf["ws_uri"]) as websocket:
-                data = self.to_dict()
-                data["updateSchema"] = True
+                if isinstance(self.custom_options, dict):
+                    data = self.to_dict()
+                elif isinstance(self.id, str):
+                    data = get_signature_v("connection", self.id)
+                    data.update({
+                        "id": self.id,
+                    })
                 data.update({
-                    "id": self.id,
                     "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
                 })
                 payload = {
                     "type": "testConnection",
-                    "data": data
+                    "data": data,
+                    "updateSchema": load_schema,
                 }
                 logger.info("start validate datasource config, please wait for a while ...")
                 await websocket.send(json.dumps(payload))
@@ -3111,7 +3123,6 @@ class DataSource():
                         continue
                     if loadResult["data"]["result"]["status"] is None:
                         continue
-
                     if loadResult["data"]["result"]["status"] != "ready":
                         res = False
                     else:
@@ -3131,22 +3142,24 @@ class DataSource():
                     return res
 
         try:
-            asyncio.get_event_loop().run_until_complete(l())
+            asyncio.run(l())
         except Exception as e:
             logger.warn("load schema exception, err is: {}", e)
         logger.info("datasource valid finished, will check table schema now, please wait for a while ...")
         start_time = time.time()
-        while True:
+        for _ in range(24):
             try:
                 time.sleep(5)
                 res = req.get("/Connections/" + self.id)
                 res = res.json()
                 if res["data"] is None:
                     break
-                if "loadFieldsStatus" not in res["data"]:
-                    continue
+                if res["data"]["loadFieldsStatus"] == "invalid":
+                    break
                 if res["data"]["loadFieldsStatus"] == "finished":
                     break
+                if "loadFieldsStatus" not in res["data"]:
+                    continue
                 loadCount = res["data"].get("loadCount", 0)
                 tableCount = res["data"].get("tableCount", 1)
                 logger.info("table schema check percent is: {}%", int(loadCount / tableCount * 100), wrap=False)
