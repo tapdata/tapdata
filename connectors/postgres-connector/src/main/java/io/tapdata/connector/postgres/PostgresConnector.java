@@ -32,6 +32,11 @@ import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import org.postgresql.geometric.*;
+import org.postgresql.jdbc.PgArray;
+import org.postgresql.jdbc.PgSQLXML;
+import org.postgresql.util.PGInterval;
+import org.postgresql.util.PGobject;
 
 import java.sql.SQLException;
 import java.util.*;
@@ -186,6 +191,40 @@ public class PostgresConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapArrayValue.class, "text", tapValue -> {
             if (tapValue != null && tapValue.getValue() != null) return toJson(tapValue.getValue());
             return "null";
+        });
+
+        codecRegistry.registerToTapValue(PgArray.class, (value, tapType) ->  new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PgSQLXML.class, (value, tapType) -> {
+            try {
+                return  new TapStringValue(((PgSQLXML)value).getString());
+            }catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        codecRegistry.registerToTapValue(PGbox.class, (value, tapType) ->  new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGcircle.class, (value, tapType) ->  new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGline.class, (value, tapType) ->  new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGlseg.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGpath.class, (value, tapType) ->  new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGobject.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGpoint.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGpolygon.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGInterval.class, (value, tapType) -> {
+            int hours = ((PGInterval) value).getHours();
+            int minutes = ((PGInterval) value).getMinutes();
+            double seconds = ((PGInterval) value).getSeconds();
+            String time = hours + ":" + minutes + ":" + seconds;
+            return new TapStringValue(time);
         });
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
