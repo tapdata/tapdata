@@ -35,8 +35,8 @@ public class TestCoding extends CodingStarter{
             String token = connectionConfig.getString("token");
             CodingHttp.create(
                     HttpEntity.create().builder("Authorization",this.tokenSetter(token)).getEntity(),
-                    null,
-                    String.format(CONNECTION_URL, connectionConfig.get("teamName"))
+                    HttpEntity.create().builder("Action","DescribeCodingCurrentUser").getEntity(),
+                    String.format(OPEN_API_URL, connectionConfig.get("teamName"))
             ).post();
             return testItem(CodingTestItem.CONNECTION_TEST.getContent(),TestItem.RESULT_SUCCESSFULLY);
         }catch (Exception e){
@@ -56,11 +56,11 @@ public class TestCoding extends CodingStarter{
           connectionConfig.put("token",token);
           Map<String,Object> resultMap = CodingHttp.create(
                   headers,
-                  null,
-                  String.format(TOKEN_URL,connectionConfig.get("teamName"))
+                  HttpEntity.create().builderIfNotAbsent("Action","DescribeTeamMembers").builder("PageNumber",1).builder("PageSize",1).getEntity(),
+                  String.format(OPEN_API_URL,connectionConfig.get("teamName"))
           ).post();
 
-          if (null==resultMap || null==resultMap.get("id")){
+          if (null==resultMap || null==resultMap.get("Response")){
               throw new Exception("Incorrect token entered!");
           }
           return testItem(CodingTestItem.TOKEN_TEST.getContent(),TestItem.RESULT_SUCCESSFULLY);

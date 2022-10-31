@@ -3,7 +3,6 @@ package io.tapdata.coding.service.schema;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.field;
 import static io.tapdata.entity.simplify.TapSimplify.table;
@@ -32,15 +31,5 @@ public class Comments implements SchemaStart {
                 .add(field("Content", "StringLonger"))
                 .add(field("CreatedAt", JAVA_Long))
                 .add(field("UpdatedAt", JAVA_Long))   ;
-    }
-
-    @Override
-    public TapTable csv(TapConnectionContext connectionContext) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> autoSchema(Map<String, Object> eventData) {
-        return null;
     }
 }

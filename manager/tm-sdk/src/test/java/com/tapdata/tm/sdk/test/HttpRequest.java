@@ -21,6 +21,8 @@
  */
 package com.tapdata.tm.sdk.test;
 
+import org.junit.Ignore;
+
 import javax.net.ssl.*;
 import java.io.*;
 import java.net.*;
@@ -50,6 +52,7 @@ import static java.net.Proxy.Type.HTTP;
  * Each instance supports making a single request and cannot be reused for
  * further requests.
  */
+@Ignore
 public class HttpRequest {
 
 	/**

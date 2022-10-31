@@ -75,6 +75,7 @@ import com.tapdata.tm.ws.handler.EditFlushHandler;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -919,6 +920,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (!TaskOpStatusEnum.to_renew_status.v().contains(status)) {
             //需要停止的时候才可以操作
             log.info("The current status of the task does not allow resetting, task name = {}, status = {}", taskDto.getName(), status);
+
+            if (TaskDto.STATUS_DELETING.equals(status) || TaskDto.STATUS_DELETE_FAILED.equals(status)) {
+                throw new BizException("Task.Deleted");
+            }
             throw new BizException("Task.statusIsNotStop");
         }
 
@@ -2291,7 +2296,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-            this.update(new Query(Criteria.where("id").is(taskDto.getId())), Update.update("startTime", null).set("lastStartDate", null));
+
+            Update update = Update.update("startTime", null).set("lastStartDate", null);
+            String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
+            update.set("name", taskDto.getName() + nameSuffix);
+            this.update(new Query(Criteria.where("id").is(taskDto.getId())), update);
 
             updateStatus(taskDto.getId(), DataSyncMq.OP_TYPE_RESET.equals(opType) ? TaskDto.STATUS_RENEWING : TaskDto.STATUS_DELETING);
 
@@ -2406,6 +2415,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //校验当前状态是否允许启动。
         if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
             log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
+            if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus()) || TaskDto.STATUS_DELETE_FAILED.equals(taskDto.getStatus())) {
+                throw new BizException("Task.Deleted");
+            }
             throw new BizException("Task.StartStatusInvalid");
         }
 
@@ -2589,6 +2601,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //将状态改为暂停中，给flowengin发送暂停消息，在回调的消息中将任务改为已暂停
         Update update = Update.update("status", pauseStatus);
+        if (!force) {
+            update.set("stoppingTime", new Date());
+        }
         if (restart) {
             update.set("restartFlag", true).set("restartUserId", user.getUserId());
         }

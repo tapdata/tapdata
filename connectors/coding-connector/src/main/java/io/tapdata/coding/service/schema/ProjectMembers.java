@@ -65,11 +65,6 @@ public class ProjectMembers implements SchemaStart {
 
     }
 
-    @Override
-    public TapTable csv(TapConnectionContext connectionContext) {
-        return null;
-    }
-
     /**
      * "member":{
      *      *         "id": 8647278,
