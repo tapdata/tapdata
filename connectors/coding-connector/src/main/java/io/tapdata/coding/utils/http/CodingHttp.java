@@ -113,7 +113,7 @@ public class CodingHttp {
 //            return new HashMap<String,Object>(){{put(errorKey,"Coding request error - message: "+errorMessage+",code: "+code);}};
             throw new RuntimeException("Coding request error - message: " + errorMessage + ", code: " + code + " requestId " + response.get("RequestId"));
         }
-        return response;
+        return result;
     }
 
     private final String errorKey = "ERROR";
