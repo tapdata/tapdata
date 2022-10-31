@@ -108,14 +108,14 @@ public class CodingHttp {
         Object error = result.get("Error");
         if (null != error){
             String errorMessage = String.valueOf(((Map<String,Object>)error).get("Message"));
-            String code = String.valueOf(((Map<String,Object>)error).get("Code"));
-            return new HashMap<String,Object>(){{put(errorKey,"Coding request error - message: "+errorMessage+",code: "+code);}};
+            //String code = String.valueOf(((Map<String,Object>)error).get("Code"));
+            return new HashMap<String,Object>(){{put(errorKey,"Coding request error - message: "+errorMessage);}};
         }
         error = response.get("Error");
         if (null != error){
             String errorMessage = String.valueOf(((Map<String,Object>)error).get("Message"));
-            String code = String.valueOf(((Map<String,Object>)error).get("Code"));
-            throw new RuntimeException("Coding request error - message: " + errorMessage + ", code: " + code + " requestId " + response.get("RequestId"));
+            //String code = String.valueOf(((Map<String,Object>)error).get("Code"));
+            throw new RuntimeException("Coding request error - message: " + errorMessage);
         }
         return result;
     }

@@ -35,7 +35,7 @@ public class TestCoding extends CodingStarter{
             String token = connectionConfig.getString("token");
             CodingHttp.create(
                     HttpEntity.create().builder("Authorization",this.tokenSetter(token)).getEntity(),
-                    HttpEntity.create().builderIfNotAbsent("Action","DescribeTeamMembers").builder("PageNumber",1).builder("PageSize",1).getEntity(),
+                    HttpEntity.create().builder("Action","DescribeCodingCurrentUser").getEntity(),
                     String.format(OPEN_API_URL, connectionConfig.get("teamName"))
             ).post();
             return testItem(CodingTestItem.CONNECTION_TEST.getContent(),TestItem.RESULT_SUCCESSFULLY);
@@ -56,7 +56,7 @@ public class TestCoding extends CodingStarter{
           connectionConfig.put("token",token);
           Map<String,Object> resultMap = CodingHttp.create(
                   headers,
-                  HttpEntity.create().builder("Action","DescribeCodingCurrentUser").getEntity(),
+                  HttpEntity.create().builderIfNotAbsent("Action","DescribeTeamMembers").builder("PageNumber",1).builder("PageSize",1).getEntity(),
                   String.format(OPEN_API_URL,connectionConfig.get("teamName"))
           ).post();
 
