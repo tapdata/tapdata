@@ -4,8 +4,6 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
-import io.debezium.time.Date;
-import io.debezium.time.MicroTimestamp;
 import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.common.ddl.type.DDLParserType;
@@ -50,6 +48,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
@@ -115,9 +114,17 @@ public class MysqlReader implements Closeable {
 					for (int i = 0; i < metaData.getColumnCount(); i++) {
 						String columnName = metaData.getColumnName(i + 1);
 						try {
-							Object value = rs.getObject(i + 1);
-							if (null == value && dateTypeSet.contains(columnName)) {
+							Object value;
+							try {
+								value = rs.getObject(i + 1);
+							}catch (SQLException e) {
+								// time "-838:59:59",
+								// "838:59:59" 所以特殊处理
 								value = rs.getString(i + 1);
+								String type = metaData.getColumnTypeName(i + 1);
+								if("TIME".equals(type)){
+									value=	MysqlUtil.convertTime(value);
+								}
 							}
 							data.put(columnName, value);
 							if (pks.contains(columnName)) {
@@ -157,9 +164,15 @@ public class MysqlReader implements Closeable {
 					for (int i = 0; i < metaData.getColumnCount(); i++) {
 						String columnName = metaData.getColumnName(i + 1);
 						try {
-							Object value = rs.getObject(i + 1);
-							if (null == value && dateTypeSet.contains(columnName)) {
+							Object value;
+							try {
+								value = rs.getObject(i + 1);
+							}catch (SQLException e) {
 								value = rs.getString(i + 1);
+								String type = metaData.getColumnTypeName(i + 1);
+								if("TIME".equals(type)){
+									value=	MysqlUtil.convertTime(value);
+								}
 							}
 							data.put(columnName, value);
 						} catch (Exception e) {
