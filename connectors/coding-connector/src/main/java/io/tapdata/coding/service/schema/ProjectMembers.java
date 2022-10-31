@@ -20,7 +20,10 @@ public class ProjectMembers implements SchemaStart {
     public String tableName() {
         return "ProjectMembers";
     }
-
+    @Override
+    public boolean connection(TapConnectionContext tapConnectionContext) {
+        return false;
+    }
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
         /**

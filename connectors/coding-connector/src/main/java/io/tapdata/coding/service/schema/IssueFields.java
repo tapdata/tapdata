@@ -33,7 +33,10 @@ public class IssueFields implements SchemaStart {
                 .add(field("UpdatedAt", JAVA_Long)) ;
     }
 
-
+    @Override
+    public boolean connection(TapConnectionContext tapConnectionContext) {
+        return false;
+    }
     /**
      * {
      *         "IssueFieldId": 1,

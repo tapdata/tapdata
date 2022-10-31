@@ -14,6 +14,8 @@ public interface SchemaStart {
     public Boolean use();
     public String tableName();
 
+    public boolean connection(TapConnectionContext tapConnectionContext);
+
     public TapTable document(TapConnectionContext connectionContext);
 
     public default TapTable csv(TapConnectionContext connectionContext) {
@@ -40,14 +42,15 @@ public interface SchemaStart {
         return null;
     }
 
-    public static List<SchemaStart> getAllSchemas(){
+    public static List<SchemaStart> getAllSchemas(TapConnectionContext tapConnectionContext){
         //Reflections reflections = new Reflections("io.tapdata.coding.service.schema");//SchemaStart.class.getPackage().getName()
-        //Set<Class<? extends SchemaStart>> allImplClass = reflections.getSubTypesOf(SchemaStart.class);
-        Set<Class<? extends SchemaStart>> allImplClass = new HashSet<Class<? extends SchemaStart>>(){{
-            add(Issues.class);
-            add(Iterations.class);
-            add(ProjectMembers.class);
-        }};
+//        Set<Class<? extends SchemaStart>> allImplClass = reflections.getSubTypesOf(SchemaStart.class);
+        Set<Class<? extends SchemaStart>> allImplClass = new HashSet<>();
+        try {
+            EnabledSchemas.getAllSchemas(tapConnectionContext,allImplClass);
+        }catch (Exception e){
+            TapLogger.info(TAG,e.getMessage());
+        }
         List<SchemaStart> schemaList = new ArrayList<>();
         allImplClass.forEach(schemaClass->{
             SchemaStart schema = null;

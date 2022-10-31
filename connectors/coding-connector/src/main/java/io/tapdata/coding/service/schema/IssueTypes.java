@@ -18,7 +18,10 @@ public class IssueTypes implements SchemaStart {
     public String tableName() {
         return "IssueTypes";
     }
-
+    @Override
+    public boolean connection(TapConnectionContext tapConnectionContext) {
+        return false;
+    }
     /**
      * {
      *       "Id": 1,

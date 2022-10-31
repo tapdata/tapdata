@@ -149,7 +149,7 @@ public class CodingConnector extends ConnectorBase {
 
 	private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long time) {
 		Long date = time != null ? time: System.currentTimeMillis();
-		List<SchemaStart> allSchemas = SchemaStart.getAllSchemas();
+		List<SchemaStart> allSchemas = SchemaStart.getAllSchemas(tapConnectorContext);
 		return CodingOffset.create(allSchemas.stream().collect(Collectors.toMap(
 				schema -> ((SchemaStart)schema).tableName(),
 				schema -> date
