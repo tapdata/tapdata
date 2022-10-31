@@ -130,7 +130,7 @@ public class TapdataTaskScheduler {
 			TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
 			if (taskDto != null) {
 				if (taskClientMap.containsKey(taskDto.getId().toHexString())) {
-					logger.info("the [task {}, id {}] is being executed, ignore the scheduling.", taskDto.getName(), taskDto.getId().toHexString());
+					logger.info("The [task {}, id {}] is being executed, ignore the scheduling.", taskDto.getName(), taskDto.getId().toHexString());
 					return;
 				}
 				try {
@@ -202,7 +202,7 @@ public class TapdataTaskScheduler {
 				final String status = subTaskDtoTaskClient.getStatus();
 				if (TaskDto.STATUS_ERROR.equals(status)) {
 					errorTask(subTaskDtoTaskClient);
-				} else if (TaskDto.STATUS_STOP.equals(status)) {
+				} else if (TaskDto.STATUS_STOP.equals(status) || TaskDto.STATUS_STOPPING.equals(status)) {
 					stopTask(subTaskDtoTaskClient);
 				} else if (TaskDto.STATUS_COMPLETE.equals(status)) {
 					completeTask(subTaskDtoTaskClient);
