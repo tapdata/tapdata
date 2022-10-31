@@ -16,6 +16,7 @@ import io.tapdata.pdk.apis.context.TapProcessorContext;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.ProcessorFunctions;
+import io.tapdata.pdk.apis.functions.common.MemoryFetcherFunctionV2;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.dag.TapDAGNode;
@@ -354,6 +355,7 @@ public class PDKIntegration {
             PDKInvocationMonitor.getInstance().invokePDKMethod(connectionNode, PDKMethod.REGISTER_CAPABILITIES,
                     connectionNode::registerCapabilities,
                     MessageFormat.format("call connection functions {0} associateId {1}", TapNodeSpecification.idAndGroup(pdkId, group, version), associateId), TAG);
+            connectionNode.registerMemoryFetcher();
             return connectionNode;
         }
     }
@@ -384,6 +386,7 @@ public class PDKIntegration {
             PDKInvocationMonitor.getInstance().invokePDKMethod(connectorNode, PDKMethod.REGISTER_CAPABILITIES,
                     connectorNode::registerCapabilities,
                     MessageFormat.format("call source functions {0} associateId {1}", TapNodeSpecification.idAndGroup(pdkId, group, version), associateId), TAG);
+            connectorNode.registerMemoryFetcher();
             return connectorNode;
         }
     }
@@ -459,9 +462,12 @@ public class PDKIntegration {
         memoryManager.unregister(key);
     }
 
-    public static String outputMemoryFetchers(String keyRegex, String mapType) {
+    public static String outputMemoryFetchers(List<String> keys, String keyRegex, String memoryLevel) {
         init();
-        return memoryManager.output(keyRegex, mapType);
+        return memoryManager.output(keys, keyRegex, memoryLevel);
     }
-
+    public static DataMap outputMemoryFetchersInDataMap(List<String> keys, String keyRegex, String memoryLevel) {
+        init();
+        return memoryManager.outputDataMap(keys, keyRegex, memoryLevel);
+    }
 }

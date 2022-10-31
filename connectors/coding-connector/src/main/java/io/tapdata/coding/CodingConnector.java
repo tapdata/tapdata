@@ -20,6 +20,7 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.LastData;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -33,10 +34,9 @@ import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.tapdata.coding.enums.TapEventTypes.*;
@@ -53,6 +53,8 @@ public class CodingConnector extends ConnectorBase {
 
 	private Long lastTimePoint;
 	private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
+
+	private LastData lastCommandResult;
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -89,9 +91,16 @@ public class CodingConnector extends ConnectorBase {
 				//.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
 				.supportRawDataCallbackFilterFunctionV2(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
+				.supportMemoryFetcherV2(this::memoryFetcher)
 		;
 		this.connectorFunctions = connectorFunctions;
 	}
+
+	private DataMap memoryFetcher(String keyRegex, String memoryLevel) {
+		return DataMap.create().kv("lastCommandResult", lastCommandResult);
+	}
+
+
 	private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo){
 		return this.handleCommandV2(tapConnectionContext, commandInfo);
 	}
@@ -205,7 +214,7 @@ public class CodingConnector extends ConnectorBase {
 		return new CommandResult().result(pageResult);
 	}
 	private CommandResult handleCommandV2(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
-		return Command.command(tapConnectionContext,commandInfo);
+		return LastData.traceLastData(() -> Command.command(tapConnectionContext, commandInfo), lastData -> this.lastCommandResult = lastData);
 	}
 	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, List<String> tables, Map<String, Object> issueEventData){
 		return rawDataCallbackFilterFunctionV2(connectorContext,tables, issueEventData);
