@@ -86,7 +86,7 @@ public class InitialPdkCursor implements IDataCursor<CompareRecord> {
                 CompareRecord record = queue.poll(100L, TimeUnit.MILLISECONDS);
                 if (null != record) {
                     codecsFilterManager.transformToTapValueMap(record.getData(), tapTable.getNameFieldMap());
-                    defaultCodecsFilterManager.transformFromTapValueMap(record.getData());
+//                    defaultCodecsFilterManager.transformFromTapValueMap(record.getData());
                     return record;
                 }
 

@@ -81,7 +81,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
@@ -189,10 +188,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Boolean submit = updateDto.getSubmit();
 		String oldName = updateCheck(user, updateDto);
 
-		if (updateDto.getLoadAllTables() != null && updateDto.getLoadAllTables()) {
-			updateDto.setTable_filter("");
-		}
-
 		Assert.isFalse(StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), updateDto.getAccessNodeType())
 				&& CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
 
@@ -210,13 +205,21 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 		DataSourceEntity entity = convertToEntity(DataSourceEntity.class, updateDto);
 
-		//由于accessNodeProcessIdList的get方法会返回空数组，当调用这个接口，并且这个参数为空时，会默认将这个参数改成空数组。
-		if (updateDto.getTrueAccessNodeProcessIdList() == null) {
-			entity.setAccessNodeProcessIdList(null);
+		Update update = repository.buildUpdateSet(entity, user);
+
+		if (StringUtils.equals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), updateDto.getAccessNodeType())) {
+			update.unset("accessNodeProcessId");
+			update.set("accessNodeProcessIdList", Lists.of());
 		}
 
-		entity = repository.save(entity, user);
-		BeanUtils.copyProperties(entity, updateDto);
+		if (updateDto.getLoadAllTables() != null && updateDto.getLoadAllTables()) {
+			update.set("table_filter", null);
+		}
+
+		updateById(updateDto.getId(), update, user);
+
+		updateDto = findById(updateDto.getId(), user);
+
 		updateAfter(user, updateDto, oldName, submit);
 
 		hiddenMqPasswd(updateDto);
@@ -1265,7 +1268,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 //						}
 						for (TapTable table : tables) {
 							String expression = definitionDto.getExpression();
-							PdkSchemaConvert.tableFieldTypesGenerator.autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+							PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
 						}
 
 						List<MetadataInstancesDto> newModels = tables.stream().map(tapTable -> {
@@ -1792,4 +1795,5 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		private String _id;
 		private long count;
 	}
+
 }

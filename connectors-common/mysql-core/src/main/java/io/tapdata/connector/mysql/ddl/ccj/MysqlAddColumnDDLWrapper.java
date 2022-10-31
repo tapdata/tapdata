@@ -55,39 +55,32 @@ public class MysqlAddColumnDDLWrapper extends MysqlDDLWrapper {
                 List<String> columnSpecs = columnDataType.getColumnSpecs();
                 String preSpec = "";
                 for (String columnSpec : columnSpecs) {
-                    columnSpec = columnSpec.toLowerCase();
-                    switch (columnSpec) {
+                    String lowerColumnSpec = columnSpec.toLowerCase();
+                    switch (lowerColumnSpec) {
                         case "not":
-                        case "NOT":
                         case "default":
-                        case "DEFAULT":
                         case "comment":
-                        case "COMMENT":
-                            preSpec = columnSpec;
+                            preSpec = lowerColumnSpec;
                             break;
                         case "null":
-                        case "NULL":
-                            boolean nullable = !"not".equals(preSpec) || !"NOT".equals(preSpec);
-                            tapField.nullable(nullable);
+                            tapField.nullable(!"not".equals(preSpec));
                             preSpec = "";
                             break;
                         case "key":
-                        case "KEY":
                             if (EmptyKit.isBlank(preSpec)) {
                                 tapField.primaryKeyPos(null != tapTable ? (tapTable.getMaxPKPos() + 1) : 1);
                                 preSpec = "";
                             }
                             break;
                         case "auto_increment":
-                        case "AUTO_INCREMENT":
                             tapField.autoInc(true);
                             preSpec = "";
                             break;
                         default:
-                            if ("default".equals(preSpec) || "DEFAULT".equals(preSpec) ) {
+                            if ("default".equals(preSpec)) {
                                 tapField.defaultValue(StringKit.removeHeadTail(columnSpec, "'", null));
                                 preSpec = "";
-                            } else if ("comment".equals(preSpec) || "COMMENT".equals(preSpec)) {
+                            } else if ("comment".equals(preSpec)) {
                                 tapField.comment(StringKit.removeHeadTail(columnSpec, "'", null));
                                 preSpec = "";
                             }

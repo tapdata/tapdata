@@ -2428,7 +2428,24 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())
                     && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-                taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
+
+                List<Worker> availableAgent = workerService.findAvailableAgent(user);
+                List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
+                String agentId = null;
+                for (String p : taskDto.getAccessNodeProcessIdList()) {
+                    if (processIds.contains(p)) {
+                        agentId = p;
+                        break;
+                    }
+                }
+                if (StringUtils.isBlank(agentId)) {
+                    //任务指定的agent已经停用，当前操作不给用。
+                    throw new BizException("Agent.DesignatedAgentNotAvailable");
+
+                }
+
+                taskDto.setAgentId(agentId);
+
             } else {
                 List<Worker> availableAgent = workerService.findAvailableAgent(user);
                 if (CollectionUtils.isNotEmpty(availableAgent)) {
@@ -3247,7 +3264,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
 
             Map<String, UserDetail> finalUserMap = userMap;
-            taskList.forEach(taskDto -> run(taskDto, finalUserMap.get(taskDto.getUserId())));
+            for (TaskDto taskDto : taskList) {
+                run(taskDto, finalUserMap.get(taskDto.getUserId()));
+                //启动过后，应该更新掉这个自动启动计划
+                Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
+                updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
+            }
+
 
         }
     }

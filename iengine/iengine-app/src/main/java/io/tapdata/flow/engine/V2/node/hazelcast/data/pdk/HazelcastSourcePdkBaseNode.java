@@ -394,12 +394,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							// Handle new table(s)
 							if (CollectionUtils.isNotEmpty(addList)) {
 								logger.info("Found new table(s): " + addList);
+								obsLogger.info("Found new table(s): " + addList);
 								addList.forEach(a -> removeTables.remove(a));
 								List<TapTable> addTapTables = new ArrayList<>();
 								List<TapdataEvent> tapdataEvents = new ArrayList<>();
 								// Load schema
 								LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, addTapTables::add);
 								logger.info("Load new table's schema finished");
+								obsLogger.info("Load new table's schema finished");
 								if (CollectionUtils.isEmpty(addTapTables)) {
 									String error = "Load new table schema failed, expect table count: " + addList.size() + ", actual: 0";
 									errorHandle(new RuntimeException(error), error);
@@ -435,6 +437,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 										.tapdataEvents(tapdataEvents));
 								if (this.endSnapshotLoop.get()) {
 									logger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
+									obsLogger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
 									// Restart source runner
 									if (null != sourceRunner) {
 										this.sourceRunnerFirstTime.set(false);
@@ -639,21 +642,26 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (tapEvent instanceof TapCreateTableEvent) {
 					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable, processorBaseContext.getTaskDto().getId().toHexString());
 					logger.info("Create new table in memory, qualified name: " + qualifiedName);
+					obsLogger.info("Create new table in memory, qualified name: " + qualifiedName);
 					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
 					insertMetadata.add(metadata);
 					logger.info("Create new table schema transform finished: " + tapTable);
+					obsLogger.info("Create new table schema transform finished: " + tapTable);
 				} else if (tapEvent instanceof TapDropTableEvent) {
 					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(((TapDropTableEvent) tapEvent).getTableId());
 					logger.info("Drop table in memory qualified name: " + qualifiedName);
+					obsLogger.info("Drop table in memory qualified name: " + qualifiedName);
 					dagDataService.dropTable(qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					removeMetadata.add(qualifiedName);
 					logger.info("Drop table schema transform finished");
+					obsLogger.info("Drop table schema transform finished");
 				} else {
 					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tableId);
 					logger.info("Alter table in memory, qualified name: " + qualifiedName);
+					obsLogger.info("Alter table in memory, qualified name: " + qualifiedName);
 					dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
@@ -662,6 +670,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 					updateMetadata.put(metadata.getId().toHexString(), metadata);
 					logger.info("Alter table schema transform finished");
+					obsLogger.info("Alter table schema transform finished");
 				}
 				tapEvent.addInfo(INSERT_METADATA_INFO_KEY, insertMetadata);
 				tapEvent.addInfo(UPDATE_METADATA_INFO_KEY, updateMetadata);
