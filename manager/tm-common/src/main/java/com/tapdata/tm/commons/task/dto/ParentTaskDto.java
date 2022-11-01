@@ -241,7 +241,7 @@ public class ParentTaskDto extends SchedulableDto {
         if (null == stoppingTime) {
             return null;
         }
-        return System.currentTimeMillis() - stoppingTime.getTime() < 60 * 1000L;
+        return System.currentTimeMillis() - stoppingTime.getTime() > 60 * 1000L;
     }
 
     public List<String> getAccessNodeProcessIdList() {

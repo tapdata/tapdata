@@ -6,6 +6,7 @@ import com.alibaba.fastjson.parser.ParserConfig;
 import com.alibaba.fastjson.parser.deserializer.ObjectDeserializer;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import io.tapdata.entity.annotations.Implementation;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.utils.DataMap;
@@ -16,11 +17,14 @@ import io.tapdata.pdk.core.utils.TapConstants;
 
 import java.lang.reflect.Type;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 @Implementation(JsonParser.class)
 public class JsonParserImpl implements JsonParser {
+    private static final String TAG = JsonParserImpl.class.getSimpleName();
+
     public JsonParser configGlobalAbstractClassDetectors(Class<?> type, List<AbstractClassDetector> abstractClassDetectors) {
         ParserConfig.global.putDeserializer(type, new AbstractResultDeserializer(abstractClassDetectors));
         return this;
@@ -68,12 +72,32 @@ public class JsonParserImpl implements JsonParser {
 
     @Override
     public String toJson(Object obj, ToJsonFeature... features) {
-        if (features != null && features.length > 0) {
-            //XXX to force adding WriteMapNullValue feature as the only one we have.
-            return JSON.toJSONString(obj, SerializerFeature.DisableCircularReferenceDetect, SerializerFeature.WriteMapNullValue/*, SerializerFeature.SortField, SerializerFeature.MapSortField*/);
-        } else {
-            return JSON.toJSONString(obj, SerializerFeature.DisableCircularReferenceDetect/*, SerializerFeature.SortField, SerializerFeature.MapSortField*/);
+        List<SerializerFeature> features1 = new ArrayList<>();;
+        features1.add(SerializerFeature.DisableCircularReferenceDetect);
+        if(features != null) {
+            for(ToJsonFeature feature : features) {
+                switch (feature) {
+                    case PrettyFormat:
+                        features1.add(SerializerFeature.PrettyFormat);
+                        break;
+                    case WriteMapNullValue:
+                        features1.add(SerializerFeature.WriteMapNullValue);
+                        break;
+                    default:
+                        TapLogger.warn(TAG, "Unsupported ToJsonFeature {}", feature);
+                        break;
+                }
+            }
         }
+        SerializerFeature[] serializerFeatures = new SerializerFeature[features1.size()];
+        features1.toArray(serializerFeatures);
+        return JSON.toJSONString(obj, serializerFeatures);
+//        if (features != null && features.length > 0) {
+//            //XXX to force adding WriteMapNullValue feature as the only one we have.
+//            return JSON.toJSONString(obj, SerializerFeature.DisableCircularReferenceDetect, SerializerFeature.WriteMapNullValue/*, SerializerFeature.SortField, SerializerFeature.MapSortField*/);
+//        } else {
+//            return JSON.toJSONString(obj, SerializerFeature.DisableCircularReferenceDetect/*, SerializerFeature.SortField, SerializerFeature.MapSortField*/);
+//        }
     }
 
     @Override

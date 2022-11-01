@@ -1,11 +1,10 @@
 package io.tapdata.coding.service.schema;
 
-import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.utils.tool.Checker;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import org.reflections.Reflections;
 
 import java.util.*;
 
@@ -15,11 +14,17 @@ public interface SchemaStart {
     public Boolean use();
     public String tableName();
 
+    public boolean connection(TapConnectionContext tapConnectionContext);
+
     public TapTable document(TapConnectionContext connectionContext);
 
-    public TapTable csv(TapConnectionContext connectionContext);
+    public default TapTable csv(TapConnectionContext connectionContext) {
+        throw new CoreException("May be not support CSV for "+this.tableName()+" Schema.");
+    }
 
-    public Map<String,Object> autoSchema(Map<String,Object> eventData);
+    public default Map<String,Object> autoSchema(Map<String,Object> eventData) {
+        throw new CoreException("May be not support "+this.tableName()+" to autoSchema.");
+    }
 
     public static SchemaStart getSchemaByName(String schemaName){
         if (Checker.isEmpty(schemaName)) return null;
@@ -37,14 +42,15 @@ public interface SchemaStart {
         return null;
     }
 
-    public static List<SchemaStart> getAllSchemas(){
+    public static List<SchemaStart> getAllSchemas(TapConnectionContext tapConnectionContext){
         //Reflections reflections = new Reflections("io.tapdata.coding.service.schema");//SchemaStart.class.getPackage().getName()
-        //Set<Class<? extends SchemaStart>> allImplClass = reflections.getSubTypesOf(SchemaStart.class);
-        Set<Class<? extends SchemaStart>> allImplClass = new HashSet<Class<? extends SchemaStart>>(){{
-            add(Issues.class);
-            add(Iterations.class);
-            add(ProjectMembers.class);
-        }};
+//        Set<Class<? extends SchemaStart>> allImplClass = reflections.getSubTypesOf(SchemaStart.class);
+        Set<Class<? extends SchemaStart>> allImplClass = new HashSet<>();
+        try {
+            EnabledSchemas.getAllSchemas(tapConnectionContext,allImplClass);
+        }catch (Exception e){
+            TapLogger.info(TAG,e.getMessage());
+        }
         List<SchemaStart> schemaList = new ArrayList<>();
         allImplClass.forEach(schemaClass->{
             SchemaStart schema = null;
