@@ -202,19 +202,22 @@ public class AlarmServiceImpl implements AlarmService {
         if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM)) {
             String taskId = taskDto.getId().toHexString();
 
+            Date date = DateUtil.date();
             MessageEntity messageEntity = new MessageEntity();
             messageEntity.setLevel(info.getLevel().name());
             messageEntity.setAgentId(taskDto.getAgentId());
             messageEntity.setServerName(taskDto.getAgentId());
             messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
-            String title = StringUtils.replace(info.getSummary(),"$taskName", info.getName());
+            String summary = info.getSummary();
+            summary = summary + ", 通知时间：" + DateUtil.now();
+            String title = StringUtils.replace(summary,"$taskName", info.getName());
             messageEntity.setTitle(title);
 //                messageEntity.setSourceId();
             MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
             messageEntity.setMessageMetadata(metadata);
             messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
-            messageEntity.setCreateAt(new Date());
-            messageEntity.setLastUpdAt(new Date());
+            messageEntity.setCreateAt(date);
+            messageEntity.setLastUpdAt(date);
             messageEntity.setUserId(taskDto.getUserId());
             messageEntity.setRead(false);
             messageService.addMessage(messageEntity);

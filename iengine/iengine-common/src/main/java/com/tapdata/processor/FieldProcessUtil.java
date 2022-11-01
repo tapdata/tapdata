@@ -292,7 +292,7 @@ public class FieldProcessUtil {
 			}
 
 		} else {
-			MapUtilV2.putValueInMap(record, field, defaultValue);
+			MapUtilV2.putValueInMap(record, field, valueByKey);
 		}
 	}
 

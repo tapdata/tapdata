@@ -208,7 +208,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Update update = repository.buildUpdateSet(entity, user);
 
 		if (StringUtils.equals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), updateDto.getAccessNodeType())) {
-			update.unset("accessNodeProcessId");
+			update.set("accessNodeProcessId", null);
 			update.set("accessNodeProcessIdList", Lists.of());
 		}
 
