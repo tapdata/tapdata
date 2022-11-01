@@ -438,12 +438,12 @@ public class TableCreate extends BigQueryStart {
             "collation_name," +
             "column_default," +
             "rounding_mode" +
-            " FROM `%`.`%s`.INFORMATION_SCHEMA.COLUMNS WHERE table_name in( '%s');";
+            " FROM `%`.`%s`.INFORMATION_SCHEMA.COLUMNS WHERE table_name in( %s );";
     private Map<String, List<Map<String,Object>>> queryAllFields(String ... schemas){
         if (schemas.length<1) throw new CoreException("Not much number of schema to query column.");
         StringJoiner whereSql = new StringJoiner(",");
         for (String schema : schemas) {
-            whereSql.add(schema);
+            whereSql.add("'"+schema+"'");
         }
         BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(String.format(SELECT_COLUMNS_SQL, this.config.projectId(), this.config.tableSet(), whereSql.toString()));
         if (Checker.isEmpty(bigQueryResult)){

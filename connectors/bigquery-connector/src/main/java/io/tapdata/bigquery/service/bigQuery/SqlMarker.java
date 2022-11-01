@@ -4,6 +4,7 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.*;
 import io.tapdata.bigquery.entity.ContextConfig;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
@@ -61,13 +62,19 @@ public class SqlMarker{
             return execute(sql);
         }catch (BigQueryException | InterruptedException e){
             TapLogger.error(TAG,"Big Query execute error,{} , {}",e.getMessage(),sql);
+            throw new CoreException(String.format("%s Big Query execute error,%s , %s",TAG,e.getMessage(),sql));
+        }catch (Exception e){
+            throw e;
         }
-        return null;
     }
 
     private BigQueryResult execute(String sql) throws InterruptedException {
         QueryJobConfiguration queryConfig = QueryJobConfiguration.newBuilder(sql).build();
-        return BigQueryResult.create(this.bigQuery.query(queryConfig));
+        try {
+            return BigQueryResult.create(this.bigQuery.query(queryConfig));
+        }catch (Exception e){
+            throw new CoreException(e.getMessage());
+        }
     }
 
     private void bigQuery(){
