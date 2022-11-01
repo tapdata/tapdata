@@ -151,7 +151,7 @@ public class WriteRecord extends BigQueryStart{
                         writeListResult.incrementInserted(this.executeSql(sqlMarker,sql));
                     }else if(tapRecordEvent instanceof TapUpdateRecordEvent){
                         String sql = this.insertIfExitsUpdate(
-                                ((TapInsertRecordEvent)tapRecordEvent).getAfter()
+                                ((TapUpdateRecordEvent)tapRecordEvent).getAfter()
                                 ,tapTable
                                 ,tapRecordEvent
                         );
@@ -171,11 +171,11 @@ public class WriteRecord extends BigQueryStart{
             writeListResult.setInsertedCount(0);
             writeListResult.setModifiedCount(0);
             writeListResult.setRemovedCount(0);
+            writeListResultConsumer.accept(writeListResult);
             if (null != errorRecord) writeListResult.addError(errorRecord, e);
             throw e;
-        }finally {
-            writeListResultConsumer.accept(writeListResult);
         }
+        writeListResultConsumer.accept(writeListResult);
     }
 
     private long executeSql(SqlMarker sqlMarker,String sql){

@@ -330,10 +330,7 @@ public class TableCreate extends BigQueryStart {
         try {
             List<List<String>> partition = Lists.partition(new ArrayList<>(allTables.keySet()), partitionSize);
             partition.forEach(tableList -> {
-                StringJoiner tableJoin = new StringJoiner(",");
-                tableList.stream().filter(Objects::nonNull).forEach(tab->tableJoin.add(tab));
-
-                Map<String, List<Map<String,Object>>> columnListGroupByTableName = this.queryAllFields(tableJoin.toString());
+                Map<String, List<Map<String,Object>>> columnListGroupByTableName = this.queryAllFields(tableList);
 
                 List<TapTable> tempList = new ArrayList<>();
                 columnListGroupByTableName.forEach((tableName,fields)->{
@@ -447,7 +444,17 @@ public class TableCreate extends BigQueryStart {
             "column_default," +
             "rounding_mode" +
             " FROM `%s`.`%s`.INFORMATION_SCHEMA.COLUMNS WHERE table_name in( %s );";
-    private Map<String, List<Map<String,Object>>> queryAllFields(String ... schemas){
+    private Map<String, List<Map<String,Object>>> queryAllFields(List<String> schemas){
+        if (Checker.isEmptyCollection(schemas)){
+            throw new CoreException("Not any table should be query.");
+        }
+        String[] queryItem = new String[schemas.size()];
+        for (int i = 0; i < schemas.size(); i++) {
+            queryItem[i] = schemas.get(i);
+        }
+        return queryAllFields(queryItem);
+    }
+    private Map<String, List<Map<String,Object>>> queryAllFields(String... schemas){
         if (schemas.length<1) throw new CoreException("Not much number of schema to query column.");
         StringJoiner whereSql = new StringJoiner(",");
         for (String schema : schemas) {
