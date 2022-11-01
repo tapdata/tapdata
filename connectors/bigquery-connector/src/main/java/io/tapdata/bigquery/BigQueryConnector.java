@@ -5,10 +5,15 @@ import io.tapdata.bigquery.service.bigQuery.BigQueryConnectionTest;
 import io.tapdata.bigquery.service.bigQuery.TableCreate;
 import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.bigquery.service.command.Command;
+import io.tapdata.entity.codec.FromTapValueCodec;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -18,6 +23,7 @@ import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 
 import java.util.*;
@@ -49,14 +55,34 @@ public class BigQueryConnector extends ConnectorBase {
 
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+	    codecRegistry.registerFromTapValue(TapYearValue.class, "DATE", TapValue::getValue);
+	    codecRegistry.registerFromTapValue(TapMapValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
+        codecRegistry.registerFromTapValue(TapArrayValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
 //		codecRegistry.registerFromTapValue(TapMapValue.class, "json")
 		connectorFunctions.supportWriteRecord(this::writeRecord)
 				.supportCommandCallbackFunction(this::command)
-				.supportCreateTable(this::createTable)
+                .supportCreateTableV2(this::createTableV2)
+				.supportClearTable(this::clearTable)
+                .supportDropTable(this::dropTable)
 		;
 	}
 
-	private CommandResult command(TapConnectionContext context, CommandInfo commandInfo) {
+    private void createIndex(TapConnectorContext connectorContext, TapTable table, TapCreateIndexEvent createIndexEvent) {
+
+    }
+
+    private void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) {
+    }
+
+    private void clearTable(TapConnectorContext connectorContext, TapClearTableEvent clearTableEvent) {
+
+    }
+
+    private CreateTableOptions createTableV2(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) {
+        return null;
+    }
+
+    private CommandResult command(TapConnectionContext context, CommandInfo commandInfo) {
 		return Command.command(context,commandInfo);
 	}
 
