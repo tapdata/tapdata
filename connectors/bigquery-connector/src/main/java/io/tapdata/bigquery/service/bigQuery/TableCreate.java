@@ -93,9 +93,11 @@ public class TableCreate extends BigQueryStart {
 //                .append("; CREATE TABLE IF NOT EXISTS ")
 //                .append(tableSetName)
 //                .append(" (");
-        StringBuilder sql = new StringBuilder(" DROP TABLE IF NOT EXISTS ");
-        sql.append(tableSetName);
-        sql.append(" (");
+        StringBuilder sql = new StringBuilder(" DROP TABLE IF EXISTS ");
+        sql.append(tableSetName)
+                .append("; CREATE TABLE IF NOT EXISTS ")
+                .append(tableSetName)
+                .append(" (");
 
         //@TODO
         nameFieldMap.forEach((key,tapField)->{
