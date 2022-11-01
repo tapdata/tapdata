@@ -400,15 +400,18 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
+		List<DataMap> taskSubscribeInfos = new ArrayList<>();
 		DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
-//				.kv("maxFrequencyLimiter", maxFrequencyLimiter.toString())
-//				.kv("needSync", needSync.get())
-//				.kv("imClient", imClient.memory(keyRegex, memoryLevel))
+				.kv("taskSubscribeInfos", taskSubscribeInfos)
+				.kv("userId", userId)
+				.kv("processId", processId)
+				.kv("imClient", imClient.memory(keyRegex, memoryLevel))
 				;
+		for(TaskSubscribeInfo taskSubscribeInfo : this.taskSubscribeInfos) {
+			taskSubscribeInfos.add(taskSubscribeInfo.memory(keyRegex, memoryLevel));
+		}
 
-		//TODO not finished
-
-		return null;
+		return dataMap;
 	}
 
 	public String getUserId() {

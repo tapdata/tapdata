@@ -1,13 +1,11 @@
 package io.tapdata.coding.utils.http;
 
 import cn.hutool.http.*;
-import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.logger.TapLogger;
 
 import java.text.MessageFormat;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -59,6 +57,16 @@ public class CodingHttp {
         }
         return this.post(request);
     }
+    public Map<String,Object> postWithError(){
+        HttpRequest request = HttpUtil.createPost(url);
+        if (null != heads) {
+            request.addHeaders(this.heads.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> (String)e.getValue()))
+            );
+        }
+        return this.postWithError(request);
+    }
 
     /**
      * 这个post需要传参，能保持多次调用同一请求时避免创建重复的HttpRequest
@@ -66,6 +74,28 @@ public class CodingHttp {
      * @return
      */
     public Map<String,Object> post(HttpRequest request){
+        Map<String,Object> result = postWithError(request);
+        if(result == null)
+            throw new RuntimeException("Parse response empty, url: "+request.getUrl());
+        Map<String,Object> response = (Map<String, Object>) result.get("Response");
+        if(response == null)
+            throw new RuntimeException("Parse response empty, url: "+ request.getUrl());
+        Object error = result.get("Error");
+        if (null != error){
+            String errorMessage = String.valueOf(((Map<String,Object>)error).get("Message"));
+            //String code = String.valueOf(((Map<String,Object>)error).get("Code"));
+            return new HashMap<String,Object>(){{put(errorKey,"Coding request error - message: "+errorMessage);}};
+        }
+        error = response.get("Error");
+        if (null != error){
+            String errorMessage = String.valueOf(((Map<String,Object>)error).get("Message"));
+            //String code = String.valueOf(((Map<String,Object>)error).get("Code"));
+            throw new RuntimeException("Coding request error - message: " + errorMessage);
+        }
+        return result;
+    }
+
+    public Map<String,Object> postWithError(HttpRequest request){
         if (null == request){
             if (null != heads) {
                 request = HttpUtil.createPost(url).addHeaders(this.heads.entrySet()
@@ -87,32 +117,21 @@ public class CodingHttp {
         }
         if (null == execute){
             TapLogger.info(TAG,"Coding request error HttpResponse is null.");
-            throw new RuntimeException(MessageFormat.format("Coding request error HttpResponse is null. url {}", request.getUrl()));
+            throw new RuntimeException("Coding request error HttpResponse is null. url: "+request.getUrl());
 //            return Collections.emptyMap();
         }
         if ( execute.getStatus() != HttpStatus.HTTP_OK){
             TapLogger.info(TAG,"Coding request error http status:{}",execute.getStatus());
-            throw new RuntimeException(MessageFormat.format("Coding request error http status:{}, url {}", execute.getStatus(), request.getUrl()));
+            throw new RuntimeException("Coding request error http status:"+execute.getStatus()+", url "+request.getUrl());
 //            return Collections.emptyMap();
         }
         String body = execute.body();
         if (null == body || "".equals(body)){
             TapLogger.info(TAG,"Coding request error HttpResponse body is null or empty");
 //            return Collections.emptyMap();
-            throw new RuntimeException(MessageFormat.format("Coding request return empty body, url {}", request.getUrl()));
+            throw new RuntimeException("Coding request return empty body, url: "+request.getUrl());
         }
         Map<String,Object> result = JSONUtil.parseObj(execute.body());
-        Map<String,Object> response = (Map<String, Object>) result.get("Response");
-        if(response == null)
-            throw new RuntimeException(MessageFormat.format("Parse response empty, url {}", request.getUrl()));
-        Object error = response.get("Error");
-        if (null != error){
-            String errorMessage = String.valueOf(((Map<String,Object>)error).get("Message"));
-            String code = String.valueOf(((Map<String,Object>)error).get("Code"));
-            //TapLogger.info(TAG,"Coding request error - message: {},code: {}",errorMessage,code);
-//            return new HashMap<String,Object>(){{put(errorKey,"Coding request error - message: "+errorMessage+",code: "+code);}};
-            throw new RuntimeException("Coding request error - message: " + errorMessage + ", code: " + code + " requestId " + response.get("RequestId"));
-        }
         return result;
     }
 

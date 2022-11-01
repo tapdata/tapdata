@@ -929,6 +929,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 throw new BizException("Task.Deleted");
             }
             throw new BizException("Task.statusIsNotStop");
+        } else if (TaskDto.STATUS_WAIT_START.equals(status)) {
+            return;
         }
 
         log.debug("check task status complete, task name = {}", taskDto.getName());
@@ -943,9 +945,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         String lastTaskRecordId = new ObjectId().toString();
         //更新任务信息
-        Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId)
-                .unset("temp");
+        Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId).unset("temp");
         updateById(taskDto.getId(), update, user);
+
 
         taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         taskDto.setAgentId(null);
@@ -959,7 +961,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         // publish queue
         TaskEntity taskSnapshot = new TaskEntity();
         BeanUtil.copyProperties(taskDto, taskSnapshot);
-        disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+
+        disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
+                new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+
         renewNotSendMq(taskDto, user);
     }
 

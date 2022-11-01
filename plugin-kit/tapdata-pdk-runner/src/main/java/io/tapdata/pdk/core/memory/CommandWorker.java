@@ -117,22 +117,35 @@ public class CommandWorker implements Runnable {
         }
         DataMap allMap = DataMap.create().keyRegex(keyRegex);
         for(Map.Entry<String, MemoryFetcher> entry : finalMap.entrySet()) {
-            if(keys == null || keys.contains(entry.getKey())) {
+            if(keys == null || matchKeys(keys, entry.getKey())) {
                 allMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
             }
         }
         DataMap removedAllMap = DataMap.create().keyRegex(keyRegex);
         for(Map.Entry<String, MemoryManager.RemovedMemoryFetcher> entry : removedKeyMemoryFetcherMap.entrySet()) {
-            if(keys == null || keys.contains(entry.getKey())) {
-                removedAllMap.kv(entry.getKey(),
-                        map(
-                                entry("deleteTime", new Date(entry.getValue().getDeleteTime())),
-                                entry("memory", entry.getValue().getMemoryFetcher().memory(keyRegex, memoryLevel))
-                        ));
+            if(keys == null || matchKeys(keys, entry.getKey())) {
+                DataMap memory = entry.getValue().getMemoryFetcher().memory(keyRegex, memoryLevel);
+                if(memory != null) {
+                    removedAllMap.kv(entry.getKey(),
+                            map(
+                                    entry("deleteTime", new Date(entry.getValue().getDeleteTime())),
+                                    entry("memory", memory)
+                            ));
+                }
             }
         }
         allMap.kv("removed", removedAllMap);
         return allMap;
+    }
+
+    private boolean matchKeys(List<String> keys, String target) {
+        if(keys == null)
+            return false;
+        for(String key : keys) {
+            if(target.contains(key))
+                return true;
+        }
+        return false;
     }
 
     public void close() {

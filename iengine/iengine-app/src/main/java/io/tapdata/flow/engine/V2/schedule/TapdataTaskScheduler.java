@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -122,7 +123,7 @@ public class TapdataTaskScheduler {
 					new Criteria("agentId").is(instanceNo)
 							.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_WAIT_RUN)
 			);
-
+			query.with(Sort.by(DataFlow.PING_TIME_FIELD).ascending());
 			Update update = new Update();
 			update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
 			addAgentIdUpdate(update);

@@ -3,15 +3,13 @@ package io.tapdata.coding.service.loader;
 import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.enums.CodingEvent;
-import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.tool.Checker;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -26,11 +24,12 @@ public interface CodingLoader<T extends Param> {
 
     static final String TAG = CodingLoader.class.getSimpleName();
     public Long streamReadTime();
-    public void stopRead();
 
-    public CodingLoader connectorInit(CodingConnector codingConnector);
+//    public void stopRead();
 
-    public CodingLoader connectorOut();
+    public CodingStarter connectorInit(CodingConnector codingConnector);
+
+    public CodingStarter connectorOut();
 
     public static CodingLoader<Param> loader(TapConnectionContext tapConnectionContext, String tableName){
         Class clz = null;
@@ -83,9 +82,13 @@ public interface CodingLoader<T extends Param> {
     public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData);
 
     public default CodingEvent getRowDataCallBackEvent(Map<String, Object> eventData){
-        if (Checker.isEmpty(eventData)) return null;
+        if (Checker.isEmpty(eventData)) {
+            throw new CoreException("Row data call back event data is empty or null.");
+        }
         Object event = eventData.get("event");
-        if (Checker.isEmpty(event)) return null;
+        if (Checker.isEmpty(event)) {
+            throw new CoreException("Row data call back event type is empty or null.");
+        }
         String webHookEventType = String.valueOf(event);
         return CodingEvent.event(webHookEventType);
     }

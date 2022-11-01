@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import io.netty.channel.*;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.*;
@@ -394,5 +395,19 @@ public class WebsocketPushChannel extends PushChannel {
 
     public void setSid(String sid) {
         this.sid = sid;
+    }
+
+    @Override
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        return DataMap.create().keyRegex(keyRegex)
+                .kv("protocol", protocol)
+                .kv("wsPort", wsPort)
+                .kv("path", path)
+                .kv("host", host)
+//                .kv("key", key)
+                .kv("baseUrl", baseUrl)
+//                .kv("sid", sid)
+                .kv("isConnected", isConnected)
+                ;
     }
 }

@@ -1,12 +1,14 @@
 package io.tapdata.pdk.core.tapnode;
 
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 
-public class TapNodeInfo {
+public class TapNodeInfo implements MemoryFetcher {
     private TapNodeSpecification tapNodeSpecification;
 
     public static final String NODE_TYPE_SOURCE = "Source";
@@ -50,5 +52,10 @@ public class TapNodeInfo {
 
     public void setNodeType(String nodeType) {
         this.nodeType = nodeType;
+    }
+
+    @Override
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        return DataMap.create().kv("nodeType", nodeType).kv("nodeClass", nodeClass);
     }
 }

@@ -44,7 +44,7 @@ public interface Command {
             TapLogger.info(TAG, "Command result {}", result);
             return result;
         } catch (Throwable e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException(e.getMessage());
         }
     }
 
