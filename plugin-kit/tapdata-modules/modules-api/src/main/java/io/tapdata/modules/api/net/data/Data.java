@@ -37,9 +37,9 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
         TapEntityEx message = null;
         switch (contentEncode) {
             case ENCODE_JAVA_CUSTOM_SERIALIZER:
-                TapLogger.info(TAG, "toTapMessage contentType {}", contentType);
+//                TapLogger.info(TAG, "toTapMessage contentType {}", contentType);
                 message = (TapEntityEx) ClassFactory.create(TapEntity.class, contentType);
-                TapLogger.info(TAG, "toTapMessage message {}", message);
+//                TapLogger.info(TAG, "toTapMessage message {}", message);
                 if(message != null) {
                     try(ByteArrayInputStream bais = new ByteArrayInputStream(content)) {
                         message.from(bais);
@@ -72,7 +72,7 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
         byte[] data = null;
         switch (contentEncode) {
             case ENCODE_JAVA_CUSTOM_SERIALIZER:
-                TapLogger.info(TAG, "fromTapMessage message {}", toJson(message));
+//                TapLogger.info(TAG, "fromTapMessage message {}", toJson(message));
                 try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
                     message.to(baos);
                     data = baos.toByteArray();
