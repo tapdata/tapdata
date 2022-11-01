@@ -241,15 +241,18 @@ public class CustomConnector extends ConnectorBase {
         List<TapEvent> eventList = new ArrayList<>();
         Object lastContextMap = null;
         while (isAlive() && t.isAlive()) {
-            CustomEventMessage message = scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS);
-            if (EmptyKit.isNotNull(message)) {
-                eventList.add(message.getTapEvent());
-                lastContextMap = message.getContextMap();
-                if (eventList.size() == recordSize) {
-                    consumer.accept(eventList, lastContextMap);
-                    contextMap.set(lastContextMap);
-                    eventList = new ArrayList<>();
+            try {
+                CustomEventMessage message = scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS);
+                if (EmptyKit.isNotNull(message)) {
+                    eventList.add(message.getTapEvent());
+                    lastContextMap = message.getContextMap();
+                    if (eventList.size() == recordSize) {
+                        consumer.accept(eventList, lastContextMap);
+                        contextMap.set(lastContextMap);
+                        eventList = new ArrayList<>();
+                    }
                 }
+            } catch (InterruptedException ignore) {
             }
         }
         if (EmptyKit.isNotNull(scriptException.get())) {
