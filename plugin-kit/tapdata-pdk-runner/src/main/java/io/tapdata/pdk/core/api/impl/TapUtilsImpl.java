@@ -13,7 +13,9 @@ import io.tapdata.entity.utils.ReflectionUtil;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
+import java.io.PrintWriter;
 import java.io.Serializable;
+import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.*;
@@ -35,7 +37,11 @@ public class TapUtilsImpl implements TapUtils {
 
     @Override
     public String getStackTrace(Throwable throwable) {
-        return ExceptionUtils.getStackTrace(throwable);
+        final StringWriter sw = new StringWriter();
+        try(PrintWriter pw = new PrintWriter(sw, true)) {
+            throwable.printStackTrace(pw);
+            return sw.getBuffer().toString();
+        }
     }
 
     public Object clone(Object obj) {

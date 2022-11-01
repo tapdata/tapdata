@@ -7,6 +7,7 @@ import io.tapdata.entity.utils.ClassFactory;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.TapEntity;
 import io.tapdata.modules.api.net.message.TapEntityEx;
@@ -76,7 +77,7 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
                     message.to(baos);
                     data = baos.toByteArray();
                 } catch (Throwable throwable) {
-                    TapLogger.debug(TAG, "message {} to failed, {}", message, throwable.getMessage());
+                    TapLogger.debug(TAG, "message {} to failed, {}", message, Objects.requireNonNull(InstanceFactory.instance(TapUtils.class)).getStackTrace(throwable));
                     ((TapEntityEx)message).setParseError(throwable);
                 }
                 break;
