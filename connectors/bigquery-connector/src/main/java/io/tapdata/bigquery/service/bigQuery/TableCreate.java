@@ -95,7 +95,7 @@ public class TableCreate extends BigQueryStart {
 //                .append(" (");
         StringBuilder sql = new StringBuilder(" DROP TABLE IF EXISTS ");
         sql.append(tableSetName)
-                .append("; CREATE TABLE IF NOT EXISTS ")
+                .append("; CREATE TABLE ")
                 .append(tableSetName)
                 .append(" (");
 
@@ -114,13 +114,12 @@ public class TableCreate extends BigQueryStart {
             sql.append(" `")
                     .append(key)
                     .append("` ")
-                    .append(tapField.getDataType().toUpperCase())
-                    .append(" OPTIONS ");
-            if ((null != tapField.getNullable() && !tapField.getNullable()) || (null != tapField.getPrimaryKeyPos() && tapField.getPrimaryKeyPos() > 0)) {
-                sql.append(" NULL ");
-            } else {
-                sql.append(" NOT NULL ");
-            }
+                    .append(tapField.getDataType().toUpperCase());
+//            if ((null != tapField.getNullable() && !tapField.getNullable()) || (null != tapField.getPrimaryKeyPos() && tapField.getPrimaryKeyPos() > 0)) {
+//                sql.append(" NULL ");
+//            } else {
+//                sql.append(" NOT NULL ");
+//            }
             //DEFAULT
             String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
             if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(defaultValue)) {
@@ -135,13 +134,13 @@ public class TableCreate extends BigQueryStart {
 
             // comment
             String comment = tapField.getComment();
+            comment = comment.replace("'", "\\'");
+            sql.append(" OPTIONS (");
             if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(comment)) {
-                comment = comment.replace("'", "\\'");
-                sql.append(" (description = '")
-                        .append( comment)
-                        .append("')");
+                sql.append(" description = '").append( comment).append("' ");
             }
-            sql.append(",");
+            //if has next option please split by comment [,]
+            sql.append(" )");
         });
         sql.deleteCharAt(sql.lastIndexOf(","));
 
@@ -153,7 +152,9 @@ public class TableCreate extends BigQueryStart {
             sql.append(" DEFAULT COLLATE ").append(collateSpecification).append(" ");
         }
         sql.append(" OPTIONS ( ");
-        sql.append("description = '").append(comment).append("' ");
+        if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(comment)) {
+            sql.append(" description = '").append(comment).append("' ");
+        }
         //if has next option please split by comment [,]
         sql.append(" );");
 
