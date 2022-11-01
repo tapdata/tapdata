@@ -2572,7 +2572,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
-        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId());
+        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId()).set("last_updated", new Date());
         boolean needCreateRecord = false;
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             taskDto.setTaskRecordId(new ObjectId().toHexString());
