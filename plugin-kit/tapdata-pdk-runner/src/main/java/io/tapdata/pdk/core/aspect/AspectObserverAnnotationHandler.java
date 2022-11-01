@@ -24,7 +24,7 @@ public class AspectObserverAnnotationHandler extends ClassAnnotationHandler {
     public void handle(Set<Class<?>> classes) throws CoreException {
         if(classes != null) {
             newAspectObserversMap = new ConcurrentHashMap<>();
-            TapLogger.debug(TAG, "--------------AspectObserver Classes Start-------------");
+            TapLogger.info(TAG, "--------------AspectObserver Classes Start-------------");
             for(Class<?> clazz : classes) {
                 AspectObserverClass aspectObserverClass = clazz.getAnnotation(AspectObserverClass.class);
                 if(aspectObserverClass != null) {
@@ -57,14 +57,14 @@ public class AspectObserverAnnotationHandler extends ClassAnnotationHandler {
                         implClasses = Collections.synchronizedSortedSet(new TreeSet<>());
                         implClasses.add(new AspectObserverClassHolder().aspectClass(observerClass).order(order).ignoreErrors(ignoreErrors));
                         newAspectObserversMap.put(aspectClass, implClasses);
-                        TapLogger.debug(TAG, "(New array) AspectObserver {} for Aspect {} will be applied", observerClass, aspectClass);
+                        TapLogger.info(TAG, "(New array) AspectObserver {} for Aspect {} will be applied", observerClass, aspectClass);
                     } else {
                         implClasses.add(new AspectObserverClassHolder().aspectClass(observerClass).order(order).ignoreErrors(ignoreErrors));
-                        TapLogger.debug(TAG, "(Exist array) AspectObserver {} for Aspect {} will be applied", clazz, aspectClass);
+                        TapLogger.info(TAG, "(Exist array) AspectObserver {} for Aspect {} will be applied", clazz, aspectClass);
                     }
                 }
             }
-            TapLogger.debug(TAG, "--------------AspectObserver Classes End-------------");
+            TapLogger.info(TAG, "--------------AspectObserver Classes End-------------");
         }
         apply();
     }
