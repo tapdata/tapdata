@@ -13,12 +13,14 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -101,6 +103,33 @@ public class TaskRestartSchedule {
                     return;
                 }
             }
+            taskService.run(taskDto, userDetailMap.get(taskDto.getUserId()));
+        });
+    }
+
+
+    /**
+     * 对于少量因为tm线程终止导致的任务一直启动中（页面的直观显示），也就是调度中状态。做一些定时任务补救措施
+     */
+    @Scheduled(fixedDelay = 30 * 1000)
+    @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    public void schedulingTask() {
+        long heartExpire = 60000;
+
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN).and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
+        List<TaskDto> all = taskService.findAll(new Query(criteria));
+
+        if (CollectionUtils.isEmpty(all)) {
+            return;
+        }
+
+        all = all.stream().filter(a -> StringUtils.isBlank(a.getAccessNodeProcessId())).collect(Collectors.toList());
+
+        List<String> userIds = all.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
+        List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
+        Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
+
+        all.forEach(taskDto -> {
             taskService.run(taskDto, userDetailMap.get(taskDto.getUserId()));
         });
     }

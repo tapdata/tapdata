@@ -15,8 +15,10 @@ import com.tapdata.tm.commons.schema.Schema;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapRaw;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.JavaTypesToTapTypes;
 import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
@@ -185,10 +187,13 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 					tapTable.add(tapField);
 				} else {
 					TapType tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
+					if (tapType == null) {
+						tapType = TapSimplify.tapRaw();
+					}
 					String dataType = null;
 					if (oldNameFieldMap != null) {
 						TapField oldTapField = oldNameFieldMap.get(fieldName);
-						if (oldTapField != null && oldTapField.getTapType() != null && tapType != null
+						if (oldTapField != null && oldTapField.getTapType() != null
 										&& oldTapField.getTapType().getType() == tapType.getType()) {
 							tapType = oldTapField.getTapType();
 							dataType = oldTapField.getDataType();

@@ -119,7 +119,13 @@ public class LoggingAspectTask extends AspectTask {
 		TapTable table = null;
 		try {
 			table = context.getTapTableMap().get(tableName);
-		} catch (Throwable ignore) {}
+		} catch (Throwable ignored) {}
+		if (null == table) {
+			try {
+				table = context.getTapTableMap().get(context.getNode().getId());
+			} catch (Throwable ignored) {
+			}
+		}
 		if (null == table) {
 			return Collections.emptyList();
 		}
@@ -269,6 +275,9 @@ public class LoggingAspectTask extends AspectTask {
 		Node<?> node = context.getNode();
 		List<Map<String, Object>> data = new ArrayList<>();
 		TapBaseEvent baseEvent = (TapBaseEvent) event.getTapEvent();
+		if (null == baseEvent) {
+			return;
+		}
 		Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
 		data.add(LogEventData.builder()
 				.eventType(logEventType)
