@@ -364,7 +364,7 @@ public class TableCreate extends BigQueryStart {
                     if (Checker.isNotEmpty(comment)) {
                         tapTable.setComment(String.valueOf(comment));
                     }
-
+                    tempList.add(tapTable);
                 });
                 if (Checker.isNotEmptyCollection(tempList)) {
                     consumer.accept(tempList);
@@ -438,7 +438,7 @@ public class TableCreate extends BigQueryStart {
             "collation_name," +
             "column_default," +
             "rounding_mode" +
-            " FROM `%`.`%s`.INFORMATION_SCHEMA.COLUMNS WHERE table_name in( %s );";
+            " FROM `%s`.`%s`.INFORMATION_SCHEMA.COLUMNS WHERE table_name in( %s );";
     private Map<String, List<Map<String,Object>>> queryAllFields(String ... schemas){
         if (schemas.length<1) throw new CoreException("Not much number of schema to query column.");
         StringJoiner whereSql = new StringJoiner(",");
@@ -454,7 +454,7 @@ public class TableCreate extends BigQueryStart {
         if (Checker.isNotEmpty(result)) {
             columnListGroupByTableName = result.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(field -> String.valueOf(field.get("table_name"))));
         }
-        if (Checker.isNotEmptyCollection(columnListGroupByTableName)){
+        if (Checker.isEmptyCollection(columnListGroupByTableName)){
             throw new CoreException("Not find any fields for table ["+whereSql.toString()+"]");
         }
         return columnListGroupByTableName;
