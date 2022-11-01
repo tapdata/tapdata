@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -37,7 +38,8 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         String taskId = request.getTaskId();
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
-        List<Node> nodes = taskDto.getDag().getNodes();
+        DAG dag = taskDto.getDag();
+        List<Node> nodes = dag.getSources();
         List<String> connectionIds = nodes.stream()
                 .filter(node -> node instanceof DataParentNode)
                 .map(node -> ((DataParentNode<?>) node).getConnectionId())
