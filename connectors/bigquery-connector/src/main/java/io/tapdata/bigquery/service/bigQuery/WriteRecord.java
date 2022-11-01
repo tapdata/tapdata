@@ -1,5 +1,7 @@
 package io.tapdata.bigquery.service.bigQuery;
 
+import cn.hutool.core.codec.Base64;
+import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -7,6 +9,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.*;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
@@ -412,8 +415,32 @@ public class WriteRecord extends BigQueryStart{
      *
      * */
     public String sqlValue(Object value,TapField field){
-        if (value instanceof String) return "\""+value+"\"";
-        else return ""+value;
+        if (null == value) return "NULL";
+        TapType tapType = field.getTapType();
+        if (tapType instanceof TapString){
+            String valueStr = String.valueOf(value);
+            return "'"+valueStr.replaceAll("'","\'")+"'";
+        }else if(tapType instanceof TapNumber){
+            return ""+value;
+        }else if(tapType instanceof TapBoolean){
+            return ""+value;
+        }else if(tapType instanceof TapMap){
+            return " JSON "+ JSONUtil.toJsonPrettyStr(value);
+        }else if(tapType instanceof TapBinary){
+            return " FROM_BASE64('"+Base64.encode(String.valueOf(value)) +"') ";
+        }else if(tapType instanceof TapArray){
+            return " JSON "+ JSONUtil.toJsonPrettyStr(value);
+        }else if(tapType instanceof TapDate){
+            return "'"+value+"'";
+        }else if(tapType instanceof TapYear){
+            return "'"+value+"'";
+        }else if(tapType instanceof TapTime){
+            return "'"+value+"'";
+        }else if(tapType instanceof TapDateTime){
+            return "'"+value+"'";
+        }else{
+            return " JSON "+ JSONUtil.toJsonPrettyStr(value);
+        }
     }
 
     /**
