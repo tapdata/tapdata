@@ -272,7 +272,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
                 sql.setLength(sql.length() - 1);
                 sql.append(")");
 
-                TapLogger.info(connectorTag, "insert sql: " + sql);
+//                TapLogger.info(connectorTag, "insert sql: " + sql);
                 return connection.prepareStatement(sql.toString());
             } catch (SQLException e) {
                 throw new RuntimeException(e);
@@ -317,7 +317,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
                 }
                 sql.setLength(sql.length() - 4);
 
-                TapLogger.info(connectorTag, "update sql: " + sql);
+//                TapLogger.info(connectorTag, "update sql: " + sql);
                 return connection.prepareStatement(sql.toString());
             } catch (SQLException e) {
                 throw new RuntimeException(e);
@@ -336,7 +336,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
                     sql.append(" ").append(sqlQuota(field)).append("=? AND");
                 }
                 sql.setLength(sql.length() - 4);
-                TapLogger.info(connectorTag, "delete sql: " + sql);
+//                TapLogger.info(connectorTag, "delete sql: " + sql);
                 return connection.prepareStatement(sql.toString());
             } catch (SQLException e) {
                 throw new RuntimeException(e);
