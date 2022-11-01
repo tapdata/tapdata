@@ -67,19 +67,23 @@ public class BigQueryConnector extends ConnectorBase {
 		;
 	}
 
-    private void createIndex(TapConnectorContext connectorContext, TapTable table, TapCreateIndexEvent createIndexEvent) {
-
-    }
-
     private void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) {
+		TableCreate tableCreate = TableCreate.create(connectorContext);
+		tableCreate.dropTable(dropTableEvent);
     }
 
     private void clearTable(TapConnectorContext connectorContext, TapClearTableEvent clearTableEvent) {
-
+		TableCreate tableCreate = TableCreate.create(connectorContext);
+		tableCreate.cleanTable(clearTableEvent);
     }
 
     private CreateTableOptions createTableV2(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) {
-        return null;
+		TableCreate tableCreate = TableCreate.create(connectorContext);
+		CreateTableOptions createTableOptions = CreateTableOptions.create().tableExists(tableCreate.isExist(createTableEvent));
+		if (!createTableOptions.getTableExists()){
+			tableCreate.createSchema(createTableEvent);
+		}
+		return createTableOptions;
     }
 
     private CommandResult command(TapConnectionContext context, CommandInfo commandInfo) {
@@ -88,7 +92,9 @@ public class BigQueryConnector extends ConnectorBase {
 
 	private void createTable(TapConnectorContext connectorContext, TapCreateTableEvent tapCreateTableEvent) {
 		TableCreate tableCreate = TableCreate.create(connectorContext);
-		tableCreate.createSchema(tapCreateTableEvent);
+		if (!tableCreate.isExist(tapCreateTableEvent)){
+			tableCreate.createSchema(tapCreateTableEvent);
+		}
 	}
 
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {

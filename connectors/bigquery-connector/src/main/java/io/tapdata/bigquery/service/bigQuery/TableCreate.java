@@ -8,7 +8,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -16,6 +18,7 @@ import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import org.checkerframework.checker.units.qual.C;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -143,17 +146,16 @@ public class TableCreate extends BigQueryStart {
         String comment = tapTable.getComment();
         //@TODO
         sql.append(" ) ");
-
         String collateSpecification = "";//默认排序规则
         if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(collateSpecification)){
             sql.append(" DEFAULT COLLATE ").append(collateSpecification).append(" ");
         }
-
         sql.append(" OPTIONS ( ");
-        if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(comment)) {
-            sql.append("description = '").append(comment);
-        }
+        sql.append("description = '").append(comment).append("' ");
+        //if has next option please split by comment [,]
         sql.append(" );");
+
+
         BigQueryResult bigQueryResult = sqlMarker.executeOnce(sql.toString());
         if (Checker.isEmpty(bigQueryResult)){
             throw new CoreException("Create table error.");
@@ -378,20 +380,20 @@ public class TableCreate extends BigQueryStart {
     }
 
     private static final String SELECT_TABLES = "SELECT " +
-            "    table_catalog," +
-            "    table_schema," +
-            "    table_type," +
-            "    table_name," +
-            "    is_insertable_into," +
-            "    is_typed," +
-            "    creation_time," +
-            "    base_table_catalog," +
-            "    base_table_schema," +
-            "    base_table_name," +
-            "    snapshot_time_ms," +
-            "    default_collation_name," +
-            "    upsert_stream_apply_watermark," +
-            "    ddl" +
+            "table_catalog," +
+            "table_schema," +
+            "table_type," +
+            "table_name," +
+            "is_insertable_into," +
+            "is_typed," +
+            "creation_time," +
+            "base_table_catalog," +
+            "base_table_schema," +
+            "base_table_name," +
+            "snapshot_time_ms," +
+            "default_collation_name," +
+            "upsert_stream_apply_watermark," +
+            "ddl" +
             " FROM `%s`.`%s`.INFORMATION_SCHEMA.TABLES WHERE table_type = 'BASE TABLE'";
     private static final String TABLE_NAME_IN = " AND table_name IN(%s)";
     private Map<String, List<Map<String,Object>>> queryAllTables(List<String> filterTable) {
@@ -458,5 +460,47 @@ public class TableCreate extends BigQueryStart {
             throw new CoreException("Not find any fields for table ["+whereSql.toString()+"]");
         }
         return columnListGroupByTableName;
+    }
+
+    private static String DROP_TABLE_SQL = "DROP TABLE `%`.`%s`.`%s`;";
+    public boolean dropTable(TapDropTableEvent dropTableEvent){
+        if (Checker.isEmpty(dropTableEvent)){
+            throw new CoreException("Drop event error,drop event must be null or be empty.");
+        }
+        String tableId = dropTableEvent.getTableId();
+        if (Checker.isEmpty(tableId)){
+            throw new CoreException("Drop event error,table name must be null or be empty.");
+        }
+        try {
+            BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(
+                    String.format(DROP_TABLE_SQL
+                            , this.config.projectId()
+                            , this.config.tableSet()
+                            , tableId));
+            return Checker.isNotEmpty(bigQueryResult) && Checker.isNotEmpty(bigQueryResult.getTotalRows()) && bigQueryResult.getTotalRows()>0;
+        }catch (Exception e){
+            throw e;
+        }
+    }
+
+    private static String CLEAN_TABLE_SQL = "DELETE FROM `%`.`%s`.`%s` WHERE 1 = 1;";
+    public boolean cleanTable(TapClearTableEvent clearTableEvent){
+        if (Checker.isEmpty(clearTableEvent)){
+            throw new CoreException("Clean table event error,clean event must be null or be empty.");
+        }
+        String tableId = clearTableEvent.getTableId();
+        if (Checker.isEmpty(tableId)){
+            throw new CoreException("Clean table event error,table name must be null or be empty.");
+        }
+        try {
+            BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(
+                    String.format(CLEAN_TABLE_SQL
+                            ,this.config.projectId()
+                            ,this.config.tableSet()
+                            ,tableId));
+            return Checker.isNotEmpty(bigQueryResult) && Checker.isNotEmpty(bigQueryResult.getTotalRows()) ;
+        }catch (Exception e){
+            throw e;
+        }
     }
 }
