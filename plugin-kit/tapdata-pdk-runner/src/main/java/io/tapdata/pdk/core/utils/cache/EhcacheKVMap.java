@@ -28,8 +28,14 @@ public class EhcacheKVMap<T> implements KVMap<T>, Serializable {
     private Integer maxHeapEntries;
     private Integer maxDiskMB;
     private Integer maxOffHeapMB;
+    private Boolean clearBeforeInit;
 
     private String cachePath;
+
+    public EhcacheKVMap<T> clearBeforeInit(Boolean clearBeforeInit) {
+        this.clearBeforeInit = clearBeforeInit;
+        return this;
+    }
 
     public EhcacheKVMap<T> maxHeapEntries(int maxHeapEntries) {
         this.maxHeapEntries = maxHeapEntries;
@@ -81,6 +87,10 @@ public class EhcacheKVMap<T> implements KVMap<T>, Serializable {
             }
         }
         cache = (Cache<String, T>) persistentCacheManager.getCache(mapKey, String.class, (Class<?>) valueClass);
+        if(clearBeforeInit != null && clearBeforeInit && cache != null) {
+            CommonUtils.ignoreAnyError(() -> persistentCacheManager.destroyCache(mapKey), TAG);
+            cache = null;
+        }
         if(cache == null) {
             synchronized (this) {
                 cache = (Cache<String, T>) persistentCacheManager.getCache(mapKey, String.class, (Class<?>) valueClass);
@@ -224,5 +234,13 @@ public class EhcacheKVMap<T> implements KVMap<T>, Serializable {
 
     public void setCachePath(String cachePath) {
         this.cachePath = cachePath;
+    }
+
+    public Boolean getClearBeforeInit() {
+        return clearBeforeInit;
+    }
+
+    public void setClearBeforeInit(Boolean clearBeforeInit) {
+        this.clearBeforeInit = clearBeforeInit;
     }
 }

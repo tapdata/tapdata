@@ -18,6 +18,7 @@ import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
@@ -83,6 +84,7 @@ import com.tapdata.tm.ws.handler.EditFlushHandler;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.DateUtils;
 import org.bson.Document;
@@ -100,6 +102,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -163,6 +166,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private TaskResetLogService taskResetLogService;
 
     private TaskCollectionObjService taskCollectionObjService;
+
+    private ExceptionHandler exceptionHandler;
 
     static {
 
@@ -957,7 +962,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (!TaskOpStatusEnum.to_renew_status.v().contains(status)) {
             //需要停止的时候才可以操作
             log.info("The current status of the task does not allow resetting, task name = {}, status = {}", taskDto.getName(), status);
+
+            if (TaskDto.STATUS_DELETING.equals(status) || TaskDto.STATUS_DELETE_FAILED.equals(status)) {
+                throw new BizException("Task.Deleted");
+            }
             throw new BizException("Task.statusIsNotStop");
+        } else if (TaskDto.STATUS_WAIT_START.equals(status)) {
+            return taskDto;
         }
 
         log.debug("check task status complete, task name = {}", taskDto.getName());
@@ -973,9 +984,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         String lastTaskRecordId = new ObjectId().toString();
         //更新任务信息
-        Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId)
-                .unset("temp");
+        Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId).unset("temp");
         updateById(taskDto.getId(), update, user);
+
 
         taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         taskDto.setAgentId(null);
@@ -989,7 +1000,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         // publish queue
         TaskEntity taskSnapshot = new TaskEntity();
         BeanUtil.copyProperties(taskDto, taskSnapshot);
-        disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+
+        disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
+                new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+
         renewNotSendMq(taskDto, user);
     }
 
@@ -1073,56 +1087,132 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void batchStart(List<ObjectId> taskIds, UserDetail user) {
+    public List<MutiResponseMessage> batchStart(List<ObjectId> taskIds, UserDetail user,
+                                                HttpServletRequest request, HttpServletResponse response) {
+        List<MutiResponseMessage> responseMessages = new ArrayList<>();
         List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
         for (TaskDto task : taskDtos) {
+            MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
+            mutiResponseMessage.setId(task.getId().toHexString());
             checkDagAgentConflict(task, false);
 
             try {
                 start(task, user);
             } catch (Exception e) {
                 log.warn("start task exception, task id = {}, e = {}", task.getId(), e);
+                if (e instanceof BizException) {
+                    mutiResponseMessage.setCode(((BizException) e).getErrorCode());
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                } else {
+                    try {
+                        ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
+                        mutiResponseMessage.setCode(responseMessage.getCode());
+                        mutiResponseMessage.setMessage(responseMessage.getMessage());
+                    } catch (Throwable ex) {
+                        log.warn("delete task, handle exception error, task id = {}",  task.getId().toHexString());
+                    }
+                }
             }
+            responseMessages.add(mutiResponseMessage);
         }
+        return responseMessages;
     }
 
-    public void batchStop(List<ObjectId> taskIds, UserDetail user) {
+    public List<MutiResponseMessage> batchStop(List<ObjectId> taskIds, UserDetail user,
+                                               HttpServletRequest request,
+                                               HttpServletResponse response) {
+        List<MutiResponseMessage> responseMessages = new ArrayList<>();
         for (ObjectId taskId : taskIds) {
+            MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
+            mutiResponseMessage.setId(taskId.toHexString());
             try {
                 pause(taskId, user, false);
             } catch (Exception e) {
                 log.warn("stop task exception, task id = {}, e = {}", taskId, e);
+                if (e instanceof BizException) {
+                    mutiResponseMessage.setCode(((BizException) e).getErrorCode());
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                } else {
+                    try {
+                        ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
+                        mutiResponseMessage.setCode(responseMessage.getCode());
+                        mutiResponseMessage.setMessage(responseMessage.getMessage());
+                    } catch (Throwable ex) {
+                        log.warn("delete task, handle exception error, task id = {}",  taskId.toHexString());
+                    }
+                }
             }
+            responseMessages.add(mutiResponseMessage);
         }
+        return responseMessages;
     }
 
-    public List<TaskDto> batchDelete(List<ObjectId> taskIds, UserDetail user) {
-        List<TaskDto> deleteTasks = new ArrayList<>();
+    public List<MutiResponseMessage> batchDelete(List<ObjectId> taskIds, UserDetail user,
+                                                 HttpServletRequest request,
+                                                 HttpServletResponse response) {
+
+        List<MutiResponseMessage> responseMessages = new ArrayList<>();
         for (ObjectId taskId : taskIds) {
+            MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
+            mutiResponseMessage.setId(taskId.toHexString());
             try {
                 TaskDto taskDto = remove(taskId, user);
                 //todo  需不需要手动删除
                 inspectService.deleteByTaskId(taskId.toString());
-                deleteTasks.add(taskDto);
+
+                mutiResponseMessage.setCode(ResponseMessage.OK);
+                mutiResponseMessage.setMessage(ResponseMessage.OK);
+
             } catch (Exception e) {
+
 
                 log.warn("delete task exception, task id = {}, e = {}", taskId, e);
                 if (e instanceof BizException) {
-                    throw e;
+                    mutiResponseMessage.setCode(((BizException) e).getErrorCode());
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                } else {
+                    try {
+                        ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
+                        mutiResponseMessage.setCode(responseMessage.getCode());
+                        mutiResponseMessage.setMessage(responseMessage.getMessage());
+                    } catch (Throwable ex) {
+                        log.warn("delete task, handle exception error, task id = {}",  taskId.toHexString());
+                    }
                 }
             }
+            responseMessages.add(mutiResponseMessage);
         }
-        return deleteTasks;
+        return responseMessages;
     }
 
-    public void batchRenew(List<ObjectId> taskIds, UserDetail user) {
+    public List<MutiResponseMessage> batchRenew(List<ObjectId> taskIds, UserDetail user,
+                                                HttpServletRequest request, HttpServletResponse response) {
+        List<MutiResponseMessage> responseMessages = new ArrayList<>();
         for (ObjectId taskId : taskIds) {
+            MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
+            mutiResponseMessage.setId(taskId.toHexString());
             try {
                 renew(taskId, user);
+                mutiResponseMessage.setCode(ResponseMessage.OK);
+                mutiResponseMessage.setMessage(ResponseMessage.OK);
             } catch (Exception e) {
                 log.warn("renew task exception, task id = {}, e = {}", taskId, e);
+                if (e instanceof BizException) {
+                    mutiResponseMessage.setCode(((BizException) e).getErrorCode());
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                } else {
+                    try {
+                        ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
+                        mutiResponseMessage.setCode(responseMessage.getCode());
+                        mutiResponseMessage.setMessage(responseMessage.getMessage());
+                    } catch (Throwable ex) {
+                        log.warn("delete task, handle exception error, task id = {}",  taskId.toHexString());
+                    }
+                }
             }
+            responseMessages.add(mutiResponseMessage);
         }
+        return responseMessages;
     }
 
     /**
@@ -1415,14 +1505,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param user
      * @return
      */
-    public TaskDto createShareCacheTask(SaveShareCacheParam saveShareCacheParam, UserDetail user) {
+    public TaskDto createShareCacheTask(SaveShareCacheParam saveShareCacheParam, UserDetail user,
+                                        HttpServletRequest request,
+                                        HttpServletResponse response) {
         TaskDto taskDto = new TaskDto();
 
         parseCacheToTaskDto(saveShareCacheParam, taskDto);
         taskDto = confirmById(taskDto, user, true);
         //新建完成马上调度
         List<ObjectId> taskIds = Arrays.asList(taskDto.getId());
-        batchStart(taskIds, user);
+        batchStart(taskIds, user, request, response);
         return taskDto;
     }
 
@@ -2464,7 +2556,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-            this.update(new Query(Criteria.where("id").is(taskDto.getId())), Update.update("startTime", null).set("lastStartDate", null));
+
+            Update update = Update.update("startTime", null).set("lastStartDate", null);
+            String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
+
+            if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
+                update.set("name", taskDto.getName() + "_" + nameSuffix);
+            }
+            this.update(new Query(Criteria.where("id").is(taskDto.getId())), update);
 
             updateStatus(taskDto.getId(), DataSyncMq.OP_TYPE_RESET.equals(opType) ? TaskDto.STATUS_RENEWING : TaskDto.STATUS_DELETING);
 
@@ -2579,6 +2678,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //校验当前状态是否允许启动。
         if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
             log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
+            if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus()) || TaskDto.STATUS_DELETE_FAILED.equals(taskDto.getStatus())) {
+                throw new BizException("Task.Deleted");
+            }
             throw new BizException("Task.StartStatusInvalid");
         }
 
@@ -2762,6 +2864,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //将状态改为暂停中，给flowengin发送暂停消息，在回调的消息中将任务改为已暂停
         Update update = Update.update("status", pauseStatus);
+        if (!force) {
+            update.set("stoppingTime", new Date());
+        }
         if (restart) {
             update.set("restartFlag", true).set("restartUserId", user.getUserId());
         }

@@ -115,7 +115,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		try {
 			return insertPreparedStatement.executeUpdate();
 		} catch (Throwable e) {
-			throw new RuntimeException("Insert data failed, sql: " + insertPreparedStatement + ", message: " + e.getMessage(), e);
+			throw new RuntimeException(String.format("Insert data failed: %s\n Sql: %s", e.getMessage(), insertPreparedStatement), e);
 		}
 	}
 
@@ -138,7 +138,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		try {
 			return updatePreparedStatement.executeUpdate();
 		} catch (Exception e) {
-			throw new RuntimeException("Update data failed, sql: " + updatePreparedStatement + ", message: " + e.getMessage(), e);
+			throw new RuntimeException(String.format("Update data failed: %s\n Sql: %s", e.getMessage(), updatePreparedStatement), e);
 		}
 	}
 
@@ -149,7 +149,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		try {
 			row = deletePreparedStatement.executeUpdate();
 		} catch (Throwable e) {
-			throw new Exception("Delete data failed, sql: " + deletePreparedStatement + ", message: " + e.getMessage(), e);
+			throw new Exception(String.format("Delete data failed: %s\n Sql: %s", e.getMessage(), deletePreparedStatement), e);
 		}
 		return row;
 	}
@@ -170,7 +170,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 				}
 			});
 		} catch (Throwable e) {
-			throw new Exception("Check row exists failed, sql: " + checkRowExistsPreparedStatement + ", message: " + e.getMessage(), e);
+			throw new Exception(String.format("Check row exists failed: %s\n Sql: %s", e.getMessage(), checkRowExistsPreparedStatement), e);
 		}
 		return result.get();
 	}

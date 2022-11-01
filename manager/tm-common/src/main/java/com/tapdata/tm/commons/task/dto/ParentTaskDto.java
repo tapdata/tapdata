@@ -235,6 +235,15 @@ public class ParentTaskDto extends SchedulableDto {
 
     private int transformDagHash;
 
+    // 1分钟内不能强制停止（不存库，根据 stoppingTime 来判断）
+    private Boolean canForceStopping;
+    public Boolean getCanForceStopping() {
+        if (null == stoppingTime) {
+            return null;
+        }
+        return System.currentTimeMillis() - stoppingTime.getTime() > 60 * 1000L;
+    }
+
     public List<String> getAccessNodeProcessIdList() {
         accessNodeProcessIdList = new ArrayList<>();
         if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeType)

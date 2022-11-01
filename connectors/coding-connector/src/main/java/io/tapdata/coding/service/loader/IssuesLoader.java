@@ -2,14 +2,11 @@ package io.tapdata.coding.service.loader;
 
 import cn.hutool.http.HttpRequest;
 import cn.hutool.json.JSONArray;
-import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IssueParam;
 import io.tapdata.coding.enums.CodingEvent;
 import io.tapdata.coding.enums.IssueType;
-import io.tapdata.coding.service.connectionMode.CSVMode;
-import io.tapdata.coding.service.connectionMode.ConnectionMode;
 import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
@@ -32,10 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
-
-import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 import static io.tapdata.coding.enums.TapEventTypes.*;
 
@@ -59,22 +53,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     int tableSize;
     ContextConfig contextConfig;
     private AtomicBoolean stopRead = new AtomicBoolean(false);
-
-    CodingConnector codingConnector;
-    public IssuesLoader connectorInit(CodingConnector codingConnector){
-        this.codingConnector = codingConnector;
-        return this;
-    }
-
-    @Override
-    public CodingLoader connectorOut() {
-        this.codingConnector = null;
-        return this;
-    }
-
-    public void stopRead() {
-        stopRead.set(true);
-    }
 
     public IssuesLoader(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);
@@ -111,7 +89,10 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             throw new RuntimeException("HTTP request exception, Issue list acquisition failed: " + url + "?Action=DescribeIssueListWithPage");
         }
         Object data = responseMap.get("Data");
-        return null != data ? (Map<String, Object>) data : null;
+        if(null == data){
+            throw new CoreException("Can't get issues page, the response's 'Data' is empty or null.");
+        }
+        return (Map<String, Object>) data ;
     }
 
     /**
@@ -195,8 +176,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         Map<String, Object> issueDetail = (Map<String, Object>) issueDetailResponse.get("Issue");
         if (null == issueDetail) {
             TapLogger.info(TAG, "Issue Detail acquisition failed: IssueCode {} - {}", code, codingHttp.errorMsg(issueDetailResponse));
-            return null;
-            //throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
+            throw new RuntimeException("Cant't get 'Issue' in response. Issue Detail acquisition failed: IssueCode "+code);
         }
         this.composeIssue(projectName, teamName, issueDetail);
         return issueDetail;
@@ -245,7 +225,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     private String getCustomFieldName(String issueType, Integer customId, ContextConfig contextConfig) {
         Map<Integer, String> customFields = this.getIssueCustomFieldMap(issueType, contextConfig);
         if (null == customFields || customFields.size() < 1) {
-            return null;
+            throw new CoreException("Can't get custom fields.");
         }
         return customFields.get(customId);
     }
@@ -259,16 +239,16 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 pageBody.getEntity(),
                 String.format(CodingStarter.OPEN_API_URL, this.contextConfig.getTeamName())
         ).post();
-        if (Checker.isEmpty(issueResponse)) {
-            return null;
+        if (Checker.isEmpty(issueResponse)){
+            throw new CoreException("Can't get all issues types, the http response is empty or null.");
         }
         Object response = issueResponse.get("Response");
         if (null == response) {
-            return null;
+            throw new CoreException("Can't get all issues types, the 'Response' is empty or null.");
         }
         Object issueTypes = ((Map<String, Object>) response).get("IssueTypes");
         if (Checker.isEmpty(issueTypes)) {
-            return null;
+            throw new CoreException("Can't get all issues types, the 'IssueTypes' is empty or null.");
         }
         return (List<Map<String, Object>>) issueTypes;
     }
@@ -282,17 +262,20 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     public List<Map<String, Object>> list(IssueParam param) {
         Map<String, Object> resultMap = this.codingHttp(param).post();
         Object response = resultMap.get("Response");
-        if (null == response) {
-            return null;
+        if (null == response){
+            throw new CoreException("Can't get all issues types, the 'Response' is empty or null.");
         }
         Map<String, Object> responseMap = (Map<String, Object>) response;
         Object dataObj = responseMap.get("Data");
         if (null == dataObj) {
-            return null;
+            throw new CoreException("Can't get all issues types, the 'Data' is empty or null.");
         }
         Map<String, Object> data = (Map<String, Object>) dataObj;
         Object listObj = data.get("List");
-        return null != listObj ? (List<Map<String, Object>>) listObj : null;
+        if (Checker.isEmpty(listObj)){
+            throw new CoreException("Can't get all issues types, the 'List' is empty or null.");
+        }
+        return (List<Map<String, Object>>) listObj;
     }
 
     @Override
@@ -333,12 +316,15 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 body.getEntity(),
                 String.format(OPEN_API_URL, this.contextConfig.getTeamName())).post();
         Object response = resultMap.get("Response");
-        if (null == response) {
-            return null;
+        if (null == response){
+            throw new CoreException("Can't get issues, the 'Response' is empty or null.");
         }
         Map<String, Object> responseMap = (Map<String, Object>) response;
         Object dataObj = responseMap.get("Issue");
-        Map<String, Object> result = null != dataObj ? (Map<String, Object>) dataObj : null;
+        if (Checker.isEmpty(dataObj)){
+            throw new CoreException("Can't get issues, the 'Issue' is empty or null.");
+        }
+        Map<String, Object> result = (Map<String, Object>) dataObj;
         if (Checker.isNotEmpty(result)) {
             this.composeIssue(this.contextConfig.getProjectName(), this.contextConfig.getTeamName(), result);
         }
@@ -376,23 +362,26 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     .builder("PageSize", 1)
                     .builder("PageNumber", 1);
             try {
-                DataMap nodeConfigMap = ((TapConnectorContext) this.tapConnectionContext).getNodeConfig();
+                DataMap nodeConfigMap = this.tapConnectionContext.getNodeConfig();
+                if (null != nodeConfigMap) {
+                    String iterationCodes = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
+                    if (null != iterationCodes) iterationCodes = iterationCodes.trim();
+                    String issueType = nodeConfigMap.getString("issueType");
+                    if (null != issueType) issueType = issueType.trim();
 
-                String iterationCodes = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
-                if (null != iterationCodes) iterationCodes = iterationCodes.trim();
-                String issueType = nodeConfigMap.getString("issueType");
-                if (null != issueType) issueType = issueType.trim();
+                    body.builder("IssueType", IssueType.verifyType(issueType));
 
-                body.builder("IssueType", IssueType.verifyType(issueType));
-
-                if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes) && !"-1".equals(iterationCodes)) {
-                    //String[] iterationCodeArr = iterationCodes.split(",");
-                    //@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
-                    //选择的迭代编号不需要验证
-                    body.builder(
-                            "Conditions",
-                            io.tapdata.entity.simplify.TapSimplify.list(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)))
-                    );
+                    if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes) && !"-1".equals(iterationCodes)) {
+                        //String[] iterationCodeArr = iterationCodes.split(",");
+                        //@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
+                        //选择的迭代编号不需要验证
+                        body.builder(
+                                "Conditions",
+                                io.tapdata.entity.simplify.TapSimplify.list(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)))
+                        );
+                    }
+                }else {
+                    body.builder("IssueType", "ALL");
                 }
             } catch (Exception e) {
                 TapLogger.debug(TAG, "Count table error: {}", TABLE_NAME, e.getMessage());
@@ -420,14 +409,16 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                         ? (CodingOffset) offsetState : new CodingOffset();
         Map<String, Long> tableUpdateTimeMap = codingOffset.getTableUpdateTimeMap();
         if (null == tableUpdateTimeMap || tableUpdateTimeMap.isEmpty()) {
-            TapLogger.warn(TAG, "offsetState is Empty or not Exist!");
+            TapLogger.warn(TAG, "offsetState is Empty or not Exist! Stop to stream read.");
             return;
         }
         String currentTable = tableList.get(0);
+        TapLogger.info(TAG, "Stream read is starting.");
         consumer.streamReadStarted();
         long current = tableUpdateTimeMap.get(currentTable);
         Long last = Long.MAX_VALUE;
         this.read(current, last, recordSize, codingOffset, consumer);
+        TapLogger.info(TAG, "Stream read is ending.");
     }
 
     @Override
@@ -438,19 +429,20 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         Object issueObj = issueEventData.get("issue");
         if (Checker.isEmpty(issueObj)) {
             TapLogger.debug(TAG, "An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
-            return null;
+            throw new CoreException("An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
         }
         Map<String, Object> issueMap = (Map<String, Object>) issueObj;
         Object codeObj = issueMap.get("code");
         if (Checker.isEmpty(codeObj)) {
             TapLogger.debug(TAG, "An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
-            return null;
+            throw new CoreException("An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
         }
         IssueType issueType = this.contextConfig.getIssueType();
         if (Checker.isNotEmpty(issueType)) {
             String issueTypeName = issueType.getName();
             Object o = issueMap.get("type");
             if (Checker.isNotEmpty(o) && !"ALL".equals(issueTypeName) && !issueTypeName.equals(o)) {
+                TapLogger.info(TAG,"The current event is not within the processing range of this data source and will not be processed");
                 return null;
             }
         }
@@ -460,9 +452,11 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             if (Checker.isNotEmpty(iterationObj)) {
                 Object iteration = ((Map<String, Object>) iterationObj).get("code");
                 if (Checker.isNotEmpty(iteration) && !iterationCodes.matches(".*" + String.valueOf(iteration) + ".*")) {
+                    TapLogger.info(TAG," The current event is not within the iteration range selected by this data source and will not be processed .");
                     return null;
                 }
             } else {
+                TapLogger.info(TAG,"The current event does not belong to any iteration and is not in the selected filter range");
                 return null;
             }
         }
@@ -489,6 +483,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     this.contextConfig.getProjectName(),
                     this.contextConfig.getTeamName());
             if (Checker.isEmptyCollection(issueDetail)) {
+                TapLogger.info(TAG,"The details of the event are not found. The current event may have been deleted recently. Please check and confirm.Issues code = {}",codeObj);
                 return null;
             }
 //            String modeName = this.tapConnectionContext.getConnectionConfig().getString("connectionMode");
@@ -602,12 +597,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         //分页线程
         Thread pageThread = new Thread(() -> {
             int currentQueryCount = batchReadPageSize, queryIndex = 1;
-            while (currentQueryCount >= batchReadPageSize ) {
-                synchronized (codingConnector){
-                    if (!codingConnector.isAlive()){
-                        break;
-                    }
-                }
+            while (currentQueryCount >= batchReadPageSize && this.sync()) {
                 /**
                  * start page ,and add page to queuePage;
                  * */
@@ -630,12 +620,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         pageThread.start();
 
         //详情查询线程
-        while (true) {
-            synchronized (codingConnector){
-                if (!codingConnector.isAlive()){
-                    break;
-                }
-            }
+        while ( this.sync() ) {
             if (!pageThread.isAlive() && queuePage.isEmpty()) break;
             if (!queuePage.isEmpty()) {
                 int threadCount = total.get() / 500 ;
@@ -677,10 +662,9 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
         //主线程生成事件
         while ((!queuePage.isEmpty() || pageThread.isAlive() || itemThreadCount.get() > 0 || !queueItem.isEmpty()) ) {
-            synchronized (codingConnector){
-                if (!codingConnector.isAlive()){
-                    break;
-                }
+            if ( !this.sync()){
+                this.connectorOut();
+                break;
             }
             /**
              * 从queueItem取数据生成事件

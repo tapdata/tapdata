@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -122,7 +123,7 @@ public class TapdataTaskScheduler {
 					new Criteria("agentId").is(instanceNo)
 							.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_WAIT_RUN)
 			);
-
+			query.with(Sort.by(DataFlow.PING_TIME_FIELD).ascending());
 			Update update = new Update();
 			update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
 			addAgentIdUpdate(update);
@@ -130,7 +131,7 @@ public class TapdataTaskScheduler {
 			TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
 			if (taskDto != null) {
 				if (taskClientMap.containsKey(taskDto.getId().toHexString())) {
-					logger.info("the [task {}, id {}] is being executed, ignore the scheduling.", taskDto.getName(), taskDto.getId().toHexString());
+					logger.info("The [task {}, id {}] is being executed, ignore the scheduling.", taskDto.getName(), taskDto.getId().toHexString());
 					return;
 				}
 				try {
@@ -202,7 +203,7 @@ public class TapdataTaskScheduler {
 				final String status = subTaskDtoTaskClient.getStatus();
 				if (TaskDto.STATUS_ERROR.equals(status)) {
 					errorTask(subTaskDtoTaskClient);
-				} else if (TaskDto.STATUS_STOP.equals(status)) {
+				} else if (TaskDto.STATUS_STOP.equals(status) || TaskDto.STATUS_STOPPING.equals(status)) {
 					stopTask(subTaskDtoTaskClient);
 				} else if (TaskDto.STATUS_COMPLETE.equals(status)) {
 					completeTask(subTaskDtoTaskClient);

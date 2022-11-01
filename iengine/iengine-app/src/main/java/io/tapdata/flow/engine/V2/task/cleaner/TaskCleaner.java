@@ -204,7 +204,6 @@ public abstract class TaskCleaner {
 				.build();
 		try {
 			try {
-				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
 				ReleaseExternalFunction releaseExternalFunction = connectorNode.getConnectorFunctions().getReleaseExternalFunction();
 				if (releaseExternalFunction != null) {
 					try {
@@ -244,8 +243,6 @@ public abstract class TaskCleaner {
 					}
 				}
 			}
-
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
 		} finally {
 			tapTableMapByNodeId.reset();
 			PDKIntegration.releaseAssociateId(this.getClass().getSimpleName() + "-" + node.getId());

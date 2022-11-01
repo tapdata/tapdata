@@ -125,7 +125,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
 		snapshotProgressManager = new SnapshotProgressManager(dataProcessorContext.getTaskDto(), clientMongoOperator,
 				getConnectorNode(), dataProcessorContext.getTapTableMap());
-		snapshotProgressManager.startStatsSnapshotEdgeProgress(dataProcessorContext.getNode());
+//		snapshotProgressManager.startStatsSnapshotEdgeProgress(dataProcessorContext.getNode());
 
 		// count the data size of the tables;
 		doCount(tableList);
