@@ -462,7 +462,7 @@ public class TableCreate extends BigQueryStart {
         return columnListGroupByTableName;
     }
 
-    private static String DROP_TABLE_SQL = "DROP TABLE `%`.`%s`.`%s`;";
+    private static String DROP_TABLE_SQL = "DROP TABLE IF EXISTS `%s`.`%s`.`%s`;";
     public boolean dropTable(TapDropTableEvent dropTableEvent){
         if (Checker.isEmpty(dropTableEvent)){
             throw new CoreException("Drop event error,drop event must be null or be empty.");
@@ -483,7 +483,7 @@ public class TableCreate extends BigQueryStart {
         }
     }
 
-    private static String CLEAN_TABLE_SQL = "DELETE FROM `%`.`%s`.`%s` WHERE 1 = 1;";
+    private static String CLEAN_TABLE_SQL = "DELETE FROM `%s`.`%s`.`%s` WHERE 1 = 1;";
     public boolean cleanTable(TapClearTableEvent clearTableEvent){
         if (Checker.isEmpty(clearTableEvent)){
             throw new CoreException("Clean table event error,clean event must be null or be empty.");
