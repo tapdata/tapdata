@@ -86,7 +86,7 @@ public class TableCreate extends BigQueryStart {
         if (io.tapdata.bigquery.util.tool.Checker.isEmptyCollection(nameFieldMap)){
             throw new CoreException("Tap table schema null or empty.");
         }
-        String tableSetName = "`"+tableSet+"."+tableId+"`";
+        String tableSetName = "`"+tableSet+"`.`"+tableId+"`";
 
 //        StringBuilder sql = new StringBuilder(" DROP TABLE IF EXISTS ");
 //        sql.append(tableSetName)
@@ -134,15 +134,17 @@ public class TableCreate extends BigQueryStart {
 
             // comment
             String comment = tapField.getComment();
-            comment = comment.replace("'", "\\'");
             sql.append(" OPTIONS (");
             if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(comment)) {
+                comment = comment.replaceAll("'", "\\'");
                 sql.append(" description = '").append( comment).append("' ");
             }
             //if has next option please split by comment [,]
-            sql.append(" )");
+            sql.append(" ),");
         });
-        sql.deleteCharAt(sql.lastIndexOf(","));
+        if (sql.lastIndexOf(",")==sql.length()-1) {
+            sql.deleteCharAt(sql.lastIndexOf(","));
+        }
 
         String comment = tapTable.getComment();
         //@TODO
@@ -153,6 +155,7 @@ public class TableCreate extends BigQueryStart {
         }
         sql.append(" OPTIONS ( ");
         if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(comment)) {
+            comment = comment.replaceAll("'", "\\'");
             sql.append(" description = '").append(comment).append("' ");
         }
         //if has next option please split by comment [,]
