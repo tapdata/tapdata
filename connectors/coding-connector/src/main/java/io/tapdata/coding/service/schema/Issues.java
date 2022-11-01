@@ -37,7 +37,10 @@ public class Issues implements SchemaStart {
     public String tableName() {
         return "Issues";
     }
-
+    @Override
+    public boolean connection(TapConnectionContext tapConnectionContext) {
+        return false;
+    }
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
         return table(tableName())

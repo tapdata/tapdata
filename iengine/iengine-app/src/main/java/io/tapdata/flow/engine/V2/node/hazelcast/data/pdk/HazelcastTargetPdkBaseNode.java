@@ -258,6 +258,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		AtomicReference<TapdataEvent> lastDmlTapdataEvent = new AtomicReference<>();
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			if(!isRunning()) return;
 			try {
 				SyncStage syncStage = tapdataEvent.getSyncStage();
 				if (null != syncStage) {

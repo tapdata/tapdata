@@ -2,6 +2,8 @@ package io.tapdata.pdk.core.memory;
 
 import java.util.List;
 
+import static io.tapdata.entity.simplify.TapSimplify.list;
+
 public class Command {
 
     private List<Execution> executionList;
@@ -13,4 +15,5 @@ public class Command {
     public void setExecutionList(List<Execution> executionList) {
         this.executionList = executionList;
     }
+
 }

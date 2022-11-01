@@ -20,7 +20,10 @@ public class ProjectMembers implements SchemaStart {
     public String tableName() {
         return "ProjectMembers";
     }
-
+    @Override
+    public boolean connection(TapConnectionContext tapConnectionContext) {
+        return false;
+    }
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
         /**
@@ -63,11 +66,6 @@ public class ProjectMembers implements SchemaStart {
                 .add(field("GlobalKey", "StringMinor"))
                 .add(field("RolesRoles", JAVA_Array)) ;
 
-    }
-
-    @Override
-    public TapTable csv(TapConnectionContext connectionContext) {
-        return null;
     }
 
     /**
