@@ -303,7 +303,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         Criteria scopeCriteria = Criteria.where("scope").is("public");
         Criteria criteria = Criteria.where("type").in(dataSourceType).and("pdkHash").exists(true);;
         criteria.orOperator(customCriteria, userCriteria, supplierCriteria, scopeCriteria);
-        return findAllDto(Query.query(criteria), user);
+        return findAll(Query.query(criteria));
     }
 
 
