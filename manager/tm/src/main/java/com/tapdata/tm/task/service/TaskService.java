@@ -2463,7 +2463,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void start(ObjectId id, UserDetail user) {
         String startFlag = "11";
         TaskDto taskDto = checkExistById(id, user);
-        checkDagAgentConflict(taskDto, false);
         start(taskDto, user, startFlag);
     }
 
@@ -2479,6 +2478,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         start(taskDto, user, "11");
     }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
+
+        checkDagAgentConflict(taskDto, false);
+        if (!taskDto.getShareCache()) {
+                Map<String, List<Message>> validateMessage = taskDto.getDag().validate();
+                if (!validateMessage.isEmpty()) {
+                    throw new BizException("Task.ListWarnMessage", validateMessage);
+            }
+        }
         //日志挖掘
         if (startFlag.charAt(0) == '1') {
             logCollectorService.logCollector(user, taskDto);
