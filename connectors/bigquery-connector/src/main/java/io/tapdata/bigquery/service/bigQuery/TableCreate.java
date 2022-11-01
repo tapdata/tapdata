@@ -6,7 +6,6 @@ import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.*;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.sun.deploy.util.StringUtils;
 import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -323,9 +322,10 @@ public class TableCreate extends BigQueryStart {
         try {
             List<List<String>> partition = Lists.partition(new ArrayList<>(allTables.keySet()), partitionSize);
             partition.forEach(tableList -> {
-                String tableNames = StringUtils.join(tableList, "','");
+                StringJoiner tableJoin = new StringJoiner(",");
+                tableList.stream().filter(Objects::nonNull).forEach(tab->tableJoin.add(tab));
 
-                Map<String, List<Map<String,Object>>> columnListGroupByTableName = this.queryAllFields(tableNames);
+                Map<String, List<Map<String,Object>>> columnListGroupByTableName = this.queryAllFields(tableJoin.toString());
 
                 List<TapTable> tempList = new ArrayList<>();
                 columnListGroupByTableName.forEach((tableName,fields)->{
