@@ -30,6 +30,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
+
 
 @GatewaySession(idType = "engine")
 public class EngineSessionHandler extends GatewaySessionHandler {
@@ -178,6 +180,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		if(isChannelActive()) {
 			EngineMessageExecutor<ServiceCaller> engineMessageExecutor = new EngineMessageExecutor<>(serviceCaller, biConsumer, () -> commandIdExecutorMap.remove(serviceCaller.getId()));
 			startMessageExecutor(serviceCaller, engineMessageExecutor);
+			TapLogger.info(TAG, "serviceCaller {}", toJson(serviceCaller));
 			if(!sendData(new OutgoingData().time(System.currentTimeMillis()).message(new ServiceCallerReceived().serviceCaller(serviceCaller)))) {
 				engineMessageExecutor.result(null, new CoreException(NetErrors.ENGINE_CHANNEL_OFFLINE, "Engine channel is offline, please try again"));
 			}

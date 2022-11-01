@@ -29,6 +29,8 @@ import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
+
 @Implementation(ArgumentsSerializer.class)
 public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 
@@ -38,7 +40,9 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 	public Object[] argumentsFrom(DataInputStreamEx dis, ServiceCaller serviceCaller) throws IOException {
 		String service = SkeletonService.SERVICE_ENGINE;
 
+		TapLogger.info(TAG, "argumentsFrom {}", toJson(serviceCaller));
 		long crc = ReflectionUtil.getCrc(serviceCaller.getClassName(), serviceCaller.getMethod(), SkeletonService.SERVICE_ENGINE);
+		TapLogger.info(TAG, "argumentsFrom crc {}", crc);
 		ServiceSkeletonAnnotationHandler serviceSkeletonAnnotationHandler = InstanceFactory.bean(ServiceSkeletonAnnotationHandler.class);
 		if (serviceSkeletonAnnotationHandler == null)
 			throw new CoreException(NetErrors.ERROR_METHODREQUEST_SKELETON_NULL, "Skeleton handler is not for service " + service + " on method service_class_method: " + RpcCacheManager.getInstance().getMethodByCrc(crc));
@@ -47,7 +51,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 			TapLogger.error(TAG, "All methodMappings: " + JSON.toJSONString(serviceSkeletonAnnotationHandler.getMethodMap().keySet()));
 			throw new CoreException(NetErrors.ERROR_METHODREQUEST_METHODNOTFOUND, "Method doesn't be found by service_class_method " + RpcCacheManager.getInstance().getMethodByCrc(crc) + ",crc: " + crc);
 		}
-
+		TapLogger.info(TAG, "argumentsFrom methodMapping {}", methodMapping);
 		int argCount = dis.getDataInputStream().readInt();
 		Object[] args = null;
 
@@ -132,11 +136,15 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 	public void argumentsTo(DataOutputStreamEx dos, ServiceCaller serviceCaller) throws IOException {
 		Object[] args = serviceCaller.getArgs();
 
+		TapLogger.info(TAG, "argumentsTo {}", toJson(serviceCaller));
 		long crc = ReflectionUtil.getCrc(serviceCaller.getClassName(), serviceCaller.getMethod(), SkeletonService.SERVICE_ENGINE);
+		TapLogger.info(TAG, "argumentsTo crc {}", crc);
 		ServiceSkeletonAnnotationHandler serviceSkeletonAnnotationHandler = InstanceFactory.bean(ServiceSkeletonAnnotationHandler.class);
+		TapLogger.info(TAG, "argumentsTo serviceSkeletonAnnotationHandler {}", serviceSkeletonAnnotationHandler);
 		MethodMapping methodMapping = null;
 		if (serviceSkeletonAnnotationHandler != null) {
 			methodMapping = serviceSkeletonAnnotationHandler.getMethodMapping(crc);
+			TapLogger.info(TAG, "argumentsTo methodMapping {}", methodMapping);
 		}
 		if (methodMapping != null) {
 			Class<?>[] parameterTypes = methodMapping.getParameterTypes();
