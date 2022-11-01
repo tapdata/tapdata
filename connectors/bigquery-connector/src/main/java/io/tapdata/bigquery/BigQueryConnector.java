@@ -72,7 +72,8 @@ public class BigQueryConnector extends ConnectorBase {
 
 	@Override
 	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-
+		TableCreate tableCreate = TableCreate.create(connectionContext);
+		tableCreate.discoverSchema(tables,tableSize,consumer);
 	}
 
 

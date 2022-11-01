@@ -4,19 +4,28 @@ import com.google.api.gax.paging.Page;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.*;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.sun.deploy.util.StringUtils;
 import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static io.tapdata.base.ConnectorBase.field;
+import static io.tapdata.base.ConnectorBase.list;
 
 public class TableCreate extends BigQueryStart {
     private static final String TAG = TableCreate.class.getSimpleName();
@@ -165,7 +174,9 @@ public class TableCreate extends BigQueryStart {
     /**
      * 获取表结构
      * */
-    String SCHEMA_TABLES_SQL = "SELECT table_name AS tableName,ddl FROM `%s`.`%s`.INFORMATION_SCHEMA.TABLES;";
+//    String SCHEMA_TABLES_SQL = "SELECT table_name AS tableName,ddl FROM `%s`.`%s`.INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'TABLE_TYPE';";
+    String SCHEMA_TABLES_SQL = "SELECT table_catalog,table_schema,table_type,table_name,is_insertable_into,is_typed,creation_time,base_table_catalog,base_table_schema,snapshot_time_ms,default_collation_name,upsert_stream_apply_watermark,ddl FROM `%s`.`%s`.INFORMATION_SCHEMA.TABLES WHERE table_type = 'BASE TABLE'";
+
     public void schemaListDDL(TapCreateTableEvent tapCreateTableEvent){
         String sql = String.format(SCHEMA_TABLES_SQL, this.config.projectId(), this.config.tableSet());
         BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(sql);
@@ -182,7 +193,7 @@ public class TableCreate extends BigQueryStart {
         }
         List<TapTable> tapTables = new ArrayList<>();
         result.stream().forEach(map->{
-            Object tableNameObj = map.get("tableName");
+            Object tableNameObj = map.get("table_name");
             Object ddlObj = map.get("ddl");
             String tableName = null;
             String ddl = null;
@@ -254,40 +265,198 @@ public class TableCreate extends BigQueryStart {
         });
     }
 
-    public List<TapTable> listTablesSDK() {
+    public List<TapTable> listTablesSDK(List<String> tableSets,int partitionSize) {
+        if (Checker.isEmptyCollection(tableSets)){
+            throw new CoreException();
+        }
+        List<TapTable> tableList = new ArrayList<>();
+        String projectId = this.config.projectId();
         try {
-            String projectId = this.config.projectId();
-            String datasetName = this.config.tableSet();
             GoogleCredentials credentials = ServiceAccountCredentials.fromStream(new ByteArrayInputStream(this.config.serviceAccount().getBytes("utf8")));
             BigQuery bigquery = BigQueryOptions.newBuilder().setCredentials(credentials).build().getService();
-            DatasetId datasetId = DatasetId.of(projectId, datasetName);
-            Page<Table> tables = bigquery.listTables(datasetId, BigQuery.TableListOption.pageSize(100));
-            List<TapTable> tableList = new ArrayList<>();
-            tables.iterateAll().forEach(table -> {
-                TableId tableId = table.getTableId();
-                TableDefinition definition = table.getDefinition();
-                Schema schema = definition.getSchema();
-                FieldList fields = schema.getFields();
-                ListIterator<Field> fieldListIterator = fields.listIterator();
-                TapTable tapTable = new TapTable();
-                tapTable.setId(tableId.getTable());
-                tapTable.setComment(table.getDescription());
-                tapTable.setLastUpdate(table.getLastModifiedTime());
-                while (fieldListIterator.hasNext()){
-                    Field field = fieldListIterator.next();
-                    String modeName = field.getMode().name();
-                    tapTable.add(
-                            field(field.getName(),field.getType().name())
-                                    .nullable("NULLABLE".equals(modeName))
-                                    .comment(field.getDescription())
-                                    .defaultValue(field.getDefaultValueExpression())
+            tableSets.forEach(tableSet->{
+                    Page<Table> tables = bigquery.listTables(
+                            DatasetId.of(projectId, tableSet)
+                            , BigQuery.TableListOption.pageSize(partitionSize)
                     );
-                }
-                tableList.add(tapTable);
+                    if (Checker.isNotEmptyCollection(tableList)){
+                        tables.iterateAll().forEach(table -> {
+                            TableId tableId = table.getTableId();
+                            TableDefinition definition = table.getDefinition();
+                            Schema schema = definition.getSchema();
+                            FieldList fields = schema.getFields();
+                            ListIterator<Field> fieldListIterator = fields.listIterator();
+                            TapTable tapTable = new TapTable();
+                            tapTable.setId(tableId.getTable());
+                            tapTable.setComment(table.getDescription());
+                            tapTable.setLastUpdate(table.getLastModifiedTime());
+                            while (fieldListIterator.hasNext()){
+                                Field field = fieldListIterator.next();
+                                String modeName = field.getMode().name();
+                                tapTable.add(
+                                        field(field.getName(),field.getType().name())
+                                                .nullable("NULLABLE".equals(modeName))
+                                                .comment(field.getDescription())
+                                                .defaultValue(field.getDefaultValueExpression())
+                                );
+                            }
+                            tableList.add(tapTable);
+                        });
+                    }
             });
-            return tableList;
         } catch (BigQueryException| IOException e) {
             throw new CoreException("Tables were not listed. Error occurred: " + e.getMessage());
         }
+        return tableList;
+    }
+
+    public void discoverSchema(List<String> tables,int partitionSize, Consumer<List<TapTable>> consumer){
+        if (null == consumer) {
+            throw new IllegalArgumentException("Consumer cannot be null in discoverSchema method.");
+        }
+
+        Map<String, List<Map<String, Object>>> allTables = this.queryAllTables(tables);
+        if (Checker.isEmpty(allTables)) {
+            consumer.accept(null);
+            return;
+        }
+        try {
+            List<List<String>> partition = Lists.partition(new ArrayList<>(allTables.keySet()), partitionSize);
+            partition.forEach(tableList -> {
+                String tableNames = StringUtils.join(tableList, "','");
+
+                Map<String, List<Map<String,Object>>> columnListGroupByTableName = this.queryAllFields(tableNames);
+
+                List<TapTable> tempList = new ArrayList<>();
+                columnListGroupByTableName.forEach((tableName,fields)->{
+                    TapTable tapTable = TapSimplify.table(tableName);
+
+                    LinkedHashMap<String,TapField> fieldMap = new LinkedHashMap<>();
+
+
+                    fields.stream()
+                            .filter(field-> Checker.isNotEmptyCollection(field)
+                                            && Checker.isNotEmpty(field.get("column_name"))
+                                            && Checker.isNotEmpty(field.get("data_type"))
+                            ).forEach(field->{
+                        String columnName = String.valueOf(field.get("column_name"));
+                        TapField tapField = new TapField(
+                                        columnName,
+                                        String.valueOf(field.get("data_type")).toUpperCase()
+                                );
+                                fieldMap.put(columnName,tapField);
+                    });
+
+                    tapTable.setNameFieldMap(fieldMap);
+
+                    List<Map<String, Object>> maps = allTables.get(tableName);
+                    if (Checker.isEmptyCollection(maps)){
+                        throw new CoreException(String.format("Not find any info of table which name is %s",tableName));
+                    }
+
+                    Map<String, Object> tableInfo = maps.get(0);
+                    if (Checker.isEmptyCollection(tableInfo)){
+                        throw new CoreException(String.format("Not find any info of table which name is %s",tableName));
+                    }
+
+                    //@TODO
+                    Object comment = tableInfo.get("");
+                    if (Checker.isNotEmpty(comment)) {
+                        tapTable.setComment(String.valueOf(comment));
+                    }
+
+                });
+                if (Checker.isNotEmptyCollection(tempList)) {
+                    consumer.accept(tempList);
+                    tempList.clear();
+                }
+            });
+
+        }catch (Exception e){
+
+        }
+    }
+
+    private static final String SELECT_TABLES = "SELECT " +
+            "    table_catalog," +
+            "    table_schema," +
+            "    table_type," +
+            "    table_name," +
+            "    is_insertable_into," +
+            "    is_typed," +
+            "    creation_time," +
+            "    base_table_catalog," +
+            "    base_table_schema," +
+            "    base_table_name," +
+            "    snapshot_time_ms," +
+            "    default_collation_name," +
+            "    upsert_stream_apply_watermark," +
+            "    ddl" +
+            " FROM `%s`.`%s`.INFORMATION_SCHEMA.TABLES WHERE table_type = 'BASE TABLE'";
+    private static final String TABLE_NAME_IN = " AND table_name IN(%s)";
+    private Map<String, List<Map<String,Object>>> queryAllTables(List<String> filterTable) {
+        String sql = String.format(SELECT_TABLES, this.config.projectId(),this.config.tableSet());
+        if (Checker.isNotEmptyCollection(filterTable)) {
+            filterTable = filterTable.stream().map(t -> "'" + t + "'").collect(Collectors.toList());
+            String tableNameIn = String.join(",", filterTable);
+            sql += String.format(TABLE_NAME_IN, tableNameIn);
+        }
+
+        Map<String, List<Map<String,Object>>> tableList = new HashMap<>();
+        try {
+            BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(sql);
+            if (Checker.isEmpty(bigQueryResult)){
+                throw new IllegalArgumentException(String.format("Execute a BigQuery sql, but not back any result,sql - %s",sql));
+            }
+            List<Map<String, Object>> result = bigQueryResult.result();
+            if (Checker.isEmpty(result)){
+                throw new IllegalArgumentException(String.format("Execute a BigQuery sql, but not back any result,sql - %s",sql));
+            }
+            tableList = result.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(table -> String.valueOf(table.get("table_name"))));
+        } catch (Throwable e) {
+            throw e;
+        }
+        return tableList;
+    }
+
+    private static final String SELECT_COLUMNS_SQL = "SELECT " +
+            "table_catalog," +
+            "table_schema," +
+            "table_name," +
+            "column_name," +
+            "ordinal_position," +
+            "is_nullable," +
+            "data_type," +
+            "is_generated," +
+            "generation_expression," +
+            "is_stored," +
+            "is_hidden," +
+            "is_updatable," +
+            "is_system_defined," +
+            "is_partitioning_column," +
+            "clustering_ordinal_position," +
+            "collation_name," +
+            "column_default," +
+            "rounding_mode" +
+            " FROM `%`.`%s`.INFORMATION_SCHEMA.COLUMNS WHERE table_name in( '%s');";
+    private Map<String, List<Map<String,Object>>> queryAllFields(String ... schemas){
+        if (schemas.length<1) throw new CoreException("Not much number of schema to query column.");
+        StringJoiner whereSql = new StringJoiner(",");
+        for (String schema : schemas) {
+            whereSql.add(schema);
+        }
+        BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(String.format(SELECT_COLUMNS_SQL, this.config.projectId(), this.config.tableSet(), whereSql.toString()));
+        if (Checker.isEmpty(bigQueryResult)){
+            throw new CoreException("");
+        }
+        List<Map<String, Object>> result = bigQueryResult.result();
+        Map<String, List<Map<String,Object>>> columnListGroupByTableName = Maps.newHashMap();
+        if (Checker.isNotEmpty(result)) {
+            columnListGroupByTableName = result.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(field -> String.valueOf(field.get("table_name"))));
+        }
+        if (Checker.isNotEmptyCollection(columnListGroupByTableName)){
+            throw new CoreException("Not find any fields for table ["+whereSql.toString()+"]");
+        }
+        return columnListGroupByTableName;
     }
 }
