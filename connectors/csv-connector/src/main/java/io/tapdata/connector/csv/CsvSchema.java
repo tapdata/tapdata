@@ -29,31 +29,35 @@ public class CsvSchema {
         this.storage = storage;
     }
 
-    public Map<String, String> sampleFixedFileData(Map<String, TapFile> csvFileMap) throws Exception {
-        Map<String, String> sampleResult = new LinkedHashMap<>();
+    public Map<String, Object> sampleFixedFileData(Map<String, TapFile> csvFileMap) throws Exception {
+        Map<String, Object> sampleResult = new LinkedHashMap<>();
         String[] headers = csvConfig.getHeader().split(csvConfig.getDelimiter());
-        for (String path : csvFileMap.keySet().stream().sorted().collect(Collectors.toList())) {
-            try (
-                    Reader reader = new InputStreamReader(storage.readFile(path));
-                    CSVReader csvReader = new CSVReaderBuilder(reader).build()
-            ) {
-                if (csvConfig.getIncludeHeader()) {
-                    csvReader.skip(csvConfig.getDataStartLine());
-                } else {
-                    csvReader.skip(csvConfig.getDataStartLine() - 1);
-                }
-                String[] data = csvReader.readNext();
-                if (EmptyKit.isNotNull(data)) {
-                    putIntoMap(headers, data, sampleResult);
-                    break;
+        if (EmptyKit.isEmpty(csvFileMap)) {
+            putIntoMap(headers, null, sampleResult);
+        } else {
+            for (String path : csvFileMap.keySet().stream().sorted().collect(Collectors.toList())) {
+                try (
+                        Reader reader = new InputStreamReader(storage.readFile(path));
+                        CSVReader csvReader = new CSVReaderBuilder(reader).build()
+                ) {
+                    if (csvConfig.getIncludeHeader()) {
+                        csvReader.skip(csvConfig.getDataStartLine());
+                    } else {
+                        csvReader.skip(csvConfig.getDataStartLine() - 1);
+                    }
+                    String[] data = csvReader.readNext();
+                    if (EmptyKit.isNotNull(data)) {
+                        putIntoMap(headers, data, sampleResult);
+                        break;
+                    }
                 }
             }
         }
         return sampleResult;
     }
 
-    public Map<String, String> sampleEveryFileData(ConcurrentMap<String, TapFile> csvFileMap) {
-        Map<String, String> sampleResult = new LinkedHashMap<>();
+    public Map<String, Object> sampleEveryFileData(ConcurrentMap<String, TapFile> csvFileMap) {
+        Map<String, Object> sampleResult = new LinkedHashMap<>();
         ExecutorService executorService = Executors.newFixedThreadPool(5);
         CountDownLatch countDownLatch = new CountDownLatch(5);
         for (int i = 0; i < 5; i++) {
@@ -112,7 +116,7 @@ public class CsvSchema {
         return null;
     }
 
-    private void putIntoMap(String[] headers, String[] data, Map<String, String> sampleResult) {
+    private void putIntoMap(String[] headers, String[] data, Map<String, Object> sampleResult) {
         if (EmptyKit.isNull(data)) {
             for (String header : headers) {
                 putValidIntoMap(sampleResult, header, "");
@@ -127,8 +131,8 @@ public class CsvSchema {
         }
     }
 
-    private synchronized void putValidIntoMap(Map<String, String> map, String key, String value) {
-        if (!map.containsKey(key) || EmptyKit.isBlank(map.get(key))) {
+    private synchronized void putValidIntoMap(Map<String, Object> map, String key, Object value) {
+        if (!map.containsKey(key) || EmptyKit.isBlank((String) map.get(key))) {
             map.put(key, value);
         }
     }

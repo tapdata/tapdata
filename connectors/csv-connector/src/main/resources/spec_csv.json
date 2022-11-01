@@ -15,7 +15,7 @@
           "x-decorator": "FormItem",
           "x-component": "Select",
           "x-index": 10,
-          "default": "Local",
+          "default": "local",
           "enum": [
             {
               "label": "LOCAL",
@@ -247,6 +247,87 @@
           "x-component": "Input",
           "apiServerKey": "bucket",
           "x-index": 190
+        },
+        "filePathString": {
+          "required": true,
+          "type": "string",
+          "title": "${filePathString}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "filePathString",
+          "x-index": 200
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "includeRegString": {
+          "type": "string",
+          "title": "${includeRegString}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "includeRegString"
+        },
+        "excludeRegString": {
+          "type": "string",
+          "title": "${excludeRegString}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "excludeRegString"
+        },
+        "recursive": {
+          "type": "boolean",
+          "title": "${recursive}",
+          "default": true,
+          "x-decorator": "FormItem",
+          "x-component": "Switch"
+        },
+        "delimiter": {
+          "required": true,
+          "default": ",",
+          "type": "string",
+          "title": "${delimiter}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "delimiter"
+        },
+        "header": {
+          "type": "string",
+          "title": "${header}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "header"
+        },
+        "dataStartLine": {
+          "required": true,
+          "type": "string",
+          "title": "${dataStartLine}",
+          "default": 1,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "dataStartLine"
+        },
+        "modelName": {
+          "type": "string",
+          "title": "${modelName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "modelName"
+        },
+        "includeHeader": {
+          "type": "boolean",
+          "title": "${includeHeader}",
+          "default": true,
+          "x-decorator": "FormItem",
+          "x-component": "Switch"
+        },
+        "justString": {
+          "type": "boolean",
+          "title": "${justString}",
+          "default": false,
+          "x-decorator": "FormItem",
+          "x-component": "Switch"
         }
       }
     }
@@ -273,7 +354,17 @@
       "secretKey": "Secret-Key",
       "endpoint": "Endpoint",
       "region": "Region",
-      "bucket": "Bucket"
+      "bucket": "Bucket",
+      "filePathString": "File Path",
+      "includeRegString": "Include Reg",
+      "excludeRegString": "Exclude Reg",
+      "recursive": "Recursive",
+      "delimiter": "Delimiter",
+      "header": "File Header",
+      "dataStartLine": "Data Line",
+      "modelName": "Model Name",
+      "includeHeader": "Include Header",
+      "justString": "All To String"
     },
     "zh_CN": {
       "doc": "docs/csv_zh_CN.md",
@@ -295,7 +386,17 @@
       "secretKey": "Secret-Key",
       "endpoint": "终端",
       "region": "域",
-      "bucket": "桶"
+      "bucket": "桶",
+      "filePathString": "文件路径",
+      "includeRegString": "包含通配",
+      "excludeRegString": "排除通配",
+      "recursive": "目录递归",
+      "delimiter": "分隔符",
+      "header": "表头",
+      "dataStartLine": "正文起始行",
+      "modelName": "模型名",
+      "includeHeader": "包含表头",
+      "justString": "全转换字符串"
     },
     "zh_TW": {
       "doc": "docs/csv_zh_TW.md",
@@ -317,7 +418,17 @@
       "secretKey": "Secret-Key",
       "endpoint": "終端",
       "region": "域",
-      "bucket": "桶"
+      "bucket": "桶",
+      "filePathString": "文件路徑",
+      "includeRegString": "包含通配",
+      "excludeRegString": "排除通配",
+      "recursive": "目錄遞歸",
+      "delimiter": "分割符",
+      "header": "表頭",
+      "dataStartLine": "正文起始行",
+      "modelName": "模型名",
+      "includeHeader": "包含表頭",
+      "justString": "全轉換字符串"
     }
   },
   "dataTypes": {
@@ -341,6 +452,21 @@
       "preferScale": 8,
       "priority": 1,
       "to": "TapNumber"
+    },
+    "DATETIME": {
+      "range": [
+        "1000-01-01 00:00:00.000000000",
+        "9999-12-31 23:59:59.999999999"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSSSSS",
+      "fraction": [
+        0,
+        9
+      ],
+      "defaultFraction": 3,
+      "withTimeZone": false,
+      "priority": 2,
+      "to": "TapDateTime"
     },
     "INTEGER": {
       "bit": 32,

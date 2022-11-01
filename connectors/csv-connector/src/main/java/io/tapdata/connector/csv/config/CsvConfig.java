@@ -9,6 +9,7 @@ public class CsvConfig extends FileConfig {
     private String header;
     private int dataStartLine;
     private String modelName;
+    private Boolean justString;
 
 
     public CsvConfig() {
@@ -53,5 +54,13 @@ public class CsvConfig extends FileConfig {
 
     public void setModelName(String modelName) {
         this.modelName = modelName;
+    }
+
+    public Boolean getJustString() {
+        return justString;
+    }
+
+    public void setJustString(Boolean justString) {
+        this.justString = justString;
     }
 }
