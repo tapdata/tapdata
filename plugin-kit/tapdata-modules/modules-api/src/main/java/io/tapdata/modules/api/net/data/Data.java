@@ -27,8 +27,10 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
         this.type = type;
     }
     protected TapEntity toTapMessage(byte[] content, String contentType, Byte contentEncode) throws IOException {
-        if(content == null || contentType == null || contentEncode == null)
+        if(content == null || contentType == null || contentEncode == null) {
+            TapLogger.error(TAG, "Some parameters are null, content {}, contentType {} contentEncode {}", content, contentType, contentEncode);
             return null;
+        }
         TapEntityEx message = null;
         switch (contentEncode) {
             case ENCODE_JAVA_CUSTOM_SERIALIZER:
@@ -37,7 +39,7 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
                     try(ByteArrayInputStream bais = new ByteArrayInputStream(content)) {
                         message.from(bais);
                     } catch (Throwable throwable) {
-                        TapLogger.debug(TAG, "message {} from failed, {}", message, throwable.getMessage());
+                        TapLogger.error(TAG, "message {} from failed, {}", message, throwable.getMessage());
                         message.setParseError(throwable);
                     }
                 } else {
@@ -75,7 +77,7 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
                 break;
             case ENCODE_JSON:
                 JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
-                String jsonStr = jsonParser.toJson(message);
+                String jsonStr = Objects.requireNonNull(jsonParser).toJson(message);
                 data = jsonStr.getBytes(StandardCharsets.UTF_8);
                 break;
             default:

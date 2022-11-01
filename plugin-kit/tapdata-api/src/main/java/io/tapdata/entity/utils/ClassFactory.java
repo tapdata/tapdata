@@ -2,10 +2,12 @@ package io.tapdata.entity.utils;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.error.TapAPIErrorCodes;
+import io.tapdata.entity.logger.TapLogger;
 
 import java.lang.reflect.Method;
 
 public class ClassFactory {
+    private static final String TAG = ClassFactory.class.getSimpleName();
     private static volatile Object classFactory;
     private static Method createMethod;
     private static Method createMethod2;
@@ -57,6 +59,7 @@ public class ClassFactory {
                         getImplClass = classFactory.getClass().getDeclaredMethod("getImplementationClass", Class.class, String.class);
                     } catch (Throwable e) {
                         e.printStackTrace();
+                        TapLogger.error(TAG, "Initiate {} failed, {}", classFactoryStr, e.getMessage());
                     }
                 }
             }
