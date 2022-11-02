@@ -89,7 +89,9 @@ public class AlarmServiceImpl implements AlarmService {
             info.setLastUpdAt(date);
             info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
             info.setLastOccurrenceTime(date);
-            info.setLastNotifyTime(one.getLastNotifyTime());
+            if (Objects.nonNull(one.getLastNotifyTime()) && Objects.isNull(info.getLastNotifyTime())) {
+                info.setLastNotifyTime(one.getLastNotifyTime());
+            }
 
             mongoTemplate.save(info);
         } else {
@@ -190,7 +192,7 @@ public class AlarmServiceImpl implements AlarmService {
                 CompletableFuture.runAsync(() -> {
                     sendMail(info, taskDto);
                     info.setLastNotifyTime(DateUtil.date());
-                    this.save(info);
+                    SpringUtil.getBean(AlarmService.class).save(info);
                 });
             }
 
