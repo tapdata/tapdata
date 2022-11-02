@@ -2,6 +2,7 @@ package io.tapdata.bigquery.service.bigQuery;
 
 import cn.hutool.core.codec.Base64;
 import cn.hutool.json.JSONUtil;
+import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -349,9 +350,10 @@ public class WriteRecord extends BigQueryStart{
         StringJoiner keyInsertSql = new StringJoiner(this.delimiter);
         StringJoiner valueInsertSql = new StringJoiner(this.delimiter);
         StringJoiner subUpdateSql = new StringJoiner(this.delimiter);
+        //FieldChecker.verifyFieldName(nameFieldMap);
         nameFieldMap.forEach((key,field)->{
             String value = this.sqlValue(record.get(key),field);
-            keyInsertSql.add("`"+key.replaceAll("\\.","_")+"`");
+            keyInsertSql.add("`"+key+"`");
             valueInsertSql.add(value);
             subUpdateSql.add("`"+key+"`"+this.equals+value);
         });
@@ -381,18 +383,17 @@ public class WriteRecord extends BigQueryStart{
         if (null == value) return "NULL";
         TapType tapType = field.getTapType();
         if (tapType instanceof TapString){
-            String valueStr = String.valueOf(value);
-            return "'"+valueStr.replaceAll("'","\'")+"'";
+            return jsonValue(value);
         }else if(tapType instanceof TapNumber){
             return this.empty+value;
         }else if(tapType instanceof TapBoolean){
             return this.empty+value;
         }else if(tapType instanceof TapMap){
-            return " JSON "+ JSONUtil.toJsonPrettyStr(value).replaceAll("'","\'")+"'";
+            return jsonValue(value);
         }else if(tapType instanceof TapBinary){
             return " FROM_BASE64('"+Base64.encode(String.valueOf(value)) +"') ";
         }else if(tapType instanceof TapArray){
-            return " JSON "+ JSONUtil.toJsonPrettyStr(value).replaceAll("'","\'")+"'";
+            return jsonValue(value);
         }else if(tapType instanceof TapDate){
             return "'"+value+"'";
         }else if(tapType instanceof TapYear){
@@ -402,8 +403,18 @@ public class WriteRecord extends BigQueryStart{
         }else if(tapType instanceof TapDateTime){
             return "'"+value+"'";
         }else{
-            return " JSON "+ JSONUtil.toJsonPrettyStr(value).replaceAll("'","\'")+"'";
+            return jsonValue(value);
         }
+    }
+    private String jsonValue(Object obj){
+        String value = String.valueOf(obj);
+        return " JSON '" +
+                JSONUtil.toJsonPrettyStr(value)
+                        .replaceAll("'","\\'")
+                        .replaceAll("\"\\{","\\{")
+                        .replaceAll("}\"","}")
+                        .replaceAll("\n","")
+                + "'";
     }
 
     /**
