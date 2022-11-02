@@ -126,8 +126,8 @@
       "to": "TapNumber",
       "name": "BIGNUMERIC",
       "precision": [
-        0,
-        76
+        1,
+        38
       ],
       "scale": [
         0,

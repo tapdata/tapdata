@@ -99,18 +99,11 @@ public class TableCreate extends BigQueryStart {
 
         //@TODO
         nameFieldMap.forEach((key,tapField)->{
-            /**
-             * column_name 是列的名称。列名称要求：
-             *
-             * 只能包含字母（a-z、A-Z）、数字 (0-9) 或下划线 (_)
-             * 必须以字母或下划线开头
-             * 最多包含 300 个字符
-             * */
-            if(!key.matches(FIELD_NAME_REG)){
 
-                TapLogger.info(TAG,String.format("Illegal field name - [%s],Can only contain letters (a-z, A-Z), numbers (0-9), or underscores (_), Must start with a letter or underscore ,and up to 300 characters.",key));
-                //throw new CoreException("Illegal field name,Can only contain letters (a-z, A-Z), numbers (0-9), or underscores (_), Must start with a letter or underscore ,and up to 300 characters.");
-            }
+//            if(!key.matches(FIELD_NAME_REG)){
+//                TapLogger.info(TAG,String.format("Illegal field name - [%s],Can only contain letters (a-z, A-Z), numbers (0-9), or underscores (_), Must start with a letter or underscore ,and up to 300 characters.",key));
+//                //throw new CoreException("Illegal field name,Can only contain letters (a-z, A-Z), numbers (0-9), or underscores (_), Must start with a letter or underscore ,and up to 300 characters.");
+//            }
             sql.append(" `")
                     .append(key)
                     .append("` ")

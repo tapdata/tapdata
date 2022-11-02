@@ -290,7 +290,7 @@ public class WriteRecord extends BigQueryStart{
                 //@TODO 对不同值处理
                 Object value = recordItem.get(fieldName);
                 if (null != value ) {
-                    keyBuilder.append("`").append(fieldName).append("` , ");
+                    keyBuilder.append("`").append(fieldName.replaceAll("\\.","_")).append("` , ");
                     valuesBuilder.append(sqlValue(value,field.getValue())).append(" , ");
                 }
             }
@@ -351,9 +351,9 @@ public class WriteRecord extends BigQueryStart{
         StringJoiner subUpdateSql = new StringJoiner(this.delimiter);
         nameFieldMap.forEach((key,field)->{
             String value = this.sqlValue(record.get(key),field);
-            keyInsertSql.add(key);
+            keyInsertSql.add("`"+key.replaceAll("\\.","_")+"`");
             valueInsertSql.add(value);
-            subUpdateSql.add(key+this.equals+value);
+            subUpdateSql.add("`"+key+"`"+this.equals+value);
         });
         String table = this.fullSqlTable(tapTable.getId());
         StringBuilder insertIfExitsUpdateSql = new StringBuilder("DECLARE exits INT64;");
@@ -388,11 +388,11 @@ public class WriteRecord extends BigQueryStart{
         }else if(tapType instanceof TapBoolean){
             return this.empty+value;
         }else if(tapType instanceof TapMap){
-            return " JSON "+ JSONUtil.toJsonPrettyStr(value);
+            return " JSON "+ JSONUtil.toJsonPrettyStr(value).replaceAll("'","\'")+"'";
         }else if(tapType instanceof TapBinary){
             return " FROM_BASE64('"+Base64.encode(String.valueOf(value)) +"') ";
         }else if(tapType instanceof TapArray){
-            return " JSON "+ JSONUtil.toJsonPrettyStr(value);
+            return " JSON "+ JSONUtil.toJsonPrettyStr(value).replaceAll("'","\'")+"'";
         }else if(tapType instanceof TapDate){
             return "'"+value+"'";
         }else if(tapType instanceof TapYear){
@@ -402,7 +402,7 @@ public class WriteRecord extends BigQueryStart{
         }else if(tapType instanceof TapDateTime){
             return "'"+value+"'";
         }else{
-            return " JSON "+ JSONUtil.toJsonPrettyStr(value);
+            return " JSON "+ JSONUtil.toJsonPrettyStr(value).replaceAll("'","\'")+"'";
         }
     }
 
@@ -417,7 +417,7 @@ public class WriteRecord extends BigQueryStart{
         StringJoiner keySql = new StringJoiner(delimiter);
         StringJoiner valueSql = new StringJoiner(delimiter);
         nameFieldMap.forEach((key,value)->{
-            keySql.add(key);
+            keySql.add("`"+key.replaceAll("\\.","_")+"`");
             valueSql.add(this.sqlValue(record.get(key),value));
         });
         if (keySql.length()>0 && valueSql.length()>0){
