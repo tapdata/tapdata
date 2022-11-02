@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast;
 
 import com.hazelcast.jet.core.AbstractProcessor;
+import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.*;
@@ -658,22 +659,27 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					if (null != hazelcastJob) break;
 					try {
 						Thread.sleep(500);
-					} catch (InterruptedException ignore) {
+					} catch (InterruptedException ignored) {
 						break;
 					}
 				}
 
 				if (hazelcastJob != null) {
 					AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
-					hazelcastJob.cancel();
+					JobStatus status = hazelcastJob.getStatus();
+					if (isRunning() && JobStatus.SUSPENDED == status) {
+						logger.info("Job cancel in error handle");
+						obsLogger.info("Job cancel in error handle");
+						hazelcastJob.cancel();
+					}
 				} else {
 					logger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
 					obsLogger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
 				}
 			}
 		} catch (Exception e) {
-			logger.warn("error handler failed: " + e.getMessage(), e);
-			obsLogger.warn("error handler failed: " + e.getMessage(), e);
+			logger.warn("Error handler failed: " + e.getMessage(), e);
+			obsLogger.warn("Error handler failed: " + e.getMessage(), e);
 		}
 
 		return currentEx;
