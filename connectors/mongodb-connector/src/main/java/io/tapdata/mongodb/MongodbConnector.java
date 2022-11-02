@@ -750,7 +750,7 @@ public class MongodbConnector extends ConnectorBase {
 //    }
 	private MongodbStreamReader createStreamReader() {
 		final int version = MongodbUtil.getVersion(mongoClient, mongoConfig.getDatabase());
-		MongodbStreamReader mongodbStreamReader = null;
+		MongodbStreamReader mongodbStreamReader;
 		if (version >= 4) {
 			mongodbStreamReader = new MongodbV4StreamReader();
 		} else {
@@ -780,20 +780,20 @@ public class MongodbConnector extends ConnectorBase {
 
 	@Override
 	public void onStop(TapConnectionContext connectionContext) throws Throwable {
-//        if (mongoClient != null) {
-//            mongoClient.close();
-//        }
 		isShutDown.set(true);
 		if (mongodbStreamReader != null) {
 			mongodbStreamReader.onDestroy();
+			mongodbStreamReader = null;
 		}
 
 		if (mongoClient != null) {
 			mongoClient.close();
+			mongoClient = null;
 		}
 
 		if (mongodbWriter != null) {
 			mongodbWriter.onDestroy();
+			mongodbWriter = null;
 		}
 	}
 }
