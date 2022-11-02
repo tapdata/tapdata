@@ -404,6 +404,7 @@ public class AlarmServiceImpl implements AlarmService {
                     .lastOccurrenceTime(t.getLastOccurrenceTime())
                     .taskId(t.getTaskId())
                     .metric(t.getMetric())
+                    .nodeId(t.getNodeId())
                     .build();
 
             collect.add(build);
