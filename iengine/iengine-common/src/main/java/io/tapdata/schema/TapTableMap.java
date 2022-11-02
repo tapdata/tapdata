@@ -392,8 +392,8 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	public Iterator<io.tapdata.entity.utils.cache.Entry<TapTable>> iterator() {
-		java.util.Iterator<String> iterator = tableNameAndQualifiedNameMap.values().iterator();
-		return new Iterator<io.tapdata.entity.utils.cache.Entry<TapTable>>() {
+        java.util.Iterator<K> iterator = tableNameAndQualifiedNameMap.keySet().iterator();
+        return new Iterator<io.tapdata.entity.utils.cache.Entry<TapTable>>() {
 			@Override
 			public boolean hasNext() {
 				return iterator.hasNext();
