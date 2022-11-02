@@ -21,7 +21,7 @@ import static io.tapdata.base.ConnectorBase.map;
  * io  -> https://cloud.google.com/bigquery/docs/listing-datasets
  * */
 public class SchemaSetList implements Command {
-    String SQL = "SELECT schema_name FROM #{projectId}.INFORMATION_SCHEMA.SCHEMATA;";
+    String SQL = "SELECT schema_name FROM `#{projectId}`.INFORMATION_SCHEMA.SCHEMATA;";
 
 
     @Override
