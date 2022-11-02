@@ -56,7 +56,7 @@ public class TapEventPartitionKeySelector implements PartitionKeySelector<TapEve
 		}
 		return values.stream().filter(Objects::nonNull).map(v->{
 			if (v instanceof TapValue) {
-				return ((TapValue<?, ?>) v).getOriginValue();
+				return ((TapValue<?, ?>) v).getValue();
 			} else {
 				return v;
 			}
