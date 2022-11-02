@@ -85,7 +85,7 @@
       "byte": 9223372036854775807,
       "defaultByte": 9223372036854775807
     },
-    "INTEGER": {
+    "INT64": {
       "to": "TapNumber",
       "bit": 32,
       "precision": 10,
@@ -94,7 +94,7 @@
         9223372036854775807
       ]
     },
-    "FLOAT": {
+    "FLOAT64": {
       "to": "TapNumber",
       "bit": 64,
       "scale": [

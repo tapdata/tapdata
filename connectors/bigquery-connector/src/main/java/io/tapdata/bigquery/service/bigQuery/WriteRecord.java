@@ -383,7 +383,7 @@ public class WriteRecord extends BigQueryStart{
         if (null == value) return "NULL";
         TapType tapType = field.getTapType();
         if (tapType instanceof TapString){
-            return jsonValue(value);
+            return "'"+String.valueOf(value).replaceAll("'","\\'")+"'";
         }else if(tapType instanceof TapNumber){
             return this.empty+value;
         }else if(tapType instanceof TapBoolean){
@@ -403,9 +403,10 @@ public class WriteRecord extends BigQueryStart{
         }else if(tapType instanceof TapDateTime){
             return "'"+value+"'";
         }else{
-            return jsonValue(value);
+            return ""+value;
         }
     }
+
     private String jsonValue(Object obj){
         String value = String.valueOf(obj);
         return " JSON '" +
