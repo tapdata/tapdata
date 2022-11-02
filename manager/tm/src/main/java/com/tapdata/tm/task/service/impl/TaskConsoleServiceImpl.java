@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -37,7 +38,8 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         String taskId = request.getTaskId();
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
-        List<Node> nodes = taskDto.getDag().getNodes();
+        DAG dag = taskDto.getDag();
+        List<Node> nodes = dag.getSources();
         List<String> connectionIds = nodes.stream()
                 .filter(node -> node instanceof DataParentNode)
                 .map(node -> ((DataParentNode<?>) node).getConnectionId())
@@ -45,13 +47,13 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
 
         List<RelationTaskInfoVo> result = Lists.newArrayList();
         if (RelationTaskRequest.type_logCollector.equals(request.getType())) {
-            getLogCollector(connectionIds, result, request);
+            getLogCollector(connectionIds, result, request, taskDto);
         } else if (RelationTaskRequest.type_shareCache.equals(request.getType())) {
-            getShareCache(connectionIds, result, request, nodes, taskDto);
+//            getShareCache(connectionIds, result, request, nodes);
         //} else if (RelationTaskRequest.type_inspect.equals(request.getType())) {
         } else {
-            getLogCollector(connectionIds, result, request);
-            getShareCache(connectionIds, result, request, nodes, taskDto);
+            getLogCollector(connectionIds, result, request, taskDto);
+//            getShareCache(connectionIds, result, request, nodes);
 
             result = result.stream().sorted(Comparator.nullsFirst(Comparator.comparing(RelationTaskInfoVo::getStartTime).reversed()))
                     .collect(Collectors.toList());
@@ -59,10 +61,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         return result;
     }
 
-    private void getShareCache(List<String> connectionIds, List<RelationTaskInfoVo> result, RelationTaskRequest request, List<Node> nodes, TaskDto taskDto) {
-        if (Objects.nonNull(taskDto.getShareCache()) && !taskDto.getShareCache()) {
-            return;
-        }
+    private void getShareCache(List<String> connectionIds, List<RelationTaskInfoVo> result, RelationTaskRequest request, List<Node> nodes) {
         List<String> tableNames = Lists.newArrayList();
         nodes.forEach(node -> {
             if (node instanceof TableNode) {
@@ -92,7 +91,11 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         });
     }
 
-    private void getLogCollector(List<String> connectionIds, List<RelationTaskInfoVo> result, RelationTaskRequest request) {
+    private void getLogCollector(List<String> connectionIds, List<RelationTaskInfoVo> result, RelationTaskRequest request, TaskDto taskDto) {
+        if (Objects.nonNull(taskDto.getShareCdcEnable()) && !taskDto.getShareCdcEnable()) {
+            return;
+        }
+
         Criteria criteria = Criteria.where("is_deleted").is(false).and("syncType").is("logCollector")
                 .and("dag.nodes.type").is(NodeEnum.logCollector.name())
                 .and("dag.nodes.connectionIds").in(connectionIds);

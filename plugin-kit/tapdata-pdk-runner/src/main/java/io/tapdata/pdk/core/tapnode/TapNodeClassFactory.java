@@ -193,7 +193,7 @@ public class TapNodeClassFactory implements MemoryFetcher {
         }
 
         for(Map.Entry<String, TapNodeInstance> entry : this.associateIdTapNodeIdMap.entrySet()) {
-            idGroupTapNodeInfoMap.kv(entry.getKey(), entry.getValue().getTapNodeInfo().getTapNodeSpecification().idAndGroup());
+            associateIdTapNodeIdMap.kv(entry.getKey(), entry.getValue().getTapNodeInfo().getTapNodeSpecification().idAndGroup());
         }
         return dataMap;
     }

@@ -21,7 +21,7 @@ public class AspectTaskSessionAnnotationHandler extends ClassAnnotationHandler {
 	public void handle(Set<Class<?>> classes) throws CoreException {
 		if (classes != null) {
 			newAspectTaskSessionMap = new ConcurrentHashMap<>();
-			TapLogger.debug(TAG, "--------------AspectTask Classes Start-------------");
+			TapLogger.info(TAG, "--------------AspectTask Classes Start-------------");
 			for (Class<?> clazz : classes) {
 				AspectTaskSession aspectTaskSession = clazz.getAnnotation(AspectTaskSession.class);
 				if (aspectTaskSession != null) {
@@ -72,14 +72,14 @@ public class AspectTaskSessionAnnotationHandler extends ClassAnnotationHandler {
 						implClasses = Collections.synchronizedSortedSet(new TreeSet<>());
 						implClasses.add(new TaskSessionClassHolder().taskClass(observerClass).excludeTypes(excludeList).includeTypes(includeList).order(order).ignoreErrors(ignoreErrors));
 						newAspectTaskSessionMap.put(aspectClass, implClasses);
-						TapLogger.debug(TAG, "(New array) AspectTask {} for Aspect {} will be applied", observerClass, aspectClass);
+						TapLogger.info(TAG, "(New array) AspectTask {} for Aspect {} will be applied", observerClass, aspectClass);
 					} else {
 						implClasses.add(new TaskSessionClassHolder().taskClass(observerClass).excludeTypes(excludeList).includeTypes(includeList).order(order).ignoreErrors(ignoreErrors));
-						TapLogger.debug(TAG, "(Exist array) AspectTask {} for Aspect {} will be applied", clazz, aspectClass);
+						TapLogger.info(TAG, "(Exist array) AspectTask {} for Aspect {} will be applied", clazz, aspectClass);
 					}
 				}
 			}
-			TapLogger.debug(TAG, "--------------AspectTask Classes End-------------");
+			TapLogger.info(TAG, "--------------AspectTask Classes End-------------");
 		}
 		apply();
 	}
