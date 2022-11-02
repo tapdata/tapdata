@@ -1,16 +1,15 @@
 package io.tapdata.coding.service.loader;
 
-import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.Param;
-import io.tapdata.coding.entity.param.ProjectMemberParam;
 import io.tapdata.coding.entity.param.ProjectParam;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
@@ -18,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+
 
 public class ProjectsLoader extends CodingStarter implements CodingLoader<ProjectParam>{
     public static final String TABLE_NAME = "Projects";
@@ -27,31 +27,13 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
     public static ProjectsLoader create(TapConnectionContext tapConnectionContext) {
         return new ProjectsLoader(tapConnectionContext);
     }
-    private boolean stopRead = false;
-    public void stopRead(){
-        stopRead = true;
-    }
-
-    CodingConnector codingConnector;
-    public ProjectsLoader connectorInit(CodingConnector codingConnector){
-        this.codingConnector = codingConnector;
-        return this;
-    }
-
-    @Override
-    public CodingLoader connectorOut() {
-        this.codingConnector = null;
-        return this;
-    }
 
     public List<Map<String,Object>> myProjectList(){
         Map<String,Object> user = this.myselfInfo();
-        if (Checker.isNotEmptyCollection(user)){
-            Object userIdObj = user.get("Id");
-            if (Checker.isEmpty(userIdObj)) return null;
-            return this.userProjectList((Integer)userIdObj);
-        }
-        return null;
+        Object userIdObj = user.get("Id");
+        if (Checker.isEmpty(userIdObj))
+            throw new RuntimeException(FormatUtils.format("User Id can not be parsed"));
+        return this.userProjectList((Integer)userIdObj);
     }
     public List<Map<String,Object>> userProjectList(Integer userId){
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
@@ -65,14 +47,19 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
                 body.getEntity(),
                 String.format(OPEN_API_URL, contextConfig.getTeamName())).post();
         if (null == post || post.isEmpty()){
-            return null;
+            throw new RuntimeException(FormatUtils.format("Coding request return empty body, url {}", String.format(OPEN_API_URL, contextConfig.getTeamName())));
         }
         Object responseObj = post.get("Response");
-        if (Checker.isEmptyCollection(responseObj)){
-            return null;
+        if (Checker.isEmptyCollection(responseObj))
+            throw new RuntimeException(FormatUtils.format("Response can not be parsed"));
+
+        Object projectListObj = ((Map<String, Object>)responseObj).get("ProjectList");
+        if(Checker.isNotEmptyCollection(projectListObj)) {
+            return (List<Map<String, Object>>) projectListObj;
+        } else {
+            throw new RuntimeException(FormatUtils.format("Project List can not be parsed"));
         }
-        Object ProjectListObj = ((Map<String,Object>)responseObj).get("ProjectList");
-        return Checker.isNotEmptyCollection(ProjectListObj)?(List<Map<String, Object>>)ProjectListObj:null;
+//        return Checker.isNotEmptyCollection(projectListObj)?(List<Map<String, Object>>)projectListObj:null;
     }
 
     public Map<String,Object> myselfInfo(){
@@ -85,15 +72,19 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
                 header.getEntity(),
                 body.getEntity(),
                 String.format(OPEN_API_URL, contextConfig.getTeamName())).post();
-        if (null == post || post.isEmpty()){
-            return null;
+        if (Checker.isEmptyCollection(post)){
+            throw new RuntimeException(FormatUtils.format("Coding request return empty body, url {}", String.format(OPEN_API_URL, contextConfig.getTeamName())));
         }
         Object responseObj = post.get("Response");
-        if (Checker.isEmptyCollection(responseObj)){
-            return null;
+        if (Checker.isEmptyCollection(responseObj))
+            throw new RuntimeException(FormatUtils.format("Response can not be parsed"));
+
+        Object userObj = ((Map<String, Object>)responseObj).get("User");
+        if(Checker.isNotEmptyCollection(userObj)) {
+            return (Map<String, Object>) userObj;
+        } else {
+            throw new RuntimeException(FormatUtils.format("User can not be parsed"));
         }
-        Object userObj = ((Map<Object, Object>)responseObj).get("User");
-        return Checker.isNotEmptyCollection(userObj)?(Map<String, Object>)userObj:null;
     }
 
     @Override
@@ -105,16 +96,18 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
         Map<String,Object> resultMap = this.codingHttp(param).post();
         Object response = resultMap.get("Response");
         if (null == response){
-            return null;
+            throw new RuntimeException(FormatUtils.format("Response can not be parsed"));
         }
         Map<String,Object> responseMap = (Map<String,Object>)response;
         Object dataObj = responseMap.get("Data");
         if (null == dataObj){
-            return null;
+            throw new RuntimeException(FormatUtils.format("Data can not be parsed"));
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object listObj = data.get("ProjectList");
-        return null !=  listObj? (List<Map<String, Object>>) listObj : null;
+        if(listObj == null)
+            throw new RuntimeException(FormatUtils.format("ProjectList can not be parsed"));
+        return (List<Map<String, Object>>) listObj;
     }
 
     @Override
@@ -131,11 +124,13 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
                 String.format(OPEN_API_URL,contextConfig.getTeamName())).post();
         Object response = resultMap.get("Response");
         if (null == response){
-            return null;
+            throw new RuntimeException(FormatUtils.format("Response can not be parsed"));
         }
         Map<String,Object> responseMap = (Map<String,Object>)response;
         Object dataObj = responseMap.get("Project");
-        return null !=  dataObj? (Map<String, Object>) dataObj : null;
+        if(dataObj == null)
+            throw new RuntimeException(FormatUtils.format("Project can not be parsed"));
+        return (Map<String, Object>) dataObj;
     }
 
     @Override
@@ -191,21 +186,21 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
                 .limit(batchCount)
                 .offset(startPage);
         CodingHttp codingHttp = this.codingHttp((ProjectParam)param);
-        List<Integer> issueCodes = contextConfig.issueCodes();
         List<TapEvent> events = new ArrayList<>();
-        if (Checker.isEmpty(issueCodes)){
-            return ;
-        }
-        while (true) {
+//        List<Integer> issueCodes = contextConfig.issueCodes();
+//        if (Checker.isEmpty(issueCodes)){
+//            throw new RuntimeException(FormatUtils.format("issueCodes is empty"));
+//        }
+        while (this.sync() ){
             Map<String,Object> resultMap = codingHttp.buildBody("Offset",startPage).post();
             Object response = resultMap.get("Response");
             if (null == response){
-                return;
+                throw new RuntimeException(FormatUtils.format("Response can not be parsed"));
             }
             Map<String,Object> responseMap = (Map<String,Object>)response;
             Object dataObj = responseMap.get("Data");
             if (null == dataObj){
-                return;
+                throw new RuntimeException(FormatUtils.format("Data can not be parsed"));
             }
             Map<String,Object> data = (Map<String,Object>)dataObj;
             Object listObj = data.get("ProjectList");
@@ -226,8 +221,11 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
                 }
                 startPage += param.limit();
             }else {
-                break;
+                throw new RuntimeException(FormatUtils.format("ProjectList can not be parsed"));
             }
+        }
+        if(!this.sync()){
+            this.connectorOut();
         }
         if (events.size() > 0)  consumer.accept(events, offset);
     }

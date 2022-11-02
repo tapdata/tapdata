@@ -16,9 +16,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
@@ -117,6 +115,24 @@ public class TidbConnector extends ConnectorBase {
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
+
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+        codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
+
+        codecRegistry.registerFromTapValue(TapMapValue.class, "longtext", tapMapValue -> {
+            if (tapMapValue != null && tapMapValue.getValue() != null) return toJson(tapMapValue.getValue());
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapArrayValue.class, "longtext", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null) return toJson(tapValue.getValue());
+            return "null";
+        });
+
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {

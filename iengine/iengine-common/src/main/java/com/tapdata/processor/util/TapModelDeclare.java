@@ -43,19 +43,7 @@ public class TapModelDeclare {
   }
 
   public static void addField(List<SchemaApplyResult> schemaApplyResultList, String fieldName, String tapType, String dataType) throws Throwable {
-    Optional<SchemaApplyResult> optional = schemaApplyResultList.stream()
-            .filter(schemaApplyResult -> StringUtils.equals(fieldName, schemaApplyResult.getFieldName())).findFirst();
-    if (optional.isPresent()) {
-      SchemaApplyResult schemaApplyResult = optional.get();
-      if (!StringUtils.equals(schemaApplyResult.getOp(), SchemaApplyResult.OP_TYPE_REMOVE)) {
-        logger.warn("field {} already exists in schemaApplyResultList", fieldName);
-        return;
-      }
-      schemaApplyResultList.removeIf(result -> StringUtils.equals(result.getFieldName(), fieldName));
-    }
-    schemaApplyResultList.add(
-            new SchemaApplyResult(SchemaApplyResult.OP_TYPE_CREATE, fieldName,
-                    getTapField(fieldName, tapType, dataType)));
+    schemaApplyResultList.add(new SchemaApplyResult(SchemaApplyResult.OP_TYPE_CREATE, fieldName, getTapField(fieldName, tapType, dataType)));
   }
 
   public static void updateField(TapTable tapTable, String fieldName, String tapType) throws Throwable {
@@ -75,7 +63,6 @@ public class TapModelDeclare {
     updateField(schemaApplyResultList, fieldName, tapType, null);
   }
   public static void updateField(List<SchemaApplyResult> schemaApplyResultList, String fieldName, String tapType, String dataType) throws Throwable {
-    schemaApplyResultList.removeIf(schemaApplyResult -> StringUtils.equals(fieldName, schemaApplyResult.getFieldName()));
     schemaApplyResultList.add(new SchemaApplyResult(SchemaApplyResult.OP_TYPE_CONVERT, fieldName,
             getTapField(fieldName, tapType, dataType)));
   }
@@ -99,7 +86,6 @@ public class TapModelDeclare {
   }
 
   public static void removeField(List<SchemaApplyResult> schemaApplyResultList, String fieldName) {
-    schemaApplyResultList.removeIf(schemaApplyResult -> schemaApplyResult.getFieldName().equals(fieldName));
     schemaApplyResultList.add(new SchemaApplyResult(SchemaApplyResult.OP_TYPE_REMOVE, fieldName, null));
   }
 
@@ -117,6 +103,10 @@ public class TapModelDeclare {
     optionalTapField.ifPresent(f-> tapTable.getNameFieldMap().put(fieldName, f));
   }
 
+  public static void setPk(List<SchemaApplyResult> schemaApplyResultList, String fieldName) {
+    schemaApplyResultList.add(new SchemaApplyResult(SchemaApplyResult.OP_TYPE_SET_PK, fieldName));
+  }
+
   public static void unSetPk(TapTable tapTable, String fieldName) {
     if (!tapTable.getNameFieldMap().containsKey(fieldName)) {
       logger.warn("field not found: " + fieldName);
@@ -131,6 +121,10 @@ public class TapModelDeclare {
     optionalTapField.ifPresent(f-> tapTable.getNameFieldMap().put(fieldName, f));
   }
 
+  public static void unSetPk(List<SchemaApplyResult> schemaApplyResultList, String fieldName) {
+    schemaApplyResultList.add(new SchemaApplyResult(SchemaApplyResult.OP_TYPE_UN_SET_PK, fieldName));
+  }
+
   public static void addIndex(TapTable tapTable, String indexName, List<Map<String, Object>> descMap) {
     if (StringUtils.isEmpty(indexName) || CollectionUtils.isEmpty(descMap)) {
       throw new IllegalArgumentException("The index name and the description of the index are illegal");
@@ -138,6 +132,31 @@ public class TapModelDeclare {
     if (tapTable.getIndexList().stream().anyMatch(i -> i.getName().equals(indexName))) {
       throw new IllegalArgumentException("index name already exists");
     }
+    TapIndex tapIndex = getTapIndex(indexName, descMap);
+    tapTable.add(tapIndex);
+  }
+
+  public static void addIndex(List<SchemaApplyResult> schemaApplyResultList, String indexName, List<Map<String, Object>> descMap) {
+    if (StringUtils.isEmpty(indexName) || CollectionUtils.isEmpty(descMap)) {
+      throw new IllegalArgumentException("The index name and the description of the index are illegal");
+    }
+    TapIndex tapIndex = getTapIndex(indexName, descMap);
+    schemaApplyResultList.add(new SchemaApplyResult(SchemaApplyResult.OP_TYPE_ADD_INDEX, tapIndex));
+  }
+
+  public static void removeIndex(TapTable tapTable, String indexName) {
+    if (tapTable.getIndexList().stream().noneMatch(i -> i.getName().equals(indexName))) {
+      logger.warn("index does not exist");
+      return;
+    }
+    tapTable.getIndexList().removeIf(i -> i.getName().equals(indexName));
+  }
+
+  public static void removeIndex(List<SchemaApplyResult> schemaApplyResultList, String indexName) {
+    schemaApplyResultList.add(new SchemaApplyResult(SchemaApplyResult.OP_TYPE_REMOVE_INDEX, new TapIndex().name(indexName)));
+  }
+
+  private static TapIndex getTapIndex(String indexName, List<Map<String, Object>> descMap) {
     TapIndex tapIndex = new TapIndex().name(indexName);
     for (Map<String, Object> map : descMap) {
       String fieldName = (String) map.get("fieldName");
@@ -147,15 +166,7 @@ public class TapModelDeclare {
       boolean order = (boolean) map.get("order");
       tapIndex.indexField(new TapIndexField().name(fieldName).fieldAsc(order));
     }
-    tapTable.add(tapIndex);
-  }
-
-  public static void removeIndex(TapTable tapTable, String indexName) {
-    if (tapTable.getIndexList().stream().noneMatch(i -> i.getName().equals(indexName))) {
-      logger.warn("index does not exist");
-      return;
-    }
-    tapTable.getIndexList().removeIf(i -> i.getName().equals(indexName));
+    return tapIndex;
   }
 
   private static TapField getTapField(String fieldName, String tapType, String dataType) throws InstantiationException, IllegalAccessException {

@@ -1,14 +1,14 @@
-package com.tapdata.entity;
+package com.tapdata.tm.sdk.util;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.StringUtils;
 
 public class Version {
 
 	private static final Logger log = LogManager.getLogger(Version.class);
 
-	private static String VERSION;
+	private static final String VERSION;
 
 	private Version() {
 	}
@@ -18,7 +18,7 @@ public class Version {
 		StringBuilder sb = new StringBuilder();
 		String version = System.getenv("version");
 		String javaVersion = System.getProperty("java.version");
-		if (StringUtils.isNotEmpty(version)) {
+		if (!StringUtils.isEmpty(version)) {
 			sb.append("FlowEngine/").append(version).append(" ").append("java/").append(javaVersion);
 		}
 		VERSION = sb.toString();

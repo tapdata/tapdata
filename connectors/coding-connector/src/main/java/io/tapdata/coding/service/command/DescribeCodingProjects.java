@@ -73,15 +73,15 @@ public class DescribeCodingProjects implements Command {
         CodingHttp http = CodingHttp.create(header.getEntity(),body.getEntity(), url);
         Map<String, Object> postResult = http.post();
 
-        Object response = postResult.get("Response");
-        Map<String,Object> responseMap = (Map<String, Object>) response;
-        if (Checker.isEmpty(response)){
-            //TapLogger.info(TAG, "HTTP request exception, list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action="+command);
-            throw new RuntimeException("Get list failed: " + url +"?Action="+command);
-        }
+//        Object response = postResult.get("Response");
+//        Map<String,Object> responseMap = (Map<String, Object>) response;
+//        if (Checker.isEmpty(response)){
+//            //TapLogger.info(TAG, "HTTP request exception, list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action="+command);
+//            throw new RuntimeException("Get list failed: " + url +"?Action="+command);
+//        }
 
         Map<String,Object> pageResult = new HashMap<>();
-        Object dataObj = responseMap.get("Data");
+        Object dataObj = postResult.get("Data");
         if(Checker.isEmpty(dataObj)){
             return Command.emptyResult();
         }

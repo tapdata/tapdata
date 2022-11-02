@@ -141,7 +141,10 @@ public class CommonUtils {
 
             long retryTimes = invoker.getRetryTimes();
             if (retryTimes > 0) {
-                TapLogger.warn(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({}s) | error [{}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage());//, message
+                TapLogger.warn(logTag, String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [{%s}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage()));
+                if (null != invoker.getLogListener()) {
+                    invoker.getLogListener().warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [{%s}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage()));
+                }
                 invoker.setRetryTimes(retryTimes - 1);
                 if (async) {
                     ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node, method, invoker), retryPeriodSeconds, TimeUnit.SECONDS);
@@ -149,8 +152,7 @@ public class CommonUtils {
                     synchronized (invoker) {
                         try {
                             invoker.wait(retryPeriodSeconds * 1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
+                        } catch (InterruptedException ignored) {
                         }
                     }
                     autoRetry(node, method, invoker);
@@ -211,7 +213,6 @@ public class CommonUtils {
             TapLogger.warn(tag, "Error code {} message {} will be ignored. ", coreException.getCode(), ExceptionUtils.getStackTrace(coreException));
         } catch(Throwable throwable) {
             if(!(throwable instanceof QuiteException)) {
-                throwable.printStackTrace();
                 TapLogger.warn(tag, "Unknown error message {} will be ignored. ", ExceptionUtils.getStackTrace(throwable));
             }
         }

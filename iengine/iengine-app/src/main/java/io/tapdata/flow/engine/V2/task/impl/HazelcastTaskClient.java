@@ -84,7 +84,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	}
 
 	@Override
-	public boolean stop() {
+	public synchronized boolean stop() {
 		Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
 		if (job.getStatus() == JobStatus.RUNNING) {
 			job.suspend();

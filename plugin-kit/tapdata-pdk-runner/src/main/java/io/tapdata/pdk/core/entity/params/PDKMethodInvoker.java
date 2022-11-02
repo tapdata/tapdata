@@ -1,6 +1,7 @@
 package io.tapdata.pdk.core.entity.params;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.function.Consumer;
@@ -28,6 +29,12 @@ public class PDKMethodInvoker {
     private long retryTimes;
     private long retryPeriodSeconds;
     private long maxRetryTimeMinute; //util:seconds
+    private TapLogger.LogListener logListener;
+
+    public PDKMethodInvoker logListener(TapLogger.LogListener logListener) {
+        this.logListener = logListener;
+        return this;
+    }
 
     public PDKMethodInvoker maxRetryTimeMinute(long maxRetryTimeMinute){
         this.maxRetryTimeMinute = maxRetryTimeMinute;
@@ -149,5 +156,9 @@ public class PDKMethodInvoker {
 
     public void setMaxRetryTimeMinute(long maxRetryTimeMinute) {
         this.maxRetryTimeMinute = maxRetryTimeMinute;
+    }
+
+    public TapLogger.LogListener getLogListener() {
+        return logListener;
     }
 }

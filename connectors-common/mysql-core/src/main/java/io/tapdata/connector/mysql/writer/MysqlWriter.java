@@ -87,7 +87,7 @@ public abstract class MysqlWriter {
 			return false;
 		}
 		if (!after.containsKey(field.getName())) {
-			TapLogger.warn(TAG, "Found schema field not exists in after data, will skip it: " + field.getName());
+			TapLogger.debug(TAG, "Found schema field not exists in after data, will skip it: " + field.getName());
 			return false;
 		}
 		return true;

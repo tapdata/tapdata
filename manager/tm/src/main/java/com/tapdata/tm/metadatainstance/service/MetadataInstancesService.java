@@ -374,7 +374,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     if (updateFieldMap.size() != 0) {
                         DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(connectionDto.getDatabase_type(), user);
                         if (definitionDto != null) {
-                            PdkSchemaConvert.tableFieldTypesGenerator.autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(definitionDto.getExpression()));
+                            PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(definitionDto.getExpression()));
 
                             updateFieldMap.forEach((k, v) -> {
                                 tapTable.getNameFieldMap().replace(k, v);
