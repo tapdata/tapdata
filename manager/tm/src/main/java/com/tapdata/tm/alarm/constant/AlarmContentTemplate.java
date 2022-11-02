@@ -21,13 +21,13 @@ public class AlarmContentTemplate {
      * - 告警格式：【级别】任务[${任务名}]全量同步已完成，耗时${全量耗时}。告警时间：${全量完成时间}
      * - 告警样例：【Normal】任务[MySQL-2-Oracle]全量同步已完成，耗时2h30min。告警时间：2022-08-08 12:23:12
      */
-    public static final String TASK_FULL_COMPLETE = "任务[$taskName]全量同步已完成，耗时{0}ms。告警时间：{1}";
+    public static final String TASK_FULL_COMPLETE = "任务[$taskName]全量同步已完成，耗时{0}ms, 全量完成时间点：{1},告警时间：{2}";
 
     /**
      * - 告警格式：【级别】任务[${任务名}]增量同步已开始。告警时间：${增量开始时间}
      * - 告警样例：【Normal】任务[MySQL-2-Oracle]增量同步已开始。告警时间：2022-08-08 12:23:12
      */
-    public static final String TASK_INCREMENT_START = "任务[$taskName]增量同步已开始。告警时间：{0}";
+    public static final String TASK_INCREMENT_START = "任务[$taskName]增量同步已开始, 增量时间点{0}, 告警时间：{1}";
 
     /**
      * - 告警格式：【级别】任务[${任务名}]已出错停止，请尽快处理！告警时间：${出错停止时间}
