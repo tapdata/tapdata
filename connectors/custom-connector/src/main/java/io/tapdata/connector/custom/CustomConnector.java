@@ -188,7 +188,11 @@ public class CustomConnector extends ConnectorBase {
         List<TapEvent> eventList = new ArrayList<>();
         while (isAlive() && t.isAlive()) {
             try {
-                TapEvent event = Objects.requireNonNull(scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS)).getTapEvent();
+                TapEvent event = null;
+                try {
+                    event = Objects.requireNonNull(scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS)).getTapEvent();
+                } catch (InterruptedException ignored) {
+                }
                 if (EmptyKit.isNotNull(event)) {
                     eventList.add(event);
                     if (eventList.size() == eventBatchSize) {
@@ -241,18 +245,19 @@ public class CustomConnector extends ConnectorBase {
         List<TapEvent> eventList = new ArrayList<>();
         Object lastContextMap = null;
         while (isAlive() && t.isAlive()) {
+            CustomEventMessage message = null;
             try {
-                CustomEventMessage message = scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS);
-                if (EmptyKit.isNotNull(message)) {
-                    eventList.add(message.getTapEvent());
-                    lastContextMap = message.getContextMap();
-                    if (eventList.size() == recordSize) {
-                        consumer.accept(eventList, lastContextMap);
-                        contextMap.set(lastContextMap);
-                        eventList = new ArrayList<>();
-                    }
+                message = scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
+            }
+            if (EmptyKit.isNotNull(message)) {
+                eventList.add(message.getTapEvent());
+                lastContextMap = message.getContextMap();
+                if (eventList.size() == recordSize) {
+                    consumer.accept(eventList, lastContextMap);
+                    contextMap.set(lastContextMap);
+                    eventList = new ArrayList<>();
                 }
-            } catch (InterruptedException ignore) {
             }
         }
         if (EmptyKit.isNotNull(scriptException.get())) {
