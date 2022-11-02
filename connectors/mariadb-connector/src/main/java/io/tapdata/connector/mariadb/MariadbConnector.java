@@ -7,7 +7,7 @@ import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.*;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
-import io.tapdata.connector.mysql.writer.MysqlJdbcOneByOneWriter;
+import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -77,7 +77,15 @@ public class MariadbConnector extends ConnectorBase {
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         codecRegistry.registerFromTapValue(TapMapValue.class, "json", tapValue -> toJson(tapValue.getValue()));
         codecRegistry.registerFromTapValue(TapArrayValue.class, "json", tapValue -> toJson(tapValue.getValue()));
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SSSSSS"));
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> {
+            if (tapTimeValue.getOriginValue() instanceof Long) {
+                long time = (long)tapTimeValue.getOriginValue() / 1000;
+                return MysqlUtil.toHHmmss(time);
+            } else {
+                return tapTimeValue.getValue().toTime();
+            }
+        });
+
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
                 tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
@@ -90,6 +98,13 @@ public class MariadbConnector extends ConnectorBase {
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
         connectorFunctions.supportCreateTable(this::createTable);
@@ -107,18 +122,6 @@ public class MariadbConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportReleaseExternalFunction(this::releaseExternal);
-    }
-
-    private void releaseExternal(TapConnectorContext tapConnectorContext) {
-        try {
-            KVMap<Object> stateMap = tapConnectorContext.getStateMap();
-            if (null != stateMap) {
-                stateMap.clear();
-            }
-        } catch (Throwable throwable) {
-            TapLogger.warn(TAG, "Release mysql state map failed, error: " + throwable.getMessage());
-        }
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {

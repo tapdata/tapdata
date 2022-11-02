@@ -90,6 +90,9 @@ public class JsProcessorNode extends ProcessorNode {
         ////用于预跑数据得到模型
         TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, taskDtoCopy);
 
+        if (tapTable == null) {
+            return null;
+        }
 
         String expression = null;
         label:
@@ -107,13 +110,9 @@ public class JsProcessorNode extends ProcessorNode {
         }
 
         if (StringUtils.isNotBlank(expression)) {
-            PdkSchemaConvert.tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+            PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
         }
         Schema schema = PdkSchemaConvert.fromPdkSchema(tapTable);
-
-
-
-
 
         Schema schema1 = inputSchema.get(0);
         if (schema1 != null) {

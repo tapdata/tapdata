@@ -1,11 +1,16 @@
 package io.tapdata.wsclient.utils;
 
+import io.tapdata.entity.logger.TapLogger;
+import org.apache.commons.lang3.exception.ExceptionUtils;
+
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 @SuppressWarnings("ALL")
 public class EventManager {
+
+    private static final String TAG = EventManager.class.getSimpleName();
 
     public interface EventListener<T> {
         void onMessage(String eventType, T message);
@@ -66,7 +71,11 @@ public class EventManager {
         synchronized (mObject) {
             List<EventListener> listeners = getOrCreateListeners(eventType);
             for (EventListener listener : listeners) {
-                listener.onMessage(eventType, message);
+                try {
+                    listener.onMessage(eventType, message);
+                } catch (Throwable throwable) {
+                    TapLogger.error(TAG, "Event onMessage failed, for eventType {}, eventListener {}, message {} error {}", eventType, listener, message, ExceptionUtils.getStackTrace(throwable));
+                }
             }
         }
 

@@ -1,11 +1,12 @@
 package io.tapdata.wsclient.modules.imclient.impls;
 
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.modules.api.net.data.*;
 import io.tapdata.wsclient.modules.imclient.IMStatusListener;
 
 import java.io.IOException;
 
-public abstract class PushChannel {
+public abstract class PushChannel implements MemoryFetcher {
 	protected IMClientImpl imClient;
 	protected IMStatusListener statusListener;
 	protected ReceiveDataListener receiveDataListener;

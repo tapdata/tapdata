@@ -119,4 +119,24 @@ public class MysqlUtil extends JdbcUtil {
 		long diff = Duration.between(toZonedDateTime, fromZonedDateTime).toMillis();
 		return timestamp + diff;
 	}
+
+	public static String convertTime(Object time){
+		String str[] =((String)time).split(":");
+		String timeTemp;
+		if(str.length==3){
+			int hour = Math.abs(Integer.parseInt(str[0]))%24;
+			timeTemp = (hour < 10 ? ("0" + hour) : hour) + ":" +str[1] + ":"+str[2];
+			return timeTemp;
+		}
+		return null;
+	}
+
+	public static String toHHmmss(long time) {
+		String timeTemp;
+		int hours = (int) (time % (1000 * 60 * 60 * 24) / (1000 * 60 * 60));
+		int minutes = (int) (time % (1000 * 60 * 60) / (1000 * 60));
+		int seconds = (int) (time % (1000 * 60) / 1000);
+		timeTemp = (hours < 10 ? ("0" + hours) : hours) + ":" + (minutes < 10 ? ("0" + minutes) : minutes) + ":" + (seconds < 10 ? ("0" + seconds) : seconds);
+		return timeTemp;
+	}
 }

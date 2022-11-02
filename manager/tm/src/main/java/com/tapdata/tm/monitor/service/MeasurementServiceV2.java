@@ -1,5 +1,7 @@
 package com.tapdata.tm.monitor.service;
 
+import cn.hutool.core.date.DateTime;
+import cn.hutool.core.date.DateUtil;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
@@ -61,6 +63,7 @@ public class MeasurementServiceV2 {
 
     private void addBulkAgentMeasurement(List<SampleRequest> sampleRequestList, String granularity) {
         BulkOperations bulkOperations = mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+        DateTime date = DateUtil.date();
         for (SampleRequest singleSampleRequest : sampleRequestList) {
             Criteria criteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(granularity);
 
@@ -69,7 +72,7 @@ public class MeasurementServiceV2 {
                 continue;
             }
 
-            Date theDate = TimeUtil.cleanTimeAfterMinute(new Date());
+            Date theDate = TimeUtil.cleanTimeAfterMinute(date);
             if (!"table".equals(tags.get("type"))) {
                 criteria.and(MeasurementEntity.FIELD_DATE).is(theDate);
             }
@@ -78,6 +81,9 @@ public class MeasurementServiceV2 {
                 criteria.and(MeasurementEntity.FIELD_TAGS + "." + entry.getKey()).is(entry.getValue());
             }
             Query query = Query.query(criteria);
+
+            Date second = TimeUtil.cleanTimeAfterSecond(date);
+            singleSampleRequest.getSample().setDate(second);
 
             Map<String, Object> sampleMap = singleSampleRequest.getSample().toMap();
             Document upd = new Document();

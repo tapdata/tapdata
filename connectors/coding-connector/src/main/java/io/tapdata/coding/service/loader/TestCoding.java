@@ -1,6 +1,7 @@
 package io.tapdata.coding.service.loader;
 
 import cn.hutool.json.*;
+import io.tapdata.coding.service.schema.EnabledSchemas;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.enums.CodingTestItem;
 import io.tapdata.coding.utils.http.HttpEntity;
@@ -35,8 +36,8 @@ public class TestCoding extends CodingStarter{
             String token = connectionConfig.getString("token");
             CodingHttp.create(
                     HttpEntity.create().builder("Authorization",this.tokenSetter(token)).getEntity(),
-                    null,
-                    String.format(CONNECTION_URL, connectionConfig.get("teamName"))
+                    HttpEntity.create().builder("Action","DescribeCodingCurrentUser").getEntity(),
+                    String.format(OPEN_API_URL, connectionConfig.get("teamName"))
             ).post();
             return testItem(CodingTestItem.CONNECTION_TEST.getContent(),TestItem.RESULT_SUCCESSFULLY);
         }catch (Exception e){
@@ -47,21 +48,26 @@ public class TestCoding extends CodingStarter{
     //测试token
     public TestItem testToken(){
       try {
-          DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-          HashMap<String, String> headers = new HashMap<>();//存放请求头，可以存放多个请求头
-
-          String token = connectionConfig.getString("token");
-          token = tokenSetter(token);
-          headers.put("Authorization", token);
-          connectionConfig.put("token",token);
-          Map<String,Object> resultMap = CodingHttp.create(
-                  headers,
-                  null,
-                  String.format(TOKEN_URL,connectionConfig.get("teamName"))
-          ).post();
-
-          if (null==resultMap || null==resultMap.get("id")){
-              throw new Exception("Incorrect token entered!");
+//          DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
+//          HashMap<String, String> headers = new HashMap<>();//存放请求头，可以存放多个请求头
+//
+//          String token = connectionConfig.getString("token");
+//          token = tokenSetter(token);
+//          headers.put("Authorization", token);
+//          connectionConfig.put("token",token);
+//          Map<String,Object> resultMap = CodingHttp.create(
+//                  headers,
+//                  HttpEntity.create().builderIfNotAbsent("Action","DescribeTeamMembers").builder("PageNumber",1).builder("PageSize",1).getEntity(),
+//                  String.format(OPEN_API_URL,connectionConfig.get("teamName"))
+//          ).post();
+//
+//          if (null==resultMap || null==resultMap.get("Response")){
+//              throw new Exception("Incorrect token entered!");
+//          }
+          try {
+              EnabledSchemas.getAllSchemas(tapConnectionContext,null);
+          }catch (Exception e){
+              return testItem(CodingTestItem.TOKEN_TEST.getContent(),TestItem.RESULT_SUCCESSFULLY_WITH_WARN,e.getMessage());
           }
           return testItem(CodingTestItem.TOKEN_TEST.getContent(),TestItem.RESULT_SUCCESSFULLY);
       }catch (Exception e){

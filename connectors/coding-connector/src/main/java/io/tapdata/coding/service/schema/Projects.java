@@ -3,7 +3,6 @@ package io.tapdata.coding.service.schema;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
@@ -19,7 +18,10 @@ public class Projects implements SchemaStart {
     public String tableName() {
         return "Projects";
     }
-
+    @Override
+    public boolean connection(TapConnectionContext tapConnectionContext) {
+        return false;
+    }
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
         /**
@@ -62,15 +64,5 @@ public class Projects implements SchemaStart {
                 .add(field("IsDemo", JAVA_Boolean))
                 .add(field("Archived", JAVA_Boolean))
                 ;
-    }
-
-    @Override
-    public TapTable csv(TapConnectionContext connectionContext) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> autoSchema(Map<String, Object> eventData) {
-        return null;
     }
 }

@@ -296,14 +296,13 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         return null;
     }
     public List<DataSourceDefinitionDto> getByDataSourceType(List<String> dataSourceType, UserDetail user) {
-
-        // find all user private or public datasource definition
-        Criteria criteria = Criteria.where("type").in(dataSourceType)
-                .and("pdkType").is(DataSourceDefinitionDto.PDK_TYPE)
-                .orOperator(Criteria.where("scope").is("public"),
-                            Criteria.where("scope").ne("public")
-                                    .and("customId").is(user.getCustomerId())
-                                    .and("user_id").is(user.getUserId()));
+        Criteria customCriteria = new Criteria();
+        customCriteria.and("customId").is(user.getCustomerId());
+        Criteria userCriteria = Criteria.where("user_id").is(user.getUserId());
+        Criteria supplierCriteria = Criteria.where("pdkType").ne(DataSourceDefinitionDto.PDK_TYPE);
+        Criteria scopeCriteria = Criteria.where("scope").is("public");
+        Criteria criteria = Criteria.where("type").in(dataSourceType).and("pdkHash").exists(true);;
+        criteria.orOperator(customCriteria, userCriteria, supplierCriteria, scopeCriteria);
         return findAll(Query.query(criteria));
     }
 

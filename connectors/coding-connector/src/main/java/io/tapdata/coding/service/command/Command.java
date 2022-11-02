@@ -7,6 +7,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,23 +30,22 @@ public interface Command {
         return null;
     }
     public static CommandResult command(TapConnectionContext tapConnectionContext, CommandInfo commandInfo){
+        TapLogger.debug(TAG, "Command info {}", commandInfo);
         String command = commandInfo.getCommand();
         if(Checker.isEmpty(command)){
             throw new CoreException("Command can not be NULL or not be empty.");
         }
-        if (Checker.isEmpty(command)) return null;
+        if (Checker.isEmpty(command))
+            throw new RuntimeException(MessageFormat.format("Command is empty from command info {}", commandInfo));
         Class clz = null;
         try {
             clz = Class.forName("io.tapdata.coding.service.command."+command);
-            return ((Command)clz.newInstance()).commandResult(tapConnectionContext, commandInfo);
-        } catch (ClassNotFoundException e) {
-            TapLogger.debug(TAG, "ClassNotFoundException for Command {}",command);
-        } catch (InstantiationException e1) {
-            TapLogger.debug(TAG, "InstantiationException for Command {}",command);
-        } catch (IllegalAccessException e2) {
-            TapLogger.debug(TAG, "IllegalAccessException for Command {}",command);
+            CommandResult result = ((Command)clz.newInstance()).commandResult(tapConnectionContext, commandInfo);
+            TapLogger.info(TAG, "Command result {}", result);
+            return result;
+        } catch (Throwable e) {
+            throw new RuntimeException(e.getMessage());
         }
-        return null;
     }
 
     public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo);

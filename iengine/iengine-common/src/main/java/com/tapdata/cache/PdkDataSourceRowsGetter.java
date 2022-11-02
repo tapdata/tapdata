@@ -98,8 +98,14 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
 
     tapAdvanceFilter.match(dataMap);
     PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-            () -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults ->
-                    resultsAtomic.set(new ArrayList<>(filterResults.getResults()))), TAG);
+            () -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable,
+                    filterResults -> {
+                      List<Map<String, Object>> results = filterResults.getResults();
+                      if (CollectionUtils.isNotEmpty(results)) {
+                        resultsAtomic.set(new ArrayList<>(results));
+                      }
+                    }),
+            TAG);
     List<Map<String, Object>> maps = resultsAtomic.get();
     if (CollectionUtils.isNotEmpty(maps)) {
       for (Map<String, Object> map : maps) {

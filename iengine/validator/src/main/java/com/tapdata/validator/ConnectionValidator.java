@@ -185,7 +185,7 @@ public class ConnectionValidator {
 
 		ConnectionValidateResult connectionValidateResult = new ConnectionValidateResult();
 		if ("pdk".equals(connections.getPdkType())) {
-			ConnectionNode connectionNode;
+			ConnectionNode connectionNode = null;
 			long ts = System.currentTimeMillis();
 			try {
 				// Create connection node
@@ -268,6 +268,8 @@ public class ConnectionValidator {
 					connectionValidateResult.setSchema(new Schema(false, schemaCount.get()));
 				}
 			} finally {
+				if(connectionNode != null)
+					connectionNode.unregisterMemoryFetcher();
 				PDKIntegration.releaseAssociateId(connections.getName() + "_" + ts);
 			}
 		}

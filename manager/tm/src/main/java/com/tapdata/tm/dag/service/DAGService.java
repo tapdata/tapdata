@@ -552,7 +552,7 @@ public class DAGService implements DAGDataService {
 
         TapTable tapTable = PdkSchemaConvert.toPdk(schema);
 
-        PdkSchemaConvert.tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+        PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
 
         //这里最好是将那些旧参数也带过来
         Schema schema1 = PdkSchemaConvert.fromPdkSchema(tapTable);
@@ -716,7 +716,7 @@ public class DAGService implements DAGDataService {
             });
 
             if (updateFieldMap.size() != 0) {
-                PdkSchemaConvert.tableFieldTypesGenerator.autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(expression));
+                PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(expression));
 
                 updateFieldMap.forEach((k, v) -> {
                     tapTable.getNameFieldMap().replace(k, v);
@@ -727,7 +727,7 @@ public class DAGService implements DAGDataService {
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 
         TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
-        TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.targetTypesGenerator.convert(nameFieldMap
+        TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap
                 , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
         LinkedHashMap<String, TapField> data = convert.getData();
 

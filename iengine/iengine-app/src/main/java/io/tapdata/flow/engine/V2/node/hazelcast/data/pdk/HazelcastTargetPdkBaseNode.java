@@ -59,7 +59,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
-	protected Map<String, String> tableNameMap;
 	protected String tableName;
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
 	private AtomicBoolean firstStreamEvent = new AtomicBoolean();
@@ -259,6 +258,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		AtomicReference<TapdataEvent> lastDmlTapdataEvent = new AtomicReference<>();
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			if(!isRunning()) return;
 			try {
 				SyncStage syncStage = tapdataEvent.getSyncStage();
 				if (null != syncStage) {
