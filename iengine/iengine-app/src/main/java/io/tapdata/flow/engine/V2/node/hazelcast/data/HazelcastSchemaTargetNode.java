@@ -15,7 +15,6 @@ import com.tapdata.tm.commons.schema.Schema;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.TapRaw;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -177,34 +176,28 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				if (logger.isDebugEnabled()) {
 					logger.debug("entry type: {} - {}", fieldName, entry.getValue().getClass());
 				}
+				TapType tapType;
 				if (entry.getValue() instanceof TapValue) {
 					TapValue<?, ?> tapValue = (TapValue<?, ?>) entry.getValue();
-					TapField tapField = new TapField()
-									.name(fieldName)
-									.dataType(tapValue.getOriginType())
-									.tapType(tapValue.getTapType());
-					tapField.setTapType(tapValue.getTapType());
-					tapTable.add(tapField);
+					tapType = tapValue.getTapType();
 				} else {
-					TapType tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
+					tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
 					if (tapType == null) {
 						tapType = TapSimplify.tapRaw();
 					}
-					String dataType = null;
-					if (oldNameFieldMap != null) {
-						TapField oldTapField = oldNameFieldMap.get(fieldName);
-						if (oldTapField != null && oldTapField.getTapType() != null
-										&& oldTapField.getTapType().getType() == tapType.getType()) {
-							tapType = oldTapField.getTapType();
-							dataType = oldTapField.getDataType();
-						}
-					}
-					TapField tapField = new TapField()
-									.name(fieldName)
-									.dataType(dataType)
-									.tapType(tapType);
-					tapTable.add(tapField);
 				}
+				TapField tapField = null;
+				if (oldNameFieldMap != null) {
+					TapField oldTapField = oldNameFieldMap.get(fieldName);
+					if (oldTapField != null && oldTapField.getTapType() != null
+									&& oldTapField.getTapType().getType() == tapType.getType()) {
+						tapField = oldTapField;
+					}
+				}
+				if (tapField == null) {
+					tapField = new TapField().name(fieldName).tapType(tapType);
+				}
+				tapTable.add(tapField);
 			}
 		}
 		return tapTable;
