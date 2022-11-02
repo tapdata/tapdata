@@ -58,7 +58,7 @@ public class BigQueryConnector extends ConnectorBase {
 	    codecRegistry.registerFromTapValue(TapYearValue.class, "DATE", TapValue::getValue);
 	    codecRegistry.registerFromTapValue(TapMapValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
         codecRegistry.registerFromTapValue(TapArrayValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
-//		codecRegistry.registerFromTapValue(TapMapValue.class, "json")
+
 		connectorFunctions.supportWriteRecord(this::writeRecord)
 				.supportCommandCallbackFunction(this::command)
                 .supportCreateTableV2(this::createTableV2)
@@ -122,6 +122,7 @@ public class BigQueryConnector extends ConnectorBase {
 		consumer.accept(tableSetItem);
 		return connectionOptions;
 	}
+
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
 		return 1;

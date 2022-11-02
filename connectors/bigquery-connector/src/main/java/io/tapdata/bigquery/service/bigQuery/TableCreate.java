@@ -6,6 +6,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.*;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import io.tapdata.bigquery.util.bigQueryUtil.TableInfoDDL;
 import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
@@ -16,9 +17,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.simplify.TapSimplify;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import org.checkerframework.checker.units.qual.C;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -27,7 +26,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static io.tapdata.base.ConnectorBase.field;
-import static io.tapdata.base.ConnectorBase.list;
 
 public class TableCreate extends BigQueryStart {
     private static final String TAG = TableCreate.class.getSimpleName();
@@ -109,7 +107,9 @@ public class TableCreate extends BigQueryStart {
              * 最多包含 300 个字符
              * */
             if(!key.matches(FIELD_NAME_REG)){
-                throw new CoreException("Illegal field name,Can only contain letters (a-z, A-Z), numbers (0-9), or underscores (_), Must start with a letter or underscore ,and up to 300 characters.");
+
+                TapLogger.info(TAG,String.format("Illegal field name - [%s],Can only contain letters (a-z, A-Z), numbers (0-9), or underscores (_), Must start with a letter or underscore ,and up to 300 characters.",key));
+                //throw new CoreException("Illegal field name,Can only contain letters (a-z, A-Z), numbers (0-9), or underscores (_), Must start with a letter or underscore ,and up to 300 characters.");
             }
             sql.append(" `")
                     .append(key)
@@ -168,8 +168,6 @@ public class TableCreate extends BigQueryStart {
         }
     }
 
-    public static void main(String[] args) {
-    }
     /**
      * 表是否存在
      * */
@@ -181,9 +179,21 @@ public class TableCreate extends BigQueryStart {
     /**
      * 获取表结构
      * */
-//    String SCHEMA_TABLES_SQL = "SELECT table_name AS tableName,ddl FROM `%s`.`%s`.INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'TABLE_TYPE';";
-    String SCHEMA_TABLES_SQL = "SELECT table_catalog,table_schema,table_type,table_name,is_insertable_into,is_typed,creation_time,base_table_catalog,base_table_schema,snapshot_time_ms,default_collation_name,upsert_stream_apply_watermark,ddl FROM `%s`.`%s`.INFORMATION_SCHEMA.TABLES WHERE table_type = 'BASE TABLE'";
-
+    public static final String SCHEMA_TABLES_SQL = "SELECT " +
+            "table_catalog," +
+            "table_schema," +
+            "table_type," +
+            "table_name," +
+            "is_insertable_into," +
+            "is_typed," +
+            "creation_time," +
+            "base_table_catalog," +
+            "base_table_schema," +
+            "snapshot_time_ms," +
+            "default_collation_name," +
+            "upsert_stream_apply_watermark," +
+            "ddl" +
+            " FROM `%s`.`%s`.INFORMATION_SCHEMA.TABLES WHERE table_type = 'BASE TABLE'";
     public void schemaListDDL(TapCreateTableEvent tapCreateTableEvent){
         String sql = String.format(SCHEMA_TABLES_SQL, this.config.projectId(), this.config.tableSet());
         BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(sql);
@@ -209,43 +219,6 @@ public class TableCreate extends BigQueryStart {
                 tableName = (String)tableNameObj;
                 ddl = (String)ddlObj;
                 tapTable.setName(tableName);
-                /**
-                 * CREATE TABLE `vibrant-castle-366614.SchemaoOfJoinSet.JoinTestSchema`
-                 * (
-                 *   _id STRING,
-                 *   name STRING,
-                 *   type STRING,
-                 *   isTable STRING,
-                 *   isDel STRING,
-                 *   status STRING,
-                 *   times STRING,
-                 *   avactor STRING,
-                 *   description STRING,
-                 *   title STRING,
-                 *   teamName STRING,
-                 *   projectName STRING,
-                 *   priority STRING,
-                 *   workingHours STRING,
-                 *   createTime STRING,
-                 *   updateTime STRING,
-                 *   createBy STRING,
-                 *   updateBy STRING,
-                 *   bytes BYTES,
-                 *   bytess BYTES(10),
-                 *   integer INT64,
-                 *   float FLOAT64,
-                 *   numeric NUMERIC(15, 8),
-                 *   bignumeric BIGNUMERIC(55, 25),
-                 *   big BIGNUMERIC(76, 38),
-                 *   timestamp TIMESTAMP,
-                 *   date DATE,
-                 *   time TIME,
-                 *   datetime DATETIME,
-                 *   geography GEOGRAPHY,
-                 *   straact STRUCT<s STRING>,
-                 *   A NUMERIC
-                 * );
-                 * */
                 StringBuilder tableDDl = new StringBuilder();
 
                 int len = ddl.length();
@@ -272,6 +245,9 @@ public class TableCreate extends BigQueryStart {
         });
     }
 
+    /**
+     * @deprecated
+     * */
     public List<TapTable> listTablesSDK(List<String> tableSets,int partitionSize) {
         if (Checker.isEmptyCollection(tableSets)){
             throw new CoreException();
@@ -338,20 +314,18 @@ public class TableCreate extends BigQueryStart {
 
                     LinkedHashMap<String,TapField> fieldMap = new LinkedHashMap<>();
 
-
-                    fields.stream()
-                            .filter(field-> Checker.isNotEmptyCollection(field)
+                    fields.stream().filter(field-> Checker.isNotEmptyCollection(field)
                                             && Checker.isNotEmpty(field.get("column_name"))
                                             && Checker.isNotEmpty(field.get("data_type"))
-                            ).forEach(field->{
+                    ).forEach(field->{
                         String columnName = String.valueOf(field.get("column_name"));
-                        TapField tapField = new TapField(
-                                        columnName,
-                                        String.valueOf(field.get("data_type")).toUpperCase()
-                                );
-                                fieldMap.put(columnName,tapField);
+                        TapField tapField = new TapField(columnName, String.valueOf(field.get("data_type")).toUpperCase());
+                        Object description = field.get("description");
+                        if (Checker.isNotEmpty(description)){
+                            tapField.setComment(String.valueOf(description));
+                        }
+                        fieldMap.put(columnName,tapField);
                     });
-
                     tapTable.setNameFieldMap(fieldMap);
 
                     List<Map<String, Object>> maps = allTables.get(tableName);
@@ -364,10 +338,14 @@ public class TableCreate extends BigQueryStart {
                         throw new CoreException(String.format("Not find any info of table which name is %s",tableName));
                     }
 
-                    //@TODO
-                    Object comment = tableInfo.get("");
-                    if (Checker.isNotEmpty(comment)) {
-                        tapTable.setComment(String.valueOf(comment));
+                    Object ddl = tableInfo.get("ddl");
+                    if (Checker.isNotEmpty(ddl)) {
+                        //从ddl中获取部分想要的信息
+                        TableInfoDDL tableInfoDDL = TableInfoDDL.create(String.valueOf(ddl));
+                        String description = tableInfoDDL.description();
+                        if (Checker.isNotEmpty(description)) {
+                            tapTable.setComment(description);
+                        }
                     }
                     tempList.add(tapTable);
                 });
@@ -425,25 +403,30 @@ public class TableCreate extends BigQueryStart {
     }
 
     private static final String SELECT_COLUMNS_SQL = "SELECT " +
-            "table_catalog," +
-            "table_schema," +
-            "table_name," +
-            "column_name," +
-            "ordinal_position," +
-            "is_nullable," +
-            "data_type," +
-            "is_generated," +
-            "generation_expression," +
-            "is_stored," +
-            "is_hidden," +
-            "is_updatable," +
-            "is_system_defined," +
-            "is_partitioning_column," +
-            "clustering_ordinal_position," +
-            "collation_name," +
-            "column_default," +
-            "rounding_mode" +
-            " FROM `%s`.`%s`.INFORMATION_SCHEMA.COLUMNS WHERE table_name in( %s );";
+            "columns.table_catalog AS table_catalog," +
+            "columns.table_schema AS table_schema," +
+            "columns.table_name AS table_name," +
+            "columns.column_name AS column_name," +
+            "columns.ordinal_position AS ordinal_position," +
+            "columns.is_nullable AS is_nullable," +
+            "columns.data_type AS data_type," +
+            "columns.is_generated AS is_generated," +
+            "columns.generation_expression AS generation_expression," +
+            "columns.is_stored AS is_stored," +
+            "columns.is_hidden AS is_hidden," +
+            "columns.is_updatable AS is_updatable," +
+            "columns.is_system_defined AS is_system_defined," +
+            "columns.is_partitioning_column AS is_partitioning_column," +
+            "columns.clustering_ordinal_position AS clustering_ordinal_position," +
+            "columns.collation_name AS collation_name," +
+            "columns.column_default AS column_default," +
+            "columns.rounding_mode AS rounding_mode," +
+            "fields.description AS description"+
+            " FROM `%s`.`%s`.INFORMATION_SCHEMA.COLUMNS AS columns" +
+            " LEFT JOIN `%s`.`%s`.INFORMATION_SCHEMA.COLUMN_FIELD_PATHS AS fields ON columns.table_name = fields.table_name AND columns.column_name = fields.column_name AND fields.field_path = fields.column_name " +
+            "WHERE columns.table_name in( %s );";
+
+String g = "SELECT * FROM `bigquery-public-data`.github_repos.INFORMATION_SCHEMA.COLUMN_FIELD_PATHS WHERE table_name = 'commits' AND (column_name = 'author' OR column_name = 'difference');";
     private Map<String, List<Map<String,Object>>> queryAllFields(List<String> schemas){
         if (Checker.isEmptyCollection(schemas)){
             throw new CoreException("Not any table should be query.");
@@ -454,15 +437,24 @@ public class TableCreate extends BigQueryStart {
         }
         return queryAllFields(queryItem);
     }
+
     private Map<String, List<Map<String,Object>>> queryAllFields(String... schemas){
         if (schemas.length<1) throw new CoreException("Not much number of schema to query column.");
         StringJoiner whereSql = new StringJoiner(",");
         for (String schema : schemas) {
             whereSql.add("'"+schema+"'");
         }
-        BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(String.format(SELECT_COLUMNS_SQL, this.config.projectId(), this.config.tableSet(), whereSql.toString()));
+        String finalSql = String.format(
+                SELECT_COLUMNS_SQL,
+                this.config.projectId(),
+                this.config.tableSet(),
+                this.config.projectId(),
+                this.config.tableSet(),
+                whereSql.toString()
+        );
+        BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(finalSql);
         if (Checker.isEmpty(bigQueryResult)){
-            throw new CoreException("");
+            throw new CoreException("Query fields error,not search any fields from bigquery,the query result is null.");
         }
         List<Map<String, Object>> result = bigQueryResult.result();
         Map<String, List<Map<String,Object>>> columnListGroupByTableName = Maps.newHashMap();
@@ -516,4 +508,5 @@ public class TableCreate extends BigQueryStart {
             throw e;
         }
     }
+
 }

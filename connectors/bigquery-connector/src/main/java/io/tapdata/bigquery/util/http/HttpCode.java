@@ -86,4 +86,11 @@ public enum HttpCode {
         }
         return stringStringMap.get(code);
     }
+
+    public static void main(String[] args) {
+        String reg = "abc";
+        String str = "ssabccccabcrdf";
+        System.out.println(str.substring(str.indexOf(reg)+reg.length()).equals("cccabcrdf"));
+        System.out.println(str.substring(str.indexOf("g")+1));
+    }
 }
