@@ -3,6 +3,7 @@
 
 - 說明檔案：[https://cloud.google.com/docs](https://cloud.google.com/docs)
 - 操作檔案：[https://cloud.google.com/bigquery/docs/](https://cloud.google.com/bigquery/docs/)
+- 创建合管理服務帳號：[https://cloud.google.com/iam/docs/creating-managing-service-accounts](https://cloud.google.com/iam/docs/creating-managing-service-accounts)
 
  當然您也可以瀏覽以下內容，快速上手BigQuery資料來源的配寘流程。 
 

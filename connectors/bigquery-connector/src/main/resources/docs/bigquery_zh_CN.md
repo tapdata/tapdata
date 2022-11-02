@@ -3,6 +3,7 @@
 
 - 说明文档：[https://cloud.google.com/docs](https://cloud.google.com/docs)
 - 操作文档：[https://cloud.google.com/bigquery/docs/](https://cloud.google.com/bigquery/docs/)
+- 创建和管理服务账号：[https://cloud.google.com/iam/docs/creating-managing-service-accounts](https://cloud.google.com/iam/docs/creating-managing-service-accounts)
 
 当然您也可以浏览以下内容，快速上手BigQuery数据源的配置流程。
 

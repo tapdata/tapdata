@@ -2,9 +2,10 @@
  If you are interested, you can go to the documents provided by Google to learn all the contents in detail :
 
 - Documentation：[https://cloud.google.com/docs](https://cloud.google.com/docs)
-- Operation document ：[https://cloud.google.com/bigquery/docs/](https://cloud.google.com/bigquery/docs/)
+- Operation document：[https://cloud.google.com/bigquery/docs/](https://cloud.google.com/bigquery/docs/)
+- Create and manage service account: [https://cloud.google.com/iam/docs/creating-managing-service-accounts](https://cloud.google.com/iam/docs/creating-managing-service-accounts)
 
- Of course, you can also browse the following content to quickly start the configuration process of BigQuery data sources. 
+Of course, you can also browse the following content to quickly start the configuration process of BigQuery data sources. 
 
 ---
 
