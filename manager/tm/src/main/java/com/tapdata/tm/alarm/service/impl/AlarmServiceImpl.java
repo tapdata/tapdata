@@ -477,7 +477,7 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
-    public void connectPassAlarm(JSONArray taskIds, String nodeName, String connectId) {
+    public void connectPassAlarm(JSONArray taskIds, String nodeName, String connectId, String response_body) {
         String summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_RECOVER, nodeName, DateUtil.now());
 
         List<String> list = JSONObject.parseArray(taskIds.toJSONString(), String.class);
@@ -501,6 +501,9 @@ public class AlarmServiceImpl implements AlarmService {
             }
             String nodeId = nodeTemp.getId();
 
+            HashMap<String, Object> param = Maps.newHashMap();
+            param.put("response_body", response_body);
+
             List<AlarmInfo> alarmInfos = this.find(taskId, nodeId, AlarmKeyEnum.DATANODE_CANNOT_CONNECT);
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
             if (first.isPresent()) {
@@ -510,6 +513,7 @@ public class AlarmServiceImpl implements AlarmService {
                         .nodeId(nodeId).node(nodeName).recoveryTime(DateUtil.date())
                         .firstOccurrenceTime(first.get().getFirstOccurrenceTime())
                         .lastOccurrenceTime(DateUtil.date())
+                        .param(param)
                         .build();
                 alarmInfo.setId(first.get().getId());
                 this.save(alarmInfo);
@@ -519,7 +523,7 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
-    public void connectFailAlarm(JSONArray taskIds, String nodeName, String connectId) {
+    public void connectFailAlarm(JSONArray taskIds, String nodeName, String connectId, String response_body) {
         List<String> list = JSONObject.parseArray(taskIds.toJSONString(), String.class);
 
         List<TaskDto> taskEntityList = taskService.findAllTasksByIds(list);
@@ -541,6 +545,9 @@ public class AlarmServiceImpl implements AlarmService {
             }
             String nodeId = nodeTemp.getId();
 
+            HashMap<String, Object> param = Maps.newHashMap();
+            param.put("response_body", response_body);
+
             AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.CRITICAL).component(AlarmComponentEnum.FE)
                     .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
                     .name(taskName).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
@@ -560,6 +567,7 @@ public class AlarmServiceImpl implements AlarmService {
                 summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT, nodeName, DateUtil.now());
             }
             alarmInfo.setSummary(summary);
+            alarmInfo.setParam(param);
             this.save(alarmInfo);
         }
     }

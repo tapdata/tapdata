@@ -73,13 +73,14 @@ public class PipeHandler implements WebSocketHandler {
 
 							Level grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ? Level.INFO : Level.ERROR;
 
+							String response_body = jsonObject.getJSONObject("response_body").toJSONString();
 							if (!alarmCheck) {
 								taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
-										true, true, DateUtil.now(), jsonObject.getJSONObject("response_body").toJSONString());
+										true, true, DateUtil.now(), response_body);
 							} else if (grade == Level.ERROR) {
-								alarmService.connectFailAlarm(taskIds, nodeName, connectId);
+								alarmService.connectFailAlarm(taskIds, nodeName, connectId, response_body);
 							} else {
-								alarmService.connectPassAlarm(taskIds, nodeName, connectId);
+								alarmService.connectPassAlarm(taskIds, nodeName, connectId, response_body);
 							}
 						}
 					}
