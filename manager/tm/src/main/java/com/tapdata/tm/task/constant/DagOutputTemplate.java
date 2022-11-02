@@ -31,8 +31,8 @@ public class DagOutputTemplate {
      * 源节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【源节点设置检测】：节点{MySQL_01}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置
      */
-    public static String SOURCE_SETTING_INFO = "$date【$taskName】【源节点设置检测】：节点'{'{1}}检测通过";
-    public static String SOURCE_SETTING_ERROR = "$date【$taskName】【源节点设置检测】：节点'{'{1}}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置";
+    public static String SOURCE_SETTING_INFO = "$date【$taskName】【源节点设置检测】：节点'{'{0}}检测通过";
+    public static String SOURCE_SETTING_ERROR = "$date【$taskName】【源节点设置检测】：节点'{'{0}}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置";
     public static String SOURCE_SETTING_ERROR_SCHEMA = "$date【$taskName】【源节点设置检测】：节点'{'{0}}检测未通过，源库没有表";
     public static String SOURCE_SETTING_ERROR_SCHEMA_LOAD = "$date【$taskName】【源节点设置检测】：节点'{'{0}}检测未通过，连接模型未加载完成";
 

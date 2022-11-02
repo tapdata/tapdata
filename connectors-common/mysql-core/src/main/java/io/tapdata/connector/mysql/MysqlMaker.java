@@ -192,11 +192,17 @@ public class MysqlMaker implements SqlMaker {
 		List<String> fields = indexFields.stream().map(indexField -> {
 			String fieldName = indexField.getName();
 			Boolean fieldAsc = indexField.getFieldAsc();
-			if (null != fieldAsc && !fieldAsc) {
-				fieldName = "`" + fieldName + "` DESC";
-			} else {
-				fieldName = "`" + fieldName + "` ASC";
+			String dataType = tapTable.getNameFieldMap().get(fieldName).getDataType();
+			String fieldLength = " ";
+			if ("text".equalsIgnoreCase(dataType) || "blob".equalsIgnoreCase(dataType)) {
+				fieldLength = " (200) ";
 			}
+			String fieldSort = "ASC";
+			if (null != fieldAsc && !fieldAsc) {
+				fieldSort = "DESC";
+			}
+			fieldName = "`" + fieldName + "`" + fieldLength + fieldSort;
+
 			return fieldName;
 		}).collect(Collectors.toList());
 		return String.format(MYSQL_ADD_INDEX, database, tableId, indexType, indexName, String.join(",", fields));

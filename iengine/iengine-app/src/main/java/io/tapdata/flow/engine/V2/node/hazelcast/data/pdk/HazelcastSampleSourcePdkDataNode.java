@@ -18,7 +18,6 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
-import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.SampleMockUtil;
 import io.tapdata.schema.TapTableMap;
@@ -90,22 +89,21 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 						QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
 						TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(rows);
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-								PDKMethodInvoker.create()
-										.runnable(
-												() -> queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
+								createPdkMethodInvoker().runnable(
+										() -> queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 
-													List<Map<String, Object>> results = filterResults.getResults();
-													List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
-													if (CollectionUtil.isNotEmpty(events)) {
-														events.forEach(tapEvent -> {
-															tapRecordToTapValue(tapEvent, codecsFilterManager);
-															//Simulate null data
-															SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
-														});
+											List<Map<String, Object>> results = filterResults.getResults();
+											List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
+											if (CollectionUtil.isNotEmpty(events)) {
+												events.forEach(tapEvent -> {
+													tapRecordToTapValue(tapEvent, codecsFilterManager);
+													//Simulate null data
+													SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+												});
 
-														tapEventList.addAll(events);
-													}
-												})).logTag(TAG)
+												tapEventList.addAll(events);
+											}
+										})).logTag(TAG)
 						);
 						sampleDataCacheMap.put(sampleDataId, tapEventList);
 					} catch (Exception e) {

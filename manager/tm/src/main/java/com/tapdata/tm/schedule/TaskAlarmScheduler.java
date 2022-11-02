@@ -316,15 +316,18 @@ public class TaskAlarmScheduler {
             AtomicInteger delay = new AtomicInteger(0);
             long count = samples.stream().filter(ss -> {
                 int current = (int) ss.getVs().getOrDefault(avgName, 0);
+                boolean b;
                 if (alarmRuleDto.getEqualsFlag() == -1) {
-                    delay.set(current);
-                    return current <= alarmRuleDto.getMs();
+                    b = current <= alarmRuleDto.getMs();
                 } else if (alarmRuleDto.getEqualsFlag() == 1) {
-                    delay.set(current);
-                    return current >= alarmRuleDto.getMs();
+                    b = current >= alarmRuleDto.getMs();
                 } else {
-                    return false;
+                    b = false;
                 }
+                if (b) {
+                    delay.set(current);
+                }
+                return b;
             }).count();
 
             List<AlarmInfo> alarmInfos = alarmService.find(taskId, nodeId, alarmKeyEnum);
@@ -391,15 +394,18 @@ public class TaskAlarmScheduler {
             long count = taskSamples.stream().filter(ss -> {
                 int replicateLag = (int) ss.getVs().getOrDefault("replicateLag", 0);
 
+                boolean b;
                 if (alarmRuleDto.getEqualsFlag() == -1) {
-                    delay.set(replicateLag);
-                    return replicateLag <= alarmRuleDto.getMs();
+                    b = replicateLag <= alarmRuleDto.getMs();
                 } else if (alarmRuleDto.getEqualsFlag() == 1) {
-                    delay.set(replicateLag);
-                    return replicateLag >= alarmRuleDto.getMs();
+                    b = replicateLag >= alarmRuleDto.getMs();
                 } else {
-                    return false;
+                    b = false;
                 }
+                if (b) {
+                    delay.set(replicateLag);
+                }
+                return b;
             }).count();
 
             List<AlarmInfo> alarmInfos = alarmService.find(taskId, null, AlarmKeyEnum.TASK_INCREMENT_DELAY);

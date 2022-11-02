@@ -929,6 +929,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 throw new BizException("Task.Deleted");
             }
             throw new BizException("Task.statusIsNotStop");
+        } else if (TaskDto.STATUS_WAIT_START.equals(status)) {
+            return;
         }
 
         log.debug("check task status complete, task name = {}", taskDto.getName());
@@ -943,9 +945,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         String lastTaskRecordId = new ObjectId().toString();
         //更新任务信息
-        Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId)
-                .unset("temp");
+        Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId).unset("temp");
         updateById(taskDto.getId(), update, user);
+
 
         taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         taskDto.setAgentId(null);
@@ -959,7 +961,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         // publish queue
         TaskEntity taskSnapshot = new TaskEntity();
         BeanUtil.copyProperties(taskDto, taskSnapshot);
-        disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+
+        disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
+                new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+
         renewNotSendMq(taskDto, user);
     }
 
@@ -2463,7 +2468,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void start(ObjectId id, UserDetail user) {
         String startFlag = "11";
         TaskDto taskDto = checkExistById(id, user);
-        checkDagAgentConflict(taskDto, false);
         start(taskDto, user, startFlag);
     }
 
@@ -2479,6 +2483,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         start(taskDto, user, "11");
     }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
+
+        checkDagAgentConflict(taskDto, false);
+        if (!taskDto.getShareCache()) {
+                Map<String, List<Message>> validateMessage = taskDto.getDag().validate();
+                if (!validateMessage.isEmpty()) {
+                    throw new BizException("Task.ListWarnMessage", validateMessage);
+            }
+        }
         //日志挖掘
         if (startFlag.charAt(0) == '1') {
             logCollectorService.logCollector(user, taskDto);
@@ -2560,7 +2572,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
-        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId());
+        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId()).set("last_updated", new Date());
         boolean needCreateRecord = false;
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             taskDto.setTaskRecordId(new ObjectId().toHexString());
@@ -2734,10 +2746,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
 
         Date now = DateUtil.date();
-        Update update = Update.update("status", TaskDto.STATUS_RUNNING)
-                .set("lastStartDate", now.getTime());
+        Update update = Update.update("status", TaskDto.STATUS_RUNNING);
         if (taskDto.getStartTime() == null) {
             update.set("startTime", now);
+        }
+        if (taskDto.getLastStartDate() == null) {
+            update.set("lastStartDate", now.getTime());
         }
 
         monitoringLogsService.startTaskMonitoringLog(taskDto, user, now);

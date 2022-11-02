@@ -214,6 +214,9 @@ public class TaskEntity extends BaseEntity {
     private Map<String, Object> logSetting;
     private Integer resetTimes;
 
+    private Long currentEventTimestamp;
+    private Long snapshotDoneAt;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

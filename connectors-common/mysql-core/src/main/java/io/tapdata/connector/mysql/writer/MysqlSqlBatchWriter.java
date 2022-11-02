@@ -257,7 +257,12 @@ public class MysqlSqlBatchWriter extends MysqlWriter {
 		} else if (obj instanceof byte[]) {
 			String hexString = HexConverter.convertToHexString((byte[]) obj);
 			return "X'" + hexString + "'";
-		} else {
+		}else if(obj instanceof Boolean){
+			if("true".equalsIgnoreCase(obj.toString())){
+				return "1";
+			}
+			return "0";
+		}else {
 			return "'" + obj + "'";
 		}
 		return result;

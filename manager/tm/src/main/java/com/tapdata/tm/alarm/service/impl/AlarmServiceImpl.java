@@ -89,7 +89,9 @@ public class AlarmServiceImpl implements AlarmService {
             info.setLastUpdAt(date);
             info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
             info.setLastOccurrenceTime(date);
-            info.setLastNotifyTime(one.getLastNotifyTime());
+            if (Objects.nonNull(one.getLastNotifyTime()) && Objects.isNull(info.getLastNotifyTime())) {
+                info.setLastNotifyTime(one.getLastNotifyTime());
+            }
 
             mongoTemplate.save(info);
         } else {
@@ -190,7 +192,7 @@ public class AlarmServiceImpl implements AlarmService {
                 CompletableFuture.runAsync(() -> {
                     sendMail(info, taskDto);
                     info.setLastNotifyTime(DateUtil.date());
-                    this.save(info);
+                    SpringUtil.getBean(AlarmService.class).save(info);
                 });
             }
 
@@ -202,19 +204,22 @@ public class AlarmServiceImpl implements AlarmService {
         if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM)) {
             String taskId = taskDto.getId().toHexString();
 
+            Date date = DateUtil.date();
             MessageEntity messageEntity = new MessageEntity();
             messageEntity.setLevel(info.getLevel().name());
             messageEntity.setAgentId(taskDto.getAgentId());
             messageEntity.setServerName(taskDto.getAgentId());
             messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
-            String title = StringUtils.replace(info.getSummary(),"$taskName", info.getName());
+            String summary = info.getSummary();
+            summary = summary + ", 通知时间：" + DateUtil.now();
+            String title = StringUtils.replace(summary,"$taskName", info.getName());
             messageEntity.setTitle(title);
 //                messageEntity.setSourceId();
             MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
             messageEntity.setMessageMetadata(metadata);
             messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
-            messageEntity.setCreateAt(new Date());
-            messageEntity.setLastUpdAt(new Date());
+            messageEntity.setCreateAt(date);
+            messageEntity.setLastUpdAt(date);
             messageEntity.setUserId(taskDto.getUserId());
             messageEntity.setRead(false);
             messageService.addMessage(messageEntity);
@@ -399,6 +404,7 @@ public class AlarmServiceImpl implements AlarmService {
                     .lastOccurrenceTime(t.getLastOccurrenceTime())
                     .taskId(t.getTaskId())
                     .metric(t.getMetric())
+                    .nodeId(t.getNodeId())
                     .build();
 
             collect.add(build);
@@ -451,59 +457,6 @@ public class AlarmServiceImpl implements AlarmService {
     @Override
     public void closeWhenTaskRunning(String taskId) {
         mongoTemplate.updateMulti(Query.query(Criteria.where("taskId").is(taskId).and("status").ne(AlarmStatusEnum.CLOESE)), Update.update("status", AlarmStatusEnum.CLOESE), AlarmInfo.class);
-    }
-
-    @Override
-    public void checkFullAndCdcEvent(String taskId) {
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-        if (Objects.isNull(taskDto)) {
-            return;
-        }
-
-        List<Milestone> milestones = taskDto.getMilestones();
-
-        if (CollectionUtils.isEmpty(milestones)) {
-            return;
-        }
-
-        Map<String, Milestone> collect = milestones.stream().collect(Collectors.toMap(Milestone::getCode, Function.identity(), (e1, e2) -> e1));
-
-        if (collect.isEmpty()) {
-            return;
-        }
-
-        AlarmService alarmService = SpringUtil.getBean(AlarmService.class);
-
-        String now = DateUtil.now();
-        if (Objects.nonNull(collect.get("WRITE_SNAPSHOT")) && "finish".equals(collect.get("WRITE_SNAPSHOT").getStatus())) {
-            Milestone milestone = collect.get("WRITE_SNAPSHOT");
-            String summary = MessageFormat.format(AlarmContentTemplate.TASK_FULL_COMPLETE, milestone.getEnd() - milestone.getStart(), now);
-
-            Map<String, Object> param = Maps.newHashMap();
-            param.put("fullTime", now);
-
-            AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.NORMAL).component(AlarmComponentEnum.FE)
-                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(taskDto.getAgentId()).taskId(taskId)
-                    .name(taskDto.getName()).summary(summary).metric(AlarmKeyEnum.TASK_FULL_COMPLETE)
-                    .param(param)
-                    .build();
-
-            alarmService.save(alarmInfo);
-        }
-
-        if (Objects.nonNull(collect.get("WRITE_CDC_EVENT")) && "running".equals(collect.get("WRITE_CDC_EVENT").getStatus())) {
-            String summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_START, now);
-            Map<String, Object> param = Maps.newHashMap();
-            param.put("cdcTime", now);
-
-            AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.NORMAL).component(AlarmComponentEnum.FE)
-                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(taskDto.getAgentId()).taskId(taskId)
-                    .name(taskDto.getName()).summary(summary).metric(AlarmKeyEnum.TASK_INCREMENT_START)
-                    .param(param)
-                    .build();
-            alarmService.save(alarmInfo);
-        }
-
     }
 
     private MailAccountDto getMailAccount() {
