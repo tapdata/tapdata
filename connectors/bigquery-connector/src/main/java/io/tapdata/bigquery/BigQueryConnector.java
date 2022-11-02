@@ -45,16 +45,18 @@ public class BigQueryConnector extends ConnectorBase {
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
 		this.writeRecord = WriteRecord.create(connectionContext);
-		isConnectorStarted(connectionContext, connectorContext -> {
-			Iterator<Entry<TapTable>> iterator = connectorContext.getTableMap().iterator();
-			while (iterator.hasNext()) {
-				Entry<TapTable> next = iterator.next();
-				TapTable value = next.getValue();
-				if(Checker.isNotEmpty(value)) {
-					FieldChecker.verifyFieldName(value.getNameFieldMap());
+		if (connectionContext instanceof TapConnectorContext) {
+			isConnectorStarted(connectionContext, connectorContext -> {
+				Iterator<Entry<TapTable>> iterator = connectorContext.getTableMap().iterator();
+				while (iterator.hasNext()) {
+					Entry<TapTable> next = iterator.next();
+					TapTable value = next.getValue();
+					if (Checker.isNotEmpty(value)) {
+						FieldChecker.verifyFieldName(value.getNameFieldMap());
+					}
 				}
-			}
-		});
+			});
+		}
 
 	}
 
