@@ -41,7 +41,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private SnapshotProgressManager snapshotProgressManager;
 	private String cacheName;
 
-	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance, MilestoneService milestoneService) {
+	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		this.job = job;
 		this.taskDto = taskDto;
 		this.clientMongoOperator = clientMongoOperator;
@@ -49,12 +49,6 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		this.hazelcastInstance = hazelcastInstance;
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
-			try {
-				this.monitorManager.startMonitor(MonitorManager.MonitorType.SUBTASK_MILESTONE_MONITOR, taskDto, milestoneService);
-			} catch (Exception e) {
-				logger.warn("The milestone monitor failed to start, which may affect the milestone functionality; Error: "
-						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-			}
 			try {
 				this.monitorManager.startMonitor(MonitorManager.MonitorType.SUBTASK_PING_TIME, taskDto, clientMongoOperator);
 			} catch (Exception e) {
