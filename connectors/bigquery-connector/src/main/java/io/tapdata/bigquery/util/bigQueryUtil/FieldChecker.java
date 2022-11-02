@@ -1,7 +1,9 @@
 package io.tapdata.bigquery.util.bigQueryUtil;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.schema.TapField;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class FieldChecker {
@@ -20,11 +22,19 @@ public class FieldChecker {
         }
         return fieldName;
     }
-
-    public static void verifyFieldName(Map<String,Object> fieldMap){
-        if (null == fieldMap || fieldMap.isEmpty()){
+    public static void verifyFieldName(Object fieldMap){
+        if (null == fieldMap ){
             throw new CoreException("Field map is empty,can not find any field to check.please sure your table is valid.");
         }
-        fieldMap.forEach((key,field)->FieldChecker.verifyFieldName(key));
+        if (fieldMap instanceof Map) {
+            ((Map<String,Object>)fieldMap).forEach((key, field) -> FieldChecker.verifyFieldName(key));
+        }
     }
+
+//    public static void verifyFieldName(Map<String,Object> fieldMap){
+//        if (null == fieldMap || fieldMap.isEmpty()){
+//            throw new CoreException("Field map is empty,can not find any field to check.please sure your table is valid.");
+//        }
+//        fieldMap.forEach((key,field)->FieldChecker.verifyFieldName(key));
+//    }
 }

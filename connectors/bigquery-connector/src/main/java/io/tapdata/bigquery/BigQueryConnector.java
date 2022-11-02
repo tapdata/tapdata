@@ -6,6 +6,7 @@ import io.tapdata.bigquery.service.bigQuery.TableCreate;
 import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.bigquery.service.command.Command;
 import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
+import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.codec.FromTapValueCodec;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -16,6 +17,8 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.utils.cache.Entry;
+import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -42,6 +45,17 @@ public class BigQueryConnector extends ConnectorBase {
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
 		this.writeRecord = WriteRecord.create(connectionContext);
+		isConnectorStarted(connectionContext, connectorContext -> {
+			Iterator<Entry<TapTable>> iterator = connectorContext.getTableMap().iterator();
+			while (iterator.hasNext()) {
+				Entry<TapTable> next = iterator.next();
+				TapTable value = next.getValue();
+				if(Checker.isNotEmpty(value)) {
+					FieldChecker.verifyFieldName(value.getNameFieldMap());
+				}
+			}
+		});
+
 	}
 
 	@Override
