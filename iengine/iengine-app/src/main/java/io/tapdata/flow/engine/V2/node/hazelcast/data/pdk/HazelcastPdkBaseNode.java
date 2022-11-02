@@ -106,6 +106,11 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		return pdkMethodInvoker;
 	}
 
+	protected void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
+		if(null == pdkMethodInvoker) return;
+		pdkMethodInvokerList.remove(pdkMethodInvoker);
+	}
+
 	protected void connectorNodeInit(DataProcessorContext dataProcessorContext) {
 		try {
 			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.INIT, () -> getConnectorNode().connectorInit(), TAG);

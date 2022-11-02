@@ -2750,7 +2750,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
-        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId());
+        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId()).set("last_updated", new Date());
         boolean needCreateRecord = false;
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             taskDto.setTaskRecordId(new ObjectId().toHexString());
@@ -2924,10 +2924,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
 
         Date now = DateUtil.date();
-        Update update = Update.update("status", TaskDto.STATUS_RUNNING)
-                .set("lastStartDate", now.getTime());
+        Update update = Update.update("status", TaskDto.STATUS_RUNNING);
         if (taskDto.getStartTime() == null) {
             update.set("startTime", now);
+        }
+        if (taskDto.getLastStartDate() == null) {
+            update.set("lastStartDate", now.getTime());
         }
 
         monitoringLogsService.startTaskMonitoringLog(taskDto, user, now);

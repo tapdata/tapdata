@@ -180,7 +180,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         ModulesDto dto = findOne(query, userDetail);
         if (dto == null)
             throw new BizException("current module not exist");
-        if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.GENERATING.getValue().equals(modulesDto.getStatus()))
+        if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.GENERATING.getValue().equals(dto.getStatus()))
             throw new BizException("generating status can't release");
         //点击生成按钮 才校验(撤销发布等不校验)
         if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
