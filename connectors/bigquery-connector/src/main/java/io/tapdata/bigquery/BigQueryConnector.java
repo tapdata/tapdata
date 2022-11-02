@@ -144,6 +144,6 @@ public class BigQueryConnector extends ConnectorBase {
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-		return 1;
+		return TableCreate.create(connectionContext).schemaCount();
 	}
 }

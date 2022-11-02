@@ -187,6 +187,30 @@ public class TableCreate extends BigQueryStart {
             "upsert_stream_apply_watermark," +
             "ddl" +
             " FROM `%s`.`%s`.INFORMATION_SCHEMA.TABLES WHERE table_type = 'BASE TABLE'";
+    public static final String SCHEMA_TABLES_COUNT_SQL = "SELECT " +
+            "count(ddl) as count" +
+            " FROM `%s`.`%s`.INFORMATION_SCHEMA.TABLES WHERE table_type = 'BASE TABLE'";
+
+    public int schemaCount(){
+        String sql = String.format(SCHEMA_TABLES_COUNT_SQL, this.config.projectId(), this.config.tableSet());
+        BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(sql);
+        if (Checker.isEmpty(bigQueryResult)){
+            throw new CoreException("Error to execute sql error,can not get table count: "+sql);
+        }
+        if (bigQueryResult.getTotalRows()<1){
+            return 0;
+        }
+        List<Map<String, Object>> result = bigQueryResult.result();
+        Map<String, Object> countMap = result.get(0);
+        if (Checker.isNotEmpty(countMap)){
+            Object count = countMap.get("count");
+            return Checker.isNotEmpty(count)?Integer.parseInt(String.valueOf(count)):0;
+        }
+        return 0;
+    }
+    /**
+     * @deprecated
+     * */
     public void schemaListDDL(TapCreateTableEvent tapCreateTableEvent){
         String sql = String.format(SCHEMA_TABLES_SQL, this.config.projectId(), this.config.tableSet());
         BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(sql);

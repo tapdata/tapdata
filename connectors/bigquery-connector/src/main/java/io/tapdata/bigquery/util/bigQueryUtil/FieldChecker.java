@@ -1,9 +1,6 @@
 package io.tapdata.bigquery.util.bigQueryUtil;
 
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.schema.TapField;
-
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class FieldChecker {
