@@ -1060,7 +1060,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 checkDagAgentConflict(task, false);
                 start(task, user);
             } catch (Exception e) {
-                log.warn("start task exception, task id = {}, e = {}", task.getId(), e);
+                log.warn("start task exception, task id = {}, e = {}", task.getId(), ThrowableUtils.getStackTraceByPn(e));
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
                     mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
@@ -2568,8 +2568,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         } else {
             updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED, user);
         }
-
-//        WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
 
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
