@@ -100,7 +100,7 @@ public class PipeHandler implements WebSocketHandler {
 				queueService.sendMessage(messageDto);
 			}
 		}else {
-			log.warn("WebSocket send message failed, receiver is blank");
+			log.warn("WebSocket send message failed, receiver is blank, msg:{}", JSON.toJSONString(messageInfo));
 		}
 	}
 }
