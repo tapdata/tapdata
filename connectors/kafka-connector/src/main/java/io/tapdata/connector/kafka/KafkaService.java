@@ -45,10 +45,13 @@ public class KafkaService extends AbstractMqService {
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private String connectorId;
     private final ExecutorService produceService;
+    private final KafkaProducer<byte[], byte[]> kafkaProducer;
 
     public KafkaService(KafkaConfig mqConfig) {
         this.mqConfig = mqConfig;
         produceService = Executors.newFixedThreadPool(concurrency);
+        ProducerConfiguration producerConfiguration = new ProducerConfiguration(mqConfig, connectorId);
+        kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
     }
 
     public void setConnectorId(String connectorId) {
@@ -208,8 +211,6 @@ public class KafkaService extends AbstractMqService {
 
     @Override
     public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
-        ProducerConfiguration producerConfiguration = new ProducerConfiguration(((KafkaConfig) mqConfig), connectorId);
-        KafkaProducer<byte[], byte[]> kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
@@ -268,7 +269,6 @@ public class KafkaService extends AbstractMqService {
         } catch (InterruptedException e) {
             TapLogger.error(TAG, "error occur when await", e);
         } finally {
-            kafkaProducer.close();
             writeListResultConsumer.accept(listResult.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
         }
     }
@@ -355,6 +355,7 @@ public class KafkaService extends AbstractMqService {
     @Override
     public void close() {
         super.close();
+        kafkaProducer.close();
         produceService.shutdown();
     }
 }
