@@ -48,8 +48,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
-
 /**
  * @author samuel
  * @Description
@@ -151,8 +149,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					if (count > 0) {
 						for (TapdataEvent tapdataEvent : tapdataEvents) {
 							while (isRunning()) {
-								if (tapEventQueue.offer(tapdataEvent, 1L, TimeUnit.SECONDS)) {
-									break;
+								try {
+									if (tapEventQueue.offer(tapdataEvent, 1L, TimeUnit.SECONDS)) {
+										break;
+									}
+								} catch (InterruptedException ignored) {
 								}
 							}
 						}
@@ -162,40 +163,64 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			}
 		} catch (Throwable e) {
-			errorHandle(e, "Drain from inbox failed: " + e.getMessage());
-			throw sneakyThrow(e);
+			throw new RuntimeException(String.format("Drain from inbox failed: %s", e.getMessage()), e);
 		} finally {
 			ThreadContext.clearAll();
 		}
 	}
 
-	private void processTargetEvents(List<TapdataEvent> tapdataEvents) {
-		if (!inCdc) {
-			List<TapdataEvent> partialCdcEvents = new ArrayList<>();
-			final Iterator<TapdataEvent> iterator = tapdataEvents.iterator();
-			while (iterator.hasNext()) {
-				final TapdataEvent tapdataEvent = iterator.next();
-				if (tapdataEvent instanceof TapdataStartCdcEvent || inCdc) {
-					inCdc = true;
-					partialCdcEvents.add(tapdataEvent);
-					iterator.remove();
-				}
+	private void dispatchTapdataEvents(List<TapdataEvent> tapdataEvents, Consumer<List<TapdataEvent>> consumer) {
+		if (null == tapdataEvents || null == consumer) return;
+		String preClassName = "";
+		List<TapdataEvent> consumeTapdataEvents = new ArrayList<>();
+		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			if (null == tapdataEvent) continue;
+			String currClassName = tapdataEvent.getClass().getName();
+			if (!"".equals(preClassName) && !preClassName.equals(currClassName)) {
+				consumer.accept(consumeTapdataEvents);
+				consumeTapdataEvents.clear();
 			}
-
-			// initial events and cdc events both in the queue
-			if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
-				initialProcessEvents(tapdataEvents, false);
-				// process partial cdc event
-				if (this.initialPartitionConcurrentProcessor != null) {
-					this.initialPartitionConcurrentProcessor.stop();
-				}
-				cdcProcessEvents(partialCdcEvents);
-			} else {
-				initialProcessEvents(tapdataEvents, true);
-			}
-		} else {
-			cdcProcessEvents(tapdataEvents);
+			preClassName = currClassName;
+			consumeTapdataEvents.add(tapdataEvent);
 		}
+		if (CollectionUtils.isNotEmpty(consumeTapdataEvents)) {
+			consumer.accept(consumeTapdataEvents);
+			consumeTapdataEvents.clear();
+		}
+	}
+
+	private void processTargetEvents(List<TapdataEvent> tapdataEvents) {
+		dispatchTapdataEvents(
+				tapdataEvents,
+				consumeEvents -> {
+					if (!inCdc) {
+						List<TapdataEvent> partialCdcEvents = new ArrayList<>();
+						final Iterator<TapdataEvent> iterator = consumeEvents.iterator();
+						while (iterator.hasNext()) {
+							final TapdataEvent tapdataEvent = iterator.next();
+							if (tapdataEvent instanceof TapdataStartCdcEvent || inCdc) {
+								inCdc = true;
+								partialCdcEvents.add(tapdataEvent);
+								iterator.remove();
+							}
+						}
+
+						// initial events and cdc events both in the queue
+						if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
+							initialProcessEvents(consumeEvents, false);
+							// process partial cdc event
+							if (this.initialPartitionConcurrentProcessor != null) {
+								this.initialPartitionConcurrentProcessor.stop();
+							}
+							cdcProcessEvents(partialCdcEvents);
+						} else {
+							initialProcessEvents(consumeEvents, true);
+						}
+					} else {
+						cdcProcessEvents(consumeEvents);
+					}
+				}
+		);
 	}
 
 	private void queueConsume() {
@@ -203,6 +228,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
 			long lastProcessTime = System.currentTimeMillis();
+			String preClassName = "";
 			while (isRunning()) {
 				TapdataEvent tapdataEvent = tapEventQueue.poll(1L, TimeUnit.SECONDS);
 				if (null != tapdataEvent) {
@@ -222,7 +248,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		} catch (InterruptedException ignored) {
 		} catch (Throwable e) {
 			errorHandle(e, "Target process failed " + e.getMessage());
-			throw sneakyThrow(e);
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -258,7 +283,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		AtomicReference<TapdataEvent> lastDmlTapdataEvent = new AtomicReference<>();
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
-			if(!isRunning()) return;
+			if (!isRunning()) return;
 			try {
 				SyncStage syncStage = tapdataEvent.getSyncStage();
 				if (null != syncStage) {
@@ -295,21 +320,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				}
 			} catch (Throwable throwable) {
-				throw errorHandle(throwable, "handel events failed: " + throwable.getMessage());
+				throw new RuntimeException(String.format("Handle events failed: %s", throwable.getMessage()), throwable);
 			}
 		}
 		if (CollectionUtils.isNotEmpty(tapEvents)) {
 			try {
 				processEvents(tapEvents);
 			} catch (Throwable throwable) {
-				throw errorHandle(throwable, "process events failed: " + throwable.getMessage());
+				throw new RuntimeException(String.format("Process events failed: %s", throwable.getMessage()), throwable);
 			}
 		}
 		if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
 			try {
 				processShareLog(tapdataShareLogEvents);
 			} catch (Throwable throwable) {
-				throw errorHandle(throwable, "process share log failed: " + throwable.getMessage());
+				throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
 			}
 		}
 		flushSyncProgressMap(lastDmlTapdataEvent.get());
