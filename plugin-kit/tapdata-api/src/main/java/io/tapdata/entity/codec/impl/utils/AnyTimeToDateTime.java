@@ -38,6 +38,10 @@ public class AnyTimeToDateTime {
         }
     }
 
+    public static DateTime withTimeStr(String timeStr) {
+        return DateTime.withTimeStr(timeStr);
+    }
+
     public static long convertTimestamp(long timestamp, TimeZone fromTimeZone, TimeZone toTimeZone) {
         LocalDateTime dt = LocalDateTime.now();
         ZonedDateTime fromZonedDateTime = dt.atZone(fromTimeZone.toZoneId());
