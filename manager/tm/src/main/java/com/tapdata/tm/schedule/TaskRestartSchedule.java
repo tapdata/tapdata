@@ -64,7 +64,7 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(fixedDelay = 5 * 60 * 1000)
+    @Scheduled(initialDelay = 10 * 1000, fixedDelay = 5 * 60 * 1000)
     @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
 

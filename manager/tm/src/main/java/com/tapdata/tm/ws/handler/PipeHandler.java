@@ -57,6 +57,7 @@ public class PipeHandler implements WebSocketHandler {
 			if (jsonValidator.getType() == JSONValidator.Type.Object) {
 				JSONObject jsonObject = JSON.parseObject(jsonStr);
 				if (Objects.nonNull(jsonObject)) {
+					log.info("PipeHandler info:{}", jsonStr);
 					JSONObject extParam = jsonObject.getJSONObject("extParam");
 					if (Objects.nonNull(extParam) && "testConnectionResult".equals(data.get("type").toString())) {
 						String taskId = extParam.getString("taskId");
@@ -99,7 +100,7 @@ public class PipeHandler implements WebSocketHandler {
 				queueService.sendMessage(messageDto);
 			}
 		}else {
-			log.warn("WebSocket send message failed, receiver is blank");
+			log.warn("WebSocket send message failed, receiver is blank, msg:{}", JSON.toJSONString(messageInfo));
 		}
 	}
 }

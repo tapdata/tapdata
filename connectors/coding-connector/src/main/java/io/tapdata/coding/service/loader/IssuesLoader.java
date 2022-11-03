@@ -429,13 +429,15 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         Object issueObj = issueEventData.get("issue");
         if (Checker.isEmpty(issueObj)) {
             TapLogger.debug(TAG, "An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
-            throw new CoreException("An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
+            return null;
+            //throw new CoreException("An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
         }
         Map<String, Object> issueMap = (Map<String, Object>) issueObj;
         Object codeObj = issueMap.get("code");
         if (Checker.isEmpty(codeObj)) {
             TapLogger.debug(TAG, "An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
-            throw new CoreException("An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
+            return null;
+            //throw new CoreException("An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
         }
         IssueType issueType = this.contextConfig.getIssueType();
         if (Checker.isNotEmpty(issueType)) {

@@ -19,6 +19,7 @@ import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
+import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -531,44 +532,50 @@ public class AlarmServiceImpl implements AlarmService {
         if (CollectionUtils.isEmpty(taskEntityList)) {
             return;
         }
+        if (Objects.isNull(nodeName)) {
+            return;
+        }
 
         for (TaskDto task : taskEntityList) {
             String agentId = task.getAgentId();
             String taskId = task.getId().toHexString();
             String taskName = task.getName();
 
-            Node<?> nodeTemp = task.getDag().getNodes().stream()
+            List<Node> collect = task.getDag().getNodes().stream()
                     .filter(node -> node instanceof DataParentNode && connectId.equals(((DataParentNode<?>) node).getConnectionId()))
-                    .findFirst().orElse(null);
-            if (Objects.isNull(nodeName)) {
+                    .collect(Collectors.toList());
+            if (CollectionUtils.isEmpty(collect)) {
                 continue;
             }
-            String nodeId = nodeTemp.getId();
 
-            HashMap<String, Object> param = Maps.newHashMap();
-            param.put("response_body", response_body);
+            collect.forEach(nodeTemp -> {
+                String nodeId = nodeTemp.getId();
 
-            AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.CRITICAL).component(AlarmComponentEnum.FE)
-                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
-                    .name(taskName).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
-                    .nodeId(nodeId).node(nodeName)
-                    .build();
+                HashMap<String, Object> param = Maps.newHashMap();
+                param.put("response_body", response_body);
 
-            List<AlarmInfo> alarmInfos = this.find(taskId, nodeId, AlarmKeyEnum.DATANODE_CANNOT_CONNECT);
-            Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
-            String summary;
-            if (first.isPresent()) {
-                long between = DateUtil.between(first.get().getLastOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
-                summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_ALWAYS, nodeName, between, DateUtil.now());
-                alarmInfo.setId(first.get().getId());
-                alarmInfo.setFirstOccurrenceTime(first.get().getFirstOccurrenceTime());
-                alarmInfo.setLastOccurrenceTime(DateUtil.date());
-            } else {
-                summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT, nodeName, DateUtil.now());
-            }
-            alarmInfo.setSummary(summary);
-            alarmInfo.setParam(param);
-            this.save(alarmInfo);
+                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.CRITICAL).component(AlarmComponentEnum.FE)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
+                        .name(taskName).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
+                        .nodeId(nodeId).node(nodeName)
+                        .build();
+
+                List<AlarmInfo> alarmInfos = this.find(taskId, nodeId, AlarmKeyEnum.DATANODE_CANNOT_CONNECT);
+                Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
+                String summary;
+                if (first.isPresent()) {
+                    long between = DateUtil.between(first.get().getLastOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
+                    summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_ALWAYS, nodeName, between, DateUtil.now());
+                    alarmInfo.setId(first.get().getId());
+                    alarmInfo.setFirstOccurrenceTime(first.get().getFirstOccurrenceTime());
+                    alarmInfo.setLastOccurrenceTime(DateUtil.date());
+                } else {
+                    summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT, nodeName, DateUtil.now());
+                }
+                alarmInfo.setSummary(summary);
+                alarmInfo.setParam(param);
+                SpringUtil.getBean(AlarmService.class).save(alarmInfo);
+            });
         }
     }
 

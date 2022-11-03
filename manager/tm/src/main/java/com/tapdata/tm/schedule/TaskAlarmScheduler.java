@@ -28,6 +28,7 @@ import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -37,7 +38,9 @@ import io.tapdata.common.sample.request.Sample;
 import lombok.Setter;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -77,14 +80,14 @@ public class TaskAlarmScheduler {
             return;
         }
 
-        Set<String> connectionIds = Sets.newHashSet();
+        Set<ObjectId> connectionIds = Sets.newHashSet();
         Map<String, List<String>> taskMap = Maps.newHashMap();
         for (TaskDto taskDto : taskDtos) {
             String taskId = taskDto.getId().toHexString();
             DAG dag = taskDto.getDag();
             dag.getNodes().stream().filter(node -> node instanceof DataParentNode).forEach(node -> {
                 String connectionId = ((DataParentNode<?>) node).getConnectionId();
-                connectionIds.add(connectionId);
+                connectionIds.add(MongoUtils.toObjectId(connectionId));
 
                 if (taskMap.containsKey(connectionId)) {
                     List<String> list = taskMap.get(connectionId);
@@ -100,7 +103,10 @@ public class TaskAlarmScheduler {
             return;
         }
 
-        List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAllByIds(new ArrayList<>(connectionIds));
+        Query connectQuery = new Query(Criteria.where("_id").in(connectionIds));
+        connectQuery.with(Sort.by("testTime"));
+        connectQuery.limit(5);
+        List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAll(connectQuery);
         if (CollectionUtils.isEmpty(connectionDtos)) {
             return;
         }
