@@ -276,68 +276,72 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void handleTapdataEvents(List<TapdataEvent> tapdataEvents) {
-		List<TapEvent> tapEvents = new ArrayList<>();
-		List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
-		if (null != getConnectorNode()) {
-			codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-		}
 		AtomicReference<TapdataEvent> lastDmlTapdataEvent = new AtomicReference<>();
-		for (TapdataEvent tapdataEvent : tapdataEvents) {
-			if (!isRunning()) return;
-			try {
-				SyncStage syncStage = tapdataEvent.getSyncStage();
-				if (null != syncStage) {
-					if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
-						// MILESTONE-WRITE_SNAPSHOT-RUNNING
-						TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
-						MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
-					} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
-						// MILESTONE-WRITE_CDC_EVENT-FINISH
-						TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
-						MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
-					}
-				}
-				if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-					handleTapdataHeartbeatEvent(tapdataEvent);
-				} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
-					handleTapdataCompleteSnapshotEvent();
-				} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
-					handleTapdataStartCdcEvent(tapdataEvent);
-				} else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
-					throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
-				} else if (tapdataEvent instanceof TapdataShareLogEvent) {
-					handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
-				} else {
-					if (tapdataEvent.isDML()) {
-						handleTapdataRecordEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-					} else if (tapdataEvent.isDDL()) {
-						handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-					} else {
-						if (null != tapdataEvent.getTapEvent()) {
-							logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
-							obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+		try {
+			List<TapEvent> tapEvents = new ArrayList<>();
+			List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
+			if (null != getConnectorNode()) {
+				codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+			}
+			lastDmlTapdataEvent = new AtomicReference<>();
+			for (TapdataEvent tapdataEvent : tapdataEvents) {
+				if (!isRunning()) return;
+				try {
+					SyncStage syncStage = tapdataEvent.getSyncStage();
+					if (null != syncStage) {
+						if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
+							// MILESTONE-WRITE_SNAPSHOT-RUNNING
+							TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
+							MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
+						} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
+							// MILESTONE-WRITE_CDC_EVENT-FINISH
+							TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
+							MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
 						}
 					}
+					if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+						handleTapdataHeartbeatEvent(tapdataEvent);
+					} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
+						handleTapdataCompleteSnapshotEvent();
+					} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
+						handleTapdataStartCdcEvent(tapdataEvent);
+					} else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
+						throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
+					} else if (tapdataEvent instanceof TapdataShareLogEvent) {
+						handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
+					} else {
+						if (tapdataEvent.isDML()) {
+							handleTapdataRecordEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
+						} else if (tapdataEvent.isDDL()) {
+							handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
+						} else {
+							if (null != tapdataEvent.getTapEvent()) {
+								logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+								obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+							}
+						}
+					}
+				} catch (Throwable throwable) {
+					throw new RuntimeException(String.format("Handle events failed: %s", throwable.getMessage()), throwable);
 				}
-			} catch (Throwable throwable) {
-				throw new RuntimeException(String.format("Handle events failed: %s", throwable.getMessage()), throwable);
 			}
-		}
-		if (CollectionUtils.isNotEmpty(tapEvents)) {
-			try {
-				processEvents(tapEvents);
-			} catch (Throwable throwable) {
-				throw new RuntimeException(String.format("Process events failed: %s", throwable.getMessage()), throwable);
+			if (CollectionUtils.isNotEmpty(tapEvents)) {
+				try {
+					processEvents(tapEvents);
+				} catch (Throwable throwable) {
+					throw new RuntimeException(String.format("Process events failed: %s", throwable.getMessage()), throwable);
+				}
 			}
-		}
-		if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
-			try {
-				processShareLog(tapdataShareLogEvents);
-			} catch (Throwable throwable) {
-				throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
+			if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
+				try {
+					processShareLog(tapdataShareLogEvents);
+				} catch (Throwable throwable) {
+					throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
+				}
 			}
+		} finally {
+			flushSyncProgressMap(lastDmlTapdataEvent.get());
 		}
-		flushSyncProgressMap(lastDmlTapdataEvent.get());
 	}
 
 	private void handleTapdataShareLogEvent(List<TapdataShareLogEvent> tapdataShareLogEvents, TapdataEvent tapdataEvent, Consumer<TapdataEvent> consumer) {

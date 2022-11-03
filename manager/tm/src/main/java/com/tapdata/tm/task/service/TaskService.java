@@ -2565,8 +2565,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
             update(query1, Update.update("status", TaskDto.STATUS_SCHEDULE_FAILED), user);
             throw new BizException("Task.AgentNotFound");
-        } else {
-            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED, user);
         }
 
         //调度完成之后，改成待运行状态
