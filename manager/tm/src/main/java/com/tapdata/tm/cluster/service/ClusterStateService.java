@@ -8,6 +8,7 @@ import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.*;
@@ -62,6 +63,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
 
     @Autowired
     private MessageService messageService;
+    private SettingsService settingsService;
     private MongoTemplate mongoTemplate;
 
     public ClusterStateService(@NonNull ClusterStateRepository repository) {
@@ -317,8 +319,18 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             return result;
         }
 
+        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+        if (Objects.isNull(buildProfile)) {
+            buildProfile = "DAAS";
+        }
+        boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+
         availableAgent.forEach(dto -> {
-            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(dto.getProcessId(), dto.getHostname(), dto.getProcessId());
+            String hostname = dto.getHostname();
+            if (isCloud) {
+                hostname = dto.getTcmInfo().getAgentName();
+            }
+            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(dto.getProcessId(), hostname, dto.getProcessId());
             result.add(accessNodeInfo);
         });
 

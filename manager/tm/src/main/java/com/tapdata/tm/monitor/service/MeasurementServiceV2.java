@@ -106,7 +106,7 @@ public class MeasurementServiceV2 {
         }
 
         BulkWriteResult bulkWriteResult = bulkOperations.execute();
-        log.info("add bulkWriteResult,{}", bulkWriteResult);
+
     }
 
     private static final String TAG_FORMAT = String.format("%s.%%s", MeasurementEntity.FIELD_TAGS);
