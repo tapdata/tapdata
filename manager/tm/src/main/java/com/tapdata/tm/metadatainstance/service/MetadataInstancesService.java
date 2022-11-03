@@ -59,6 +59,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -84,11 +85,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     private DataSourceDefinitionService dataSourceDefinitionService;
     private UserService userService;
     private TaskService taskService;
-
     private DAGService dagService;
-
-
     private MetaDataHistoryService metaDataHistoryService;
+    private MongoTemplate mongoTemplate;
 
     public MetadataInstancesDto add(MetadataInstancesDto record, UserDetail user) {
         return save(record, user);
@@ -1053,8 +1052,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
         query.fields().include("original_name");
-        List<MetadataInstancesDto> metadataInstancesDtos = findAll(query);
-        return metadataInstancesDtos.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
+        List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
+        return list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
     }
 
     public TableSupportInspectVo tableSupportInspect(String connectId, String tableName) {
