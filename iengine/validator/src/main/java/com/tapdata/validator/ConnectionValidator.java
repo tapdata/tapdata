@@ -10,10 +10,10 @@ import io.tapdata.entity.BaseConnectionValidateResultDetail;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -209,7 +209,7 @@ public class ConnectionValidator {
 
 							ConnectionValidateResultDetail resultDetail = new ConnectionValidateResultDetail();
 							resultDetail.setStatus(
-									result == TestItem.RESULT_FAILED || result == TestItem.RESULT_SUCCESSFULLY_WITH_WARN ?
+									result != TestItem.RESULT_SUCCESSFULLY ?
 											ValidatorConstant.VALIDATE_DETAIL_RESULT_FAIL :
 											ValidatorConstant.VALIDATE_DETAIL_RESULT_PASSED
 							);
