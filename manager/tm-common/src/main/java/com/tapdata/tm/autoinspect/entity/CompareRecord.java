@@ -154,6 +154,9 @@ public class CompareRecord {
             return sdf.format(((DateTime) v).toDate());
         } else if (v instanceof byte[]) {
             byte[] tmp = (byte[]) v;
+            if (tmp.length == 0) {
+                return "";
+            }
             return MD5.create().digestHex(tmp) + "(" + tmp.length + ")";
         } else if (field.getTapType() instanceof TapNumber) {
             String tmp = v.toString();
