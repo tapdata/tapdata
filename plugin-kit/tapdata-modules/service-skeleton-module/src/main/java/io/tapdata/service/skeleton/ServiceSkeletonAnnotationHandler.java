@@ -72,7 +72,7 @@ public class ServiceSkeletonAnnotationHandler extends ClassAnnotationHandler {
             }
             this.methodMap = newMethodMap;
             uriLogs.append("---------------------------------------");
-            TapLogger.debug(TAG, uriLogs.toString());
+            TapLogger.info(TAG, uriLogs.toString());
         }
     }
 
@@ -247,7 +247,7 @@ public class ServiceSkeletonAnnotationHandler extends ClassAnnotationHandler {
             methodMap.put(value, mm);
             RpcCacheManager.getInstance().putCrcMethodMap(value, service + "_" + clazz.getSimpleName() + "_" + method.getName());
 
-            TapLogger.debug("SCAN", "Mapping crc " + value + " for class " + clazz.getName() + " method " + method.getName() + " for service " + service);
+            TapLogger.info("SCAN", "Mapping crc " + value + " for class " + clazz.getName() + " method " + method.getName() + " for service " + service);
         }
     }
 

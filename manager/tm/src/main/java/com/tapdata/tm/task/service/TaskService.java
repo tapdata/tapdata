@@ -878,6 +878,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //将任务id设置为null,状态改为编辑中
         taskDto.setId(null);
         taskDto.setTaskRecordId(null);
+        taskDto.setAgentId(null);
 
         //设置复制名称
         String copyName = taskDto.getName() + " - Copy";
@@ -2149,6 +2150,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 taskDto.setCustomId(null);
                 taskDto.setLastUpdBy(null);
                 taskDto.setUserId(null);
+                taskDto.setAgentId(null);
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
                 Map<String, Object> attrs = taskDto.getAttrs();
@@ -2750,7 +2752,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
-        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId());
+        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId()).set("last_updated", new Date());
         boolean needCreateRecord = false;
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             taskDto.setTaskRecordId(new ObjectId().toHexString());
@@ -2924,10 +2926,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
 
         Date now = DateUtil.date();
-        Update update = Update.update("status", TaskDto.STATUS_RUNNING)
-                .set("lastStartDate", now.getTime());
+        Update update = Update.update("status", TaskDto.STATUS_RUNNING);
         if (taskDto.getStartTime() == null) {
             update.set("startTime", now);
+        }
+        if (taskDto.getLastStartDate() == null) {
+            update.set("lastStartDate", now.getTime());
         }
 
         monitoringLogsService.startTaskMonitoringLog(taskDto, user, now);

@@ -76,7 +76,7 @@ public class PostgresTest extends CommonDbTest {
             return testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY);
         } catch (Throwable e) {
             return testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                    "Invalid log plugin, Maybe cdc events cannot work!");
+                    String.format("Test log plugin failed: {%s}, Maybe cdc events cannot work!", e.getMessage()));
         }
     }
 

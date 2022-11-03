@@ -22,7 +22,7 @@ public class AspectInterceptorAnnotationHandler extends ClassAnnotationHandler {
     public void handle(Set<Class<?>> classes) throws CoreException {
         if(classes != null) {
             newAspectInterceptorsMap = new ConcurrentHashMap<>();
-            TapLogger.debug(TAG, "--------------AspectInterceptor Classes Start-------------");
+            TapLogger.info(TAG, "--------------AspectInterceptor Classes Start-------------");
             for(Class<?> clazz : classes) {
                 AspectInterceptorClass aspectInterceptorClass = clazz.getAnnotation(AspectInterceptorClass.class);
                 if(aspectInterceptorClass != null) {
@@ -55,14 +55,14 @@ public class AspectInterceptorAnnotationHandler extends ClassAnnotationHandler {
                         aspectInterceptors = Collections.synchronizedSortedSet(new TreeSet<>());
                         aspectInterceptors.add(new AspectInterceptorClassHolder().aspectClass(interceptorClass).order(order).ignoreErrors(ignoreErrors));
                         newAspectInterceptorsMap.put(aspectClass, aspectInterceptors);
-                        TapLogger.debug(TAG, "(New array) AspectInterceptor {} for Aspect {} order {} will be applied", interceptorClass, aspectClass, order);
+                        TapLogger.info(TAG, "(New array) AspectInterceptor {} for Aspect {} order {} will be applied", interceptorClass, aspectClass, order);
                     } else {
                         aspectInterceptors.add(new AspectInterceptorClassHolder().aspectClass(interceptorClass).order(order));
-                        TapLogger.debug(TAG, "(Exist array) AspectInterceptor {} for Aspect {} order {} will be applied", clazz, aspectClass, order);
+                        TapLogger.info(TAG, "(Exist array) AspectInterceptor {} for Aspect {} order {} will be applied", clazz, aspectClass, order);
                     }
                 }
             }
-            TapLogger.debug(TAG, "--------------AspectInterceptor Classes End-------------");
+            TapLogger.info(TAG, "--------------AspectInterceptor Classes End-------------");
         }
         apply();
     }

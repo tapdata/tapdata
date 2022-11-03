@@ -204,6 +204,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		}
 
 		DataSourceEntity entity = convertToEntity(DataSourceEntity.class, updateDto);
+		entity.setAccessNodeProcessIdList(updateDto.getTrueAccessNodeProcessIdList());
 
 		Update update = repository.buildUpdateSet(entity, user);
 
