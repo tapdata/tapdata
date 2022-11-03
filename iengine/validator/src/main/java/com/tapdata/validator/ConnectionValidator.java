@@ -209,7 +209,7 @@ public class ConnectionValidator {
 
 							ConnectionValidateResultDetail resultDetail = new ConnectionValidateResultDetail();
 							resultDetail.setStatus(
-									result == TestItem.RESULT_FAILED ?
+									result == TestItem.RESULT_FAILED || result == TestItem.RESULT_SUCCESSFULLY_WITH_WARN ?
 											ValidatorConstant.VALIDATE_DETAIL_RESULT_FAIL :
 											ValidatorConstant.VALIDATE_DETAIL_RESULT_PASSED
 							);
