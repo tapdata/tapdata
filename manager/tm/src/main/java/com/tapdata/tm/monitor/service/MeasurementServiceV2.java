@@ -27,6 +27,7 @@ import io.tapdata.common.sample.request.SampleRequest;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -105,7 +106,7 @@ public class MeasurementServiceV2 {
         }
 
         BulkWriteResult bulkWriteResult = bulkOperations.execute();
-        log.info("add bulkWriteResult,{}", bulkWriteResult);
+
     }
 
     private static final String TAG_FORMAT = String.format("%s.%%s", MeasurementEntity.FIELD_TAGS);
@@ -116,7 +117,12 @@ public class MeasurementServiceV2 {
 
 
     public Object getSamples(MeasurementQueryParam measurementQueryParam) {
+        Map<String, Object> ret = new HashMap<>();
         Map<String, List<Map<String, Object>>> data = new HashMap<>();
+
+        if (ObjectUtils.anyNull(measurementQueryParam.getStartAt(), measurementQueryParam.getEndAt())) {
+            return ret;
+        }
 
         long initialStart = measurementQueryParam.getStartAt();
         long initialEnd = measurementQueryParam.getEndAt();
@@ -204,7 +210,6 @@ public class MeasurementServiceV2 {
             }
         }
 
-        Map<String, Object> ret = new HashMap<>();
         ret.put("samples", data);
         if (hasTimeline && null != timeline) {
             ret.put("time", timeline);

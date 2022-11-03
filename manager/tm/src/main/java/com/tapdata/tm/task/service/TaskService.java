@@ -847,6 +847,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //将任务id设置为null,状态改为编辑中
         taskDto.setId(null);
         taskDto.setTaskRecordId(null);
+        taskDto.setAgentId(null);
 
         //设置复制名称
         String copyName = taskDto.getName() + " - Copy";
@@ -1971,6 +1972,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 taskDto.setCustomId(null);
                 taskDto.setLastUpdBy(null);
                 taskDto.setUserId(null);
+                taskDto.setAgentId(null);
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
                 Map<String, Object> attrs = taskDto.getAttrs();
@@ -3182,14 +3184,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("planStartDateFlag").is(true)
                 .and("planStartDate").lte(DateUtil.current());
         Query taskQuery = new Query(migrateCriteria);
-        log.info("startPlanMigrateDagTask query {}", taskQuery);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
             taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
                     .collect(Collectors.toList());
-
-            List<String> taskIdList = taskList.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList());
-            log.info("startPlanMigrateDagTask taskIdList {}", taskIdList);
 
             List<String> userIdList = taskList.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
             List<UserDetail> userList = userService.getUserByIdList(userIdList);
