@@ -1,6 +1,5 @@
 package io.tapdata.zoho.service.zoho.schemaLoader;
 
-import cn.hutool.core.date.DateUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -18,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class DepartmentsSchema implements SchemaLoader {
+public class DepartmentsSchema extends Schema implements SchemaLoader {
     private static final String TAG = DepartmentsSchema.class.getSimpleName();
     private DepartmentOpenApi departmentOpenApi;
     @Override
@@ -44,11 +43,12 @@ public class DepartmentsSchema implements SchemaLoader {
             throw new CoreException("Connection Mode is not empty or not null.");
         }
         String table = Schemas.Departments.getTableName();
-        while (true){
+        while (isAlive()){
             List<Map<String, Object>> listDepartment = departmentOpenApi.list(null, null, fromPageIndex, pageSize, null);//分页数
             if (Checker.isNotEmpty(listDepartment) && !listDepartment.isEmpty()) {
                 fromPageIndex += pageSize;
                 for (Map<String, Object> stringObjectMap : listDepartment) {
+                    if (!isAlive()) break;
                     Map<String, Object> department = connectionMode.attributeAssignment(stringObjectMap, table,departmentOpenApi);
                     if (Checker.isNotEmpty(department) && !department.isEmpty()) {
                         Object modifiedTimeObj = department.get("modifiedTime");

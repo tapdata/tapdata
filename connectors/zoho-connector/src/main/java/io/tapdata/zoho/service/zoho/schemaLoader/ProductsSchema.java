@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class ProductsSchema implements SchemaLoader {
+public class ProductsSchema extends Schema implements SchemaLoader {
     private ProductsOpenApi productsOpenApi;
     @Override
     public SchemaLoader configSchema(TapConnectionContext tapConnectionContext) {
@@ -54,7 +54,7 @@ public class ProductsSchema implements SchemaLoader {
         String tableName =  Schemas.Products.getTableName();
         if (Checker.isEmpty(offsetState)) offsetState = ZoHoOffset.create(new HashMap<>());
         final Object offset = offsetState;
-        while (true){
+        while (isAlive()){
             List<Map<String, Object>> list = productsOpenApi.page(
                     fromPageIndex,
                     pageSize,
@@ -62,6 +62,7 @@ public class ProductsSchema implements SchemaLoader {
             if (Checker.isNotEmpty(list) && !list.isEmpty()){
                 fromPageIndex += pageSize;
                 list.stream().forEach(product->{
+                    if (!isAlive()) return;
                     Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,productsOpenApi);
                     if (Checker.isNotEmpty(oneProduct) && !oneProduct.isEmpty()){
                         Object modifiedTimeObj = oneProduct.get("modifiedTime");

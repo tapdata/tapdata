@@ -126,11 +126,13 @@ public class ZoHoConnector extends ConnectorBase {
 
 
 		if (Checker.isEmpty(tables) || tables.isEmpty()) return null;
-		List<SchemaLoader> loaders = SchemaLoader.loaders(connectorContext);
+		List<SchemaLoader> loaders = SchemaLoader.loaders(connectorContext,this);
 		List<TapEvent> events = new ArrayList<>();
 		for (SchemaLoader loader : loaders) {
 			if (Checker.isEmpty(loader)) continue;
 			//events.addAll(loader.configSchema(connectorContext).rawDataCallbackFilterFunction(eventData));
+
+			loader.out();
 		}
 		return Checker.isEmpty(events) || events.isEmpty()?null:events;
 	}
@@ -282,18 +284,21 @@ public class ZoHoConnector extends ConnectorBase {
 //		zoHoOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
 //		this.read(connectorContext,batchCount,zoHoOffset,consumer,table.getId());
 		if (Checker.isEmpty(table) || Checker.isEmpty(connectorContext)) return ;
-		SchemaLoader loader = SchemaLoader.loader(table.getId(),connectorContext);
+		SchemaLoader loader = SchemaLoader.loader(table.getId(),connectorContext,this);
 		if (Checker.isNotEmpty(loader)){
 			loader.configSchema(connectorContext).batchRead(offset,batchCount,consumer);
+			loader.out();
 		}
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
 		//return TicketLoader.create(tapConnectorContext).count();
 		if (Checker.isEmpty(tapTable) || Checker.isEmpty(tapConnectorContext)) return 0;
-		SchemaLoader loader = SchemaLoader.loader(tapTable.getId(),tapConnectorContext);
+		SchemaLoader loader = SchemaLoader.loader(tapTable.getId(),tapConnectorContext,this);
 		if (Checker.isNotEmpty(loader)){
-			return loader.configSchema(tapConnectorContext).batchCount();
+			long count = loader.configSchema(tapConnectorContext).batchCount();
+			loader.out();
+			return count;
 		}
 		return 0;
 	}

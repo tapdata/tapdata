@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class OrganizationFieldsSchema implements SchemaLoader {
+public class OrganizationFieldsSchema extends Schema implements SchemaLoader {
     private static final String TAG = TicketsSchema.class.getSimpleName();
     private OrganizationFieldsOpenApi fieldLoader;
     @Override
@@ -46,6 +46,7 @@ public class OrganizationFieldsSchema implements SchemaLoader {
         List<Map<String, Object>> listDepartment = fieldLoader.list(ModuleEnums.TICKETS, null, null);//分页数
         if (Checker.isEmpty(listDepartment) || listDepartment.isEmpty()) return;
         for (Map<String, Object> stringObjectMap : listDepartment) {
+            if (!isAlive()) break;
             Map<String, Object> department = connectionMode.attributeAssignment(stringObjectMap, table,fieldLoader);
             if (Checker.isEmpty(department) || department.isEmpty()) continue;
             long referenceTime = System.currentTimeMillis();

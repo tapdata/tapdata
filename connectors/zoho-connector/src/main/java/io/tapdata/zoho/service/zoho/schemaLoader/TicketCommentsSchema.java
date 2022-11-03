@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class TicketCommentsSchema implements SchemaLoader {
+public class TicketCommentsSchema extends Schema implements SchemaLoader {
     private static final String TAG = TicketCommentsSchema.class.getSimpleName();
 
     private TicketCommentsOpenApi commentsOpenApi;
