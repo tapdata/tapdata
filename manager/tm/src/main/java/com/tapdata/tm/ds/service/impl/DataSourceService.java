@@ -510,7 +510,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 					if (password != null) {
 						String password1 = new String(password);
-						uri = uri.replace(password1, "******");
+						uri = uri.replace(":"+password1, ":******");
 						item.getConfig().put("uri", uri);
 					}
 
@@ -519,6 +519,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 		}
 	}
+
 
 	/**
 	 * 给数据源连接修改资源分类
