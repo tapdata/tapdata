@@ -142,6 +142,45 @@
       "unsigned": "unsigned",
       "fixed": false
     },
+    "NUMERIC[($precision)]": {
+      "to": "TapNumber",
+      "name": "NUMERIC",
+      "precision": [
+        1,
+        38
+      ],
+      "scale": [
+        0,
+        9
+      ],
+      "defaultPrecision": 29,
+      "defaultScale": 0,
+      "value": [
+        "-9.9999999999999999999999999999999999999E+28",
+        "9.9999999999999999999999999999999999999E+28"
+      ],
+      "fixed": false
+    },
+    "BIGNUMERIC[($precision)]": {
+      "to": "TapNumber",
+      "name": "BIGNUMERIC",
+      "precision": [
+        1,
+        38
+      ],
+      "scale": [
+        0,
+        38
+      ],
+      "defaultPrecision": 38,
+      "defaultScale": 0,
+      "value": [
+        "-3.402823466E+38",
+        "3.402823466E+38"
+      ],
+      "unsigned": "unsigned",
+      "fixed": false
+    },
     "BOOLEAN": {
       "to": "TapBoolean"
     },
@@ -189,12 +228,19 @@
       "defaultFraction": 6
     },
     "RECORD": {
-      "to":"TapMap",
+      "to":"TapRaw",
+      "queryOnly": true
+    },
+    "STRUCT<$variable>": {
+      "to":"TapRaw",
+      "queryOnly": true
+    },
+    "ARRAY<$variable>": {
+      "to":"TapRaw",
       "queryOnly": true
     },
     "JSON": {
-      "to": "TapMap",
-      "queryOnly": true
+      "to": "TapMap"
     }
   }
 }

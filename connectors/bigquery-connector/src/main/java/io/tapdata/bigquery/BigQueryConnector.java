@@ -5,6 +5,7 @@ import io.tapdata.bigquery.service.bigQuery.BigQueryConnectionTest;
 import io.tapdata.bigquery.service.bigQuery.TableCreate;
 import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.bigquery.service.command.Command;
+import io.tapdata.bigquery.service.stage.tapValue.ValueHandel;
 import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
 import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.codec.FromTapValueCodec;
@@ -40,11 +41,12 @@ public class BigQueryConnector extends ConnectorBase {
 	private static final String TAG = BigQueryConnector.class.getSimpleName();
 
 	private final Object streamReadLock = new Object();
-	WriteRecord writeRecord;
+	private WriteRecord writeRecord;
+	private final ValueHandel valueHandel = ValueHandel.create();
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
-		this.writeRecord = WriteRecord.create(connectionContext);
+		this.writeRecord = WriteRecord.create(connectionContext,valueHandel);
 		if (connectionContext instanceof TapConnectorContext) {
 			isConnectorStarted(connectionContext, connectorContext -> {
 				Iterator<Entry<TapTable>> iterator = connectorContext.getTableMap().iterator();

@@ -1,5 +1,8 @@
 package io.tapdata.bigquery.util.tool;
 
+import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.schema.type.TapType;
+
 import java.util.Collection;
 import java.util.Map;
 
@@ -62,9 +65,9 @@ public class Checker {
 //        String dateStr = formatter.format(new Date(1576477905000L));
 //        //1576474321000L
 //        //1576477905000L
-//        System.out.println(dateStr);
-
-
-        System.out.println("SELECT schema_name FROM #{projectId}.INFORMATION_SCHEMA.SCHEMATA;".replace("#{projectId}","123"));
+//        System.out.println(dateStr);T
+        TapType f = new TapString();
+        System.out.println(f.getClass().getName());
+//        System.out.println("SELECT schema_name FROM #{projectId}.INFORMATION_SCHEMA.SCHEMATA;".replace("#{projectId}","123"));
     }
 }

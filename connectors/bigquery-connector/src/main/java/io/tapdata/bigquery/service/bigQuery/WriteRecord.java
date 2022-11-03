@@ -1,9 +1,9 @@
 package io.tapdata.bigquery.service.bigQuery;
 
-import cn.hutool.core.codec.Base64;
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.json.JSONUtil;
-import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
-import io.tapdata.entity.error.CoreException;
+import io.tapdata.bigquery.service.stage.tapValue.TapValueForBigQuery;
+import io.tapdata.bigquery.service.stage.tapValue.ValueHandel;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -23,6 +23,7 @@ import static io.tapdata.base.ConnectorBase.list;
 
 public class WriteRecord extends BigQueryStart{
     private static final String TAG = WriteRecord.class.getSimpleName();
+    ValueHandel valueHandel;
 
     public WriteRecord(TapConnectionContext connectorContext){
         super(connectorContext);
@@ -31,8 +32,20 @@ public class WriteRecord extends BigQueryStart{
         return new WriteRecord(connectorContext);
     }
 
+    public static WriteRecord create(TapConnectionContext connectorContext,ValueHandel valueHandel){
+        return new WriteRecord(connectorContext).valueHandel(valueHandel);
+    }
+
     public String fullSqlTable(String tableId){
         return "`"+this.config.projectId() + "`.`" + this.config.tableSet() + "`.`"+tableId+"`";
+    }
+
+    public WriteRecord valueHandel(ValueHandel valueHandel){
+        this.valueHandel = valueHandel;
+        return this;
+    }
+    public ValueHandel valueHandel(){
+        return this.valueHandel;
     }
 
     public final String delimiter = ",";
@@ -380,31 +393,38 @@ public class WriteRecord extends BigQueryStart{
      *
      * */
     public String sqlValue(Object value,TapField field){
-        if (null == value) return "NULL";
         TapType tapType = field.getTapType();
-        if (tapType instanceof TapString){
-            return "'"+String.valueOf(value).replaceAll("'","\\'")+"'";
-        }else if(tapType instanceof TapNumber){
-            return this.empty+value;
-        }else if(tapType instanceof TapBoolean){
-            return this.empty+value;
-        }else if(tapType instanceof TapMap){
-            return jsonValue(value);
-        }else if(tapType instanceof TapBinary){
-            return " FROM_BASE64('"+Base64.encode(String.valueOf(value)) +"') ";
-        }else if(tapType instanceof TapArray){
-            return jsonValue(value);
-        }else if(tapType instanceof TapDate){
-            return "'"+value+"'";
-        }else if(tapType instanceof TapYear){
-            return "'"+value+"'";
-        }else if(tapType instanceof TapTime){
-            return "'"+value+"'";
-        }else if(tapType instanceof TapDateTime){
-            return "'"+value+"'";
-        }else{
-            return ""+value;
+        //return TapValueForBigQuery.sqlValue(value,tapType.getClass());
+        if (null == this.valueHandel){
+            BeanUtil.copyProperties(ValueHandel.create(),this.valueHandel,false);
         }
+        return this.valueHandel.sqlValue(value,null == tapType? null:tapType.getClass());
+
+//        if (null == value) return "NULL";
+//        TapType tapType = field.getTapType();
+//        if (tapType instanceof TapString){
+//            return "'"+String.valueOf(value).replaceAll("'","\\'")+"'";
+//        }else if(tapType instanceof TapNumber){
+//            return this.empty+value;
+//        }else if(tapType instanceof TapBoolean){
+//            return this.empty+value;
+//        }else if(tapType instanceof TapMap){
+//            return jsonValue(value);
+//        }else if(tapType instanceof TapBinary){
+//            return " FROM_BASE64('"+Base64.encode(String.valueOf(value)) +"') ";
+//        }else if(tapType instanceof TapArray){
+//            return jsonValue(value);
+//        }else if(tapType instanceof TapDate){
+//            return "'"+value+"'";
+//        }else if(tapType instanceof TapYear){
+//            return "'"+value+"'";
+//        }else if(tapType instanceof TapTime){
+//            return "'"+value+"'";
+//        }else if(tapType instanceof TapDateTime){
+//            return "'"+value+"'";
+//        }else{
+//            return ""+value;
+//        }
     }
 
     private String jsonValue(Object obj){
