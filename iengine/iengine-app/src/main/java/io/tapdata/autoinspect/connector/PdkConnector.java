@@ -123,9 +123,10 @@ public class PdkConnector implements IPdkConnector {
                                         if (results.isEmpty()) return;
 
                                         for (Map<String, Object> result : results) {
-                                            CompareRecord record = new CompareRecord(tableName, getConnId(), originalKey, keyNames, result);
-                                            codecsFilterManager.transformToTapValueMap(record.getData(), tapTable.getNameFieldMap());
-                                            defaultCodecsFilterManager.transformFromTapValueMap(record.getData());
+                                            codecsFilterManager.transformToTapValueMap(result, tapTable.getNameFieldMap());
+                                            defaultCodecsFilterManager.transformFromTapValueMap(result);
+                                            CompareRecord record = new CompareRecord(tableName, getConnId(), originalKey, keyNames);
+                                            record.setData(result, tapTable.getNameFieldMap());
                                             compareRecord.set(record);
                                             return;
                                         }
