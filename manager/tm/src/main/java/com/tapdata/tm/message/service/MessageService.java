@@ -706,10 +706,9 @@ public class MessageService extends BaseService {
         Boolean result = false;
         try {
             if (CollectionUtils.isNotEmpty(ids)) {
-                ids.forEach(id -> {
-                    Update update = Update.update("read", true);
-                    messageRepository.getMongoOperations().updateFirst(new Query(Criteria.where("_id").is(id)), update, MessageEntity.class);
-                });
+                List<ObjectId> objectIds = ids.stream().map(ObjectId::new).collect(Collectors.toList());
+                Update update = Update.update("read", true);
+                messageRepository.update(new Query(Criteria.where("_id").in(objectIds)), update, userDetail);
             }
             result = true;
         } catch (Exception e) {

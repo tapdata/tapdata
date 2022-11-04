@@ -61,23 +61,26 @@ public class MessageAop {
     }
 
 
-   /* @Around(value = "readPointcut()")
+    @Around(value = "readPointcut()")
     public Object afterReadReturning(ProceedingJoinPoint joinPoint) throws Throwable {
         Object ret = null;
         Object[] args = joinPoint.getArgs();
 
-        List<String> ids = (List<String>) args[0];
-        UserDetail userDetail = (UserDetail) args[1];
+        if (args != null && args.length == 2) {
+            List<String> ids = (List<String>) args[0];
+            UserDetail userDetail = (UserDetail) args[1];
 
-        ret = joinPoint.proceed(args);
-        if (CollectionUtils.isNotEmpty(ids)) {
-            ids.forEach(id -> {
-                userLogService.addUserLog(Modular.MESSAGE, Operation.READ, userDetail, id, "已读通知");
-            });
+            ret = joinPoint.proceed(args);
+            if (CollectionUtils.isNotEmpty(ids)) {
+                ids.forEach(id -> {
+                    userLogService.addUserLog(Modular.MESSAGE, Operation.READ, userDetail, id, "已读通知");
+                });
+            }
+        } else {
+            log.error("Ignore record read message operation.");
         }
         return ret;
     }
-*/
     /**
      * 拦截已读全部通知
      *
