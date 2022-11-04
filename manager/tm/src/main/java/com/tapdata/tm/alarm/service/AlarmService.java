@@ -37,11 +37,9 @@ public interface AlarmService {
 
     void closeWhenTaskRunning(String taskId);
 
-    void checkFullAndCdcEvent(String taskId);
+    void connectPassAlarm(JSONArray taskIds, String nodeName, String connectId, String response_body);
 
-    void connectPassAlarm(JSONArray taskIds, String nodeName, String connectId);
-
-    void connectFailAlarm(JSONArray taskIds, String nodeName, String connectId);
+    void connectFailAlarm(JSONArray taskIds, String nodeName, String connectId, String response_body);
 
     void delAlarm(String taskId);
 }

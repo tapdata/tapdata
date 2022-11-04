@@ -106,7 +106,9 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
             keymap.put(pk, data.get(pk));
         }
 
-        return new CompareRecord(tapTable.getName(), connectionId, keymap, new LinkedHashSet<>(keymap.keySet()), data);
+        CompareRecord compareRecord = new CompareRecord(tapTable.getName(), connectionId, keymap, new LinkedHashSet<>(keymap.keySet()));
+        compareRecord.setData(data, tapTable.getNameFieldMap());
+        return compareRecord;
     }
 
     @Override
@@ -218,12 +220,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
                                 continue;
                             }
 
-                            LinkedHashMap<String, Object> keymap = new LinkedHashMap<>();
-                            for (String k : sourceRecord.getKeyNames()) {
-                                keymap.put(k, sourceRecord.getDataValue(k));
-                            }
-
-                            CompareRecord targetRecord = targetConnector.queryByKey(tableName, keymap, sourceRecord.getKeyNames());
+                            CompareRecord targetRecord = targetConnector.queryByKey(tableName, sourceRecord.getOriginalKey(), sourceRecord.getKeyNames());
                             if (tapEvent instanceof TapDeleteRecordEvent) {
                                 if (null != targetRecord) {
                                     targetRecord.getOriginalKey().putAll(sourceRecord.getOriginalKey());

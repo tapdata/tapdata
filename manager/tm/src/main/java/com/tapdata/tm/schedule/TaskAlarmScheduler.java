@@ -5,7 +5,8 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
@@ -13,6 +14,7 @@ import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -28,6 +30,7 @@ import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -37,10 +40,11 @@ import io.tapdata.common.sample.request.Sample;
 import lombok.Setter;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -77,14 +81,14 @@ public class TaskAlarmScheduler {
             return;
         }
 
-        Set<String> connectionIds = Sets.newHashSet();
+        Set<ObjectId> connectionIds = Sets.newHashSet();
         Map<String, List<String>> taskMap = Maps.newHashMap();
         for (TaskDto taskDto : taskDtos) {
             String taskId = taskDto.getId().toHexString();
             DAG dag = taskDto.getDag();
             dag.getNodes().stream().filter(node -> node instanceof DataParentNode).forEach(node -> {
                 String connectionId = ((DataParentNode<?>) node).getConnectionId();
-                connectionIds.add(connectionId);
+                connectionIds.add(MongoUtils.toObjectId(connectionId));
 
                 if (taskMap.containsKey(connectionId)) {
                     List<String> list = taskMap.get(connectionId);
@@ -100,7 +104,10 @@ public class TaskAlarmScheduler {
             return;
         }
 
-        List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAllByIds(new ArrayList<>(connectionIds));
+        Query connectQuery = new Query(Criteria.where("_id").in(connectionIds));
+        connectQuery.with(Sort.by("testTime"));
+        connectQuery.limit(5);
+        List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAll(connectQuery);
         if (CollectionUtils.isEmpty(connectionDtos)) {
             return;
         }
@@ -129,7 +136,7 @@ public class TaskAlarmScheduler {
     @Scheduled(initialDelay = 5000, fixedDelay = 5*60*1000)
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
-        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+        Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
         if (Objects.isNull(buildProfile)) {
             buildProfile = "DAAS";
         }
@@ -153,9 +160,9 @@ public class TaskAlarmScheduler {
         }
 
         long heartExpire;
-        Settings settings = settingsService.findAll().stream().filter(k -> "lastHeartbeat".equals(k.getKey())).findFirst().orElse(null);
-        if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
-            heartExpire = (Long.parseLong(settings.getValue().toString()) + 48 ) * 1000;
+        Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.JOB_HEART_TIMEOUT);
+        if (Objects.nonNull(heartTime)) {
+            heartExpire = (Long.parseLong(heartTime.toString()) + 48 ) * 1000;
         } else {
             heartExpire = 108000;
         }
@@ -178,8 +185,14 @@ public class TaskAlarmScheduler {
         List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
-        taskList.forEach(data -> {
-            if (CollectionUtils.isEmpty(availableWorkers)) {
+        for (TaskDto data : taskList) {
+            List<Worker> workerList = availableWorkers;
+            if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.getName().equals(data.getAccessNodeType())) {
+                List<String> processIdList = data.getAccessNodeProcessIdList();
+                workerList = availableWorkers.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
+            }
+
+            if (CollectionUtils.isEmpty(workerList)) {
                 String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT, data.getAgentId(), DateUtil.now());
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(data.getId().toHexString())
@@ -191,7 +204,7 @@ public class TaskAlarmScheduler {
                 data.setAgentId(null);
                 CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(data, userDetailMap.get(data.getUserId()), "task", data.getName());
 
-                String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT, orginAgentId, availableWorkers.size(), calculationEngineVo.getProcessId(), DateUtil.now());
+                String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT, orginAgentId, workerList.size(), calculationEngineVo.getProcessId(), DateUtil.now());
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(orginAgentId).taskId(data.getId().toHexString())
                         .name(data.getName()).summary(summary).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
@@ -199,11 +212,10 @@ public class TaskAlarmScheduler {
                 alarmService.save(alarmInfo);
 
                 if (!isCloud) {
-                    Update update = new Update().set("status", TaskDto.STATUS_SCHEDULING).set("restartFlag", true);
-                    taskService.update(Query.query(Criteria.where("_id").is(data.getId())), update);
+                    taskService.run(data, userDetailMap.get(data.getUserId()));
                 }
             }
-        });
+        }
     }
 
     @Scheduled(initialDelay = 5000, fixedRate = 30000)
@@ -316,15 +328,18 @@ public class TaskAlarmScheduler {
             AtomicInteger delay = new AtomicInteger(0);
             long count = samples.stream().filter(ss -> {
                 int current = (int) ss.getVs().getOrDefault(avgName, 0);
+                boolean b;
                 if (alarmRuleDto.getEqualsFlag() == -1) {
-                    delay.set(current);
-                    return current <= alarmRuleDto.getMs();
+                    b = current <= alarmRuleDto.getMs();
                 } else if (alarmRuleDto.getEqualsFlag() == 1) {
-                    delay.set(current);
-                    return current >= alarmRuleDto.getMs();
+                    b = current >= alarmRuleDto.getMs();
                 } else {
-                    return false;
+                    b = false;
                 }
+                if (b) {
+                    delay.set(current);
+                }
+                return b;
             }).count();
 
             List<AlarmInfo> alarmInfos = alarmService.find(taskId, nodeId, alarmKeyEnum);
@@ -391,15 +406,18 @@ public class TaskAlarmScheduler {
             long count = taskSamples.stream().filter(ss -> {
                 int replicateLag = (int) ss.getVs().getOrDefault("replicateLag", 0);
 
+                boolean b;
                 if (alarmRuleDto.getEqualsFlag() == -1) {
-                    delay.set(replicateLag);
-                    return replicateLag <= alarmRuleDto.getMs();
+                    b = replicateLag <= alarmRuleDto.getMs();
                 } else if (alarmRuleDto.getEqualsFlag() == 1) {
-                    delay.set(replicateLag);
-                    return replicateLag >= alarmRuleDto.getMs();
+                    b = replicateLag >= alarmRuleDto.getMs();
                 } else {
-                    return false;
+                    b = false;
                 }
+                if (b) {
+                    delay.set(replicateLag);
+                }
+                return b;
             }).count();
 
             List<AlarmInfo> alarmInfos = alarmService.find(taskId, null, AlarmKeyEnum.TASK_INCREMENT_DELAY);

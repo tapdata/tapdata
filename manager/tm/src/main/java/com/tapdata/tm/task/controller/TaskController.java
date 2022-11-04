@@ -1,12 +1,6 @@
 package com.tapdata.tm.task.controller;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.google.common.collect.Maps;
-import com.google.gson.reflect.TypeToken;
-import com.networknt.schema.ValidationResult;
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
@@ -47,7 +41,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.tapdata.entity.utils.JsonParser;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -455,12 +448,6 @@ public class TaskController extends BaseController {
         countValue.put("count", count);
 
         Object id = where.get("_id");
-        if (count > 0) {
-            boolean containsKey = ((Document) update.get("$set")).containsKey("milestones");
-            if (containsKey) {
-                alarmService.checkFullAndCdcEvent(id.toString());
-            }
-        }
 
         //更新完任务，addMessage
         try {
@@ -475,8 +462,6 @@ public class TaskController extends BaseController {
                 } else if ("running".equals(status)) {
                     messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, getLoginUser());
                 }
-
-                alarmService.checkFullAndCdcEvent(taskDto.getId().toHexString());
             }
         } catch (Exception e) {
             log.error("任务状态添加 message 异常",e);
@@ -913,8 +898,11 @@ public class TaskController extends BaseController {
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
                                         @RequestParam String listtags) {
-        List<com.tapdata.tm.commons.schema.Tag> tags = JsonUtil.parseJsonUseJackson(listtags, new TypeReference<List<com.tapdata.tm.commons.schema.Tag>>() {
-        });
+        List<com.tapdata.tm.commons.schema.Tag> tags = Lists.newArrayList();
+        if (StringUtils.isNoneBlank(listtags)) {
+            List<String> array = JSON.parseArray(listtags, String.class);
+            tags = array.stream().map(s -> new com.tapdata.tm.commons.schema.Tag(s, s)).collect(Collectors.toList());
+        }
         taskService.batchUpTask(file, getLoginUser(), cover, tags);
         return success();
     }

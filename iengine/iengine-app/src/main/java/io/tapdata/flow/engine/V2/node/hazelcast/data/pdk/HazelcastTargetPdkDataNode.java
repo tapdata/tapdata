@@ -43,7 +43,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -505,40 +504,42 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		handleTapTablePrimaryKeys(tapTable);
 		events.forEach(this::addPropertyForMergeEvent);
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
+		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		if (writeRecordFunction != null) {
 			logger.debug("Write {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
-			long start = System.currentTimeMillis();
 			try {
-				executeDataFuncAspect(WriteRecordFuncAspect.class, () -> new WriteRecordFuncAspect()
-						.recordEvents(tapRecordEvents)
-						.table(tapTable)
-						.connectorContext(getConnectorNode().getConnectorContext())
-						.dataProcessorContext(dataProcessorContext)
-						.start(), (writeRecordFuncAspect ->
-						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
-								PDKMethodInvoker.create()
-										.runnable(
-												() -> writeRecordFunction.writeRecord(getConnectorNode().getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
-													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
-													if (MapUtils.isNotEmpty(errorMap)) {
-														for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-															logger.warn(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
-															obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
-															logger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
-															obsLogger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
-														}
-														throw new RuntimeException("Write record failed");
+				try {
+					executeDataFuncAspect(WriteRecordFuncAspect.class, () -> new WriteRecordFuncAspect()
+							.recordEvents(tapRecordEvents)
+							.table(tapTable)
+							.connectorContext(getConnectorNode().getConnectorContext())
+							.dataProcessorContext(dataProcessorContext)
+							.start(), (writeRecordFuncAspect ->
+							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
+									pdkMethodInvoker.runnable(
+											() -> writeRecordFunction.writeRecord(getConnectorNode().getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
+												Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+												if (MapUtils.isNotEmpty(errorMap)) {
+													for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
+														logger.warn(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
+														obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
+														logger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
+														obsLogger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
 													}
+													throw new RuntimeException("Write record failed");
+												}
 
-													if (writeRecordFuncAspect != null)
-														AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
+												if (writeRecordFuncAspect != null)
+													AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
+												if (logger.isDebugEnabled()) {
 													logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
-												})
-										).logTag(TAG)
-										.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
-										.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
-										.logListener(logListener)
-						)));
+												}
+											})
+									)
+							)));
+				} finally {
+					removePdkMethodInvoker(pdkMethodInvoker);
+				}
 			} catch (Exception e) {
 				throw new NodeException(e).context(getDataProcessorContext()).events(events);
 			}

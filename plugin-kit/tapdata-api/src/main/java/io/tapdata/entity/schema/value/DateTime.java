@@ -125,6 +125,52 @@ public class DateTime {
         nano = instant.getNano();
     }
 
+    public static DateTime withTimeStr(String timeStr) {
+        if (timeStr == null)
+            throw new IllegalArgumentException("DateTime constructor timeStr is null");
+
+        DateTime dateTime = new DateTime();
+        String[] scaleArr = timeStr.split("\\.");
+        if (scaleArr.length > 1) {
+            switch (scaleArr[1].length()) {
+                case 1:
+                case 2:
+                case 3:
+                    dateTime.nano = Integer.parseInt(scaleArr[1]) * 1000 * 1000;
+                    break;
+                case 4:
+                case 5:
+                case 6:
+                    dateTime.nano = Integer.parseInt(scaleArr[1]) * 1000;
+                    break;
+                case 7:
+                case 8:
+                case 9:
+                    dateTime.nano = Integer.parseInt(scaleArr[1]);
+                    break;
+                default:
+                    throw new IllegalArgumentException("DateTime constructor illegal timeStr with nano: " + timeStr);
+            }
+        } else {
+            dateTime.nano = 0;
+        }
+        scaleArr = scaleArr[0].split(":");
+        switch (scaleArr.length) {
+            case 1:
+                dateTime.seconds = Long.parseLong(scaleArr[0]);
+                break;
+            case 2:
+                dateTime.seconds = Long.parseLong(scaleArr[0]) * 60 + Long.parseLong(scaleArr[1]);
+                break;
+            case 3:
+                dateTime.seconds = Long.parseLong(scaleArr[0]) * 60 *60 + Long.parseLong(scaleArr[1]) * 60 + Long.parseLong(scaleArr[2]);
+                break;
+            default:
+                throw new IllegalArgumentException("DateTime constructor illegal timeStr: " + timeStr);
+        }
+        return dateTime;
+    }
+
     public Instant toInstant() {
         return Instant.ofEpochSecond(seconds, nano);
     }

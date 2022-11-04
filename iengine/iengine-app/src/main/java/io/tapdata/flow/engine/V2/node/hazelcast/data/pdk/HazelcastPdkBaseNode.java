@@ -30,6 +30,7 @@ import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
@@ -38,9 +39,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author samuel
@@ -55,6 +55,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	protected SyncProgress syncProgress;
 	protected String associateId;
 	protected TapLogger.LogListener logListener;
+	private List<PDKMethodInvoker> pdkMethodInvokerList = new ArrayList<>();
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -93,6 +94,21 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				info(memoryLog);
 			}
 		};
+	}
+
+	protected PDKMethodInvoker createPdkMethodInvoker() {
+		PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create()
+				.logTag(TAG)
+				.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
+				.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
+				.logListener(logListener);
+		this.pdkMethodInvokerList.add(pdkMethodInvoker);
+		return pdkMethodInvoker;
+	}
+
+	protected void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
+		if(null == pdkMethodInvoker) return;
+		pdkMethodInvokerList.remove(pdkMethodInvoker);
 	}
 
 	protected void connectorNodeInit(DataProcessorContext dataProcessorContext) {
@@ -177,6 +193,14 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	@Override
 	public void doClose() throws Exception {
 		try {
+			CommonUtils.ignoreAnyError(() -> {
+				if (null != pdkMethodInvokerList) {
+					for (PDKMethodInvoker pdkMethodInvoker : pdkMethodInvokerList) {
+						if (null == pdkMethodInvoker) continue;
+						pdkMethodInvoker.cancelRetry();
+					}
+				}
+			}, TAG);
 			CommonUtils.handleAnyError(() -> {
 				if (this.monitorManager != null) {
 					this.monitorManager.close();
@@ -199,12 +223,12 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				logger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 				obsLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 			});
-			CommonUtils.handleAnyError(()->{
+			CommonUtils.handleAnyError(() -> {
 				Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
 				ConnectorNodeService.getInstance().removeConnectorNode(associateId);
 				logger.info("PDK connector node released: " + associateId);
 				obsLogger.info("PDK connector node released: " + associateId);
-			},err->{
+			}, err -> {
 				logger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 				obsLogger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 			});
