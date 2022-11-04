@@ -115,15 +115,15 @@ public class MysqlReader implements Closeable {
 						String columnName = metaData.getColumnName(i + 1);
 						try {
 							Object value;
-							try {
-								// time "-838:59:59", "838:59:59" 所以特殊处理
-								if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
+							// 抹除 time 字段的时区，兼容 "-838:59:59", "838:59:59" 格式数据
+							if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
+								value = rs.getString(i + 1);
+							} else {
+								if (dateTypeSet.contains(columnName)) {
 									value = rs.getString(i + 1);
 								} else {
 									value = rs.getObject(i + 1);
 								}
-							}catch (SQLException e) {
-								value = rs.getString(i + 1);
 							}
 							data.put(columnName, value);
 							if (pks.contains(columnName)) {
@@ -164,14 +164,15 @@ public class MysqlReader implements Closeable {
 						String columnName = metaData.getColumnName(i + 1);
 						try {
 							Object value;
-							try {
-								if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
+							// 抹除 time 字段的时区，兼容 "-838:59:59", "838:59:59" 格式数据
+							if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
+								value = rs.getString(i + 1);
+							} else {
+								if (dateTypeSet.contains(columnName)) {
 									value = rs.getString(i + 1);
 								} else {
 									value = rs.getObject(i + 1);
 								}
-							}catch (SQLException e) {
-								value = rs.getString(i + 1);
 							}
 							data.put(columnName, value);
 						} catch (Exception e) {
