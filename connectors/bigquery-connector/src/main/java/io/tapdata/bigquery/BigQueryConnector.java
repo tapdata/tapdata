@@ -5,22 +5,18 @@ import io.tapdata.bigquery.service.bigQuery.BigQueryConnectionTest;
 import io.tapdata.bigquery.service.bigQuery.TableCreate;
 import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.bigquery.service.command.Command;
-import io.tapdata.bigquery.service.stage.tapValue.ValueHandel;
+import io.tapdata.bigquery.service.stage.tapvalue.ValueHandel;
 import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
 import io.tapdata.bigquery.util.tool.Checker;
-import io.tapdata.entity.codec.FromTapValueCodec;
 import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.cache.Entry;
 import io.tapdata.entity.utils.cache.Iterator;
-import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -42,11 +38,11 @@ public class BigQueryConnector extends ConnectorBase {
 
 	private final Object streamReadLock = new Object();
 	private WriteRecord writeRecord;
-	private final ValueHandel valueHandel = ValueHandel.create();
+	private ValueHandel valueHandel;//= ValueHandel.create();
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
-		this.writeRecord = WriteRecord.create(connectionContext,valueHandel);
+        this.writeRecord = WriteRecord.create(connectionContext);
 		if (connectionContext instanceof TapConnectorContext) {
 			isConnectorStarted(connectionContext, connectorContext -> {
 				Iterator<Entry<TapTable>> iterator = connectorContext.getTableMap().iterator();
@@ -59,7 +55,6 @@ public class BigQueryConnector extends ConnectorBase {
 				}
 			});
 		}
-
 	}
 
 	@Override
@@ -76,7 +71,8 @@ public class BigQueryConnector extends ConnectorBase {
 
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
-	    codecRegistry.registerFromTapValue(TapYearValue.class, "DATE", TapValue::getValue);
+	    //codecRegistry.registerFromTapValue(TapYearValue.class, "DATE", TapValue::getValue);
+	    codecRegistry.registerFromTapValue(TapYearValue.class, "INT64", TapValue::getValue);
 	    codecRegistry.registerFromTapValue(TapMapValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
         codecRegistry.registerFromTapValue(TapArrayValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
 
@@ -119,7 +115,11 @@ public class BigQueryConnector extends ConnectorBase {
 	}
 
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
-		this.writeRecord.writeV2(tapRecordEvents, tapTable, writeListResultConsumer);
+		if (null == this.writeRecord){
+//            this.valueHandel = new ValueHandel();
+            this.writeRecord = WriteRecord.create(connectorContext);
+        }
+	    this.writeRecord.writeBatch(tapRecordEvents, tapTable, writeListResultConsumer);
 	}
 
 

@@ -1,4 +1,4 @@
-package io.tapdata.bigquery.service.stage.tapValue;
+package io.tapdata.bigquery.service.stage.tapvalue;
 
 public class TapArraySql implements TapValueForBigQuery{
     @Override

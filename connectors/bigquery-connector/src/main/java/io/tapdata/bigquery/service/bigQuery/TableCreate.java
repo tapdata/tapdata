@@ -91,9 +91,8 @@ public class TableCreate extends BigQueryStart {
 //                .append("; CREATE TABLE IF NOT EXISTS ")
 //                .append(tableSetName)
 //                .append(" (");
-        StringBuilder sql = new StringBuilder(" DROP TABLE IF EXISTS ");
-        sql.append(tableSetName)
-                .append("; CREATE TABLE ")
+        StringBuilder sql = new StringBuilder();//" DROP TABLE IF EXISTS ")
+        sql.append("CREATE TABLE")
                 .append(tableSetName)
                 .append(" (");
 
@@ -161,12 +160,34 @@ public class TableCreate extends BigQueryStart {
         }
     }
 
+    private static final String TABLE_EXITS_SQL = "SELECT 1 FROM `%s`.`%s`.INFORMATION_SCHEMA.COLUMNS " +
+            "WHERE table_name = '%s';";
     /**
      * 表是否存在
      * */
     public boolean isExist(TapCreateTableEvent tapCreateTableEvent){
-
-        return false;
+        if (Checker.isEmpty(this.config)){
+            throw new CoreException("Connection config is null or empty.");
+        }
+        String tableSet = this.config.tableSet();
+        if (Checker.isEmpty(tableSet)){
+            throw new CoreException("Table set is null or empty.");
+        }
+        if (Checker.isEmpty(tapCreateTableEvent)){
+            throw new CoreException("Tap create table event is null or empty.");
+        }
+        TapTable tapTable = tapCreateTableEvent.getTable();
+        if (Checker.isEmpty(tapTable)){
+            throw new CoreException("Tap table is null or empty.");
+        }
+        String tableId = tapTable.getId();
+        if(Checker.isEmpty(tableId)){
+           throw new CoreException("Table name can not be null or empty.");
+        }
+        String finalSql = String.format(TABLE_EXITS_SQL,config.projectId(),config.tableSet(),tableId);
+        BigQueryResult bigQueryResult = sqlMarker.executeOnce(finalSql);
+        long totalRows = bigQueryResult.getTotalRows();
+        return totalRows>0;
     }
 
     /**
@@ -443,7 +464,7 @@ public class TableCreate extends BigQueryStart {
             " LEFT JOIN `%s`.`%s`.INFORMATION_SCHEMA.COLUMN_FIELD_PATHS AS fields ON columns.table_name = fields.table_name AND columns.column_name = fields.column_name AND fields.field_path = fields.column_name " +
             "WHERE columns.table_name in( %s );";
 
-String g = "SELECT * FROM `bigquery-public-data`.github_repos.INFORMATION_SCHEMA.COLUMN_FIELD_PATHS WHERE table_name = 'commits' AND (column_name = 'author' OR column_name = 'difference');";
+
     private Map<String, List<Map<String,Object>>> queryAllFields(List<String> schemas){
         if (Checker.isEmptyCollection(schemas)){
             throw new CoreException("Not any table should be query.");

@@ -1,4 +1,4 @@
-package io.tapdata.bigquery.service.stage.tapValue;
+package io.tapdata.bigquery.service.stage.tapvalue;
 
 import cn.hutool.core.codec.Base64;
 

@@ -1,6 +1,8 @@
-package io.tapdata.bigquery.service.stage.tapValue;
+package io.tapdata.bigquery.service.stage.tapvalue;
 
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.json.JSONUtil;
+import io.tapdata.entity.logger.TapLogger;
 
 public interface TapValueForBigQuery {
     public default String value(Object value){
@@ -24,6 +26,15 @@ public interface TapValueForBigQuery {
 
     public static String simpleValue(Object value){
         return ""+value;
+    }
+    public static String simpleDateValue(Object value,String format){
+        String val = String.valueOf(value);
+        try {
+            return DateUtil.format(DateUtil.parseDate(val),format);
+        }catch (Exception e){
+            TapLogger.debug("","Can not format the time : {}",value);
+            return "NULL";
+        }
     }
 }
 

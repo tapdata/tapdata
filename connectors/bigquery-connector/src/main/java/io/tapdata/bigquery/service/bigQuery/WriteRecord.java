@@ -1,9 +1,8 @@
 package io.tapdata.bigquery.service.bigQuery;
 
-import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.json.JSONUtil;
-import io.tapdata.bigquery.service.stage.tapValue.TapValueForBigQuery;
-import io.tapdata.bigquery.service.stage.tapValue.ValueHandel;
+import cn.hutool.core.codec.Base64;
+import io.tapdata.bigquery.service.stage.tapvalue.ValueHandel;
+import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -52,66 +51,16 @@ public class WriteRecord extends BigQueryStart{
     public final String equals = "=";
     public final String tab = " ";
     public final String empty = "";
+    public final String BEGIN_TRANSACTION = " BEGIN TRANSACTION; ";
+    public final String COMMIT_TRANSACTION = "  COMMIT TRANSACTION; ";
+
+    public final int BATCH_WRITE_COUNT = 5;//批量写入数
 
     private final AtomicBoolean running = new AtomicBoolean(true);
     public void onDestroy() {
         this.running.set(false);
     }
-
-    /**
-     * @deprecated
-     * */
-    public synchronized void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
-        WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
-        TapRecordEvent errorRecord = null;
-        try {
-            for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
-                if (!running.get()) break;
-                try {
-                    String sql = null;
-                    if (! ( tapRecordEvent instanceof TapDeleteRecordEvent )){
-                        Map<String, Object> after =
-                                tapRecordEvent instanceof TapInsertRecordEvent ?
-                                        ((TapInsertRecordEvent) tapRecordEvent).getAfter()
-                                        : ( tapRecordEvent instanceof TapUpdateRecordEvent ? ((TapUpdateRecordEvent) tapRecordEvent).getAfter(): null);
-                        if (null == after){
-                            writeListResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
-                            continue;
-                        }
-                        Boolean aBoolean = hasRecord(sqlMarker, tapTable,tapRecordEvent);
-                        if (null == aBoolean) continue;
-                        String[] sqls = aBoolean ? updateSql(list(after),tapTable,tapRecordEvent) : insertSql(list(after),tapTable);
-                        sql = null!=sqls?sqls[0]:null;
-                    }else{
-                        sql = delSql(tapTable,tapRecordEvent);
-                    }
-                    BigQueryResult bigQueryResult = sqlMarker.executeOnce(sql);
-                    long totalRows = bigQueryResult.getTotalRows();
-                    totalRows = totalRows>0?totalRows:0;
-                    if (tapRecordEvent instanceof TapInsertRecordEvent){
-                        writeListResult.incrementInserted(totalRows);
-                    }else if(tapRecordEvent instanceof TapUpdateRecordEvent){
-                        writeListResult.incrementModified(totalRows);
-                    }else if(tapRecordEvent instanceof TapDeleteRecordEvent){
-                        writeListResult.incrementRemove(totalRows);
-                    }
-                }catch (Throwable e) {
-                    errorRecord = tapRecordEvent;
-                    throw e;
-                }
-            }
-        }catch (Throwable e) {
-            writeListResult.setInsertedCount(0);
-            writeListResult.setModifiedCount(0);
-            writeListResult.setRemovedCount(0);
-            if (null != errorRecord) writeListResult.addError(errorRecord, e);
-            throw e;
-        }finally {
-            writeListResultConsumer.accept(writeListResult);
-        }
-    }
-
-    public synchronized void writeV2(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
+    public void writeV2(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
         SqlMarker sqlMarker = SqlMarker.create(this.config.serviceAccount());
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
         TapRecordEvent errorRecord = null;
@@ -124,16 +73,32 @@ public class WriteRecord extends BigQueryStart{
                                 ((TapInsertRecordEvent)tapRecordEvent).getAfter()
                                 ,tapTable
                                 ,tapRecordEvent );
-                        writeListResult.incrementInserted(this.executeSql(sqlMarker,sql));
-                    } else if (tapRecordEvent instanceof TapUpdateRecordEvent){
+                        try {
+                            this.executeSql(sqlMarker,FieldChecker.replaceNextLine(sql));
+                            writeListResult.incrementInserted(1);
+                        }catch (Exception e){
+                            throw e;
+                        }
+                    }
+                    else if (tapRecordEvent instanceof TapUpdateRecordEvent){
                         String sql = this.insertIfExitsUpdate(
                                 ((TapUpdateRecordEvent)tapRecordEvent).getAfter()
                                 ,tapTable
-                                ,tapRecordEvent );
-                        writeListResult.incrementModified(this.executeSql(sqlMarker,sql));
+                                ,tapRecordEvent);
+                        try {
+                            this.executeSql(sqlMarker,FieldChecker.replaceNextLine(sql));
+                            writeListResult.incrementModified(1);
+                        }catch (Exception e){
+                            throw e;
+                        }
                     } else if (tapRecordEvent instanceof TapDeleteRecordEvent){
                         String sql = this.delSql(tapTable,tapRecordEvent);
-                        writeListResult.incrementRemove(this.executeSql(sqlMarker,sql));
+                        try {
+                            this.executeSql(sqlMarker,FieldChecker.replaceNextLine(sql));
+                            writeListResult.incrementRemove(1);
+                        }catch (Exception e){
+                            throw e;
+                        }
                     } else {
                         writeListResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
                     }
@@ -143,6 +108,90 @@ public class WriteRecord extends BigQueryStart{
                 }
             }
             writeListResultConsumer.accept(writeListResult);
+        }catch (Throwable e) {
+            writeListResult.setInsertedCount(0);
+            writeListResult.setModifiedCount(0);
+            writeListResult.setRemovedCount(0);
+            writeListResultConsumer.accept(writeListResult);
+            if (null != errorRecord) writeListResult.addError(errorRecord, e);
+            throw e;
+        }
+    }
+
+    public void writeBatch(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
+        SqlMarker sqlMarker = SqlMarker.create(this.config.serviceAccount());
+        WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
+        TapRecordEvent errorRecord = null;
+        try {
+            StringBuilder finalSql = new StringBuilder(BEGIN_TRANSACTION);
+            List<TapRecordEvent> deleteEvent = new ArrayList<>();
+            int insertCount = 0;
+            int updateCount = 0;
+            int deleteCount = 0;
+            int sqlCount = 0;
+
+            for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+                if (!running.get()) break;
+                try {
+                    if (tapRecordEvent instanceof TapInsertRecordEvent){
+                        String sql = this.insertIfExitsUpdate(
+                                ((TapInsertRecordEvent)tapRecordEvent).getAfter()
+                                ,tapTable
+                                ,tapRecordEvent );
+                        finalSql.append(sql).append(empty);
+                        insertCount ++;
+                        sqlCount++;
+                    }
+                    else if (tapRecordEvent instanceof TapUpdateRecordEvent){
+                        String sql = this.insertIfExitsUpdate(
+                                ((TapUpdateRecordEvent)tapRecordEvent).getAfter()
+                                ,tapTable
+                                ,tapRecordEvent );
+                        finalSql.append(sql).append(empty);
+                        updateCount++;
+                        sqlCount++;
+                    } else if (tapRecordEvent instanceof TapDeleteRecordEvent){
+                        deleteEvent.add(tapRecordEvent);
+                        deleteCount++;
+                        sqlCount++;
+                    } else {
+                        writeListResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
+                    }
+                    if (BATCH_WRITE_COUNT == sqlCount){
+                        if (!deleteEvent.isEmpty()) {
+                            finalSql.append(this.delBatchSql(tapTable,deleteEvent)).append(empty);
+                        }
+                        finalSql.append(COMMIT_TRANSACTION);
+                        this.executeSql(sqlMarker,FieldChecker.replaceNextLine(finalSql.toString()));
+                        writeListResult.setInsertedCount(insertCount);
+                        writeListResult.setModifiedCount(updateCount);
+                        writeListResult.setRemovedCount(deleteCount);
+                        writeListResultConsumer.accept(writeListResult);
+                        sqlCount = 0;
+                        insertCount = 0;
+                        updateCount = 0;
+                        deleteCount = 0;
+                        finalSql = new StringBuilder(BEGIN_TRANSACTION);
+                        deleteEvent = new ArrayList<>();
+                    }
+                }catch (Throwable e) {
+                    errorRecord = tapRecordEvent;
+                    throw e;
+                }
+            }
+            if (sqlCount > 0){
+                if (!deleteEvent.isEmpty()) {
+                    finalSql.append(this.delBatchSql(tapTable,deleteEvent)).append(empty);
+                }
+                finalSql.append(COMMIT_TRANSACTION);
+                this.executeSql(sqlMarker,FieldChecker.replaceNextLine(finalSql.toString()));
+                writeListResult.setInsertedCount(insertCount);
+                writeListResult.setModifiedCount(updateCount);
+                writeListResult.setRemovedCount(deleteCount);
+                writeListResultConsumer.accept(writeListResult);
+                //finalSql = new StringBuilder(BEGIN_TRANSACTION);
+            }
+
         }catch (Throwable e) {
             writeListResult.setInsertedCount(0);
             writeListResult.setModifiedCount(0);
@@ -304,7 +353,7 @@ public class WriteRecord extends BigQueryStart{
                 //@TODO 对不同值处理
                 Object value = recordItem.get(fieldName);
                 if (null != value ) {
-                    keyBuilder.append("`").append(fieldName.replaceAll("\\.","_")).append("` , ");
+                    keyBuilder.append("`").append(fieldName).append("` , ");
                     valuesBuilder.append(sqlValue(value,field.getValue())).append(" , ");
                 }
             }
@@ -371,11 +420,12 @@ public class WriteRecord extends BigQueryStart{
             subUpdateSql.add("`"+key+"`"+this.equals+value);
         });
         String table = this.fullSqlTable(tapTable.getId());
-        StringBuilder insertIfExitsUpdateSql = new StringBuilder("DECLARE exits INT64;");
-        insertIfExitsUpdateSql.append("SET exits = (select 1 from ")
+        StringBuilder insertIfExitsUpdateSql = new StringBuilder(empty);
+        insertIfExitsUpdateSql
+                .append(" if 1 = (select 1 from ")
                 .append(table)
-                .append(whereSql).append(" ); ")
-                .append(" if exits = 1 then ")
+                .append(whereSql)
+                .append(" ) then ")
                 .append("  update ")
                 .append(table)
                 .append(" SET ").append(subUpdateSql).append(this.tab)
@@ -384,7 +434,7 @@ public class WriteRecord extends BigQueryStart{
                 .append("  insert into ")
                 .append(table)
                 .append(" (").append(keyInsertSql.toString()).append(" ) VALUES ( ").append(valueInsertSql.toString()).append(" ); ")
-                .append(" END IF ");
+                .append(" END IF; ");
         return insertIfExitsUpdateSql.toString();
     }
 
@@ -392,50 +442,32 @@ public class WriteRecord extends BigQueryStart{
      * JSON :  INSERT INTO mydataset.table1 VALUES(1, JSON '{"name": "Alice", "age": 30}');
      *
      * */
+    public final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss.SSSSSS";
+    final static String DATE_FORMAT = "yyyy-MM-dd";
+    final static String TIME_FORMAT = "HH:mm:ss.SSSSSS";
+    final static String YEAR_FORMAT = "yyyy-MM-dd";
     public String sqlValue(Object value,TapField field){
         TapType tapType = field.getTapType();
         //return TapValueForBigQuery.sqlValue(value,tapType.getClass());
-        if (null == this.valueHandel){
-            BeanUtil.copyProperties(ValueHandel.create(),this.valueHandel,false);
-        }
-        return this.valueHandel.sqlValue(value,null == tapType? null:tapType.getClass());
-
-//        if (null == value) return "NULL";
-//        TapType tapType = field.getTapType();
-//        if (tapType instanceof TapString){
-//            return "'"+String.valueOf(value).replaceAll("'","\\'")+"'";
-//        }else if(tapType instanceof TapNumber){
-//            return this.empty+value;
-//        }else if(tapType instanceof TapBoolean){
-//            return this.empty+value;
-//        }else if(tapType instanceof TapMap){
-//            return jsonValue(value);
-//        }else if(tapType instanceof TapBinary){
-//            return " FROM_BASE64('"+Base64.encode(String.valueOf(value)) +"') ";
-//        }else if(tapType instanceof TapArray){
-//            return jsonValue(value);
-//        }else if(tapType instanceof TapDate){
-//            return "'"+value+"'";
-//        }else if(tapType instanceof TapYear){
-//            return "'"+value+"'";
-//        }else if(tapType instanceof TapTime){
-//            return "'"+value+"'";
-//        }else if(tapType instanceof TapDateTime){
-//            return "'"+value+"'";
-//        }else{
-//            return ""+value;
+//        if (null == this.valueHandel){
+//            this.valueHandel = ValueHandel.create();
 //        }
-    }
+//        return this.valueHandel.sqlValue(value,null == tapType? null:tapType.getClass());
+//        tapType.getClass().getSimpleName();
 
-    private String jsonValue(Object obj){
-        String value = String.valueOf(obj);
-        return " JSON '" +
-                JSONUtil.toJsonPrettyStr(value)
-                        .replaceAll("'","\\'")
-                        .replaceAll("\"\\{","\\{")
-                        .replaceAll("}\"","}")
-                        .replaceAll("\n","")
-                + "'";
+        switch(tapType.getClass().getSimpleName()){
+            case "TapString" : return FieldChecker.simpleStringValue(value);
+            case "TapArray": return FieldChecker.toJsonValue(value);
+            case "TapBinary": return " FROM_BASE64('"+ Base64.encode(String.valueOf(value)) +"') ";
+            case "TapBoolean": return FieldChecker.simpleValue(value);
+            case "TapDateTime": return FieldChecker.simpleDateValue(value,DATE_TIME_FORMAT);
+            case "TapDate": return FieldChecker.simpleDateValue(value,DATE_FORMAT);
+            case "TapTime": return FieldChecker.simpleDateValue(value,TIME_FORMAT);
+            case "TapMap": return FieldChecker.toJsonValue(value);
+            case "TapNumber": return FieldChecker.simpleValue(value);
+            case "TapYear": return FieldChecker.simpleYearValue(value);
+            default:return ""+value;
+        }
     }
 
     /**
@@ -482,15 +514,15 @@ public class WriteRecord extends BigQueryStart{
         return subSql.toString();
     }
     /**
-     * WHERE xxx = xxx ADN xxx = xxx ......
+     * WHERE xxx = xxx AND xxx = xxx ......
      * */
     private String whereSql(TapTable tapTable,TapRecordEvent event){
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (null==nameFieldMap || nameFieldMap.isEmpty()) return this.empty;
         Map<String, Object> filter = event.getFilter(tapTable.primaryKeys(true));
         if (null == filter || filter.isEmpty()) return this.empty;
-        StringJoiner whereSql = new StringJoiner(" ADN ");
-        filter.forEach((primaryKey,value)-> whereSql.add(primaryKey+this.equals+sqlValue(value,nameFieldMap.get(primaryKey))));
+        StringJoiner whereSql = new StringJoiner(" AND ");
+        filter.forEach((primaryKey,value)-> whereSql.add("`"+primaryKey+"`"+this.equals+sqlValue(value,nameFieldMap.get(primaryKey))));
         return whereSql.length()>0?" WHERE "+whereSql.toString():this.empty;
     }
 }

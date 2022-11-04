@@ -1,4 +1,4 @@
-package io.tapdata.bigquery.service.stage.tapValue;
+package io.tapdata.bigquery.service.stage.tapvalue;
 
 import io.tapdata.entity.schema.type.TapType;
 
@@ -7,9 +7,13 @@ import java.util.Map;
 
 public class ValueHandel {
     Map<Class<? extends TapType>,TapValueForBigQuery> handel = new HashMap<>();
-    public static ValueHandel create(){
+
+    public ValueHandel(){}
+
+    public static ValueHandel create() {
         return new ValueHandel();
     }
+
     private Map<Class<? extends TapType>,TapValueForBigQuery> handel(){
         return this.handel;
     }
@@ -19,7 +23,7 @@ public class ValueHandel {
             return handel.get(fieldClz);
         }
         try {
-            String name = fieldClz.getName();
+            String name = fieldClz.getSimpleName();
             Class<?> aClass = Class.forName(TapValueForBigQuery.class.getPackage().getName() + "." + name + "Sql");
             TapValueForBigQuery tapValueStage = (TapValueForBigQuery)aClass.newInstance();
             this.handel.put(fieldClz,tapValueStage);

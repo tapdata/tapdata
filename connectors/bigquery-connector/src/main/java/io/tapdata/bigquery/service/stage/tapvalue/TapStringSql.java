@@ -1,8 +1,9 @@
-package io.tapdata.bigquery.service.stage.tapValue;
+package io.tapdata.bigquery.service.stage.tapvalue;
 
-public class TapTimeSql implements TapValueForBigQuery{
+public class TapStringSql implements TapValueForBigQuery{
     @Override
     public String value(Object value) {
         return TapValueForBigQuery.simpleStringValue(value);
     }
 }
+

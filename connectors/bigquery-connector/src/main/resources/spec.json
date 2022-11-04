@@ -196,11 +196,11 @@
     },
     "INTERVAL": {
       "range": [
-        "-10000-0 -3660000 -87840000:0:0",
-        "10000-0 3660000 87840000:0:0"
+        "-838:59:59","838:59:59"
       ],
       "pattern": "yyyy-MM dd HH:mm:ss",
-      "to": "TapTime"
+      "to": "TapTime",
+      "queryOnly": true
     },
     "DATE": {
       "to": "TapDate",
