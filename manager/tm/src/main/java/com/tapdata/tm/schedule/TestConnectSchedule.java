@@ -31,7 +31,7 @@ public class TestConnectSchedule {
     @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void retry() {
         Criteria criteria = Criteria.where("status").ne(DataSourceEntity.STATUS_READY)
-                .and("testCount").lt(15);
+                .orOperator(Criteria.where("testCount").lt(15), Criteria.where("testCount").exists(false));
 
         Query query = Query.query(criteria);
         query.with(Sort.by("testTime").ascending());
