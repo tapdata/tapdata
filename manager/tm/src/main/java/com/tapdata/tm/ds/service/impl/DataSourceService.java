@@ -1166,7 +1166,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					if (set.get("schema.tables") != null) {
 						String tablesJson = JsonUtil.toJsonUseJackson(set.get("schema.tables"));
 						tables = InstanceFactory.instance(JsonParser.class).fromJson(tablesJson, new TypeHolder<List<TapTable>>() {
-						}, TapConstants.abstractClassDetectors);
+						});
 						set.put("schema.tables", null);
 					}
 					hasSchema = true;
