@@ -56,7 +56,7 @@ public class OrganizationFieldsSchema extends Schema implements SchemaLoader {
             consumer.accept(events, offset);
             events = new ArrayList<>();
         }
-        if (events.size() <= 0) return;
+        if (events.isEmpty()) return;
         consumer.accept(events, offset);
     }
 

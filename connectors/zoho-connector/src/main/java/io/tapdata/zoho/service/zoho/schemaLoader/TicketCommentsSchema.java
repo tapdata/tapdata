@@ -12,10 +12,7 @@ import io.tapdata.zoho.service.zoho.loader.TicketCommentsOpenApi;
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 
 public class TicketCommentsSchema extends Schema implements SchemaLoader {
@@ -61,7 +58,7 @@ public class TicketCommentsSchema extends Schema implements SchemaLoader {
             List<Map<String, Object>> list = commentsOpenApi.page(ticketId,fromPageIndex, pageSize);
             if (Checker.isEmpty(list) || list.isEmpty()) break;
             fromPageIndex += pageSize;
-            list.stream().forEach(product->{
+            list.stream().filter(Objects::nonNull).forEach(product->{
                 Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,commentsOpenApi);
                 if (Checker.isEmpty(oneProduct) || oneProduct.isEmpty()) return;
                 Object modifiedTimeObj = oneProduct.get("modifiedTime");
@@ -76,7 +73,7 @@ public class TicketCommentsSchema extends Schema implements SchemaLoader {
                 events[0] = new ArrayList<>();
             });
         }
-        if (events[0].size()<=0) return;
+        if (events[0].isEmpty()) return;
         consumer.accept(events[0], offsetState);
     }
 }

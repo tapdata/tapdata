@@ -12,10 +12,7 @@ import io.tapdata.zoho.service.zoho.loader.ProductsOpenApi;
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 
 public class ProductsSchema extends Schema implements SchemaLoader {
@@ -61,7 +58,7 @@ public class ProductsSchema extends Schema implements SchemaLoader {
                     isBatchRead ? ProductsOpenApi.SortBy.CREATED_TIME.descSortBy(): ProductsOpenApi.SortBy.MODIFIED_TIME.descSortBy());
             if (Checker.isNotEmpty(list) && !list.isEmpty()){
                 fromPageIndex += pageSize;
-                list.stream().forEach(product->{
+                list.stream().filter(Objects::nonNull).forEach(product->{
                     if (!isAlive()) return;
                     Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,productsOpenApi);
                     if (Checker.isNotEmpty(oneProduct) && !oneProduct.isEmpty()){
@@ -78,7 +75,7 @@ public class ProductsSchema extends Schema implements SchemaLoader {
                         }
                     }
                 });
-                if (events[0].size()>0){
+                if (!events[0].isEmpty()){
                     consumer.accept(events[0], offsetState);
                 }
             }else {

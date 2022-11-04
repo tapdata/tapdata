@@ -329,7 +329,7 @@ public class TicketsSchema extends Schema implements SchemaLoader {
                 events[0] = new ArrayList<>();
             });
         }
-        if (events[0].size() <= 0) return;
+        if (events[0].isEmpty()) return;
         consumer.accept(events[0], offset);
     }
 

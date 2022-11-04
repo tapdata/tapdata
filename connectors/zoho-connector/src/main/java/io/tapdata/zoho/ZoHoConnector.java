@@ -193,7 +193,6 @@ public class ZoHoConnector extends ConnectorBase {
 		//@TODO BiConsumer<List<TapEvent>, Object> consumer;
 		//@TODO 获取筛选条件
 		TicketLoader ticketLoader = TicketLoader.create(connectorContext);
-		ContextConfig contextConfig = ticketLoader.veryContextConfigAndNodeConfig();
 		String modeName = connectorContext.getConnectionConfig().getString("connectionMode");
 		ConnectionMode instance = ConnectionMode.getInstanceByName(connectorContext, modeName);
 		if (null == instance){
@@ -348,12 +347,12 @@ public class ZoHoConnector extends ConnectorBase {
 		if (null == connectionMode){
 			throw new CoreException("Connection Mode is not empty or not null.");
 		}
-		while (true){
+		while (isAlive()){
 			tickPageParam.build("from", fromPageIndex);
 			List<Map<String, Object>> list = ticketLoader.list(tickPageParam);
 			if (Checker.isNotEmpty(list) && !list.isEmpty()){
 				fromPageIndex += pageSize;
-				list.stream().forEach(ticket->{
+				list.stream().filter(Objects::nonNull).forEach(ticket->{
 					Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,table,ticketLoader);
 					if (Checker.isNotEmpty(oneTicket) && !oneTicket.isEmpty()){
 						Object modifiedTimeObj = oneTicket.get("modifiedTime");
@@ -372,7 +371,7 @@ public class ZoHoConnector extends ConnectorBase {
 						}
 					}
 				});
-				if (events[0].size()>0){
+				if (!events[0].isEmpty()){
 					consumer.accept(events[0], offsetState);
 				}
 			}else {

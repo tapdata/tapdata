@@ -69,7 +69,7 @@ public class DepartmentsSchema extends Schema implements SchemaLoader {
                 break;
             }
         }
-        if (events[0].size()>0){
+        if (!events[0].isEmpty()){
             consumer.accept(events[0], offset);
         }
     }
