@@ -126,11 +126,13 @@ public class ZoHoConnector extends ConnectorBase {
 
 
 		if (Checker.isEmpty(tables) || tables.isEmpty()) return null;
-		List<SchemaLoader> loaders = SchemaLoader.loaders(connectorContext);
+		List<SchemaLoader> loaders = SchemaLoader.loaders(connectorContext,this);
 		List<TapEvent> events = new ArrayList<>();
 		for (SchemaLoader loader : loaders) {
 			if (Checker.isEmpty(loader)) continue;
 			//events.addAll(loader.configSchema(connectorContext).rawDataCallbackFilterFunction(eventData));
+
+			loader.out();
 		}
 		return Checker.isEmpty(events) || events.isEmpty()?null:events;
 	}
@@ -191,7 +193,6 @@ public class ZoHoConnector extends ConnectorBase {
 		//@TODO BiConsumer<List<TapEvent>, Object> consumer;
 		//@TODO 获取筛选条件
 		TicketLoader ticketLoader = TicketLoader.create(connectorContext);
-		ContextConfig contextConfig = ticketLoader.veryContextConfigAndNodeConfig();
 		String modeName = connectorContext.getConnectionConfig().getString("connectionMode");
 		ConnectionMode instance = ConnectionMode.getInstanceByName(connectorContext, modeName);
 		if (null == instance){
@@ -282,18 +283,21 @@ public class ZoHoConnector extends ConnectorBase {
 //		zoHoOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
 //		this.read(connectorContext,batchCount,zoHoOffset,consumer,table.getId());
 		if (Checker.isEmpty(table) || Checker.isEmpty(connectorContext)) return ;
-		SchemaLoader loader = SchemaLoader.loader(table.getId(),connectorContext);
+		SchemaLoader loader = SchemaLoader.loader(table.getId(),connectorContext,this);
 		if (Checker.isNotEmpty(loader)){
 			loader.configSchema(connectorContext).batchRead(offset,batchCount,consumer);
+			loader.out();
 		}
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
 		//return TicketLoader.create(tapConnectorContext).count();
 		if (Checker.isEmpty(tapTable) || Checker.isEmpty(tapConnectorContext)) return 0;
-		SchemaLoader loader = SchemaLoader.loader(tapTable.getId(),tapConnectorContext);
+		SchemaLoader loader = SchemaLoader.loader(tapTable.getId(),tapConnectorContext,this);
 		if (Checker.isNotEmpty(loader)){
-			return loader.configSchema(tapConnectorContext).batchCount();
+			long count = loader.configSchema(tapConnectorContext).batchCount();
+			loader.out();
+			return count;
 		}
 		return 0;
 	}
@@ -343,12 +347,12 @@ public class ZoHoConnector extends ConnectorBase {
 		if (null == connectionMode){
 			throw new CoreException("Connection Mode is not empty or not null.");
 		}
-		while (true){
+		while (isAlive()){
 			tickPageParam.build("from", fromPageIndex);
 			List<Map<String, Object>> list = ticketLoader.list(tickPageParam);
 			if (Checker.isNotEmpty(list) && !list.isEmpty()){
 				fromPageIndex += pageSize;
-				list.stream().forEach(ticket->{
+				list.stream().filter(Objects::nonNull).forEach(ticket->{
 					Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,table,ticketLoader);
 					if (Checker.isNotEmpty(oneTicket) && !oneTicket.isEmpty()){
 						Object modifiedTimeObj = oneTicket.get("modifiedTime");
@@ -367,7 +371,7 @@ public class ZoHoConnector extends ConnectorBase {
 						}
 					}
 				});
-				if (events[0].size()>0){
+				if (!events[0].isEmpty()){
 					consumer.accept(events[0], offsetState);
 				}
 			}else {

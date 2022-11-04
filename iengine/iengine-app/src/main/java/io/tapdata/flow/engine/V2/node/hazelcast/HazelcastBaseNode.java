@@ -667,7 +667,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				if (hazelcastJob != null) {
 					AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
 					JobStatus status = hazelcastJob.getStatus();
-					if (isRunning() && JobStatus.SUSPENDED == status) {
+					if (JobStatus.SUSPENDED != status) {
 						logger.info("Job cancel in error handle");
 						obsLogger.info("Job cancel in error handle");
 						hazelcastJob.cancel();

@@ -510,7 +510,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 					if (password != null) {
 						String password1 = new String(password);
-						uri = uri.replace(password1, "******");
+						uri = uri.replace(":"+password1, ":******");
 						item.getConfig().put("uri", uri);
 					}
 
@@ -519,6 +519,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 		}
 	}
+
 
 	/**
 	 * 给数据源连接修改资源分类
@@ -1165,7 +1166,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					if (set.get("schema.tables") != null) {
 						String tablesJson = JsonUtil.toJsonUseJackson(set.get("schema.tables"));
 						tables = InstanceFactory.instance(JsonParser.class).fromJson(tablesJson, new TypeHolder<List<TapTable>>() {
-						}, TapConstants.abstractClassDetectors);
+						});
 						set.put("schema.tables", null);
 					}
 					hasSchema = true;

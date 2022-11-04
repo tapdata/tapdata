@@ -1,7 +1,6 @@
 package com.tapdata.tm.task.controller;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
@@ -899,8 +898,11 @@ public class TaskController extends BaseController {
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
                                         @RequestParam String listtags) {
-        List<com.tapdata.tm.commons.schema.Tag> tags = JsonUtil.parseJsonUseJackson(listtags, new TypeReference<List<com.tapdata.tm.commons.schema.Tag>>() {
-        });
+        List<com.tapdata.tm.commons.schema.Tag> tags = Lists.newArrayList();
+        if (StringUtils.isNoneBlank(listtags)) {
+            List<String> array = JSON.parseArray(listtags, String.class);
+            tags = array.stream().map(s -> new com.tapdata.tm.commons.schema.Tag(s, s)).collect(Collectors.toList());
+        }
         taskService.batchUpTask(file, getLoginUser(), cover, tags);
         return success();
     }

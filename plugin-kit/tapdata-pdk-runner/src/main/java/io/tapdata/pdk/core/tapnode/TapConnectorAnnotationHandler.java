@@ -30,7 +30,7 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
     public void handle(Set<Class<?>> classes) throws CoreException {
         if (classes != null && !classes.isEmpty()) {
             newerIdGroupTapNodeInfoMap = new ConcurrentHashMap<>();
-            TapLogger.info(TAG, "--------------TapConnector Classes Start------------- size {}", classes.size());
+            TapLogger.debug(TAG, "--------------TapConnector Classes Start------------- size {}", classes.size());
             for (Class<?> clazz : classes) {
                 TapConnectorClass tapConnectorClass = clazz.getAnnotation(TapConnectorClass.class);
                 if (tapConnectorClass != null) {
@@ -85,7 +85,7 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
                                 tapNodeInfo.setNodeType(connectorType);
                                 tapNodeInfo.setNodeClass(clazz);
                                 newerIdGroupTapNodeInfoMap.put(tapNodeSpecification.idAndGroup(), tapNodeInfo);
-                                TapLogger.info(TAG, "Found new connector {} type {}", tapNodeSpecification.idAndGroup(), connectorType);
+                                TapLogger.debug(TAG, "Found new connector {} type {}", tapNodeSpecification.idAndGroup(), connectorType);
                             } else {
                                 TapNodeSpecification specification = tapNodeInfo.getTapNodeSpecification();
                                 tapNodeInfo.setTapNodeSpecification(specification);
@@ -101,7 +101,7 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
                     }
                 }
             }
-            TapLogger.info(TAG, "--------------TapConnector Classes End-------------");
+            TapLogger.debug(TAG, "--------------TapConnector Classes End-------------");
         }
     }
 

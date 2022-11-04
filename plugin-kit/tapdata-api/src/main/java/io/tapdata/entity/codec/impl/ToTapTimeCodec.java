@@ -6,10 +6,7 @@ import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
-
-import java.util.Date;
 
 @Implementation(value = ToTapValueCodec.class, type = TapDefaultCodecs.TAP_TIME_VALUE, buildNumber = 0)
 public class ToTapTimeCodec implements ToTapValueCodec<TapTimeValue> {
@@ -17,12 +14,28 @@ public class ToTapTimeCodec implements ToTapValueCodec<TapTimeValue> {
     public TapTimeValue toTapValue(Object value, TapType typeFromSchema) {
         if(value instanceof DateTime) {
             return new TapTimeValue((DateTime) value);
-        }
-        DateTime dateTime = AnyTimeToDateTime.toDateTime(value);
-        if(dateTime != null) {
+        } else if (value instanceof Long) {
+            long val = (Long) value;
+            DateTime dateTime = new DateTime();
+            dateTime.setNano((int) ((val % 1000000) * 1000));
+            dateTime.setSeconds(val = val/1000000);
             TapTimeValue dateTimeValue = new TapTimeValue(dateTime);
+
+            boolean negative = val < 0;
+            if (negative) val = -val;
+            String timeStr = String.format("%02d", val % 60);
+            timeStr = String.format("%02d", (val / 60) % 60) + ":" + timeStr;
+            timeStr = (negative ? "-" : "") + String.format("%02d", val / 60) + ":" + timeStr;
+
+            dateTimeValue.setOriginValue(timeStr);
             return dateTimeValue;
+        } else if (value instanceof String) {
+            DateTime dateTime = AnyTimeToDateTime.withTimeStr((String)value);
+            TapTimeValue dateTimeValue = new TapTimeValue(dateTime);
+            dateTimeValue.setOriginValue((String)value);
+            return dateTimeValue;
+        } else {
+            throw new IllegalArgumentException("DateTime constructor time not support with " + value.getClass().getName());
         }
-        return null;
     }
 }

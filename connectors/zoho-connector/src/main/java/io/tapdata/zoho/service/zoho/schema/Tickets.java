@@ -112,7 +112,7 @@ public class Tickets implements Schema {
                             .add(field("tagCount","Integer"))
                             .add(field("attachmentCount","Integer"))
                             .add(field("isEscalated","Boolean"))//Object
-                            .add(field("category","Map"))//Object
+                            .add(field("category","StringNormal"))//Object
                             .add(field("contact","Map"))//Object
             );
         }
