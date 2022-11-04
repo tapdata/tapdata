@@ -51,10 +51,9 @@ public class ScriptExecutorRunInit implements ApplicationRunner {
 //    executeScript("init", VersionDto.SCRIPT_VERSION_KEY);
 //    log.info("Execute the initialization script to complete...");
 
-    if (productList.contains("idaas")) {
-      executeScript("init/idaas", VersionDto.DAAS_SCRIPT_VERSION_KEY);
-      log.info("Execute the daas product initialization script to complete...");
-    }
+    executeScript("init/idaas", VersionDto.DAAS_SCRIPT_VERSION_KEY);
+    log.info("Execute the daas product initialization script to complete...");
+
     if (productList.contains("dfs")) {
       executeScript("init/dfs", VersionDto.DFS_SCRIPT_VERSION_KEY);
       log.info("Execute the dfs product initialization script to complete...");
