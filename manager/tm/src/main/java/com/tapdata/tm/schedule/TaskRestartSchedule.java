@@ -123,8 +123,6 @@ public class TaskRestartSchedule {
             return;
         }
 
-        all = all.stream().filter(a -> StringUtils.isBlank(a.getAccessNodeProcessId())).collect(Collectors.toList());
-
         List<String> userIds = all.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
         List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));

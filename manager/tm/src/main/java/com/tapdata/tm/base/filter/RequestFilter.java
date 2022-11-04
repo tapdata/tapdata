@@ -5,6 +5,7 @@ import cn.hutool.extra.servlet.ServletUtil;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.ThreadLocalUtils;
+import com.tapdata.tm.utils.ThrowableUtils;
 import com.tapdata.tm.utils.WebUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
@@ -64,7 +65,7 @@ public class RequestFilter implements Filter {
 		try {
 			filterChain.doFilter(httpServletRequest, httpServletResponse);
 		} catch (Throwable e){
-			log.error("Process request error", e);
+			log.error("Process request error", ThrowableUtils.getStackTraceByPn(e));
 		}
 	}
 
