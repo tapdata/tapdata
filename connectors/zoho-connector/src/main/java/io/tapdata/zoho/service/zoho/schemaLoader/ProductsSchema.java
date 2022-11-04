@@ -12,13 +12,10 @@ import io.tapdata.zoho.service.zoho.loader.ProductsOpenApi;
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 
-public class ProductsSchema implements SchemaLoader {
+public class ProductsSchema extends Schema implements SchemaLoader {
     private ProductsOpenApi productsOpenApi;
     @Override
     public SchemaLoader configSchema(TapConnectionContext tapConnectionContext) {
@@ -54,14 +51,15 @@ public class ProductsSchema implements SchemaLoader {
         String tableName =  Schemas.Products.getTableName();
         if (Checker.isEmpty(offsetState)) offsetState = ZoHoOffset.create(new HashMap<>());
         final Object offset = offsetState;
-        while (true){
+        while (isAlive()){
             List<Map<String, Object>> list = productsOpenApi.page(
                     fromPageIndex,
                     pageSize,
                     isBatchRead ? ProductsOpenApi.SortBy.CREATED_TIME.descSortBy(): ProductsOpenApi.SortBy.MODIFIED_TIME.descSortBy());
             if (Checker.isNotEmpty(list) && !list.isEmpty()){
                 fromPageIndex += pageSize;
-                list.stream().forEach(product->{
+                list.stream().filter(Objects::nonNull).forEach(product->{
+                    if (!isAlive()) return;
                     Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,productsOpenApi);
                     if (Checker.isNotEmpty(oneProduct) && !oneProduct.isEmpty()){
                         Object modifiedTimeObj = oneProduct.get("modifiedTime");
@@ -77,7 +75,7 @@ public class ProductsSchema implements SchemaLoader {
                         }
                     }
                 });
-                if (events[0].size()>0){
+                if (!events[0].isEmpty()){
                     consumer.accept(events[0], offsetState);
                 }
             }else {

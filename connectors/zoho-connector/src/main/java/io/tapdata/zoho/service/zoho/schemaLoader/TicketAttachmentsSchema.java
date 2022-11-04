@@ -12,13 +12,10 @@ import io.tapdata.zoho.service.zoho.loader.TicketAttachmentsOpenApi;
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 
-public class TicketAttachmentsSchema implements SchemaLoader {
+public class TicketAttachmentsSchema extends Schema implements SchemaLoader {
     private static final String TAG = TicketAttachmentsSchema.class.getSimpleName();
     TicketAttachmentsOpenApi attachmentsOpenApi;
     @Override
@@ -57,11 +54,12 @@ public class TicketAttachmentsSchema implements SchemaLoader {
         String ticketId = "";
         if (Checker.isEmpty(offsetState)) offsetState = ZoHoOffset.create(new HashMap<>());
         final Object offset = offsetState;
-        while (true){
+        while (isAlive()){
             List<Map<String, Object>> list = attachmentsOpenApi.page(fromPageIndex, pageSize,ticketId);
             if (Checker.isEmpty(list) || list.isEmpty()) break;
             fromPageIndex += pageSize;
-            list.stream().forEach(product->{
+            list.stream().filter(Objects::nonNull).forEach(product->{
+                if (!isAlive()) return;
                 Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,attachmentsOpenApi);
                 if (Checker.isEmpty(oneProduct) || oneProduct.isEmpty()) return;
                 Object modifiedTimeObj = oneProduct.get("modifiedTime");
@@ -76,7 +74,7 @@ public class TicketAttachmentsSchema implements SchemaLoader {
                 events[0] = new ArrayList<>();
             });
         }
-        if (events[0].size()<=0) return;
+        if (events[0].isEmpty()) return;
         consumer.accept(events[0], offsetState);
     }
 }
