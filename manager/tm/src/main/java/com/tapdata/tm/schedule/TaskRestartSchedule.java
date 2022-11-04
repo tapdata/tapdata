@@ -116,7 +116,8 @@ public class TaskRestartSchedule {
     public void schedulingTask() {
         long heartExpire = 60000;
 
-        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN).and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
+        Criteria criteria = Criteria.where("status").in(TaskDto.STATUS_WAIT_RUN, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_SCHEDULE_FAILED)
+                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
