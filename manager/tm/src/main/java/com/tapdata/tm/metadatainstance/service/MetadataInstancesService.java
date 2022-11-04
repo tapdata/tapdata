@@ -1729,8 +1729,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 for (String parentNode : parentNodes) {
                     String qualifiedName = node.getQualifiedNameByNodeId(dag, parentNode);
                     MetadataInstancesDto metadataInstancesDto = findByQualifiedNameNotDelete(qualifiedName, user);
-                    List<Field> fields = metadataInstancesDto.getFields();
-                    parentFields.add(fields);
+                    if (metadataInstancesDto != null) {
+                        List<Field> fields = metadataInstancesDto.getFields();
+                        parentFields.add(fields);
+                    }
                 }
             }
 
