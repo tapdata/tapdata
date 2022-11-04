@@ -1028,7 +1028,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if ("finished".equals(loadFieldsStatus) && schemaVersion != null) {
 			log.debug("loadFieldsStatus is finished, update model delete flag");
 			// handle delete model, not match schemaVersion will update is_deleted to true
-			Criteria criteria = Criteria.where("is_deleted").ne(true).and("databaseId").is(datasourceId)
+			Criteria criteria = Criteria.where("is_deleted").ne(true).and("source._id").is(datasourceId)
 					.and("lastUpdate").ne(schemaVersion).and("taskId").exists(false);;
 			log.info("Delete metadata update filter: {}", criteria);
 			Query query = new Query(criteria);
@@ -1285,12 +1285,12 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
 							log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
 									, newModelList.size(), name, pair.getLeft(), pair.getRight());
-							deleteModels(loadFieldsStatus, databaseId, schemaVersion, user);
+							deleteModels(loadFieldsStatus, connectionId, schemaVersion, user);
 						}
 					}
 				} else {
 					if (set != null && set.get("lastUpdate") != null) {
-						deleteModels("finished", databaseId, (Long) set.get("lastUpdate"), user);
+						deleteModels("finished", connectionId, (Long) set.get("lastUpdate"), user);
 					}
 				}
 			}
