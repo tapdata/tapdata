@@ -247,8 +247,13 @@ public class WebsocketPushChannel extends PushChannel {
                 }
             }
 
+            String url = protocol + "://" + host + ":" + wsPort + "/" + path;
+            TapEngineUtils tapEngineUtils = InstanceFactory.instance(TapEngineUtils.class);
+            if(tapEngineUtils != null) {
+                url = tapEngineUtils.signUrl("", url);
+            }
             try {
-                uri = new URI(protocol + "://" + host + ":" + wsPort + "/" + path);
+                uri = new URI(url);
             } catch (URISyntaxException e) {
                 e.printStackTrace();
             }
