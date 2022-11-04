@@ -18,6 +18,7 @@ import org.apache.commons.lang3.StringUtils;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class CustomSchema {
@@ -83,6 +84,10 @@ public class CustomSchema {
                             //long String => Text
                             if (v instanceof String && ((String) v).length() > 200) {
                                 field.dataType("Text");
+                            } else if (v instanceof Map) {
+                                field.dataType("Map");
+                            } else if (v instanceof List) {
+                                field.dataType("List");
                             } else {
                                 field.dataType(v.getClass().getSimpleName());
                             }

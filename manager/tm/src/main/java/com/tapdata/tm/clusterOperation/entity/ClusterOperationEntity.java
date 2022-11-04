@@ -21,6 +21,9 @@ public class ClusterOperationEntity extends BaseEntity {
     private String downloadUrl;
     private List<?> downloadList;
     private Integer status;
+    private  String hostname;
+    private String server;
+    private String operation;
     private String token;
 
 }

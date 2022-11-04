@@ -1,10 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.constant.*;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.NodeUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -107,6 +104,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private Future<?> sourceRunnerFuture;
 	// on cdc step if TableMap not exists heartbeat table, add heartbeat table to cdc whitelist and filter heartbeat records
 	protected ICdcDelay cdcDelayCalculation;
+	private final Object waitObj = new Object();
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -710,8 +708,28 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
+	protected boolean need2CDC() {
+		if (null != offsetFromTimeError) {
+			enqueue(new TapdataTaskErrorEvent(offsetFromTimeError));
+			try {
+				synchronized (this.waitObj) {
+					waitObj.wait();
+				}
+			} catch (InterruptedException ignored) {
+			}
+			return false;
+		}
+		return super.need2CDC();
+	}
+
+	@Override
 	public void doClose() throws Exception {
 		try {
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(waitObj).ifPresent(w -> {
+				synchronized (this.waitObj) {
+					this.waitObj.notify();
+				}
+			}), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(tableMonitorResultHandler).ifPresent(ExecutorService::shutdownNow), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(sourceRunner).ifPresent(ExecutorService::shutdownNow), TAG);
 		} finally {

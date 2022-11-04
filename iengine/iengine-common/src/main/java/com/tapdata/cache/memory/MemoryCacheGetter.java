@@ -54,34 +54,4 @@ public class MemoryCacheGetter extends AbstractCacheGetter {
     return null;
   }
 
-  public void waitCacheNodeCompletedInitialIfNeed(String cacheName) throws InterruptedException {
-    // 完成，直接返回
-    if (!isInitialing.get()) return;
-
-    // 所有cache节点正在初始化中需要等待他们初始化完成
-    while (!Thread.interrupted()) {
-      if (!running.get()) {
-        // 完成，直接返回
-        return;
-      }
-
-      List<StageRuntimeStats> stageRuntimeStats = cacheStageRuntimeStats.getCacheStageRuntimeStats(null, cacheName);
-      if (null != stageRuntimeStats && !stageRuntimeStats.isEmpty()) {
-        if (!stageRuntimeStats.stream().allMatch(cacheStageRuntimeStat -> {
-          String status = cacheStageRuntimeStat.getStatus();
-          return !StringUtils.isBlank(status) && !ConnectorConstant.STATS_STATUS_INITIALIZING.equals(status);
-        })) {
-          logger.warn("Waiting all cache node complete initial: " + cacheName);
-          Thread.sleep(3000L);
-          continue;
-        }
-      }
-
-      logger.info("All cache node completed initial sync: " + cacheName);
-      isInitialing.set(false);
-
-      break;
-    }
-  }
-
 }

@@ -510,7 +510,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 					if (password != null) {
 						String password1 = new String(password);
-						uri = uri.replace(password1, "******");
+						uri = uri.replace(":"+password1, ":******");
 						item.getConfig().put("uri", uri);
 					}
 
@@ -519,6 +519,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 		}
 	}
+
 
 	/**
 	 * 给数据源连接修改资源分类
@@ -1027,7 +1028,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if ("finished".equals(loadFieldsStatus) && schemaVersion != null) {
 			log.debug("loadFieldsStatus is finished, update model delete flag");
 			// handle delete model, not match schemaVersion will update is_deleted to true
-			Criteria criteria = Criteria.where("is_deleted").ne(true).and("databaseId").is(datasourceId)
+			Criteria criteria = Criteria.where("is_deleted").ne(true).and("source._id").is(datasourceId)
 					.and("lastUpdate").ne(schemaVersion).and("taskId").exists(false);;
 			log.info("Delete metadata update filter: {}", criteria);
 			Query query = new Query(criteria);
@@ -1048,8 +1049,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if (StringUtils.isBlank(connectionDto.getPlain_password())) {
 			connectionDto.setPlain_password(null);
 		}
-		Update update = Update.update("status", "testing").set("testTime", System.currentTimeMillis());
-		update(new Query(Criteria.where("_id").is(connectionDto.getId())), update, user);
 
 		List<Worker> availableAgent;
 		if (StringUtils.isBlank(connectionDto.getAccessNodeType())
@@ -1067,7 +1066,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 		}
 
-		// todo jacques 这里应该要采用 调度策略 后续补充上
 		String processId = availableAgent.get(0).getProcessId();
 		ObjectMapper objectMapper = new ObjectMapper();
 		String json;
@@ -1090,6 +1088,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		log.info("build send test connection websocket context, processId = {}, userId = {}", processId, user.getUserId());
 		messageQueueService.sendMessage(queueDto);
 
+		Update update = Update.update("status", "testing").set("testTime", System.currentTimeMillis());
+		update(new Query(Criteria.where("_id").is(connectionDto.getId())), update, user);
 	}
 
 	public void checkConn(DataSourceConnectionDto connectionDto, UserDetail user) {
@@ -1157,16 +1157,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			boolean rename = false;
 			String oldName = null;
 			Document set = null;
+			Object status = null;
 			if (update != null && update.get("$set") != null) {
 				set = setToDocumentByJsonParser(update);
-
 				if (set != null && (set.get("schema.tables") != null
 						|| DataSourceConnectionDto.STATUS_INVALID.equals(set.get("status"))
 						|| DataSourceConnectionDto.STATUS_READY.equals(set.get("status")))) {
+					status = set.get("status");
 					if (set.get("schema.tables") != null) {
 						String tablesJson = JsonUtil.toJsonUseJackson(set.get("schema.tables"));
 						tables = InstanceFactory.instance(JsonParser.class).fromJson(tablesJson, new TypeHolder<List<TapTable>>() {
-						}, TapConstants.abstractClassDetectors);
+						});
 						set.put("schema.tables", null);
 					}
 					hasSchema = true;
@@ -1284,12 +1285,12 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
 							log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
 									, newModelList.size(), name, pair.getLeft(), pair.getRight());
-							deleteModels(loadFieldsStatus, databaseId, schemaVersion, user);
+							deleteModels(loadFieldsStatus, connectionId, schemaVersion, user);
 						}
 					}
 				} else {
 					if (set != null && set.get("lastUpdate") != null) {
-						deleteModels("finished", databaseId, (Long) set.get("lastUpdate"), user);
+						deleteModels("finished", connectionId, (Long) set.get("lastUpdate"), user);
 					}
 				}
 			}
@@ -1309,9 +1310,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				filter.setLimit(0);
 				filter.setSkip(0);
 				Query query = repository.filterToQuery(filter);
-				Update update1 = Update.fromDocument(update);
-				UpdateResult update2 = repository.update(query, update1, user);
-				return update2.getModifiedCount();
+				Update datasourceUpdate = Update.fromDocument(update);
+
+				if (Objects.nonNull(status)) {
+					datasourceUpdate.set("testTime", System.currentTimeMillis());
+					if (DataSourceEntity.STATUS_READY.equals(status.toString())) {
+						datasourceUpdate.set("testCount", 0);
+					} else {
+						datasourceUpdate.inc("testCount", 1);
+					}
+				}
+				return repository.update(query, datasourceUpdate, user).getModifiedCount();
 			}
 		}
 

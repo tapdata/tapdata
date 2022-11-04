@@ -1055,12 +1055,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         for (TaskDto task : taskDtos) {
             MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
             mutiResponseMessage.setId(task.getId().toHexString());
-            checkDagAgentConflict(task, false);
 
             try {
+                checkDagAgentConflict(task, false);
                 start(task, user);
             } catch (Exception e) {
-                log.warn("start task exception, task id = {}, e = {}", task.getId(), e);
+                log.warn("start task exception, task id = {}, e = {}", task.getId(), ThrowableUtils.getStackTraceByPn(e));
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
                     mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
@@ -1107,7 +1107,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public List<MutiResponseMessage> batchDelete(List<ObjectId> taskIds, UserDetail user, HttpServletRequest request) {
-
         List<MutiResponseMessage> responseMessages = new ArrayList<>();
         for (ObjectId taskId : taskIds) {
             MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
@@ -1119,11 +1118,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                 mutiResponseMessage.setCode(ResponseMessage.OK);
                 mutiResponseMessage.setMessage(ResponseMessage.OK);
-
             } catch (Exception e) {
-
-
-                log.warn("delete task exception, task id = {}, e = {}", taskId, e);
+                log.warn("delete task exception, task id = {}, e = {}", taskId, ThrowableUtils.getStackTraceByPn(e));
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
                     mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
@@ -2380,8 +2376,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-
-            Update update = Update.update("startTime", null).set("lastStartDate", null);
+            Update update = new Update().unset("startTime").unset("lastStartDate").unset("stopTime");
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
@@ -2566,11 +2561,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
             update(query1, Update.update("status", TaskDto.STATUS_SCHEDULE_FAILED), user);
             throw new BizException("Task.AgentNotFound");
-        } else {
-            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED, user);
         }
-
-//        WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
 
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
@@ -3184,14 +3175,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("planStartDateFlag").is(true)
                 .and("planStartDate").lte(DateUtil.current());
         Query taskQuery = new Query(migrateCriteria);
-        log.info("startPlanMigrateDagTask query {}", taskQuery);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
             taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
                     .collect(Collectors.toList());
-
-            List<String> taskIdList = taskList.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList());
-            log.info("startPlanMigrateDagTask taskIdList {}", taskIdList);
 
             List<String> userIdList = taskList.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
             List<UserDetail> userList = userService.getUserByIdList(userIdList);

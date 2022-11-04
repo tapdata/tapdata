@@ -64,7 +64,7 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(fixedDelay = 5 * 60 * 1000)
+    @Scheduled(initialDelay = 10 * 1000, fixedDelay = 5 * 60 * 1000)
     @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
 
@@ -116,14 +116,13 @@ public class TaskRestartSchedule {
     public void schedulingTask() {
         long heartExpire = 60000;
 
-        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN).and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
+        Criteria criteria = Criteria.where("status").in(TaskDto.STATUS_WAIT_RUN, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_SCHEDULE_FAILED)
+                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
             return;
         }
-
-        all = all.stream().filter(a -> StringUtils.isBlank(a.getAccessNodeProcessId())).collect(Collectors.toList());
 
         List<String> userIds = all.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
         List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
