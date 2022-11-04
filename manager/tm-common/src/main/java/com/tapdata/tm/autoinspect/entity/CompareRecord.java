@@ -3,10 +3,7 @@ package com.tapdata.tm.autoinspect.entity;
 import cn.hutool.crypto.digest.MD5;
 import com.tapdata.tm.autoinspect.constants.CompareStatus;
 import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.type.TapDate;
-import io.tapdata.entity.schema.type.TapDateTime;
-import io.tapdata.entity.schema.type.TapTime;
-import io.tapdata.entity.schema.type.TapYear;
+import io.tapdata.entity.schema.type.*;
 import io.tapdata.entity.schema.value.DateTime;
 import lombok.Data;
 import lombok.NonNull;
@@ -142,14 +139,14 @@ public class CompareRecord {
         if (null == v) return null;
 
         if (v instanceof DateTime) {
-            if (field.getTapType() instanceof TapTime) {
-                return ((DateTime)v).toTime().toString();
+            if (field.getTapType() instanceof TapDateTime) {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+                return sdf.format(((DateTime) v).toDate());
             } else if (field.getTapType() instanceof TapDate) {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
                 return sdf.format(((DateTime) v).toDate());
-            } else if (field.getTapType() instanceof TapDateTime) {
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-                return sdf.format(((DateTime) v).toDate());
+            } else if (field.getTapType() instanceof TapTime) {
+                return ((DateTime) v).toTime();
             } else if (field.getTapType() instanceof TapYear) {
                 return String.valueOf(((DateTime) v).toSqlDate().toLocalDate().getYear());
             }
@@ -158,9 +155,15 @@ public class CompareRecord {
         } else if (v instanceof byte[]) {
             byte[] tmp = (byte[]) v;
             if (tmp.length == 0) {
-                return null;
+                return "";
             }
             return MD5.create().digestHex(tmp) + "(" + tmp.length + ")";
+        } else if (field.getTapType() instanceof TapNumber) {
+            String tmp = v.toString();
+            if (tmp.endsWith(".0")) {
+                tmp = tmp.substring(0, tmp.length() - 2);
+            }
+            v = tmp;
         }
         return v.toString();
     }

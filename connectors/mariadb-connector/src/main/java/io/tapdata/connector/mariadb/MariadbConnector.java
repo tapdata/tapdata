@@ -22,7 +22,6 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -340,6 +339,7 @@ public class MariadbConnector extends ConnectorBase {
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
+        databaseContext.getSpecification().setId("mysql");
         try (
                 MariadbConnectionTest mariadbConnectionTest = new MariadbConnectionTest(new MysqlJdbcContext(databaseContext))
         ) {

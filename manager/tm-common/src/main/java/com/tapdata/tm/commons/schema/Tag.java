@@ -1,13 +1,8 @@
 package com.tapdata.tm.commons.schema;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
-import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serializable;

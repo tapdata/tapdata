@@ -11,13 +11,10 @@ import io.tapdata.zoho.service.zoho.loader.ContractsOpenApi;
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 
-public class ContractsSchema implements SchemaLoader {
+public class ContractsSchema extends Schema implements SchemaLoader {
     private static final String TAG = ContractsSchema.class.getSimpleName();
     ContractsOpenApi contractsOpenApi;
     @Override
@@ -88,11 +85,12 @@ public class ContractsSchema implements SchemaLoader {
         String tableName =  Schemas.Products.getTableName();
         if (Checker.isEmpty(offsetState)) offsetState = ZoHoOffset.create(new HashMap<>());
         final Object offset = offsetState;
-        while (true){
+        while (isAlive()){
             List<Map<String, Object>> list = contractsOpenApi.page(fromPageIndex, pageSize);
             if (Checker.isEmpty(list) || list.isEmpty()) break;
             fromPageIndex += pageSize;
-            list.stream().forEach(product->{
+            list.stream().filter(Objects::nonNull).forEach(product->{
+                if (!isAlive()) return;
                 Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,contractsOpenApi);
                 if (Checker.isEmpty(oneProduct) || oneProduct.isEmpty()) return;
                 Object modifiedTimeObj = oneProduct.get("modifiedTime");
@@ -107,7 +105,7 @@ public class ContractsSchema implements SchemaLoader {
                 events[0] = new ArrayList<>();
             });
         }
-        if (events[0].size() <= 0) return;
+        if (events[0].isEmpty()) return;
         consumer.accept(events[0], offsetState);
     }
 }

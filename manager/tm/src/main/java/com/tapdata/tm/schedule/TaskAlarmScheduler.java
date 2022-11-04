@@ -45,7 +45,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -213,8 +212,7 @@ public class TaskAlarmScheduler {
                 alarmService.save(alarmInfo);
 
                 if (!isCloud) {
-                    Update update = new Update().set("status", TaskDto.STATUS_SCHEDULING).set("restartFlag", true);
-                    taskService.update(Query.query(Criteria.where("_id").is(data.getId())), update);
+                    taskService.run(data, userDetailMap.get(data.getUserId()));
                 }
             }
         }
