@@ -51,6 +51,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -192,28 +193,22 @@ public abstract class TaskCleaner {
 		PdkTableMap pdkTableMap = new PdkTableMap(tapTableMapByNodeId);
 		String associateId = this.getClass().getSimpleName() + "-" + node.getId();
 		try {
-			ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
-					.withDagId(taskDto.getId().toHexString())
-					.withAssociateId(associateId)
-					.withConnectionConfig(new DataMap() {{
-						putAll(finalConnections.getConfig());
-					}})
-					.withGroup(databaseType.getGroup())
-					.withVersion(databaseType.getVersion())
-					.withPdkId(databaseType.getPdkId())
-					.withTableMap(pdkTableMap)
-					.withStateMap(pdkStateMap)
-					.withGlobalStateMap(globalStateMap)
-					.build();
+			AtomicReference<ConnectorNode> connectorNode = new AtomicReference<>();
+			try {
+				connectorNode.set(buildConnectorNode(databaseType, finalConnections, pdkStateMap, globalStateMap, pdkTableMap, associateId));
+			} catch (Throwable throwable) {
+				CommonUtils.ignoreAnyError(() -> PDKIntegration.releaseAssociateId(associateId), TAG);
+				connectorNode.set(buildConnectorNode(databaseType, finalConnections, pdkStateMap, globalStateMap, pdkTableMap, associateId));
+			}
 
 			try {
-				ReleaseExternalFunction releaseExternalFunction = connectorNode.getConnectorFunctions().getReleaseExternalFunction();
+				ReleaseExternalFunction releaseExternalFunction = connectorNode.get().getConnectorFunctions().getReleaseExternalFunction();
 				if (releaseExternalFunction != null) {
 					try {
-						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RELEASE_EXTERNAL, () -> releaseExternalFunction.release(connectorNode.getConnectorContext()), TAG);
+						PDKInvocationMonitor.invoke(connectorNode.get(), PDKMethod.RELEASE_EXTERNAL, () -> releaseExternalFunction.release(connectorNode.get().getConnectorContext()), TAG);
 						succeed(node, NodeResetDesc.task_reset_pdk_node_external_resource, (System.currentTimeMillis() - startTs));
 					} catch (Throwable e) {
-						TapNodeSpecification specification = connectorNode.getConnectorContext().getSpecification();
+						TapNodeSpecification specification = connectorNode.get().getConnectorContext().getSpecification();
 						String msg = String.format("Call pdk function releaseExternalFunction occur an error: %s\n Task: %s(%s), node: %s(%s), pdk connector: %s-%s-%s",
 								e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId(), specification.getGroup(), specification.getId(), specification.getVersion());
 						TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
@@ -221,7 +216,7 @@ public abstract class TaskCleaner {
 					}
 				}
 			} catch (Throwable e) {
-				TapNodeSpecification specification = connectorNode.getConnectorContext().getSpecification();
+				TapNodeSpecification specification = connectorNode.get().getConnectorContext().getSpecification();
 				String msg = String.format("Call pdk function init occur an error: %s\n Task: %s(%s), node: %s(%s), pdk connector: %s-%s-%s",
 						e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId(), specification.getGroup(), specification.getId(), specification.getVersion());
 				TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
@@ -229,7 +224,7 @@ public abstract class TaskCleaner {
 			}
 
 			AspectUtils.executeAspect(TaskResetAspect.class, () -> new TaskResetAspect().task(taskDto));
-			TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+			TapConnectorContext connectorContext = connectorNode.get().getConnectorContext();
 			if (connectorContext != null) {
 				KVMap<Object> stateMap = connectorContext.getStateMap();
 				if (stateMap != null) {
@@ -238,7 +233,7 @@ public abstract class TaskCleaner {
 						stateMap.reset();
 						succeed(node, NodeResetDesc.task_reset_pdk_node_state, (System.currentTimeMillis() - startTs));
 					} catch (Throwable e) {
-						TapNodeSpecification specification = connectorNode.getConnectorContext().getSpecification();
+						TapNodeSpecification specification = connectorNode.get().getConnectorContext().getSpecification();
 						String msg = String.format("Clean pdk state data occur an error: %s\n Task: %s(%s), node: %s(%s), pdk connector: %s-%s-%s",
 								e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId(), specification.getGroup(), specification.getId(), specification.getVersion());
 						TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
@@ -250,6 +245,22 @@ public abstract class TaskCleaner {
 			CommonUtils.ignoreAnyError(tapTableMapByNodeId::reset, TAG);
 			CommonUtils.ignoreAnyError(() -> PDKIntegration.releaseAssociateId(associateId), TAG);
 		}
+	}
+
+	private ConnectorNode buildConnectorNode(DatabaseTypeEnum.DatabaseType databaseType, Connections finalConnections, PdkStateMap pdkStateMap, PdkStateMap globalStateMap, PdkTableMap pdkTableMap, String associateId) {
+		return PDKIntegration.createConnectorBuilder()
+				.withDagId(taskDto.getId().toHexString())
+				.withAssociateId(associateId)
+				.withConnectionConfig(new DataMap() {{
+					putAll(finalConnections.getConfig());
+				}})
+				.withGroup(databaseType.getGroup())
+				.withVersion(databaseType.getVersion())
+				.withPdkId(databaseType.getPdkId())
+				.withTableMap(pdkTableMap)
+				.withStateMap(pdkStateMap)
+				.withGlobalStateMap(globalStateMap)
+				.build();
 	}
 
 	private Connections getConnection(String connectionId) {
