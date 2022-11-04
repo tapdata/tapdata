@@ -142,8 +142,6 @@ public class TapdataTaskScheduler {
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 					final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 					taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
-				} catch (ManagementException e) {
-					logger.warn(TapLog.JOB_WARN_0005.getMsg(), taskDto.getName(), Log4jUtil.getStackString(e));
 				} catch (Exception e) {
 					logger.error("Schedule task {} failed {}", taskDto.getName(), e.getMessage(), e);
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskDto.getId().toHexString(), TaskDto.class);
