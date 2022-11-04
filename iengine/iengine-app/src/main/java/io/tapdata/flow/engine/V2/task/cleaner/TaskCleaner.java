@@ -37,6 +37,7 @@ import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
@@ -189,20 +190,22 @@ public abstract class TaskCleaner {
 				databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
 		TapTableMap<String, TapTable> tapTableMapByNodeId = TapTableUtil.getTapTableMapByNodeId(node.getId());
 		PdkTableMap pdkTableMap = new PdkTableMap(tapTableMapByNodeId);
-		ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
-				.withDagId(taskDto.getId().toHexString())
-				.withAssociateId(this.getClass().getSimpleName() + "-" + node.getId())
-				.withConnectionConfig(new DataMap() {{
-					putAll(finalConnections.getConfig());
-				}})
-				.withGroup(databaseType.getGroup())
-				.withVersion(databaseType.getVersion())
-				.withPdkId(databaseType.getPdkId())
-				.withTableMap(pdkTableMap)
-				.withStateMap(pdkStateMap)
-				.withGlobalStateMap(globalStateMap)
-				.build();
+		String associateId = this.getClass().getSimpleName() + "-" + node.getId();
 		try {
+			ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
+					.withDagId(taskDto.getId().toHexString())
+					.withAssociateId(associateId)
+					.withConnectionConfig(new DataMap() {{
+						putAll(finalConnections.getConfig());
+					}})
+					.withGroup(databaseType.getGroup())
+					.withVersion(databaseType.getVersion())
+					.withPdkId(databaseType.getPdkId())
+					.withTableMap(pdkTableMap)
+					.withStateMap(pdkStateMap)
+					.withGlobalStateMap(globalStateMap)
+					.build();
+
 			try {
 				ReleaseExternalFunction releaseExternalFunction = connectorNode.getConnectorFunctions().getReleaseExternalFunction();
 				if (releaseExternalFunction != null) {
@@ -244,8 +247,8 @@ public abstract class TaskCleaner {
 				}
 			}
 		} finally {
-			tapTableMapByNodeId.reset();
-			PDKIntegration.releaseAssociateId(this.getClass().getSimpleName() + "-" + node.getId());
+			CommonUtils.ignoreAnyError(tapTableMapByNodeId::reset, TAG);
+			CommonUtils.ignoreAnyError(() -> PDKIntegration.releaseAssociateId(associateId), TAG);
 		}
 	}
 
