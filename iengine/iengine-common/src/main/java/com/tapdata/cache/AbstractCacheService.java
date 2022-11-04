@@ -88,7 +88,10 @@ public abstract class AbstractCacheService implements ICacheService {
   @Override
   public synchronized void destroy(String cacheName) {
     try {
-      this.getCacheStore(cacheName).destroy();
+      ICacheStore cacheStore = this.getCacheStore(cacheName);
+      if (cacheStore != null) {
+        cacheStore.destroy();
+      }
       this.cacheStatusMap.remove(cacheName);
       this.cacheConfigMap.remove(cacheName);
       ICacheGetter cacheGetter = this.cacheGetterMap.remove(cacheName);
