@@ -116,15 +116,14 @@ public class MysqlReader implements Closeable {
 						try {
 							Object value;
 							try {
-								value = rs.getObject(i + 1);
-							}catch (SQLException e) {
-								// time "-838:59:59",
-								// "838:59:59" 所以特殊处理
-								value = rs.getString(i + 1);
-								String type = metaData.getColumnTypeName(i + 1);
-								if("TIME".equals(type)){
-									value=	MysqlUtil.convertTime(value);
+								// time "-838:59:59", "838:59:59" 所以特殊处理
+								if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
+									value = rs.getString(i + 1);
+								} else {
+									value = rs.getObject(i + 1);
 								}
+							}catch (SQLException e) {
+								value = rs.getString(i + 1);
 							}
 							data.put(columnName, value);
 							if (pks.contains(columnName)) {
@@ -166,13 +165,13 @@ public class MysqlReader implements Closeable {
 						try {
 							Object value;
 							try {
-								value = rs.getObject(i + 1);
+								if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
+									value = rs.getString(i + 1);
+								} else {
+									value = rs.getObject(i + 1);
+								}
 							}catch (SQLException e) {
 								value = rs.getString(i + 1);
-								String type = metaData.getColumnTypeName(i + 1);
-								if("TIME".equals(type)){
-									value=	MysqlUtil.convertTime(value);
-								}
 							}
 							data.put(columnName, value);
 						} catch (Exception e) {

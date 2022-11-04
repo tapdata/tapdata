@@ -191,7 +191,8 @@ public class MeasurementServiceV2 {
                                 query.fields().include(includedFields.toArray(new String[]{}));
                                 query.with(Sort.by(MeasurementEntity.FIELD_DATE).ascending());
 
-                                for (MeasurementEntity entity : mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME)) {
+                                List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+                                for (MeasurementEntity entity : measurementEntities) {
                                     String hash = hashTag(entity.getTags());
                                     continuousSamples.putIfAbsent(hash, new ArrayList<>());
                                     Sample sample = new Sample();
