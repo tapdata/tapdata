@@ -95,14 +95,7 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> {
-            if (tapTimeValue.getOriginValue() instanceof Long) {
-                long time = (long)tapTimeValue.getOriginValue() / 1000;
-                return toHHmmss(time);
-            } else {
-                return tapTimeValue.getValue().toTime();
-            }
-        });
+
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
                 tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
