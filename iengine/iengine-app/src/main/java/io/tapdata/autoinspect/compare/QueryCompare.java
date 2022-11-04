@@ -25,9 +25,11 @@ public abstract class QueryCompare implements IQueryCompare {
         CompareRecord targetRecord = queryTargetByKey(dto.getTargetTableName(), dto.getTargetKeymap(), keyNames);
         if (null == targetRecord) {
             // ignore if record not exists in target and source
-            if (null == querySourceByKey(sourceRecord.getTableName(), sourceRecord.getOriginalKey(), keyNames)) {
+            sourceRecord = querySourceByKey(sourceRecord.getTableName(), sourceRecord.getOriginalKey(), keyNames);
+            if (null == sourceRecord) {
                 return Status.Deleted;
             }
+            dto.setSourceData(sourceRecord.getData());
         } else if (CompareStatus.Ok == sourceRecord.compare(targetRecord)) {
             return Status.FixTarget;
         } else {
@@ -41,8 +43,8 @@ public abstract class QueryCompare implements IQueryCompare {
                     return Status.FixSource;
                 }
 
-                // refresh target record to result
-                dto.fillSource(sourceRecord);
+                // refresh source record to result
+                dto.setSourceData(sourceRecord.getData());
             }
         }
 

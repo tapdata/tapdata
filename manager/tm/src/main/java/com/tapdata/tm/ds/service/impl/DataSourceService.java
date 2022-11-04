@@ -204,6 +204,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		}
 
 		DataSourceEntity entity = convertToEntity(DataSourceEntity.class, updateDto);
+		entity.setAccessNodeProcessIdList(updateDto.getTrueAccessNodeProcessIdList());
 
 		Update update = repository.buildUpdateSet(entity, user);
 
@@ -1067,8 +1068,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if (StringUtils.isBlank(connectionDto.getPlain_password())) {
 			connectionDto.setPlain_password(null);
 		}
-		Update update = Update.update("status", "testing").set("testTime", System.currentTimeMillis());
-		update(new Query(Criteria.where("_id").is(connectionDto.getId())), update, user);
 
 		List<Worker> availableAgent;
 		if (StringUtils.isBlank(connectionDto.getAccessNodeType())
@@ -1086,7 +1085,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 		}
 
-		// todo jacques 这里应该要采用 调度策略 后续补充上
 		String processId = availableAgent.get(0).getProcessId();
 		ObjectMapper objectMapper = new ObjectMapper();
 		String json;
@@ -1109,6 +1107,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		log.info("build send test connection websocket context, processId = {}, userId = {}", processId, user.getUserId());
 		messageQueueService.sendMessage(queueDto);
 
+		Update update = Update.update("status", "testing").set("testTime", System.currentTimeMillis());
+		update(new Query(Criteria.where("_id").is(connectionDto.getId())), update, user);
 	}
 
 	public void checkConn(DataSourceConnectionDto connectionDto, UserDetail user) {

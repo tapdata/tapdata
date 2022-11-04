@@ -63,6 +63,15 @@
 			</properties>
 		</profile>
 		<profile>
+			<id>cloud-dev</id>
+			<properties>
+				<profile.active>cloud-dev</profile.active>
+				<profile.dir>${resource.dir}/cloud-dev</profile.dir>
+				<env.GIT_COMMIT_VERSION>${maven.build.timestamp}</env.GIT_COMMIT_VERSION>
+				<env.PRODUCT>dfs</env.PRODUCT>
+			</properties>
+		</profile>
+		<profile>
 			<id>uat</id>
 			<properties>
 				<profile.active>uat</profile.active>

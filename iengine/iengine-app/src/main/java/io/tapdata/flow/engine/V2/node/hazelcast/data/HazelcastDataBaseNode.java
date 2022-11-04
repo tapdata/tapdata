@@ -67,10 +67,6 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 		if (SyncTypeEnum.CDC != syncType && SyncTypeEnum.INITIAL_SYNC_CDC != syncType) {
 			return false;
 		}
-		if (null != offsetFromTimeError) {
-			offer(new TapdataTaskErrorEvent(offsetFromTimeError));
-			return false;
-		}
 
 		return true;
 	}
