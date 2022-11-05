@@ -28,7 +28,7 @@ public class TestConnectSchedule {
     private UserService userService;
 
     @Scheduled(initialDelay = 60 * 1000, fixedDelay = 30 * 1000)
-    @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    @SchedulerLock(name ="TestConnectSchedule_retry_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void retry() {
         Criteria criteria = Criteria.where("status").ne(DataSourceEntity.STATUS_READY)
                 .orOperator(Criteria.where("testCount").lt(15), Criteria.where("testCount").exists(false));

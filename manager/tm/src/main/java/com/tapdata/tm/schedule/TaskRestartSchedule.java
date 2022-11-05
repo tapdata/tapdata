@@ -1,5 +1,6 @@
 package com.tapdata.tm.schedule;
 
+import cn.hutool.core.util.RandomUtil;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -46,7 +47,7 @@ public class TaskRestartSchedule {
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
      */
     @Scheduled(fixedDelay = 10 * 1000)
-    @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @SchedulerLock(name ="restartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void restartTask() {
         //查询到所有需要重启的任务
         Criteria criteria = Criteria.where("restartFlag").is(true).and("status").is(TaskDto.STATUS_STOP);
@@ -64,11 +65,10 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 10 * 1000, fixedDelay = 5 * 60 * 1000)
-    @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @Scheduled(initialDelay = 10 * 1000, fixedDelay = 60 * 1000)
+    @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
-
-
+        Thread.currentThread().setName(Thread.currentThread().getName() + "-engineRestartNeedStartTask");
         //云版不需要这个重新调度的逻辑
         Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
         if (Objects.isNull(buildProfile)) {
@@ -88,6 +88,8 @@ public class TaskRestartSchedule {
 
         if (CollectionUtils.isEmpty(all)) {
             return;
+        } else {
+            log.info("engineRestartNeedStartTask task size {}", all.size());
         }
 
         List<String> userIds = all.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
@@ -95,7 +97,6 @@ public class TaskRestartSchedule {
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
         all.forEach(taskDto -> {
-
             if (isCloud) {
                 String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
                 if ("offline".equals(status) || "online".equals(status)) {
@@ -112,7 +113,7 @@ public class TaskRestartSchedule {
      * 对于少量因为tm线程终止导致的任务一直启动中（页面的直观显示），也就是调度中状态。做一些定时任务补救措施
      */
     @Scheduled(fixedDelay = 30 * 1000)
-    @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    @SchedulerLock(name ="schedulingTask_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void schedulingTask() {
         long heartExpire = 60000;
 
