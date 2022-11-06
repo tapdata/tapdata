@@ -27,6 +27,7 @@ public class FileConfig implements Serializable {
     private String excludeRegString;
     private Set<String> excludeRegs;
     private Boolean recursive;
+    private String modelName;
 
     public FileConfig load(Map<String, Object> map) {
         assert beanUtils != null;
@@ -129,5 +130,13 @@ public class FileConfig implements Serializable {
 
     public void setExcludeRegs(Set<String> excludeRegs) {
         this.excludeRegs = excludeRegs;
+    }
+
+    public String getModelName() {
+        return modelName;
+    }
+
+    public void setModelName(String modelName) {
+        this.modelName = modelName;
     }
 }

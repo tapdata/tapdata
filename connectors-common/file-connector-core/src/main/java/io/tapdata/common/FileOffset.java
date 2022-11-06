@@ -1,18 +1,18 @@
-package io.tapdata.connector.csv;
+package io.tapdata.common;
 
 import java.util.Map;
 
-public class CsvOffset {
+public class FileOffset {
 
     private String path;
     private int dataLine;
     private Map<String, Long> allLastModified;
 
-    public CsvOffset() {
+    public FileOffset() {
 
     }
 
-    public CsvOffset(String path, int dataLine) {
+    public FileOffset(String path, int dataLine) {
         this.path = path;
         this.dataLine = dataLine;
     }

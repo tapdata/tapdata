@@ -1,9 +1,9 @@
 {
   "properties": {
-    "name": "CSV",
-    "icon": "icons/csv.png",
+    "name": "JSON",
+    "icon": "icons/json.png",
     "doc": "${doc}",
-    "id": "csv"
+    "id": "json"
   },
   "configOptions": {
     "connection": {
@@ -288,31 +288,6 @@
           "x-decorator": "FormItem",
           "x-component": "Switch"
         },
-        "delimiter": {
-          "required": true,
-          "default": ",",
-          "type": "string",
-          "title": "${delimiter}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "delimiter"
-        },
-        "header": {
-          "type": "string",
-          "title": "${header}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "header"
-        },
-        "dataStartLine": {
-          "required": true,
-          "type": "string",
-          "title": "${dataStartLine}",
-          "default": 1,
-          "x-decorator": "FormItem",
-          "x-component": "InputNumber",
-          "apiServerKey": "dataStartLine"
-        },
         "modelName": {
           "type": "string",
           "title": "${modelName}",
@@ -320,19 +295,22 @@
           "x-component": "Input",
           "apiServerKey": "modelName"
         },
-        "includeHeader": {
-          "type": "boolean",
-          "title": "${includeHeader}",
-          "default": true,
+        "jsonType": {
+          "type": "string",
+          "title": "${jsonType}",
           "x-decorator": "FormItem",
-          "x-component": "Switch"
-        },
-        "justString": {
-          "type": "boolean",
-          "title": "${justString}",
-          "default": false,
-          "x-decorator": "FormItem",
-          "x-component": "Switch"
+          "x-component": "Select",
+          "default": "JSONArray",
+          "enum": [
+            {
+              "label": "JSONArray",
+              "value": "JSONArray"
+            },
+            {
+              "label": "JSONObject",
+              "value": "JSONObject"
+            }
+          ]
         }
       }
     }
@@ -340,7 +318,7 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "docs/csv_en_US.md",
+      "doc": "docs/json_en_US.md",
       "protocol": "File Protocol",
       "encoding": "Charset",
       "ftpHost": "Host",
@@ -364,15 +342,11 @@
       "includeRegString": "Include Reg",
       "excludeRegString": "Exclude Reg",
       "recursive": "Recursive",
-      "delimiter": "Delimiter",
-      "header": "File Header",
-      "dataStartLine": "Data Line",
       "modelName": "Model Name",
-      "includeHeader": "Include Header",
-      "justString": "All To String"
+      "jsonType": "JSON Type"
     },
     "zh_CN": {
-      "doc": "docs/csv_zh_CN.md",
+      "doc": "docs/json_zh_CN.md",
       "protocol": "文件协议",
       "encoding": "字符编码",
       "ftpHost": "地址",
@@ -396,15 +370,11 @@
       "includeRegString": "包含通配",
       "excludeRegString": "排除通配",
       "recursive": "目录递归",
-      "delimiter": "分隔符",
-      "header": "表头",
-      "dataStartLine": "正文起始行",
       "modelName": "模型名",
-      "includeHeader": "包含表头",
-      "justString": "全转换字符串"
+      "jsonType": "JSON类型"
     },
     "zh_TW": {
-      "doc": "docs/csv_zh_TW.md",
+      "doc": "docs/json_zh_TW.md",
       "protocol": "檔案協定",
       "encoding": "字元編碼",
       "ftpHost": "地址",
@@ -428,12 +398,8 @@
       "includeRegString": "包含通配",
       "excludeRegString": "排除通配",
       "recursive": "目錄遞歸",
-      "delimiter": "分割符",
-      "header": "表頭",
-      "dataStartLine": "正文起始行",
       "modelName": "模型名",
-      "includeHeader": "包含表頭",
-      "justString": "全轉換字符串"
+      "jsonType": "JSON類型"
     }
   },
   "dataTypes": {
