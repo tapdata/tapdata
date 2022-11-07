@@ -22,6 +22,7 @@ import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
+import com.tapdata.tm.worker.dto.TcmInfo;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.NonNull;
@@ -328,7 +329,10 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         availableAgent.forEach(dto -> {
             String hostname = dto.getHostname();
             if (isCloud) {
-                hostname = dto.getTcmInfo().getAgentName();
+                TcmInfo tcmInfo = dto.getTcmInfo();
+                if (tcmInfo != null) {
+                    hostname = dto.getTcmInfo().getAgentName();
+                }
             }
             AccessNodeInfo accessNodeInfo = new AccessNodeInfo(dto.getProcessId(), hostname, dto.getProcessId());
             result.add(accessNodeInfo);

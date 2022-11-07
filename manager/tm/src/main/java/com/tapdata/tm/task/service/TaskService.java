@@ -1163,11 +1163,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                 mutiResponseMessage.setCode(ResponseMessage.OK);
                 mutiResponseMessage.setMessage(ResponseMessage.OK);
-
             } catch (Exception e) {
-
-
-                log.warn("delete task exception, task id = {}, e = {}", taskId, e);
+                log.warn("delete task exception, task id = {}, e = {}", taskId, ThrowableUtils.getStackTraceByPn(e));
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
                     mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));

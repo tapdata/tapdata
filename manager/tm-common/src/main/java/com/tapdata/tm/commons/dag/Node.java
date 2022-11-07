@@ -221,14 +221,18 @@ public abstract class Node<S> extends Element{
                     //需要保存的地方就可以存储异步推演的内容
                     log.info("save transform schema");
                     outputSchema = saveSchema(predecessors, nodeId, changedSchema, options);
-                    List<String> sourceQualifiedNames;
+                    List<String> sourceQualifiedNames = new ArrayList<>();
                     if (outputSchema instanceof List) {
                         List<Schema> outTemp = (List<Schema>) outputSchema;
-                        sourceQualifiedNames = outTemp.stream().map(Schema::getQualifiedName).collect(Collectors.toList());
+                        if (CollectionUtils.isNotEmpty(outTemp)) {
+                            sourceQualifiedNames = outTemp.stream().map(Schema::getQualifiedName).collect(Collectors.toList());
+                        }
                     } else {
                         Schema outputSchema = (Schema) this.outputSchema;
                         sourceQualifiedNames = new ArrayList<>();
-                        sourceQualifiedNames.add(outputSchema.getQualifiedName());
+                        if (outputSchema != null) {
+                            sourceQualifiedNames.add(outputSchema.getQualifiedName());
+                        }
                     }
                     service.upsertTransformTemp(this.listener.getSchemaTransformResult(nodeId), taskId, nodeId, tableSize(), sourceQualifiedNames, version);
                 } catch (Exception e) {

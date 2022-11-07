@@ -80,6 +80,7 @@ public class DataSourceEntity extends BaseEntity {
     private Long tableCount;
     /** 检测时间 */
     private Long testTime;
+    private Integer testCount;
 
     private String database_host;
     private String database_username;

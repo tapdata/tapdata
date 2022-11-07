@@ -42,7 +42,7 @@ public class BeanAnnotationHandler extends ClassAnnotationHandler {
     @Override
     public void handle(Set<Class<?>> classes) throws CoreException {
         if(classes != null) {
-            TapLogger.info(TAG, "--------------Implementation Classes Start-------------");
+            TapLogger.debug(TAG, "--------------Implementation Classes Start-------------");
             for(Class<?> clazz : classes) {
                 Bean bean = clazz.getAnnotation(Bean.class);
                 if(bean != null) {
@@ -68,15 +68,15 @@ public class BeanAnnotationHandler extends ClassAnnotationHandler {
                         TapLogger.warn(TAG, "Bean {} don't have non-args public constructor, will be ignored, message {}", clazz, canNotInitialized);
                         continue;
                     }
-                    TapLogger.info(TAG, "Found implementation class {}", clazz);
+                    TapLogger.debug(TAG, "Found implementation class {}", clazz);
                     long time = System.currentTimeMillis();
                     InstanceFactory.bean(clazz);
-                    TapLogger.info(TAG, "Bean implementation class {} takes {}", clazz, (System.currentTimeMillis() - time));
+                    TapLogger.debug(TAG, "Bean implementation class {} takes {}", clazz, (System.currentTimeMillis() - time));
                 }
             }
-            TapLogger.info(TAG, "--------------Implementation Classes End-------------");
+            TapLogger.debug(TAG, "--------------Implementation Classes End-------------");
             InstanceFactory.injectBeans();
-            TapLogger.info(TAG, "--------------Beans are all injected-------------");
+            TapLogger.debug(TAG, "--------------Beans are all injected-------------");
             for(MainMethodWrapper mainMethodWrapper : mainMethodList) {
                 Object beanObj = InstanceFactory.bean(mainMethodWrapper.theClass);
                 if(beanObj != null) {
