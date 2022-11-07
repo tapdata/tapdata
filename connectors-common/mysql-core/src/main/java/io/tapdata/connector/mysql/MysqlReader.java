@@ -33,6 +33,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -119,10 +120,9 @@ public class MysqlReader implements Closeable {
 							if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
 								value = rs.getString(i + 1);
 							} else {
-								if (dateTypeSet.contains(columnName)) {
+								value = rs.getObject(i + 1);
+								if (EmptyKit.isNull(value)) {
 									value = rs.getString(i + 1);
-								} else {
-									value = rs.getObject(i + 1);
 								}
 							}
 							data.put(columnName, value);
