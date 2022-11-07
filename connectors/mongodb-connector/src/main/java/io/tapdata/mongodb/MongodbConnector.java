@@ -353,7 +353,6 @@ public class MongodbConnector extends ConnectorBase {
 			return new TapStringValue(code.getCode());
 		});
 		codecRegistry.registerToTapValue(Decimal128.class, (value, tapType) -> {
-
 			Decimal128 decimal128 = (Decimal128) value;
 			return new TapNumberValue(decimal128.doubleValue());
 		});
