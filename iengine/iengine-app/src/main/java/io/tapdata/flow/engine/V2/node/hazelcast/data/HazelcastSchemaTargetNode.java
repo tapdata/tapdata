@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 
 import com.hazelcast.jet.core.Inbox;
+import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.schema.SchemaApplyResult;
@@ -163,6 +164,9 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	protected void doClose() throws Exception {
 		super.doClose();
 		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.oldTapTableMap).ifPresent(TapTableMap::reset), HazelcastSchemaTargetNode.class.getSimpleName());
+		if (this.engine instanceof GraalJSScriptEngine) {
+			((GraalJSScriptEngine) this.engine).close();
+		}
 	}
 
 	@NotNull
