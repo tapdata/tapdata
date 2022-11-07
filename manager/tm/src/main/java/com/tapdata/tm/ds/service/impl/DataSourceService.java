@@ -1049,7 +1049,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			log.debug("loadFieldsStatus is finished, update model delete flag");
 			// handle delete model, not match schemaVersion will update is_deleted to true
 			Criteria criteria = Criteria.where("is_deleted").ne(true).and("source._id").is(datasourceId)
-					.and("lastUpdate").ne(schemaVersion).and("taskId").exists(false);;
+					.and("lastUpdate").ne(schemaVersion).and("taskId").exists(false).and("meta_type").ne("database");
 			log.info("Delete metadata update filter: {}", criteria);
 			Query query = new Query(criteria);
 			Update update = Update.update("is_deleted", true);
@@ -1243,6 +1243,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 
 				databaseModel.setSourceType(SourceTypeEnum.SOURCE.name());
+				databaseModel.setDeleted(false);
 
 				databaseModel = metadataInstancesService.upsertByWhere(Where.where("qualified_name", databaseModel.getQualifiedName()), databaseModel, user);
 				String databaseId = databaseModel.getId().toHexString();
