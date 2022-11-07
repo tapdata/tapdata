@@ -1,16 +1,19 @@
 package io.tapdata.proxy.connection;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.service.node.connection.Receiver;
+import io.tapdata.pdk.core.utils.TapConstants;
 import net.jodah.typetools.TypeResolver;
 
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
-import static io.tapdata.entity.simplify.TapSimplify.fromJson;
 
 public class ReceiverEntity<Response, Request> {
 	Receiver<Response, Request> receiver;
@@ -39,7 +42,7 @@ public class ReceiverEntity<Response, Request> {
 		switch (encode) {
 			case Data.ENCODE_JSON:
 				String jsonStr = new String(data, StandardCharsets.UTF_8);
-				request = fromJson(jsonStr, requestClass);
+				request = Objects.requireNonNull(InstanceFactory.instance(JsonParser.class)).fromJson(jsonStr, requestClass, TapConstants.abstractClassDetectors);
 				break;
 			default:
 				biConsumer.accept(null, new CoreException(NetErrors.UNSUPPORTED_ENCODE, "Unsupported encode {} for ReceiverEntity", encode));

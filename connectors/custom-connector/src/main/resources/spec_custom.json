@@ -1,0 +1,446 @@
+{
+  "properties": {
+    "name": "Custom Connection",
+    "icon": "icons/custom.png",
+    "doc": "${doc}",
+    "id": "custom"
+  },
+  "configOptions": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "collectionName": {
+          "type": "string",
+          "title": "${collectionName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "required": true,
+          "x-reactions": {
+            "dependencies": [
+              "__TAPDATA.connection_type",
+              "collectionName"
+            ],
+            "fulfill": {
+              "schema": {
+                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"target\" ? true:false}}"
+              }
+            }
+          },
+          "x-index": 10
+        },
+        "uniqueKeys": {
+          "type": "string",
+          "title": "${uniqueKeys}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "required": true,
+          "x-reactions": {
+            "dependencies": [
+              "__TAPDATA.connection_type",
+              "uniqueKeys"
+            ],
+            "fulfill": {
+              "schema": {
+                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"target\" ? true:false}}"
+              }
+            }
+          },
+          "x-index": 20
+        },
+        "syncType": {
+          "type": "string",
+          "title": "${syncType}",
+          "default": "initial_sync",
+          "enum": [
+            {
+              "label": "${custom_type_initial_sync}",
+              "value": "initial_sync"
+            },
+            {
+              "label": "${custom_type_cdc}",
+              "value": "cdc"
+            },
+            {
+              "label": "${custom_type_initial_sync_cdc}",
+              "value": "initial_sync+cdc"
+            }
+          ],
+          "x-decorator": "FormItem",
+          "required": true,
+          "x-component": "Select",
+          "x-reactions": {
+            "dependencies": [
+              "__TAPDATA.connection_type",
+              "syncType"
+            ],
+            "fulfill": {
+              "schema": {
+                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"target\" ? true:false}}"
+              }
+            }
+          },
+          "x-index": 30
+        },
+        "jsEngineName": {
+          "type": "string",
+          "title": "${jsEngineName}",
+          "default": "graal.js",
+          "enum": [
+            {
+              "label": "${jsEngineName_graal}",
+              "value": "graal.js"
+            },
+            {
+              "label": "${jsEngineName_nashorn}",
+              "value": "nashorn"
+            }
+          ],
+          "x-decorator": "FormItem",
+          "required": true,
+          "x-component": "Select",
+          "x-index": 40
+        },
+        "customBeforeOpr": {
+          "type": "boolean",
+          "title": "${customBeforeOpr}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "required": true,
+          "default": false,
+          "show": false,
+          "x-reactions": [
+            {
+              "target": "customBeforeScript",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ],
+          "x-index": 50
+        },
+        "customBeforeScript": {
+          "title": " ",
+          "type": "string",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "gridSpan": 2,
+            "colon": false
+          },
+          "x-component": "JsEditor",
+          "x-component-props": {
+            "height": 240,
+            "before": "function before() {",
+            "after": "}",
+            "theme": "one_dark"
+          },
+          "x-index": 60
+        },
+        "targetScripTitle": {
+          "title": "${targetScript}",
+          "type": "void",
+          "x-decorator": "FormItem",
+          "x-component": "Text",
+          "x-component-props": {
+            "content": "data = [{ // data is an array\nop : \" i \", // i - insert, u - update, d - delete\nfrom : \" \", // source table name\ndata : { }, // master data\n}]"
+          },
+          "x-reactions": {
+            "dependencies": [
+              "__TAPDATA.connection_type"
+            ],
+            "fulfill": {
+              "schema": {
+                "x-decorator-props.style.display": "{{$deps[0]!==\"source\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"source\" ? true:false}}"
+              }
+            }
+          },
+          "x-index": 61
+        },
+        "targetScript": {
+          "title": " ",
+          "type": "string",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "gridSpan": 2,
+            "colon": false
+          },
+          "x-component": "JsEditor",
+          "x-component-props": {
+            "height": 240,
+            "before": "function onData(data) {",
+            "after": "}",
+            "theme": "one_dark"
+          },
+          "x-reactions": {
+            "dependencies": [
+              "__TAPDATA.connection_type"
+            ],
+            "fulfill": {
+              "schema": {
+                "x-decorator-props.style.display": "{{$deps[0]!==\"source\" ? null:\"none\"}}"
+              }
+            }
+          },
+          "x-index": 70
+        },
+        "cdcScript": {
+          "title": "${cdcScript}",
+          "type": "string",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "gridSpan": 2
+          },
+          "x-component": "JsEditor",
+          "x-component-props": {
+            "height": 240,
+            "before": "function requestData(ctx) {",
+            "after": "}",
+            "theme": "one_dark"
+          },
+          "x-reactions": {
+            "dependencies": [
+              "__TAPDATA.connection_type",
+              "syncType"
+            ],
+            "fulfill": {
+              "schema": {
+                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" && $deps[1]!==\"initial_sync\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"target\" && $deps[1]!==\"initial_sync\" ? true:false}}"
+              }
+            }
+          },
+          "x-index": 80
+        },
+        "historyScript": {
+          "title": "${historyScript}",
+          "type": "string",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "gridSpan": 2
+          },
+          "x-component": "JsEditor",
+          "x-component-props": {
+            "height": 240,
+            "before": "function requestData() {",
+            "after": "}",
+            "theme": "one_dark"
+          },
+          "x-reactions": {
+            "dependencies": [
+              "__TAPDATA.connection_type",
+              "syncType"
+            ],
+            "fulfill": {
+              "schema": {
+                "x-decorator-props.style.display": "{{$deps[0]!==\"target\" && $deps[1]!==\"cdc\" ? null:\"none\"}}",
+                "required": "{{$deps[0]!==\"target\" && $deps[1]!==\"cdc\" ? true:false}}"
+              }
+            }
+          },
+          "x-index": 90
+        },
+        "customAfterOpr": {
+          "type": "boolean",
+          "title": "${customAfterOpr}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "required": true,
+          "default": false,
+          "show": false,
+          "x-reactions": [
+            {
+              "target": "customAfterScript",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ],
+          "x-index": 100
+        },
+        "customAfterScript": {
+          "title": " ",
+          "type": "string",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "gridSpan": 2,
+            "colon": false
+          },
+          "x-component": "JsEditor",
+          "x-component-props": {
+            "height": 240,
+            "before": "function after() {",
+            "after": "}",
+            "theme": "one_dark"
+          },
+          "x-index": 110
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/custom_en_US.md",
+      "collectionName": "collection name",
+      "uniqueKeys": "Unique Primary Keys",
+      "syncType": "Sync method",
+      "custom_type_initial_sync": "Historical Data",
+      "custom_type_cdc": "Incremental data",
+      "custom_type_initial_sync_cdc": "Historical and incremental data",
+      "jsEngineName": "JS Engine Version",
+      "jsEngineName_graal": "New version",
+      "jsEngineName_nashorn": "Legacy",
+      "customBeforeOpr": "Pre-Opr",
+      "targetScript": "Target data processing script",
+      "cdcScript": "Incremental Data Script",
+      "historyScript": "History Script",
+      "customAfterOpr": "After operation"
+    },
+    "zh_CN": {
+      "doc": "docs/custom_zh_CN.md",
+      "collectionName": "集合名称",
+      "uniqueKeys": "唯一主键",
+      "syncType": "同步方式",
+      "custom_type_initial_sync": "历史数据",
+      "custom_type_cdc": "增量数据",
+      "custom_type_initial_sync_cdc": "历史数据和增量数据",
+      "jsEngineName": "JS引擎版本",
+      "jsEngineName_graal": "新版",
+      "jsEngineName_nashorn": "旧版",
+      "customBeforeOpr": "前置操作",
+      "targetScript": "目标数据处理脚本",
+      "cdcScript": "增量数据脚本",
+      "historyScript": "历史数据脚本",
+      "customAfterOpr": "后置操作"
+    },
+    "zh_TW": {
+      "doc": "docs/custom_zh_TW.md",
+      "collectionName": "集合名稱",
+      "uniqueKeys": "唯一主鍵",
+      "syncType": "同步方式",
+      "custom_type_initial_sync": "歷史數據",
+      "custom_type_cdc": "增量數據",
+      "custom_type_initial_sync_cdc": "歷史數據和增量數據",
+      "jsEngineName": "JS引擎版本",
+      "jsEngineName_graal": "新版",
+      "jsEngineName_nashorn": "舊版",
+      "customBeforeOpr": "前置操作",
+      "targetScript": "目標數據處理腳本",
+      "cdcScript": "增量數據腳本",
+      "historyScript": "歷史數據腳本",
+      "customAfterOpr": "後置操作"
+    }
+  },
+  "dataTypes": {
+    "ScriptObjectMirror": {
+      "to": "TapMap"
+    },
+    "Map": {
+      "to": "TapMap"
+    },
+    "List": {
+      "to": "TapArray"
+    },
+    "BigDecimal": {
+      "precision": [
+        1,
+        1000
+      ],
+      "scale": [
+        0,
+        1000
+      ],
+      "fixed": true,
+      "preferPrecision": 20,
+      "preferScale": 8,
+      "priority": 1,
+      "to": "TapNumber"
+    },
+    "Short": {
+      "to": "TapNumber",
+      "bit": 16,
+      "value": [
+        -32768,
+        32767
+      ],
+      "precision": 5
+    },
+    "Integer": {
+      "bit": 32,
+      "priority": 1,
+      "value": [
+        -2147483648,
+        2147483647
+      ],
+      "to": "TapNumber"
+    },
+    "Long": {
+      "to": "TapNumber",
+      "bit": 64,
+      "precision": 19,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ]
+    },
+    "Float": {
+      "bit": 32,
+      "priority": 2,
+      "precision": [
+        1,
+        6
+      ],
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "Double": {
+      "priority": 2,
+      "precision": [
+        1,
+        17
+      ],
+      "preferPrecision": 11,
+      "preferScale": 4,
+      "scale": [
+        0,
+        17
+      ],
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "Boolean": {
+      "to": "TapBoolean"
+    },
+    "String": {
+      "byte": 200,
+      "priority": 1,
+      "defaultByte": 200,
+      "preferByte": 200,
+      "to": "TapString"
+    },
+    "Text": {
+      "to": "TapString"
+    },
+    "Date": {
+      "range": [
+        "1000-01-01 00:00:00.000",
+        "9999-12-31 23:59:59.999"
+      ],
+      "defaultFraction": 3,
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSS",
+      "priority": 1,
+      "to": "TapDateTime"
+    }
+  }
+}

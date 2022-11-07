@@ -146,10 +146,6 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         return matterList;
     }
 
-    private boolean stopRead = false;
-    public void stopRead(){
-        stopRead = true;
-    }
     @Override
     public Long streamReadTime() {
         return 1*60*1000l;
@@ -164,12 +160,12 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         Map<String,Object> resultMap = http.post();
         Object response = resultMap.get("Response");
         if (null == response){
-            return null;
+            throw new CoreException("can not get iteration list, the 'Response' is empty or null.");
         }
         Map<String,Object> responseMap = (Map<String,Object>)response;
         Object dataObj = responseMap.get("data");
         if (null == dataObj){
-            return null;
+            throw new CoreException("can not get iteration list, the 'data' is empty or null.");
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object listObj = data.get("List");
@@ -228,7 +224,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         Param param = IterationParam.create().limit(1).offset(1);
         Map<String,Object> resultMap = this.codingHttp((IterationParam)param).post();
         Object response = resultMap.get("Response");
@@ -242,7 +238,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object totalRowObj = data.get("TotalRow");
-        return null !=  totalRowObj ? (Long) totalRowObj : 0;
+        return null !=  totalRowObj ? (Integer) totalRowObj : 0;
     }
 
     @Override
@@ -332,7 +328,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         if (Checker.isEmpty(issueEvent)) return null;
         if (!TABLE_NAME.equals(issueEvent.getEventGroup())) return null;//拒绝处理非此表相关事件
 
-        String evenType = issueEvent.getEventType();
+        String eventType = issueEvent.getEventType();
         TapEvent event = null;
 
         Object iterationObj = issueEventData.get("iteration");
@@ -341,23 +337,23 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         }
         Map<String,Object> iteration = (Map<String, Object>)iterationObj;
 
-        Map<String, Object> schemaMap = SchemaStart.getSchemaByName(TABLE_NAME).autoSchema(iteration);
+        Map<String, Object> iterationMap = SchemaStart.getSchemaByName(TABLE_NAME).autoSchema(iteration);
 
-        Object referenceTimeObj = schemaMap.get("UpdatedAt");
+        Object referenceTimeObj = iterationMap.get("UpdatedAt");
         Long referenceTime = Checker.isEmpty(referenceTimeObj)?System.currentTimeMillis():(Long)referenceTimeObj;
 
-        switch (evenType){
+        switch (eventType){
             case DELETED_EVENT:{
-                event = TapSimplify.deleteDMLEvent(schemaMap, TABLE_NAME).referenceTime(referenceTime)  ;
+                event = TapSimplify.deleteDMLEvent(iterationMap, TABLE_NAME).referenceTime(referenceTime)  ;
             };break;
             case UPDATE_EVENT:{
-                event = TapSimplify.updateDMLEvent(null,schemaMap, TABLE_NAME).referenceTime(referenceTime) ;
+                event = TapSimplify.updateDMLEvent(null,iterationMap, TABLE_NAME).referenceTime(referenceTime) ;
             };break;
             case CREATED_EVENT:{
-                event = TapSimplify.insertRecordEvent(schemaMap, TABLE_NAME).referenceTime(referenceTime)  ;
+                event = TapSimplify.insertRecordEvent(iterationMap, TABLE_NAME).referenceTime(referenceTime)  ;
             };break;
         }
-
+        TapLogger.debug(TAG,"From WebHook coding completed a event [{}] for [{}] table: event data is - {}",eventType,TABLE_NAME,iterationMap);
         return Collections.singletonList(event);
     }
 
@@ -374,7 +370,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                 .offset(startPage);
         CodingHttp codingHttp = this.codingHttp((IterationParam)param);
         List<TapEvent> events = new ArrayList<>();
-        while (true) {
+        while (this.sync()) {
             Map<String,Object> resultMap = codingHttp.buildBody("Offset",startPage).post();
             Object response = resultMap.get("Response");
             if (null == response){
@@ -419,6 +415,9 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
             }else {
                 break;
             }
+        }
+        if (!this.sync()) {
+            this.connectorOut();
         }
         if (events.size() > 0)  consumer.accept(events, offset);
     }

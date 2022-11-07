@@ -3,11 +3,10 @@ package io.tapdata.zoho.utils;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONNull;
 import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import io.tapdata.zoho.enums.Constants;
 
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
 
 import static io.tapdata.base.ConnectorBase.entry;
 import static io.tapdata.base.ConnectorBase.map;
@@ -15,6 +14,49 @@ import static io.tapdata.base.ConnectorBase.map;
 public class MapUtil {
     public final static String DOT = ".";
     public final static String DOT_REGEX = "\\.";
+
+    /**
+     * 根据Key去除value，如果是指定Map，就完整拍平，以key为做所有子属性的前缀，不是Map类型先不操作
+     * */
+    public static void fullFlat(Map<String,Object> map,String key){
+        if (null == map || map.isEmpty()) return;
+        Object value = map.get(key);
+        if (null == value) return;
+        if (value instanceof Map){
+            map.remove(key);
+            Map<String,Object> keyMap = (Map<String,Object>)value;
+            keyMap.forEach((k,v)->map.put(key+"_"+k,v));
+        }
+    }
+    /**
+     * 把指定key的值转String
+     * */
+    public static void valueToString(Map<String,Object> map,String key){
+        if (null == map || map.isEmpty()) return;
+        Object value = map.get(key);
+        if (null == value) return;
+        map.put(key, JSONUtil.toJsonStr(value));
+    }
+
+    public static void main(String[] args) {
+        Map<String,Object> map = new HashMap<String,Object>(){{
+            put("key","1");
+            put("key2",new ArrayList<Map<String,Object>>(){{
+                put("key",112);
+                put("key2","22");
+            }});
+            put("key3",new HashMap<String,Object>(){{
+                put("key1",111);
+                put("key2",222);
+            }});
+        }};
+        long start = System.currentTimeMillis();
+        for (long i = 0; i < 1000000000L; i++) {
+            map.put("key3",JSONUtil.toJsonStr(map.get("key3")));
+        }
+        System.out.println(System.currentTimeMillis() - start);
+        System.out.println(map.get("key3"));
+    }
     /**
      * 根据点号分割向下获取值，结果的key遇点第一个字母大写并去除逗号
      * **/

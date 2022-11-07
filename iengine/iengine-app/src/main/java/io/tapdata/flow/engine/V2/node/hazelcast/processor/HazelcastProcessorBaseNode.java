@@ -27,6 +27,11 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	private TapdataEvent pendingEvent;
 
+	/**
+	 * Ignore process
+	 */
+	private boolean ignore;
+
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
 	}
@@ -49,7 +54,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						.processorBaseContext(getProcessorBaseContext())
 						.inputEvent(tapdataEvent)
 						.start(), (processorNodeProcessAspect) -> {
-					if (null == tapdataEvent.getTapEvent()) {
+					if (null == tapdataEvent.getTapEvent() || ignore) {
 						// control tapdata event, skip the process consider process is done
 						processedEvent.set(tapdataEvent);
 						if (null != processorNodeProcessAspect) {
@@ -112,6 +117,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	}
 
 	protected abstract void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer);
+
+	protected void setIgnore(boolean ignore) {
+		this.ignore = ignore;
+	}
 
 	protected static class ProcessResult {
 		private String tableId;

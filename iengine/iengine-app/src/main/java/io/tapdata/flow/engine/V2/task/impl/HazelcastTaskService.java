@@ -134,7 +134,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto));
 
 			final JetDag jetDag = task2HazelcastDAG(taskDto);
-//			MilestoneFlowServiceJetV2 milestoneFlowServiceJetV2 = initMilestone(taskDto);
 
 			JobConfig jobConfig = new JobConfig();
 			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());

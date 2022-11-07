@@ -1,6 +1,10 @@
 package com.tapdata.tm.autoinspect.entity;
 
+import cn.hutool.crypto.digest.MD5;
 import com.tapdata.tm.autoinspect.constants.CompareStatus;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.type.*;
+import io.tapdata.entity.schema.value.DateTime;
 import lombok.Data;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
@@ -28,12 +32,33 @@ public class CompareRecord {
         this.connectionId = connectionId;
     }
 
-    public CompareRecord(@NonNull String tableName, @NonNull ObjectId connectionId, @NonNull LinkedHashMap<String, Object> originalKey, @NonNull LinkedHashSet<String> keyNames, Map<String, Object> data) {
+    public CompareRecord(@NonNull String tableName, @NonNull ObjectId connectionId, @NonNull LinkedHashMap<String, Object> originalKey, @NonNull LinkedHashSet<String> keyNames) {
         this.tableName = tableName;
         this.connectionId = connectionId;
         this.originalKey = originalKey;
         this.keyNames = keyNames;
-        this.data = data;
+    }
+
+    public void setData(Map<String, Object> data) {
+        if (null == data) {
+            this.data = null;
+            return;
+        }
+
+        this.data = new LinkedHashMap<>();
+        this.data.putAll(data);
+    }
+
+    public void setData(Map<String, Object> data, Map<String, TapField> tapFieldMap) {
+        if (null == data) {
+            this.data = null;
+            return;
+        }
+
+        this.data = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> en : data.entrySet()) {
+            this.data.put(en.getKey(), parse(tapFieldMap.get(en.getKey()), en.getKey(), en.getValue()));
+        }
     }
 
     public Object getDataValue(@NonNull String key) {
@@ -59,7 +84,7 @@ public class CompareRecord {
                 return CompareStatus.MoveTarget;
             }
 
-            if (v1 instanceof Comparable && v2 instanceof Comparable) {
+            if (v1 instanceof Comparable && v1.getClass().equals(v2.getClass())) {
                 compareValue = ((Comparable) v1).compareTo(v2);
             } else {
                 compareValue = v1.hashCode() - v2.hashCode();
@@ -82,8 +107,8 @@ public class CompareRecord {
             Map<String, Object> omap = targetData.getData();
             for (String key : this.getData().keySet()) {
                 //check null value
-                odata = omap.compute(key, this::parse);
-                ndata = this.getData().compute(key, this::parse);
+                odata = omap.get(key);
+                ndata = this.getDataValue(key);
 
                 //filter keys
                 if (this.getKeyNames().contains(key)) continue;
@@ -110,16 +135,35 @@ public class CompareRecord {
         return compareStatus;
     }
 
-    public Object parse(String k, Object v) {
+    public Object parse(TapField field, String k, Object v) {
         if (null == v) return null;
 
-        if (v instanceof String) {
-            return v;
-        } else if (v instanceof ObjectId) {
-            return ((ObjectId) v).toHexString();
-        } else if (v instanceof Date) {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM_dd HH:mm:ss.S");
-            return sdf.format(v);
+        if (v instanceof DateTime) {
+            if (field.getTapType() instanceof TapDateTime) {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+                return sdf.format(((DateTime) v).toDate());
+            } else if (field.getTapType() instanceof TapDate) {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+                return sdf.format(((DateTime) v).toDate());
+            } else if (field.getTapType() instanceof TapTime) {
+                return ((DateTime) v).toTime();
+            } else if (field.getTapType() instanceof TapYear) {
+                return String.valueOf(((DateTime) v).toSqlDate().toLocalDate().getYear());
+            }
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+            return sdf.format(((DateTime) v).toDate());
+        } else if (v instanceof byte[]) {
+            byte[] tmp = (byte[]) v;
+            if (tmp.length == 0) {
+                return "";
+            }
+            return MD5.create().digestHex(tmp) + "(" + tmp.length + ")";
+        } else if (field.getTapType() instanceof TapNumber) {
+            String tmp = v.toString();
+            if (tmp.endsWith(".0")) {
+                tmp = tmp.substring(0, tmp.length() - 2);
+            }
+            v = tmp;
         }
         return v.toString();
     }

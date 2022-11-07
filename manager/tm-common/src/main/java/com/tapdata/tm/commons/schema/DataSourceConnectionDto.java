@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.schema;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.bean.FileSources;
@@ -13,10 +14,7 @@ import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.mapping.Field;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TimeZone;
+import java.util.*;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -286,6 +284,14 @@ public class DataSourceConnectionDto extends BaseDto {
                         return Lists.newArrayList(accessNodeProcessId);
                 } else {
                         return Lists.newArrayList();
+                }
+        }
+        public List<String> getTrueAccessNodeProcessIdList() {
+                if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeType)
+                        &&StringUtils.isNotBlank(accessNodeProcessId)) {
+                        return Lists.newArrayList(accessNodeProcessId);
+                } else {
+                        return null;
                 }
         }
 

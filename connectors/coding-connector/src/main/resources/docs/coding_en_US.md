@@ -9,7 +9,7 @@ It can also be obtained intuitively in your coding link, such as：https://{team
     Go to Coding to enter personal account settings ->
     Find the access token in the left menu ->
     Click New Token -> 
-    Enter the token description, select the expiration event, select the corresponding permission, and click Save -> 
+    Enter the token description, select the expiration time, select the corresponding permission, and click Save -> 
     Copy the generated token and go to the connection page.
 ```
 - Go to get your access token: https://tapdata.coding.net/user/account/setting/tokens
@@ -47,6 +47,7 @@ It can also be obtained intuitively in your coding link, such as：https://{team
 ...
 
 ### **4. Data description**
+Any table that supports incremental polling cannot listen to and handle deletion events when executing incremental polling (all modification events are handled as insert events). If specific event differentiation is required, please select the WebHook incremental mode (limited to the SaaS platform, not all tables support webHook incremental)
 #### **4.1 Issue table-Issues**
 - The list contains all types including requirements, iterations, tasks, epics, and custom types.
 - The incremental event cannot be known accurately in the polling mode, so it is uniformly treated as a new event.

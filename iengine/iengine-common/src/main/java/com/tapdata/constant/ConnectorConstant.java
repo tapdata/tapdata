@@ -126,6 +126,7 @@ public class ConnectorConstant {
 	public static final String JAVASCRIPT_FUNCTION_COLLECTION = "Javascript_functions";
 	public static final String CDC_EVENTS_COLLECTION = "CdcEvents";
 	public static final String METADATA_HISTROY_COLLECTION = "metadata/history";
+	public static final String TASK_RESET_LOGS_COLLECTION = "TaskResetLogs";
 	public static final String SUBTASK_PROGRESS = "TaskProgress";
 
 	public static final String OFFSET_MONGO_SERVER_URI = "offset.mongo.server.uri";
@@ -278,8 +279,8 @@ public class ConnectorConstant {
 	public final static String LOAD_SETTINGS_THREAD = "%s Load Settings Handler[%s]";
 	public final static String CLEAR_TRIGGER_LOG_THREAD = "%s Clear Trigger Log Handler[%s]";
 	public final static String CLEAR_GRIDFS_EXPIRED_FILE_THREAD = "%s Clear Gridfs Expired File Handler[%s]";
-	public final static String START_DATAFLOW_THREAD = "Start Dataflow Handler[%s]";
-	public final static String STATS_DATAFLOW_THREAD = "Stats Dataflow Handler[%s]";
+	public final static String START_DATAFLOW_THREAD = "Start Task Handler[%s]";
+	public final static String STATS_DATAFLOW_THREAD = "Stats Task Handler[%s]";
 
 	/**
 	 * ================== stats status ==================

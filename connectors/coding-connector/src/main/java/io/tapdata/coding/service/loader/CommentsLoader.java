@@ -6,6 +6,7 @@ import io.tapdata.coding.entity.param.CommentParam;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -28,10 +29,7 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
     public static CommentsLoader create(TapConnectionContext tapConnectionContext) {
         return new CommentsLoader(tapConnectionContext);
     }
-    private boolean stopRead = false;
-    public void stopRead(){
-        stopRead = true;
-    }
+
     @Override
     public Long streamReadTime() {
         long streamReadTime = 5 * 60 * 1000;
@@ -88,9 +86,13 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
         List<Integer> issueCodes = contextConfig.issueCodes();
         List<TapEvent> events = new ArrayList<>();
         if (Checker.isEmpty(issueCodes)){
-            return ;
+            throw new CoreException("Please select at least one issues to get the comment list.");
         }
         for (Integer issueCode : issueCodes) {
+            if (!this.sync()){
+                this.connectorOut();
+                break;
+            }
             param.issueCode(issueCode);
             Map<String,Object> resultMap = codingHttp.buildBody("IssueCode",issueCode).post();
             Object response = resultMap.get("CommentList");
@@ -118,7 +120,7 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         return 0;
     }
 

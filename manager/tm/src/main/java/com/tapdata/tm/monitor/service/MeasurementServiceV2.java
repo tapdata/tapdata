@@ -1,9 +1,12 @@
 package com.tapdata.tm.monitor.service;
 
+import cn.hutool.core.date.DateTime;
+import cn.hutool.core.date.DateUtil;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -24,6 +27,7 @@ import io.tapdata.common.sample.request.SampleRequest;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,14 +64,18 @@ public class MeasurementServiceV2 {
 
     private void addBulkAgentMeasurement(List<SampleRequest> sampleRequestList, String granularity) {
         BulkOperations bulkOperations = mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+        DateTime date = DateUtil.date();
         for (SampleRequest singleSampleRequest : sampleRequestList) {
             Criteria criteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(granularity);
-            Date theDate = TimeUtil.cleanTimeAfterMinute(new Date());
-            criteria.and(MeasurementEntity.FIELD_DATE).is(theDate);
 
             Map<String, String> tags = singleSampleRequest.getTags();
             if (null == tags || 0 == tags.size()) {
                 continue;
+            }
+
+            Date theDate = TimeUtil.cleanTimeAfterMinute(date);
+            if (!"table".equals(tags.get("type"))) {
+                criteria.and(MeasurementEntity.FIELD_DATE).is(theDate);
             }
 
             for (Map.Entry<String, String> entry : tags.entrySet()) {
@@ -75,20 +83,30 @@ public class MeasurementServiceV2 {
             }
             Query query = Query.query(criteria);
 
+            Date second = TimeUtil.cleanTimeAfterSecond(date);
+            singleSampleRequest.getSample().setDate(second);
+
             Map<String, Object> sampleMap = singleSampleRequest.getSample().toMap();
             Document upd = new Document();
             upd.put("$each", Collections.singletonList(sampleMap));
             upd.put("$slice", 200); //为了保护数组过长， 在出bug的情况下
             upd.put("$sort", new Document().append(Sample.FIELD_DATE, -1));
 
-            Update update = new Update().push(MeasurementEntity.FIELD_SAMPLES, upd)
+            Update update = new Update()
                     .min(MeasurementEntity.FIELD_FIRST, singleSampleRequest.getSample().getDate())
                     .max(MeasurementEntity.FIELD_LAST, singleSampleRequest.getSample().getDate());
+            if ("table".equals(tags.get("type"))) {
+                update.set(MeasurementEntity.FIELD_SAMPLES, Collections.singletonList(sampleMap));
+                update.set(MeasurementEntity.FIELD_DATE, theDate);
+            } else {
+                update.push(MeasurementEntity.FIELD_SAMPLES, upd);
+            }
+
             bulkOperations.upsert(query, update);
         }
 
         BulkWriteResult bulkWriteResult = bulkOperations.execute();
-        log.info("add bulkWriteResult,{}", bulkWriteResult);
+
     }
 
     private static final String TAG_FORMAT = String.format("%s.%%s", MeasurementEntity.FIELD_TAGS);
@@ -99,7 +117,12 @@ public class MeasurementServiceV2 {
 
 
     public Object getSamples(MeasurementQueryParam measurementQueryParam) {
+        Map<String, Object> ret = new HashMap<>();
         Map<String, List<Map<String, Object>>> data = new HashMap<>();
+
+        if (ObjectUtils.anyNull(measurementQueryParam.getStartAt(), measurementQueryParam.getEndAt())) {
+            return ret;
+        }
 
         long initialStart = measurementQueryParam.getStartAt();
         long initialEnd = measurementQueryParam.getEndAt();
@@ -168,7 +191,8 @@ public class MeasurementServiceV2 {
                                 query.fields().include(includedFields.toArray(new String[]{}));
                                 query.with(Sort.by(MeasurementEntity.FIELD_DATE).ascending());
 
-                                for (MeasurementEntity entity : mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME)) {
+                                List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+                                for (MeasurementEntity entity : measurementEntities) {
                                     String hash = hashTag(entity.getTags());
                                     continuousSamples.putIfAbsent(hash, new ArrayList<>());
                                     Sample sample = new Sample();
@@ -187,7 +211,6 @@ public class MeasurementServiceV2 {
             }
         }
 
-        Map<String, Object> ret = new HashMap<>();
         ret.put("samples", data);
         if (hasTimeline && null != timeline) {
             ret.put("time", timeline);
@@ -272,11 +295,19 @@ public class MeasurementServiceV2 {
         List<String> fields = querySample.getFields();
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
+
             Map<String, Number> values = new HashMap<>();
             for (Map.Entry<String, Number> entry : sample.getVs().entrySet()) {
                 if (fields.contains(entry.getKey())) {
                     values.put(entry.getKey(), entry.getValue());
                 }
+            }
+
+            Number snapshotRowTotal = values.get("snapshotRowTotal");
+            Number snapshotInsertRowTotal = values.get("snapshotInsertRowTotal");
+            if (Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowTotal)
+                    && snapshotInsertRowTotal.longValue() > snapshotRowTotal.longValue()) {
+                values.put("snapshotRowTotal", snapshotInsertRowTotal);
             }
             sample.setVs(values);
         }
@@ -677,23 +708,18 @@ public class MeasurementServiceV2 {
                 .and("tags.type").is("table")
                 .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
-        MatchOperation match = Aggregation.match(criteria);
-        GroupOperation group = Aggregation.group(MeasurementEntity.FIELD_TAGS)
-                .first(MeasurementEntity.FIELD_DATE).as(MeasurementEntity.FIELD_DATE)
-                .first(MeasurementEntity.FIELD_TAGS).as(MeasurementEntity.FIELD_TAGS)
-                .first(MeasurementEntity.FIELD_SAMPLES).as(MeasurementEntity.FIELD_SAMPLES);
+        TmPageable tmPageable = new TmPageable();
+        tmPageable.setPage(dto.getPage());
+        tmPageable.setSize(dto.getSize());
 
-        LimitOperation limit = Aggregation.limit(dto.getSize());
-        SkipOperation skip = Aggregation.skip(dto.getSize() * (dto.getPage() - 1));
-
-        // TODO(dexter): find out a more elegant way to get the aggregate size
-        // match should be at the first param, sort should be the second while group be the last
-        Aggregation cntAggregation = Aggregation.newAggregation(match, group);
-        AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(cntAggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
-        long total = results.getMappedResults().size();
-        if (total == 0) {
+        Query query = new Query(criteria);
+        long count = mongoOperations.count(query, MeasurementEntity.COLLECTION_NAME);
+        if (count == 0) {
             return new Page<>(0, Collections.emptyList());
         }
+
+        query.with(tmPageable);
+        List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
 
         // get table map from task dag
         AtomicReference<Map<String, String>> tableNameMap = new AtomicReference<>();
@@ -710,11 +736,7 @@ public class MeasurementServiceV2 {
         }
 
         List<TableSyncStaticVo> result = new ArrayList<>();
-        SortOperation sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending())
-                .and(Sort.by(String.format(TAG_FORMAT, "table")).ascending());
-        // match should be at the first param, sort should be the second while group be the last
-        Aggregation aggregation = Aggregation.newAggregation( match, sort, group, sort, skip, limit);
-        mongoOperations.aggregateStream(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class).forEachRemaining(measurementEntity -> {
+        for (MeasurementEntity measurementEntity : measurementEntities) {
             String originTable = measurementEntity.getTags().get("table");
             AtomicReference<String> originTableName = new AtomicReference<>();
             FunctionUtils.isTureOrFalse(hasTableRenameNode).trueOrFalseHandle(
@@ -723,14 +745,14 @@ public class MeasurementServiceV2 {
 
             List<Sample> samples = measurementEntity.getSamples();
             if (CollectionUtils.isEmpty(samples)) {
-                return;
+                continue;
             }
 
             Map<String, Number> vs = samples.get(0).getVs();
             long snapshotInsertRowTotal = vs.get("snapshotInsertRowTotal").longValue();
             long snapshotRowTotal = vs.get("snapshotRowTotal").longValue();
 
-            BigDecimal syncRate = BigDecimal.ZERO;
+            BigDecimal syncRate;
             if (snapshotRowTotal != 0) {
                 syncRate = new BigDecimal(snapshotInsertRowTotal).divide(new BigDecimal(snapshotRowTotal), 2, RoundingMode.HALF_UP);
             } else {
@@ -755,8 +777,12 @@ public class MeasurementServiceV2 {
             vo.setSyncRate(syncRate);
 
             result.add(vo);
-        });
+        }
 
-        return new Page<>(total, result);
+        return new Page<>(count, result);
+    }
+
+    public void delDataWhenTaskReset(String taskId) {
+        mongoOperations.remove(new Query(Criteria.where("tags.taskId").is(taskId)), MeasurementEntity.COLLECTION_NAME);
     }
 }

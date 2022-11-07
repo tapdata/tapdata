@@ -1,10 +1,6 @@
 package com.tapdata.tm.task.controller;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.google.common.collect.Maps;
-import com.google.gson.reflect.TypeToken;
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
@@ -45,7 +41,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.tapdata.entity.utils.JsonParser;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -57,6 +52,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -89,6 +85,8 @@ public class TaskController extends BaseController {
     private TaskRecordService taskRecordService;
     private WorkerService workerService;
     private AlarmService alarmService;
+
+    private TaskResetLogService taskResetLogService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -431,13 +429,18 @@ public class TaskController extends BaseController {
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
-        log.info("subTask updateByWhere, whereJson:{},reqBody:{}",whereJson,reqBody);
+//        log.info("subTask updateByWhere, whereJson:{},reqBody:{}",whereJson,reqBody);
         Where where = parseWhere(whereJson);
         Document update = Document.parse(reqBody);
         if (!update.containsKey("$set") && !update.containsKey("$setOnInsert") && !update.containsKey("$unset")) {
             Document _body = new Document();
             _body.put("$set", update);
             update = _body;
+        } else if (update.containsKey("$set")) {
+           Document ping = (Document) update.get("$set");
+           if (ping.containsKey("pingTime")) {
+               ping.put("pingTime", System.currentTimeMillis());
+           }
         }
 
         long count = taskService.updateByWhere(where, update, getLoginUser());
@@ -445,12 +448,6 @@ public class TaskController extends BaseController {
         countValue.put("count", count);
 
         Object id = where.get("_id");
-        if (count > 0) {
-            boolean containsKey = ((Document) update.get("$set")).containsKey("milestones");
-            if (containsKey) {
-                alarmService.checkFullAndCdcEvent(id.toString());
-            }
-        }
 
         //更新完任务，addMessage
         try {
@@ -465,8 +462,6 @@ public class TaskController extends BaseController {
                 } else if ("running".equals(status)) {
                     messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, getLoginUser());
                 }
-
-                alarmService.checkFullAndCdcEvent(taskDto.getId().toHexString());
             }
         } catch (Exception e) {
             log.error("任务状态添加 message 异常",e);
@@ -690,42 +685,46 @@ public class TaskController extends BaseController {
     }
 
     @PutMapping("batchStart")
-    public ResponseMessage<Void> batchStart(@RequestParam("taskIds") List<String> taskIds) {
+    public ResponseMessage<List<MutiResponseMessage>> batchStart(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        taskService.batchStart(taskObjectIds, getLoginUser());
-        return success();
+        List<MutiResponseMessage> responseMessages = taskService.batchStart(taskObjectIds, getLoginUser(), request);
+        return success(responseMessages);
     }
 
     @PutMapping("batchStop")
-    public ResponseMessage<Void> batchStop(@RequestParam("taskIds") List<String> taskIds) {
+    public ResponseMessage<List<MutiResponseMessage>> batchStop(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        taskService.batchStop(taskObjectIds, getLoginUser());
+        List<MutiResponseMessage> responseMessages = taskService.batchStop(taskObjectIds, getLoginUser(), request);
 
         //add message
         List<TaskEntity> taskEntityList = taskService.findByIds(taskObjectIds);
-        if (CollectionUtils.isNotEmpty(taskEntityList)) {
-            for (TaskEntity task : taskEntityList) {
-                messageService.addMigration(task.getName(), task.getId().toString(), MsgTypeEnum.PAUSED, Level.INFO, getLoginUser());
+        try {
+            if (CollectionUtils.isNotEmpty(taskEntityList)) {
+                for (TaskEntity task : taskEntityList) {
+                    messageService.addMigration(task.getName(), task.getId().toString(), MsgTypeEnum.PAUSED, Level.INFO, getLoginUser());
+                }
             }
+        } catch (Exception e) {
+            log.warn("add migration message error");
         }
-        return success();
+        return success(responseMessages);
     }
 
     @DeleteMapping("batchDelete")
-    public ResponseMessage<Void> batchDelete(@RequestParam("taskIds") List<String> taskIds) {
+    public ResponseMessage<List<MutiResponseMessage>> batchDelete(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        taskService.batchDelete(taskObjectIds, getLoginUser());
+        List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskObjectIds, getLoginUser(), request);
 
 
-        return success();
+        return success(responseMessages);
     }
 
     @Operation(summary = "重置任务接口")
     @PatchMapping("batchRenew")
-    public ResponseMessage<Void> batchRenew(@RequestParam("taskIds") List<String> taskIds) {
+    public ResponseMessage<List<MutiResponseMessage>> batchRenew(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        taskService.batchRenew(taskObjectIds, getLoginUser());
-        return success();
+        List<MutiResponseMessage> responseMessages = taskService.batchRenew(taskObjectIds, getLoginUser(), request);
+        return success(responseMessages);
     }
 
     @GetMapping("search/logCollector")
@@ -875,13 +874,17 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "check task repeat name")
     @PostMapping("checkName")
-    public ResponseMessage<Boolean> checkName(@RequestParam("name") String name
-            , @RequestParam(value = "id", required = false) String id) {
-        ObjectId objectId = null;
-        if (StringUtils.isNotBlank(id)) {
-            objectId = MongoUtils.toObjectId(id);
+    public ResponseMessage<Boolean> checkName(@RequestBody CheckNameReq req) {
+
+        if (StringUtils.isBlank(req.getName())) {
+            return success(true);
         }
-        return success(taskService.checkTaskNameNotError(name, getLoginUser(), objectId));
+
+        ObjectId objectId = null;
+        if (StringUtils.isNotBlank(req.getId())) {
+            objectId = MongoUtils.toObjectId(req.getId());
+        }
+        return success(taskService.checkTaskNameNotError(req.getName(), getLoginUser(), objectId));
     }
 
     @Operation(summary = "任务导出")
@@ -895,13 +898,12 @@ public class TaskController extends BaseController {
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
                                         @RequestParam String listtags) {
-        List<String> tags = JsonUtil.parseJson(listtags, new TypeToken<List<String>>() {}.getType());
-        List<Map<String, String>> collect = tags.stream().map(id -> {
-            Map<String, String> map = Maps.newHashMap();
-            map.put("id", id);
-            return map;
-        }).collect(Collectors.toList());
-        taskService.batchUpTask(file, getLoginUser(), cover, collect);
+        List<com.tapdata.tm.commons.schema.Tag> tags = Lists.newArrayList();
+        if (StringUtils.isNoneBlank(listtags)) {
+            List<String> array = JSON.parseArray(listtags, String.class);
+            tags = array.stream().map(s -> new com.tapdata.tm.commons.schema.Tag(s, s)).collect(Collectors.toList());
+        }
+        taskService.batchUpTask(file, getLoginUser(), cover, tags);
         return success();
     }
 

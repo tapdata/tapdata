@@ -1,11 +1,9 @@
 package io.tapdata.coding.service.schema;
 
-import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -22,7 +20,10 @@ public class Iterations implements SchemaStart {
     public String tableName() {
         return "Iterations";
     }
-
+    @Override
+    public boolean connection(TapConnectionContext tapConnectionContext) {
+        return false;
+    }
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
         /**
@@ -65,11 +66,6 @@ public class Iterations implements SchemaStart {
                 .add(field("Name", "StringMinor"))   //项目名称
                 .add(field("Status", "StringMinor"))   //项目名称
                 .add(field("Goal", "StringMinor"));                                              //名称
-    }
-
-    @Override
-    public TapTable csv(TapConnectionContext connectionContext) {
-        return null;
     }
 
     @Override

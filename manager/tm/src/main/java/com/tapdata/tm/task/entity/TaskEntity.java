@@ -129,7 +129,7 @@ public class TaskEntity extends BaseEntity {
      */
     private List<SchemaTransformerResult> metadataMappings;
 
-    private List<Map<String, String>> listtags;
+    private List<Tag> listtags;
 
     /**
      * 访问节点
@@ -159,6 +159,7 @@ public class TaskEntity extends BaseEntity {
      * 界面展示的任务开始时间
      */
     private Date startTime;
+    private Long lastStartDate;
     private Date stopTime;
 
     private HashSet<String> heartbeatTasks;
@@ -211,6 +212,10 @@ public class TaskEntity extends BaseEntity {
     private List<AlarmRuleDto> alarmRules;
 
     private Map<String, Object> logSetting;
+    private Integer resetTimes;
+
+    private Long currentEventTimestamp;
+    private Long snapshotDoneAt;
 
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";

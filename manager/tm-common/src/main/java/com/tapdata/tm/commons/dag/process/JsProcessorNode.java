@@ -4,7 +4,10 @@ import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
@@ -90,6 +93,9 @@ public class JsProcessorNode extends ProcessorNode {
         ////用于预跑数据得到模型
         TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, taskDtoCopy);
 
+        if (tapTable == null) {
+            return null;
+        }
 
         String expression = null;
         label:
@@ -107,13 +113,9 @@ public class JsProcessorNode extends ProcessorNode {
         }
 
         if (StringUtils.isNotBlank(expression)) {
-            PdkSchemaConvert.tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+            PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
         }
         Schema schema = PdkSchemaConvert.fromPdkSchema(tapTable);
-
-
-
-
 
         Schema schema1 = inputSchema.get(0);
         if (schema1 != null) {
@@ -135,8 +137,6 @@ public class JsProcessorNode extends ProcessorNode {
 
             List<Field> fields = schema.getFields();
 
-            Set<String> fieldNames = fields.stream().map(Field::getFieldName).collect(Collectors.toSet());
-
             if (CollectionUtils.isNotEmpty(fields)) {
                 for (Field field : fields) {
                     field.setDataTypeTemp(field.getDataType());
@@ -146,32 +146,14 @@ public class JsProcessorNode extends ProcessorNode {
                         field1.setDataType(field.getDataType());
                         field1.setColumnPosition(field.getColumnPosition());
                         field1.setTapType(field.getTapType());
+                        field1.setPrimaryKey(field.getPrimaryKey());
+                        field1.setPrimaryKeyPosition(field.getPrimaryKeyPosition());
                         BeanUtils.copyProperties(field1, field);
                     } else {
                         field.setSourceDbType(sourceDbType);
                     }
                 }
             }
-
-            List<TableIndex> indices = new ArrayList<>();
-
-            if (CollectionUtils.isNotEmpty(schema1.getIndices())) {
-                for (TableIndex index : schema1.getIndices()) {
-                    List<TableIndexColumn> columns = index.getColumns();
-                    List<TableIndexColumn> newColumns = new ArrayList<>();
-                    for (TableIndexColumn column : columns) {
-                        if (fieldNames.contains(column.getColumnName())){
-                            newColumns.add(column);
-                        }
-                    }
-                    if (CollectionUtils.isNotEmpty(newColumns)) {
-                        index.setColumns(newColumns);
-                        indices.add(index);
-                    }
-                }
-            }
-
-            schema.setIndices(indices);
         }
 
         return schema;

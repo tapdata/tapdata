@@ -507,6 +507,19 @@
 	  "defaultFraction": 0,
 	  "withTimeZone": true
 	},
+	"year[($fraction)]": {
+		  "to": "TapYear",
+		  "range": [
+			  "1901",
+			  "2155"
+		  ],
+		  "fraction": [
+			  0,
+			  4
+		  ],
+		  "defaultFraction": 4,
+		  "pattern": "yyyy"
+	},
 	"enum($enums)": {
 	  "name": "enum",
 	  "to": "TapString",

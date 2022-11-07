@@ -1,15 +1,15 @@
 package io.tapdata.coding.service.loader;
 
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.enums.CodingEvent;
-import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.tool.Checker;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -21,25 +21,32 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 public interface CodingLoader<T extends Param> {
+
+    static final String TAG = CodingLoader.class.getSimpleName();
     public Long streamReadTime();
-    public void stopRead();
+
+//    public void stopRead();
+
+    public CodingStarter connectorInit(CodingConnector codingConnector);
+
+    public CodingStarter connectorOut();
 
     public static CodingLoader<Param> loader(TapConnectionContext tapConnectionContext, String tableName){
         Class clz = null;
         try {
-            clz = Class.forName(CodingLoader.class.getPackage().getName() + "." + tableName+"Loader");
+            clz = Class.forName( "io.tapdata.coding.service.loader." + tableName+"Loader");//CodingLoader.class.getPackage().getName()
             Constructor com = clz.getConstructor(TapConnectionContext.class);
             return (CodingLoader)com.newInstance(tapConnectionContext);
         } catch (ClassNotFoundException e0) {
-            //e0.printStackTrace();
+            TapLogger.debug(TAG, "ClassNotFoundException for Schema {}",tableName);
         }catch (NoSuchMethodException e1) {
-            //e1.printStackTrace();
+            TapLogger.debug(TAG, "NoSuchMethodException for Schema {}",tableName);
         } catch (InstantiationException e2) {
-            //e2.printStackTrace();
+            TapLogger.debug(TAG, "InstantiationException for Schema {}",tableName);
         } catch (IllegalAccessException e3) {
-            //e3.printStackTrace();
+            TapLogger.debug(TAG, "IllegalAccessException for Schema {}",tableName);
         } catch (InvocationTargetException e4) {
-            //e4.printStackTrace();
+            TapLogger.debug(TAG, "InvocationTargetException for Schema {}", tableName);
         }
         return null;
     }
@@ -68,16 +75,20 @@ public interface CodingLoader<T extends Param> {
 
     public void batchRead(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer);
 
-    public long batchCount() throws Throwable;
+    public int batchCount() throws Throwable;
 
     public void streamRead(List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer);
 
     public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData);
 
     public default CodingEvent getRowDataCallBackEvent(Map<String, Object> eventData){
-        if (Checker.isEmpty(eventData)) return null;
+        if (Checker.isEmpty(eventData)) {
+            throw new CoreException("Row data call back event data is empty or null.");
+        }
         Object event = eventData.get("event");
-        if (Checker.isEmpty(event)) return null;
+        if (Checker.isEmpty(event)) {
+            throw new CoreException("Row data call back event type is empty or null.");
+        }
         String webHookEventType = String.valueOf(event);
         return CodingEvent.event(webHookEventType);
     }

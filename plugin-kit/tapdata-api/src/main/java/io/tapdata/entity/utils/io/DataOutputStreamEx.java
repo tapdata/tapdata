@@ -120,7 +120,7 @@ public class DataOutputStreamEx extends OutputStream {
 	public void writeJson(Object obj)
 			throws IOException{
 		if(writeValueStatus(obj))
-			dos.writeUTF(toJson(obj));
+			writeLongString(toJson(obj));
 	}
 
 	public void writeDate(Date date)

@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast;
 
 import com.hazelcast.jet.core.AbstractProcessor;
+import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.*;
@@ -65,7 +66,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -114,14 +114,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
 
-		if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-			this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
-					processorBaseContext.getTaskDto(),
-					processorBaseContext.getNode().getId(),
-					processorBaseContext.getNode().getName()
-			);
-		}
+		this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
+				processorBaseContext.getTaskDto(),
+				processorBaseContext.getNode().getId(),
+				processorBaseContext.getNode().getName()
+		);
 
 		if (null != processorBaseContext.getConfigurationCenter()) {
 			this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
@@ -141,8 +138,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
 	}
 
-	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
-		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, consumer);
+	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
+		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, anyErrorConsumer);
 	}
 
 	public <T extends Aspect> AspectInterceptResult executeAspect(Class<T> aspectClass, Callable<T> aspectCallable) {
@@ -478,30 +475,40 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void doClose() throws Exception {
-		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset), TAG);
+		CommonUtils.handleAnyError(() -> {
+			Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset);
+			logger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
+			obsLogger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
+		}, err -> {
+			logger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
+			obsLogger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
+		});
 	}
 
 	@Override
 	public final void close() throws Exception {
 		try {
-			try {
-				doClose();
-			} finally {
-				running.set(false);
+			running.set(false);
+			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
+			CommonUtils.handleAnyError(this::doClose, err -> {
+				obsLogger.warn(String.format("Close node failed: %s | Node: %s[%s] | Type: %s", err.getMessage(), getNode().getName(), getNode().getId(), this.getClass().getName()));
+			});
+			CommonUtils.ignoreAnyError(() -> {
 				if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 					AspectUtils.executeAspect(ProcessorNodeCloseAspect.class, () -> new ProcessorNodeCloseAspect().processorBaseContext(processorBaseContext));
 				} else {
 					AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 				}
-				//		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
-				if (error != null) {
-					throw new RuntimeException(errorMessage, error);
-				}
+			}, TAG);
+			if (error != null) {
+				obsLogger.error(errorMessage, error);
+				throw new RuntimeException(errorMessage, error);
 			}
 		} finally {
 			ThreadContext.clearAll();
 			super.close();
 		}
+		obsLogger.info(String.format("Node %s[%s] close complete", getNode().getName(), getNode().getId()));
 	}
 
 	public void setMilestoneService(MilestoneService milestoneService) {
@@ -652,20 +659,27 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					if (null != hazelcastJob) break;
 					try {
 						Thread.sleep(500);
-					} catch (InterruptedException ignore) {
+					} catch (InterruptedException ignored) {
 						break;
 					}
 				}
 
 				if (hazelcastJob != null) {
 					AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
-					hazelcastJob.cancel();
+					JobStatus status = hazelcastJob.getStatus();
+					if (JobStatus.SUSPENDED != status) {
+						logger.info("Job cancel in error handle");
+						obsLogger.info("Job cancel in error handle");
+						hazelcastJob.cancel();
+					}
 				} else {
 					logger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
+					obsLogger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
 				}
 			}
 		} catch (Exception e) {
-			logger.warn("error handler failed: " + e.getMessage(), e);
+			logger.warn("Error handler failed: " + e.getMessage(), e);
+			obsLogger.warn("Error handler failed: " + e.getMessage(), e);
 		}
 
 		return currentEx;

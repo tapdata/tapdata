@@ -73,7 +73,9 @@ public class CommonUtils {
         void run() throws Throwable;
     }
 
-
+    public interface AnyErrorConsumer<T>{
+        void accept(T t) throws Throwable;
+    }
 
     public static void awakenRetryObj(Object syncWaitObj) {
         if(syncWaitObj != null) {
@@ -130,7 +132,7 @@ public class CommonUtils {
                         if (errThrowable instanceof CoreException) {
                             throw (CoreException) errThrowable;
                         }
-                        throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + errThrowable.getMessage(), errThrowable);
+                        throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, errThrowable, message + " execute failed, " + errThrowable.getMessage(), errThrowable);
                     }
                     break;
                 case ALWAYS:
@@ -141,7 +143,10 @@ public class CommonUtils {
 
             long retryTimes = invoker.getRetryTimes();
             if (retryTimes > 0) {
-                TapLogger.warn(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({}s) | error [{}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage());//, message
+                TapLogger.warn(logTag, String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [{%s}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage()));
+                if (null != invoker.getLogListener()) {
+                    invoker.getLogListener().warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [{%s}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage()));
+                }
                 invoker.setRetryTimes(retryTimes - 1);
                 if (async) {
                     ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetryV1(node, method, invoker), retryPeriodSeconds, TimeUnit.SECONDS);
@@ -149,8 +154,7 @@ public class CommonUtils {
                     synchronized (invoker) {
                         try {
                             invoker.wait(retryPeriodSeconds * 1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
+                        } catch (InterruptedException ignored) {
                         }
                     }
                     autoRetryV1(node, method, invoker);
@@ -297,7 +301,6 @@ public class CommonUtils {
             TapLogger.warn(tag, "Error code {} message {} will be ignored. ", coreException.getCode(), ExceptionUtils.getStackTrace(coreException));
         } catch(Throwable throwable) {
             if(!(throwable instanceof QuiteException)) {
-                throwable.printStackTrace();
                 TapLogger.warn(tag, "Unknown error message {} will be ignored. ", ExceptionUtils.getStackTrace(throwable));
             }
         }

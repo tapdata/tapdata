@@ -159,7 +159,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 				});
 			});
 		} catch (Exception e) {
-			log.error("error ", e);
+			log.error("error {}", e.getMessage());
 		}
 
 		String agentId = receiver.get();
@@ -272,7 +272,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 				try {
 					plain_password = AES256Util.Aes256Decode(database_password);
 				} catch (Exception e) {
-					log.error("Decode failed,message: {}", e.getMessage(), e);
+					log.error("Decode failed,message: {}", e.getMessage());
 					plain_password = database_password;
 				}
 				uri += ":" + specialCharHandle(plain_password) + "@";
@@ -291,7 +291,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 			try {
 				return URLEncoder.encode(str, "UTF-8");
 			} catch (Exception e) {
-				log.error("Url encode error,message: {}", e.getMessage(), e);
+				log.error("Url encode error,message: {}", e.getMessage());
 			}
 		}
 		return str;

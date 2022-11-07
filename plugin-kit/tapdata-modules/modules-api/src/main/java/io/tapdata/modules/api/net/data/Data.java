@@ -7,11 +7,16 @@ import io.tapdata.entity.utils.ClassFactory;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.modules.api.net.message.TapEntityEx;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
 
@@ -25,15 +30,22 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
         this.type = type;
     }
     protected TapEntity toTapMessage(byte[] content, String contentType, Byte contentEncode) throws IOException {
-        if(content == null || contentType == null || contentEncode == null)
+        if(content == null || contentType == null || contentEncode == null) {
+            TapLogger.error(TAG, "Some parameters are null, content {}, contentType {} contentEncode {}", content, contentType, contentEncode);
             return null;
-        TapEntity message = null;
+        }
+        TapEntityEx message = null;
         switch (contentEncode) {
             case ENCODE_JAVA_CUSTOM_SERIALIZER:
-                message = ClassFactory.create(TapEntity.class, contentType);
+//                TapLogger.info(TAG, "toTapMessage contentType {}", contentType);
+                message = (TapEntityEx) ClassFactory.create(TapEntity.class, contentType);
+//                TapLogger.info(TAG, "toTapMessage message {}", message);
                 if(message != null) {
                     try(ByteArrayInputStream bais = new ByteArrayInputStream(content)) {
                         message.from(bais);
+                    } catch (Throwable throwable) {
+                        TapLogger.error(TAG, "message {} from failed, {}", message, throwable.getMessage());
+                        message.setParseError(throwable);
                     }
                 } else {
                     TapLogger.warn(TAG, "(toTapMessage OBJECT_SERIALIZABLE) Content type {} doesn't match any TapMessage for {}, contentEncode {}", contentType, this.getClass().getSimpleName(), contentEncode);
@@ -44,7 +56,7 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
                 if(messageClass != null) {
                     String contentStr = new String(content, StandardCharsets.UTF_8);
                     JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
-                    message = jsonParser.fromJson(contentStr, messageClass);
+                    message = (TapEntityEx) Objects.requireNonNull(jsonParser).fromJson(contentStr, messageClass);
                 } else {
                     TapLogger.warn(TAG, "(toTapMessage JSON) Content type {} doesn't match any TapMessage for {}, contentEncode {}", contentType, this.getClass().getSimpleName(), contentEncode);
                 }
@@ -60,14 +72,18 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
         byte[] data = null;
         switch (contentEncode) {
             case ENCODE_JAVA_CUSTOM_SERIALIZER:
+//                TapLogger.info(TAG, "fromTapMessage message {}", toJson(message));
                 try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
                     message.to(baos);
                     data = baos.toByteArray();
+                } catch (Throwable throwable) {
+                    TapLogger.debug(TAG, "message {} to failed, {}", message, Objects.requireNonNull(InstanceFactory.instance(TapUtils.class)).getStackTrace(throwable));
+                    ((TapEntityEx)message).setParseError(throwable);
                 }
                 break;
             case ENCODE_JSON:
                 JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
-                String jsonStr = jsonParser.toJson(message);
+                String jsonStr = Objects.requireNonNull(jsonParser).toJson(message);
                 data = jsonStr.getBytes(StandardCharsets.UTF_8);
                 break;
             default:

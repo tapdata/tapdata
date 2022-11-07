@@ -43,13 +43,10 @@ import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-
-import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 
 /**
  * @author samuel
@@ -60,7 +57,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
-	protected Map<String, String> tableNameMap;
 	protected String tableName;
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
 	private AtomicBoolean firstStreamEvent = new AtomicBoolean();
@@ -77,6 +73,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private int cdcConcurrentWriteNum;
 	private PartitionConcurrentProcessor initialPartitionConcurrentProcessor;
 	private PartitionConcurrentProcessor cdcPartitionConcurrentProcessor;
+	private LinkedBlockingQueue<TapdataEvent> tapEventQueue;
+	private final ExecutorService queueConsumerThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), r -> {
+		Thread thread = new Thread(r);
+		thread.setName(String.format("Target-Queue-Consumer-%s[%s]", getNode().getName(), getNode().getId()));
+		return thread;
+	});
 	private boolean inCdc = false;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
@@ -133,42 +135,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (TaskDto.TYPE_INITIAL_SYNC.equals(type)) {
 			putInGlobalMap(getCompletedInitialKey(), false);
 		}
+		this.tapEventQueue = new LinkedBlockingQueue<>(dataProcessorContext.getTaskDto().getReadBatchSize() * 2);
+		this.queueConsumerThreadPool.submit(this::queueConsume);
 	}
 
 	@Override
 	final public void process(int ordinal, @NotNull Inbox inbox) {
 		try {
-			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			if (!inbox.isEmpty()) {
 				while (isRunning()) {
 					List<TapdataEvent> tapdataEvents = new ArrayList<>();
 					final int count = inbox.drainTo(tapdataEvents, dataProcessorContext.getTaskDto().getReadBatchSize());
 					if (count > 0) {
-						if (!inCdc) {
-							List<TapdataEvent> partialCdcEvents = new ArrayList<>();
-							final Iterator<TapdataEvent> iterator = tapdataEvents.iterator();
-							while (iterator.hasNext()) {
-								final TapdataEvent tapdataEvent = iterator.next();
-								if (tapdataEvent instanceof TapdataStartCdcEvent || inCdc) {
-									inCdc = true;
-									partialCdcEvents.add(tapdataEvent);
-									iterator.remove();
+						for (TapdataEvent tapdataEvent : tapdataEvents) {
+							while (isRunning()) {
+								try {
+									if (tapEventQueue.offer(tapdataEvent, 1L, TimeUnit.SECONDS)) {
+										break;
+									}
+								} catch (InterruptedException ignored) {
 								}
 							}
-
-							// initial events and cdc events both in the queue
-							if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
-								initialProcessEvents(tapdataEvents, false);
-								// process partial cdc event
-								if (this.initialPartitionConcurrentProcessor != null) {
-									this.initialPartitionConcurrentProcessor.stop();
-								}
-								cdcProcessEvents(partialCdcEvents);
-							} else {
-								initialProcessEvents(tapdataEvents, true);
-							}
-						} else {
-							cdcProcessEvents(tapdataEvents);
 						}
 					} else {
 						break;
@@ -176,8 +163,91 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			}
 		} catch (Throwable e) {
+			throw new RuntimeException(String.format("Drain from inbox failed: %s", e.getMessage()), e);
+		} finally {
+			ThreadContext.clearAll();
+		}
+	}
+
+	private void dispatchTapdataEvents(List<TapdataEvent> tapdataEvents, Consumer<List<TapdataEvent>> consumer) {
+		if (null == tapdataEvents || null == consumer) return;
+		String preClassName = "";
+		List<TapdataEvent> consumeTapdataEvents = new ArrayList<>();
+		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			if (null == tapdataEvent) continue;
+			String currClassName = tapdataEvent.getClass().getName();
+			if (!"".equals(preClassName) && !preClassName.equals(currClassName)) {
+				consumer.accept(consumeTapdataEvents);
+				consumeTapdataEvents.clear();
+			}
+			preClassName = currClassName;
+			consumeTapdataEvents.add(tapdataEvent);
+		}
+		if (CollectionUtils.isNotEmpty(consumeTapdataEvents)) {
+			consumer.accept(consumeTapdataEvents);
+			consumeTapdataEvents.clear();
+		}
+	}
+
+	private void processTargetEvents(List<TapdataEvent> tapdataEvents) {
+		dispatchTapdataEvents(
+				tapdataEvents,
+				consumeEvents -> {
+					if (!inCdc) {
+						List<TapdataEvent> partialCdcEvents = new ArrayList<>();
+						final Iterator<TapdataEvent> iterator = consumeEvents.iterator();
+						while (iterator.hasNext()) {
+							final TapdataEvent tapdataEvent = iterator.next();
+							if (tapdataEvent instanceof TapdataStartCdcEvent || inCdc) {
+								inCdc = true;
+								partialCdcEvents.add(tapdataEvent);
+								iterator.remove();
+							}
+						}
+
+						// initial events and cdc events both in the queue
+						if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
+							initialProcessEvents(consumeEvents, false);
+							// process partial cdc event
+							if (this.initialPartitionConcurrentProcessor != null) {
+								this.initialPartitionConcurrentProcessor.stop();
+							}
+							cdcProcessEvents(partialCdcEvents);
+						} else {
+							initialProcessEvents(consumeEvents, true);
+						}
+					} else {
+						cdcProcessEvents(consumeEvents);
+					}
+				}
+		);
+	}
+
+	private void queueConsume() {
+		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
+		try {
+			List<TapdataEvent> tapdataEvents = new ArrayList<>();
+			long lastProcessTime = System.currentTimeMillis();
+			String preClassName = "";
+			while (isRunning()) {
+				TapdataEvent tapdataEvent = tapEventQueue.poll(1L, TimeUnit.SECONDS);
+				if (null != tapdataEvent) {
+					tapdataEvents.add(tapdataEvent);
+				}
+				if (tapdataEvents.size() >= dataProcessorContext.getTaskDto().getReadBatchSize()) {
+					processTargetEvents(tapdataEvents);
+					tapdataEvents.clear();
+					lastProcessTime = System.currentTimeMillis();
+				}
+				if (System.currentTimeMillis() - lastProcessTime >= 500 && CollectionUtils.isNotEmpty(tapdataEvents)) {
+					processTargetEvents(tapdataEvents);
+					tapdataEvents.clear();
+					lastProcessTime = System.currentTimeMillis();
+				}
+			}
+		} catch (InterruptedException ignored) {
+		} catch (Throwable e) {
 			errorHandle(e, "Target process failed " + e.getMessage());
-			throw sneakyThrow(e);
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -206,68 +276,78 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void handleTapdataEvents(List<TapdataEvent> tapdataEvents) {
-		List<TapEvent> tapEvents = new ArrayList<>();
-		List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
-		if (null != getConnectorNode()) {
-			codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-		}
 		AtomicReference<TapdataEvent> lastDmlTapdataEvent = new AtomicReference<>();
-		for (TapdataEvent tapdataEvent : tapdataEvents) {
-			try {
-				SyncStage syncStage = tapdataEvent.getSyncStage();
-				if (null != syncStage) {
-					if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
-						// MILESTONE-WRITE_SNAPSHOT-RUNNING
-						TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
-						MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
-					} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
-						// MILESTONE-WRITE_CDC_EVENT-FINISH
-						TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
-						MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
-					}
-				}
-				if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-					handleTapdataHeartbeatEvent(tapdataEvent);
-				} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
-					handleTapdataCompleteSnapshotEvent();
-				} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
-					handleTapdataStartCdcEvent(tapdataEvent);
-				} else if (tapdataEvent instanceof TapdataShareLogEvent) {
-					handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
-				} else {
-					if (tapdataEvent.isDML()) {
-						handleTapdataRecordEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-					} else if (tapdataEvent.isDDL()) {
-						handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-					} else {
-						if (null != tapdataEvent.getTapEvent()) {
-							logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
-							obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+		try {
+			List<TapEvent> tapEvents = new ArrayList<>();
+			List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
+			if (null != getConnectorNode()) {
+				codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+			}
+			lastDmlTapdataEvent = new AtomicReference<>();
+			for (TapdataEvent tapdataEvent : tapdataEvents) {
+				if (!isRunning()) return;
+				try {
+					SyncStage syncStage = tapdataEvent.getSyncStage();
+					if (null != syncStage) {
+						if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
+							// MILESTONE-WRITE_SNAPSHOT-RUNNING
+							TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
+							MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
+						} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
+							// MILESTONE-WRITE_CDC_EVENT-FINISH
+							TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
+							MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
 						}
 					}
+					if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+						handleTapdataHeartbeatEvent(tapdataEvent);
+					} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
+						handleTapdataCompleteSnapshotEvent();
+					} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
+						handleTapdataStartCdcEvent(tapdataEvent);
+					} else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
+						throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
+					} else if (tapdataEvent instanceof TapdataShareLogEvent) {
+						handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
+					} else {
+						if (tapdataEvent.isDML()) {
+							handleTapdataRecordEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
+						} else if (tapdataEvent.isDDL()) {
+							handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
+						} else {
+							if (null != tapdataEvent.getTapEvent()) {
+								logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+								obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+							}
+						}
+					}
+				} catch (Throwable throwable) {
+					throw new RuntimeException(String.format("Handle events failed: %s", throwable.getMessage()), throwable);
 				}
-			} catch (Throwable throwable) {
-				throw errorHandle(throwable, "handel events failed: " + throwable.getMessage());
 			}
-		}
-		if (CollectionUtils.isNotEmpty(tapEvents)) {
-			try {
-				processEvents(tapEvents);
-			} catch (Throwable throwable) {
-				throw errorHandle(throwable, "process events failed: " + throwable.getMessage());
+			if (CollectionUtils.isNotEmpty(tapEvents)) {
+				try {
+					processEvents(tapEvents);
+				} catch (Throwable throwable) {
+					throw new RuntimeException(String.format("Process events failed: %s", throwable.getMessage()), throwable);
+				}
 			}
-		}
-		if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
-			try {
-				processShareLog(tapdataShareLogEvents);
-			} catch (Throwable throwable) {
-				throw errorHandle(throwable, "process share log failed: " + throwable.getMessage());
+			if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
+				try {
+					processShareLog(tapdataShareLogEvents);
+				} catch (Throwable throwable) {
+					throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
+				}
 			}
+		} finally {
+			flushSyncProgressMap(lastDmlTapdataEvent.get());
 		}
-		flushSyncProgressMap(lastDmlTapdataEvent.get());
 	}
 
 	private void handleTapdataShareLogEvent(List<TapdataShareLogEvent> tapdataShareLogEvents, TapdataEvent tapdataEvent, Consumer<TapdataEvent> consumer) {
+		TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
+		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
+		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
 		tapdataShareLogEvents.add((TapdataShareLogEvent) tapdataEvent);
 		if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
 			consumer.accept(tapdataEvent);
@@ -490,6 +570,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 			CommonUtils.ignoreAnyError(() -> removeGlobalMap(getCompletedInitialKey()), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.queueConsumerThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
 		} finally {
 			super.doClose();
 		}

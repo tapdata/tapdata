@@ -58,7 +58,7 @@ public class PdkConnector implements IPdkConnector {
                 associateId,
                 connections.getConfig(),
                 new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, nodeId, System.currentTimeMillis())),
-                new PdkStateMap(String.format("%s_%s", AutoInspectConstants.MODULE_NAME, nodeId), HazelcastUtil.getInstance()),
+                new PdkStateMap(String.format("%s_%s", AutoInspectConstants.MODULE_NAME, nodeId), HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
                 PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
         );
         PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
@@ -123,9 +123,10 @@ public class PdkConnector implements IPdkConnector {
                                         if (results.isEmpty()) return;
 
                                         for (Map<String, Object> result : results) {
-                                            CompareRecord record = new CompareRecord(tableName, getConnId(), originalKey, keyNames, result);
-                                            codecsFilterManager.transformToTapValueMap(record.getData(), tapTable.getNameFieldMap());
-                                            defaultCodecsFilterManager.transformFromTapValueMap(record.getData());
+                                            codecsFilterManager.transformToTapValueMap(result, tapTable.getNameFieldMap());
+                                            defaultCodecsFilterManager.transformFromTapValueMap(result);
+                                            CompareRecord record = new CompareRecord(tableName, getConnId(), originalKey, keyNames);
+                                            record.setData(result, tapTable.getNameFieldMap());
                                             compareRecord.set(record);
                                             return;
                                         }
