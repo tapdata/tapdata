@@ -1664,9 +1664,50 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //        resultChart.put("chart2", dataCopy);
         resultChart.put("chart3", getDataDevChart(syncTypeToTaskList));
 //        resultChart.put("chart4", dataDev);
-        resultChart.put("chart5", inspectService.inspectPreview(user));
+        resultChart.put("chart5", inspectChart(user));
 //        resultChart.put("chart6", measurementService.getTransmitTotal(user));
         return resultChart;
+    }
+
+
+    public Map<String, Integer> inspectChart(UserDetail user) {
+        Criteria criteria = Criteria.where("syncType").is(TaskDto.SYNC_TYPE_MIGRATE)
+                .and("isAutoInspect").is(true)
+                .and("is_deleted").ne(true);
+        Query query = new Query(criteria);
+        query.fields().include("_id", "status", "isAutoInspect", "canOpenInspect", "attrs.autoInspectProgress.tableCounts", "attrs.autoInspectProgress.tableIgnore", "attrs.autoInspectProgress.step");
+
+        int openTaskNum = 0;
+        int canTaskNum = 0;
+        int errorTaskNum = 0;
+        int diffTaskNum = 0;
+        List<TaskDto> taskDtos = findAllDto(query, user);
+
+        Set<String> taskSet = taskAutoInspectResultsService.groupByTask(user);
+        if (CollectionUtils.isNotEmpty(taskDtos)) {
+            openTaskNum = taskDtos.size();
+            for (TaskDto taskDto : taskDtos) {
+                if (taskDto.isCanOpenInspect()) {
+                    canTaskNum++;
+                }
+
+                if (TaskDto.STATUS_ERROR.equals(taskDto.getStatus())) {
+                    errorTaskNum++;
+                }
+
+                if (taskSet.contains(taskDto.getId().toHexString())) {
+                    diffTaskNum++;
+                }
+
+            }
+        }
+
+        Map<String, Integer> chart5 = new HashMap<>();
+        chart5.put("total", openTaskNum);
+        chart5.put("error", errorTaskNum);
+        chart5.put("can", canTaskNum);
+        chart5.put("diff", diffTaskNum);
+        return chart5;
     }
 
 
