@@ -180,7 +180,9 @@ public class CommonUtils {
         while (invoker.getRetryTimes() > 0){
             try {
                 runnable.run();
-            } catch (Throwable errThrowable) {
+                break;
+            } catch (Throwable errThrowable)
+            {
                 FunctionAndContext functionAndContext = FunctionAndContext.create();
                 CommonUtils.prepareFunctionAndContextForNode(node,functionAndContext);
                 ErrorHandleFunction errorHandleFunction = functionAndContext.errorHandleFunction();
@@ -222,7 +224,6 @@ public class CommonUtils {
                     throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + errThrowable.getMessage(), errThrowable);
                 }
             }
-            break;
         }
     }
 
