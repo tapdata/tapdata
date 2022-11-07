@@ -54,6 +54,9 @@ public class InstanceFactory {
     }
 
     public static void injectBean(Object beanObject) throws CoreException {
+        injectBean(beanObject, false);
+    }
+    public static void injectBean(Object beanObject, boolean needInjectBeans) throws CoreException {
         Field[] fields = ReflectionUtil.getFields(beanObject.getClass());
         for (Field field : fields) {
             Bean bean = field.getAnnotation(Bean.class);
@@ -61,7 +64,7 @@ public class InstanceFactory {
                 Class<?> gClass = field.getType();
                 String type = (bean.type() != null && !bean.type().equals("")) ? bean.type() : null;
 
-                Object beanValue = bean(gClass, type);
+                Object beanValue = bean(gClass, needInjectBeans, type);
 
                 if (beanValue != null) {
                     field.setAccessible(true);
@@ -254,13 +257,13 @@ public class InstanceFactory {
             for(Object instanceObj : instanceMap.values()) {
                 TapLogger.debug(TAG, "inject instanceObj {}", instanceObj);
                 long time = System.currentTimeMillis();
-                injectBean(instanceObj);
+                injectBean(instanceObj, true);
                 TapLogger.debug(TAG, "injected instanceObj {} takes ", instanceObj, (System.currentTimeMillis() - time));
             }
             for(Object typeInstanceObj : instanceTypeMap.values()) {
                 TapLogger.debug(TAG, "inject typeInstanceObj {}", typeInstanceObj);
                 long time = System.currentTimeMillis();
-                injectBean(typeInstanceObj);
+                injectBean(typeInstanceObj, true);
                 TapLogger.debug(TAG, "injected typeInstanceObj {} takes ", typeInstanceObj, (System.currentTimeMillis() - time));
             }
             initialized.set(true);
