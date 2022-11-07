@@ -299,9 +299,9 @@ public class TDDCli extends CommonCli {
         List<Class<? extends PDKTestBase>> tests = Arrays.asList(
                 DMLTest.class,
                 CreateTableTest.class,
-                BatchReadTest.class,
-                StreamReadTest.class,
-                QueryByAdvanceFilterTest.class
+                BatchReadTest.class
+//                StreamReadTest.class,
+//                QueryByAdvanceFilterTest.class
         );
 
 //        builder.append("\n-------------PDK connector idAndGroupAndVersion " + tapNodeInfo.getTapNodeSpecification().idAndGroup() + "-------------").append("\n");
