@@ -518,7 +518,7 @@ public class MysqlReader implements Closeable {
 		if (null == schema) return null;
 		for (Field field : schema.fields()) {
 			String fieldName = field.name();
-			Object value = struct.get(fieldName);
+			Object value = struct.getWithoutDefault(fieldName);
 			if (null != field.schema().name() && field.schema().name().startsWith("io.debezium.time.")) {
 				if (field.schema().type() == Schema.Type.INT64 && value instanceof Long && Long.MIN_VALUE == ((Long) value)) {
 					result.put(fieldName, "0000-00-00 00:00:00");
