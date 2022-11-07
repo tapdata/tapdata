@@ -73,6 +73,7 @@ public class OceanbaseConnector extends ConnectorBase {
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
         //Assume below tests are successfully, below tests are recommended, but not required.
         //Connection test
+        oceanbaseConfig = new OceanbaseConfig().load(connectionContext.getConnectionConfig());
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         try (
                 OceanbaseTest oceanbaseTest = new OceanbaseTest(oceanbaseConfig)
