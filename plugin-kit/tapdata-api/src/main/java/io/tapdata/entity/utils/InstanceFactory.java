@@ -25,7 +25,7 @@ public class InstanceFactory {
     private static Function<Class<?>, Object> beanInterceptor;
 
     private final static List<FieldAnnotationHandler<?>> fieldAnnotationHandlers = new CopyOnWriteArrayList<>();
-
+    private static final AtomicBoolean initializing = new AtomicBoolean(false);
     private static final AtomicBoolean initialized = new AtomicBoolean(false);
 
     private static class BeanWrapper {
@@ -184,15 +184,16 @@ public class InstanceFactory {
     }
 
     public static <T> T instance(Class<T> instanceClass) {
+        return instance(instanceClass, false);
+    }
+    public static <T> T instance(Class<T> instanceClass, boolean waitUntilInitialized) {
         Object obj = instanceMap.get(instanceClass);
         if(obj == null) {
             obj = ClassFactory.create(instanceClass);
             if(obj == null)
                 return null;
             Object old = instanceMap.putIfAbsent(instanceClass, obj);
-            if(old == null && initialized.get()) {
-                injectBean(obj);
-            }
+            injectBeanForInstance(waitUntilInitialized, obj, old);
         }
         //noinspection unchecked
         return (T) obj;
@@ -206,7 +207,27 @@ public class InstanceFactory {
 //        });
     }
 
+    private static void injectBeanForInstance(boolean waitUntilInitialized, Object obj, Object old) {
+        if(waitUntilInitialized && old == null) {
+            while (!initialized.get()) {
+                synchronized (initialized) {
+                    try {
+                        initialized.wait(100L);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
+        if(old == null && initialized.get()) {
+            injectBean(obj);
+        }
+    }
+
     public static <T> T instance(Class<T> instanceClass, String type) {
+        return instance(instanceClass, type, false);
+    }
+    public static <T> T instance(Class<T> instanceClass, String type, boolean waitUntilInitialized) {
         String key = instanceClass.getName() + "#" + type;
         Object obj = instanceTypeMap.get(key);
         if(obj == null) {
@@ -214,9 +235,7 @@ public class InstanceFactory {
             if(obj == null)
                 return null;
             Object old = instanceTypeMap.putIfAbsent(key, obj);
-            if(old == null && initialized.get()) {
-                injectBean(obj);
-            }
+            injectBeanForInstance(waitUntilInitialized, obj, old);
         }
         //noinspection unchecked
         return (T) obj;
@@ -225,7 +244,7 @@ public class InstanceFactory {
     }
 
     public static void injectBeans() {
-        if(initialized.compareAndSet(false, true)) {
+        if(initializing.compareAndSet(false, true)) {
             for(Class<?> beanClass : beanMap.keySet()) {
                 TapLogger.debug(TAG, "inject bean {}", beanClass);
                 long time = System.currentTimeMillis();
@@ -244,6 +263,7 @@ public class InstanceFactory {
                 injectBean(typeInstanceObj);
                 TapLogger.debug(TAG, "injected typeInstanceObj {} takes ", typeInstanceObj, (System.currentTimeMillis() - time));
             }
+            initialized.set(true);
         }
     }
 }
