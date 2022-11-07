@@ -53,7 +53,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	public static final String FUNCTION_NAME_DECLARE = "declare";
 
 	private final String schemaKey;
-	private final TapTableMap oldTapTableMap;
+	private final TapTableMap<String, TapTable> oldTapTableMap;
 
 	private Invocable engine;
 
