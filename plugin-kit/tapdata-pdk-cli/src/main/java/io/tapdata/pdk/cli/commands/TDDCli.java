@@ -17,6 +17,7 @@ import io.tapdata.pdk.tdd.tests.source.QueryByAdvanceFilterTest;
 import io.tapdata.pdk.tdd.tests.source.StreamReadTest;
 import io.tapdata.pdk.tdd.tests.target.DMLTest;
 import io.tapdata.pdk.tdd.tests.target.CreateTableTest;
+import io.tapdata.pdk.tdd.tests.v2.WriteRecordTest;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
@@ -297,10 +298,11 @@ public class TDDCli extends CommonCli {
         connector.registerCapabilities(connectorFunctions, codecRegistry);
 
         List<Class<? extends PDKTestBase>> tests = Arrays.asList(
-                DMLTest.class,
-                CreateTableTest.class,
-                BatchReadTest.class
-//                StreamReadTest.class,
+                WriteRecordTest.class
+//                DMLTest.class,
+//                CreateTableTest.class,
+//                BatchReadTest.class,
+//                StreamReadTest.class
 //                QueryByAdvanceFilterTest.class
         );
 
