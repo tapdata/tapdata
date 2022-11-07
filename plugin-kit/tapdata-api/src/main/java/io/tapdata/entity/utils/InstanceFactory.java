@@ -195,8 +195,8 @@ public class InstanceFactory {
             obj = ClassFactory.create(instanceClass);
             if(obj == null)
                 return null;
+            injectBeanForInstance(waitUntilInitialized, obj);
             Object old = instanceMap.putIfAbsent(instanceClass, obj);
-            injectBeanForInstance(waitUntilInitialized, obj, old);
         }
         //noinspection unchecked
         return (T) obj;
@@ -210,8 +210,8 @@ public class InstanceFactory {
 //        });
     }
 
-    private static void injectBeanForInstance(boolean waitUntilInitialized, Object obj, Object old) {
-        if(waitUntilInitialized && old == null) {
+    private static void injectBeanForInstance(boolean waitUntilInitialized, Object obj) {
+        if(waitUntilInitialized) {
             while (!initialized.get()) {
                 synchronized (initialized) {
                     try {
@@ -222,7 +222,7 @@ public class InstanceFactory {
                 }
             }
         }
-        if(old == null && initialized.get()) {
+        if(initialized.get()) {
             injectBean(obj);
         }
     }
@@ -237,8 +237,8 @@ public class InstanceFactory {
             obj = ClassFactory.create(instanceClass, type);
             if(obj == null)
                 return null;
+            injectBeanForInstance(waitUntilInitialized, obj);
             Object old = instanceTypeMap.putIfAbsent(key, obj);
-            injectBeanForInstance(waitUntilInitialized, obj, old);
         }
         //noinspection unchecked
         return (T) obj;
