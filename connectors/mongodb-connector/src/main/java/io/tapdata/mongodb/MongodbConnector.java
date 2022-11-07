@@ -44,6 +44,7 @@ import org.bson.types.*;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -352,8 +353,19 @@ public class MongodbConnector extends ConnectorBase {
 			return new TapStringValue(code.getCode());
 		});
 		codecRegistry.registerToTapValue(Decimal128.class, (value, tapType) -> {
+
 			Decimal128 decimal128 = (Decimal128) value;
 			return new TapNumberValue(decimal128.doubleValue());
+		});
+
+		codecRegistry.registerToTapValue(Document.class, (value, tapType) -> {
+			Document  document  = (Document) value;
+			for (Map.Entry<String, Object> entry : document.entrySet()) {
+				if (entry.getValue() instanceof Double && entry.getValue().toString().contains("E")) {
+					entry.setValue(new BigDecimal(entry.getValue().toString()).toString());
+				}
+			}
+				return new TapMapValue(document);
 		});
 		codecRegistry.registerToTapValue(Symbol.class, (value, tapType) -> {
 			Symbol symbol = (Symbol) value;
