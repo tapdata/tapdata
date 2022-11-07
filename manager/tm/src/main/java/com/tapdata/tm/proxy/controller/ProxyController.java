@@ -72,6 +72,8 @@ public class ProxyController extends BaseController {
     private SettingsService settingsService;
 
     private static final int wsPort = 8246;
+
+    private static final String TOKEN = CommonUtils.getProperty("tapdata_memory_token", "kajkj234kJFjfewljrlkzvnE34jfkladsdjafF");
     /**
      *
      * @return
@@ -425,7 +427,12 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @GetMapping("memory")
-    public void memoryGet(@RequestParam(name = "keys", required = false) String keys, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    public void memoryGet(@RequestParam(name = "t", required = false) String token, @RequestParam(name = "keys", required = false) String keys, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if(token == null || !token.equals(TOKEN)) {
+            response.sendError(SC_UNAUTHORIZED);
+            return;
+        }
+
         if(processId != null) {
             ServiceCaller serviceCaller = new ServiceCaller()
                     .className("MemoryService")
@@ -473,7 +480,12 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @PostMapping("memory")
-    public void memory(@RequestBody MemoryDto memoryDto, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    public void memory(@RequestParam(name = "t", required = false) String token, @RequestBody MemoryDto memoryDto, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if(token == null || !token.equals(TOKEN)) {
+            response.sendError(SC_UNAUTHORIZED);
+            return;
+        }
+
         response.setContentType("application/json");
         String keyRegex = null;
         String level = null;
