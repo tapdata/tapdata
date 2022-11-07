@@ -14,6 +14,8 @@ import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.schema.Schema;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
@@ -25,6 +27,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -200,6 +203,27 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				tapTable.add(tapField);
 			}
 		}
+
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		if (MapUtils.isNotEmpty(nameFieldMap)) {
+			Set<String> fieldNames = nameFieldMap.keySet();
+			List<TapIndex> oldTapIndexList = getOldTapIndexList(tapEvent.getTableId());
+			if (CollectionUtils.isNotEmpty(oldTapIndexList)) {
+				for (TapIndex oldTapIndex : oldTapIndexList) {
+					List<TapIndexField> oldIndexFields = oldTapIndex.getIndexFields();
+					List<TapIndexField> newIndexFields = new ArrayList<>();
+					for (TapIndexField oldIndexField : oldIndexFields) {
+						if (fieldNames.contains(oldIndexField.getName())) {
+							newIndexFields.add(oldIndexField);
+						}
+					}
+					if (CollectionUtils.isNotEmpty(newIndexFields)) {
+						oldTapIndex.setIndexFields(newIndexFields);
+						tapTable.add(oldTapIndex);
+					}
+				}
+			}
+		}
 		return tapTable;
 	}
 
@@ -241,6 +265,13 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			return null;
 		}
 		return oldTapTableMap.get(tableName).getNameFieldMap();
+	}
+
+	private List<TapIndex> getOldTapIndexList(String tableName) {
+		if (oldTapTableMap == null || !oldTapTableMap.containsKey(tableName)) {
+			return null;
+		}
+		return oldTapTableMap.get(tableName).getIndexList();
 	}
 
 }
