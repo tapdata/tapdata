@@ -89,7 +89,7 @@ public class ProxyController extends BaseController {
 
         String nodeId = CommonUtils.getProperty("tapdata_node_id");
         if(nodeId == null)
-            throw new BizException("Current nodeId not found");
+            throw new BizException("Current nodeId not found, may be caused by not initializing is not finished, please try later");
 
         LoginProxyResponseDto loginProxyResponseDto = new LoginProxyResponseDto();
         String token = JWTUtils.createToken(ProxyService.KEY,
