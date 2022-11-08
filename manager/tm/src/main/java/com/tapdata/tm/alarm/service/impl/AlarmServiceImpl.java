@@ -328,7 +328,9 @@ public class AlarmServiceImpl implements AlarmService {
             criteria.and("status").is(AlarmStatusEnum.valueOf(status));
         }
         if (Objects.nonNull(keyword)) {
-            criteria.and("name").regex(keyword);
+            criteria.orOperator(Criteria.where("name").regex(keyword),
+                    Criteria.where("node").regex(keyword),
+                    Criteria.where("summary").regex(keyword));
         }
 
         if (Objects.nonNull(start) && Objects.nonNull(end)){

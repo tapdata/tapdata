@@ -192,6 +192,10 @@ public class MysqlMaker implements SqlMaker {
 		List<String> fields = indexFields.stream().map(indexField -> {
 			String fieldName = indexField.getName();
 			Boolean fieldAsc = indexField.getFieldAsc();
+			TapField tapField = tapTable.getNameFieldMap().get(fieldName);
+			if (null == tapField) {
+				throw new RuntimeException(String.format("Index field %s not exists", fieldName));
+			}
 			String dataType = tapTable.getNameFieldMap().get(fieldName).getDataType();
 			String fieldLength = " ";
 			if ("text".equalsIgnoreCase(dataType) || "blob".equalsIgnoreCase(dataType)) {
