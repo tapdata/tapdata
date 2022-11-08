@@ -20,6 +20,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
@@ -39,6 +40,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode{
 
   private static final Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNode.class);
+  public static final String TAG = HazelcastJavaScriptProcessorNode.class.getSimpleName();
 
   private final Invocable engine;
 
@@ -156,9 +158,14 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
   @Override
   protected void doClose() throws Exception {
-    super.doClose();
-    if (this.engine instanceof GraalJSScriptEngine) {
-      ((GraalJSScriptEngine) this.engine).close();
+    try {
+      CommonUtils.ignoreAnyError(() -> {
+        if (this.engine instanceof GraalJSScriptEngine) {
+          ((GraalJSScriptEngine) this.engine).close();
+        }
+      }, TAG);
+    } finally {
+      super.doClose();
     }
   }
 }
