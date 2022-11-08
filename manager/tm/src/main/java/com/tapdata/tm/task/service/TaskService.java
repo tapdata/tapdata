@@ -1209,14 +1209,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         //过滤调共享缓存任务
-        HashMap<String, Object> notShareCache = new HashMap<>();
-        notShareCache.put("$ne", true);
-        where.put("shareCache", notShareCache);
+//        HashMap<String, Object> notShareCache = new HashMap<>();
+//        notShareCache.put("$ne", true);
+//        where.put("shareCache", notShareCache);
 
 
         Boolean deleted = (Boolean) where.get("is_deleted");
         if (deleted == null) {
-            where.put("is_deleted", false);
+            Document document = new Document();
+            document.put("$ne", true);
+            where.put("is_deleted", document);
         }
 
 
@@ -1656,20 +1658,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public Map<String, Object> chart(UserDetail user) {
         Map<String, Object> resultChart = new HashMap<>();
         Criteria criteria = Criteria.where("user_id").is(user.getUserId())
-                .and("is_deleted").is(false)
-                .and("shareCache").ne(true)
-                .andOperator(Criteria.where("status").exists(true), Criteria.where("status").ne(null), Criteria.where("syncType").exists(true));
+                .and("is_deleted").ne(true)
+                .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
+                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
 
         Query query = Query.query(criteria);
         query.fields().include("syncType", "status", "statuses");
         //把任务都查询出来
-        List<TaskDto> taskDtoList = findAll(query);
+        List<TaskDto> taskDtoList = findAllDto(query, user);
         Map<String, List<TaskDto>> syncTypeToTaskList = taskDtoList.stream().collect(Collectors.groupingBy(TaskDto::getSyncType));
 
-
-        resultChart.put("chart1", getDataCopyChart(syncTypeToTaskList));
+        List<TaskDto> migrateList =  syncTypeToTaskList.getOrDefault(SyncType.MIGRATE.getValue(), Collections.emptyList());
+        resultChart.put("chart1", getDataCopyChart(migrateList));
 //        resultChart.put("chart2", dataCopy);
-        resultChart.put("chart3", getDataDevChart(syncTypeToTaskList));
+        List<TaskDto> synList = syncTypeToTaskList.getOrDefault(SyncType.SYNC.getValue(), Collections.emptyList());
+        resultChart.put("chart3", getDataDevChart(synList));
 //        resultChart.put("chart4", dataDev);
         resultChart.put("chart5", inspectChart(user));
         resultChart.put("chart6", chart6(user));
@@ -1732,10 +1735,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *
      * @return
      */
-    private Map<String, Object> getDataCopyChart( Map<String, List<TaskDto>> syncTypeToTaskList) {
+    private Map<String, Object> getDataCopyChart(List<TaskDto> migrateList) {
         Map<String, Object> dataCopyPreview = new HashMap();
 
-        List<TaskDto> migrateList =  syncTypeToTaskList.getOrDefault(SyncType.MIGRATE.getValue(), Collections.emptyList());
+
         Map<String, List<TaskDto>> statusToDataCopyTaskMap = migrateList.stream().collect(Collectors.groupingBy(TaskDto::getStatus));
         //和数据复制列表保持一致   pause归为停止，  schduler_fail 归为 error  调度中schdulering  归为启动中
         List<TaskDto> pauseTaskList = statusToDataCopyTaskMap.remove(TaskStatusEnum.STATUS_PAUSED.getValue());
@@ -1776,10 +1779,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param syncTypeToTaskList
      * @return
      */
-    private Map<String, Object> getDataDevChart(Map<String, List<TaskDto>> syncTypeToTaskList) {
+    private Map<String, Object> getDataDevChart(List<TaskDto> synList) {
         Map<String, Object> dataCopyPreview = new HashMap();
-
-        List<TaskDto> synList = syncTypeToTaskList.getOrDefault(SyncType.SYNC.getValue(), Collections.emptyList());
 
         Map<String, Long> statusToCount = new HashMap<>();
         if (CollectionUtils.isNotEmpty(synList)) {
