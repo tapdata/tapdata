@@ -45,7 +45,7 @@ public class TaskRestartSchedule {
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
      */
-    @Scheduled(fixedDelay = 10 * 1000)
+    @Scheduled(fixedDelay = 60 * 1000)
     @SchedulerLock(name ="restartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void restartTask() {
         Thread.currentThread().setName(Thread.currentThread().getName() + "-restartTask");
