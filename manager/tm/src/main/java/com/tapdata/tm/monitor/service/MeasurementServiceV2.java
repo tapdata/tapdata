@@ -789,4 +789,21 @@ public class MeasurementServiceV2 {
     public void delDataWhenTaskReset(String taskId) {
         mongoOperations.remove(new Query(Criteria.where("tags.taskId").is(taskId)), MeasurementEntity.COLLECTION_NAME);
     }
+
+    /**
+     * 根据任务id查询得到最近的一条分种类型的统计信息
+     * @param taskId 任务id
+     * @param user 用户
+     * @return
+     */
+    public MeasurementEntity findLastMinuteByTaskId(String taskId, UserDetail user) {
+        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
+                .and("grnty").is("minute")
+                .and("tags.type").is("task");
+
+        Query query = new Query(criteria);
+        query.fields().include("ss", "tags");
+        query.with(Sort.by("date").descending());
+        return mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+    }
 }
