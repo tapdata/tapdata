@@ -31,11 +31,9 @@ import java.util.stream.Collectors;
 @Getter
 @Setter
 public class JsProcessorNode extends ProcessorNode {
-    @EqField
     private String script;
 
-    @EqField
-    private String declareScript;
+    protected String declareScript;
 
 
     @Override
@@ -91,7 +89,7 @@ public class JsProcessorNode extends ProcessorNode {
             return null;
         }
         ////用于预跑数据得到模型
-        TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, taskDtoCopy);
+        TapTable tapTable = getTapTable(target, taskDtoCopy);
 
         if (tapTable == null) {
             return null;
@@ -159,6 +157,10 @@ public class JsProcessorNode extends ProcessorNode {
         return schema;
     }
 
+    protected TapTable getTapTable(Node target, TaskDto taskDtoCopy) {
+        return service.loadTapTable(getId(), target.getId(), taskDtoCopy);
+    }
+
     @Override
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
         //js节点的模型可以是直接虚拟跑出来的。 跑出来就是正确的模型，由引擎负责传值给tm
@@ -173,34 +175,8 @@ public class JsProcessorNode extends ProcessorNode {
         super("js_processor");
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-
-        if (o instanceof JsProcessorNode) {
-            Class className = JsProcessorNode.class;
-            for (; className != Object.class; className = className.getSuperclass()) {
-                java.lang.reflect.Field[] declaredFields = className.getDeclaredFields();
-                for (java.lang.reflect.Field declaredField : declaredFields) {
-                    EqField annotation = declaredField.getAnnotation(EqField.class);
-                    if (annotation != null) {
-                        try {
-                            Object f2 = declaredField.get(o);
-                            Object f1 = declaredField.get(this);
-                            boolean b = fieldEq(f1, f2);
-                            if (!b) {
-                                return false;
-                            }
-                        } catch (IllegalAccessException e) {
-                        }
-                    }
-                }
-            }
-            return true;
-        }
-        return false;
+    public JsProcessorNode(String type) {
+        super(type);
     }
 
     private void getPrePre(Node node, List<String> preIds) {

@@ -130,21 +130,29 @@ public class TapdataTaskScheduler {
 
 			TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
 			if (taskDto != null) {
-				if (taskClientMap.containsKey(taskDto.getId().toHexString())) {
-					logger.info("The [task {}, id {}] is being executed, ignore the scheduling.", taskDto.getName(), taskDto.getId().toHexString());
+				final String taskId = taskDto.getId().toHexString();
+				if (taskClientMap.containsKey(taskId)) {
+					TaskClient<TaskDto> taskClient = taskClientMap.get(taskId);
+					if (null != taskClient) {
+						logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling.", taskDto.getName(), taskId, taskClient.getStatus());
+						if (TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
+							clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
+						}
+					} else {
+						logger.info("The [task {}, id {}] is being executed, ignore the scheduling.", taskDto.getName(), taskId);
+					}
 					return;
 				}
 				try {
 					Log4jUtil.setThreadContext(taskDto);
-					logger.info("The task to be scheduled is found, task name {}, task id {}.", taskDto.getName(), taskDto.getId().toHexString());
-					final String taskId = taskDto.getId().toHexString();
+					logger.info("The task to be scheduled is found, task name {}, task id {}.", taskDto.getName(), taskId);
 					TmStatusService.addNewTask(taskId);
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 					final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 					taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
 				} catch (Exception e) {
 					logger.error("Schedule task {} failed {}", taskDto.getName(), e.getMessage(), e);
-					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskDto.getId().toHexString(), TaskDto.class);
+					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
 				} finally {
 					ThreadContext.clearAll();
 				}
