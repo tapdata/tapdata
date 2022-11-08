@@ -316,6 +316,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Log4jUtil.setThreadContext(taskDto);
+			Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
 			TapdataEvent dataEvent;
 			if (!isRunning()) {
 				return true;
@@ -324,7 +325,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				dataEvent = pendingEvent;
 				pendingEvent = null;
 			} else {
-				dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
+				dataEvent = eventQueue.poll(1, TimeUnit.SECONDS);
 				if (null != dataEvent) {
 					// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
 					// the event is considered been output to the next node.
