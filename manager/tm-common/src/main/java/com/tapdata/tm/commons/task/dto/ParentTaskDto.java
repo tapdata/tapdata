@@ -215,7 +215,7 @@ public class ParentTaskDto extends SchedulableDto {
     private Date errorTime;
     private Date pausedTime;
     private Date finishTime;
-    private Date pingTime;
+    private Long pingTime;
 
     //需要重启标识
     private Boolean restartFlag;
