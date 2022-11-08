@@ -122,6 +122,8 @@ public class TaskDto extends ParentTaskDto {
     private Long currentEventTimestamp;
     private Long snapshotDoneAt;
 
+    private Long scheduleDate;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());

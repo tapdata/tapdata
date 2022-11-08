@@ -2651,6 +2651,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         BeanUtils.copyProperties(newTaskDto, taskCollectionObjDto);
         Query query2 = new Query(Criteria.where("_id").is(taskDto.getId()));
         taskCollectionObjService.upsert(query2, taskCollectionObjDto, user);
+
+        if (Objects.isNull(newTaskDto.getScheduleDate())) {
+            update(Query.query(Criteria.where("_id").is(taskDto.getId())),
+                    Update.update("scheduleDate", System.currentTimeMillis()));
+        }
     }
 
     private void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
@@ -2780,7 +2785,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
 
         Date now = DateUtil.date();
-        Update update = Update.update("status", TaskDto.STATUS_RUNNING);
+        Update update = Update.update("status", TaskDto.STATUS_RUNNING).set("sheduleDate", null);
         if (taskDto.getStartTime() == null) {
             update.set("startTime", now);
         }
@@ -2815,7 +2820,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         //将子任务状态更新成错误.
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_error_status.v()));
-        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_ERROR).set("errorTime", DateUtil.date()).set("stopTime", DateUtil.date()), user);
+        Update set = Update.update("status", TaskDto.STATUS_ERROR)
+                .set("errorTime", DateUtil.date()).set("stopTime", DateUtil.date())
+                .set("sheduleDate", null);
+        UpdateResult update1 = update(query1, set, user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
