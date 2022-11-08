@@ -70,7 +70,7 @@ public class TMApplication {
 			}
 			@Override
 			public void debug(String msg) {
-				log.info(format(msg));
+				log.debug(format(msg));
 //				System.out.println(msg);
 			}
 

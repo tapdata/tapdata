@@ -54,7 +54,7 @@ public abstract class ContentData<T extends ContentData> extends Data {
         if(contentEncode != null) {
             content = dis.readBytes();
             //TODO debug
-            TapLogger.info(TAG, "readBytes {} length {}", content, content != null ? content.length : "null");
+//            TapLogger.info(TAG, "readBytes {} length {}", content, content != null ? content.length : "null");
             message = toTapMessage(content, contentType, contentEncode);
             content = null;
         }

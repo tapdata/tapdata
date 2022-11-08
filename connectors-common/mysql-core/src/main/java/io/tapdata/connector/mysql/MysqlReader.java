@@ -33,6 +33,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -119,10 +120,9 @@ public class MysqlReader implements Closeable {
 							if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
 								value = rs.getString(i + 1);
 							} else {
-								if (dateTypeSet.contains(columnName)) {
+								value = rs.getObject(i + 1);
+								if (EmptyKit.isNull(value)) {
 									value = rs.getString(i + 1);
-								} else {
-									value = rs.getObject(i + 1);
 								}
 							}
 							data.put(columnName, value);
@@ -518,7 +518,7 @@ public class MysqlReader implements Closeable {
 		if (null == schema) return null;
 		for (Field field : schema.fields()) {
 			String fieldName = field.name();
-			Object value = struct.get(fieldName);
+			Object value = struct.getWithoutDefault(fieldName);
 			if (null != field.schema().name() && field.schema().name().startsWith("io.debezium.time.")) {
 				if (field.schema().type() == Schema.Type.INT64 && value instanceof Long && Long.MIN_VALUE == ((Long) value)) {
 					result.put(fieldName, "0000-00-00 00:00:00");

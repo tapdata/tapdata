@@ -4,7 +4,10 @@ import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
@@ -134,8 +137,6 @@ public class JsProcessorNode extends ProcessorNode {
 
             List<Field> fields = schema.getFields();
 
-            Set<String> fieldNames = fields.stream().map(Field::getFieldName).collect(Collectors.toSet());
-
             if (CollectionUtils.isNotEmpty(fields)) {
                 for (Field field : fields) {
                     field.setDataTypeTemp(field.getDataType());
@@ -153,26 +154,6 @@ public class JsProcessorNode extends ProcessorNode {
                     }
                 }
             }
-
-            List<TableIndex> indices = new ArrayList<>();
-
-            if (CollectionUtils.isNotEmpty(schema1.getIndices())) {
-                for (TableIndex index : schema1.getIndices()) {
-                    List<TableIndexColumn> columns = index.getColumns();
-                    List<TableIndexColumn> newColumns = new ArrayList<>();
-                    for (TableIndexColumn column : columns) {
-                        if (fieldNames.contains(column.getColumnName())){
-                            newColumns.add(column);
-                        }
-                    }
-                    if (CollectionUtils.isNotEmpty(newColumns)) {
-                        index.setColumns(newColumns);
-                        indices.add(index);
-                    }
-                }
-            }
-
-            schema.setIndices(indices);
         }
 
         return schema;
