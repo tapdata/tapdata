@@ -3428,11 +3428,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         Map<String, Long> chart6Map = new HashMap<>();
-        chart6Map.put("output", output);
-        chart6Map.put("input", input);
-        chart6Map.put("insert", insert);
-        chart6Map.put("update", update);
-        chart6Map.put("delete", delete);
+        chart6Map.put("outputTotal", output);
+        chart6Map.put("inputTotal", input);
+        chart6Map.put("insertedTotal", insert);
+        chart6Map.put("updatedTotal", update);
+        chart6Map.put("deletedTotal", delete);
         return chart6Map;
     }
 }
