@@ -158,7 +158,7 @@ public class JsProcessorNode extends ProcessorNode {
     }
 
     protected TapTable getTapTable(Node target, TaskDto taskDtoCopy) {
-        return service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, taskDtoCopy);
+        return service.loadTapTable(getId(), target.getId(), taskDtoCopy);
     }
 
     @Override
