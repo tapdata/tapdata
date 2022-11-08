@@ -12,8 +12,8 @@ import static io.tapdata.base.ConnectorBase.testItem;
 
 public class FileTest implements AutoCloseable {
 
-    private FileConfig fileConfig;
-    private TapFileStorage storage;
+    private final FileConfig fileConfig;
+    private final TapFileStorage storage;
 
     public FileTest(DataMap params) throws Exception {
         fileConfig = new FileConfig().load(params);
