@@ -21,6 +21,7 @@ import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
@@ -701,7 +702,14 @@ public class MeasurementServiceV2 {
 
         Query taskQuery = new Query(Criteria.where("taskRecordId").is(taskRecordId));
         TaskDto taskDto = taskService.findOne(taskQuery, userDetail);
-        boolean hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
+        if (taskDto == null) {
+            return new Page<>(0, Lists.of());
+        }
+
+        boolean hasTableRenameNode = false;
+        if (CollectionUtils.isNotEmpty(taskDto.getDag().getNodes())) {
+            hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
+        }
 
         Criteria criteria = Criteria.where("tags.taskId").is(taskDto.getId().toHexString())
                 .and("tags.taskRecordId").is(taskRecordId)
@@ -761,6 +769,10 @@ public class MeasurementServiceV2 {
 
             String fullSyncStatus;
             if (syncRate.compareTo(BigDecimal.ONE) == 0) {
+                if (syncRate.compareTo(BigDecimal.TEN) > 0) {
+                    log.warn("querySyncStatic table {} syncRate {} more than 100%", originTableName, syncRate);
+                }
+                syncRate = new BigDecimal(1);
                 fullSyncStatus = "DONE";
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
                 fullSyncStatus = "NOT_START";
@@ -784,5 +796,22 @@ public class MeasurementServiceV2 {
 
     public void delDataWhenTaskReset(String taskId) {
         mongoOperations.remove(new Query(Criteria.where("tags.taskId").is(taskId)), MeasurementEntity.COLLECTION_NAME);
+    }
+
+    /**
+     * 根据任务id查询得到最近的一条分种类型的统计信息
+     * @param taskId 任务id
+     * @param user 用户
+     * @return
+     */
+    public MeasurementEntity findLastMinuteByTaskId(String taskId, UserDetail user) {
+        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
+                .and("grnty").is("minute")
+                .and("tags.type").is("task");
+
+        Query query = new Query(criteria);
+        query.fields().include("ss", "tags");
+        query.with(Sort.by("date").descending());
+        return mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
     }
 }

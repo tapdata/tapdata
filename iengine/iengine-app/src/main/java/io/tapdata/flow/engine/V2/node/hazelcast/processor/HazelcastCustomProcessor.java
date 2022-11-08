@@ -20,6 +20,7 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -106,7 +107,12 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 		execute(tapdataEvent);
-		consumer.accept(tapdataEvent, null);
+		String tableName = TapEventUtil.getTableId(tapdataEvent.getTapEvent());
+		ProcessResult processResult = null;
+		if (StringUtils.isNotEmpty(tableName)) {
+			processResult = getProcessResult(tableName);
+		}
+		consumer.accept(tapdataEvent, processResult);
 	}
 
 	private void execute(TapdataEvent tapdataEvent) {

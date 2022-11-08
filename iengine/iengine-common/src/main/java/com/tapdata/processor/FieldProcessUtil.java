@@ -58,7 +58,7 @@ public class FieldProcessUtil {
 					allPathNewKey = newKey;
 				}
 				renameMapping.put(allPathKey, allPathNewKey);
-				return new MapUtil.MapEntry(key.toUpperCase(), value);
+				return new MapUtil.MapEntry(newKey, value);
 			});
 			record.clear();
 			record.putAll(newRecord);

@@ -35,10 +35,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.zip.ZipOutputStream;
@@ -76,6 +73,9 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         for (MonitoringLogsEntity monitoringLogsEntity : monitoringLogsEntities) {
             monitoringLogsEntity.setTimestamp(System.currentTimeMillis());
             repository.applyUserDetail(monitoringLogsEntity, user);
+            if (Objects.nonNull(monitoringLogsEntity.getData())) {
+                monitoringLogsEntity.setDataJson(JSON.toJSONString(monitoringLogsEntity.getData()));
+            }
             bulkOperations.insert(monitoringLogsEntity);
         }
 
@@ -112,6 +112,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                     new Criteria("taskName").regex(search),
                     new Criteria("nodeName").regex(search),
                     new Criteria("message").regex(search),
+                    new Criteria("dataJson").regex(search),
                     new Criteria("errorStack").regex(search),
                     new Criteria("logTags").elemMatch(new Criteria("$regex").is(search))
             );

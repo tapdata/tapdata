@@ -339,13 +339,13 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			try {
 				session.sendMessage(textMessage);
 				break;
-			} catch (Exception e) {
+			} catch (Throwable e) {
 				if (++failTime > retryTime) {
 					throw e;
 				} else {
 					logger.warn("Send websocket message failed, fail time: {}, message: {}, err: {}, stack: {}", failTime, textMessage, e.getMessage(), Log4jUtil.getStackString(e));
+					Thread.sleep(100L);
 					createClients();
-					continue;
 				}
 			}
 		}

@@ -34,6 +34,7 @@ import java.util.TimeZone;
 public class DataSourceEntity extends BaseEntity {
     public static final String STATUS_INVALID = "invalid";
     public static final String STATUS_READY = "ready";
+    public static final String STATUS_TESTING = "testing";
 
     /** 数据源连接名称 */
     private String name;
