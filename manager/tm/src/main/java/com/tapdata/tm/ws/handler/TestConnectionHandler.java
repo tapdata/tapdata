@@ -6,10 +6,7 @@
  */
 package com.tapdata.tm.ws.handler;
 
-import cn.hutool.core.lang.Assert;
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
@@ -27,8 +24,6 @@ import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MapUtils;
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
-
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
@@ -36,16 +31,17 @@ import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.bson.types.ObjectId;
+
 import java.net.URLEncoder;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.bson.json.JsonObject;
-import org.bson.types.ObjectId;
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 @WebSocketMessageHandler(type = MessageType.TEST_CONNECTION)
 @Slf4j

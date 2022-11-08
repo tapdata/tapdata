@@ -13,6 +13,7 @@ import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
@@ -81,6 +82,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -110,8 +112,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	private LibSupportedsRepository libSupportedsRepository;
 	private SettingsService settingsService;
 	private DataSourceDefinitionService dataSourceDefinitionService;
-
 	private DefaultDataDirectoryService defaultDataDirectoryService;
+	private AlarmService alarmService;
 
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
@@ -1317,8 +1319,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					datasourceUpdate.set("testTime", System.currentTimeMillis());
 					if (DataSourceEntity.STATUS_READY.equals(status.toString())) {
 						datasourceUpdate.set("testCount", 0);
+						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), true));
 					} else {
 						datasourceUpdate.inc("testCount", 1);
+						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), false));
 					}
 				}
 				return repository.update(query, datasourceUpdate, user).getModifiedCount();

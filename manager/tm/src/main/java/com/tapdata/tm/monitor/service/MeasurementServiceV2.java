@@ -768,8 +768,6 @@ public class MeasurementServiceV2 {
                 fullSyncStatus = "DONE";
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
                 fullSyncStatus = "NOT_START";
-            } else if (!TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
-                fullSyncStatus = "NOT_START";
             } else {
                 fullSyncStatus = "ING";
             }
