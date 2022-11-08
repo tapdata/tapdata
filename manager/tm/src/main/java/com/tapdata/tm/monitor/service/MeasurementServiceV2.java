@@ -21,6 +21,7 @@ import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
@@ -701,7 +702,14 @@ public class MeasurementServiceV2 {
 
         Query taskQuery = new Query(Criteria.where("taskRecordId").is(taskRecordId));
         TaskDto taskDto = taskService.findOne(taskQuery, userDetail);
-        boolean hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
+        if (taskDto == null) {
+            return new Page<>(0, Lists.of());
+        }
+
+        boolean hasTableRenameNode = false;
+        if (CollectionUtils.isNotEmpty(taskDto.getDag().getNodes())) {
+            hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
+        }
 
         Criteria criteria = Criteria.where("tags.taskId").is(taskDto.getId().toHexString())
                 .and("tags.taskRecordId").is(taskRecordId)

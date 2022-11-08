@@ -26,7 +26,7 @@ public class CustomProcessorNode extends JsProcessorNode {
 
     @Override
     protected TapTable getTapTable(Node target, TaskDto taskDtoCopy) {
-        return service.loadTapTable(getInputSchema(), declareScript, getId(), target.getId(), customNodeId, form, taskDtoCopy);
+        return service.loadTapTable(getId(), target.getId(), taskDtoCopy);
     }
 
     public CustomProcessorNode() {
