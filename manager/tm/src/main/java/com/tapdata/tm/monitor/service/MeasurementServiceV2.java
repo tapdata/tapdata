@@ -761,6 +761,10 @@ public class MeasurementServiceV2 {
 
             String fullSyncStatus;
             if (syncRate.compareTo(BigDecimal.ONE) == 0) {
+                if (syncRate.compareTo(BigDecimal.TEN) > 0) {
+                    log.warn("querySyncStatic table {} syncRate {} more than 100%", originTableName, syncRate);
+                }
+                syncRate = new BigDecimal(1);
                 fullSyncStatus = "DONE";
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
                 fullSyncStatus = "NOT_START";
