@@ -83,7 +83,7 @@ public class TicketsSchema extends Schema implements SchemaLoader {
         ZoHoOffset zoHoOffset =  new ZoHoOffset();
         //current read end as next read begin
         zoHoOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(Schemas.Tickets.getTableName(),readEnd);}});
-        this.read(batchCount,zoHoOffset,consumer);
+        this.read(batchCount,zoHoOffset,consumer,false);
     }
 
     @Override
@@ -294,10 +294,14 @@ public class TicketsSchema extends Schema implements SchemaLoader {
      * -fields                   string(MaxLen:100)      Key that returns the values of mentioned fields (both pre-defined and custom) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: statusType, webUrl, layoutId. Maximum of 30 fields is supported as comma separated values.
      * -priority                 string(MaxLen:100)      Key that filters tickets by priority. Multiple priority levels can be passed as comma-separated values.
      */
-    public void read(int readSize, Object offsetState, BiConsumer<List<TapEvent>, Object> consumer ){
+    public void read(int readSize, Object offsetState, BiConsumer<List<TapEvent>, Object> consumer,boolean isStreamRead ){
         final List<TapEvent>[] events = new List[]{new ArrayList<>()};
         int pageSize = Math.min(readSize, this.batchReadMaxPageSize);
-        HttpEntity<String, Object> tickPageParam = ticketLoader.getTickPageParam().build("limit", pageSize);//分页数
+        HttpEntity<String, Object> tickPageParam = ticketLoader.getTickPageParam()
+                .build("limit", pageSize);
+        if (!isStreamRead) {
+            tickPageParam.build("sortBy", "createdTime");
+        }
         int fromPageIndex = 1;//从第几个工单开始分页
         TapConnectionContext context = this.ticketLoader.getContext();
         String modeName = context.getConnectionConfig().getString("connectionMode");
@@ -317,7 +321,7 @@ public class TicketsSchema extends Schema implements SchemaLoader {
                 if (!isAlive()) return;
                 Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,tableName,ticketLoader);
                 if (Checker.isEmpty(oneTicket) || oneTicket.isEmpty()) return;
-                Object modifiedTimeObj = oneTicket.get("modifiedTime");
+                Object modifiedTimeObj = oneTicket.get(isStreamRead?"modifiedTime":"createdTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
                 long referenceTime = System.currentTimeMillis();
                 if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                     referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);

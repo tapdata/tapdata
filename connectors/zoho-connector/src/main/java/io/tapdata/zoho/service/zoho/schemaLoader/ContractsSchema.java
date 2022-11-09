@@ -85,15 +85,16 @@ public class ContractsSchema extends Schema implements SchemaLoader {
         String tableName =  Schemas.Products.getTableName();
         if (Checker.isEmpty(offsetState)) offsetState = ZoHoOffset.create(new HashMap<>());
         final Object offset = offsetState;
+        final String sortBy = isBatchRead?"createdTime":"modifiedTime";
         while (isAlive()){
-            List<Map<String, Object>> list = contractsOpenApi.page(fromPageIndex, pageSize);
+            List<Map<String, Object>> list = contractsOpenApi.page(fromPageIndex, pageSize,sortBy);
             if (Checker.isEmpty(list) || list.isEmpty()) break;
             fromPageIndex += pageSize;
             list.stream().filter(Objects::nonNull).forEach(product->{
                 if (!isAlive()) return;
                 Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,contractsOpenApi);
                 if (Checker.isEmpty(oneProduct) || oneProduct.isEmpty()) return;
-                Object modifiedTimeObj = oneProduct.get("modifiedTime");
+                Object modifiedTimeObj = oneProduct.get(sortBy);
                 long referenceTime = System.currentTimeMillis();
                 if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                     referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
