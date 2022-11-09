@@ -4,6 +4,7 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.Log4jUtil;
+import com.tapdata.entity.AppType;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
@@ -64,7 +65,9 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 						}
 					} catch (Exception e) {
 						logger.warn("Send task ping time failed, will stop task: {}", e.getMessage(), e);
-						stopTask.get();
+						if (!AppType.init().isCloud()) {
+							stopTask.get();
+						}
 					} finally {
 						ThreadContext.clearAll();
 					}
