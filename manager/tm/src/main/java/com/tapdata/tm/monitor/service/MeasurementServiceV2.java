@@ -291,6 +291,11 @@ public class MeasurementServiceV2 {
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
         List<MeasurementEntity> entities = results.getMappedResults();
         Number currentEventTimestamp = 0;
+        Number snapshotRowTotal = 0;
+        Number snapshotInsertRowTotal = 0;
+        Number snapshotStartAt = 0;
+        Number timeCostAvg = 0;
+        Number targetWriteTimeCostAvg = 0;
         for (MeasurementEntity entity : entities) {
             String hash = hashTag(entity.getTags());
             for(Sample sample : entity.getSamples()) {
@@ -299,13 +304,12 @@ public class MeasurementServiceV2 {
                     continue;
                 }
 
-                if (fields.contains("currentEventTimestamp")) {
-                    Map<String, Number> vs = sample.getVs();
-                    Number timestamp = vs.get("currentEventTimestamp");
-                    if (Objects.nonNull(timestamp) && timestamp.longValue() > currentEventTimestamp.longValue()) {
-                        currentEventTimestamp = timestamp;
-                    }
-                }
+                currentEventTimestamp = getNumber(fields, currentEventTimestamp, sample, "currentEventTimestamp");
+                snapshotRowTotal = getNumber(fields, snapshotRowTotal, sample, "snapshotRowTotal");
+                snapshotInsertRowTotal = getNumber(fields, snapshotInsertRowTotal, sample, "snapshotInsertRowTotal");
+                snapshotStartAt = getNumber(fields, snapshotStartAt, sample, "snapshotStartAt");
+                timeCostAvg = getNumber(fields, timeCostAvg, sample, "timeCostAvg");
+                targetWriteTimeCostAvg = getNumber(fields, targetWriteTimeCostAvg, sample, "targetWriteTimeCostAvg");
 
                 long oldInterval = Math.abs(data.get(hash).getDate().getTime() - time);
                 long newInterval = Math.abs(sample.getDate().getTime() - time);
@@ -317,7 +321,7 @@ public class MeasurementServiceV2 {
 
         Long maxRep = calculateMaxReplicateLag(querySample, typeIsTask);
 
-        Number snapshotStartAtTemp = getSnapshotStartAt(querySample, typeIsTask);
+//        Number snapshotStartAtTemp = getSnapshotStartAt(querySample, typeIsTask);
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
 
@@ -328,25 +332,38 @@ public class MeasurementServiceV2 {
                 }
             }
 
-            if (values.containsKey("currentEventTimestamp")) {
+            if (fields.contains("currentEventTimestamp")) {
                 values.put("currentEventTimestamp", currentEventTimestamp);
             }
+            if (fields.contains("snapshotInsertRowTotal")) {
+                values.put("snapshotInsertRowTotal", snapshotInsertRowTotal);
+            }
+            if (fields.contains("snapshotRowTotal")) {
+                values.put("snapshotRowTotal", snapshotRowTotal);
+            }
+            if (fields.contains("snapshotStartAt")) {
+                values.put("snapshotStartAt", snapshotStartAt);
+            }
+            if (fields.contains("timeCostAvg")) {
+                values.put("timeCostAvg", timeCostAvg);
+            }
+            if (fields.contains("targetWriteTimeCostAvg")) {
+                values.put("targetWriteTimeCostAvg", targetWriteTimeCostAvg);
+            }
 
-            Number snapshotRowTotal = values.get("snapshotRowTotal");
-            Number snapshotInsertRowTotal = values.get("snapshotInsertRowTotal");
             if (Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowTotal)
                     && snapshotInsertRowTotal.longValue() > snapshotRowTotal.longValue()) {
                 values.put("snapshotRowTotal", snapshotInsertRowTotal);
             }
-            Number snapshotStartAt = values.get("snapshotStartAt");
-            Number snapshotDoneAt = values.get("snapshotDoneAt");
-            if (Objects.nonNull(snapshotDoneAt) && Objects.isNull(snapshotStartAt)) {
-                values.put("snapshotStartAt", snapshotStartAtTemp);
-            }
+
+//            Number snapshotDoneAt = values.get("snapshotDoneAt");
+//            if (Objects.nonNull(snapshotDoneAt) && Objects.isNull(snapshotStartAt)) {
+//                values.put("snapshotStartAt", snapshotStartAtTemp);
+//            }
             if (typeIsTask) {
                 // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
-                if (Objects.nonNull(snapshotInsertRowTotal) && Objects.nonNull(snapshotStartAtTemp) && snapshotInsertRowTotal.longValue() == 0) {
-                    maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAtTemp.longValue());
+                if (Objects.nonNull(snapshotInsertRowTotal) && Objects.nonNull(snapshotStartAt) && snapshotInsertRowTotal.longValue() == 0) {
+                    maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAt.longValue());
                 }
                 values.put("replicateLag", maxRep);
             }
@@ -354,6 +371,17 @@ public class MeasurementServiceV2 {
         }
 
         return data;
+    }
+
+    private static Number getNumber(List<String> fields, Number value, Sample sample, String key) {
+        if (fields.contains(key)) {
+            Map<String, Number> vs = sample.getVs();
+            Number timestamp = vs.get(key);
+            if (Objects.nonNull(timestamp) && timestamp.longValue() > value.longValue()) {
+                value = timestamp;
+            }
+        }
+        return value;
     }
 
     private Long calculateMaxReplicateLag(MeasurementQueryParam.MeasurementQuerySample querySample, boolean typeIsTask) {
