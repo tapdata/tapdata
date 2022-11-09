@@ -2,6 +2,12 @@ package com.tapdata.tm.monitor.service;
 
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
@@ -31,6 +37,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
+import org.bson.json.JsonObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
@@ -41,6 +48,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import javax.management.ValueExp;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
@@ -241,6 +249,7 @@ public class MeasurementServiceV2 {
      * @return
      */
     private Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long time, String padding) {
+        List<String> fields = querySample.getFields();
         Map<String, Sample> data = new HashMap<>();
         if (!StringUtils.equalsAny(querySample.getType(),
                 MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT,
@@ -265,8 +274,14 @@ public class MeasurementServiceV2 {
         }
         criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
+        boolean typeIsTask = false;
         for (Map.Entry<String, String> entry : querySample.getTags().entrySet()) {
-            criteria.and(String.format(TAG_FORMAT, entry.getKey())).is(entry.getValue());
+            String format = String.format(TAG_FORMAT, entry.getKey());
+            String value = entry.getValue();
+            criteria.and(format).is(value);
+            if (format.equals("tags.type") && "task".equals(value)) {
+                typeIsTask = true;
+            }
         }
 
         MatchOperation match = Aggregation.match(criteria);
@@ -278,6 +293,8 @@ public class MeasurementServiceV2 {
         Aggregation aggregation = Aggregation.newAggregation( match, sort, group);
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
         List<MeasurementEntity> entities = results.getMappedResults();
+
+        Map<String, Number> keyMap = getKeyMap();
         for (MeasurementEntity entity : entities) {
             String hash = hashTag(entity.getTags());
             for(Sample sample : entity.getSamples()) {
@@ -285,6 +302,9 @@ public class MeasurementServiceV2 {
                     data.put(hash, sample);
                     continue;
                 }
+
+                getNumber(fields, sample, keyMap);
+
                 long oldInterval = Math.abs(data.get(hash).getDate().getTime() - time);
                 long newInterval = Math.abs(sample.getDate().getTime() - time);
                 if (newInterval < oldInterval) {
@@ -293,7 +313,9 @@ public class MeasurementServiceV2 {
             }
         }
 
-        List<String> fields = querySample.getFields();
+        Long maxRep = calculateMaxReplicateLag(querySample, typeIsTask);
+
+//        Number snapshotStartAtTemp = getSnapshotStartAt(querySample, typeIsTask);
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
 
@@ -304,16 +326,143 @@ public class MeasurementServiceV2 {
                 }
             }
 
-            Number snapshotRowTotal = values.get("snapshotRowTotal");
-            Number snapshotInsertRowTotal = values.get("snapshotInsertRowTotal");
+            for (Map.Entry<String, Number> entry : keyMap.entrySet()) {
+                String key = entry.getKey();
+                Number value = entry.getValue();
+                if (fields.contains(key)) {
+                    values.put(key, value);
+                }
+            }
+
+            Number snapshotRowTotal = keyMap.get("snapshotRowTotal");
+            Number snapshotInsertRowTotal = keyMap.get("snapshotInsertRowTotal");
             if (Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowTotal)
                     && snapshotInsertRowTotal.longValue() > snapshotRowTotal.longValue()) {
                 values.put("snapshotRowTotal", snapshotInsertRowTotal);
+            }
+
+//            Number snapshotDoneAt = values.get("snapshotDoneAt");
+//            if (Objects.nonNull(snapshotDoneAt) && Objects.isNull(snapshotStartAt)) {
+//                values.put("snapshotStartAt", snapshotStartAtTemp);
+//            }
+            if (typeIsTask) {
+                Number snapshotStartAt = keyMap.get("snapshotStartAt");
+                // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
+                if (Objects.nonNull(snapshotInsertRowTotal) && Objects.nonNull(snapshotStartAt) && snapshotInsertRowTotal.longValue() == 0) {
+                    maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAt.longValue());
+                }
+                values.put("replicateLag", maxRep);
+
+                // 全量完成时间应该是在任务中所有涉及全量的表完成后再更新全量完成时间
+                Number snapshotTableTotal = keyMap.get("snapshotTableTotal");
+                Number tableTotal = keyMap.get("tableTotal");
+                if (snapshotTableTotal.longValue() == 0 || snapshotTableTotal.longValue() < tableTotal.longValue()) {
+                    values.put("snapshotDoneAt", null);
+                }
+
             }
             sample.setVs(values);
         }
 
         return data;
+    }
+
+    private static Map<String, Number> getKeyMap() {
+        Map<String, Number> keyMap = Maps.newHashMap();
+        keyMap.put("currentEventTimestamp", 0);
+        keyMap.put("snapshotRowTotal", 0);
+        keyMap.put("snapshotInsertRowTotal", 0);
+        keyMap.put("snapshotStartAt", 0);
+        keyMap.put("timeCostAvg", 0);
+        keyMap.put("targetWriteTimeCostAvg", 0);
+        keyMap.put("inputDdlTotal", 0);
+        keyMap.put("inputDeleteTotal", 0);
+        keyMap.put("inputInsertTotal", 0);
+        keyMap.put("inputOthersTotal", 0);
+        keyMap.put("inputUpdateTotal", 0);
+        keyMap.put("outputDdlTotal", 0);
+        keyMap.put("outputDeleteTotal", 0);
+        keyMap.put("outputInsertTotal", 0);
+        keyMap.put("outputOthersTotal", 0);
+        keyMap.put("outputUpdateTotal", 0);
+        keyMap.put("snapshotTableTotal", 0);
+        keyMap.put("tableTotal", 0);
+
+        return keyMap;
+    }
+
+    private static Number getNumber(List<String> fields, Number value, Sample sample, String key) {
+        if (fields.contains(key)) {
+            Map<String, Number> vs = sample.getVs();
+            Number timestamp = vs.get(key);
+            if (Objects.nonNull(timestamp) && timestamp.longValue() > value.longValue()) {
+                value = timestamp;
+            }
+        }
+        return value;
+    }
+
+    private static void getNumber(List<String> fields, Sample sample, Map<String, Number> keyMap) {
+        for (Map.Entry<String, Number> entry : keyMap.entrySet()) {
+            String key = entry.getKey();
+            Number value = entry.getValue();
+            if (fields.contains(key)) {
+                Map<String, Number> vs = sample.getVs();
+                Number timestamp = vs.get(key);
+                if (Objects.nonNull(timestamp) && timestamp.longValue() > value.longValue()) {
+                    keyMap.put(key, timestamp);
+                }
+            }
+
+        }
+    }
+
+    private Long calculateMaxReplicateLag(MeasurementQueryParam.MeasurementQuerySample querySample, boolean typeIsTask) {
+        Long maxRep = 0L;
+        if (typeIsTask) {
+            String taskId = querySample.getTags().get("taskId");
+            String taskRecordId = querySample.getTags().get("taskRecordId");
+            Criteria repCriteria = Criteria.where("grnty").is("minute")
+                    .and("tags.taskId").is(taskId)
+                    .and("tags.taskRecordId").is(taskRecordId)
+                    .and("tags.type").is("task");
+            MatchOperation repMatch = Aggregation.match(repCriteria);
+            GroupOperation repGroup = Aggregation.group("max").max("$ss.vs.replicateLag").as("max");
+            Aggregation repAggregation = Aggregation.newAggregation(repMatch, repGroup);
+            AggregationResults<Document> repAggregate = mongoOperations.aggregate(repAggregation, MeasurementEntity.COLLECTION_NAME, Document.class);
+            List<Document> mappedResults = repAggregate.getMappedResults();
+            for (Document document : mappedResults) {
+                Object max = document.get("max");
+                List<Integer> list = JSON.parseArray(max.toString(), Integer.class);
+                list.removeAll(Collections.singleton(null));
+                if (CollectionUtils.isNotEmpty(list)) {
+                    Integer temp = Collections.max(list);
+                    if (temp > maxRep) {
+                        maxRep = Long.valueOf(temp);
+                    }
+                }
+            }
+        }
+        return maxRep;
+    }
+
+    private Number getSnapshotStartAt(MeasurementQueryParam.MeasurementQuerySample querySample, boolean typeIsTask) {
+        Number snapshotStartAt = 0;
+        if (typeIsTask) {
+            String taskId = querySample.getTags().get("taskId");
+            String taskRecordId = querySample.getTags().get("taskRecordId");
+            Criteria criteria = Criteria.where("grnty").is("minute")
+                    .and("tags.taskId").is(taskId)
+                    .and("tags.taskRecordId").is(taskRecordId)
+                    .and("tags.type").is("task")
+                    .and("ss.vs.snapshotStartAt").gt(0);
+            Query query = Query.query(criteria).limit(1);
+            MeasurementEntity one = mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+            if (Objects.nonNull(one) && CollectionUtils.isNotEmpty(one.getSamples())) {
+                snapshotStartAt = one.getSamples().get(0).getVs().get("snapshotStartAt");
+            }
+        }
+        return snapshotStartAt;
     }
 
     public Map<String, Sample> getDifferenceSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end) {
@@ -775,8 +924,6 @@ public class MeasurementServiceV2 {
                 syncRate = new BigDecimal(1);
                 fullSyncStatus = "DONE";
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
-                fullSyncStatus = "NOT_START";
-            } else if (!TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
                 fullSyncStatus = "NOT_START";
             } else {
                 fullSyncStatus = "ING";

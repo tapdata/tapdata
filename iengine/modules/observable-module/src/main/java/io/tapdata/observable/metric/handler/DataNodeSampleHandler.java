@@ -454,7 +454,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
                     }, TAG);
                     AspectUtils.executeAspect(connectionPingAspect);
                 } catch (Throwable throwable) {
-                    logger.warn("Failed to check tcp ping or connect ping for node: {}, err: " + node.getId(), throwable.getMessage());
+                    logger.warn("Failed to check tcp ping or connect ping for node: {}, err: {}", node.getId(), throwable.getMessage());
                 }
             }, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
             futureRef.set(future);
