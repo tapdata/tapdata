@@ -187,7 +187,9 @@ public class TapNodeClassFactory implements MemoryFetcher {
         DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("idGroupTapNodeInfoMap", idGroupTapNodeInfoMap)
                 .kv("associateIdTapNodeIdMap", associateIdTapNodeIdMap);
-
+        if(classLoader instanceof DependencyURLClassLoader) {
+            dataMap.kv("manifest", ((DependencyURLClassLoader) classLoader).manifest());
+        }
         for(Map.Entry<String, TapNodeInfo> entry : tapConnectorAnnotationHandler.idGroupTapNodeInfoMap.entrySet()) {
             idGroupTapNodeInfoMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
         }

@@ -32,7 +32,7 @@ public class SkillsSchema extends Schema implements SchemaLoader {
 
     @Override
     public void batchRead(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer) {
-        this.read(batchCount,offset,consumer,Boolean.TRUE);
+        this.read(batchCount,offset,consumer,Boolean.FALSE);
     }
 
     @Override
@@ -40,7 +40,7 @@ public class SkillsSchema extends Schema implements SchemaLoader {
         return 0;
     }
 
-    public void read(int readSize, Object offsetState, BiConsumer<List<TapEvent>, Object> consumer,boolean isBatchRead ){
+    public void read(int readSize, Object offsetState, BiConsumer<List<TapEvent>, Object> consumer,boolean isStreamRead ){
         final List<TapEvent>[] events = new List[]{new ArrayList<>()};
         int pageSize = Math.min(readSize, SkillsOpenApi.MAX_PAGE_LIMIT);
         int fromPageIndex = 1;//从第几个工单开始分页
@@ -63,7 +63,7 @@ public class SkillsSchema extends Schema implements SchemaLoader {
                 if (!isAlive()) return;
                 Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,skillsOpenApi);
                 if (Checker.isEmpty(oneProduct) || oneProduct.isEmpty()) return;
-                Object modifiedTimeObj = oneProduct.get("modifiedTime");
+                Object modifiedTimeObj = oneProduct.get(isStreamRead?"modifiedTime":"createdTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
                 long referenceTime = System.currentTimeMillis();
                 if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                     referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);

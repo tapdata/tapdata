@@ -62,6 +62,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -844,5 +845,21 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		public Map<String, TapValue<?, ?>> getAfter() {
 			return after;
 		}
+	}
+
+	@Nullable
+	protected JobStatus getJetJobStatus() {
+		long jobId = jetContext.jobId();
+		com.hazelcast.jet.Job job = jetContext.hazelcastInstance().getJet().getJob(jobId);
+		if (null != job) {
+			return job.getStatus();
+		} else {
+			return null;
+		}
+	}
+
+	protected boolean isJetJobRunning() {
+		JobStatus jetJobStatus = getJetJobStatus();
+		return null == jetJobStatus || jetJobStatus.equals(JobStatus.RUNNING);
 	}
 }

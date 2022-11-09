@@ -142,23 +142,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	final public void process(int ordinal, @NotNull Inbox inbox) {
 		try {
+			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
+			Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 			if (!inbox.isEmpty()) {
-				while (isRunning()) {
-					List<TapdataEvent> tapdataEvents = new ArrayList<>();
-					final int count = inbox.drainTo(tapdataEvents, dataProcessorContext.getTaskDto().getReadBatchSize());
-					if (count > 0) {
-						for (TapdataEvent tapdataEvent : tapdataEvents) {
-							while (isRunning()) {
-								try {
-									if (tapEventQueue.offer(tapdataEvent, 1L, TimeUnit.SECONDS)) {
-										break;
-									}
-								} catch (InterruptedException ignored) {
+				List<TapdataEvent> tapdataEvents = new ArrayList<>();
+				final int count = inbox.drainTo(tapdataEvents, dataProcessorContext.getTaskDto().getReadBatchSize());
+				if (count > 0) {
+					for (TapdataEvent tapdataEvent : tapdataEvents) {
+						while (isRunning()) {
+							try {
+								if (tapEventQueue.offer(tapdataEvent, 1L, TimeUnit.SECONDS)) {
+									break;
 								}
+							} catch (InterruptedException ignored) {
 							}
 						}
-					} else {
-						break;
 					}
 				}
 			}
@@ -224,11 +222,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void queueConsume() {
-		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 		try {
+			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
 			long lastProcessTime = System.currentTimeMillis();
-			String preClassName = "";
 			while (isRunning()) {
 				TapdataEvent tapdataEvent = tapEventQueue.poll(1L, TimeUnit.SECONDS);
 				if (null != tapdataEvent) {

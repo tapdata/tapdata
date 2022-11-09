@@ -72,7 +72,9 @@ public class TaskAlarmScheduler {
 
     @Scheduled(cron = "0 0/30 * * * ?")
     @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
-    public void taskDataNodeConnectAlarm() {
+    public void taskDataNodeConnectAlarm() throws InterruptedException {
+        Thread.currentThread().setName(Thread.currentThread().getName() + "-taskDataNodeConnectAlarm");
+
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
                 .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
                 .and("is_deleted").is(false));
@@ -106,7 +108,6 @@ public class TaskAlarmScheduler {
 
         Query connectQuery = new Query(Criteria.where("_id").in(connectionIds));
         connectQuery.with(Sort.by("testTime"));
-        connectQuery.limit(5);
         List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAll(connectQuery);
         if (CollectionUtils.isEmpty(connectionDtos)) {
             return;
@@ -128,6 +129,8 @@ public class TaskAlarmScheduler {
             connectionDto.setExtParam(extParam);
 
             dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(connectionDto.getUserId()));
+
+            Thread.sleep(1000L);
         }
 
     }

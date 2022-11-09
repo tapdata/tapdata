@@ -28,6 +28,9 @@ public class ContractsOpenApi extends ZoHoStarter implements ZoHoBase  {
     public static final int MIX_PAGE_LIMIT = 1;
     public static final int MIN_PAGE_FROM = 0;
     public static final int DEFAULT_PAGE_LIMIT = 50;
+    public List<Map<String,Object>> page(Integer from, Integer limit,String sortBy){
+        return page(from, limit,null,null,null,sortBy,null,null,null);
+    }
     public List<Map<String,Object>> page(Integer from, Integer limit){
         return page(from, limit,null,null,null,null,null,null,null);
     }
