@@ -2,6 +2,10 @@ package com.tapdata.tm.monitor.service;
 
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
@@ -31,6 +35,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
+import org.bson.json.JsonObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
@@ -299,9 +304,9 @@ public class MeasurementServiceV2 {
             }
         }
 
-        Integer maxRep = calculateMaxReplicateLag(querySample, typeIsTask);
+        Long maxRep = calculateMaxReplicateLag(querySample, typeIsTask);
 
-        Number snapshotStartAtTemp = getSnapshotStartAt(querySample);
+        Number snapshotStartAtTemp = getSnapshotStartAt(querySample, typeIsTask);
 
         List<String> fields = querySample.getFields();
         for (String hash : data.keySet()) {
@@ -320,13 +325,17 @@ public class MeasurementServiceV2 {
                     && snapshotInsertRowTotal.longValue() > snapshotRowTotal.longValue()) {
                 values.put("snapshotRowTotal", snapshotInsertRowTotal);
             }
-            if (typeIsTask) {
-                values.put("replicateLag", maxRep);
-            }
             Number snapshotStartAt = values.get("snapshotStartAt");
             Number snapshotDoneAt = values.get("snapshotDoneAt");
             if (Objects.nonNull(snapshotDoneAt) && Objects.isNull(snapshotStartAt)) {
                 values.put("snapshotStartAt", snapshotStartAtTemp);
+            }
+            if (typeIsTask) {
+                // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
+                if (Objects.nonNull(snapshotInsertRowTotal) && snapshotInsertRowTotal.longValue() == 0) {
+                    maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAtTemp.longValue());
+                }
+                values.put("replicateLag", maxRep);
             }
             sample.setVs(values);
         }
@@ -334,8 +343,8 @@ public class MeasurementServiceV2 {
         return data;
     }
 
-    private Integer calculateMaxReplicateLag(MeasurementQueryParam.MeasurementQuerySample querySample, boolean typeIsTask) {
-        Integer maxRep = 0;
+    private Long calculateMaxReplicateLag(MeasurementQueryParam.MeasurementQuerySample querySample, boolean typeIsTask) {
+        Long maxRep = 0L;
         if (typeIsTask) {
             String taskId = querySample.getTags().get("taskId");
             String taskRecordId = querySample.getTags().get("taskRecordId");
@@ -349,29 +358,35 @@ public class MeasurementServiceV2 {
             AggregationResults<Document> repAggregate = mongoOperations.aggregate(repAggregation, MeasurementEntity.COLLECTION_NAME, Document.class);
             List<Document> mappedResults = repAggregate.getMappedResults();
             for (Document document : mappedResults) {
-                List<Integer> list = document.getList("max", Integer.class);
-                Integer temp = Collections.max(list);
-                if (temp > maxRep) {
-                    maxRep = temp;
+                Object max = document.get("max");
+                List<Integer> list = JSON.parseArray(max.toString(), Integer.class);
+                list.removeAll(Collections.singleton(null));
+                if (CollectionUtils.isNotEmpty(list)) {
+                    Integer temp = Collections.max(list);
+                    if (temp > maxRep) {
+                        maxRep = Long.valueOf(temp);
+                    }
                 }
             }
         }
         return maxRep;
     }
 
-    private Number getSnapshotStartAt(MeasurementQueryParam.MeasurementQuerySample querySample) {
+    private Number getSnapshotStartAt(MeasurementQueryParam.MeasurementQuerySample querySample, boolean typeIsTask) {
         Number snapshotStartAt = 0;
-        String taskId = querySample.getTags().get("taskId");
-        String taskRecordId = querySample.getTags().get("taskRecordId");
-        Criteria criteria = Criteria.where("grnty").is("minute")
-                .and("tags.taskId").is(taskId)
-                .and("tags.taskRecordId").is(taskRecordId)
-                .and("tags.type").is("task")
-                .and("ss.vs.snapshotStartAt").gt(0);
-        Query query = Query.query(criteria).limit(1);
-        MeasurementEntity one = mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
-        if (CollectionUtils.isNotEmpty(one.getSamples())) {
-            snapshotStartAt = one.getSamples().get(0).getVs().get("snapshotStartAt");
+        if (typeIsTask) {
+            String taskId = querySample.getTags().get("taskId");
+            String taskRecordId = querySample.getTags().get("taskRecordId");
+            Criteria criteria = Criteria.where("grnty").is("minute")
+                    .and("tags.taskId").is(taskId)
+                    .and("tags.taskRecordId").is(taskRecordId)
+                    .and("tags.type").is("task")
+                    .and("ss.vs.snapshotStartAt").gt(0);
+            Query query = Query.query(criteria).limit(1);
+            MeasurementEntity one = mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+            if (Objects.nonNull(one) && CollectionUtils.isNotEmpty(one.getSamples())) {
+                snapshotStartAt = one.getSamples().get(0).getVs().get("snapshotStartAt");
+            }
         }
         return snapshotStartAt;
     }
