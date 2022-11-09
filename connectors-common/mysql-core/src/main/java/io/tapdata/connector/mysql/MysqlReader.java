@@ -49,7 +49,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
@@ -59,6 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static io.tapdata.connector.mysql.util.MysqlUtil.randomServerId;
@@ -86,15 +86,15 @@ public class MysqlReader implements Closeable {
 	private KVReadOnlyMap<TapTable> tapTableMap;
 	private DDLParserType ddlParserType = DDLParserType.MYSQL_CCJ_SQL_PARSER;
 	private final int MIN_BATCH_SIZE = 1000;
+	private String DB_TIME_ZONE;
+	private AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
 
-	private   String  DB_TIME_ZONE;
-
-	public MysqlReader(MysqlJdbcContext mysqlJdbcContext)  {
+	public MysqlReader(MysqlJdbcContext mysqlJdbcContext) {
 		this.mysqlJdbcContext = mysqlJdbcContext;
 		this.running = new AtomicBoolean(true);
 		try {
 			this.DB_TIME_ZONE = mysqlJdbcContext.timezone();
-		}catch (Exception ignore){
+		} catch (Exception ignore) {
 
 		}
 	}
@@ -209,7 +209,6 @@ public class MysqlReader implements Closeable {
 			if (null != mysqlStreamOffset) {
 				offsetStr = jsonParser.toJson(mysqlStreamOffset);
 			}
-			AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
 			TapLogger.info(TAG, "Starting mysql cdc, server name: " + serverName);
 			this.eventQueue = new LinkedBlockingQueue<>(10);
 			this.streamReadConsumer = consumer;
@@ -245,19 +244,25 @@ public class MysqlReader implements Closeable {
 			List<String> dbTableNames = tables.stream().map(t -> database + "." + t).collect(Collectors.toList());
 			builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, database);
 			builder.with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, String.join(",", dbTableNames));
+			builder.with(EmbeddedEngine.OFFSET_STORAGE, "io.tapdata.connector.mysql.PdkPersistenceOffsetBackingStore");
+			if (StringUtils.isNotBlank(offsetStr)) {
+				builder.with("pdk.offset.string", offsetStr);
+			}
 			/*
 				todo At present, the schema loading logic will load the schema of all current tables each time it is started. When there is ddl in the historical data, it will cause a parsing error
 				todo The main scenario is shared mining, which dynamically modifies the table include list. If the last cached model list is used, debezium will not load the newly added table model, resulting in a parsing error when reading: whose schema isn't known to this connector
 				todo Best practice, need to change the debezium source code, add a configuration that supports partial update of some table schemas, and logic implementation
 			*/
-//			builder.with("snapshot.mode", MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY_RECOVERY);
-			builder.with("snapshot.mode", MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY);
+			builder.with("snapshot.mode", MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY_RECOVERY);
+			if (null != throwableAtomicReference.get()) {
+				String lastErrorMessage = throwableAtomicReference.get().getMessage();
+				if (StringUtils.isNotBlank(lastErrorMessage) && lastErrorMessage.contains("Could not find existing binlog information while attempting schema only recovery snapshot")) {
+					builder.with("snapshot.mode", MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY);
+				}
+			}
 			builder.with("database.history", "io.debezium.relational.history.MemoryDatabaseHistory");
 //			builder.with("database.history", "io.tapdata.connector.mysql.StateMapHistoryBackingStore");
-			builder.with(EmbeddedEngine.OFFSET_STORAGE, "io.tapdata.connector.mysql.PdkPersistenceOffsetBackingStore");
-			if (StringUtils.isNotBlank(offsetStr)) {
-				builder.with("pdk.offset.string", offsetStr);
-			}
+
 			Configuration configuration = builder.build();
 			StringBuilder configStr = new StringBuilder("Starting binlog reader with config {\n");
 			configuration.withMaskedPasswords().asMap().forEach((k, v) -> configStr.append("  ")
@@ -284,15 +289,16 @@ public class MysqlReader implements Closeable {
 							} else {
 								TapLogger.info(TAG, "CDC engine stopped");
 							}
+							throwableAtomicReference.set(null);
 						} else {
 							if (null != throwable) {
 								if (StringUtils.isNotBlank(message)) {
-									throwableAtomicReference.set(new RuntimeException(message, throwable));
+									throwableAtomicReference.set(new RuntimeException(message + "\n " + throwable.getMessage(), throwable));
 								} else {
 									throwableAtomicReference.set(new RuntimeException(throwable));
 								}
 							} else {
-								throwableAtomicReference.set(new RuntimeException(message));
+								throwableAtomicReference.set(null);
 							}
 						}
 						streamReadConsumer.streamReadEnded();
@@ -409,7 +415,7 @@ public class MysqlReader implements Closeable {
 		Long eventTime = source.getInt64("ts_ms");
 		String table = Optional.of(record.topic().split("\\.")).map(arr -> {
 			if (arr.length > 0) {
-				return arr[arr.length-1];
+				return arr[arr.length - 1];
 			}
 			return null;
 		}).orElse(source.getString("table"));

@@ -265,8 +265,14 @@ public class MeasurementServiceV2 {
         }
         criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
+        boolean typeIsTask = false;
         for (Map.Entry<String, String> entry : querySample.getTags().entrySet()) {
-            criteria.and(String.format(TAG_FORMAT, entry.getKey())).is(entry.getValue());
+            String format = String.format(TAG_FORMAT, entry.getKey());
+            String value = entry.getValue();
+            criteria.and(format).is(value);
+            if (format.equals("tags.type") && "task".equals(value)) {
+                typeIsTask = true;
+            }
         }
 
         MatchOperation match = Aggregation.match(criteria);
@@ -293,6 +299,10 @@ public class MeasurementServiceV2 {
             }
         }
 
+        Integer maxRep = calculateMaxReplicateLag(querySample, typeIsTask);
+
+        Number snapshotStartAtTemp = getSnapshotStartAt(querySample);
+
         List<String> fields = querySample.getFields();
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
@@ -310,10 +320,60 @@ public class MeasurementServiceV2 {
                     && snapshotInsertRowTotal.longValue() > snapshotRowTotal.longValue()) {
                 values.put("snapshotRowTotal", snapshotInsertRowTotal);
             }
+            if (typeIsTask) {
+                values.put("replicateLag", maxRep);
+            }
+            Number snapshotStartAt = values.get("snapshotStartAt");
+            Number snapshotDoneAt = values.get("snapshotDoneAt");
+            if (Objects.nonNull(snapshotDoneAt) && Objects.isNull(snapshotStartAt)) {
+                values.put("snapshotStartAt", snapshotStartAtTemp);
+            }
             sample.setVs(values);
         }
 
         return data;
+    }
+
+    private Integer calculateMaxReplicateLag(MeasurementQueryParam.MeasurementQuerySample querySample, boolean typeIsTask) {
+        Integer maxRep = 0;
+        if (typeIsTask) {
+            String taskId = querySample.getTags().get("taskId");
+            String taskRecordId = querySample.getTags().get("taskRecordId");
+            Criteria repCriteria = Criteria.where("grnty").is("minute")
+                    .and("tags.taskId").is(taskId)
+                    .and("tags.taskRecordId").is(taskRecordId)
+                    .and("tags.type").is("task");
+            MatchOperation repMatch = Aggregation.match(repCriteria);
+            GroupOperation repGroup = Aggregation.group("max").max("$ss.vs.replicateLag").as("max");
+            Aggregation repAggregation = Aggregation.newAggregation(repMatch, repGroup);
+            AggregationResults<Document> repAggregate = mongoOperations.aggregate(repAggregation, MeasurementEntity.COLLECTION_NAME, Document.class);
+            List<Document> mappedResults = repAggregate.getMappedResults();
+            for (Document document : mappedResults) {
+                List<Integer> list = document.getList("max", Integer.class);
+                Integer temp = Collections.max(list);
+                if (temp > maxRep) {
+                    maxRep = temp;
+                }
+            }
+        }
+        return maxRep;
+    }
+
+    private Number getSnapshotStartAt(MeasurementQueryParam.MeasurementQuerySample querySample) {
+        Number snapshotStartAt = 0;
+        String taskId = querySample.getTags().get("taskId");
+        String taskRecordId = querySample.getTags().get("taskRecordId");
+        Criteria criteria = Criteria.where("grnty").is("minute")
+                .and("tags.taskId").is(taskId)
+                .and("tags.taskRecordId").is(taskRecordId)
+                .and("tags.type").is("task")
+                .and("ss.vs.snapshotStartAt").gt(0);
+        Query query = Query.query(criteria).limit(1);
+        MeasurementEntity one = mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+        if (CollectionUtils.isNotEmpty(one.getSamples())) {
+            snapshotStartAt = one.getSamples().get(0).getVs().get("snapshotStartAt");
+        }
+        return snapshotStartAt;
     }
 
     public Map<String, Sample> getDifferenceSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end) {
