@@ -1,14 +1,13 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
-import io.tapdata.entity.event.control.PatrolEvent;
-import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.pdk.apis.entity.Projection;
-import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
@@ -16,10 +15,7 @@ import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.entity.DAGDescriber;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.dag.TapDAGNode;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
-import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
 import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.core.workflow.engine.JobOptions;
 import io.tapdata.pdk.core.workflow.engine.TapDAGNodeEx;
@@ -30,7 +26,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -47,13 +42,9 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
     String testSourceNodeId = "ts1";
     String originNodeId = "r0";
 
-    DataFlowEngine dataFlowEngine = DataFlowEngine.getInstance();
     String originToSourceId;
 
     DAGDescriber dataFlowDescriber;
-
-    DataMap lastRecordToEqual;
-    int eventBatchSize = 5;
 
     TapNodeInfo tapNodeInfo;
 
@@ -81,215 +72,135 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
             dataFlowDescriber.setJobOptions(new JobOptions().actionsBeforeStart(Arrays.asList(JobOptions.ACTION_DROP_TABLE, JobOptions.ACTION_CREATE_TABLE)).enableStreamRead(false));
 
             dag = dataFlowDescriber.toDag();
-            if(dag != null) {
-                dataFlowEngine.startDataFlow(dag, dataFlowDescriber.getJobOptions(), (fromState, toState, dataFlowWorker) -> {
-                    if (toState.equals(DataFlowWorker.STATE_INITIALIZED)) {
-                        dataFlowEngine.sendExternalTapEvent(originToSourceId, new PatrolEvent().patrolListener((nodeId, state) -> {
-                            TapLogger.debug("PATROL STATE_INITIALIZED", "NodeId {} state {}", nodeId, (state == PatrolEvent.STATE_ENTER ? "enter" : "leave"));
-                            if (nodeId.equals(testTargetNodeId) && state == PatrolEvent.STATE_LEAVE) {
-                                for (int i = 0; i < 10; i++) {
-                                    DataMap dataMap = buildInsertRecord();
-                                    dataMap.put("id", "id_" + i);
-                                    sendInsertRecordEvent(dataFlowEngine, dag, tddTableId, dataMap);
-                                    lastRecordToEqual = dataMap;
-                                }
-                                sendPatrolEvent(dataFlowEngine, dag, new PatrolEvent().patrolListener((innerNodeId, innerState) -> {
-                                    if (innerNodeId.equals(testTargetNodeId) && innerState == PatrolEvent.STATE_LEAVE) {
-//                                        startBatchReadTest();
-                                        startQueryByAdvanceFilterTest(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode());
-                                    }
-                                }));
 
-//                                    ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
-//                                        PatrolEvent innerPatrolEvent = new PatrolEvent();
-//                                        innerPatrolEvent.addInfo("callback", (Consumer<Integer>) streamCount -> {
-//                                            Assertions.assertEquals(cnt.get(), streamCount);
-//                                            completed();
-//                                        });
-//                                        dataFlowEngine.sendExternalTapEvent(sourceToTargetId, innerPatrolEvent);
-//                                    }, 5, TimeUnit.SECONDS);
+            TapConnectorContext connectionContext = new TapConnectorContext(
+                    spec,
+                    connectionOptions,
+                    new DataMap());
+            try{
+                queryByAdvanceFilterTest(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
 
-                            }
-                        }));
-                    }
-                });
+                insertAfterInsertSomeKey(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
+
+            }catch (Throwable e){
+                throw new RuntimeException(e);
             }
+
+//            if(dag != null) {
+//                dataFlowEngine.startDataFlow(dag, dataFlowDescriber.getJobOptions(), (fromState, toState, dataFlowWorker) -> {
+//                    if (toState.equals(DataFlowWorker.STATE_INITIALIZED)) {
+//                        dataFlowEngine.sendExternalTapEvent(originToSourceId, new PatrolEvent().patrolListener((nodeId, state) -> {
+//                            TapLogger.debug("PATROL STATE_INITIALIZED", "NodeId {} state {}", nodeId, (state == PatrolEvent.STATE_ENTER ? "enter" : "leave"));
+//                            if (nodeId.equals(testTargetNodeId) && state == PatrolEvent.STATE_LEAVE) {
+//                                for (int i = 0; i < 10; i++) {
+//                                    DataMap dataMap = buildInsertRecord();
+//                                    dataMap.put("id", "id_" + i);
+//                                    sendInsertRecordEvent(dataFlowEngine, dag, tddTableId, dataMap);
+//                                    lastRecordToEqual = dataMap;
+//                                }
+//                                sendPatrolEvent(dataFlowEngine, dag, new PatrolEvent().patrolListener((innerNodeId, innerState) -> {
+//                                    if (innerNodeId.equals(testTargetNodeId) && innerState == PatrolEvent.STATE_LEAVE) {
+
+//                                    }
+//                                }));
+//                            }
+//                        }));
+//                    }
+//                });
+//            }
         });
         waitCompleted(5000000);
     }
 
-    private void startQueryByAdvanceFilterTest(ConnectorNode targetNode) throws Throwable {
+    private void queryByAdvanceFilterTest(ConnectorNode targetNode,TapConnectorContext connectionContext) throws Throwable{
         ConnectorFunctions connectorFunctions = targetNode.getConnectorFunctions();
         QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
 
         TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
 
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(), TapAdvanceFilter.create().limit(2), targetTable, filterResults -> {
-            $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-            $(() -> Assertions.assertEquals(2, filterResults.getResults().size(), "Limit 2 results"));
-        });
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().match(DataMap.create().kv("id", "12312323213")), targetTable, filterResults -> {
-                    $(() -> Assertions.assertNull(filterResults.getResults(), "Query results should be null"));
-                });
+        Record record = Record.create()
+                .builder("id", 111111)
+                .builder("name", "gavin")
+                .builder("text", "gavin test");
+        RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this).builderRecord(record);
 
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().match(DataMap.create().kv("id", "full_1")), targetTable, filterResults -> {
-            $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-            $(() -> Assertions.assertEquals(1, filterResults.getResults().size(), "Should return 1 result"));
-            $(() -> Assertions.assertEquals("123", filterResults.getResults().get(0).get("tap_string"), "tapString field should equal 123"));
-              $(() -> Assertions.assertTrue(objectIsEqual(123.0, filterResults.getResults().get(0).get("tap_number")), "tapNumber field should equal 123.0"));
-        });
 
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lt("tap_int", 1023123)), targetTable, filterResults -> {
+        recordEventExecute.insert();
+        queryByAdvanceFilterFunction.query(
+                targetNode.getConnectorContext(),
+                TapAdvanceFilter.create().match(DataMap.create().kv("id", 111111).kv("name", "gavin").kv("text", "gavin test")),
+                targetTable,
+                filterResults -> {
                     $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-                    $(() -> Assertions.assertEquals(10, filterResults.getResults().size(), "Should return 10 result"));
-                    $(() -> Assertions.assertTrue(objectIsEqual("1234", filterResults.getResults().get(0).get("tap_string")), "tapString field should equal 1234"));
-                    $(() -> Assertions.assertTrue(objectIsEqual(123.0, filterResults.getResults().get(0).get("tap_number")), "tapNumber field should equal 123.0"));
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tap_int")), "tapInt field should equal 123123"));
+                    $(() -> Assertions.assertTrue(objectIsEqual(filterResults.getResults(), Collections.singletonList(record)), "insert record not succeed."));
                 });
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lte("tap_int", 1023123)), targetTable, filterResults -> {
+
+        record.builder("name","Gavin pro").builder("text","Gavin pro max.");
+        recordEventExecute.update();
+        queryByAdvanceFilterFunction.query(
+                targetNode.getConnectorContext(),
+                TapAdvanceFilter.create().match(DataMap.create().kv("id", 111111).kv("name","Gavin pro").kv("text","Gavin pro max.")),
+                targetTable,
+                filterResults -> {
                     $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-                    $(() -> Assertions.assertEquals(11, filterResults.getResults().size(), "Should return 11 result"));
-
-                    $(() -> Assertions.assertTrue(objectIsEqual(1023123, filterResults.getResults().get(0).get("tap_int")), "First record, tapInt field should equal 1023123"));
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(1).get("tap_int")), "Second record, tapInt field should equal 123123"));
+                    $(() -> Assertions.assertTrue(objectIsEqual(filterResults.getResults(), Collections.singletonList(record)), "update record not succeed."));
                 });
 
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lte("tap_int", 1023123)).skip(1).limit(1), targetTable, filterResults -> {
+        recordEventExecute.delete();
+        queryByAdvanceFilterFunction.query(
+                targetNode.getConnectorContext(),
+                TapAdvanceFilter.create().match(DataMap.create().kv("id", 111111).kv("name", "gavin").kv("text", "gavin test")),
+                targetTable,
+                filterResults -> {
                     $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-                    $(() -> Assertions.assertEquals(1, filterResults.getResults().size(), "Should return 1 result"));
-
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tap_int")), "First record, tapInt field should equal 123123"));
+                    $(() -> Assertions.assertNotEquals(0, filterResults.getResults().size(), "delete record not succeed."));
                 });
-
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lte("tap_int", 1023123)).skip(1).limit(1).projection(Projection.create().include("tap_int")), targetTable, filterResults -> {
-                    $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-                    $(() -> Assertions.assertEquals(1, filterResults.getResults().size(), "Should return 1 result"));
-
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tap_int")), "First record, tapInt field should equal 123123"));
-//                    $(() -> Assertions.assertNull(filterResults.getResults().get(0).get("tapString"), "tapString should be removed by projection"));
-                });
-
-        sendDropTableEvent(dataFlowEngine, dag, testTableId, new PatrolEvent().patrolListener((innerNodeId, innerState) -> {
-            if (innerNodeId.equals(testTargetNodeId) && innerState == PatrolEvent.STATE_LEAVE) {
-                prepareConnectionNode(tapNodeInfo, connectionOptions, connectionNode -> {
-                    PDKInvocationMonitor pdkInvocationMonitor = PDKInvocationMonitor.getInstance();
-                    pdkInvocationMonitor.invokePDKMethod(connectionNode, PDKMethod.INIT, connectionNode::connectorInit, "Init", TAG);
-                    String targetTable1 = dag.getNodeMap().get(testTargetNodeId).getTable();
-                    List<TapTable> allTables = new ArrayList<>();
-                    try {
-                        connectionNode.discoverSchema(Collections.singletonList(targetTable1), 10, tables -> allTables.addAll(tables));
-                        for(TapTable table : allTables) {
-                            if(table.getName() != null && table.getId().equals(targetTable1)) {
-                                $(() -> Assertions.fail("Target table " + targetTable1 + " should be deleted, because dropTable has been called, please check your dropTable method whether it works as expected or not"));
-                            }
-                        }
-                        CommonUtils.handleAnyError(connectionNode::connectorStop);
-                        completed();
-                    } catch (Throwable throwable) {
-                        throwable.printStackTrace();
-                        Assertions.fail(throwable);
-                    } finally {
-                        CommonUtils.handleAnyError(connectionNode::connectorStop);
-                    }
-
-
-                });
-            }
-        }));
-//        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-//                TapAdvanceFilter.create().op(), targetTable, filterResults -> {
-//                    $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-//                    $(() -> Assertions.assertEquals(1, filterResults.getResults().size(), "Should return 1 result"));
-//                    $(() -> Assertions.assertEquals("123", filterResults.getResults().get(0).get("tapString"), "tapString field should equal 123"));
-//                    $(() -> Assertions.assertEquals(123.0, filterResults.getResults().get(0).get("tapNumber"), "tapNumber field should equal 123.0"));
-//                });
-//        queryByAdvanceFilterFunction.query(targetNode.getConnectorContext(), );
     }
-/*
 
-    private void startBatchReadTest() {
-        if (dag != null) {
-            JobOptions jobOptions = dataFlowDescriber.getJobOptions();
-            dataFlowWorker = dataFlowEngine.startDataFlow(dag, jobOptions, (fromState, toState, dataFlowWorker) -> {
-                if (toState.equals(DataFlowWorker.STATE_INITIALIZING)) {
-                    initConnectorFunctions();
-                    checkFunctions(sourceNode.getConnectorFunctions(), QueryByAdvanceFilterTest.testFunctions());
-                } else if (toState.equals(DataFlowWorker.STATE_INITIALIZED)) {
-                    PatrolEvent patrolEvent = new PatrolEvent().patrolListener((nodeId, state) -> {
-                        TapLogger.debug("PATROL STATE_INITIALIZED", "NodeId {} state {}", nodeId, (state == PatrolEvent.STATE_ENTER ? "enter" : "leave"));
-                        if (nodeId.equals(targetNodeId) && state == PatrolEvent.STATE_LEAVE) {
-//                            processStreamInsert();
-                            PatrolEvent callbackPatrol = new PatrolEvent();
-                            callbackPatrol.addInfo("connectorCallback", (Consumer<Map<String, Object>>) stringObjectMap -> {
-                                Map<String, Map<String, Object>> primaryKeyRecordMap = (Map<String, Map<String, Object>>) stringObjectMap.get("primaryKeyRecordMap");
-                                List<List<TapRecordEvent>> batchList = (List<List<TapRecordEvent>>) stringObjectMap.get("batchList");
+    private void insertAfterInsertSomeKey(ConnectorNode targetNode,TapConnectorContext connectionContext) throws Throwable {
+        Record[] records = Record.testStart(10);
+        RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this)
+                .builderRecord(records);
 
-                                assertNotNull(primaryKeyRecordMap, "Please check your batchRead method.");
-                                assertEquals(primaryKeyRecordMap.size(), 11, "11 records should be inserted, please check your batchRead method.");
+        recordEventExecute.createTable();
+        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
+        for (Record record : records) {
+            record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
+        }
+        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert();
 
-                                TapRecordEvent lastEvent = null;
-                                for(List<TapRecordEvent> batch : batchList) {
-                                    if(!batch.isEmpty()) {
-                                        lastEvent = batch.get(batch.size() - 1);
-                                    }
-                                }
+        Assertions.assertNotEquals(
+                insert.getInsertedCount(),
+                insertAfter.getModifiedCount() + insertAfter.getInsertedCount(),
+                "The first time you insert "+
+                        insert.getInsertedCount()+" record, the second time you insert "+
+                        insert.getInsertedCount()+" records of the same primary key, the echo result is inserted "+
+                        insertAfter.getInsertedCount()+", and the second time you update "+
+                        insertAfter.getModifiedCount()+" record. The operation fails because of inconsistencies.");
+        String insertPolic = "";
 
-                                assertNotNull(lastEvent, "Last record in batchList should not be null");
-                                TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) lastEvent;
-                                StringBuilder builder = new StringBuilder();
-                                assertTrue(mapEquals(lastRecordToEqual, insertRecordEvent.getAfter(), builder), "Last record is not match " + builder.toString());
-
-                                //in originDag, mongodb connector is the target, the dropTableEvent can be handled as a target.
-                                sendDropTableEvent(dataFlowEngine, originDag, testTableId, new PatrolEvent().patrolListener((innerNodeId, innerState) -> {
-                                    if (innerNodeId.equals(testTargetNodeId) && innerState == PatrolEvent.STATE_LEAVE) {
-                                        prepareConnectionNode(tapNodeInfo, connectionOptions, connectionNode -> {
-                                            PDKInvocationMonitor pdkInvocationMonitor = PDKInvocationMonitor.getInstance();
-                                            pdkInvocationMonitor.invokePDKMethod(connectionNode, PDKMethod.INIT, connectionNode::connectorInit, "Init", TAG);
-                                            String targetTable = originDag.getNodeMap().get(testTargetNodeId).getTable();
-                                            List<TapTable> allTables = new ArrayList<>();
-                                            try {
-                                                connectionNode.discoverSchema(Collections.singletonList(targetTable), 10, tables -> allTables.addAll(tables));
-                                                for(TapTable table : allTables) {
-                                                    if(table.getName() != null && table.getId().equals(targetTable)) {
-                                                        $(() -> Assertions.fail("Target table " + targetTable + " should be deleted, because dropTable has been called, please check your dropTable method whether it works as expected or not"));
-                                                    }
-                                                }
-                                                CommonUtils.handleAnyError(connectionNode::connectorStop);
-                                                completed();
-                                            } catch (Throwable throwable) {
-                                                throwable.printStackTrace();
-                                                Assertions.fail(throwable);
-                                            } finally {
-                                                CommonUtils.handleAnyError(connectionNode::connectorStop);
-                                            }
-
-
-                                        });
-                                    }
-                                }));
-                            });
-                            dataFlowEngine.sendExternalTapEvent(sourceToTargetId, callbackPatrol);
-                        }
-                    });
-                    dataFlowEngine.sendExternalTapEvent(sourceToTargetId, patrolEvent);
-                }
-            });
+        if ("".equals(insertPolic)) {
+            //@TODO Wran
+            Assertions.assertNotEquals(
+                    insert.getInsertedCount(),
+                    insertAfter.getModifiedCount(),
+                    "After inserting ten pieces of data, insert another record with the same primary key but different contents, and display the result. Insert " +
+                            insertAfter.getInsertedCount() + ", insert another, and update " +
+                            insertAfter.getModifiedCount() + ". Poor observability");
+        }else if("".equals(insertPolic)){
+            Assertions.assertNotEquals(
+                    0,
+                    insertAfter.getModifiedCount(),
+                    "In node config ,your choises is xxx,so the update count must be zero,but not zero now");
         }
     }
-*/
-
 
     public static List<SupportFunction> testFunctions() {
         return Arrays.asList(
                 support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
                 support(QueryByAdvanceFilterFunction.class, "QueryByAdvanceFilterFunction is a must for database which is schema free to sample some record to generate the field data types."),
-                support(DropTableFunction.class, "DropTable is needed for TDD to drop the table created by tests, please implement it in registerCapabilities method.")
+                support(CreateTableV2Function.class,"Create table is must to verify ,please implement CreateTableV2Function in registerCapabilities method."),
+                support(DropTableFunction.class,"Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
         );
     }
 

@@ -102,9 +102,9 @@ public class TDDCli extends CommonCli {
         testResultSummary.summary = summary;
         if(summary.getTestsFailedCount() > 0) {
             System.out.println("*****************************************************TDD Results*****************************************************");
-            System.out.println("-------------PDK id '" + testResultSummary.tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + testResultSummary.tapNodeInfo.getNodeClass().getName() + "'-------------");
+            System.out.println("-------------PDK id '" + testResultSummary.tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + testResultSummary.tapNodeInfo.getNodeClass().getName() + "'-------------\n");
 //            summary.printTo(new PrintWriter(System.out));
-            System.out.println("");
+//            System.out.println("");
             StringBuilder builder = new StringBuilder();
             outputTestResult(testResultSummary, builder);
             System.out.print(builder.toString());
@@ -136,7 +136,8 @@ public class TDDCli extends CommonCli {
         String jarFile = null;
         if(file.isFile()) {
             jarFile = file.getAbsolutePath();
-        } else if(file.isDirectory()) {
+        }
+        else if(file.isDirectory()) {
             if(!file.getAbsolutePath().contains("connectors")) {
                 throw new IllegalArgumentException("Connector project is under connectors directory, are you passing the correct connector project directory? " + file.getAbsolutePath());
             }

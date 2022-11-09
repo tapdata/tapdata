@@ -6,7 +6,6 @@ import picocli.CommandLine;
 /**
  * Picocli aims to be the easiest way to create rich command line applications that can run on and off the JVM. Considering picocli? Check what happy users say about picocli.
  * https://picocli.info/
- *
  * @author aplomb
  */
 public class TDDMongoDBMain1 {
@@ -32,7 +31,7 @@ public class TDDMongoDBMain1 {
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/empty-connector-v1.1-SNAPSHOT.jar",
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/file-connector-v1.0-SNAPSHOT.jar",
 
-                "connectors/mongodb-connector",
+                "connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar",
         };
 
 		Main.registerCommands().execute(args);

@@ -447,23 +447,34 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
-		final DataMap connectionConfig = connectionContext.getConnectionConfig();
-		if (MapUtils.isEmpty(connectionConfig)) {
-			throw new RuntimeException(String.format("connection config cannot be empty %s", connectionConfig));
-		}
-		mongoConfig = MongodbConfig.load(connectionConfig);
-		if (mongoConfig == null) {
-			throw new RuntimeException(String.format("load mongo config failed from connection config %s", connectionConfig));
-		}
-		if (mongoClient == null) {
-			try {
-				mongoClient = MongodbUtil.createMongoClient(mongoConfig);
-				mongoDatabase = mongoClient.getDatabase(mongoConfig.getDatabase());
-			} catch (Throwable e) {
-				throw new RuntimeException(String.format("create mongodb connection failed %s, mongo config %s, connection config %s", e.getMessage(), mongoConfig, connectionConfig), e);
-			}
-		}
+	    setMongoConfig(connectionContext);
+	    setMongoClient(connectionContext);
 	}
+
+	private void setMongoConfig(TapConnectionContext connectionContext) throws IOException {
+        final DataMap connectionConfig = connectionContext.getConnectionConfig();
+        if (MapUtils.isEmpty(connectionConfig)) {
+            throw new RuntimeException(String.format("connection config cannot be empty %s", connectionConfig));
+        }
+        mongoConfig = MongodbConfig.load(connectionConfig);
+        if (mongoConfig == null) {
+            throw new RuntimeException(String.format("load mongo config failed from connection config %s", connectionConfig));
+        }
+    }
+    private void setMongoClient(TapConnectionContext connectionContext){
+        final DataMap connectionConfig = connectionContext.getConnectionConfig();
+        if (MapUtils.isEmpty(connectionConfig)) {
+            throw new RuntimeException(String.format("connection config cannot be empty %s", connectionConfig));
+        }
+        if (mongoClient == null) {
+            try {
+                mongoClient = MongodbUtil.createMongoClient(mongoConfig);
+                mongoDatabase = mongoClient.getDatabase(mongoConfig.getDatabase());
+            } catch (Throwable e) {
+                throw new RuntimeException(String.format("create mongodb connection failed %s, mongo config %s, connection config %s", e.getMessage(), mongoConfig, connectionConfig), e);
+            }
+        }
+    }
 
 	private void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) throws Throwable {
 		getMongoCollection(dropTableEvent.getTableId()).drop();
@@ -496,9 +507,15 @@ public class MongodbConnector extends ConnectorBase {
 	 * @param writeListResultConsumer
 	 */
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-		if (mongodbWriter == null) {
+	    if (mongodbWriter == null) {
 			synchronized (this) {
 				if (mongodbWriter == null) {
+				    if (mongoConfig == null){
+				        setMongoConfig(connectorContext);
+                    }
+				    if (mongoClient == null){
+				        setMongoClient(connectorContext);
+                    }
 					mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap(), mongoConfig, mongoClient);
 					ConnectorCapabilities connectorCapabilities = connectorContext.getConnectorCapabilities();
 					if (null != connectorCapabilities) {
