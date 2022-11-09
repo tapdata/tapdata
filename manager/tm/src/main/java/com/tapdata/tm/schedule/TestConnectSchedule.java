@@ -30,7 +30,7 @@ public class TestConnectSchedule {
     @Scheduled(initialDelay = 60 * 1000, fixedDelay = 30 * 1000)
     @SchedulerLock(name ="TestConnectSchedule_retry_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void retry() {
-        Thread.currentThread().setName(Thread.currentThread().getName() + "-TestConnectSchedule-retry");
+        Thread.currentThread().setName("taskSchedule-TestConnectSchedule-retry");
         Criteria criteria = Criteria.where("status").is(DataSourceEntity.STATUS_TESTING)
                 .orOperator(Criteria.where("testCount").lt(15), Criteria.where("testCount").exists(false));
 
