@@ -18,6 +18,7 @@ import io.tapdata.pdk.tdd.tests.source.StreamReadTest;
 import io.tapdata.pdk.tdd.tests.target.DMLTest;
 import io.tapdata.pdk.tdd.tests.target.CreateTableTest;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordTest;
+import io.tapdata.pdk.tdd.tests.v2.WriteRecordWithQueryTest;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
@@ -141,9 +142,6 @@ public class TDDCli extends CommonCli {
             if(!file.getAbsolutePath().contains("connectors")) {
                 throw new IllegalArgumentException("Connector project is under connectors directory, are you passing the correct connector project directory? " + file.getAbsolutePath());
             }
-
-
-
             if(installProjects != null) {
                 System.setProperty("maven.home", getMavenHome(mavenHome));
                 for(String installProject : installProjects) {
@@ -299,7 +297,8 @@ public class TDDCli extends CommonCli {
         connector.registerCapabilities(connectorFunctions, codecRegistry);
 
         List<Class<? extends PDKTestBase>> tests = Arrays.asList(
-                WriteRecordTest.class
+                WriteRecordTest.class,
+                WriteRecordWithQueryTest.class
 //                DMLTest.class,
 //                CreateTableTest.class,
 //                BatchReadTest.class,

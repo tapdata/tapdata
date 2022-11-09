@@ -1,11 +1,14 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
@@ -15,6 +18,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
+import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
 import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
@@ -40,6 +44,10 @@ public class WriteRecordTest extends PDKTestBase {
     String originToSourceId;
     TapNodeInfo tapNodeInfo;
     String testTableId;
+    TapTable targetTable = table(testTableId)
+            .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
+            .add(field("name", "StringMinor"))
+            .add(field("text", "StringMinor"));
     @Test
     @DisplayName("Test method handleRead")
     void sourceTest() throws Throwable {
@@ -86,10 +94,7 @@ public class WriteRecordTest extends PDKTestBase {
             String dagId = UUID.randomUUID().toString();
             KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
             TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
-            kvMap.put(testTableId,table(testTableId)
-                    .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
-                    .add(field("name", "StringMinor"))
-                    .add(field("text", "StringMinor")));
+            kvMap.put(testTableId,targetTable);
             ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
                     .withDagId(dagId)
                     .withAssociateId(UUID.randomUUID().toString())
@@ -122,21 +127,33 @@ public class WriteRecordTest extends PDKTestBase {
     }
 
 
+    long insertRecord;
+    long updateRecord;
+    long deleteRecord;
+
+    long insertRecordNeed = 10;
+    long updateRecordNeed;
+    long deleteRecordNeed;
     private void writeRecorde(TapConnectorContext connectionContext,ConnectorNode connectorNode) throws Throwable {
-        Record[] records = Record.testStart(10);
+        Record[] records = Record.testStart((int)insertRecordNeed);
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode,connectionContext, this)
                 .builderRecord(records);
 
-        recordEventExecute.createTable();
+        boolean table = recordEventExecute.createTable();
 
-        recordEventExecute.insert();
-
+        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
+        insertRecord = insert.getInsertedCount();
+        updateRecordNeed = 0;
         for (Record record : records) {
             record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
+            updateRecordNeed++;
         }
-        recordEventExecute.update();
+        WriteListResult<TapRecordEvent> update = recordEventExecute.update();
+        updateRecord = update.getModifiedCount();
 
-        recordEventExecute.delete();
+        deleteRecordNeed = insertRecordNeed;
+        WriteListResult<TapRecordEvent> delete = recordEventExecute.delete();
+        deleteRecord = delete.getRemovedCount();
 
         recordEventExecute.dropTable();
     }
@@ -157,5 +174,12 @@ public class WriteRecordTest extends PDKTestBase {
     }
     public void tearDown() {
         super.tearDown();
+        TapLogger.info(TAG, "Test table name : {}, insert: {}/{}, update: {}/{}, delete: {}/{}",
+                this.testTableId,
+                this.insertRecord,this.insertRecordNeed,
+                this.updateRecord,this.updateRecordNeed,
+                this.deleteRecord,this.deleteRecordNeed
+        );
+
     }
 }

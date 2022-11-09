@@ -11,11 +11,12 @@ import picocli.CommandLine;
 public class TDDMongoDBMain1 {
     //
     public static void main(String... args) {
-        CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
+        CommonUtils.setProperty("pdk_external_jar_path", "D:\\GavinData\\kitSpace\\tapdata\\connectors\\dist");
         args = new String[]{
 //                "test", "-c", "B:\\code\\tapdata\\idaas-pdk\\tapdata-pdk-cli\\src\\main\\resources\\config\\aerospike.json",
 //                "test", "-c", "B:\\code\\tapdata\\idaas-pdk\\tapdata-pdk-cli\\src\\main\\resources\\config\\doris.json",
 //                "test", "-c", "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/tapdata-pdk-cli/src/main/resources/config/doris.json",
+//                "test", "-c", "plugin-kit/tapdata-pdk-cli/src/main/resources/config/mongodb.json",
                 "test", "-c", "plugin-kit/tapdata-pdk-cli/src/main/resources/config/mongodb.json",
 //                "-i", "tapdata-api",
 //                "-i", "tapdata-pdk-api",
@@ -31,7 +32,7 @@ public class TDDMongoDBMain1 {
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/empty-connector-v1.1-SNAPSHOT.jar",
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/file-connector-v1.0-SNAPSHOT.jar",
 
-                "connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar",
+                "D:\\GavinData\\kitSpace\\tapdata\\connectors\\dist\\mongodb-connector-v1.0-SNAPSHOT.jar",
         };
 
 		Main.registerCommands().execute(args);

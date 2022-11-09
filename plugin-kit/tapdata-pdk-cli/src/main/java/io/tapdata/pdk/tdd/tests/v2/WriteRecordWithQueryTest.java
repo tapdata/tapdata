@@ -7,6 +7,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
@@ -14,7 +15,9 @@ import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.entity.DAGDescriber;
 import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.dag.TapDAGNode;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.core.workflow.engine.JobOptions;
@@ -78,12 +81,23 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                     connectionOptions,
                     new DataMap());
             try{
+                PDKInvocationMonitor.invoke(tddTargetNode, PDKMethod.INIT,tddTargetNode::connectorInit,"Init PDK","TEST mongodb");
+
                 queryByAdvanceFilterTest(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
 
                 insertAfterInsertSomeKey(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
 
+                updateNotExistRecord(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
+
+                deleteNotExistRecord(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
+
             }catch (Throwable e){
                 throw new RuntimeException(e);
+            }finally {
+                if (null != tddTargetNode){
+                    PDKInvocationMonitor.invoke(tddTargetNode, PDKMethod.STOP,tddTargetNode::connectorStop,"Stop PDK","TEST mongodb");
+                    PDKIntegration.releaseAssociateId("releaseAssociateId");
+                }
             }
 
 //            if(dag != null) {
@@ -158,6 +172,84 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
     }
 
     private void insertAfterInsertSomeKey(ConnectorNode targetNode,TapConnectorContext connectionContext) throws Throwable {
+        Record[] records = Record.testStart(10);
+        RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this)
+                .builderRecord(records);
+
+        recordEventExecute.createTable();
+        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
+        for (Record record : records) {
+            record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
+        }
+
+        final String insertPolicy = "dml_insert_policy";
+        DataMap nodeConfig = targetNode.getConnectorContext().getNodeConfig();
+
+        nodeConfig.kv(insertPolicy,"update_on_exists");
+        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert();
+        Assertions.assertNotEquals(
+                insert.getInsertedCount(),
+                insertAfter.getModifiedCount() + insertAfter.getInsertedCount(),
+                insertPolicy+" - update_on_exists | The first time you insert "+
+                        insert.getInsertedCount()+" record, the second time you insert "+
+                        insert.getInsertedCount()+" records of the same primary key, the echo result is inserted "+
+                        insertAfter.getInsertedCount()+", and the second time you update "+
+                        insertAfter.getModifiedCount()+" record. The operation fails because of inconsistencies.");
+        //@TODO Wran
+        Assertions.assertNotEquals(
+                insert.getInsertedCount(),
+                insertAfter.getModifiedCount(),
+                insertPolicy+" - update_on_exists | After inserting ten pieces of data, insert another record with the same primary key but different contents, and display the result. Insert " +
+                        insertAfter.getInsertedCount() + ", insert another, and update " +
+                        insertAfter.getModifiedCount() + ". Poor observability");
+
+
+        nodeConfig.kv(insertPolicy,"ignore_on_exists");
+        WriteListResult<TapRecordEvent> insertAfter2 = recordEventExecute.insert();
+        Assertions.assertFalse(
+                0 == insertAfter2.getModifiedCount() && 0 == insertAfter2.getInsertedCount(),
+                insertPolicy+" - ignore_on_exists | In node config ,your choises is xxx,so the update count must be zero,but not zero now");
+    }
+
+    private void updateNotExistRecord(ConnectorNode targetNode,TapConnectorContext connectionContext) throws Throwable {
+        Record[] records = Record.testStart(10);
+        RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this)
+                .builderRecord(records);
+
+        recordEventExecute.createTable();
+        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
+        for (Record record : records) {
+            record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
+        }
+        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert();
+
+        Assertions.assertNotEquals(
+                insert.getInsertedCount(),
+                insertAfter.getModifiedCount() + insertAfter.getInsertedCount(),
+                "The first time you insert "+
+                        insert.getInsertedCount()+" record, the second time you insert "+
+                        insert.getInsertedCount()+" records of the same primary key, the echo result is inserted "+
+                        insertAfter.getInsertedCount()+", and the second time you update "+
+                        insertAfter.getModifiedCount()+" record. The operation fails because of inconsistencies.");
+        String insertPolic = "";
+
+        if ("".equals(insertPolic)) {
+            //@TODO Wran
+            Assertions.assertNotEquals(
+                    insert.getInsertedCount(),
+                    insertAfter.getModifiedCount(),
+                    "After inserting ten pieces of data, insert another record with the same primary key but different contents, and display the result. Insert " +
+                            insertAfter.getInsertedCount() + ", insert another, and update " +
+                            insertAfter.getModifiedCount() + ". Poor observability");
+        }else if("".equals(insertPolic)){
+            Assertions.assertNotEquals(
+                    0,
+                    insertAfter.getModifiedCount(),
+                    "In node config ,your choises is xxx,so the update count must be zero,but not zero now");
+        }
+    }
+
+    private void deleteNotExistRecord(ConnectorNode targetNode,TapConnectorContext connectionContext) throws Throwable {
         Record[] records = Record.testStart(10);
         RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this)
                 .builderRecord(records);
