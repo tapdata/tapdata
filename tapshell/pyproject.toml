@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tapdata_cli"
-version = "2.3.0"
+version = "2.3.1"
 description = "Tapdata Python Sdk"
 authors = ["Tapdata <team@tapdata.io>"]
 license = "Apache V2"
