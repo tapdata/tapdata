@@ -1,6 +1,6 @@
 {
   "connection": {
-    "uri": "mongodb://127.0.0.1:27017/mongo_target"
+    "uri": "mongodb://36.134.131.197:27029/test"
   },
   "node": {
   }
