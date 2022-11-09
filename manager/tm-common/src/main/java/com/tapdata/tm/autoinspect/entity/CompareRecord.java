@@ -56,8 +56,13 @@ public class CompareRecord {
         }
 
         this.data = new LinkedHashMap<>();
+        TapField field;
         for (Map.Entry<String, Object> en : data.entrySet()) {
-            this.data.put(en.getKey(), parse(tapFieldMap.get(en.getKey()), en.getKey(), en.getValue()));
+            // 模型没有的字段不需要对比
+            field = tapFieldMap.get(en.getKey());
+            if (null != field) {
+                this.data.put(en.getKey(), parse(field, en.getKey(), en.getValue()));
+            }
         }
     }
 
