@@ -25,6 +25,7 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.BsonType;
@@ -57,6 +58,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private static final String THREAD_NAME_PREFIX = "Share-CDC-Task-Reader-";
 	private static final String LOG_PREFIX = "[Share CDC Task HZ Reader] - ";
 	private static final long WAIT_FOR_AT_LEAST_ONE_LOG_INTERVAL_MS = 3000L;
+	public static final String TAG = ShareCdcPDKTaskReader.class.getSimpleName();
 
 	private ExecutorService readThreadPool;
 	private Future<?> readFuture;
@@ -72,13 +74,13 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 	@Override
 	public void init(ShareCdcContext shareCdcContext) throws ShareCdcUnsupportedException {
+		super.init(shareCdcContext);
 		try {
 			if (!(shareCdcContext instanceof ShareCdcTaskPdkContext)) {
 				throw new IllegalArgumentException("Expected: " + ShareCdcTaskPdkContext.class.getName() + ", actual: " + this.shareCdcContext.getClass().getName());
 			}
 			int step = 0;
 			logger.info(logWrapper("Initializing share cdc reader..."));
-			super.init(shareCdcContext);
 			this.hazelcastInstance = HazelcastUtil.getInstance(this.shareCdcContext.getConfigurationCenter());
 			step = canShareCdc(step);
 			initThreadPool();
@@ -326,14 +328,20 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 	@Override
 	public void close() throws IOException {
-		super.close();
-		if (this.hazelcastConstruct != null) {
-			try {
-				this.hazelcastConstruct.destroy();
-			} catch (Exception ignore) {
-			}
+		try {
+			CommonUtils.ignoreAnyError(() -> {
+				if (null != this.hazelcastConstruct) {
+					this.hazelcastConstruct.destroy();
+				}
+			}, TAG);
+			CommonUtils.ignoreAnyError(() -> {
+				if (null != this.readThreadPool) {
+					this.readThreadPool.shutdownNow();
+				}
+			}, TAG);
+		} finally {
+			super.close();
 		}
-		ExecutorUtil.shutdown(this.readThreadPool, 20L, TimeUnit.SECONDS);
 	}
 
 	private void handleData(Map<String, Object> data) {
