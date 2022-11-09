@@ -321,7 +321,7 @@ public class TicketsSchema extends Schema implements SchemaLoader {
                 if (!isAlive()) return;
                 Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,tableName,ticketLoader);
                 if (Checker.isEmpty(oneTicket) || oneTicket.isEmpty()) return;
-                Object modifiedTimeObj = oneTicket.get(isStreamRead?"modifiedTime":"createdTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
+                Object modifiedTimeObj = isStreamRead?null:oneTicket.get("modifiedTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
                 long referenceTime = System.currentTimeMillis();
                 if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                     referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);

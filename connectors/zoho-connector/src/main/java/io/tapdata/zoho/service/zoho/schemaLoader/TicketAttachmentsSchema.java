@@ -62,7 +62,7 @@ public class TicketAttachmentsSchema extends Schema implements SchemaLoader {
                 if (!isAlive()) return;
                 Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,attachmentsOpenApi);
                 if (Checker.isEmpty(oneProduct) || oneProduct.isEmpty()) return;
-                Object modifiedTimeObj = oneProduct.get("createdTime");
+                Object modifiedTimeObj = oneProduct.get("modifiedTime");
                 long referenceTime = System.currentTimeMillis();
                 if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                     referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);

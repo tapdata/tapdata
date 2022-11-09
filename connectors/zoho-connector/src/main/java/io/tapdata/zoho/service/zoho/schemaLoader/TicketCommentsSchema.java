@@ -61,7 +61,7 @@ public class TicketCommentsSchema extends Schema implements SchemaLoader {
             list.stream().filter(Objects::nonNull).forEach(product->{
                 Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,commentsOpenApi);
                 if (Checker.isEmpty(oneProduct) || oneProduct.isEmpty()) return;
-                Object modifiedTimeObj = oneProduct.get(isStreamRead?"modifiedTime":"commentedTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
+                Object modifiedTimeObj = isStreamRead?null:oneProduct.get("modifiedTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
                 long referenceTime = System.currentTimeMillis();
                 if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                     referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);

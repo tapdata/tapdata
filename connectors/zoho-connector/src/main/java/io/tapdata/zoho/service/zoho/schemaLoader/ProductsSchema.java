@@ -60,7 +60,7 @@ public class ProductsSchema extends Schema implements SchemaLoader {
                     if (!isAlive()) return;
                     Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,productsOpenApi);
                     if (Checker.isNotEmpty(oneProduct) && !oneProduct.isEmpty()){
-                        Object modifiedTimeObj = oneProduct.get(sortBy);//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
+                        Object modifiedTimeObj = isStreamRead?null:oneProduct.get("modifiedTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
                         long referenceTime = System.currentTimeMillis();
                         if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                             referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
