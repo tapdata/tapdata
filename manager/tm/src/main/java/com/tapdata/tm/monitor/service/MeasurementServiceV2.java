@@ -246,6 +246,7 @@ public class MeasurementServiceV2 {
      * @return
      */
     private Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long time, String padding) {
+        List<String> fields = querySample.getFields();
         Map<String, Sample> data = new HashMap<>();
         if (!StringUtils.equalsAny(querySample.getType(),
                 MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT,
@@ -289,6 +290,7 @@ public class MeasurementServiceV2 {
         Aggregation aggregation = Aggregation.newAggregation( match, sort, group);
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
         List<MeasurementEntity> entities = results.getMappedResults();
+        Number currentEventTimestamp = 0;
         for (MeasurementEntity entity : entities) {
             String hash = hashTag(entity.getTags());
             for(Sample sample : entity.getSamples()) {
@@ -296,6 +298,15 @@ public class MeasurementServiceV2 {
                     data.put(hash, sample);
                     continue;
                 }
+
+                if (fields.contains("currentEventTimestamp")) {
+                    Map<String, Number> vs = sample.getVs();
+                    Number timestamp = vs.get("currentEventTimestamp");
+                    if (Objects.nonNull(timestamp) && timestamp.longValue() > currentEventTimestamp.longValue()) {
+                        currentEventTimestamp = timestamp;
+                    }
+                }
+
                 long oldInterval = Math.abs(data.get(hash).getDate().getTime() - time);
                 long newInterval = Math.abs(sample.getDate().getTime() - time);
                 if (newInterval < oldInterval) {
@@ -307,8 +318,6 @@ public class MeasurementServiceV2 {
         Long maxRep = calculateMaxReplicateLag(querySample, typeIsTask);
 
         Number snapshotStartAtTemp = getSnapshotStartAt(querySample, typeIsTask);
-
-        List<String> fields = querySample.getFields();
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
 
@@ -317,6 +326,10 @@ public class MeasurementServiceV2 {
                 if (fields.contains(entry.getKey())) {
                     values.put(entry.getKey(), entry.getValue());
                 }
+            }
+
+            if (values.containsKey("currentEventTimestamp")) {
+                values.put("currentEventTimestamp", currentEventTimestamp);
             }
 
             Number snapshotRowTotal = values.get("snapshotRowTotal");
@@ -332,7 +345,7 @@ public class MeasurementServiceV2 {
             }
             if (typeIsTask) {
                 // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
-                if (Objects.nonNull(snapshotInsertRowTotal) && snapshotInsertRowTotal.longValue() == 0) {
+                if (Objects.nonNull(snapshotInsertRowTotal) && Objects.nonNull(snapshotStartAtTemp) && snapshotInsertRowTotal.longValue() == 0) {
                     maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAtTemp.longValue());
                 }
                 values.put("replicateLag", maxRep);
