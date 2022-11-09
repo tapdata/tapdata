@@ -31,6 +31,7 @@ import io.tapdata.pdk.apis.functions.connector.source.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
@@ -419,14 +420,15 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			String finalStreamReadFunctionName = streamReadFunctionName;
 			PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
-					.connectorContext(getConnectorNode().getConnectorContext())
-					.dataProcessorContext(getDataProcessorContext())
-					.streamReadFunction(finalStreamReadFunctionName)
-					.tables(tables)
-					.eventBatchSize(batchSize)
-					.offsetState(syncProgress.getStreamOffsetObj())
-					.start(), streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
-					pdkMethodInvoker.runnable(
+							.connectorContext(getConnectorNode().getConnectorContext())
+							.dataProcessorContext(getDataProcessorContext())
+							.streamReadFunction(finalStreamReadFunctionName)
+							.tables(tables)
+							.eventBatchSize(batchSize)
+							.offsetState(syncProgress.getStreamOffsetObj())
+							.start(),
+					streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
+							pdkMethodInvoker.runnable(
 									() -> {
 										this.streamReadFuncAspect = streamReadFuncAspect;
 										StreamReadConsumer streamReadConsumer = StreamReadConsumer.create((events, offsetObj) -> {
@@ -505,11 +507,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											}
 										}
 									}
-							).logTag(TAG)
-							.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
-							.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
-							.logListener(logListener)
-			));
+							)
+					));
 		} else {
 			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
 		}
@@ -552,14 +551,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					if (streamReadFuncAspect != null)
 						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
 				}));
-		this.shareCdcReader.listen((event, offsetObj) -> {
-			TapdataEvent tapdataEvent = wrapTapdataEvent(event, SyncStage.CDC, offsetObj, true);
-			if (null == tapdataEvent) {
-				return;
-			}
-			tapdataEvent.setType(SyncProgress.Type.SHARE_CDC);
-			enqueue(tapdataEvent);
-		});
 	}
 
 	private Long getCdcStartTs() {
@@ -582,6 +573,19 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				snapshotRowSizeMap = new HashMap<>();
 			}
 			snapshotRowSizeMap.putIfAbsent(tableName, 0L);
+		}
+	}
+
+	@Override
+	public void doClose() throws Exception {
+		try {
+			CommonUtils.handleAnyError(() -> {
+				if (null != shareCdcReader) {
+					shareCdcReader.close();
+				}
+			}, err -> obsLogger.warn(String.format("Close share cdc log reader failed: %s", err.getMessage())));
+		} finally {
+			super.doClose();
 		}
 	}
 }
