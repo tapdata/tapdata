@@ -151,12 +151,12 @@ public class RecordEventExecute {
     }
 
     public void dropTable(){
-        Assertions.assertThrows(Exception.class, this::drop,"Drop table function error ,please check your implement method.");
+        Assertions.assertDoesNotThrow(this::drop,"Drop table function error ,please check your implement method.");
     }
 
     private boolean drop() throws Throwable {
         DropTableFunction dropTableFunction = connectorFunctions.getDropTableFunction();
-        Assertions.assertNull(dropTableFunction,"Please implement the function named DropTable Function .");
+        Assertions.assertNotNull(dropTableFunction,"Please implement the function named DropTable Function .");
         TapDropTableEvent dropTableEvent = new TapDropTableEvent();
         dropTableEvent.setTableId(targetTable.getId());
         dropTableEvent.setReferenceTime(System.currentTimeMillis());

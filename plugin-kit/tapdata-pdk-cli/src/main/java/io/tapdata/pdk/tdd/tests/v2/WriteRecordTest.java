@@ -10,6 +10,7 @@ import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
@@ -35,7 +36,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 @DisplayName("Tests for source beginner test")
 public class WriteRecordTest extends PDKTestBase {
-    private static final String TAG = DMLTest.class.getSimpleName();
+    private static final String TAG = WriteRecordTest.class.getSimpleName();
     ConnectorNode tddTargetNode;
     ConnectorNode sourceNode;
     DataFlowWorker dataFlowWorker;
@@ -46,8 +47,8 @@ public class WriteRecordTest extends PDKTestBase {
     String testTableId;
     TapTable targetTable = table(testTableId)
             .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
-            .add(field("name", "StringMinor"))
-            .add(field("text", "StringMinor"));
+            .add(field("name", "STRING"))
+            .add(field("text", "STRING"));
     @Test
     @DisplayName("Test method handleRead")
     void sourceTest() throws Throwable {
@@ -55,6 +56,7 @@ public class WriteRecordTest extends PDKTestBase {
             tapNodeInfo = nodeInfo;
             originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
             testTableId = UUID.randomUUID().toString();
+            targetTable.setId(testTableId);
             KVMap<Object> stateMap = new KVMap<Object>() {
                 @Override
                 public void init(String mapKey, Class<Object> valueClass) {
@@ -107,10 +109,7 @@ public class WriteRecordTest extends PDKTestBase {
                     .withStateMap(stateMap)
                     .withTable(testTableId)
                     .build();
-            TapConnectorContext connectionContext = new TapConnectorContext(
-                    spec,
-                    connectionOptions,
-                    new DataMap());
+            TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap());
             try {
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");
                 writeRecorde(connectionContext,connectorNode);
@@ -123,7 +122,7 @@ public class WriteRecordTest extends PDKTestBase {
                 }
             }
         });
-        waitCompleted(5000000);
+        //waitCompleted(5000000);
     }
 
 
@@ -139,7 +138,7 @@ public class WriteRecordTest extends PDKTestBase {
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode,connectionContext, this)
                 .builderRecord(records);
 
-        boolean table = recordEventExecute.createTable();
+        //boolean table = recordEventExecute.createTable();
 
         WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
         insertRecord = insert.getInsertedCount();
@@ -166,7 +165,7 @@ public class WriteRecordTest extends PDKTestBase {
     public static List<SupportFunction> testFunctions() {
         return Arrays.asList(
                 support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
-                support(CreateTableV2Function.class,"Create table is must to verify ,please implement CreateTableV2Function in registerCapabilities method."),
+//                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
                 support(DropTableFunction.class,"Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
                 //support(QueryByAdvanceFilterFunction.class, "QueryByAdvanceFilterFunction is a must for database which is schema free to sample some record to generate the field data types.")
                 //support(DropTableFunction.class, "DropTable is needed for TDD to drop the table created by tests, please implement it in registerCapabilities method.")

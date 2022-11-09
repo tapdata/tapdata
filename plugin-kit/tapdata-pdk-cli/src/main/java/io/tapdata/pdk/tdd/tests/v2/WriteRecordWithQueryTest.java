@@ -3,15 +3,14 @@ package io.tapdata.pdk.tdd.tests.v2;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.entity.DAGDescriber;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -32,6 +31,11 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
+
+import static io.tapdata.entity.simplify.TapSimplify.field;
+import static io.tapdata.entity.simplify.TapSimplify.table;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 
 @DisplayName("Tests for source beginner test")
@@ -53,6 +57,11 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
 
     String testTableId;
     String tddTableId = "tdd-table";
+
+    TapTable targetTable = table(testTableId)
+            .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
+            .add(field("name", "STRING"))
+            .add(field("text", "STRING"));
     @Test
     @DisplayName("Test method handleRead")
     void sourceTest() throws Throwable {
@@ -80,22 +89,76 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                     spec,
                     connectionOptions,
                     new DataMap());
+            String dagId = UUID.randomUUID().toString();
+
+            testTableId = "test";UUID.randomUUID().toString();
+            targetTable.setId(testTableId);
+            KVMap<Object> stateMap = new KVMap<Object>() {
+                @Override
+                public void init(String mapKey, Class<Object> valueClass) {
+
+                }
+
+                @Override
+                public void put(String key, Object o) {
+
+                }
+
+                @Override
+                public Object putIfAbsent(String key, Object o) {
+                    return null;
+                }
+
+                @Override
+                public Object remove(String key) {
+                    return null;
+                }
+
+                @Override
+                public void clear() {
+
+                }
+
+                @Override
+                public void reset() {
+
+                }
+
+                @Override
+                public Object get(String key) {
+                    return null;
+                }
+            };
+            KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
+            kvMap.put(testTableId,targetTable);
+            ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
+                    .withDagId(dagId)
+                    .withAssociateId(UUID.randomUUID().toString())
+                    .withConnectionConfig(connectionOptions)
+                    .withGroup(spec.getGroup())
+                    .withVersion(spec.getVersion())
+                    .withTableMap(kvMap)
+                    .withPdkId(spec.getId())
+                    .withGlobalStateMap(stateMap)
+                    .withStateMap(stateMap)
+                    .withTable(testTableId)
+                    .build();
             try{
-                PDKInvocationMonitor.invoke(tddTargetNode, PDKMethod.INIT,tddTargetNode::connectorInit,"Init PDK","TEST mongodb");
+                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");
 
-                queryByAdvanceFilterTest(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
+                queryByAdvanceFilterTest(connectorNode,connectionContext);
 
-                insertAfterInsertSomeKey(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
-
-                updateNotExistRecord(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
-
-                deleteNotExistRecord(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
+//                insertAfterInsertSomeKey(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
+//
+//                updateNotExistRecord(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
+//
+//                deleteNotExistRecord(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),connectionContext);
 
             }catch (Throwable e){
                 throw new RuntimeException(e);
             }finally {
-                if (null != tddTargetNode){
-                    PDKInvocationMonitor.invoke(tddTargetNode, PDKMethod.STOP,tddTargetNode::connectorStop,"Stop PDK","TEST mongodb");
+                if (null != connectorNode){
+                    PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP,connectorNode::connectorStop,"Stop PDK","TEST mongodb");
                     PDKIntegration.releaseAssociateId("releaseAssociateId");
                 }
             }
@@ -123,14 +186,12 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
 //                });
 //            }
         });
-        waitCompleted(5000000);
+        //waitCompleted(5000000);
     }
 
     private void queryByAdvanceFilterTest(ConnectorNode targetNode,TapConnectorContext connectionContext) throws Throwable{
         ConnectorFunctions connectorFunctions = targetNode.getConnectorFunctions();
         QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
-
-        TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
 
         Record record = Record.create()
                 .builder("id", 111111)
@@ -140,35 +201,40 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
 
 
         recordEventExecute.insert();
-        queryByAdvanceFilterFunction.query(
-                targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().match(DataMap.create().kv("id", 111111).kv("name", "gavin").kv("text", "gavin test")),
-                targetTable,
-                filterResults -> {
-                    $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-                    $(() -> Assertions.assertTrue(objectIsEqual(filterResults.getResults(), Collections.singletonList(record)), "insert record not succeed."));
-                });
+//        queryByAdvanceFilterFunction.query(
+//                targetNode.getConnectorContext(),
+//                TapAdvanceFilter.create().op(QueryOperator.lte("id", 111111)).op(QueryOperator.gte("id", 111111)),
+//                targetTable,
+//                filterResults -> $(() -> {
+//                    Assertions.assertNotNull(filterResults, "Query results should be not null");
+//                    Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null");
+//                    Assertions.assertTrue(objectIsEqual(
+//                            filterResults.getResults(),
+//                            Collections.singletonList(record)),
+//                            "insert record not succeed.");
+//                })
+//        );
 
         record.builder("name","Gavin pro").builder("text","Gavin pro max.");
         recordEventExecute.update();
-        queryByAdvanceFilterFunction.query(
-                targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().match(DataMap.create().kv("id", 111111).kv("name","Gavin pro").kv("text","Gavin pro max.")),
-                targetTable,
-                filterResults -> {
-                    $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-                    $(() -> Assertions.assertTrue(objectIsEqual(filterResults.getResults(), Collections.singletonList(record)), "update record not succeed."));
-                });
+//        queryByAdvanceFilterFunction.query(
+//                targetNode.getConnectorContext(),
+//                TapAdvanceFilter.create().match(DataMap.create().kv("id", 111111).kv("name","Gavin pro").kv("text","Gavin pro max.")),
+//                targetTable,
+//                filterResults -> {
+//                    $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
+//                    $(() -> Assertions.assertTrue(objectIsEqual(filterResults.getResults(), Collections.singletonList(record)), "update record not succeed."));
+//                });
 
-        recordEventExecute.delete();
-        queryByAdvanceFilterFunction.query(
-                targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().match(DataMap.create().kv("id", 111111).kv("name", "gavin").kv("text", "gavin test")),
-                targetTable,
-                filterResults -> {
-                    $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-                    $(() -> Assertions.assertNotEquals(0, filterResults.getResults().size(), "delete record not succeed."));
-                });
+//        recordEventExecute.delete();
+//        queryByAdvanceFilterFunction.query(
+//                targetNode.getConnectorContext(),
+//                TapAdvanceFilter.create().match(DataMap.create().kv("id", 111111).kv("name", "gavin").kv("text", "gavin test")),
+//                targetTable,
+//                filterResults -> {
+//                    $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
+//                    $(() -> Assertions.assertNotEquals(0, filterResults.getResults().size(), "delete record not succeed."));
+//                });
     }
 
     private void insertAfterInsertSomeKey(ConnectorNode targetNode,TapConnectorContext connectionContext) throws Throwable {
@@ -176,7 +242,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
         RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this)
                 .builderRecord(records);
 
-        recordEventExecute.createTable();
+        //recordEventExecute.createTable();
         WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
         for (Record record : records) {
             record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
@@ -216,7 +282,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
         RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this)
                 .builderRecord(records);
 
-        recordEventExecute.createTable();
+        //recordEventExecute.createTable();
         WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
         for (Record record : records) {
             record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
@@ -254,7 +320,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
         RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this)
                 .builderRecord(records);
 
-        recordEventExecute.createTable();
+        //recordEventExecute.createTable();
         WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
         for (Record record : records) {
             record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
@@ -291,7 +357,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
         return Arrays.asList(
                 support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
                 support(QueryByAdvanceFilterFunction.class, "QueryByAdvanceFilterFunction is a must for database which is schema free to sample some record to generate the field data types."),
-                support(CreateTableV2Function.class,"Create table is must to verify ,please implement CreateTableV2Function in registerCapabilities method."),
+//                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
                 support(DropTableFunction.class,"Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
         );
     }
