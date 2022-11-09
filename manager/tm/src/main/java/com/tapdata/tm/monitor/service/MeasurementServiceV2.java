@@ -6,6 +6,8 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
@@ -46,6 +48,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import javax.management.ValueExp;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
@@ -290,12 +293,8 @@ public class MeasurementServiceV2 {
         Aggregation aggregation = Aggregation.newAggregation( match, sort, group);
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
         List<MeasurementEntity> entities = results.getMappedResults();
-        Number currentEventTimestamp = 0;
-        Number snapshotRowTotal = 0;
-        Number snapshotInsertRowTotal = 0;
-        Number snapshotStartAt = 0;
-        Number timeCostAvg = 0;
-        Number targetWriteTimeCostAvg = 0;
+
+        Map<String, Number> keyMap = getKeyMap();
         for (MeasurementEntity entity : entities) {
             String hash = hashTag(entity.getTags());
             for(Sample sample : entity.getSamples()) {
@@ -304,12 +303,7 @@ public class MeasurementServiceV2 {
                     continue;
                 }
 
-                currentEventTimestamp = getNumber(fields, currentEventTimestamp, sample, "currentEventTimestamp");
-                snapshotRowTotal = getNumber(fields, snapshotRowTotal, sample, "snapshotRowTotal");
-                snapshotInsertRowTotal = getNumber(fields, snapshotInsertRowTotal, sample, "snapshotInsertRowTotal");
-                snapshotStartAt = getNumber(fields, snapshotStartAt, sample, "snapshotStartAt");
-                timeCostAvg = getNumber(fields, timeCostAvg, sample, "timeCostAvg");
-                targetWriteTimeCostAvg = getNumber(fields, targetWriteTimeCostAvg, sample, "targetWriteTimeCostAvg");
+                getNumber(fields, sample, keyMap);
 
                 long oldInterval = Math.abs(data.get(hash).getDate().getTime() - time);
                 long newInterval = Math.abs(sample.getDate().getTime() - time);
@@ -332,25 +326,16 @@ public class MeasurementServiceV2 {
                 }
             }
 
-            if (fields.contains("currentEventTimestamp")) {
-                values.put("currentEventTimestamp", currentEventTimestamp);
-            }
-            if (fields.contains("snapshotInsertRowTotal")) {
-                values.put("snapshotInsertRowTotal", snapshotInsertRowTotal);
-            }
-            if (fields.contains("snapshotRowTotal")) {
-                values.put("snapshotRowTotal", snapshotRowTotal);
-            }
-            if (fields.contains("snapshotStartAt")) {
-                values.put("snapshotStartAt", snapshotStartAt);
-            }
-            if (fields.contains("timeCostAvg")) {
-                values.put("timeCostAvg", timeCostAvg);
-            }
-            if (fields.contains("targetWriteTimeCostAvg")) {
-                values.put("targetWriteTimeCostAvg", targetWriteTimeCostAvg);
+            for (Map.Entry<String, Number> entry : keyMap.entrySet()) {
+                String key = entry.getKey();
+                Number value = entry.getValue();
+                if (fields.contains(key)) {
+                    values.put(key, value);
+                }
             }
 
+            Number snapshotRowTotal = keyMap.get("snapshotRowTotal");
+            Number snapshotInsertRowTotal = keyMap.get("snapshotInsertRowTotal");
             if (Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowTotal)
                     && snapshotInsertRowTotal.longValue() > snapshotRowTotal.longValue()) {
                 values.put("snapshotRowTotal", snapshotInsertRowTotal);
@@ -361,6 +346,7 @@ public class MeasurementServiceV2 {
 //                values.put("snapshotStartAt", snapshotStartAtTemp);
 //            }
             if (typeIsTask) {
+                Number snapshotStartAt = keyMap.get("snapshotStartAt");
                 // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
                 if (Objects.nonNull(snapshotInsertRowTotal) && Objects.nonNull(snapshotStartAt) && snapshotInsertRowTotal.longValue() == 0) {
                     maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAt.longValue());
@@ -368,9 +354,9 @@ public class MeasurementServiceV2 {
                 values.put("replicateLag", maxRep);
 
                 // 全量完成时间应该是在任务中所有涉及全量的表完成后再更新全量完成时间
-                Number snapshotTableTotal = values.get("snapshotTableTotal");
-                Number tableTotal = values.get("tableTotal");
-                if (snapshotTableTotal.longValue() < tableTotal.longValue()) {
+                Number snapshotTableTotal = keyMap.get("snapshotTableTotal");
+                Number tableTotal = keyMap.get("tableTotal");
+                if (snapshotTableTotal.longValue() == 0 || snapshotTableTotal.longValue() < tableTotal.longValue()) {
                     values.put("snapshotDoneAt", null);
                 }
 
@@ -379,6 +365,30 @@ public class MeasurementServiceV2 {
         }
 
         return data;
+    }
+
+    private static Map<String, Number> getKeyMap() {
+        Map<String, Number> keyMap = Maps.newHashMap();
+        keyMap.put("currentEventTimestamp", 0);
+        keyMap.put("snapshotRowTotal", 0);
+        keyMap.put("snapshotInsertRowTotal", 0);
+        keyMap.put("snapshotStartAt", 0);
+        keyMap.put("timeCostAvg", 0);
+        keyMap.put("targetWriteTimeCostAvg", 0);
+        keyMap.put("inputDdlTotal", 0);
+        keyMap.put("inputDeleteTotal", 0);
+        keyMap.put("inputInsertTotal", 0);
+        keyMap.put("inputOthersTotal", 0);
+        keyMap.put("inputUpdateTotal", 0);
+        keyMap.put("outputDdlTotal", 0);
+        keyMap.put("outputDeleteTotal", 0);
+        keyMap.put("outputInsertTotal", 0);
+        keyMap.put("outputOthersTotal", 0);
+        keyMap.put("outputUpdateTotal", 0);
+        keyMap.put("snapshotTableTotal", 0);
+        keyMap.put("tableTotal", 0);
+
+        return keyMap;
     }
 
     private static Number getNumber(List<String> fields, Number value, Sample sample, String key) {
@@ -390,6 +400,21 @@ public class MeasurementServiceV2 {
             }
         }
         return value;
+    }
+
+    private static void getNumber(List<String> fields, Sample sample, Map<String, Number> keyMap) {
+        for (Map.Entry<String, Number> entry : keyMap.entrySet()) {
+            String key = entry.getKey();
+            Number value = entry.getValue();
+            if (fields.contains(key)) {
+                Map<String, Number> vs = sample.getVs();
+                Number timestamp = vs.get(key);
+                if (Objects.nonNull(timestamp) && timestamp.longValue() > value.longValue()) {
+                    keyMap.put(key, timestamp);
+                }
+            }
+
+        }
     }
 
     private Long calculateMaxReplicateLag(MeasurementQueryParam.MeasurementQuerySample querySample, boolean typeIsTask) {
