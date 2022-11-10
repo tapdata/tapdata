@@ -14,6 +14,7 @@ import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -299,12 +300,11 @@ public class MeasurementServiceV2 {
             String hash = hashTag(entity.getTags());
             Map<String, Number> keyMap = getKeyMap();
             for(Sample sample : entity.getSamples()) {
+                hashKeyMap.put(hash, getNumber(fields, sample, keyMap));
                 if (!data.containsKey(hash)) {
                     data.put(hash, sample);
                     continue;
                 }
-
-                hashKeyMap.put(hash, getNumber(fields, sample, keyMap));
 
                 long oldInterval = Math.abs(data.get(hash).getDate().getTime() - time);
                 long newInterval = Math.abs(sample.getDate().getTime() - time);
@@ -878,9 +878,19 @@ public class MeasurementServiceV2 {
         for (MeasurementEntity measurementEntity : measurementEntities) {
             String originTable = measurementEntity.getTags().get("table");
             AtomicReference<String> originTableName = new AtomicReference<>();
-            FunctionUtils.isTureOrFalse(hasTableRenameNode).trueOrFalseHandle(
-                    () -> originTableName.set(tableNameMap.get().get(originTable)),
-                    () -> originTableName.set(originTable));
+            boolean finalHasTableRenameNode = hasTableRenameNode;
+            FunctionUtils.isTureOrFalse(TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())).trueOrFalseHandle(
+                    () -> FunctionUtils.isTureOrFalse(finalHasTableRenameNode).trueOrFalseHandle(
+                            () -> originTableName.set(tableNameMap.get().get(originTable)),
+                            () -> originTableName.set(originTable)),
+                    () -> {
+                        List<TableNode> collect = taskDto.getDag().getTargets().stream().map(n -> (TableNode) n).collect(Collectors.toList());
+                        FunctionUtils.isTureOrFalse(CollectionUtils.isNotEmpty(collect)).trueOrFalseHandle(
+                                () -> originTableName.set(collect.get(0).getTableName()),
+                                () -> originTableName.set(originTable)
+                        );
+                    }
+            );
 
             List<Sample> samples = measurementEntity.getSamples();
             if (CollectionUtils.isEmpty(samples)) {
@@ -900,10 +910,6 @@ public class MeasurementServiceV2 {
 
             String fullSyncStatus;
             if (syncRate.compareTo(BigDecimal.ONE) == 0) {
-                if (syncRate.compareTo(BigDecimal.TEN) > 0) {
-                    log.warn("querySyncStatic table {} syncRate {} more than 100%", originTableName, syncRate);
-                }
-                syncRate = new BigDecimal(1);
                 fullSyncStatus = "DONE";
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
                 fullSyncStatus = "NOT_START";
@@ -915,6 +921,10 @@ public class MeasurementServiceV2 {
             vo.setOriginTable(originTable);
             vo.setTargetTable(originTableName.get());
             vo.setFullSyncStatus(fullSyncStatus);
+            if (syncRate.compareTo(BigDecimal.TEN) > 0) {
+                log.warn("querySyncStatic table {} syncRate {} more than 100%", originTableName, syncRate);
+                syncRate = new BigDecimal(1);
+            }
             vo.setSyncRate(syncRate);
 
             result.add(vo);
