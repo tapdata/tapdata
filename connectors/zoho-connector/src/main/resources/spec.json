@@ -15,6 +15,15 @@
     "connection": {
       "type": "object",
       "properties": {
+        "orgId": {
+          "type": "String",
+          "title": "${orgId}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 10,
+          "required": true
+        },
         "clientID": {
           "type": "String",
           "title": "${clientID}",
@@ -56,7 +65,7 @@
           "x-decorator": "FormItem",
           "extra": true,
           "x-component-props": {
-            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $values, $form, { command: 'TokenCommand' })}}"
+            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'TokenCommand' })}}"
           },
           "x-reactions": [{
             "dependencies": ["generateCode"],
@@ -69,11 +78,11 @@
             "dependencies": ["refreshToken"],
             "fulfill": {
               "state": {
-                "content": "{{$deps[0] ? \"已授权，点击将会重新授权\" : \"请点击授权\"}}"
+                "content": "{{$deps[0] ? \"${getTokenButtonMsgA}\" : \"${getTokenButtonMsgB}\"}}"
               }
             }
           }],
-          "x-content": "hookButton",
+          "x-content": "${hookButton}",
           "x-component": "Button",
           "x-index": 41
         },
@@ -100,10 +109,10 @@
         },
         "getRefreshTokenButton": {
           "type": "void",
-          "title": "${tokenButton}",
+          "title": "${accessTokenButton}",
           "x-decorator": "FormItem",
           "x-component-props": {
-            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $values, $form, { command: 'RefreshTokenCommand' })}}"
+            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'RefreshTokenCommand' })}}"
           },
           "x-reactions": [{
             "dependencies": ["refreshToken"],
@@ -113,7 +122,7 @@
               }
             }
           }],
-          "x-content": "重新授权",
+          "x-content": "${refreshTokenButtonMsg}",
           "x-component": "Button",
           "x-index": 43
         },
@@ -148,8 +157,7 @@
           },
           "apiServerKey": "database_host",
           "x-index": 50,
-          "hidden": true,
-          "required": true
+          "x-display": "hidden"
         },
         "accessToken": {
           "type": "String",
@@ -161,8 +169,7 @@
           },
           "apiServerKey": "database_host",
           "x-index": 60,
-          "hidden": true,
-          "required": true
+          "x-display": "hidden"
         },
         "connectionMode": {
           "type": "String",
@@ -174,10 +181,6 @@
             {
               "label": "${document}",
               "value": "DocumentMode"
-            },
-            {
-              "label": "${csv}",
-              "value": "CSVMode"
             }
           ],
           "x-index": 80,
@@ -200,7 +203,7 @@
         },
         "hookButton": {
           "type": "void",
-          "title": "${hookButton}",
+          "title": " ",
           "x-decorator": "FormItem",
           "x-component-props": {
             "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
@@ -213,13 +216,13 @@
               }
             }
           },
-          "x-content": "hookButton",
+          "x-content": "${hookButton}",
           "x-component": "Button",
-          "x-index": 1000
+          "x-index": 100
         },
         "hookText": {
           "type": "string",
-          "title": " ",
+          "title": "${hookButtonTitle}",
           "x-decorator": "FormItem",
           "x-decorator-props": {
             "colon": false
@@ -241,15 +244,21 @@
   "messages": {
     "default": "en_US",
     "en_US": {
+      "doc": "docs/zoho_en_US.md",
       "clientID": "Client ID",
       "clientSecret": "Client Secret",
       "generateCode": "Generate Code",
       "refreshToken": "Refresh Token",
       "accessToken": "AccessToken",
-      "orgId": "Organization",
+      "orgId": "Organization ID",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
-      "tokenButton": "Get Token",
+      "hookButton": "Generate URL to notify",
+      "hookButtonTitle": "URL to notify",
+      "tokenButton": "Get access rights and tokens",
+      "accessTokenButton": "Refresh token",
+      "refreshTokenButtonMsg": "Refresh Now",
+      "getTokenButtonMsgA": "Authorized, click to retrieve",
+      "getTokenButtonMsgB": "Please click to get",
 
       "iterationCodes": "Iteration",
       "issueType": "Issue Type",
@@ -269,7 +278,6 @@
       "pollingRead": "Polling Read",
 
 
-      "doc": "docs/coding_en_US.md",
       "df_initial_totals": "Initial data amount",
       "df_incremental_interval": "Incremental interval (ms)",
       "df_incremental_interval_totals": "Incremental Interval Upper Limits",
@@ -295,10 +303,15 @@
       "generateCode": "应用生成码",
       "refreshToken": "刷新令牌",
       "accessToken": "访问令牌",
-      "orgId": "组织",
+      "orgId": "机构 ID",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
-      "tokenButton": "获取令牌",
+      "hookButton": "生成要通知的URL",
+      "hookButtonTitle": "要通知的URL",
+      "tokenButton": "获取访问权限和令牌",
+      "accessTokenButton": "刷新令牌",
+      "refreshTokenButtonMsg": "立即刷新",
+      "getTokenButtonMsgA": "已授权，点击将会重新获取",
+      "getTokenButtonMsgB": "请点击获取",
 
       "connectionMode": "连接模式",
       "document": "普通文档格式",
@@ -308,7 +321,7 @@
       "webHookRead": "Web Hook",
       "pollingRead": "轮询式",
 
-      "doc": "docs/coding_zh_CN.md",
+      "doc": "docs/zoho_zh_CN.md",
       "df_initial_totals": "初始化数据量",
       "df_incremental_interval": "增量间隔（毫秒）",
       "df_incremental_interval_totals": "增量间隔上限",
@@ -334,10 +347,15 @@
       "generateCode": "應用生成碼",
       "refreshToken": "重繪權杖",
       "accessToken": "訪問權杖",
-      "orgId": "組織",
+      "orgId": "組織 ID",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
-      "tokenButton": "獲取權杖",
+      "hookButton": "生成要通知的URL",
+      "hookButtonTitle": "要通知的URL",
+      "tokenButton": "獲取存取權限和權杖",
+      "accessTokenButton": "重繪權杖",
+      "refreshTokenButtonMsg": "立即重繪",
+      "getTokenButtonMsgA": "已授權，點擊將會重新獲取 ",
+      "getTokenButtonMsgB": "請點擊獲取",
 
       "connectionMode": "連接模式",
       "document": "普通文檔格式",
@@ -347,7 +365,7 @@
       "webHookRead": "Web Hook",
       "pollingRead": "輪詢式",
 
-      "doc": "docs/coding_zh_TW.md",
+      "doc": "docs/zoho_zh_TW.md",
       "df_initial_totals": "初始化數據量",
       "df_incremental_interval": "增量間隔（毫秒）",
       "df_incremental_interval_totals": "增量間隔上限",
@@ -427,6 +445,10 @@
       "to" : "TapString",
       "byte" : 64
     },
+    "StringStatus": {
+      "to" : "TapString",
+      "byte" : 32
+    },
     "StringBit": {
       "to" : "TapString",
       "byte" : 5
@@ -443,6 +465,11 @@
     "WorkingHours": {
       "to": "TapNumber",
       "value": [ 0.00 , 10000.00],
+      "scale": [ 0, 2]
+    },
+    "price": {
+      "to": "TapNumber",
+      "value": [ 0.00 , 10000000.00],
       "scale": [ 0, 2]
     },
     "Float": {

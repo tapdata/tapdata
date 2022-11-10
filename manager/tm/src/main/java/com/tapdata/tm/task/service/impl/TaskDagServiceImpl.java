@@ -94,7 +94,7 @@ public class TaskDagServiceImpl implements TaskDagService {
             JsonNode jsonNode = mapper.readTree(factory.createParser(jsonString));
             hash = jsonNode.hashCode();
         } catch (IOException e) {
-            log.error("Error generating hash for jsonString: {}", jsonString, e);
+            log.error("Error generating hash for jsonString: {} {}", jsonString, e.getMessage());
         }
 
         return hash;

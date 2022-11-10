@@ -39,7 +39,6 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
         ObjectId taskId = taskDto.getId();
-        String current = DateUtil.now();
         Date now = new Date();
 
         List<TaskDagCheckLog> result = Lists.newArrayList();
@@ -60,7 +59,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 template = templateEnum.getErrorTemplate();
                 grade = Level.ERROR;
 
-                String content = MessageFormat.format(template, current, name);
+                String content = MessageFormat.format(template, name);
                 TaskDagCheckLog log = new TaskDagCheckLog();
                 log.setTaskId(taskId.toHexString());
                 log.setCheckType(templateEnum.name());
@@ -82,7 +81,6 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             Optional.ofNullable(connectionDto).ifPresent(dto -> {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
-                int loadCount = Objects.nonNull(dto.getLoadCount()) ? dto.getLoadCount() : 0;
                 if (CollectionUtils.isEmpty(tables)) {
                     TaskDagCheckLog schemaLog = new TaskDagCheckLog();
                     schemaLog.setTaskId(taskId.toHexString());
@@ -110,17 +108,20 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
         });
 
         if (CollectionUtils.isEmpty(result)) {
-            TaskDagCheckLog log = new TaskDagCheckLog();
-            String content = MessageFormat.format(templateEnum.getInfoTemplate(), current);
-            log.setTaskId(taskId.toHexString());
-            log.setCheckType(templateEnum.name());
-            log.setCreateAt(now);
-            log.setCreateUser(userDetail.getUserId());
-            log.setLog(content);
-            log.setGrade(Level.INFO);
-            log.setNodeId(taskDto.getDag().getSourceNode().getFirst().getId());
 
-            result.add(log);
+            sourceNode.forEach(node -> {
+                TaskDagCheckLog log = new TaskDagCheckLog();
+                String content = MessageFormat.format(templateEnum.getInfoTemplate(), node.getName());
+                log.setTaskId(taskId.toHexString());
+                log.setCheckType(templateEnum.name());
+                log.setCreateAt(now);
+                log.setCreateUser(userDetail.getUserId());
+                log.setLog(content);
+                log.setGrade(Level.INFO);
+                log.setNodeId(taskDto.getDag().getSourceNode().getFirst().getId());
+
+                result.add(log);
+            });
         }
 
         return result;

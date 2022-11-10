@@ -837,6 +837,16 @@ public class DAG implements Serializable, Cloneable {
                 message.setMsg("source is not data node, source =" + source);
                 messageList.add(message);
             }
+
+            if (node instanceof DatabaseNode) {
+                List<String> tableNames = ((DatabaseNode) node).getTableNames();
+                if (CollectionUtils.isEmpty(tableNames)) {
+                    Message message = new Message();
+                    message.setCode("DAG.MigrateTaskNotContainsTable");
+                    message.setMsg("task not contains tables");
+                    messageList.add(message);
+                }
+            }
         }
 
         Set<String> sinks = graph.getSinks();
@@ -868,7 +878,7 @@ public class DAG implements Serializable, Cloneable {
                         try {
                             nodeEventListener.onTransfer(inputSchemaList, schema, outputSchema, nodeId);
                         } catch (Exception e) {
-                            logger.error("Trigger transfer listener failed", e);
+                            logger.error("Trigger transfer listener failed {}", e.getMessage());
                         }
                     });
                 }
@@ -879,7 +889,7 @@ public class DAG implements Serializable, Cloneable {
                         try {
                             nodeEventListener.schemaTransformResult(nodeId, schemaTransformerResults);
                         } catch (Exception e) {
-                            logger.error("Trigger transfer listener failed", e);
+                            logger.error("Trigger transfer listener failed {}", e.getMessage());
                         }
                     });
                 }

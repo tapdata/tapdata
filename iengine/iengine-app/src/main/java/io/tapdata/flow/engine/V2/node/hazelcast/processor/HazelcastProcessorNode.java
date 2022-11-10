@@ -223,6 +223,9 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 				stage.setAction(rowFilterProcessor.getAction());
 				stage.setExpression(rowFilterProcessor.getExpression());
+				if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+					this.setIgnore(true);
+				}
 				break;
 		}
 

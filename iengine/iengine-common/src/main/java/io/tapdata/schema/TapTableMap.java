@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.cache.EhcacheService;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.cache.EhcacheKVMap;
 import org.apache.commons.collections4.MapUtils;
@@ -49,12 +50,16 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	public static TapTableMap<String, TapTable> create(String nodeId) {
+		return create(null, nodeId);
+	}
+
+	public static TapTableMap<String, TapTable> create(String prefix, String nodeId) {
 		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
 		tapTableMap
 						.nodeId(nodeId)
 						.time(null)
 						.tableNameAndQualifiedNameMap(new HashMap<>())
-						.init(null);
+						.init(prefix);
 		return tapTableMap;
 	}
 
@@ -80,7 +85,11 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	public static TapTableMap<String, TapTable> create(String nodeId, TapTable tapTable) {
 		return create(nodeId, Collections.singletonList(tapTable), null);
 	}
+
 	public static TapTableMap<String, TapTable> create(String nodeId, List<TapTable> tapTableList, Long time) {
+		return create(null, nodeId, tapTableList, time);
+	}
+	public static TapTableMap<String, TapTable> create(String prefix, String nodeId, List<TapTable> tapTableList, Long time) {
 		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
 
 		HashMap<String, String> tableNameAndQualifiedNameMap = new HashMap<>();
@@ -91,7 +100,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 						.nodeId(nodeId)
 						.time(time)
 						.tableNameAndQualifiedNameMap(tableNameAndQualifiedNameMap)
-						.init(null);
+						.init(prefix);
 		for (TapTable tapTable : tapTableList) {
 			tapTableMap.put(tapTable.getId(), tapTable);
 		}
@@ -380,5 +389,33 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 			ehcacheService.removeEhcacheKVMap(mapKey);
 		}
 		this.tableNameAndQualifiedNameMap.clear();
+	}
+
+	public Iterator<io.tapdata.entity.utils.cache.Entry<TapTable>> iterator() {
+		java.util.Iterator<K> iterator = tableNameAndQualifiedNameMap.keySet().iterator();
+		return new Iterator<io.tapdata.entity.utils.cache.Entry<TapTable>>() {
+			@Override
+			public boolean hasNext() {
+				return iterator.hasNext();
+			}
+
+			@Override
+			public io.tapdata.entity.utils.cache.Entry<TapTable> next() {
+				String tableName = iterator.next();
+				//noinspection unchecked
+				TapTable tapTable = getTapTable((K) tableName);
+				return new io.tapdata.entity.utils.cache.Entry<TapTable>() {
+					@Override
+					public String getKey() {
+						return tableName;
+					}
+
+					@Override
+					public TapTable getValue() {
+						return tapTable;
+					}
+				};
+			}
+		};
 	}
 }

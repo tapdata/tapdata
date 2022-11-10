@@ -16,9 +16,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
@@ -36,10 +34,7 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -93,22 +88,43 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateIndex(this::createIndex);
+        connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
 
 
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
-        codecRegistry.registerFromTapValue(TapTimeValue.class, "datetime", tapValue -> {
-            if (tapValue != null && tapValue.getValue() != null){
-                return toJson(tapValue.getValue());
+
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
+                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
             }
-            return "null";
+            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
+        });
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
+            if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
+                tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
 
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+        codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
+
+        codecRegistry.registerFromTapValue(TapMapValue.class, "longtext", tapMapValue -> {
+            if (tapMapValue != null && tapMapValue.getValue() != null) return toJson(tapMapValue.getValue());
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapArrayValue.class, "longtext", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null) return toJson(tapValue.getValue());
+            return "null";
+        });
 
     }
 
@@ -165,7 +181,7 @@ public class TidbConnector extends ConnectorBase {
 
     private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) throws Throwable {
         List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
-        SqlMaker sqlMaker =  new TidbSqlMaker();
+        SqlMaker sqlMaker = new TidbSqlMaker();
         for (TapIndex tapIndex : indexList) {
             String createIndexSql;
             try {
@@ -176,7 +192,12 @@ public class TidbConnector extends ConnectorBase {
             try {
                 tidbContext.execute(createIndexSql);
             } catch (Throwable e) {
-                throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                // tidb index  less than  3072 bytes。
+                if (e.getMessage() != null && e.getMessage().contains("42000 1071")) {
+                    TapLogger.warn(TAG, "Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                } else {
+                    throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                }
             }
         }
     }
@@ -197,8 +218,10 @@ public class TidbConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         if (EmptyKit.isNotNull(tidbContext)) {
+            DataSourcePool.removeJdbcContext(tidbConfig);
             tidbContext.finish(connectionContext.getId());
         }
+
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
@@ -249,17 +272,6 @@ public class TidbConnector extends ConnectorBase {
     }
 
 
-//    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-//        int count;
-//        try {
-//            count = tidbContext.count(tapTable.getName());
-//        } catch (Exception e) {
-//            throw new RuntimeException("Count table " + tapTable.getName() + " error: " + e.getMessage(), e);
-//        }
-//        return count;
-//    }
-
-
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         List<DataMap> tableList = tidbContext.queryAllTables(tables);
@@ -308,21 +320,24 @@ public class TidbConnector extends ConnectorBase {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(tidbConfig.getConnectionString());
         try (
-                TidbConnectionTest damengTest = new TidbConnectionTest(tidbConfig)
+                TidbConnectionTest connectionTest = new TidbConnectionTest(tidbConfig)
         ) {
-            TestItem testHostPort = damengTest.testHostPort();
+            TestItem testHostPort = connectionTest.testHostPort();
             consumer.accept(testHostPort);
             if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
                 return connectionOptions;
             }
-            TestItem testConnect = damengTest.testConnect();
+            TestItem testPbServerHostPort = connectionTest.testPbserver();
+            consumer.accept(testPbServerHostPort);
+            if (testPbServerHostPort.getResult() == TestItem.RESULT_FAILED) {
+                return connectionOptions;
+            }
+            TestItem testConnect = connectionTest.testConnect();
             consumer.accept(testConnect);
             if (testConnect.getResult() == TestItem.RESULT_FAILED) {
                 return connectionOptions;
             }
         }
-//        List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDLParserType.DAMENG_CCJ_SQL_PARSER);
-//        ddlCapabilities.forEach(connectionOptions::capability);
         return connectionOptions;
     }
 
@@ -334,6 +349,15 @@ public class TidbConnector extends ConnectorBase {
         }
         ConnectionCheckItem testConnection = tidbConnectionTest.testConnection();
         consumer.accept(testConnection);
+    }
+
+    private static String toHHmmss(long time) {
+        String timeTemp;
+        int hours = (int) (time % (1000 * 60 * 60 * 24) / (1000 * 60 * 60));
+        int minutes = (int) (time % (1000 * 60 * 60) / (1000 * 60));
+        int seconds = (int) (time % (1000 * 60) / 1000);
+        timeTemp = (hours < 10 ? ("0" + hours) : hours) + ":" + (minutes < 10 ? ("0" + minutes) : minutes) + ":" + (seconds < 10 ? ("0" + seconds) : seconds);
+        return timeTemp;
     }
 }
 

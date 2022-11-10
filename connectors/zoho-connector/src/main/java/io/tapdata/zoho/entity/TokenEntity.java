@@ -1,11 +1,9 @@
 package io.tapdata.zoho.entity;
 
 import io.tapdata.zoho.enums.HttpCode;
-import io.tapdata.zoho.service.zoho.ZoHoBase;
+import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
 import io.tapdata.zoho.utils.Checker;
-import io.tapdata.zoho.utils.ZoHoString;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public class TokenEntity extends HttpBaseEntity{

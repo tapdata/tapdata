@@ -44,6 +44,7 @@ import org.bson.types.*;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -81,6 +82,7 @@ public class MongodbConnector extends ConnectorBase {
 	private MongodbStreamReader mongodbStreamReader;
 
 	private volatile MongodbWriter mongodbWriter;
+	private Map<String, Integer> stringTypeValueMap;
 
 	private Bson queryCondition(String firstPrimaryKey, Object value) {
 		return gte(firstPrimaryKey, value);
@@ -108,6 +110,7 @@ public class MongodbConnector extends ConnectorBase {
 		final String version = MongodbUtil.getVersionString(mongoClient, mongoConfig.getDatabase());
 		MongoIterable<String> collectionNames = mongoDatabase.listCollectionNames();
 		TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+		this.stringTypeValueMap = new HashMap<>();
 
 		ThreadPoolExecutor executor = new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(30));
 
@@ -137,7 +140,7 @@ public class MongodbConnector extends ConnectorBase {
 					//List all the tables under the database.
 					List<TapTable> list = list();
 					nameList.forEach(name -> {
-						TapTable table = table(name).defaultPrimaryKeys(singletonList("_id"));
+						TapTable table = table(name).defaultPrimaryKeys("_id");
 						try {
 							MongodbUtil.sampleDataRow(documentMap.get(name), SAMPLE_SIZE_BATCH_SIZE, (dataRow) -> {
 								Set<String> fieldNames = dataRow.keySet();
@@ -174,7 +177,7 @@ public class MongodbConnector extends ConnectorBase {
 					//List all the tables under the database.
 					List<TapTable> list = list();
 					nameList.forEach(name -> {
-						TapTable table = table(name).defaultPrimaryKeys(singletonList("_id"));
+						TapTable table = table(name).defaultPrimaryKeys(singletonList(COLLECTION_ID_FIELD));
 						try (MongoCursor<BsonDocument> cursor = documentMap.get(name).find().iterator()) {
 							while (cursor.hasNext()) {
 								final BsonDocument document = cursor.next();
@@ -197,8 +200,7 @@ public class MongodbConnector extends ConnectorBase {
 		}
 	}
 
-	public static void getRelateDatabaseField(TapConnectionContext connectionContext, TableFieldTypesGenerator tableFieldTypesGenerator, BsonValue value, String fieldName, TapTable table) {
-
+	public void getRelateDatabaseField(TapConnectionContext connectionContext, TableFieldTypesGenerator tableFieldTypesGenerator, BsonValue value, String fieldName, TapTable table) {
 		if (value instanceof BsonDocument) {
 			BsonDocument bsonDocument = (BsonDocument) value;
 			for (Map.Entry<String, BsonValue> entry : bsonDocument.entrySet()) {
@@ -218,14 +220,33 @@ public class MongodbConnector extends ConnectorBase {
 				}
 			}
 		}
-		TapField field = null;
+		TapField field;
 		if (value != null) {
-			field = TapSimplify.field(fieldName, value.getBsonType().name());
+			BsonType bsonType = value.getBsonType();
+			if (BsonType.STRING.equals(bsonType)) {
+				if (!(value instanceof BsonString)) {
+					field = TapSimplify.field(fieldName, bsonType.name());
+				} else {
+					String valueString = ((BsonString) value).getValue();
+					int currentLength = valueString.getBytes().length;
+					Integer lastLength = stringTypeValueMap.get(fieldName);
+					if (currentLength > 0 && (null == lastLength || currentLength > lastLength)) {
+						stringTypeValueMap.put(fieldName, currentLength);
+					}
+					if (null != stringTypeValueMap.get(fieldName)) {
+						field = TapSimplify.field(fieldName, bsonType.name() + String.format("(%s)", stringTypeValueMap.get(fieldName)));
+					} else {
+						field = TapSimplify.field(fieldName, bsonType.name());
+					}
+				}
+			} else {
+				field = TapSimplify.field(fieldName, bsonType.name());
+			}
 		} else {
 			field = TapSimplify.field(fieldName, BsonType.NULL.name());
 		}
 
-		if ("_id".equals(fieldName)) {
+		if (COLLECTION_ID_FIELD.equals(fieldName)) {
 			field.primaryKeyPos(1);
 		}
 		tableFieldTypesGenerator.autoFill(field, connectionContext.getSpecification().getDataTypesMap());
@@ -249,13 +270,15 @@ public class MongodbConnector extends ConnectorBase {
 		ConnectionOptions connectionOptions = ConnectionOptions.create();
 		try {
 			onStart(connectionContext);
-			try (final MongoCursor<String> mongoCursor = mongoDatabase.listCollectionNames().iterator();) {
+			try (final MongoCursor<String> mongoCursor = mongoDatabase.listCollectionNames().iterator()) {
 				mongoCursor.hasNext();
 			}
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
 		} catch (Throwable throwable) {
 			throwable.printStackTrace();
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
+		} finally {
+			onStop(connectionContext);
 		}
 		return connectionOptions;
 	}
@@ -333,6 +356,16 @@ public class MongodbConnector extends ConnectorBase {
 			Decimal128 decimal128 = (Decimal128) value;
 			return new TapNumberValue(decimal128.doubleValue());
 		});
+
+		codecRegistry.registerToTapValue(Document.class, (value, tapType) -> {
+			Document  document  = (Document) value;
+			for (Map.Entry<String, Object> entry : document.entrySet()) {
+				if (entry.getValue() instanceof Double && entry.getValue().toString().contains("E")) {
+					entry.setValue(new BigDecimal(entry.getValue().toString()).toString());
+				}
+			}
+				return new TapMapValue(document);
+		});
 		codecRegistry.registerToTapValue(Symbol.class, (value, tapType) -> {
 			Symbol symbol = (Symbol) value;
 			return new TapStringValue(symbol.getSymbol());
@@ -342,6 +375,7 @@ public class MongodbConnector extends ConnectorBase {
 		codecRegistry.registerFromTapValue(TapTimeValue.class, "DATE_TIME", tapTimeValue -> tapTimeValue.getValue().toDate());
 		codecRegistry.registerFromTapValue(TapDateTimeValue.class, "DATE_TIME", tapDateTimeValue -> tapDateTimeValue.getValue().toDate());
 		codecRegistry.registerFromTapValue(TapDateValue.class, "DATE_TIME", tapDateValue -> tapDateValue.getValue().toDate());
+		codecRegistry.registerFromTapValue(TapYearValue.class, "STRING(4)", tapYearValue -> formatTapDateTime(tapYearValue.getValue(), "yyyy"));
 
 		//Handle ObjectId when the source is also mongodb, we convert ObjectId to String before enter incremental engine.
 		//We need check the TapStringValue, when will write to mongodb, if the originValue is ObjectId, then use originValue instead of the converted String value.
@@ -373,11 +407,23 @@ public class MongodbConnector extends ConnectorBase {
 
 	private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
 		RetryOptions retryOptions = RetryOptions.create();
-		if (null != matchThrowable(throwable, MongoTimeoutException.class)
+		if ( null != matchThrowable(throwable, MongoClientException.class)
 				|| null != matchThrowable(throwable, MongoSocketException.class)
+				|| null != matchThrowable(throwable, MongoConnectionPoolClearedException.class)
+				|| null != matchThrowable(throwable, MongoSecurityException.class)
+				|| null != matchThrowable(throwable, MongoServerException.class)
+				|| null != matchThrowable(throwable, MongoConfigurationException.class)
+				|| null != matchThrowable(throwable, MongoTimeoutException.class)
+				|| null != matchThrowable(throwable, MongoSocketReadException.class)
+				|| null != matchThrowable(throwable, MongoSocketClosedException.class)
+				|| null != matchThrowable(throwable, MongoSocketOpenException.class)
+				|| null != matchThrowable(throwable, MongoSocketWriteException.class)
+				|| null != matchThrowable(throwable, MongoSocketReadTimeoutException.class)
+				|| null != matchThrowable(throwable, MongoWriteConcernException.class)
+				|| null != matchThrowable(throwable, MongoWriteException.class)
+				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)
 				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
 				|| null != matchThrowable(throwable, MongoServerUnavailableException.class)
-				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)
 				|| null != matchThrowable(throwable, IOException.class)) {
 			retryOptions.needRetry(true);
 			return retryOptions;
@@ -716,7 +762,7 @@ public class MongodbConnector extends ConnectorBase {
 //    }
 	private MongodbStreamReader createStreamReader() {
 		final int version = MongodbUtil.getVersion(mongoClient, mongoConfig.getDatabase());
-		MongodbStreamReader mongodbStreamReader = null;
+		MongodbStreamReader mongodbStreamReader;
 		if (version >= 4) {
 			mongodbStreamReader = new MongodbV4StreamReader();
 		} else {
@@ -746,20 +792,20 @@ public class MongodbConnector extends ConnectorBase {
 
 	@Override
 	public void onStop(TapConnectionContext connectionContext) throws Throwable {
-//        if (mongoClient != null) {
-//            mongoClient.close();
-//        }
 		isShutDown.set(true);
 		if (mongodbStreamReader != null) {
 			mongodbStreamReader.onDestroy();
+			mongodbStreamReader = null;
 		}
 
 		if (mongoClient != null) {
 			mongoClient.close();
+			mongoClient = null;
 		}
 
 		if (mongodbWriter != null) {
 			mongodbWriter.onDestroy();
+			mongodbWriter = null;
 		}
 	}
 }

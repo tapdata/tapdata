@@ -6,8 +6,6 @@ from tapdata_cli.config_parse import Config
 
 config = Config()
 
-logger_header = False
-
 #def logger_header():
 #    return config["log.logger_header"].lower() == "false"
 
@@ -38,18 +36,18 @@ class Logger:
             "error": "31"
         }
 
-    def _header(self):
+    def _header(self, logger_header=False):
         if logger_header:
             return "\033[1;34m" + self.name + ", " + "\033[0m" + \
                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + ": "
         else:
             return ""
 
-    def _print(self, msg, wrap=True):
+    def _print(self, msg, wrap=True, logger_header=False):
         end = "\r"
         if wrap:
             end = "\n"
-        l = len(self._header() + msg)
+        l = len(self._header(logger_header) + msg)
         tail = ""
         if l > self.max_len:
             self.max_len = l
@@ -57,7 +55,7 @@ class Logger:
             self.max_len = 180
         if l < self.max_len:
             tail = " " * (self.max_len - l)
-        print(self._header() + msg + tail, end=end)
+        print(self._header(logger_header) + msg + tail, end=end)
 
     def info(self, *args, **kargs):
         msg = args[0].replace("{}", "\033[1;32m{}\033[0m")

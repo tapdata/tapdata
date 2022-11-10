@@ -54,9 +54,8 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
     DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConnection.getPdkHash());
     TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId(sourceNode.getId());
     PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
-    ExternalStorageDto pdkStateMapExternalStorage = ExternalStorageUtil.getPdkStateMapExternalStorage(sourceNode, sourceConnection, clientMongoOperator);
-    PdkStateMap pdkStateMap = new PdkStateMap(sourceNode.getId(), hazelcastInstance, pdkStateMapExternalStorage);
-    PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance, pdkStateMapExternalStorage);
+    PdkStateMap pdkStateMap = new PdkStateMap(sourceNode.getId(), hazelcastInstance, PdkStateMap.StateMapMode.HTTP_TM);
+    PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
     this.tapTable = tapTableMap.get(dataFlowCacheConfig.getTableName());
     this.associateId = this.getClass().getSimpleName() + "-" + sourceNode.getId() + "-" + UUIDGenerator.uuid();
     this.connectorNode = PdkUtil.createNode(dataFlowCacheConfig.getCacheName(),
@@ -101,8 +100,14 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
 
     tapAdvanceFilter.match(dataMap);
     PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-            () -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults ->
-                    resultsAtomic.set(new ArrayList<>(filterResults.getResults()))), TAG);
+            () -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable,
+                    filterResults -> {
+                      List<Map<String, Object>> results = filterResults.getResults();
+                      if (CollectionUtils.isNotEmpty(results)) {
+                        resultsAtomic.set(new ArrayList<>(results));
+                      }
+                    }),
+            TAG);
     List<Map<String, Object>> maps = resultsAtomic.get();
     if (CollectionUtils.isNotEmpty(maps)) {
       for (Map<String, Object> map : maps) {

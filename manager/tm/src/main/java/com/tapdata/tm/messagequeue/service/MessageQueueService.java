@@ -45,6 +45,7 @@ public class MessageQueueService extends BaseService<MessageQueueDto, MessageQue
 		}
 		if(WebSocketManager.containsSession(messageDto.getReceiver())){
 			try {
+
 				WebSocketManager.sendMessage(messageDto.getReceiver(), JsonUtil.toJsonUseJackson(messageDto));
 			} catch (Exception e) {
 				log.error("WebSocket handle message failed,message: {}", e.getMessage(), e);

@@ -120,8 +120,13 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
             return;
         }
 
-        List<MetadataInstancesEntity> tableNameList = metadataInstancesService.findEntityBySourceIdAndTableNameList(
-                targetNode.getConnectionId(), tableNames, userDetail, taskId);
+        List<MetadataInstancesEntity> tableNameList = null;
+
+
+        if (targetNode != null) {
+            tableNameList = metadataInstancesService.findEntityBySourceIdAndTableNameList(
+                    targetNode.getConnectionId(), tableNames, userDetail, taskId);
+        }
 
         if (CollectionUtils.isNotEmpty(tableNameList)) {
             List<Pair<Query, Update>> updateList = new ArrayList<>();

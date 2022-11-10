@@ -17,6 +17,7 @@ import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
@@ -47,6 +48,7 @@ import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
@@ -71,9 +73,11 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
+import io.tapdata.common.sample.request.Sample;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -86,6 +90,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -131,6 +136,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public static Set<String> runningStatus = new HashSet<>();
 
     private LogCollectorService logCollectorService;
+
+    private TaskResetLogService taskResetLogService;
+
+    private TaskCollectionObjService taskCollectionObjService;
+
+    private ExceptionHandler exceptionHandler;
 
     static {
 
@@ -583,7 +594,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 inspectService.saveInspect(taskDto, userDetail);
             }
         } catch (Exception e) {
-            log.error("新建校验任务出错", e);
+            log.error("新建校验任务出错 {}", e.getMessage());
         }
     }
 
@@ -714,10 +725,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.warn("task current status not allow to delete, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
             throw new BizException("Task.DeleteStatusInvalid");
         }
-
+        taskResetLogService.clearLogByTaskId(id.toHexString());
         sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+        //afterRemove(taskDto, user);
+    }
 
+    public void afterRemove(TaskDto taskDto, UserDetail user) {
         //将任务删除标识改成true
+        ObjectId id = taskDto.getId();
         update(new Query(Criteria.where("_id").is(id)), Update.update("is_deleted", true));
 
         //delete AutoInspectResults
@@ -737,6 +752,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.warn("remove task, but remove schema error, task name = {}", taskDto.getName());
         }
 
+        //删除收集的对象
+        taskCollectionObjService.deleteById(taskDto.getId());
     }
 
     /**
@@ -750,7 +767,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         try {
             stop(id, user, true);
         } catch (Exception e) {
-            log.error("停止异常，但是共享缓存仍然删除", e);
+            log.error("停止异常，但是共享缓存仍然删除 {}", e.getMessage());
         }
         //将任务删除标识改成true
         update(new Query(Criteria.where("_id").is(id)), Update.update("is_deleted", true));
@@ -831,6 +848,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //将任务id设置为null,状态改为编辑中
         taskDto.setId(null);
         taskDto.setTaskRecordId(null);
+        taskDto.setAgentId(null);
 
         //设置复制名称
         String copyName = taskDto.getName() + " - Copy";
@@ -856,6 +874,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setStartTime(null);
         taskDto.setStopTime(null);
         taskDto.setErrorTime(null);
+        Map<String, Object> attrs = taskDto.getAttrs();
+        if (null != attrs) {
+            attrs.remove("edgeMilestones");
+            attrs.remove("syncProgress");
+        }
         //taskDto.setTemp(null);
 
         //创建新任务， 直接调用事务不会生效
@@ -903,21 +926,30 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (!TaskOpStatusEnum.to_renew_status.v().contains(status)) {
             //需要停止的时候才可以操作
             log.info("The current status of the task does not allow resetting, task name = {}, status = {}", taskDto.getName(), status);
+
+            if (TaskDto.STATUS_DELETING.equals(status) || TaskDto.STATUS_DELETE_FAILED.equals(status)) {
+                throw new BizException("Task.Deleted");
+            }
             throw new BizException("Task.statusIsNotStop");
+        } else if (TaskDto.STATUS_WAIT_START.equals(status)) {
+            return;
         }
 
         log.debug("check task status complete, task name = {}", taskDto.getName());
+        taskResetLogService.clearLogByTaskId(id.toHexString());
         sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_RESET);
-        renewNotSendMq(taskDto, user);
+        //afterRenew(taskDto, user);
+    }
+
+    public void afterRenew(TaskDto taskDto, UserDetail user) {
         renewAgentMeasurement(taskDto.getId().toString());
         log.debug("renew task complete, task name = {}", taskDto.getName());
 
         String lastTaskRecordId = new ObjectId().toString();
         //更新任务信息
-        Update update = Update.update("status", TaskDto.STATUS_WAIT_START)
-                .set(TaskDto.LASTTASKRECORDID, lastTaskRecordId)
-                .unset("temp");
+        Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId).unset("temp");
         updateById(taskDto.getId(), update, user);
+
 
         taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         taskDto.setAgentId(null);
@@ -931,7 +963,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         // publish queue
         TaskEntity taskSnapshot = new TaskEntity();
         BeanUtil.copyProperties(taskDto, taskSnapshot);
-        disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+
+        disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
+                new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+
+        renewNotSendMq(taskDto, user);
     }
 
     /**
@@ -994,54 +1030,142 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return taskDto;
     }
 
-
-    public void batchStart(List<ObjectId> taskIds, UserDetail user) {
-        List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
-        for (TaskDto task : taskDtos) {
-            checkDagAgentConflict(task, false);
-
-            try {
-                start(task, user);
-            } catch (Exception e) {
-                log.warn("start task exception, task id = {}, e = {}", task.getId(), e);
-            }
+    /**
+     * 根据id校验任务是否存在
+     *
+     * @param id   id
+     * @return
+     */
+    public TaskDto checkExistById(ObjectId id, String... fields) {
+        Query query = new Query(Criteria.where("_id").is(id));
+        if (fields != null && fields.length > 0) {
+            query.fields().include(fields);
         }
+        TaskDto taskDto = findOne(query);
+        if (taskDto == null) {
+            throw new BizException("Task.NotFound", "The copied task does not exist");
+        }
+
+        return taskDto;
     }
 
-    public void batchStop(List<ObjectId> taskIds, UserDetail user) {
+
+    public List<MutiResponseMessage> batchStart(List<ObjectId> taskIds, UserDetail user, HttpServletRequest request) {
+        List<MutiResponseMessage> responseMessages = new ArrayList<>();
+        List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
+        for (TaskDto task : taskDtos) {
+            MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
+            mutiResponseMessage.setId(task.getId().toHexString());
+
+            try {
+                checkDagAgentConflict(task, false);
+                start(task, user);
+            } catch (Exception e) {
+                log.warn("start task exception, task id = {}, e = {}", task.getId(), ThrowableUtils.getStackTraceByPn(e));
+                if (e instanceof BizException) {
+                    mutiResponseMessage.setCode(((BizException) e).getErrorCode());
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                } else {
+                    try {
+                        ResponseMessage<Void> responseMessage = exceptionHandler.handlerException(e, request);
+                        mutiResponseMessage.setCode(responseMessage.getCode());
+                        mutiResponseMessage.setMessage(responseMessage.getMessage());
+                    } catch (Throwable ex) {
+                        log.warn("delete task, handle exception error, task id = {}",  task.getId().toHexString());
+                    }
+                }
+            }
+            responseMessages.add(mutiResponseMessage);
+        }
+        return responseMessages;
+    }
+
+    public List<MutiResponseMessage> batchStop(List<ObjectId> taskIds, UserDetail user, HttpServletRequest request) {
+        List<MutiResponseMessage> responseMessages = new ArrayList<>();
         for (ObjectId taskId : taskIds) {
+            MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
+            mutiResponseMessage.setId(taskId.toHexString());
             try {
                 pause(taskId, user, false);
             } catch (Exception e) {
                 log.warn("stop task exception, task id = {}, e = {}", taskId, e);
+                if (e instanceof BizException) {
+                    mutiResponseMessage.setCode(((BizException) e).getErrorCode());
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                } else {
+                    try {
+                        ResponseMessage<Void> responseMessage = exceptionHandler.handlerException(e, request);
+                        mutiResponseMessage.setCode(responseMessage.getCode());
+                        mutiResponseMessage.setMessage(responseMessage.getMessage());
+                    } catch (Throwable ex) {
+                        log.warn("delete task, handle exception error, task id = {}",  taskId.toHexString());
+                    }
+                }
             }
+            responseMessages.add(mutiResponseMessage);
         }
+        return responseMessages;
     }
 
-    public void batchDelete(List<ObjectId> taskIds, UserDetail user) {
+    public List<MutiResponseMessage> batchDelete(List<ObjectId> taskIds, UserDetail user, HttpServletRequest request) {
+        List<MutiResponseMessage> responseMessages = new ArrayList<>();
         for (ObjectId taskId : taskIds) {
+            MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
+            mutiResponseMessage.setId(taskId.toHexString());
             try {
                 remove(taskId, user);
                 //todo  需不需要手动删除
                 inspectService.deleteByTaskId(taskId.toString());
-            } catch (Exception e) {
 
-                log.warn("delete task exception, task id = {}, e = {}", taskId, e);
+                mutiResponseMessage.setCode(ResponseMessage.OK);
+                mutiResponseMessage.setMessage(ResponseMessage.OK);
+            } catch (Exception e) {
+                log.warn("delete task exception, task id = {}, e = {}", taskId, ThrowableUtils.getStackTraceByPn(e));
                 if (e instanceof BizException) {
-                    throw e;
+                    mutiResponseMessage.setCode(((BizException) e).getErrorCode());
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                } else {
+                    try {
+                        ResponseMessage<Void> responseMessage = exceptionHandler.handlerException(e, request);
+                        mutiResponseMessage.setCode(responseMessage.getCode());
+                        mutiResponseMessage.setMessage(responseMessage.getMessage());
+                    } catch (Throwable ex) {
+                        log.warn("delete task, handle exception error, task id = {}",  taskId.toHexString());
+                    }
                 }
             }
+            responseMessages.add(mutiResponseMessage);
         }
+        return responseMessages;
     }
 
-    public void batchRenew(List<ObjectId> taskIds, UserDetail user) {
+    public List<MutiResponseMessage> batchRenew(List<ObjectId> taskIds, UserDetail user, HttpServletRequest request) {
+        List<MutiResponseMessage> responseMessages = new ArrayList<>();
         for (ObjectId taskId : taskIds) {
+            MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
+            mutiResponseMessage.setId(taskId.toHexString());
             try {
                 renew(taskId, user);
+                mutiResponseMessage.setCode(ResponseMessage.OK);
+                mutiResponseMessage.setMessage(ResponseMessage.OK);
             } catch (Exception e) {
                 log.warn("renew task exception, task id = {}, e = {}", taskId, e);
+                if (e instanceof BizException) {
+                    mutiResponseMessage.setCode(((BizException) e).getErrorCode());
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                } else {
+                    try {
+                        ResponseMessage<Void> responseMessage = exceptionHandler.handlerException(e, request);
+                        mutiResponseMessage.setCode(responseMessage.getCode());
+                        mutiResponseMessage.setMessage(responseMessage.getMessage());
+                    } catch (Throwable ex) {
+                        log.warn("delete task, handle exception error, task id = {}",  taskId.toHexString());
+                    }
+                }
             }
+            responseMessages.add(mutiResponseMessage);
         }
+        return responseMessages;
     }
 
     /**
@@ -1055,12 +1179,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return super.find(filter, userDetail);
     }
     public Page<TaskDto> find(Filter filter, UserDetail userDetail) {
-
         if (isAgentReq()) {
             return super.find(filter, userDetail);
         }
 
         Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            filter.setWhere(where);
+        }
+        if (where.get("status") == null) {
+            Document statusCondition = new Document();
+            statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
+            where.put("status", statusCondition);
+        }
         //过滤掉挖掘任务
         String syncType = (String) where.get("syncType");
         if (StringUtils.isBlank(syncType)) {
@@ -1070,14 +1202,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         //过滤调共享缓存任务
-        HashMap<String, Object> notShareCache = new HashMap<>();
-        notShareCache.put("$ne", true);
-        where.put("shareCache", notShareCache);
+//        HashMap<String, Object> notShareCache = new HashMap<>();
+//        notShareCache.put("$ne", true);
+//        where.put("shareCache", notShareCache);
 
 
         Boolean deleted = (Boolean) where.get("is_deleted");
         if (deleted == null) {
-            where.put("is_deleted", false);
+            Document document = new Document();
+            document.put("$ne", true);
+            where.put("is_deleted", document);
         }
 
 
@@ -1167,11 +1301,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private Page<TaskDto> findDataCopyList(Filter filter, UserDetail userDetail) {
         Where where = filter.getWhere();
 
-
-
         Criteria criteria = Criteria.where("is_deleted").ne(true).and("user_id").is(userDetail.getUserId());
         Criteria orToCriteria = parseOrToCriteria(where);
-
 
         // Supplementary data verification status
         Object inspectResult = where.get("inspectResult");
@@ -1198,10 +1329,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         tmPageable.setSize(filter.getLimit());
 
         String order = filter.getOrder() == null ? "createTime DESC" : String.valueOf(filter.getOrder());
+        String sortKey = order.contains("currentEventTimestamp") ? "currentEventTimestamp" : "createTime";
         if (order.contains("ASC")) {
-            tmPageable.setSort(Sort.by("createTime").ascending());
+            tmPageable.setSort(Sort.by(sortKey).ascending());
         } else {
-            tmPageable.setSort(Sort.by("createTime").descending());
+            tmPageable.setSort(Sort.by(sortKey).descending());
         }
 
         long total = repository.getMongoOperations().count(query, TaskEntity.class);
@@ -1325,14 +1457,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param user
      * @return
      */
-    public TaskDto createShareCacheTask(SaveShareCacheParam saveShareCacheParam, UserDetail user) {
+    public TaskDto createShareCacheTask(SaveShareCacheParam saveShareCacheParam, UserDetail user, HttpServletRequest request) {
         TaskDto taskDto = new TaskDto();
 
         parseCacheToTaskDto(saveShareCacheParam, taskDto);
         taskDto = confirmById(taskDto, user, true);
         //新建完成马上调度
         List<ObjectId> taskIds = Arrays.asList(taskDto.getId());
-        batchStart(taskIds, user);
+        batchStart(taskIds, user, request);
         return taskDto;
     }
 
@@ -1517,24 +1649,66 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public Map<String, Object> chart(UserDetail user) {
         Map<String, Object> resultChart = new HashMap<>();
         Criteria criteria = Criteria.where("user_id").is(user.getUserId())
-                .and("is_deleted").is(false)
-                .and("shareCache").ne(true)
-                .andOperator(Criteria.where("status").exists(true), Criteria.where("status").ne(null), Criteria.where("syncType").exists(true));
+                .and("is_deleted").ne(true)
+                .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
+                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
 
         Query query = Query.query(criteria);
         query.fields().include("syncType", "status", "statuses");
         //把任务都查询出来
-        List<TaskDto> taskDtoList = findAll(query);
+        List<TaskDto> taskDtoList = findAllDto(query, user);
         Map<String, List<TaskDto>> syncTypeToTaskList = taskDtoList.stream().collect(Collectors.groupingBy(TaskDto::getSyncType));
 
-
-        resultChart.put("chart1", getDataCopyChart(syncTypeToTaskList));
+        List<TaskDto> migrateList =  syncTypeToTaskList.getOrDefault(SyncType.MIGRATE.getValue(), Collections.emptyList());
+        resultChart.put("chart1", getDataCopyChart(migrateList));
 //        resultChart.put("chart2", dataCopy);
-        resultChart.put("chart3", getDataDevChart(syncTypeToTaskList));
+        List<TaskDto> synList = syncTypeToTaskList.getOrDefault(SyncType.SYNC.getValue(), Collections.emptyList());
+        resultChart.put("chart3", getDataDevChart(synList));
 //        resultChart.put("chart4", dataDev);
-        resultChart.put("chart5", inspectService.inspectPreview(user));
-//        resultChart.put("chart6", measurementService.getTransmitTotal(user));
+        resultChart.put("chart5", inspectChart(user));
+        resultChart.put("chart6", chart6(user));
         return resultChart;
+    }
+
+
+    public Map<String, Integer> inspectChart(UserDetail user) {
+        Criteria criteria = Criteria.where("syncType").is(TaskDto.SYNC_TYPE_MIGRATE)
+                .and("isAutoInspect").is(true)
+                .and("is_deleted").ne(true);
+        Query query = new Query(criteria);
+        query.fields().include("_id", "status", "isAutoInspect", "canOpenInspect", "attrs.autoInspectProgress.tableCounts", "attrs.autoInspectProgress.tableIgnore", "attrs.autoInspectProgress.step");
+
+        int openTaskNum = 0;
+        int canTaskNum = 0;
+        int errorTaskNum = 0;
+        int diffTaskNum = 0;
+        List<TaskDto> taskDtos = findAllDto(query, user);
+
+        Set<String> taskSet = taskAutoInspectResultsService.groupByTask(user);
+        if (CollectionUtils.isNotEmpty(taskDtos)) {
+            openTaskNum = taskDtos.size();
+            for (TaskDto taskDto : taskDtos) {
+                if (taskDto.isCanOpenInspect()) {
+                    canTaskNum++;
+                }
+
+                if (TaskDto.STATUS_ERROR.equals(taskDto.getStatus())) {
+                    errorTaskNum++;
+                }
+
+                if (taskSet.contains(taskDto.getId().toHexString())) {
+                    diffTaskNum++;
+                }
+
+            }
+        }
+
+        Map<String, Integer> chart5 = new HashMap<>();
+        chart5.put("total", openTaskNum);
+        chart5.put("error", errorTaskNum);
+        chart5.put("can", canTaskNum);
+        chart5.put("diff", diffTaskNum);
+        return chart5;
     }
 
 
@@ -1552,10 +1726,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *
      * @return
      */
-    private Map<String, Object> getDataCopyChart( Map<String, List<TaskDto>> syncTypeToTaskList) {
+    private Map<String, Object> getDataCopyChart(List<TaskDto> migrateList) {
         Map<String, Object> dataCopyPreview = new HashMap();
 
-        List<TaskDto> migrateList =  syncTypeToTaskList.getOrDefault(SyncType.MIGRATE.getValue(), Collections.emptyList());
+
         Map<String, List<TaskDto>> statusToDataCopyTaskMap = migrateList.stream().collect(Collectors.groupingBy(TaskDto::getStatus));
         //和数据复制列表保持一致   pause归为停止，  schduler_fail 归为 error  调度中schdulering  归为启动中
         List<TaskDto> pauseTaskList = statusToDataCopyTaskMap.remove(TaskStatusEnum.STATUS_PAUSED.getValue());
@@ -1596,10 +1770,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param syncTypeToTaskList
      * @return
      */
-    private Map<String, Object> getDataDevChart(Map<String, List<TaskDto>> syncTypeToTaskList) {
+    private Map<String, Object> getDataDevChart(List<TaskDto> synList) {
         Map<String, Object> dataCopyPreview = new HashMap();
-
-        List<TaskDto> synList = syncTypeToTaskList.getOrDefault(SyncType.SYNC.getValue(), Collections.emptyList());
 
         Map<String, Long> statusToCount = new HashMap<>();
         if (CollectionUtils.isNotEmpty(synList)) {
@@ -1782,7 +1954,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public Boolean checkRun(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user, "status");
-        return TaskDto.STATUS_EDIT.equals(taskDto.getStatus());
+        return TaskDto.STATUS_EDIT.equals(taskDto.getStatus()) || TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
     }
 
     public TransformerWsMessageDto findTransformParam(String taskId, UserDetail user) {
@@ -1836,8 +2008,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 taskDto.setCustomId(null);
                 taskDto.setLastUpdBy(null);
                 taskDto.setUserId(null);
+                taskDto.setAgentId(null);
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
+                Map<String, Object> attrs = taskDto.getAttrs();
+                if (attrs != null) {
+                    attrs.remove("edgeMilestones");
+                    attrs.remove("syncProgress");
+                }
                 jsonList.add(new TaskUpAndLoadDto("Task", JsonUtil.toJsonUseJackson(taskDto)));
                 DAG dag = taskDto.getDag();
                 List<Node> nodes = dag.getNodes();
@@ -1887,7 +2065,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Map<String, String>> tags) {
+    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Tag> tags) {
         byte[] bytes;
         List<TaskUpAndLoadDto> taskUpAndLoadDtos;
 
@@ -1952,11 +2130,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Map<String, String>> tags) {
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Tag> tags) {
         for (TaskDto taskDto : taskDtos) {
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
             query.fields().include("id");
             TaskDto one = findOne(query);
+
+            Map<String, Object> attrs = taskDto.getAttrs();
+            if (attrs != null) {
+                attrs.remove("edgeMilestones");
+                attrs.remove("syncProgress");
+            }
+
             if (one == null || cover) {
                 ObjectId objectId = null;
                 if (one != null) {
@@ -2115,7 +2300,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void updateStatus(ObjectId taskId, String status) {
         Query query = Query.query(Criteria.where("_id").is(taskId));
-        Update update = Update.update("status", status);
+        Update update = Update.update("status", status).set("last_updated", new Date());
         update(query, update);
     }
 
@@ -2140,7 +2325,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         Update set = Update.update("agentId", null).set("agentTags", null).set("scheduleTimes", null)
                 .set("scheduleTime", null)
-                .unset("milestones").unset("tmCurrentTime").set("messages", null).set("status", TaskDto.STATUS_EDIT);
+                .unset("milestones").unset("tmCurrentTime").set("messages", null).set("status", TaskDto.STATUS_WAIT_START);
 
 
         if (taskDto.getAttrs() != null) {
@@ -2181,7 +2366,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //            taskDto.setDag(taskDto.getTempDag());
 //        }
         beforeSave(taskDto, user);
-        set.unset("tempDag").set("isEdit", true).set("status", TaskDto.STATUS_WAIT_START);
+        set.unset("tempDag").set("isEdit", true);
 //        Update update = new Update();
 //        taskService.update(new Query(Criteria.where("_id").is(taskDto.getParentId())), update.unset("temp"));
         updateById(taskDto.getId(), set, user);
@@ -2204,7 +2389,24 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())
                     && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-                taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
+
+                List<Worker> availableAgent = workerService.findAvailableAgent(user);
+                List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
+                String agentId = null;
+                for (String p : taskDto.getAccessNodeProcessIdList()) {
+                    if (processIds.contains(p)) {
+                        agentId = p;
+                        break;
+                    }
+                }
+                if (StringUtils.isBlank(agentId)) {
+                    //任务指定的agent已经停用，当前操作不给用。
+                    throw new BizException("Agent.DesignatedAgentNotAvailable");
+
+                }
+
+                taskDto.setAgentId(agentId);
+
             } else {
                 List<Worker> availableAgent = workerService.findAvailableAgent(user);
                 if (CollectionUtils.isNotEmpty(availableAgent)) {
@@ -2223,46 +2425,62 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-            //检查是否完成重置，设置8秒的超时时间
-            boolean checkFlag = false;
-            for (int i = 0; i < 60; i++) {
-                checkFlag = DataSyncMq.OP_TYPE_RESET.equals(opType) ? checkResetFlag(taskDto.getId(), user) : checkDeleteFlag(taskDto.getId(), user);
-                if (checkFlag) {
-                    break;
-                }
-                try {
-                    Thread.sleep(1000L);
-                } catch (InterruptedException e) {
-                    throw new BizException("SystemError");
-                }
-            }
+            Update update = new Update().unset("startTime").unset("lastStartDate").unset("stopTime");
+            String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
-            if (!checkFlag) {
-                log.info((DataSyncMq.OP_TYPE_RESET.equals(opType) ? "reset" : "delete") + "Task reset timeout.");
-                throw new BizException(DataSyncMq.OP_TYPE_RESET.equals(opType) ? "Task.ResetTimeout" : "Task.DeleteTimeout");
+            if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
+                update.set("name", taskDto.getName() + "_" + nameSuffix);
+            }
+            this.update(new Query(Criteria.where("id").is(taskDto.getId())), update);
+
+            updateStatus(taskDto.getId(), DataSyncMq.OP_TYPE_RESET.equals(opType) ? TaskDto.STATUS_RENEWING : TaskDto.STATUS_DELETING);
+
+//            //检查是否完成重置，设置8秒的超时时间
+//            boolean checkFlag = false;
+//            for (int i = 0; i < 60; i++) {
+//                checkFlag = DataSyncMq.OP_TYPE_RESET.equals(opType) ? checkResetFlag(taskDto.getId(), user) : checkDeleteFlag(taskDto.getId(), user);
+//                if (checkFlag) {
+//                    break;
+//                }
+//                try {
+//                    Thread.sleep(1000L);
+//                } catch (InterruptedException e) {
+//                    throw new BizException("SystemError");
+//                }
+//            }
+//
+//            if (!checkFlag) {
+//                log.info((DataSyncMq.OP_TYPE_RESET.equals(opType) ? "reset" : "delete") + "Task reset timeout.");
+//                throw new BizException(DataSyncMq.OP_TYPE_RESET.equals(opType) ? "Task.ResetTimeout" : "Task.DeleteTimeout");
+//            }
+        } else {
+            if (DataSyncMq.OP_TYPE_RESET.equals(opType)) {
+                afterRenew(taskDto, user);
+            } else {
+                afterRemove(taskDto, user);
             }
         }
     }
 
-    public boolean deleteById(TaskDto taskDto, UserDetail user) {
-        //如果子任务在运行中，将任务停止，再删除（在这之前，应该提示用户这个风险）
-        if (taskDto == null) {
-            return true;
-        }
-
-        sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
-
-        renewNotSendMq(taskDto, user);
-
-        if (runningStatus.contains(taskDto.getStatus())) {
-            log.warn("task is run, can not delete it");
-            throw new BizException("Task.DeleteTaskIsRun");
-        }
-
-        //TODO 删除当前模块的模型推演
-        resetFlag(taskDto.getId(), user, "deleteFlag");
-        return super.deleteById(taskDto.getId(), user);
-    }
+//    public boolean deleteById(TaskDto taskDto, UserDetail user) {
+//        //如果子任务在运行中，将任务停止，再删除（在这之前，应该提示用户这个风险）
+//        if (taskDto == null) {
+//            return true;
+//        }
+//
+//        sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+//
+//        renewNotSendMq(taskDto, user);
+//
+//        if (runningStatus.contains(taskDto.getStatus())) {
+//            log.warn("task is run, can not delete it");
+//            throw new BizException("Task.DeleteTaskIsRun");
+//        }
+//
+//        //TODO 删除当前模块的模型推演
+//        resetFlag(taskDto.getId(), user, "deleteFlag");
+//        return super.deleteById(taskDto.getId(), user);
+//    }
 
 
 
@@ -2296,7 +2514,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void start(ObjectId id, UserDetail user) {
         String startFlag = "11";
         TaskDto taskDto = checkExistById(id, user);
-        checkDagAgentConflict(taskDto, false);
         start(taskDto, user, startFlag);
     }
 
@@ -2312,6 +2529,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         start(taskDto, user, "11");
     }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
+
+        checkDagAgentConflict(taskDto, false);
+        if (!taskDto.getShareCache()) {
+                Map<String, List<Message>> validateMessage = taskDto.getDag().validate();
+                if (!validateMessage.isEmpty()) {
+                    throw new BizException("Task.ListWarnMessage", validateMessage);
+            }
+        }
         //日志挖掘
         if (startFlag.charAt(0) == '1') {
             logCollectorService.logCollector(user, taskDto);
@@ -2328,6 +2553,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //校验当前状态是否允许启动。
         if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
             log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
+            if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus()) || TaskDto.STATUS_DELETE_FAILED.equals(taskDto.getStatus())) {
+                throw new BizException("Task.Deleted");
+            }
             throw new BizException("Task.StartStatusInvalid");
         }
 
@@ -2376,21 +2604,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
-        monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getAvailable(), user);
         if (StringUtils.isBlank(taskDto.getAgentId())) {
             log.warn("No available agent found, task name = {}", taskDto.getName());
             Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
             update(query1, Update.update("status", TaskDto.STATUS_SCHEDULE_FAILED), user);
             throw new BizException("Task.AgentNotFound");
-        } else {
-            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED, user);
         }
 
-//        WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
-
+        Date now = new Date();
+        monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getAvailable(), user, now);
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
-        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId());
+        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN)
+                .set("agentId", taskDto.getAgentId())
+                .set("monitorStartDate", now)
+                .set("last_updated", now);
         boolean needCreateRecord = false;
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             taskDto.setTaskRecordId(new ObjectId().toHexString());
@@ -2424,9 +2652,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (needCreateRecord) {
             TaskEntity taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
-            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), now));
         } else {
             updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
+        }
+
+        //数据发现的任务收集
+        TaskDto newTaskDto = findById(taskDto.getId(), user);
+        TaskCollectionObjDto taskCollectionObjDto = new TaskCollectionObjDto();
+        BeanUtils.copyProperties(newTaskDto, taskCollectionObjDto);
+        Query query2 = new Query(Criteria.where("_id").is(taskDto.getId()));
+        taskCollectionObjService.upsert(query2, taskCollectionObjDto, user);
+
+        if (Objects.isNull(newTaskDto.getScheduleDate())) {
+            update(Query.query(Criteria.where("_id").is(taskDto.getId())),
+                    Update.update("scheduleDate", System.currentTimeMillis()));
         }
     }
 
@@ -2504,6 +2744,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //将状态改为暂停中，给flowengin发送暂停消息，在回调的消息中将任务改为已暂停
         Update update = Update.update("status", pauseStatus);
+        if (!force) {
+            update.set("stoppingTime", new Date());
+        }
         if (restart) {
             update.set("restartFlag", true).set("restartUserId", user.getUserId());
         }
@@ -2553,10 +2796,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
 
-        Update update = Update.update("status", TaskDto.STATUS_RUNNING);
         Date now = DateUtil.date();
+        Update update = Update.update("status", TaskDto.STATUS_RUNNING).set("sheduleDate", null);
         if (taskDto.getStartTime() == null) {
             update.set("startTime", now);
+        }
+        if (taskDto.getLastStartDate() == null) {
+            update.set("lastStartDate", now.getTime());
         }
 
         monitoringLogsService.startTaskMonitoringLog(taskDto, user, now);
@@ -2586,7 +2832,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         //将子任务状态更新成错误.
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_error_status.v()));
-        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_ERROR).set("errorTime", DateUtil.date()).set("stopTime", DateUtil.date()), user);
+        Update set = Update.update("status", TaskDto.STATUS_ERROR)
+                .set("errorTime", DateUtil.date()).set("stopTime", DateUtil.date())
+                .set("sheduleDate", null);
+        UpdateResult update1 = update(query1, set, user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -2983,19 +3232,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public void startPlanMigrateDagTask() {
-        Criteria migrateCriteria = Criteria.where("syncType").is("migrate")
-                .and("status").is(TaskDto.STATUS_WAIT_START)
+        Criteria migrateCriteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_START)
                 .and("planStartDateFlag").is(true)
                 .and("planStartDate").lte(DateUtil.current());
         Query taskQuery = new Query(migrateCriteria);
-        log.info("startPlanMigrateDagTask query {}", taskQuery);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
             taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
                     .collect(Collectors.toList());
-
-            List<String> taskIdList = taskList.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList());
-            log.info("startPlanMigrateDagTask taskIdList {}", taskIdList);
 
             List<String> userIdList = taskList.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
             List<UserDetail> userList = userService.getUserByIdList(userIdList);
@@ -3006,7 +3250,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
 
             Map<String, UserDetail> finalUserMap = userMap;
-            taskList.forEach(taskDto -> run(taskDto, finalUserMap.get(taskDto.getUserId())));
+            for (TaskDto taskDto : taskList) {
+                run(taskDto, finalUserMap.get(taskDto.getUserId()));
+                //启动过后，应该更新掉这个自动启动计划
+                Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
+                updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
+            }
+
 
         }
     }
@@ -3118,5 +3368,76 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Update update = new Update();
         update.set("logSetting", logSetting);
         updateById(taskObjectId, update, userDetail);
+    }
+
+    public Map<String, Long> chart6(UserDetail user) {
+        Criteria criteria = Criteria.where("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE);
+        Query query = new Query(criteria);
+        query.fields().include("_id");
+        List<TaskDto> allDto = findAllDto(query, user);
+        List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
+
+        List<MeasurementEntity>  allMeasurements = new ArrayList<>();
+        ids.parallelStream().forEach(id -> {
+            MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
+            if (measurement != null) {
+                allMeasurements.add(measurement);
+            }
+        });
+
+        long output = 0;
+        long input = 0;
+        long insert = 0;
+        long update = 0;
+        long delete = 0;
+
+        for (MeasurementEntity allMeasurement : allMeasurements) {
+            if (allMeasurement == null) {
+                continue;
+            }
+            List<Sample> samples = allMeasurement.getSamples();
+            if (CollectionUtils.isNotEmpty(samples)) {
+                Optional<Sample> max = samples.stream().max(Comparator.comparing(Sample::getDate));
+                if (max.isPresent()) {
+                    Sample sample = max.get();
+                    Map<String, Number> vs = sample.getVs();
+                    int inputInsertTotal = (int) vs.get("inputInsertTotal");
+                    int inputOthersTotal = (int) vs.get("inputOthersTotal");
+                    int inputDdlTotal = (int) vs.get("inputDdlTotal");
+                    int inputUpdateTotal = (int) vs.get("inputUpdateTotal");
+                    int inputDeleteTotal = (int) vs.get("inputDeleteTotal");
+
+                    int outputInsertTotal = (int) vs.get("outputInsertTotal");
+                    int outputOthersTotal = (int) vs.get("outputOthersTotal");
+                    int outputDdlTotal = (int) vs.get("outputDdlTotal");
+                    int outputUpdateTotal = (int) vs.get("outputUpdateTotal");
+                    int outputDeleteTotal = (int) vs.get("outputDeleteTotal");
+                    output += outputInsertTotal;
+                    output += outputOthersTotal;
+                    output += outputDdlTotal;
+                    output += outputUpdateTotal;
+                    output += outputDeleteTotal;
+
+                    input += inputInsertTotal;
+                    input += inputOthersTotal;
+                    input += inputDdlTotal;
+                    input += inputUpdateTotal;
+                    input += inputDeleteTotal;
+
+                    insert += inputInsertTotal;
+                    update += inputUpdateTotal;
+                    delete += inputDeleteTotal;
+
+                }
+            }
+        }
+
+        Map<String, Long> chart6Map = new HashMap<>();
+        chart6Map.put("outputTotal", output);
+        chart6Map.put("inputTotal", input);
+        chart6Map.put("insertedTotal", insert);
+        chart6Map.put("updatedTotal", update);
+        chart6Map.put("deletedTotal", delete);
+        return chart6Map;
     }
 }

@@ -10,6 +10,7 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -70,13 +71,14 @@ public class PostgresTest extends CommonDbTest {
     public TestItem testLogPlugin() {
         try {
             List<String> testSqls = TapSimplify.list();
-            testSqls.add(String.format(PG_LOG_PLUGIN_CREATE_TEST, ((PostgresConfig) commonDbConfig).getLogPluginName()));
-            testSqls.add(PG_LOG_PLUGIN_DROP_TEST);
+            String testSlotName = "test_" + UUID.randomUUID().toString().replaceAll("-", "_");
+            testSqls.add(String.format(PG_LOG_PLUGIN_CREATE_TEST, testSlotName, ((PostgresConfig) commonDbConfig).getLogPluginName()));
+            testSqls.add(String.format(PG_LOG_PLUGIN_DROP_TEST, testSlotName));
             jdbcContext.batchExecute(testSqls);
             return testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY);
         } catch (Throwable e) {
             return testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                    "Invalid log plugin, Maybe cdc events cannot work!");
+                    String.format("Test log plugin failed: {%s}, Maybe cdc events cannot work!", e.getMessage()));
         }
     }
 
@@ -96,6 +98,6 @@ public class PostgresTest extends CommonDbTest {
 
     private final static String PG_ROLE_INFO = "SELECT * FROM pg_roles WHERE rolname='%s'";
     private final static String PG_TABLE_NUM = "SELECT COUNT(*) FROM pg_tables WHERE schemaname='%s'";
-    private final static String PG_LOG_PLUGIN_CREATE_TEST = "SELECT pg_create_logical_replication_slot('pg_slot_test','%s')";
-    private final static String PG_LOG_PLUGIN_DROP_TEST = "SELECT pg_drop_replication_slot('pg_slot_test')";
+    private final static String PG_LOG_PLUGIN_CREATE_TEST = "SELECT pg_create_logical_replication_slot('%s','%s')";
+    private final static String PG_LOG_PLUGIN_DROP_TEST = "SELECT pg_drop_replication_slot('%s')";
 }

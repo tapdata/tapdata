@@ -60,17 +60,19 @@ public class BatchServiceImpl implements BatchService {
                     Object obj = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(param), paramClass);
                     Object bean = SpringUtil.getBean(serviceClass);
                     Object data = method.invoke(bean, obj);
-                    result.put(k, new BatchDataVo("ok", null, data));
+                    if (bean == null ||  data == null) {
+                        result.put(k, new BatchDataVo("ok", null, data));
+                    }
                     return result;
                 } catch (ClassNotFoundException | InvocationTargetException | NoSuchMethodException |
                          IllegalAccessException e) {
-                    log.error("ObservabilityService batch method error msg:{}", e.getMessage(), e);
+                    log.error("BatchService batch method error msg:{}", e.getMessage(), e);
                     result.put(k, new BatchDataVo("SystemError", e.getCause().getMessage(), null));
                     return result;
                 }
             }, scheduler);
 
-            final CompletableFuture<BatchResponeVo> chains = within(query, Duration.ofSeconds(10), k);
+            final CompletableFuture<BatchResponeVo> chains = within(query, Duration.ofSeconds(30), k);
             futuresList.add(chains);
         });
         CompletableFuture<Void> allCompletableFuture = CompletableFuture.allOf(futuresList.toArray(new CompletableFuture[0]));

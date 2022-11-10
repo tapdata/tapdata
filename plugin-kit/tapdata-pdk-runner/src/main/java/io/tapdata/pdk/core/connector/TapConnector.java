@@ -202,6 +202,7 @@ public class TapConnector implements MemoryFetcher {
                 .kv("jarFile", jarFile)
                 .kv("jarFileTime", jarFileTime)
                 .kv("loadingJarFile", loadingJarFile)
-                .kv("state", stateMachine != null ? stateMachine.getCurrentState() : null);
+                .kv("state", stateMachine != null ? stateMachine.getCurrentState() : null)
+                .kv("tapNodeClassFactory", tapNodeClassFactory.memory(keyRegex, memoryLevel));
     }
 }

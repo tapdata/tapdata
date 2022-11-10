@@ -7,10 +7,10 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.PkgAnnoUtil;
 import com.tapdata.entity.AppType;
-import com.tapdata.entity.Version;
+import com.tapdata.tm.sdk.util.Version;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.mongo.CloudSignUtil;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.sdk.util.CloudSignUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import org.apache.commons.collections.CollectionUtils;
@@ -339,13 +339,13 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			try {
 				session.sendMessage(textMessage);
 				break;
-			} catch (Exception e) {
+			} catch (Throwable e) {
 				if (++failTime > retryTime) {
 					throw e;
 				} else {
 					logger.warn("Send websocket message failed, fail time: {}, message: {}, err: {}, stack: {}", failTime, textMessage, e.getMessage(), Log4jUtil.getStackString(e));
+					Thread.sleep(100L);
 					createClients();
-					continue;
 				}
 			}
 		}

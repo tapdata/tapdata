@@ -42,6 +42,7 @@ public abstract class LogMiner implements ILogMiner {
     protected ExecutorService redoLogConsumerThreadPool; //Log parsing thread
 
     protected final LinkedBlockingQueue<RedoLogContent> logQueue = new LinkedBlockingQueue<>(LOG_QUEUE_SIZE); //queue for logContent
+    private int fullQueueWarn = 0;
     protected final LinkedHashMap<String, LogTransaction> transactionBucket = new LinkedHashMap<>(); //transaction cache
     protected RedoLogContent csfLogContent = null; //when redo or undo is too long, append them
     protected final Map<Long, Long> instanceThreadMindedSCNMap = new HashMap<>(); //Map<Thread#, SCN>
@@ -82,7 +83,14 @@ public abstract class LogMiner implements ILogMiner {
     protected void enqueueRedoLogContent(RedoLogContent redoLogContent) {
         try {
             while (!logQueue.offer(redoLogContent, 1, TimeUnit.SECONDS)) {
-                TapLogger.warn(TAG, "log queue is full, waiting...");
+                fullQueueWarn++;
+                if (fullQueueWarn < 4) {
+                    TapLogger.info(TAG, "log queue is full, waiting...");
+                }
+            }
+            if (fullQueueWarn > 0) {
+                TapLogger.info(TAG, "log queue has been released!");
+                fullQueueWarn = 0;
             }
         } catch (InterruptedException ignore) {
         }
@@ -92,7 +100,6 @@ public abstract class LogMiner implements ILogMiner {
     public void stopMiner() throws Throwable {
         TapLogger.info(TAG, "Log Miner is shutting down...");
         isRunning.set(false);
-        Thread.sleep(500);
         Optional.ofNullable(redoLogConsumerThreadPool).ifPresent(ExecutorService::shutdown);
         redoLogConsumerThreadPool = null;
     }

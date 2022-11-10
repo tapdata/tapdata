@@ -58,7 +58,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
     private String currentSnapshotTable = null;
     private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
-    private Long currentSnapshotTableInsertRowTotal = null;
+    private Long currentSnapshotTableInsertRowTotal = 0L;
 
     private final Set<String> taskTables = new HashSet<>();
 
@@ -222,7 +222,9 @@ public class TaskSampleHandler extends AbstractHandler {
         currentSnapshotTable = table;
         currentSnapshotTableInsertRowTotal = 0L;
         if (firstBatchRead.get()) {
-            snapshotTableTotal.reset();
+            if (Objects.nonNull(snapshotTableTotal)) {
+                snapshotTableTotal.reset();
+            }
             firstBatchRead.set(false);
         }
     }
@@ -237,7 +239,7 @@ public class TaskSampleHandler extends AbstractHandler {
     public void handleBatchReadFuncEnd() {
         snapshotTableTotal.inc();
         currentSnapshotTable = null;
-        currentSnapshotTableInsertRowTotal = null;
+        currentSnapshotTableInsertRowTotal = 0L;
     }
 
     public void handleStreamReadStart(List<String> tables) {

@@ -1,56 +1,14 @@
 package io.tapdata.websocket.handler;
 
-import com.tapdata.constant.ConnectionUtil;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.AggregationProcessorNode;
-import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
-import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.TaskResetAspect;
-import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.flow.engine.V2.entity.PdkStateMap;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
-import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
-import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
-import io.tapdata.flow.engine.V2.util.PdkUtil;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
-import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.schema.PdkTableMap;
-import io.tapdata.schema.TapTableMap;
-import io.tapdata.schema.TapTableUtil;
+import io.tapdata.flow.engine.V2.task.cleaner.OpType;
+import io.tapdata.flow.engine.V2.task.cleaner.TaskCleanerContext;
+import io.tapdata.flow.engine.V2.task.cleaner.TaskCleanerService;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventResult;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-
-import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
  * @author samuel
@@ -70,14 +28,27 @@ public class DataSyncEventHandler extends BaseEventHandler {
 	public Object handle(Map event) {
 		WebSocketEventResult webSocketEventResult = WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.DATA_SYNC_RESULT, event);
 		try {
-			String opType = (String) event.getOrDefault("opType", "");
+			String opTypeStr = (String) event.getOrDefault("opType", "");
+			String taskId = (String) event.getOrDefault("taskId", "");
+			OpType opType = OpType.fromOp(opTypeStr);
+			if (null != opType) {
+				switch (opType) {
+					case RESET:
+					case DELETE:
+						TaskCleanerService.clean(new TaskCleanerContext(taskId, clientMongoOperator), opTypeStr);
+						break;
+					default:
+						break;
+				}
+			}
+			/*TaskCleaner taskCleaner = TaskCleaner.create(opType, taskId, clientMongoOperator);
+			taskCleaner.clean();
 			if (StringUtils.isBlank(opType)) {
 				return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.DATA_SYNC_RESULT, "Op type is empty");
 			}
 			switch (opType) {
 				case "reset":
 				case "delete":
-					String taskId = (String) event.getOrDefault("taskId", "");
 					if (StringUtils.isBlank(taskId)) {
 						webSocketEventResult = WebSocketEventResult.handleFailed(WebSocketEventResult.Type.DATA_SYNC_RESULT, "Task id is empty");
 						break;
@@ -94,118 +65,11 @@ public class DataSyncEventHandler extends BaseEventHandler {
 					break;
 				default:
 					break;
-			}
+			}*/
 		} catch (Throwable e) {
 			webSocketEventResult = WebSocketEventResult.handleFailed(WebSocketEventResult.Type.DATA_SYNC_RESULT, e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
 		}
 		return webSocketEventResult;
 
-	}
-
-	private void destroy(String taskId) {
-		TaskDto subTaskDto = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-		if (null == subTaskDto) return;
-		List<Node> nodes = subTaskDto.getDag().getNodes();
-		if (CollectionUtils.isEmpty(nodes)) return;
-		for (Node<?> node : nodes) {
-			if (node instanceof TableNode || node instanceof DatabaseNode || node instanceof LogCollectorNode) {
-				dataNodeDestroy(subTaskDto, node);
-			} else if (node instanceof MergeTableNode) {
-				mergeNodeDestroy(node);
-			} else if (node instanceof AggregationProcessorNode) {
-				aggregateNodeDestroy(node);
-			} else if (node instanceof CustomProcessorNode) {
-				HazelcastCustomProcessor.clearStateMap(node.getId());
-			}
-		}
-	}
-
-	private void aggregateNodeDestroy(Node<?> node) {
-		HazelcastMultiAggregatorProcessor.clearCache(node.getId(), HazelcastUtil.getInstance());
-	}
-
-	private void mergeNodeDestroy(Node<?> node) {
-		HazelcastMergeNode.clearCache(node);
-	}
-
-	private void dataNodeDestroy(TaskDto taskDto, Node<?> node) {
-		String connectionId = null;
-		Connections connections = null;
-		DatabaseTypeEnum.DatabaseType databaseType;
-		if (node instanceof TableNode) {
-			connectionId = ((TableNode) node).getConnectionId();
-		} else if (node instanceof DatabaseNode) {
-			connectionId = ((DatabaseNode) node).getConnectionId();
-		} else if (node instanceof LogCollectorNode) {
-			List<String> connectionIds = ((LogCollectorNode) node).getConnectionIds();
-			if (CollectionUtils.isNotEmpty(connectionIds)) {
-				connectionId = connectionIds.get(0);
-			} else {
-				throw new RuntimeException("Node " + node.getName() + "(" + node.getId() + ") not contain connection id");
-			}
-		}
-		if (StringUtils.isNotBlank(connectionId)) {
-			connections = getConnection(connectionId);
-		}
-		if (null == connections) return;
-		databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-		if (null == databaseType) return;
-		Connections finalConnections = connections;
-		ExternalStorageDto pdkStateMapExternalStorage = ExternalStorageUtil.getPdkStateMapExternalStorage(node, connections, clientMongoOperator);
-		PdkStateMap pdkStateMap = new PdkStateMap(node.getId(), HazelcastTaskService.getHazelcastInstance(), pdkStateMapExternalStorage);
-		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(HazelcastTaskService.getHazelcastInstance(), pdkStateMapExternalStorage);
-		PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
-				databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
-		TapTableMap<String, TapTable> tapTableMapByNodeId = TapTableUtil.getTapTableMapByNodeId(node.getId());
-		PdkTableMap pdkTableMap = new PdkTableMap(tapTableMapByNodeId);
-		ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
-				.withDagId(taskDto.getId().toHexString())
-				.withAssociateId(this.getClass().getSimpleName() + "-" + node.getId())
-				.withConnectionConfig(new DataMap() {{
-					putAll(finalConnections.getConfig());
-				}})
-				.withGroup(databaseType.getGroup())
-				.withVersion(databaseType.getVersion())
-				.withPdkId(databaseType.getPdkId())
-				.withTableMap(pdkTableMap)
-				.withStateMap(pdkStateMap)
-				.withGlobalStateMap(globalStateMap)
-				.build();
-		try {
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
-
-			ReleaseExternalFunction releaseExternalFunction = connectorNode.getConnectorFunctions().getReleaseExternalFunction();
-			if (releaseExternalFunction != null) {
-				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RELEASE_EXTERNAL, () -> releaseExternalFunction.release(connectorNode.getConnectorContext()), TAG);
-			}
-			AspectUtils.executeAspect(TaskResetAspect.class, () -> new TaskResetAspect().task(taskDto));
-			TapConnectorContext connectorContext = connectorNode.getConnectorContext();
-			if (connectorContext != null) {
-				KVMap<Object> stateMap = connectorContext.getStateMap();
-				if (stateMap != null) {
-					try {
-						stateMap.reset();
-					} catch (Throwable ignored) {
-						TapLogger.warn(TAG, "destroy, reset stateMap failed, {}, connector {}", ignored.getMessage(), connectorContext.toString());
-					}
-				}
-			}
-
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
-		} finally {
-			tapTableMapByNodeId.reset();
-			PDKIntegration.releaseAssociateId(this.getClass().getSimpleName() + "-" + node.getId());
-		}
-	}
-
-	private Connections getConnection(String connectionId) {
-		final Connections connections = clientMongoOperator.findOne(
-				new Query(where("_id").is(connectionId)),
-				ConnectorConstant.CONNECTION_COLLECTION,
-				Connections.class
-		);
-		connections.decodeDatabasePassword();
-		connections.initCustomTimeZone();
-		return connections;
 	}
 }

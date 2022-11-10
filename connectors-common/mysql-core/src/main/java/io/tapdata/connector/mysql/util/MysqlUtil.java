@@ -2,7 +2,11 @@ package io.tapdata.connector.mysql.util;
 
 import org.apache.commons.lang3.StringUtils;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.Random;
+import java.util.TimeZone;
 import java.util.regex.Pattern;
 
 /**
@@ -106,5 +110,33 @@ public class MysqlUtil extends JdbcUtil {
 			throw new RuntimeException("Get first version number failed, version string: " + version + ", error: " + e.getMessage(), e);
 		}
 		return firstVersion;
+	}
+
+	public static long convertTimestamp(long timestamp, TimeZone fromTimeZone, TimeZone toTimeZone) {
+		LocalDateTime dt = LocalDateTime.now();
+		ZonedDateTime fromZonedDateTime = dt.atZone(fromTimeZone.toZoneId());
+		ZonedDateTime toZonedDateTime = dt.atZone(toTimeZone.toZoneId());
+		long diff = Duration.between(toZonedDateTime, fromZonedDateTime).toMillis();
+		return timestamp + diff;
+	}
+
+	public static String convertTime(Object time){
+		String str[] =((String)time).split(":");
+		String timeTemp;
+		if(str.length==3){
+			int hour = Math.abs(Integer.parseInt(str[0]))%24;
+			timeTemp = (hour < 10 ? ("0" + hour) : hour) + ":" +str[1] + ":"+str[2];
+			return timeTemp;
+		}
+		return null;
+	}
+
+	public static String toHHmmss(long time) {
+		String timeTemp;
+		int hours = (int) (time % (1000 * 60 * 60 * 24) / (1000 * 60 * 60));
+		int minutes = (int) (time % (1000 * 60 * 60) / (1000 * 60));
+		int seconds = (int) (time % (1000 * 60) / 1000);
+		timeTemp = (hours < 10 ? ("0" + hours) : hours) + ":" + (minutes < 10 ? ("0" + minutes) : minutes) + ":" + (seconds < 10 ? ("0" + seconds) : seconds);
+		return timeTemp;
 	}
 }

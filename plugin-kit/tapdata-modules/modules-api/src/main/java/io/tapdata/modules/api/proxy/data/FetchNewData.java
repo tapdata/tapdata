@@ -6,13 +6,14 @@ import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.modules.api.net.message.TapEntityEx;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 @Implementation(value = TapEntity.class, type = "FetchNewData")
-public class FetchNewData implements TapEntity {
+public class FetchNewData extends TapEntityEx {
 	private Long taskStartTime;
 	public FetchNewData taskStartTime(Long taskStartTime) {
 		this.taskStartTime = taskStartTime;

@@ -26,6 +26,7 @@ import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
 import com.tapdata.tm.scheduleTasks.service.ScheduleTasksService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.entity.Worker;
@@ -39,6 +40,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.bson.BsonDocument;
 import org.bson.BsonValue;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -85,17 +87,32 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             return null;
         }
         // 引擎定时任务是5秒
-        Query query = Query.query(Criteria.where("worker_type").is("connector")
-                .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
-                .and("isDeleted").ne(true).and("stopping").ne(true));
+        Query query = getAvailableAgentQuery();
         return repository.findAll(query);
     }
 
-    public List<Worker> findAvailableAgentBySystem() {
-        // 引擎定时任务是5秒
-        Query query = Query.query(Criteria.where("worker_type").is("connector")
+    @NotNull
+    private Query getAvailableAgentQuery() {
+        return Query.query(getAvailableAgentCriteria());
+    }
+
+    private Criteria getAvailableAgentCriteria() {
+        Criteria criteria = Criteria.where("worker_type").is("connector")
                 .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
-                .and("isDeleted").ne(true).and("stopping").ne(true));
+                .and("isDeleted").ne(true).and("stopping").ne(true);
+        return criteria;
+    }
+
+    public List<Worker> findAvailableAgentBySystem() {
+        Query query = getAvailableAgentQuery();
+        return repository.findAll(query);
+    }
+
+    public List<Worker> findAvailableAgentBySystem(List<String> processIdList) {
+        Query query = getAvailableAgentQuery();
+        if (CollectionUtils.isNotEmpty(processIdList)) {
+            query.addCriteria(Criteria.where("process_id").in(processIdList));
+        }
         return repository.findAll(query);
     }
 
@@ -103,10 +120,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (Objects.isNull(userDetail)) {
             return null;
         }
-        // 引擎定时任务是5秒
-        Query query = Query.query(Criteria.where("worker_type").is("connector")
-                .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
-                .and("isDeleted").ne(true).and("stopping").ne(true));
+        Query query = getAvailableAgentQuery();
         if (CollectionUtils.isNotEmpty(processIdList)) {
             query.addCriteria(Criteria.where("process_id").in(processIdList));
         }
@@ -322,19 +336,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 if (worker.getWeight() == null) {
                     worker.setWeight(1);
                 }
-                ArrayList<String> status = new ArrayList<>();
-                status.add("scheduled");
-                status.add("running");
-                Where q = new Where().and("status", new BasicDBObject().append("$in", status))
-                        .and("agentId", worker.getProcessId());
-                long workNum;
-                if (isCloud) {
-                    workNum = dataFlowService.count(q, userService.loadUserById(new ObjectId(entity.getUserId())));
-                } else {
-                    workNum = taskService.count(Query.query(Criteria.where("agentId").is(worker.getProcessId())
-                            .and("is_deleted").ne(true)
-                            .and("status").in(Lists.newArrayList(TaskDto.STATUS_RUNNING, TaskDto.STATUS_STOPPING, TaskDto.STATUS_ERROR))));
-                }
+                long workNum = taskService.count(Query.query(Criteria.where("agentId").is(worker.getProcessId())
+                        .and("is_deleted").ne(true)
+                        .and("status").is(TaskDto.STATUS_RUNNING)));
+
                 worker.setRunningThread((int) workNum);
                 threadLog.add(new BasicDBObject()
                         .append("process_id", worker.getProcessId())
@@ -406,7 +411,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         UpdateResult updateResult = update(query, update);
 
         BsonValue upsertedId = updateResult.getUpsertedId();
-        BsonDocument bsonDocument = upsertedId.asDocument();
+
+        if (upsertedId != null) {
+            BsonDocument bsonDocument = upsertedId.asDocument();
+        }
 
         log.info("clean worker :{}", updateResult.getModifiedCount());
     }
@@ -501,5 +509,29 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (Objects.nonNull(one)) {
             dto.setHostName(one.getHostname());
         }
+    }
+
+    public String checkTaskUsedAgent(String taskId, UserDetail user) {
+        TaskDto taskDto = taskService.checkExistById(MongoUtils.toObjectId(taskId), user, "agentId");
+        return checkUsedAgent(taskDto.getAgentId(), user);
+    }
+    public String checkUsedAgent(String processId, UserDetail user) {
+        Criteria availableAgentCriteria = Criteria.where("worker_type").is("connector")
+                .and("stopping").ne(true);
+        availableAgentCriteria.and("process_id").is(processId);
+        Query query = new Query(availableAgentCriteria);
+        WorkerDto workerDto = findOne(query, user);
+        if (workerDto == null || (workerDto.getDeleted() != null && workerDto.getDeleted())
+                || (workerDto.getIsDeleted() != null && workerDto.getIsDeleted())) {
+            return "deleted";
+        }
+        long outTime = System.currentTimeMillis() - 1000 * 5 * 2;
+        Long pingTime = workerDto.getPingTime();
+        if (pingTime != null && pingTime < outTime) {
+            return "offline";
+        }
+
+        return "online";
+
     }
 }
