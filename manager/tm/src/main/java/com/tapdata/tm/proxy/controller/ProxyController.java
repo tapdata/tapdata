@@ -9,6 +9,8 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
+import com.tapdata.tm.sdk.auth.HmacSHA256Signer;
+import com.tapdata.tm.sdk.util.Base64Util;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,6 +45,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
@@ -66,14 +69,18 @@ import static org.apache.http.HttpStatus.*;
 public class ProxyController extends BaseController {
     private static final String TAG = ProxyController.class.getSimpleName();
     private final AsyncContextManager asyncContextManager = new AsyncContextManager();
-    private Boolean isCloud = null;
     private final int[] checkCloudLock = new int[0];
+    @Value("${gateway.secret:}")
+    private String gatewaySecret;
     @Autowired
     private SettingsService settingsService;
+    private Boolean isCloud = null;
 
     private static final int wsPort = 8246;
 
     private static final String TOKEN = CommonUtils.getProperty("tapdata_memory_token", "kajkj234kJFjfewljrlkzvnE34jfkladsdjafF");
+
+
     /**
      *
      * @return
@@ -114,6 +121,13 @@ public class ProxyController extends BaseController {
          *   server 10.50.1.5:11211;
          * }
          */
+        checkIsCloudOrNot();
+        String wsPath = loginProxyDto.getService() + "/" + MD5.create().digestHex(loginProxyDto.getClientId());
+        loginProxyResponseDto.setWsPath(isCloud ? "console/tm/" + wsPath : wsPath);
+        return success(loginProxyResponseDto);
+    }
+
+    private void checkIsCloudOrNot() {
         if(isCloud == null) {
             synchronized (checkCloudLock) {
                 if(isCloud == null) {
@@ -125,14 +139,23 @@ public class ProxyController extends BaseController {
                 }
             }
         }
-        String wsPath = loginProxyDto.getService() + "/" + MD5.create().digestHex(loginProxyDto.getClientId());
-        loginProxyResponseDto.setWsPath(isCloud ? "console/tm/" + wsPath : wsPath);
-        return success(loginProxyResponseDto);
     }
+
     @Operation(summary = "Generate callback url token")
     @PostMapping("subscribe")
     public ResponseMessage<SubscribeResponseDto> generateSubscriptionToken(@RequestBody SubscribeDto subscribeDto, HttpServletRequest request) {
-        return success(ProxyService.create().generateSubscriptionToken(subscribeDto,getLoginUser()));
+        UserDetail userDetail= getLoginUser();
+        String token = null;
+
+        ProxyService proxyService = InstanceFactory.bean(ProxyService.class);
+        checkIsCloudOrNot();
+        if(isCloud) {
+            if(!StringUtils.isBlank(gatewaySecret))
+                token = proxyService.generateStaticToken(userDetail.getUserId(), gatewaySecret);
+            else
+                throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
+        }
+        return success(proxyService.generateSubscriptionToken(subscribeDto, userDetail, token));
 //        if(subscribeDto == null)
 //            throw new BizException("SubscribeDto is null");
 //        if(subscribeDto.getSubscribeId() == null)

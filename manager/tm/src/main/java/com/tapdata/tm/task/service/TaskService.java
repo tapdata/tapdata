@@ -73,7 +73,6 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
-import com.tapdata.tm.ws.handler.EditFlushHandler;
 import io.tapdata.common.sample.request.Sample;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -94,12 +93,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -3385,7 +3379,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         List<MeasurementEntity>  allMeasurements = new ArrayList<>();
         ids.parallelStream().forEach(id -> {
-            MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id, user);
+            MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
             if (measurement != null) {
                 allMeasurements.add(measurement);
             }
