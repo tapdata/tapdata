@@ -4,11 +4,9 @@ import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.util.NetUtil;
-import org.apache.commons.lang3.StringUtils;
 
 import java.net.URI;
-import java.sql.Connection;
-import java.sql.SQLException;
+import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
@@ -18,53 +16,38 @@ import static io.tapdata.base.ConnectorBase.testItem;
  */
 public class TidbConnectionTest extends CommonDbTest {
 
-	private  TidbConfig tidbConfig;
+    private final TidbConfig tidbConfig;
 
-	private final static String PB_SERVER_SUCESS = "Check PDServer  host port is invalid";
+    private final static String PB_SERVER_SUCCESS = "Check PDServer host port is valid";
 
-	public TidbConnectionTest(TidbConfig tidbConfig) {
-		super(tidbConfig);
-		this.tidbConfig = tidbConfig;
-		jdbcContext = DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, uuid);
-	}
+    public TidbConnectionTest(TidbConfig tidbConfig, Consumer<TestItem> consumer) {
+        super(tidbConfig, consumer);
+        this.tidbConfig = tidbConfig;
+        jdbcContext = DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, uuid);
+    }
 
+    @Override
+    public Boolean testOneByOne() {
+        testFunctionMap.put("testPbserver", this::testPbserver);
+        return super.testOneByOne();
+    }
 
-	public TestItem testConnect() {
-		try (
-				Connection connection = jdbcContext.getConnection();
-		) {
-			return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
-		}catch (Exception e) {
-			if (e instanceof SQLException) {
-				String errMsg = e.getMessage();
-				if (errMsg.contains("using password")) {
-					String password =commonDbConfig.getPassword();
-					if (StringUtils.isNotEmpty(password)) {
-						errMsg = "password or username is error ,please check";
-					} else {
-						errMsg = "password is empty,please enter password";
-					}
-					return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, errMsg);
+    /**
+     * check Pbserver
+     *
+     * @return
+     */
+    public Boolean testPbserver() {
+        URI uri = URI.create(tidbConfig.getPdServer());
+        try {
+            NetUtil.validateHostPortWithSocket(uri.getHost(), uri.getPort());
+            consumer.accept(testItem(PB_SERVER_SUCCESS, TestItem.RESULT_SUCCESSFULLY));
+            return true;
+        } catch (Exception e) {
+            consumer.accept(testItem(PB_SERVER_SUCCESS, TestItem.RESULT_FAILED, e.getMessage()));
+            return false;
+        }
 
-				}
-			}
-			return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage());
-		}
-	}
-
-	/**
-	 * check Pbserver
-	 * @return
-	 */
-	public TestItem testPbserver() {
-		URI uri = URI.create(tidbConfig.getPdServer());
-		try {
-			NetUtil.validateHostPortWithSocket(uri.getHost(), uri.getPort());
-			return testItem(PB_SERVER_SUCESS, TestItem.RESULT_SUCCESSFULLY);
-		} catch (Exception e) {
-			return testItem(PB_SERVER_SUCESS, TestItem.RESULT_FAILED, e.getMessage());
-		}
-
-	}
+    }
 
 }

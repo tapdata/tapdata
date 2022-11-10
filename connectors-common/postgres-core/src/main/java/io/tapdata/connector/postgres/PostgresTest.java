@@ -13,23 +13,31 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
-// TODO: 2022/6/9 need to improve test items 
 public class PostgresTest extends CommonDbTest {
 
     public PostgresTest() {
         super();
     }
 
-    public PostgresTest(PostgresConfig postgresConfig) {
-        super(postgresConfig);
+    public PostgresTest(PostgresConfig postgresConfig, Consumer<TestItem> consumer) {
+        super(postgresConfig, consumer);
         jdbcContext = DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, uuid);
     }
 
+    @Override
+    public Boolean testOneByOne() {
+        testFunctionMap.put("testPrivilege", this::testPrivilege);
+        testFunctionMap.put("testReplication", this::testReplication);
+        testFunctionMap.put("testLogPlugin", this::testLogPlugin);
+        return super.testOneByOne();
+    }
+
     //Test number of tables and privileges
-    public TestItem testPrivilege() {
+    public Boolean testPrivilege() {
         try (
                 Connection conn = jdbcContext.getConnection();
                 PreparedStatement ps = conn.prepareStatement(
@@ -42,43 +50,49 @@ public class PostgresTest extends CommonDbTest {
             ps.setObject(3, commonDbConfig.getSchema());
             jdbcContext.query(ps, resultSet -> tablePrivileges.set(resultSet.getInt(1)));
             if (tablePrivileges.get() >= 7 * tableCount()) {
-                return testItem(DbTestItem.CHECK_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY);
+                consumer.accept(testItem(DbTestItem.CHECK_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY));
             } else {
-                return testItem(DbTestItem.CHECK_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                        "Current user may have no all privileges for some tables, Check it!");
+                consumer.accept(testItem(DbTestItem.CHECK_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                        "Current user may have no all privileges for some tables, Check it!"));
             }
+            return true;
         } catch (Throwable e) {
-            return testItem(DbTestItem.CHECK_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_FAILED, e.getMessage());
+            consumer.accept(testItem(DbTestItem.CHECK_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_FAILED, e.getMessage()));
+            return false;
         }
     }
 
-    public TestItem testReplication() {
+    public Boolean testReplication() {
         try {
             AtomicBoolean rolReplication = new AtomicBoolean();
             jdbcContext.queryWithNext(String.format(PG_ROLE_INFO, commonDbConfig.getUser()),
                     resultSet -> rolReplication.set(resultSet.getBoolean("rolreplication")));
             if (rolReplication.get()) {
-                return testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY);
+                consumer.accept(testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
             } else {
-                return testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                        "Current user have no privileges to create Replication Slot!");
+                consumer.accept(testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                        "Current user have no privileges to create Replication Slot!"));
             }
+            return true;
         } catch (Throwable e) {
-            return testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_FAILED, e.getMessage());
+            consumer.accept(testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_FAILED, e.getMessage()));
+            return false;
         }
     }
 
-    public TestItem testLogPlugin() {
+    public Boolean testLogPlugin() {
         try {
             List<String> testSqls = TapSimplify.list();
             String testSlotName = "test_" + UUID.randomUUID().toString().replaceAll("-", "_");
             testSqls.add(String.format(PG_LOG_PLUGIN_CREATE_TEST, testSlotName, ((PostgresConfig) commonDbConfig).getLogPluginName()));
             testSqls.add(String.format(PG_LOG_PLUGIN_DROP_TEST, testSlotName));
             jdbcContext.batchExecute(testSqls);
-            return testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY);
+            consumer.accept(testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY));
+            return true;
         } catch (Throwable e) {
-            return testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                    String.format("Test log plugin failed: {%s}, Maybe cdc events cannot work!", e.getMessage()));
+            consumer.accept(testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                    String.format("Test log plugin failed: {%s}, Maybe cdc events cannot work!", e.getMessage())));
+            return null;
         }
     }
 

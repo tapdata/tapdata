@@ -2,7 +2,7 @@ package io.tapdata.constant;
 
 public enum DbTestItem {
 
-    HOST_PORT("Check host port is invalid"),
+    HOST_PORT("Check host port is valid"),
     CHECK_VERSION("Check supported database version"),
     CHECK_CDC_PRIVILEGES("Check replication privileges"),
     CHECK_TABLE_PRIVILEGE("Check all for table privilege"),
