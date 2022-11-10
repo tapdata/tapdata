@@ -120,8 +120,6 @@ jobs:
           echo $docker_tag
           docker run -e mode=use --name tapd -d -p 3000:3000 $docker_tag bash
           bash build/wait_tapd_ready.sh
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
       - name: "基本用例集成测试"
         env:
           CASE_CONFIG: ${{ secrets.CASE_CONFIG }}
