@@ -28,10 +28,9 @@ python3 init/create_datasource.py
 cd cases || exit
 python3 runner.py --case test_dev_sync.py --bench 123
 
-sleep 300
-
 if [[ ! -f /tmp/fail ]]; then
     echo "TEST PASS !"
+    exit 1
 else
     echo "TEST FAIL !"
 fi
