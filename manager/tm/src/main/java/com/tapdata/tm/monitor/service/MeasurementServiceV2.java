@@ -874,22 +874,25 @@ public class MeasurementServiceV2 {
                     .collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getName, (k1, k2) -> k2)));
         }
 
+        List<TableNode> collect = Lists.newArrayList();
+        if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
+            collect = taskDto.getDag().getTargets().stream().map(n -> (TableNode) n).collect(Collectors.toList());
+        }
+
         List<TableSyncStaticVo> result = new ArrayList<>();
         for (MeasurementEntity measurementEntity : measurementEntities) {
             String originTable = measurementEntity.getTags().get("table");
             AtomicReference<String> originTableName = new AtomicReference<>();
             boolean finalHasTableRenameNode = hasTableRenameNode;
+            List<TableNode> finalCollect = collect;
             FunctionUtils.isTureOrFalse(TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())).trueOrFalseHandle(
                     () -> FunctionUtils.isTureOrFalse(finalHasTableRenameNode).trueOrFalseHandle(
                             () -> originTableName.set(tableNameMap.get().get(originTable)),
                             () -> originTableName.set(originTable)),
-                    () -> {
-                        List<TableNode> collect = taskDto.getDag().getTargets().stream().map(n -> (TableNode) n).collect(Collectors.toList());
-                        FunctionUtils.isTureOrFalse(CollectionUtils.isNotEmpty(collect)).trueOrFalseHandle(
-                                () -> originTableName.set(collect.get(0).getTableName()),
-                                () -> originTableName.set(originTable)
-                        );
-                    }
+                    () -> FunctionUtils.isTureOrFalse(CollectionUtils.isNotEmpty(finalCollect)).trueOrFalseHandle(
+                            () -> originTableName.set(finalCollect.get(0).getTableName()),
+                            () -> originTableName.set(originTable)
+                    )
             );
 
             List<Sample> samples = measurementEntity.getSamples();
