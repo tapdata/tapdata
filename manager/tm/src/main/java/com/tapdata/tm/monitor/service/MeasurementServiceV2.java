@@ -370,6 +370,7 @@ public class MeasurementServiceV2 {
     private static Map<String, Number> getKeyMap() {
         Map<String, Number> keyMap = Maps.newHashMap();
         keyMap.put("currentEventTimestamp", 0);
+        keyMap.put("snapshotDoneAt", 0);
         keyMap.put("snapshotRowTotal", 0);
         keyMap.put("snapshotInsertRowTotal", 0);
         keyMap.put("snapshotStartAt", 0);
@@ -483,7 +484,14 @@ public class MeasurementServiceV2 {
                 if (!startSample.getVs().containsKey(key)) {
                     continue;
                 }
-                Number diff = endSample.getVs().get(key).doubleValue() - startSample.getVs().get(key).doubleValue();
+                Number endNum = endSample.getVs().get(key);
+                Number startNum = startSample.getVs().get(key);
+                Number diff;
+                if (ObjectUtils.anyNull(startNum, endNum)) {
+                    diff = 0;
+                } else {
+                    diff = endNum.doubleValue() - startNum.doubleValue();
+                }
                 ret.getVs().put(key, diff);
             }
             data.put(hash, ret);
