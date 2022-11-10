@@ -3,12 +3,7 @@ package com.tapdata.tm.monitor.service;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
@@ -38,7 +33,6 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
-import org.bson.json.JsonObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
@@ -49,7 +43,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import javax.management.ValueExp;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
@@ -69,14 +62,14 @@ public class MeasurementServiceV2 {
     }
 
     public void addAgentMeasurement(List<SampleRequest> samples) {
-        addBulkAgentMeasurement(samples, Granularity.GRANULARITY_MINUTE);
+        addBulkAgentMeasurement(samples);
     }
 
-    private void addBulkAgentMeasurement(List<SampleRequest> sampleRequestList, String granularity) {
+    private void addBulkAgentMeasurement(List<SampleRequest> sampleRequestList) {
         BulkOperations bulkOperations = mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
         DateTime date = DateUtil.date();
         for (SampleRequest singleSampleRequest : sampleRequestList) {
-            Criteria criteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(granularity);
+            Criteria criteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
             Map<String, String> tags = singleSampleRequest.getTags();
             if (null == tags || 0 == tags.size()) {
@@ -115,8 +108,7 @@ public class MeasurementServiceV2 {
             bulkOperations.upsert(query, update);
         }
 
-        BulkWriteResult bulkWriteResult = bulkOperations.execute();
-
+        bulkOperations.execute();
     }
 
     private static final String TAG_FORMAT = String.format("%s.%%s", MeasurementEntity.FIELD_TAGS);
@@ -236,7 +228,6 @@ public class MeasurementServiceV2 {
      *  diagram:
      *      #: time
      *      *: sample data point
-     *
      *   time1                                          time2
      *  |__#____*_*___|___*__*___*__|___*_____*__|____*___#___|
      *         s1 s2     s3 s4  s5      s6   s7      s8
@@ -244,10 +235,10 @@ public class MeasurementServiceV2 {
      *  the data loss of the left part, aka. we got s1 for the query.
      *  when query instant value of time2, but the last sample value is s8, here we use `padding=right` to tolerance
      *  the data loss of the right part, aka. we got s2 for the query.
-     * @param querySample
-     * @param time
-     * @param padding
-     * @return
+     * @param querySample querySample
+     * @param time time
+     * @param padding padding
+     * @return Map
      */
     private Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long time, String padding) {
         List<String> fields = querySample.getFields();
@@ -314,9 +305,12 @@ public class MeasurementServiceV2 {
             }
         }
 
-//        Long maxRep = calculateMaxReplicateLag(querySample, typeIsTask);
-
-//        Number snapshotStartAtTemp = getSnapshotStartAt(querySample, typeIsTask);
+        Long maxRep = null;
+        Number snapshotStartAtTemp = null;
+        if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
+            maxRep = calculateMaxReplicateLag(querySample, typeIsTask);
+            snapshotStartAtTemp = getSnapshotStartAt(querySample, typeIsTask);
+        }
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
 
@@ -343,16 +337,18 @@ public class MeasurementServiceV2 {
                 values.put("snapshotRowTotal", snapshotInsertRowTotal);
             }
 
-//            Number snapshotDoneAt = values.get("snapshotDoneAt");
-//            if (Objects.nonNull(snapshotDoneAt) && Objects.isNull(snapshotStartAt)) {
-//                values.put("snapshotStartAt", snapshotStartAtTemp);
-//            }
-            if (typeIsTask) {
-                Number snapshotStartAt = keyMap.get("snapshotStartAt");
+            if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
+                values.put("replicateLag", maxRep);
                 // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
-                if (Objects.nonNull(snapshotInsertRowTotal) && Objects.nonNull(snapshotStartAt) && snapshotInsertRowTotal.longValue() == 0) {
-                    Number maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAt.longValue());
+                if (Objects.nonNull(snapshotInsertRowTotal) && Objects.nonNull(snapshotStartAtTemp) && snapshotInsertRowTotal.longValue() == 0) {
+                    maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAtTemp.longValue());
                     values.put("replicateLag", maxRep);
+                }
+
+                Number snapshotDoneAt = values.get("snapshotDoneAt");
+                Number snapshotStartAt = values.get("snapshotStartAt");
+                if (Objects.nonNull(snapshotDoneAt) && Objects.isNull(snapshotStartAt)) {
+                    values.put("snapshotStartAt", snapshotStartAtTemp);
                 }
 
                 // 全量完成时间应该是在任务中所有涉及全量的表完成后再更新全量完成时间
@@ -375,7 +371,7 @@ public class MeasurementServiceV2 {
         keyMap.put("snapshotDoneAt", 0);
         keyMap.put("snapshotRowTotal", 0);
         keyMap.put("snapshotInsertRowTotal", 0);
-        keyMap.put("snapshotStartAt", 0);
+//        keyMap.put("snapshotStartAt", 0);
         keyMap.put("timeCostAvg", 0);
         keyMap.put("targetWriteTimeCostAvg", 0);
         keyMap.put("inputDdlTotal", 0);
@@ -390,7 +386,7 @@ public class MeasurementServiceV2 {
         keyMap.put("outputUpdateTotal", 0);
         keyMap.put("snapshotTableTotal", 0);
         keyMap.put("tableTotal", 0);
-        keyMap.put("replicateLag", 0);
+//        keyMap.put("replicateLag", 0);
 
         return keyMap;
     }
@@ -438,6 +434,25 @@ public class MeasurementServiceV2 {
             }
         }
         return maxRep;
+    }
+
+    private Number getSnapshotStartAt(MeasurementQueryParam.MeasurementQuerySample querySample, boolean typeIsTask) {
+        Number snapshotStartAt = 0;
+        if (typeIsTask) {
+            String taskId = querySample.getTags().get("taskId");
+            String taskRecordId = querySample.getTags().get("taskRecordId");
+            Criteria criteria = Criteria.where("grnty").is("minute")
+                    .and("tags.taskId").is(taskId)
+                    .and("tags.taskRecordId").is(taskRecordId)
+                    .and("tags.type").is("task")
+                    .and("ss.vs.snapshotStartAt").gt(0);
+            Query query = Query.query(criteria).limit(1);
+            MeasurementEntity one = mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+            if (Objects.nonNull(one) && CollectionUtils.isNotEmpty(one.getSamples())) {
+                snapshotStartAt = one.getSamples().get(0).getVs().get("snapshotStartAt");
+            }
+        }
+        return snapshotStartAt;
     }
 
     public Map<String, Sample> getDifferenceSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end) {
@@ -634,6 +649,27 @@ public class MeasurementServiceV2 {
                 timeLineIdx += 1;
                 sampleIdx1 = sampleIdx2;
             }
+
+            // 补充null数据，取null上一个点的数据
+            for (Map.Entry<String, Number[]> e : values.entrySet()) {
+                Number[] v = e.getValue();
+                Number last = null;
+                for (int i = 0; i < v.length; i++) {
+                    if (i == 0) {
+                        continue;
+                    }
+
+                    if (Objects.isNull(v[i])) {
+                        if (Objects.nonNull(last)) {
+                            v[i] = last;
+                        }
+                    } else {
+                        last = v[i];
+                    }
+                }
+
+            }
+
             Map<String, Object> single = new HashMap<>(values);
             single.put("tags", tags);
             data.add(single);
@@ -936,17 +972,12 @@ public class MeasurementServiceV2 {
         return new Page<>(count, result);
     }
 
-    public void delDataWhenTaskReset(String taskId) {
-        mongoOperations.remove(new Query(Criteria.where("tags.taskId").is(taskId)), MeasurementEntity.COLLECTION_NAME);
-    }
-
     /**
      * 根据任务id查询得到最近的一条分种类型的统计信息
      * @param taskId 任务id
-     * @param user 用户
-     * @return
+     * @return MeasurementEntity
      */
-    public MeasurementEntity findLastMinuteByTaskId(String taskId, UserDetail user) {
+    public MeasurementEntity findLastMinuteByTaskId(String taskId) {
         Criteria criteria = Criteria.where("tags.taskId").is(taskId)
                 .and("grnty").is("minute")
                 .and("tags.type").is("task");
