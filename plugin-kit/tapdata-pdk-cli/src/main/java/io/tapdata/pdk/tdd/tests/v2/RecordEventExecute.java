@@ -68,13 +68,13 @@ public class RecordEventExecute {
                 tapInsertRecordEvents,
                 targetTable,
                 consumer -> {
-                    base.$(() -> Assertions.assertEquals(
+                    base.$(() -> TapAssert.warnAssert().assertEquals(
                                         tapInsertRecordEvents.size(),
                                         consumer.getInsertedCount(),
                                         "Error insert " + tapInsertRecordEvents.size() + " record into mongodb.")
                     );
                     consumerBack.set(consumer);
-                    this.dropTable();
+                    //this.dropTable();
                 }
         );
         return consumerBack.get();
@@ -94,13 +94,13 @@ public class RecordEventExecute {
                 tapUpdateRecordEvents,
                 targetTable,
                 consumer -> {
-                    base.$(() -> Assertions.assertEquals(
+                    base.$(() -> TapAssert.warnAssert().assertEquals(
                             tapUpdateRecordEvents.size(),
                             consumer.getModifiedCount(),
                             "Error update "+tapUpdateRecordEvents.size()+" record on mongodb.")
                     );
                     consumerBack.set(consumer);
-                    this.dropTable();
+                    //this.dropTable();
                 }
         );
         return consumerBack.get();
@@ -120,13 +120,13 @@ public class RecordEventExecute {
                 tapDeleteRecordEvents,
                 targetTable,
                 consumer -> {
-                    base.$(() -> Assertions.assertEquals(
+                    base.$(() -> TapAssert.warnAssert().assertEquals(
                             tapDeleteRecordEvents.size(),
                             consumer.getRemovedCount(),
                             "Error delete "+tapDeleteRecordEvents.size()+" record on mongodb.")
                     );
                     consumerBack.set(consumer);
-                    this.dropTable();
+                    //this.dropTable();
                 }
         );
         return consumerBack.get();

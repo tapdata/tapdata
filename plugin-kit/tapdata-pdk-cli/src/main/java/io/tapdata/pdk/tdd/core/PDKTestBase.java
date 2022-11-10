@@ -24,6 +24,7 @@ import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFuncti
 import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.cli.commands.TDDCli;
 import io.tapdata.pdk.core.api.*;
 import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
@@ -35,6 +36,7 @@ import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
 import io.tapdata.pdk.core.workflow.engine.TapDAG;
+import io.tapdata.pdk.tdd.tests.v2.CapabilitiesExecutionMsg;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -44,6 +46,7 @@ import org.junit.jupiter.api.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
@@ -58,6 +61,9 @@ import static org.junit.jupiter.api.Assertions.*;
 public class PDKTestBase {
     private static final String TAG = PDKTestBase.class.getSimpleName();
     protected TapConnector testConnector;
+    public TapConnector testConnector(){
+        return this.testConnector;
+    }
     protected TapConnector tddConnector;
     protected File testConfigFile;
     protected File jarFile;
@@ -71,6 +77,8 @@ public class PDKTestBase {
     private Throwable lastThrowable;
 
     protected TapDAG dag;
+
+//    protected Map<Class, CapabilitiesExecutionMsg> capabilitiesResult = new HashMap<>();
 
     public PDKTestBase() {
         String testConfig = CommonUtils.getProperty("pdk_test_config_file", "");
@@ -319,7 +327,9 @@ public class PDKTestBase {
         }
         for (TapNodeInfo nodeInfo : tapNodeInfoCollection) {
             if (nodeInfo.getTapNodeSpecification().getId().equals(pdkId)) {
+
                 consumer.accept(nodeInfo);
+
                 break;
             }
         }
@@ -347,6 +357,18 @@ public class PDKTestBase {
                 TapLogger.info(TAG, "************************{} tearDown************************", this.getClass().getSimpleName());
             }
         }
+//        TDDCli.TapSummary.capabilitiesResult.forEach((cab, result)->{
+//            StringBuilder capResult = new StringBuilder();
+//            int executionResult = result.executionResult();
+//            capResult.append(cab.getSimpleName())
+//                    .append(executionResult==CapabilitiesExecutionMsg.ERROR?"测试失败":"测试通过");
+//            if (executionResult == CapabilitiesExecutionMsg.ERROR){
+//
+//            }else {
+//
+//            }
+//
+//        });
     }
 
     public DataMap getTestOptions() {
@@ -653,4 +675,5 @@ public class PDKTestBase {
     public DataMap getNodeOptions() {
         return nodeOptions;
     }
+
 }

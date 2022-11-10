@@ -1,11 +1,20 @@
 package io.tapdata.pdk.cli.commands;
 
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.CommonCli;
+import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.connector.TapConnector;
+import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.entity.utils.ReflectionUtil;
@@ -17,6 +26,7 @@ import io.tapdata.pdk.tdd.tests.source.QueryByAdvanceFilterTest;
 import io.tapdata.pdk.tdd.tests.source.StreamReadTest;
 import io.tapdata.pdk.tdd.tests.target.DMLTest;
 import io.tapdata.pdk.tdd.tests.target.CreateTableTest;
+import io.tapdata.pdk.tdd.tests.v2.CapabilitiesExecutionMsg;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordTest;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordWithQueryTest;
 import org.apache.commons.io.FilenameUtils;
@@ -34,8 +44,11 @@ import org.junit.platform.launcher.listeners.TestExecutionSummary;
 import picocli.CommandLine;
 
 import java.io.*;
+import java.lang.reflect.Field;
 import java.util.*;
+import java.util.function.Consumer;
 
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass;
 
 @CommandLine.Command(
@@ -89,6 +102,7 @@ public class TDDCli extends CommonCli {
         TapNodeInfo tapNodeInfo;
         TestExecutionSummary summary;
         List<Class<?>> testClasses = new ArrayList<>();
+        public Map<Class, CapabilitiesExecutionMsg> capabilitiesResult = new HashMap<>();
     }
 
     private void runTests(LauncherDiscoveryRequest request, TapSummary testResultSummary) {
@@ -101,23 +115,25 @@ public class TDDCli extends CommonCli {
 
         TestExecutionSummary summary = listener.getSummary();
         testResultSummary.summary = summary;
-        if(summary.getTestsFailedCount() > 0) {
-            System.out.println("*****************************************************TDD Results*****************************************************");
-            System.out.println("-------------PDK id '" + testResultSummary.tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + testResultSummary.tapNodeInfo.getNodeClass().getName() + "'-------------\n");
-//            summary.printTo(new PrintWriter(System.out));
-//            System.out.println("");
-            StringBuilder builder = new StringBuilder();
-            outputTestResult(testResultSummary, builder);
-            System.out.print(builder.toString());
 
-            summary.printFailuresTo(new PrintWriter(System.out));
-            System.out.println("");
-            System.out.println("-------------PDK id '" + testResultSummary.tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + testResultSummary.tapNodeInfo.getNodeClass().getName() + "'-------------");
-            System.out.println("*****************************************************TDD Results*****************************************************");
-            System.out.println("Oops, PDK " + file.getName() + " didn't pass all tests, please resolve above issue(s) and try again.");
-//            throw new CoreException(ErrorCodes.TDD_TEST_FAILED, "Terminated because test failed");
-            System.exit(0);
-        }
+        TDDPrintf.create().showCapabilities(nodeInfo());
+
+        //TODO Run PDK method tests
+
+//        if(summary.getTestsFailedCount() > 0) {
+//            System.out.println("*****************************************************TDD Results*****************************************************");
+//            System.out.println("-------------PDK id '" + testResultSummary.tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + testResultSummary.tapNodeInfo.getNodeClass().getName() + "'-------------\n");
+//            StringBuilder builder = new StringBuilder();
+//            outputTestResult(testResultSummary, builder);
+//            System.out.print(builder.toString());
+//
+//            //@TODO print Failures
+//            //summary.printFailuresTo(new PrintWriter(System.out));
+//            System.out.println("-------------PDK id '" + testResultSummary.tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + testResultSummary.tapNodeInfo.getNodeClass().getName() + "'-------------");
+//            System.out.println("*****************************************************TDD Results*****************************************************");
+//            System.out.println("Oops, PDK " + file.getName() + " didn't pass all tests, please resolve above issue(s) and try again.");
+//            System.exit(0);
+//        }
     }
 
     public Integer execute() {
@@ -252,34 +268,10 @@ public class TDDCli extends CommonCli {
                 runLevelWithNodeInfo(tapNodeInfo);
             }
         }
-        System.out.println("*****************************************************TDD Results*****************************************************");
-        for(TapSummary testSummary : testResultSummaries) {
-            StringBuilder builder = new StringBuilder();
-            builder.append("-------------PDK id '" + testSummary.tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + testSummary.tapNodeInfo.getNodeClass().getName() + "'-------------").append("\n");
-            builder.append("             Node class " + testSummary.tapNodeInfo.getNodeClass() + " run ");
 
-            builder.append(testSummary.testClasses.size() + " test classes").append("\n");
-            for(Class<?> testClass : testSummary.testClasses) {
-                builder.append("             \t" + testClass.getName()).append("\n");
-            }
-            builder.append("\n");
-            outputTestResult(testSummary, builder);
-
-            builder.append("-------------PDK id '" + testSummary.tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + testSummary.tapNodeInfo.getNodeClass().getName() + "'-------------").append("\n");
-            System.out.print(builder.toString());
-        }
-        System.out.println("*****************************************************TDD Results*****************************************************");
+        TDDPrintf.create(testResultSummaries).defaultShow();
         System.out.println("Congratulations! PDK " + jarFile + " has passed all tests!");
         System.exit(0);
-    }
-
-    private void outputTestResult(TapSummary testSummary, StringBuilder builder) {
-        builder.append("             " + "Test run finished after " + (testSummary.summary.getTimeFinished() - testSummary.summary.getTimeStarted())).append("\n");
-        builder.append("             \t" + testSummary.summary.getTestsFoundCount() + " test(s) found").append("\n");
-        builder.append("             \t" + testSummary.summary.getTestsSkippedCount() + " test(s) skipped").append("\n");
-        builder.append("             \t" + testSummary.summary.getTestsStartedCount() + " test(s) started").append("\n");
-        builder.append("             \t" + testSummary.summary.getTestsSucceededCount() + " test(s) successful").append("\n");
-        builder.append("             \t" + testSummary.summary.getTestsFailedCount() + " test(s) failed").append("\n");
     }
 
     private void runLevelWithNodeInfo(TapNodeInfo tapNodeInfo) throws Throwable {
@@ -324,11 +316,13 @@ public class TDDCli extends CommonCli {
                     try {
                         if(!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
                             allFound = false;
+                            //@TODO 未实现的Function导致测试用例未执行
                             break;
                         }
                     } catch (NoSuchMethodException e) {
                         e.printStackTrace();
                         allFound = false;
+                        //@TODO 未实现的Function导致测试用例未执行
                         break;
                     }
                 }
@@ -358,5 +352,23 @@ public class TDDCli extends CommonCli {
         testResultSummary.testClasses.add(theClass);
     }
 
+    private TapNodeInfo nodeInfo(){
+        TapConnector tapConnector = new PDKTestBase().testConnector();
+        Collection<TapNodeInfo> tapNodeInfoCollection = tapConnector.getTapNodeClassFactory().getConnectorTapNodeInfos();
+        if (tapNodeInfoCollection.isEmpty())
+            throw new CoreException(PDKRunnerErrorCodes.TDD_TAPNODEINFO_NOT_FOUND, "No connector or processor is found in jar ");
+        String pdkId = null;
+        if (pdkId == null) {
+            pdkId = CommonUtils.getProperty("pdk_test_pdk_id", null);
+            if (pdkId == null)
+                fail("Test pdkId is not specified");
+        }
+        for (TapNodeInfo nodeInfo : tapNodeInfoCollection) {
+            if (nodeInfo.getTapNodeSpecification().getId().equals(pdkId)) {
+                return nodeInfo;
+            }
+        }
+        return null;
+    }
 
 }

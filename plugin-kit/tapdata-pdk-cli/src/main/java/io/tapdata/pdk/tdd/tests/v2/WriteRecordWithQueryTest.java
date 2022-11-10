@@ -7,6 +7,8 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -143,6 +145,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                     .withStateMap(stateMap)
                     .withTable(testTableId)
                     .build();
+            //showCapabilities(connectorNode);
             try{
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");
 
@@ -201,19 +204,19 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
 
 
         recordEventExecute.insert();
-//        queryByAdvanceFilterFunction.query(
-//                targetNode.getConnectorContext(),
-//                TapAdvanceFilter.create().op(QueryOperator.lte("id", 111111)).op(QueryOperator.gte("id", 111111)),
-//                targetTable,
-//                filterResults -> $(() -> {
-//                    Assertions.assertNotNull(filterResults, "Query results should be not null");
-//                    Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null");
-//                    Assertions.assertTrue(objectIsEqual(
+        queryByAdvanceFilterFunction.query(
+                targetNode.getConnectorContext(),
+                TapAdvanceFilter.create().op(QueryOperator.lte("id", 111111)).op(QueryOperator.gte("id", 111111)),
+                targetTable,
+                filterResults -> $(() -> {
+                    Assertions.assertNotNull(filterResults, "Query results should be not null");
+                    Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null");
+//                    TapAssert.warnAssert().assertTrues(objectIsEqual(
 //                            filterResults.getResults(),
 //                            Collections.singletonList(record)),
 //                            "insert record not succeed.");
-//                })
-//        );
+                })
+        );
 
         record.builder("name","Gavin pro").builder("text","Gavin pro max.");
         recordEventExecute.update();
@@ -265,7 +268,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
         Assertions.assertNotEquals(
                 insert.getInsertedCount(),
                 insertAfter.getModifiedCount(),
-                insertPolicy+" - update_on_exists | After inserting ten pieces of data, insert another record with the same primary key but different contents, and display the result. Insert " +
+                insertPolicy + " - update_on_exists | After inserting ten pieces of data, insert another record with the same primary key but different contents, and display the result. Insert " +
                         insertAfter.getInsertedCount() + ", insert another, and update " +
                         insertAfter.getModifiedCount() + ". Poor observability");
 

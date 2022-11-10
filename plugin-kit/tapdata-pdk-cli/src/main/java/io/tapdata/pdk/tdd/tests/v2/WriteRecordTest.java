@@ -109,7 +109,9 @@ public class WriteRecordTest extends PDKTestBase {
                     .withStateMap(stateMap)
                     .withTable(testTableId)
                     .build();
+
             TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap());
+
             try {
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");
                 writeRecorde(connectionContext,connectorNode);
@@ -163,13 +165,14 @@ public class WriteRecordTest extends PDKTestBase {
     }
 
     public static List<SupportFunction> testFunctions() {
-        return Arrays.asList(
+        List<SupportFunction> supportFunctions = Arrays.asList(
                 support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
 //                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
-                support(DropTableFunction.class,"Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
+                support(DropTableFunction.class, "Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
                 //support(QueryByAdvanceFilterFunction.class, "QueryByAdvanceFilterFunction is a must for database which is schema free to sample some record to generate the field data types.")
                 //support(DropTableFunction.class, "DropTable is needed for TDD to drop the table created by tests, please implement it in registerCapabilities method.")
         );
+        return supportFunctions;
     }
     public void tearDown() {
         super.tearDown();
