@@ -1185,7 +1185,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return super.find(filter, userDetail);
     }
     public Page<TaskDto> find(Filter filter, UserDetail userDetail) {
-
         if (isAgentReq()) {
             return super.find(filter, userDetail);
         }
@@ -1308,11 +1307,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private Page<TaskDto> findDataCopyList(Filter filter, UserDetail userDetail) {
         Where where = filter.getWhere();
 
-
-
         Criteria criteria = Criteria.where("is_deleted").ne(true).and("user_id").is(userDetail.getUserId());
         Criteria orToCriteria = parseOrToCriteria(where);
-
 
         // Supplementary data verification status
         Object inspectResult = where.get("inspectResult");
@@ -1339,10 +1335,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         tmPageable.setSize(filter.getLimit());
 
         String order = filter.getOrder() == null ? "createTime DESC" : String.valueOf(filter.getOrder());
+        String sortKey = order.contains("currentEventTimestamp") ? "currentEventTimestamp" : "createTime";
         if (order.contains("ASC")) {
-            tmPageable.setSort(Sort.by("createTime").ascending());
+            tmPageable.setSort(Sort.by(sortKey).ascending());
         } else {
-            tmPageable.setSort(Sort.by("createTime").descending());
+            tmPageable.setSort(Sort.by(sortKey).descending());
         }
 
         long total = repository.getMongoOperations().count(query, TaskEntity.class);
