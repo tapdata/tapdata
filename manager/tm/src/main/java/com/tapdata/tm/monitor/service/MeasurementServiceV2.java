@@ -668,6 +668,23 @@ public class MeasurementServiceV2 {
                     }
                 }
 
+                // 补充null数据，倒序取null上一个点的数据
+                if (Objects.isNull(v[0])) {
+                    Number temp = null;
+                    for (int i = v.length - 1; i >= 0; i--) {
+                        if (i == v.length - 1) {
+                            continue;
+                        }
+
+                        if (Objects.isNull(v[i])) {
+                            if (Objects.nonNull(last)) {
+                                v[i] = temp;
+                            }
+                        } else {
+                            temp = v[i];
+                        }
+                    }
+                }
             }
 
             Map<String, Object> single = new HashMap<>(values);
