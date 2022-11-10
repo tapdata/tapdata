@@ -60,7 +60,9 @@ public class BatchServiceImpl implements BatchService {
                     Object obj = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(param), paramClass);
                     Object bean = SpringUtil.getBean(serviceClass);
                     Object data = method.invoke(bean, obj);
-                    result.put(k, new BatchDataVo("ok", null, data));
+                    if (bean == null ||  data == null) {
+                        result.put(k, new BatchDataVo("ok", null, data));
+                    }
                     return result;
                 } catch (ClassNotFoundException | InvocationTargetException | NoSuchMethodException |
                          IllegalAccessException e) {
