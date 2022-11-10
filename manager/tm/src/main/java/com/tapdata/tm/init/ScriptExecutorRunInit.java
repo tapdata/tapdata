@@ -56,7 +56,6 @@ public class ScriptExecutorRunInit implements ApplicationRunner {
 	public void run(ApplicationArguments args) throws Exception {
 //    executeScript("init", VersionDto.SCRIPT_VERSION_KEY);
 //    log.info("Execute the initialization script to complete...");
-		initReplaceMap();
 
 
 			executeScript("init/idaas", VersionDto.DAAS_SCRIPT_VERSION_KEY);

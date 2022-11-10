@@ -1,9 +1,9 @@
 package io.tapdata.flow.engine.V2.entity;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.map.IMap;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.persistence.StorageMode;
-import com.sun.jna.platform.win32.GL;
 import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.entity.utils.cache.KVMap;
 import org.apache.commons.collections.CollectionUtils;
@@ -115,61 +115,42 @@ public class PdkStateMap implements KVMap<Object> {
 
 	@Override
 	public void put(String key, Object o) {
-		try {
-			documentIMap.insert(key, o);
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
+		imap.put(key, new Document(KEY, o));
 	}
 
 	@Override
 	public Object putIfAbsent(String key, Object o) {
-		try {
-			if (null == documentIMap.find(key)) {
-				put(key, o);
-				return o;
-			}
-			return null;
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
+		return imap.putIfAbsent(key, new Document(KEY, o));
 	}
 
 	@Override
 	public Object remove(String key) {
-		try {
-			Object o = documentIMap.find(key);
-			documentIMap.delete(key);
-			return o;
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
+		return imap.remove(key);
 	}
 
 	@Override
 	public void clear() {
-		try {
-			documentIMap.clear();
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
+		imap.clear();
 	}
 
 	@Override
 	public void reset() {
-		try {
-			documentIMap.clear();
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
+		imap.clear();
 	}
 
 	@Override
 	public Object get(String key) {
+		Object value = imap.getOrDefault(key, null);
+		if (null == value) return null;
 		try {
-			return documentIMap.find(key);
-		} catch (Exception e) {
-			throw new RuntimeException(e);
+			return ((Document) value).get(KEY);
+		} catch (Throwable throwable) {
+			//This is a workaround for resolving Document is different issue. Has performance rick.
+			try {
+				return value.getClass().getMethod("get", Object.class).invoke(value, KEY);
+			} catch (Throwable throwable1) {
+				throw new RuntimeException(throwable);
+			}
 		}
 	}
 

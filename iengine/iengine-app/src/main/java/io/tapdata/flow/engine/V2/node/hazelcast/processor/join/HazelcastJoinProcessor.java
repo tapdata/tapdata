@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor.join;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.OperationType;
@@ -18,6 +19,7 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
@@ -98,9 +100,11 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		String rightNodeId = ((JoinProcessorNode) node).getRightNodeId();
 		HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance();
 		String leftJoinCacheMapName = joinCacheMapName(leftNodeId, "leftJoinCache");
+		// todo get external storage config
 		BytesIMap<Map<String, Map<String, Object>>> leftJoinCache = new BytesIMap<>(
 				hazelcastInstance,
-				leftJoinCacheMapName
+				leftJoinCacheMapName,
+				null
 		);
 		try {
 			leftJoinCache.clear();
@@ -110,7 +114,8 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		String rightJoinCacheMapName = joinCacheMapName(rightNodeId, "rightCache");
 		BytesIMap<Map<String, Map<String, Object>>> rightJoinCache = new BytesIMap<>(
 				hazelcastInstance,
-				rightJoinCacheMapName
+				rightJoinCacheMapName,
+				null
 		);
 		try {
 			rightJoinCache.clear();

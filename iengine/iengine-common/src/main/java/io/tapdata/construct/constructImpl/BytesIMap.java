@@ -1,7 +1,8 @@
-package io.tapdata.constructImpl;
+package io.tapdata.construct.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 
@@ -15,7 +16,8 @@ public class BytesIMap<T> extends BaseConstruct<T> {
 
     protected IMap<String, Object> iMap;
 
-    public BytesIMap(HazelcastInstance hazelcastInstance, String name) {
+    public BytesIMap(HazelcastInstance hazelcastInstance, String name, ExternalStorageDto externalStorageDto) {
+        super(name, externalStorageDto);
         this.iMap = hazelcastInstance.getMap(name);
     }
 

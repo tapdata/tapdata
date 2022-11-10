@@ -9,8 +9,6 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
-import com.tapdata.tm.sdk.auth.HmacSHA256Signer;
-import com.tapdata.tm.sdk.util.Base64Util;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
