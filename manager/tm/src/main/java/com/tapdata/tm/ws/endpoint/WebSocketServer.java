@@ -51,7 +51,7 @@ import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl;
 @Slf4j
 @Component
 public class WebSocketServer extends TextWebSocketHandler {
-	private final static long MAX_INTERVAL_BEFORE_CLOSE_SESSION_AFTER_NO_PONG = 20 * 1000;
+	private final static long MAX_INTERVAL_BEFORE_CLOSE_SESSION_AFTER_NO_PONG = 60 * 1000;
 
 	@Autowired
 	private UserService userService;
@@ -68,7 +68,7 @@ public class WebSocketServer extends TextWebSocketHandler {
 	/**
 	 * Send ping frame message every 10 seconds.
 	 */
-	@Scheduled(fixedDelay = 2000)
+	@Scheduled(fixedDelay = 15000)
 	public void checkConnectionKeepAlive() {
 
 		log.debug("Send ping message to websocket clients");
