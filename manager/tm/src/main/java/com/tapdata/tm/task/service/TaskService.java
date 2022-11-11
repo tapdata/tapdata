@@ -106,6 +106,10 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1811,7 +1815,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     /**
      * 统计的是Task中的statuses
      *
-     * @param syncTypeToTaskList
      * @return
      */
     private Map<String, Object> getDataDevChart(List<TaskDto> synList) {
