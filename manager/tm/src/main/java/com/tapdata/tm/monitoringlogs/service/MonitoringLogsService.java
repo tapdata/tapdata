@@ -92,7 +92,13 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             return null;
         }
 
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        ObjectId objectId = MongoUtils.toObjectId(taskId);
+
+        if (objectId == null) {
+            return null;
+        }
+
+        TaskDto taskDto = taskService.findById(objectId);
 
         Criteria criteria = Criteria.where("taskId").is(taskId);
         if (StringUtils.isNotBlank(param.getTaskRecordId())) {
