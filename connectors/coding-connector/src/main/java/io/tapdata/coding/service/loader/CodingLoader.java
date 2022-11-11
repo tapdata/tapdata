@@ -99,4 +99,10 @@ public interface CodingLoader<T extends Param> {
         String dateStr = formatter.format(new Date(date));
         return dateStr.length()>10?"9999-12-31":dateStr;
     }
+    public default String longToDateTimeStr(Long date){
+        if (null == date) return "1000-01-01 00:00:00";
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+        String dateStr = formatter.format(new Date(date));
+        return dateStr.length()>19?"9999-12-31 23:59:59":dateStr;
+    }
 }

@@ -55,7 +55,8 @@ public class MeasureAOP {
                 Number snapshotDoneAt = vs.get("snapshotDoneAt");
                 if (Objects.isNull(taskDto.getSnapshotDoneAt()) && Objects.nonNull(snapshotStartAt) && Objects.nonNull(snapshotDoneAt)) {
 
-                    String summary = MessageFormat.format(AlarmContentTemplate.TASK_FULL_COMPLETE, (Long)snapshotDoneAt - (Long)snapshotStartAt, DateUtil.date((Long) snapshotDoneAt).toString(), now);
+                    Long diff = (Long)snapshotDoneAt - (Long)snapshotStartAt;
+                    String summary = MessageFormat.format(AlarmContentTemplate.TASK_FULL_COMPLETE, diff, DateUtil.date((Long) snapshotDoneAt).toString(), now);
 
                     Map<String, Object> param = Maps.newHashMap();
                     param.put("fullTime", now);

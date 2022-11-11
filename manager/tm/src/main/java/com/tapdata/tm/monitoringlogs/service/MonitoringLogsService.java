@@ -92,7 +92,13 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             return null;
         }
 
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        ObjectId objectId = MongoUtils.toObjectId(taskId);
+
+        if (objectId == null) {
+            return null;
+        }
+
+        TaskDto taskDto = taskService.findById(objectId);
 
         Criteria criteria = Criteria.where("taskId").is(taskId);
         if (StringUtils.isNotBlank(param.getTaskRecordId())) {
@@ -117,9 +123,9 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
         // keyword search filter
         if (StringUtils.isNotEmpty(param.getSearch())) {
-            String search = Pattern.quote(param.getSearch());
+            String search = param.getSearch();
             criteria.orOperator(
-                    new Criteria("taskName").regex(search),
+//                    new Criteria("taskName").regex(search),
                     new Criteria("nodeName").regex(search),
                     new Criteria("message").regex(search),
                     new Criteria("dataJson").regex(search),
