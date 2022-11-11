@@ -213,7 +213,9 @@ public class ObservableAspectTask extends AspectTask {
 
 					HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(events);
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-							handler -> handler.handleStreamReadReadComplete(System.currentTimeMillis(), recorder)
+							handler -> {
+								handler.handleStreamReadReadComplete(System.currentTimeMillis(), recorder);
+							}
 					);
 					taskSampleHandler.handleStreamReadAccept(recorder);
 				});
@@ -397,7 +399,9 @@ public class ObservableAspectTask extends AspectTask {
 
 					HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapEvent(events);
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-							handler -> handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner)
+							handler -> {
+								handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner);
+							}
 					);
 					taskSampleHandler.handleWriteRecordAccept(result, events);
 					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getProcessTimeTotal() / inner.getTotal(), inner.getNewestEventTimestamp());
