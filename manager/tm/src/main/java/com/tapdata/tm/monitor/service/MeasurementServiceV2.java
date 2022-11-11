@@ -391,7 +391,8 @@ public class MeasurementServiceV2 {
                 // 全量完成时间应该是在任务中所有涉及全量的表完成后再更新全量完成时间
                 Number snapshotTableTotal = values.get("snapshotTableTotal");
                 Number tableTotal = values.get("tableTotal");
-                if (snapshotTableTotal.longValue() == 0 || snapshotTableTotal.longValue() < tableTotal.longValue()) {
+                if ((ObjectUtils.allNotNull(snapshotTableTotal, tableTotal))
+                        && (snapshotTableTotal.longValue() == 0 || snapshotTableTotal.longValue() < tableTotal.longValue())) {
                     values.put("snapshotDoneAt", null);
                 }
 
