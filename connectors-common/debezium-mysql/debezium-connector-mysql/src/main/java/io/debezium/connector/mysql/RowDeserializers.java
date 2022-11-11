@@ -7,15 +7,7 @@ package io.debezium.connector.mysql;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.Year;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.util.Calendar;
 import java.util.Map;
 
@@ -281,13 +273,13 @@ public class RowDeserializers {
         int month = value % 16; // 1-based month number
         int year = value >> 4;
         if (year == 0 || month == 0 || day == 0) {
-            return null;
+            return Integer.MIN_VALUE;
         }
         return LocalDate.of(year, month, day);
     }
 
     /**
-     * Converts a MySQL {@code TIME} value <em>without fractional seconds</em> to a {@link java.time.Duration}.
+     * Converts a MySQL {@code TIME} value <em>without fractional seconds</em> to a {@link Duration}.
      *
      * @param inputStream the binary stream containing the raw binlog event data for the value
      * @return the {@link LocalTime} object
@@ -304,11 +296,11 @@ public class RowDeserializers {
     }
 
     /**
-     * Converts a MySQL {@code TIME} value <em>with fractional seconds</em> to a {@link java.time.Duration}.
+     * Converts a MySQL {@code TIME} value <em>with fractional seconds</em> to a {@link Duration}.
      *
      * @param meta the {@code meta} value containing the fractional second precision, or {@code fsp}
      * @param inputStream the binary stream containing the raw binlog event data for the value
-     * @return the {@link java.time.Duration} object
+     * @return the {@link Duration} object
      * @throws IOException if there is an error reading from the binlog event data
      */
     protected static Serializable deserializeTimeV2(int meta, ByteArrayInputStream inputStream) throws IOException {
@@ -373,7 +365,7 @@ public class RowDeserializers {
         int seconds = split[0];
         int nanoOfSecond = 0; // This version does not support fractional seconds
         if (year == 0 || month == 0 || day == 0) {
-            return null;
+            return Long.MIN_VALUE;
         }
         return LocalDateTime.of(year, month, day, hours, minutes, seconds, nanoOfSecond);
     }
@@ -414,7 +406,7 @@ public class RowDeserializers {
         int seconds = bitSlice(datetime, 34, 6, 40);
         int nanoOfSecond = deserializeFractionalSecondsInNanos(meta, inputStream);
         if (year == 0 || month == 0 || day == 0) {
-            return null;
+            return Long.MIN_VALUE;
         }
         return LocalDateTime.of(year, month, day, hours, minutes, seconds, nanoOfSecond);
     }
@@ -447,6 +439,12 @@ public class RowDeserializers {
     protected static Serializable deserializeTimestampV2(int meta, ByteArrayInputStream inputStream) throws IOException {
         long epochSecond = bigEndianLong(inputStream.read(4), 0, 4);
         int nanoSeconds = deserializeFractionalSecondsInNanos(meta, inputStream);
+
+        // mysql timestamp can not write '1970-01-01T00:00:00Z'
+        // debezium resolves to '1970-01-01T00:00:00Z' when '0000-00-00 00:00:00' is written
+        if (0 == epochSecond && 0 == nanoSeconds) {
+            return Long.MIN_VALUE;
+        }
         return ZonedDateTime.ofInstant(Instant.ofEpochSecond(epochSecond, nanoSeconds), ZoneOffset.UTC);
     }
 

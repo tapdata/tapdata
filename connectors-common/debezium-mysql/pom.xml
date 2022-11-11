@@ -14,24 +14,6 @@
     <name>Debezium Build Aggregator</name>
     <description>Debezium is an open source change data capture platform</description>
     <packaging>pom</packaging>
-    <url>https://debezium.io</url>
-    <scm>
-        <connection>scm:git:git@github.com:debezium/debezium.git</connection>
-        <developerConnection>scm:git:git@github.com:debezium/debezium.git</developerConnection>
-        <url>https://github.com/debezium/debezium</url>
-        <tag>v1.5.4.Final</tag>
-    </scm>
-    <issueManagement>
-        <system>jira</system>
-        <url>http://issues.jboss.org/browse/DBZ</url>
-    </issueManagement>
-    <licenses>
-        <license>
-            <name>Apache Software License 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
     <properties>
         <!-- Instruct the build to use only UTF-8 encoding for source code -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
