@@ -556,24 +556,24 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			TapTable tapTable = this.dataProcessorContext.getTapTableMap().get(tableName);
 			Collection<String> updateConditionFields = tapTable.primaryKeys(true);
 			Map<String, Object> objectMap = tapDeleteRecordEvent.getBefore();
-			for (String filed : updateConditionFields) {
+			for (String field : updateConditionFields) {
 				// updateConditionField  may appear  x.x.x
-				if (filed.contains(".")) {
-					String[] updateFiled = filed.split("\\.");
+				if (field.contains(".")) {
+					String[] updateFiled = field.split("\\.");
 					if (!objectMap.containsKey(updateFiled[0]) || !(objectMap.get(updateFiled[0]) instanceof Map ||
 							objectMap.get(updateFiled[0]) instanceof TapMapValue)) {
-						obsLogger.warn("find table:" + tableName + " delete event,Because there is no association filed is : " + filed + " ,The delete event will not be updated to the target");
+						obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
 						return false;
 					}
 					TapMapValue tapMapValue = (TapMapValue) objectMap.get(updateFiled[0]);
 					for (int index = 1; index < updateFiled.length; index++) {
 						if (index != updateFiled.length - 1 && !(tapMapValue.getValue() instanceof Map ||
 								objectMap.get(updateFiled[0]) instanceof TapMapValue)) {
-							obsLogger.warn("find table:" + tableName + " delete event,Because there is no association filed is : " + filed + " ,The delete event will not be updated to the target");
+							obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
 							return false;
 						}
 						if (!tapMapValue.getValue().containsKey(updateFiled[index])) {
-							obsLogger.warn("find table:" + tableName + " delete event,Because there is no association filed is : " + filed + " ,The delete event will not be updated to the target");
+							obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
 							return false;
 						} else {
 							if (index == updateFiled.length - 1) {
@@ -582,14 +582,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 								try {
 									tapMapValue = (TapMapValue) tapMapValue.getValue().get(updateFiled[index]);
 								} catch (Exception e) {
-									obsLogger.warn("find table:" + tableName + " delete event,Because there is no association filed is : " + filed + " ,The delete event will not be updated to the target");
+									obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
 									return false;
 								}
 						}
 					}
 				} else {
-					if (!objectMap.containsKey(filed)) {
-						obsLogger.warn("find table:" + tableName + " delete event,Because there is no association filed is : " + filed + " ,The delete event will not be updated to the target");
+					if (!objectMap.containsKey(field)) {
+						obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
 						return false;
 					}
 				}
