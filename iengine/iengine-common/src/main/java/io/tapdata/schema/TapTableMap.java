@@ -286,7 +286,10 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 
 	private TapTable getTapTable(K key) {
 		EhcacheKVMap<TapTable> tapTableMap = EhcacheService.getInstance().getEhcacheKVMap(this.mapKey);
-		AtomicReference<TapTable> tapTable = new AtomicReference<>(tapTableMap.get(key));
+		AtomicReference<TapTable> tapTable = new AtomicReference<>();
+		if (tapTableMap != null) {
+			tapTable.set(tapTableMap.get(key));
+		}
 		if (null == tapTable.get()) {
 			try {
 				handleWithLock(() -> {
