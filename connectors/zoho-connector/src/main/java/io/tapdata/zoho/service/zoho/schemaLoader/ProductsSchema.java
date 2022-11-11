@@ -38,7 +38,7 @@ public class ProductsSchema extends Schema implements SchemaLoader {
         return 0;
     }
 
-    public void read(int readSize, Object offsetState, BiConsumer<List<TapEvent>, Object> consumer,boolean isBatchRead ){
+    public void read(int readSize, Object offsetState, BiConsumer<List<TapEvent>, Object> consumer,boolean isStreamRead ){
         final List<TapEvent>[] events = new List[]{new ArrayList<>()};
         int pageSize = Math.min(readSize, ProductsOpenApi.MAX_PAGE_LIMIT);
         int fromPageIndex = 1;//从第几个工单开始分页
@@ -51,18 +51,16 @@ public class ProductsSchema extends Schema implements SchemaLoader {
         String tableName =  Schemas.Products.getTableName();
         if (Checker.isEmpty(offsetState)) offsetState = ZoHoOffset.create(new HashMap<>());
         final Object offset = offsetState;
+        final String sortBy = !isStreamRead ? ProductsOpenApi.SortBy.CREATED_TIME.descSortBy(): ProductsOpenApi.SortBy.MODIFIED_TIME.descSortBy();
         while (isAlive()){
-            List<Map<String, Object>> list = productsOpenApi.page(
-                    fromPageIndex,
-                    pageSize,
-                    isBatchRead ? ProductsOpenApi.SortBy.CREATED_TIME.descSortBy(): ProductsOpenApi.SortBy.MODIFIED_TIME.descSortBy());
+            List<Map<String, Object>> list = productsOpenApi.page(fromPageIndex, pageSize, sortBy);
             if (Checker.isNotEmpty(list) && !list.isEmpty()){
                 fromPageIndex += pageSize;
                 list.stream().filter(Objects::nonNull).forEach(product->{
                     if (!isAlive()) return;
                     Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,productsOpenApi);
                     if (Checker.isNotEmpty(oneProduct) && !oneProduct.isEmpty()){
-                        Object modifiedTimeObj = oneProduct.get("modifiedTime");
+                        Object modifiedTimeObj = isStreamRead?null:oneProduct.get("modifiedTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
                         long referenceTime = System.currentTimeMillis();
                         if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
                             referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);

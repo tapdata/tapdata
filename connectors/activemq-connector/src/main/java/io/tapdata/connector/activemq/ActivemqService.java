@@ -32,6 +32,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class ActivemqService extends AbstractMqService {
@@ -159,7 +160,7 @@ public class ActivemqService extends AbstractMqService {
     }
 
     @Override
-    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, Supplier<Boolean> isAlive) throws Throwable {
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
@@ -169,6 +170,9 @@ public class ActivemqService extends AbstractMqService {
         String tableName = tapTable.getId();
         Destination destination = session.createQueue(tableName);
         for (TapRecordEvent event : tapRecordEvents) {
+            if (null != isAlive && !isAlive.get()) {
+                break;
+            }
             TextMessage textMessage = new ActiveMQTextMessage();
             MqOp mqOp = MqOp.INSERT;
             if (event instanceof TapInsertRecordEvent) {

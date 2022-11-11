@@ -73,7 +73,6 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
-import com.tapdata.tm.ws.handler.EditFlushHandler;
 import io.tapdata.common.sample.request.Sample;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -94,12 +93,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -1185,7 +1179,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return super.find(filter, userDetail);
     }
     public Page<TaskDto> find(Filter filter, UserDetail userDetail) {
-
         if (isAgentReq()) {
             return super.find(filter, userDetail);
         }
@@ -1209,9 +1202,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         //过滤调共享缓存任务
-//        HashMap<String, Object> notShareCache = new HashMap<>();
-//        notShareCache.put("$ne", true);
-//        where.put("shareCache", notShareCache);
+        HashMap<String, Object> notShareCache = new HashMap<>();
+        notShareCache.put("$ne", true);
+        where.put("shareCache", notShareCache);
 
 
         Boolean deleted = (Boolean) where.get("is_deleted");
@@ -1308,11 +1301,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private Page<TaskDto> findDataCopyList(Filter filter, UserDetail userDetail) {
         Where where = filter.getWhere();
 
-
-
         Criteria criteria = Criteria.where("is_deleted").ne(true).and("user_id").is(userDetail.getUserId());
         Criteria orToCriteria = parseOrToCriteria(where);
-
 
         // Supplementary data verification status
         Object inspectResult = where.get("inspectResult");
@@ -1339,10 +1329,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         tmPageable.setSize(filter.getLimit());
 
         String order = filter.getOrder() == null ? "createTime DESC" : String.valueOf(filter.getOrder());
+        String sortKey = order.contains("currentEventTimestamp") ? "currentEventTimestamp" : "createTime";
         if (order.contains("ASC")) {
-            tmPageable.setSort(Sort.by("createTime").ascending());
+            tmPageable.setSort(Sort.by(sortKey).ascending());
         } else {
-            tmPageable.setSort(Sort.by("createTime").descending());
+            tmPageable.setSort(Sort.by(sortKey).descending());
         }
 
         long total = repository.getMongoOperations().count(query, TaskEntity.class);
@@ -1660,7 +1651,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Criteria criteria = Criteria.where("user_id").is(user.getUserId())
                 .and("is_deleted").ne(true)
                 .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
-                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
+                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
+                //共享缓存的任务设计的有点问题
+                .and("shareCache").ne(true);
+
 
         Query query = Query.query(criteria);
         query.fields().include("syncType", "status", "statuses");
@@ -2021,8 +2015,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
                 Map<String, Object> attrs = taskDto.getAttrs();
-                attrs.remove("edgeMilestones");
-                attrs.remove("syncProgress");
+                if (attrs != null) {
+                    attrs.remove("edgeMilestones");
+                    attrs.remove("syncProgress");
+                }
                 jsonList.add(new TaskUpAndLoadDto("Task", JsonUtil.toJsonUseJackson(taskDto)));
                 DAG dag = taskDto.getDag();
                 List<Node> nodes = dag.getNodes();
@@ -2142,6 +2138,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
             query.fields().include("id");
             TaskDto one = findOne(query);
+
+            Map<String, Object> attrs = taskDto.getAttrs();
+            if (attrs != null) {
+                attrs.remove("edgeMilestones");
+                attrs.remove("syncProgress");
+            }
+
             if (one == null || cover) {
                 ObjectId objectId = null;
                 if (one != null) {
@@ -2604,7 +2607,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
-        monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getAvailable(), user);
         if (StringUtils.isBlank(taskDto.getAgentId())) {
             log.warn("No available agent found, task name = {}", taskDto.getName());
             Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
@@ -2612,9 +2614,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             throw new BizException("Task.AgentNotFound");
         }
 
+        Date now = new Date();
+        monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getAvailable(), user, now);
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
-        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId()).set("last_updated", new Date());
+        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN)
+                .set("agentId", taskDto.getAgentId())
+                .set("monitorStartDate", now)
+                .set("last_updated", now);
         boolean needCreateRecord = false;
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             taskDto.setTaskRecordId(new ObjectId().toHexString());
@@ -2648,7 +2655,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (needCreateRecord) {
             TaskEntity taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
-            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), now));
         } else {
             updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
         }
@@ -3375,7 +3382,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         List<MeasurementEntity>  allMeasurements = new ArrayList<>();
         ids.parallelStream().forEach(id -> {
-            MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id, user);
+            MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
             if (measurement != null) {
                 allMeasurements.add(measurement);
             }
