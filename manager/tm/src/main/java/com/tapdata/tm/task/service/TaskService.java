@@ -106,10 +106,6 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -3558,7 +3554,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         List<MeasurementEntity>  allMeasurements = new ArrayList<>();
         ids.parallelStream().forEach(id -> {
-            MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id, user);
+            MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
             if (measurement != null) {
                 allMeasurements.add(measurement);
             }
