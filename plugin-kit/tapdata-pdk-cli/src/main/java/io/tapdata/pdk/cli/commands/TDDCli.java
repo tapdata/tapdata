@@ -102,7 +102,11 @@ public class TDDCli extends CommonCli {
         TapNodeInfo tapNodeInfo;
         TestExecutionSummary summary;
         List<Class<?>> testClasses = new ArrayList<>();
-        public Map<Class, CapabilitiesExecutionMsg> capabilitiesResult = new HashMap<>();
+        public static Map<Class, CapabilitiesExecutionMsg> capabilitiesResult = new HashMap<>();
+        Map<Class,String> doNotSupportFunTest = new HashMap<>();
+//        public static Map<Class, CapabilitiesExecutionMsg> capabilitiesResult(){
+//            return TapSummary.capabilitiesResult;
+//        }
     }
 
     private void runTests(LauncherDiscoveryRequest request, TapSummary testResultSummary) {
@@ -119,7 +123,7 @@ public class TDDCli extends CommonCli {
         TDDPrintf.create().showCapabilities(nodeInfo());
 
         //TODO Run PDK method tests
-
+        TDDPrintf.create().showError(testResultSummary,file.getName());
 //        if(summary.getTestsFailedCount() > 0) {
 //            System.out.println("*****************************************************TDD Results*****************************************************");
 //            System.out.println("-------------PDK id '" + testResultSummary.tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + testResultSummary.tapNodeInfo.getNodeClass().getName() + "'-------------\n");
@@ -269,7 +273,7 @@ public class TDDCli extends CommonCli {
             }
         }
 
-        TDDPrintf.create(testResultSummaries).defaultShow();
+        //TDDPrintf.create(testResultSummaries).defaultShow();
         System.out.println("Congratulations! PDK " + jarFile + " has passed all tests!");
         System.exit(0);
     }
@@ -316,12 +320,14 @@ public class TDDCli extends CommonCli {
                     try {
                         if(!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
                             allFound = false;
+                            testResultSummary.doNotSupportFunTest.put(testClass,"Do not support ["+supportFunction.getFunction().getSimpleName()+"] cause test not execution.");
                             //@TODO 未实现的Function导致测试用例未执行
                             break;
                         }
                     } catch (NoSuchMethodException e) {
                         e.printStackTrace();
                         allFound = false;
+                        testResultSummary.doNotSupportFunTest.put(testClass,"Do not support ["+supportFunction.getFunction().getSimpleName()+"] cause test not execution.");
                         //@TODO 未实现的Function导致测试用例未执行
                         break;
                     }

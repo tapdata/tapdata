@@ -9,7 +9,7 @@ public class CapabilitiesExecutionMsg {
     public static final int SUCCEED = 1;
     int executionTimes = 0;
     String executionMsg;
-    List<Map<String,Object>> executionHistory = new ArrayList<>();
+    List<History> executionHistory = new ArrayList<>();
     int executionResult = SUCCEED;
 
     public static CapabilitiesExecutionMsg create(){
@@ -27,8 +27,8 @@ public class CapabilitiesExecutionMsg {
         this.executionMsg = executionMsg;
         return this;
     }
-    public CapabilitiesExecutionMsg addHistory(Map<String,Object> history){
-        if (!history.isEmpty()) {
+    public CapabilitiesExecutionMsg addHistory(History history){
+        if (null!=history) {
             this.executionHistory.add(history);
         }
         return this;
@@ -47,10 +47,12 @@ public class CapabilitiesExecutionMsg {
     public int executionResult(){
         return this.executionResult;
     }
-    public List<Map<String,Object>> history(){
+    public List<History> history(){
         return this.executionHistory;
     }
     public int executionTimes(){
         return this.executionTimes;
     }
+
+
 }

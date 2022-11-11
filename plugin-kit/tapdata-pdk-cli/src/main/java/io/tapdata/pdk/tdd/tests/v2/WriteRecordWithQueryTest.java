@@ -14,6 +14,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.cli.commands.TDDCli;
 import io.tapdata.pdk.cli.entity.DAGDescriber;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -26,6 +27,7 @@ import io.tapdata.pdk.core.workflow.engine.TapDAGNodeEx;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.target.DMLTest;
+import org.checkerframework.checker.units.qual.A;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -203,23 +205,30 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
         RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this).builderRecord(record);
 
 
-        recordEventExecute.insert();
+        recordEventExecute.insert(this.getClass());
         queryByAdvanceFilterFunction.query(
                 targetNode.getConnectorContext(),
                 TapAdvanceFilter.create().op(QueryOperator.lte("id", 111111)).op(QueryOperator.gte("id", 111111)),
                 targetTable,
                 filterResults -> $(() -> {
-                    Assertions.assertNotNull(filterResults, "Query results should be not null");
-                    Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null");
-//                    TapAssert.warnAssert().assertTrues(objectIsEqual(
-//                            filterResults.getResults(),
-//                            Collections.singletonList(record)),
-//                            "insert record not succeed.");
+                    TapAssert.asserts(
+                            ()->Assertions.assertNotNull(filterResults, "Query results should be not null")
+                    ).acceptAsError(this.getClass(),"Succeed query by advance when insert record,the filter Results not null.");
+                    TapAssert.asserts(
+                            ()->Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null")
+                    ).acceptAsError(this.getClass(),"Succeed query by advance when insert record,the filter Results not empty results.");
+                    TapAssert.asserts(
+                            ()-> Assertions.assertTrue(objectIsEqual(
+                                filterResults.getResults(),
+                                Collections.singletonList(record)),
+                                "insert record not succeed.")
+                    ).acceptAsWarn(this.getClass(),"Succeed insert record ,and the inserted record was compared successfully ");
+//
                 })
         );
 
         record.builder("name","Gavin pro").builder("text","Gavin pro max.");
-        recordEventExecute.update();
+        recordEventExecute.update(this.getClass());
 //        queryByAdvanceFilterFunction.query(
 //                targetNode.getConnectorContext(),
 //                TapAdvanceFilter.create().match(DataMap.create().kv("id", 111111).kv("name","Gavin pro").kv("text","Gavin pro max.")),
@@ -246,7 +255,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 .builderRecord(records);
 
         //recordEventExecute.createTable();
-        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
+        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert(this.getClass());
         for (Record record : records) {
             record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
         }
@@ -255,7 +264,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
         DataMap nodeConfig = targetNode.getConnectorContext().getNodeConfig();
 
         nodeConfig.kv(insertPolicy,"update_on_exists");
-        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert();
+        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert(this.getClass());
         Assertions.assertNotEquals(
                 insert.getInsertedCount(),
                 insertAfter.getModifiedCount() + insertAfter.getInsertedCount(),
@@ -264,6 +273,13 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                         insert.getInsertedCount()+" records of the same primary key, the echo result is inserted "+
                         insertAfter.getInsertedCount()+", and the second time you update "+
                         insertAfter.getModifiedCount()+" record. The operation fails because of inconsistencies.");
+
+        TapAssert.asserts(()->Assertions.assertNotEquals(
+                insert.getInsertedCount(),
+                insertAfter.getModifiedCount(),
+                insertPolicy + " - update_on_exists | After inserting ten pieces of data, insert another record with the same primary key but different contents, and display the result. Insert " +
+                        insertAfter.getInsertedCount() + ", insert another, and update " +
+                        insertAfter.getModifiedCount() + ". Poor observability")).acceptAsWarn(this.getClass(),"");
         //@TODO Wran
         Assertions.assertNotEquals(
                 insert.getInsertedCount(),
@@ -274,7 +290,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
 
 
         nodeConfig.kv(insertPolicy,"ignore_on_exists");
-        WriteListResult<TapRecordEvent> insertAfter2 = recordEventExecute.insert();
+        WriteListResult<TapRecordEvent> insertAfter2 = recordEventExecute.insert(this.getClass());
         Assertions.assertFalse(
                 0 == insertAfter2.getModifiedCount() && 0 == insertAfter2.getInsertedCount(),
                 insertPolicy+" - ignore_on_exists | In node config ,your choises is xxx,so the update count must be zero,but not zero now");
@@ -286,11 +302,11 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 .builderRecord(records);
 
         //recordEventExecute.createTable();
-        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
+        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert(this.getClass());
         for (Record record : records) {
             record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
         }
-        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert();
+        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert(this.getClass());
 
         Assertions.assertNotEquals(
                 insert.getInsertedCount(),
@@ -324,11 +340,11 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 .builderRecord(records);
 
         //recordEventExecute.createTable();
-        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
+        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert(this.getClass());
         for (Record record : records) {
             record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
         }
-        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert();
+        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert(this.getClass());
 
         Assertions.assertNotEquals(
                 insert.getInsertedCount(),

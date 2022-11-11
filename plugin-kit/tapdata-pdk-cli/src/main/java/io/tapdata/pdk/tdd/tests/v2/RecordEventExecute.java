@@ -13,6 +13,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
+import org.checkerframework.checker.units.qual.A;
 import org.junit.jupiter.api.Assertions;
 
 import java.util.*;
@@ -54,7 +55,7 @@ public class RecordEventExecute {
         return this;
     }
 
-    public WriteListResult<TapRecordEvent> insert() throws Throwable {
+    public WriteListResult<TapRecordEvent> insert(Class cla) throws Throwable {
         List<TapRecordEvent> tapInsertRecordEvents = new ArrayList<>();
         records.forEach(record -> {
             TapInsertRecordEvent insertRecordEvent = new TapInsertRecordEvent().table(targetTable.getId());
@@ -68,19 +69,22 @@ public class RecordEventExecute {
                 tapInsertRecordEvents,
                 targetTable,
                 consumer -> {
-                    base.$(() -> TapAssert.warnAssert().assertEquals(
+                    base.$(() ->
+                            TapAssert.asserts(()->
+                                Assertions.assertEquals(
                                         tapInsertRecordEvents.size(),
                                         consumer.getInsertedCount(),
                                         "Error insert " + tapInsertRecordEvents.size() + " record into mongodb.")
+                            ).acceptAsError(cla,"Succeed insert " + tapInsertRecordEvents.size() + " record into mongodb.")
                     );
                     consumerBack.set(consumer);
-                    //this.dropTable();
+                    this.dropTable(cla);
                 }
         );
         return consumerBack.get();
     }
 
-    public WriteListResult<TapRecordEvent> update() throws Throwable {
+    public WriteListResult<TapRecordEvent> update(Class cla) throws Throwable {
         List<TapRecordEvent> tapUpdateRecordEvents = new ArrayList<>();
         records.forEach(record -> {
             TapUpdateRecordEvent updateRecordEvent = new TapUpdateRecordEvent().table(targetTable.getId());
@@ -94,19 +98,20 @@ public class RecordEventExecute {
                 tapUpdateRecordEvents,
                 targetTable,
                 consumer -> {
-                    base.$(() -> TapAssert.warnAssert().assertEquals(
-                            tapUpdateRecordEvents.size(),
-                            consumer.getModifiedCount(),
-                            "Error update "+tapUpdateRecordEvents.size()+" record on mongodb.")
+                    base.$(() -> TapAssert.asserts(()->Assertions.assertEquals(
+                                tapUpdateRecordEvents.size(),
+                                consumer.getModifiedCount(),
+                                "Error update "+tapUpdateRecordEvents.size()+" record on mongodb.")
+                            ).acceptAsError(cla,"Succeed update "+tapUpdateRecordEvents.size()+" record on mongodb.")
                     );
                     consumerBack.set(consumer);
-                    //this.dropTable();
+                    this.dropTable(cla);
                 }
         );
         return consumerBack.get();
     }
 
-    public WriteListResult<TapRecordEvent> delete() throws Throwable {
+    public WriteListResult<TapRecordEvent> delete(Class cla) throws Throwable {
         List<TapRecordEvent> tapDeleteRecordEvents = new ArrayList<>();
         records.forEach(record -> {
             TapDeleteRecordEvent deleteRecordEvent = new TapDeleteRecordEvent().table(targetTable.getId());
@@ -120,13 +125,14 @@ public class RecordEventExecute {
                 tapDeleteRecordEvents,
                 targetTable,
                 consumer -> {
-                    base.$(() -> TapAssert.warnAssert().assertEquals(
+                    base.$(() -> TapAssert.asserts(()->Assertions.assertEquals(
                             tapDeleteRecordEvents.size(),
                             consumer.getRemovedCount(),
                             "Error delete "+tapDeleteRecordEvents.size()+" record on mongodb.")
+                            ).acceptAsError(cla,"Succeed delete "+tapDeleteRecordEvents.size()+" record on mongodb.")
                     );
                     consumerBack.set(consumer);
-                    //this.dropTable();
+                    this.dropTable(cla);
                 }
         );
         return consumerBack.get();
@@ -150,13 +156,19 @@ public class RecordEventExecute {
         return Boolean.FALSE;
     }
 
-    public void dropTable(){
-        Assertions.assertDoesNotThrow(this::drop,"Drop table function error ,please check your implement method.");
+    public void dropTable(Class cla) {
+        try {
+            boolean drop = drop(cla);
+        }catch (Throwable e){
+
+        }
     }
 
-    private boolean drop() throws Throwable {
+    private boolean drop(Class cla) throws Throwable {
         DropTableFunction dropTableFunction = connectorFunctions.getDropTableFunction();
-        Assertions.assertNotNull(dropTableFunction,"Please implement the function named DropTable Function .");
+        TapAssert.asserts(
+                ()->Assertions.assertNotNull(dropTableFunction,"Please implement the function named DropTable Function .")
+        ).acceptAsError(cla,String.format("Succeed drop table which name is %s.",targetTable.getId()));
         TapDropTableEvent dropTableEvent = new TapDropTableEvent();
         dropTableEvent.setTableId(targetTable.getId());
         dropTableEvent.setReferenceTime(System.currentTimeMillis());

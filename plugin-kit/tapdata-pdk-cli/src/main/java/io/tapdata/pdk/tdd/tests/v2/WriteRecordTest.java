@@ -142,21 +142,21 @@ public class WriteRecordTest extends PDKTestBase {
 
         //boolean table = recordEventExecute.createTable();
 
-        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
+        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert(this.getClass());
         insertRecord = insert.getInsertedCount();
         updateRecordNeed = 0;
         for (Record record : records) {
             record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
             updateRecordNeed++;
         }
-        WriteListResult<TapRecordEvent> update = recordEventExecute.update();
+        WriteListResult<TapRecordEvent> update = recordEventExecute.update(this.getClass());
         updateRecord = update.getModifiedCount();
 
         deleteRecordNeed = insertRecordNeed;
-        WriteListResult<TapRecordEvent> delete = recordEventExecute.delete();
+        WriteListResult<TapRecordEvent> delete = recordEventExecute.delete(this.getClass());
         deleteRecord = delete.getRemovedCount();
 
-        recordEventExecute.dropTable();
+        recordEventExecute.dropTable(this.getClass());
     }
 
     private void initConnectorFunctions() {
@@ -167,7 +167,7 @@ public class WriteRecordTest extends PDKTestBase {
     public static List<SupportFunction> testFunctions() {
         List<SupportFunction> supportFunctions = Arrays.asList(
                 support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
-//                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
+                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
                 support(DropTableFunction.class, "Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
                 //support(QueryByAdvanceFilterFunction.class, "QueryByAdvanceFilterFunction is a must for database which is schema free to sample some record to generate the field data types.")
                 //support(DropTableFunction.class, "DropTable is needed for TDD to drop the table created by tests, please implement it in registerCapabilities method.")

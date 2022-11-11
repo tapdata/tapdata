@@ -9,10 +9,17 @@ import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
+import io.tapdata.pdk.tdd.tests.v2.CapabilitiesExecutionMsg;
+import io.tapdata.pdk.tdd.tests.v2.History;
+import org.junit.platform.launcher.listeners.TestExecutionSummary;
 
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class TDDPrintf {
     List<TDDCli.TapSummary> summarys;
@@ -55,6 +62,73 @@ public class TDDPrintf {
         }
         System.out.println("*****************************************************TDD Results*****************************************************");
     }
+
+    public void showError(TDDCli.TapSummary summary,String fileName){
+        TestExecutionSummary executionSummary = summary.summary;
+        Map<Class, CapabilitiesExecutionMsg> result = summary.capabilitiesResult;
+        if(executionSummary.getTestsFailedCount() > 0) {
+            StringBuilder builder = new StringBuilder();
+            builder.append("*****************************************************TDD Results*****************************************************\n")
+                    .append("-------------PDK id '")
+                    .append(summary.tapNodeInfo.getTapNodeSpecification().getId())
+                    .append("' class '")
+                    .append(summary.tapNodeInfo.getNodeClass().getName())
+                    .append("'-------------\n");
+
+            if (null != summary.doNotSupportFunTest && !summary.doNotSupportFunTest.isEmpty()){
+                summary.doNotSupportFunTest.forEach(((aClass, s) -> {
+                    builder.append(aClass.getSimpleName()).append("=======>Error to test\n")
+                            .append("\t\t").append(s).append("\n");
+                }));
+            }
+
+            builder.append("\n");
+
+            result.forEach((cla,res)->{
+                builder.append(cla.getSimpleName()).append("=======>")
+                        .append(res.executionResult() == CapabilitiesExecutionMsg.ERROR?"Test error":"Test succeed")
+                        .append("(");
+                List<History> history = res.history();
+                Map<String, List<History>> collect = history.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(History::tag));
+                if (null == collect || collect.isEmpty()) return;
+                List<History> warnHistory = collect.get(History.WARN);
+                List<History> errorHistory = collect.get(History.ERROR);
+                int warnSize = null==warnHistory?0:warnHistory.size();
+                int errorSize = null==errorHistory?0:errorHistory.size();
+                builder.append("succeed: ").append(res.executionTimes()-warnSize-errorSize)
+                        .append(",warn: ").append(warnSize)
+                        .append(",error: ").append(errorSize)
+                        .append(")");
+
+                if (res.executionResult() != CapabilitiesExecutionMsg.ERROR && null != warnHistory && !warnHistory.isEmpty()){
+                    builder.append(", but have ")
+                            .append(warnHistory.size())
+                            .append(" warn.");
+                }
+                builder.append(".\n");
+                AtomicInteger index = new AtomicInteger(1);
+                collect.forEach((tag,his)->{
+                    builder.append("\t\t").append(index.getAndIncrement()).append(") Test of ").append(tag).append(":\n");
+                    for (int i = 0; i < his.size(); i++) {
+                        builder.append("\t\t\t[")
+                                .append(
+                                        History.SUCCEED.equals(tag)? "✓":
+                                        (History.ERROR.equals(tag)? "✗":
+                                        (History.WARN.equals(tag)? "！":"？")))
+                                .append("].").append(his.get(i).message()).append("\n");
+                    }
+                });
+            });
+
+            builder.append("\n\n(╳) Oops, PDK ")
+                    .append(fileName)
+                    .append(" didn't pass all tests, please resolve above issue(s) and try again.\n\n");
+
+            System.out.print(builder.toString());
+            System.exit(0);
+        }
+    }
+
     public void tddShow(){
         StringBuilder builder = new StringBuilder("TDD Result==========>");
         for(TDDCli.TapSummary testSummary : summarys) {
