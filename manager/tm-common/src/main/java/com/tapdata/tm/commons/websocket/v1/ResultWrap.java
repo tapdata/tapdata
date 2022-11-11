@@ -5,8 +5,6 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
-import java.util.Date;
-
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
  * create at 2022/4/16 上午11:31

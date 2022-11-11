@@ -11,7 +11,6 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.JSONValidator;
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -47,7 +46,6 @@ public class PipeHandler implements WebSocketHandler {
 	private final MessageQueueService queueService;
 	private final DataSourceService dataSourceService;
 	private TaskDagCheckLogService taskDagCheckLogService;
-	private AlarmService alarmService;
 
 	public PipeHandler(MessageQueueService queueService, DataSourceService dataSourceService) {
 		this.queueService = queueService;
@@ -73,10 +71,6 @@ public class PipeHandler implements WebSocketHandler {
 						String taskId = extParam.getString("taskId");
 						String templateEnum = extParam.getString("templateEnum");
 						String userId = extParam.getString("userId");
-						String nodeName = extParam.getString("nodeName");
-						String connectId = extParam.getString("connectId");
-						JSONArray taskIds = extParam.getJSONArray("taskIds");
-						boolean alarmCheck = (Boolean) extParam.getOrDefault("alarmCheck", false);
 
 						if (StringUtils.isNotBlank(templateEnum)) {
 							JSONObject responseBody = jsonObject.getJSONObject("response_body");
@@ -85,14 +79,8 @@ public class PipeHandler implements WebSocketHandler {
 							Level grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ? Level.INFO : Level.ERROR;
 
 							String response_body = jsonObject.getJSONObject("response_body").toJSONString();
-							if (!alarmCheck) {
-								taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
-										true, true, DateUtil.now(), response_body);
-							} else if (grade == Level.ERROR) {
-								alarmService.connectFailAlarm(taskIds, nodeName, connectId, response_body);
-							} else {
-								alarmService.connectPassAlarm(taskIds, nodeName, connectId, response_body);
-							}
+							taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
+									true, true, DateUtil.now(), response_body);
 						}
 					}
 				}

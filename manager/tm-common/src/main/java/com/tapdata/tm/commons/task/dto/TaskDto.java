@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -121,6 +122,9 @@ public class TaskDto extends ParentTaskDto {
 
     private Long currentEventTimestamp;
     private Long snapshotDoneAt;
+
+    private Long scheduleDate;
+    private Date monitorStartDate;
 
     public DAG getDag() {
         if (dag != null) {

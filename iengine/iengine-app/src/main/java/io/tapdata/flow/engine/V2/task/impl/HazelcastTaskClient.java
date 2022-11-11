@@ -13,7 +13,7 @@ import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.task.TaskClient;
-import io.tapdata.milestone.MilestoneService;
+import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,7 +50,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 			try {
-				this.monitorManager.startMonitor(MonitorManager.MonitorType.SUBTASK_PING_TIME, taskDto, clientMongoOperator);
+				this.monitorManager.startMonitor(MonitorManager.MonitorType.SUBTASK_PING_TIME, taskDto, clientMongoOperator, new SupplierImpl<>(this::stop));
 			} catch (Exception e) {
 				logger.warn("The task ping time monitor failed to start, which may affect the ping time functionality; Error: "
 						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));

@@ -62,6 +62,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -308,6 +309,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 
+	private int bucketIndex = 0;
+
 	protected boolean offer(TapdataEvent dataEvent) {
 
 		if (dataEvent != null) {
@@ -315,21 +318,21 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				dataEvent.addNodeId(processorBaseContext.getNode().getId());
 			}
 			Outbox outbox = getOutbox();
-			if (null == outbox) {
-				return true;
-			}
-			final int bucketCount = outbox.bucketCount();
-			if (bucketCount > 1) {
-				for (int ordinal = 0; ordinal < bucketCount; ordinal++) {
-					final TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
-					if (!tryEmit(ordinal, cloneEvent)) {
-						return false;
+			if (null != outbox) {
+				final int bucketCount = outbox.bucketCount();
+				if (bucketCount > 1) {
+					for (bucketIndex = Math.min(bucketIndex, bucketCount); bucketIndex < bucketCount; bucketIndex++) {
+						final TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
+						if (!tryEmit(bucketIndex, cloneEvent)) {
+							return false;
+						}
 					}
+				} else if (!tryEmit(dataEvent)) {
+					return false;
 				}
-			} else {
-				return tryEmit(dataEvent);
 			}
 		}
+		bucketIndex = 0; // reset to 0 of return true
 		return true;
 	}
 
@@ -844,5 +847,21 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		public Map<String, TapValue<?, ?>> getAfter() {
 			return after;
 		}
+	}
+
+	@Nullable
+	protected JobStatus getJetJobStatus() {
+		long jobId = jetContext.jobId();
+		com.hazelcast.jet.Job job = jetContext.hazelcastInstance().getJet().getJob(jobId);
+		if (null != job) {
+			return job.getStatus();
+		} else {
+			return null;
+		}
+	}
+
+	protected boolean isJetJobRunning() {
+		JobStatus jetJobStatus = getJetJobStatus();
+		return null == jetJobStatus || jetJobStatus.equals(JobStatus.RUNNING);
 	}
 }

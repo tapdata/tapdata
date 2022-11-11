@@ -1,6 +1,8 @@
 package com.tapdata.tm.schedule;
 
 import cn.hutool.core.util.RandomUtil;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -21,10 +23,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -46,9 +45,10 @@ public class TaskRestartSchedule {
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
      */
-    @Scheduled(fixedDelay = 10 * 1000)
+    @Scheduled(fixedDelay = 60 * 1000)
     @SchedulerLock(name ="restartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void restartTask() {
+        Thread.currentThread().setName("taskSchedule-restartTask");
         //查询到所有需要重启的任务
         Criteria criteria = Criteria.where("restartFlag").is(true).and("status").is(TaskDto.STATUS_STOP);
         Query query = new Query(criteria);
@@ -68,22 +68,17 @@ public class TaskRestartSchedule {
     @Scheduled(initialDelay = 10 * 1000, fixedDelay = 60 * 1000)
     @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
-        Thread.currentThread().setName(Thread.currentThread().getName() + "-engineRestartNeedStartTask");
+        Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
         //云版不需要这个重新调度的逻辑
-        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+        Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
         if (Objects.isNull(buildProfile)) {
             buildProfile = "DAAS";
         }
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
-        long heartExpire;
-        Settings settings = settingsService.findAll().stream().filter(k -> "jobHeartTimeout".equals(k.getKey())).findFirst().orElse(null);
-        if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
-            heartExpire = Long.parseLong(settings.getValue().toString());
-        } else {
-            heartExpire = 300000;
-        }
+        long heartExpire = getHeartExpire();
 
-        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_RUNNING).and("pingTime").lt(System.currentTimeMillis() - heartExpire);
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_RUNNING)
+                .and("pingTime").lt(System.currentTimeMillis() - heartExpire);
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -108,6 +103,17 @@ public class TaskRestartSchedule {
         });
     }
 
+    private long getHeartExpire() {
+        long heartExpire;
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.JOB_HEART_TIMEOUT);
+        if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
+            heartExpire = Long.parseLong(settings.getValue().toString());
+        } else {
+            heartExpire = 300000;
+        }
+        return heartExpire;
+    }
+
 
     /**
      * 对于少量因为tm线程终止导致的任务一直启动中（页面的直观显示），也就是调度中状态。做一些定时任务补救措施
@@ -115,14 +121,26 @@ public class TaskRestartSchedule {
     @Scheduled(fixedDelay = 30 * 1000)
     @SchedulerLock(name ="schedulingTask_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void schedulingTask() {
-        long heartExpire = 60000;
+        Thread.currentThread().setName("taskSchedule-schedulingTask");
+        long heartExpire = getHeartExpire();
 
-        Criteria criteria = Criteria.where("status").in(TaskDto.STATUS_WAIT_RUN, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_SCHEDULE_FAILED)
+        Criteria criteria = Criteria.where("status").in(TaskDto.STATUS_WAIT_RUN, TaskDto.STATUS_SCHEDULING)
                 .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
             return;
+        }
+
+        Iterator<TaskDto> iterator = all.iterator();
+
+        Long now = System.currentTimeMillis();
+        while (iterator.hasNext()) {
+            TaskDto next = iterator.next();
+            if (Objects.nonNull(next.getScheduleDate()) && (now - next.getScheduleDate() > heartExpire)) {
+                taskService.updateStatus(next.getId(), TaskDto.STATUS_SCHEDULE_FAILED);
+                iterator.remove();
+            }
         }
 
         List<String> userIds = all.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());

@@ -161,6 +161,8 @@ public class TaskEntity extends BaseEntity {
     private Date startTime;
     private Long lastStartDate;
     private Date stopTime;
+    private Long scheduleDate;
+    private Date monitorStartDate;
 
     private HashSet<String> heartbeatTasks;
 
@@ -183,7 +185,7 @@ public class TaskEntity extends BaseEntity {
     private Date errorTime;
     private Date pausedTime;
     private Date finishTime;
-    private Date pingTime;
+    private Long pingTime;
 
     //需要重启标识
     private Boolean restartFlag;
@@ -216,7 +218,6 @@ public class TaskEntity extends BaseEntity {
 
     private Long currentEventTimestamp;
     private Long snapshotDoneAt;
-
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

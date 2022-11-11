@@ -13,6 +13,7 @@ import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
@@ -82,6 +83,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
@@ -91,7 +93,10 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -107,27 +112,44 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
  */
 @Service
 @Slf4j
-@Setter(onMethod_ = {@Autowired})
+//@Setter(onMethod_ = {@Autowired})
 public class DataSourceService extends BaseService<DataSourceConnectionDto, DataSourceEntity, ObjectId, DataSourceRepository> {
 
 	private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])([a-zA-Z0-9_\\s-]|[\u4e00-\u9fa5])*$";
-
-    private ClassificationService classificationService;
-    private MetadataInstancesService metadataInstancesService;
-    private WorkerService workerService;
-    private MetadataUtil metadataUtil;
-    private JobService jobService;
-    private DataFlowService dataFlowService;
-    private TaskService taskService;
-    private MessageQueueService messageQueueService;
-    @Autowired
-    private TypeMappingsService typeMappingsService;
-    private ModulesService modulesService;
-    private LibSupportedsRepository libSupportedsRepository;
-    private SettingsService settingsService;
+	@Value("${gateway.secret:}")
+	private String gatewaySecret;
+	@Autowired
+	private SettingsService settingsService;
+	private Boolean isCloud = null;
+	private final Object checkCloudLock = new Object();
+	@Autowired
+	private ClassificationService classificationService;
+	@Autowired
+	private MetadataInstancesService metadataInstancesService;
+	@Autowired
+	private WorkerService workerService;
+	@Autowired
+	private MetadataUtil metadataUtil;
+	@Autowired
+	private JobService jobService;
+	@Autowired
+	private DataFlowService dataFlowService;
+	@Autowired
+	private TaskService taskService;
+	@Autowired
+	private MessageQueueService messageQueueService;
+	@Autowired
+	private ModulesService modulesService;
+	@Autowired
+	private LibSupportedsRepository libSupportedsRepository;
+	@Autowired
 	private DataSourceDefinitionService dataSourceDefinitionService;
-
+	@Autowired
 	private DefaultDataDirectoryService defaultDataDirectoryService;
+	@Autowired
+	private AlarmService alarmService;
+	@Autowired
+	private TypeMappingsService typeMappingsService;
 
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
@@ -772,16 +794,32 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					Object keyObjOfCopyConnectionConfig = config.get(key);
 					if (null == keyObjOfCopyConnectionConfig) continue;
 					String keyValue = String.valueOf(keyObjOfCopyConnectionConfig);
-					if (null == keyValue || !keyValue.contains("/api/proxy/callback/")) {
+					URL url = null;
+					try {
+						url = new URL(keyValue);
+					} catch (Throwable ignored) {
+					}
+					if (null == keyValue || !keyValue.contains("/api/proxy/callback/") || url == null) {
 						config.put(key, "");
 					} else {
-						int lastCharIndex = keyValue.lastIndexOf('/') + 1;
-						int lenOfToken = keyValue.length();
+//						int lastCharIndex = keyValue.lastIndexOf('/') + 1;
+//						int lenOfToken = keyValue.length();
 						SubscribeDto subscribeDto = new SubscribeDto();
 						subscribeDto.setExpireSeconds(Integer.MAX_VALUE);
 						subscribeDto.setSubscribeId("source#" + entityId);
-						SubscribeResponseDto subscribeResponseDto = ProxyService.create().generateSubscriptionToken(subscribeDto, user);
-						String webHookUrl = keyValue.substring(0, Math.min(lastCharIndex, lenOfToken)) + subscribeResponseDto.getToken();
+
+						ProxyService proxyService = InstanceFactory.bean(ProxyService.class);
+
+						checkIsCloudOrNot();
+						String token = null;
+						if(isCloud) {
+							if(!StringUtils.isBlank(gatewaySecret))
+								token = proxyService.generateStaticToken(user.getUserId(), gatewaySecret);
+							else
+								throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
+						}
+						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, user, token);
+						String webHookUrl = url.getProtocol() + "://" + url.getHost() + (url.getPort() > 0 ? (":" + url.getPort()) : "") + subscribeResponseDto.getToken();
 						config.put(key, webHookUrl);
 
 						repository.update(new Query(Criteria.where("_id").is(entityId)),entity);
@@ -789,7 +827,19 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 			}
 	}
-
+	private void checkIsCloudOrNot() {
+		if(isCloud == null) {
+			synchronized (checkCloudLock) {
+				if(isCloud == null) {
+					Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+					if (Objects.isNull(buildProfile)) {
+						buildProfile = "DAAS";
+					}
+					isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+				}
+			}
+		}
+	}
 	/**
 	 * mongodb这种类型数据源类型的，存在库里面的就是一个uri,需要解析成为一个标准模式的返回
 	 *
@@ -1443,8 +1493,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					datasourceUpdate.set("testTime", System.currentTimeMillis());
 					if (DataSourceEntity.STATUS_READY.equals(status.toString())) {
 						datasourceUpdate.set("testCount", 0);
+						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), true));
 					} else {
 						datasourceUpdate.inc("testCount", 1);
+						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), false));
 					}
 				}
 				return repository.update(query, datasourceUpdate, user).getModifiedCount();

@@ -31,6 +31,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.ThrowableUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -38,6 +39,7 @@ import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.executor.ExecutorsManager;
 import io.tapdata.common.sample.request.Sample;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -56,6 +58,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskAlarmScheduler {
 
@@ -70,9 +73,11 @@ public class TaskAlarmScheduler {
     private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
 
 
-    @Scheduled(initialDelay = 5000, fixedDelay = 30*60*1000)
+    @Scheduled(cron = "0 0/30 * * * ?")
     @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
-    public void taskDataNodeConnectAlarm() {
+    public void taskDataNodeConnectAlarm() throws InterruptedException {
+        Thread.currentThread().setName("taskSchedule-taskDataNodeConnectAlarm");
+
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
                 .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
                 .and("is_deleted").is(false));
@@ -106,7 +111,6 @@ public class TaskAlarmScheduler {
 
         Query connectQuery = new Query(Criteria.where("_id").in(connectionIds));
         connectQuery.with(Sort.by("testTime"));
-        connectQuery.limit(5);
         List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAll(connectQuery);
         if (CollectionUtils.isEmpty(connectionDtos)) {
             return;
@@ -117,24 +121,20 @@ public class TaskAlarmScheduler {
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
-            String key = connectionDto.getId().toHexString();
+            try {
+                dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(connectionDto.getUserId()));
+            }catch (Exception e) {
+                log.error("taskDataNodeConnectAlarm sendTestConnection error:" + ThrowableUtils.getStackTraceByPn(e));
+            }
 
-            Map<String, Object> extParam = Maps.newHashMap();
-            extParam.put("nodeName", connectionDto.getName());
-            extParam.put("connectId", key);
-            extParam.put("templateEnum", AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT);
-            extParam.put("alarmCheck", true);
-            extParam.put("taskIds", taskMap.get(key));
-            connectionDto.setExtParam(extParam);
-
-            dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(connectionDto.getUserId()));
+            Thread.sleep(1000L);
         }
 
     }
 
 
-    //@Scheduled(initialDelay = 5000, fixedDelay = 5*60*1000)
-    //@SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    @Scheduled(cron = "0 0/5 * * * ? ")
+    @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
         Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
         if (Objects.isNull(buildProfile)) {
@@ -218,7 +218,7 @@ public class TaskAlarmScheduler {
         }
     }
 
-    @Scheduled(initialDelay = 5000, fixedRate = 30000)
+    @Scheduled(cron = "0 0/1 * * * ? ")
     @SchedulerLock(name ="task_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAlarm() {
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)

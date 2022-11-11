@@ -222,7 +222,9 @@ public class TaskSampleHandler extends AbstractHandler {
         currentSnapshotTable = table;
         currentSnapshotTableInsertRowTotal = 0L;
         if (firstBatchRead.get()) {
-            snapshotTableTotal.reset();
+            if (Objects.nonNull(snapshotTableTotal)) {
+                snapshotTableTotal.reset();
+            }
             firstBatchRead.set(false);
         }
     }
