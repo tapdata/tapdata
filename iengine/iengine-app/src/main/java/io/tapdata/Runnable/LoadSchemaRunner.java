@@ -212,7 +212,7 @@ public class LoadSchemaRunner implements Runnable {
 
 	public static void loadPdkSchema(Connections connections, ConnectionNode connectionNode, Consumer<TapTable> tableConsumer) throws Exception {
 		try {
-			TableFilter tableFilter = TableFilter.create(connections.getTable_filter(), connections.getTableExcludeFilter());
+			TableFilter tableFilter = TableFilter.create(connections.getTable_filter(), connections.getIfOpenTableExcludeFilter());
 			GetTableNamesFunction getTableNamesFunction = connectionNode.getConnectionFunctions().getGetTableNamesFunction();
 			if (null == getTableNamesFunction) {
 				pdkDiscoverSchema(connectionNode, new ArrayList<>(), tableConsumer);

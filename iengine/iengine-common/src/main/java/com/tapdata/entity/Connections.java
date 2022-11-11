@@ -142,6 +142,7 @@ public class Connections implements Serializable {
 
 	private String table_filter;
 	private String tableExcludeFilter;
+	private Boolean openTableExcludeFilter;
 
 	/**
 	 * byte
@@ -1141,8 +1142,23 @@ public class Connections implements Serializable {
 		return tableExcludeFilter;
 	}
 
+	public String getIfOpenTableExcludeFilter() {
+		if (Boolean.TRUE.equals(getOpenTableExcludeFilter())) {
+			return getTableExcludeFilter();
+		}
+		return null;
+	}
+
 	public void setTableExcludeFilter(String tableExcludeFilter) {
 		this.tableExcludeFilter = tableExcludeFilter;
+	}
+
+	public Boolean getOpenTableExcludeFilter() {
+		return openTableExcludeFilter;
+	}
+
+	public void setOpenTableExcludeFilter(Boolean openTableExcludeFilter) {
+		this.openTableExcludeFilter = openTableExcludeFilter;
 	}
 
 	public String getSheet_start() {
