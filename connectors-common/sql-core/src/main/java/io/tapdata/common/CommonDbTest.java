@@ -24,6 +24,7 @@ public class CommonDbTest implements AutoCloseable {
     protected final String uuid = UUID.randomUUID().toString();
     private static final String TEST_HOST_PORT_MESSAGE = "connected to %s:%s succeed!";
     private static final String TEST_CONNECTION_LOGIN = "login succeed!";
+    private static final String TEST_WRITE_TABLE = "tapdata___test";
 
     public CommonDbTest() {
 
@@ -83,33 +84,39 @@ public class CommonDbTest implements AutoCloseable {
             DatabaseMetaData databaseMetaData = connection.getMetaData();
             String versionStr = databaseMetaData.getDatabaseProductName() + " " +
                     databaseMetaData.getDatabaseMajorVersion() + "." + databaseMetaData.getDatabaseMinorVersion();
-            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY, versionStr));
+            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY, versionStr));
         } catch (Exception e) {
-            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage()));
+            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_FAILED, e.getMessage()));
         }
         return true;
     }
 
+    private static final String TEST_CREATE_TABLE = "create table %s(col1 int)";
+    private static final String TEST_WRITE_RECORD = "insert into %s values(0)";
+    private static final String TEST_UPDATE_RECORD = "update %s set col1=1 where 1=1";
+    private static final String TEST_DELETE_RECORD = "delete from %s where 1=1";
+    private static final String TEST_DROP_TABLE = "drop table %s";
+
     protected Boolean testWritePrivilege() {
         try {
             List<String> sqls = new ArrayList<>();
-            if (jdbcContext.queryAllTables(Arrays.asList("__tapdata_test", "__TAPDATA_TEST")).size() > 0) {
-                sqls.add("drop table __tapdata_test");
+            if (jdbcContext.queryAllTables(Arrays.asList(TEST_WRITE_TABLE, TEST_WRITE_TABLE.toUpperCase())).size() > 0) {
+                sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
             }
             //create
-            sqls.add("create table __tapdata_test(col1 int)");
+            sqls.add(String.format(TEST_CREATE_TABLE, TEST_WRITE_TABLE));
             //insert
-            sqls.add("insert into __tapdata_test values(0)");
+            sqls.add(String.format(TEST_WRITE_RECORD, TEST_WRITE_TABLE));
             //update
-            sqls.add("update __tapdata_test set col1=1 where 1=1");
+            sqls.add(String.format(TEST_UPDATE_RECORD, TEST_WRITE_TABLE));
             //delete
-            sqls.add("delete from __tapdata_test where 1=1");
+            sqls.add(String.format(TEST_DELETE_RECORD, TEST_WRITE_TABLE));
             //drop
-            sqls.add("drop table __tapdata_test");
+            sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
             jdbcContext.batchExecute(sqls);
-            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
+            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
         } catch (Exception e) {
-            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage()));
+            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, e.getMessage()));
         }
         return true;
     }
