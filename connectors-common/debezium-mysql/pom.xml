@@ -72,6 +72,8 @@
         <module>debezium-api</module>
         <module>debezium-embedded</module>
         <module>debezium-connector-mysql</module>
+        <module>debezium-core</module>
+        <module>debezium-bom</module>
     </modules>
 
     <repositories>
