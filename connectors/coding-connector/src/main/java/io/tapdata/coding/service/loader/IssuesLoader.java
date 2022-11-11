@@ -412,7 +412,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                         ? (CodingOffset) offsetState : new CodingOffset();
         Map<String, Long> tableUpdateTimeMap = codingOffset.getTableUpdateTimeMap();
         if (null == tableUpdateTimeMap || tableUpdateTimeMap.isEmpty()) {
-            TapLogger.warn(TAG, "offsetState is Empty or not Exist! Stop to stream read.");
+            TapLogger.warn(TAG, "offsetState is Empty or not Exist. Stop to stream read.");
             return;
         }
         String currentTable = tableList.get(0);
