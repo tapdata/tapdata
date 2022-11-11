@@ -1,4 +1,5 @@
 rm -rf /tmp/fail
+mkdir -p /tmp
 
 if [[ "x"$CASE_CONFIG != "x" ]]; then
     echo $CASE_CONFIG|base64 -d > config.yaml
@@ -26,8 +27,9 @@ python3 init/create_datasource.py
 cd cases || exit
 python3 runner.py --case test_dev_sync.py --bench 123
 
-if [[ ! -f /tmp/fail ]]; then
-    echo "TEST PASS !"
-else
+if [[ -f /tmp/fail ]]; then
     echo "TEST FAIL !"
+    exit 1
 fi
+
+echo "TEST PASS !"
