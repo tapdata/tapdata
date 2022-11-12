@@ -230,6 +230,7 @@ public class ObservableAspectTask extends AspectTask {
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> {
 								handler.handleStreamReadProcessComplete(System.currentTimeMillis(), recorder);
+								taskSampleHandler.addTargetNodeHandler(nodeId, handler);
 							}
 					);
 				});
