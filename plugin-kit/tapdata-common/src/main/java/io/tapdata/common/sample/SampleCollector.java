@@ -231,6 +231,10 @@ public class SampleCollector {
         return (NumberSampler<T>) idSamplerMap.computeIfAbsent(id, s -> new NumberSampler<T>(initialValue));
     }
 
+    public ResetSampler getResetSampler(String id) {
+        return (ResetSampler) idSamplerMap.computeIfAbsent(id, s -> new ResetSampler());
+    }
+
     /**
      * 根据业务指定的ID获得平均采集器
      *
