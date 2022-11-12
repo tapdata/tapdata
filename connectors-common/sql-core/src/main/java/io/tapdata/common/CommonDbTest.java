@@ -2,6 +2,7 @@ package io.tapdata.common;
 
 import io.tapdata.constant.ConnectionTypeEnum;
 import io.tapdata.constant.DbTestItem;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.util.NetUtil;
@@ -44,7 +45,8 @@ public class CommonDbTest implements AutoCloseable {
 
     public Boolean testOneByOne() {
         for (Map.Entry<String, Supplier<Boolean>> entry : testFunctionMap.entrySet()) {
-            if (!entry.getValue().get()) {
+            Boolean res = entry.getValue().get();
+            if (EmptyKit.isNull(res) || !res) {
                 return false;
             }
         }
