@@ -128,7 +128,7 @@ public class PostgresConnector extends ConnectorBase {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(postgresConfig.getConnectionString());
         try (
-                PostgresTest postgresTest = new PostgresTest(postgresConfig, consumer)
+                PostgresTest postgresTest = new PostgresTest(postgresConfig, consumer).initContext()
         ) {
             postgresTest.testOneByOne();
             return connectionOptions;
@@ -311,7 +311,7 @@ public class PostgresConnector extends ConnectorBase {
     //initialize jdbc context, slot name, version
     private void initConnection(TapConnectionContext connectorContext) {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
-        postgresTest = new PostgresTest(postgresConfig, null);
+        postgresTest = new PostgresTest(postgresConfig, null).initContext();
         if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
             postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
         }
