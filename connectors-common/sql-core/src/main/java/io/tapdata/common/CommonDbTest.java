@@ -96,6 +96,7 @@ public class CommonDbTest implements AutoCloseable {
     private static final String TEST_UPDATE_RECORD = "update %s set col1=1 where 1=1";
     private static final String TEST_DELETE_RECORD = "delete from %s where 1=1";
     private static final String TEST_DROP_TABLE = "drop table %s";
+    private static final String TEST_WRITE_SUCCESS = "Create,Insert,Update,Delete,Drop succeed";
 
     protected Boolean testWritePrivilege() {
         try {
@@ -114,7 +115,7 @@ public class CommonDbTest implements AutoCloseable {
             //drop
             sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
             jdbcContext.batchExecute(sqls);
-            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
+            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY, TEST_WRITE_SUCCESS));
         } catch (Exception e) {
             consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, e.getMessage()));
         }
