@@ -13,6 +13,7 @@ import java.sql.DatabaseMetaData;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
@@ -88,13 +89,25 @@ public abstract class CommonDbTest implements AutoCloseable {
                 Connection connection = jdbcContext.getConnection()
         ) {
             DatabaseMetaData databaseMetaData = connection.getMetaData();
-            String versionStr = databaseMetaData.getDatabaseProductName() + " " +
-                    databaseMetaData.getDatabaseMajorVersion() + "." + databaseMetaData.getDatabaseMinorVersion();
-            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY, versionStr));
+            String version = databaseMetaData.getDatabaseMajorVersion() + "." + databaseMetaData.getDatabaseMinorVersion();
+            String versionMsg = databaseMetaData.getDatabaseProductName() + " " + version;
+            if (supportVersions().stream().noneMatch(v -> {
+                String reg = v.replaceAll("\\*", ".*");
+                Pattern pattern = Pattern.compile(reg);
+                return pattern.matcher(version).matches();
+            })) {
+                consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, versionMsg + " not supported well"));
+            } else {
+                consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY, versionMsg));
+            }
         } catch (Exception e) {
             consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_FAILED, e.getMessage()));
         }
         return true;
+    }
+
+    protected List<String> supportVersions() {
+        return Collections.singletonList("*.*");
     }
 
     private static final String TEST_CREATE_TABLE = "create table %s(col1 int)";
