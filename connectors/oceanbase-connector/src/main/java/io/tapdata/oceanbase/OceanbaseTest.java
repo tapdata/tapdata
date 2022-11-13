@@ -15,6 +15,15 @@ public class OceanbaseTest extends CommonDbTest implements AutoCloseable {
         jdbcContext = DataSourcePool.getJdbcContext(oceanbaseConfig, OceanbaseJdbcContext.class, uuid);
     }
 
+    @Override
+    public Boolean testReadPrivilege() {
+        return true;
+    }
+
+    @Override
+    public Boolean testStreamRead() {
+        return true;
+    }
 }
 
 

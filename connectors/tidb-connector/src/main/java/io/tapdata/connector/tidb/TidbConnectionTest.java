@@ -32,6 +32,16 @@ public class TidbConnectionTest extends CommonDbTest {
         return super.testOneByOne();
     }
 
+    @Override
+    public Boolean testReadPrivilege() {
+        return true;
+    }
+
+    @Override
+    public Boolean testStreamRead() {
+        return true;
+    }
+
     /**
      * check Pbserver
      *

@@ -476,7 +476,7 @@ public class PostgresConnector extends ConnectorBase {
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         //test streamRead log plugin
-        if (postgresTest.testLogPlugin() && EmptyKit.isNull(slotName)) {
+        if (postgresTest.testStreamRead() && EmptyKit.isNull(slotName)) {
             buildSlot();
             tapConnectorContext.getStateMap().put("tapdata_pg_slot", slotName);
         }

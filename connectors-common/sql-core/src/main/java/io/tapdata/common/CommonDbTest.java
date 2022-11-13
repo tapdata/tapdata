@@ -16,7 +16,7 @@ import java.util.function.Supplier;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
-public class CommonDbTest implements AutoCloseable {
+public abstract class CommonDbTest implements AutoCloseable {
 
     protected CommonDbConfig commonDbConfig;
     protected JdbcContext jdbcContext;
@@ -40,6 +40,10 @@ public class CommonDbTest implements AutoCloseable {
         testFunctionMap.put("testVersion", this::testVersion);
         if (!ConnectionTypeEnum.SOURCE.getType().equals(commonDbConfig.get__connectionType())) {
             testFunctionMap.put("testWritePrivilege", this::testWritePrivilege);
+        }
+        if (!ConnectionTypeEnum.TARGET.getType().equals(commonDbConfig.get__connectionType())) {
+            testFunctionMap.put("testReadPrivilege", this::testReadPrivilege);
+            testFunctionMap.put("testStreamRead", this::testStreamRead);
         }
     }
 
@@ -123,6 +127,10 @@ public class CommonDbTest implements AutoCloseable {
         }
         return true;
     }
+
+    public abstract Boolean testReadPrivilege();
+
+    public abstract Boolean testStreamRead();
 
     //healthCheck-ping
     public ConnectionCheckItem testPing() {

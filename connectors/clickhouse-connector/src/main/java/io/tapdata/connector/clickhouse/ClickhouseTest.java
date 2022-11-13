@@ -15,4 +15,14 @@ public class ClickhouseTest extends CommonDbTest {
         jdbcContext = DataSourcePool.getJdbcContext(clickhouseConfig, ClickhouseJdbcContext.class, uuid);
 
     }
+
+    @Override
+    public Boolean testReadPrivilege() {
+        return true;
+    }
+
+    @Override
+    public Boolean testStreamRead() {
+        return true;
+    }
 }

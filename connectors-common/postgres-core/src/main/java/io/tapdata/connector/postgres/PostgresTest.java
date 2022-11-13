@@ -32,7 +32,7 @@ public class PostgresTest extends CommonDbTest {
     @Override
     public Boolean testOneByOne() {
         testFunctionMap.put("testReadPrivilege", this::testReadPrivilege);
-        testFunctionMap.put("testLogPlugin", this::testLogPlugin);
+        testFunctionMap.put("testStreamRead", this::testStreamRead);
         return super.testOneByOne();
     }
 
@@ -55,7 +55,7 @@ public class PostgresTest extends CommonDbTest {
         }
     }
 
-    public Boolean testLogPlugin() {
+    public Boolean testStreamRead() {
         try {
             List<String> testSqls = TapSimplify.list();
             String testSlotName = "test_" + UUID.randomUUID().toString().replaceAll("-", "_");

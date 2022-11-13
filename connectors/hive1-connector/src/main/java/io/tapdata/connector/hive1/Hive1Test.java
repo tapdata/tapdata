@@ -30,6 +30,16 @@ public class Hive1Test extends CommonDbTest {
         return super.testOneByOne();
     }
 
+    @Override
+    public Boolean testReadPrivilege() {
+        return null;
+    }
+
+    @Override
+    public Boolean testStreamRead() {
+        return null;
+    }
+
     public boolean testConnectOfStream() {
         IMetaStoreClient metaStoreClient = null;
         try {
