@@ -39,7 +39,7 @@ public class CsvConnector extends FileConnector {
 
     @Override
     protected void initConnection(TapConnectionContext connectorContext) throws Exception {
-        fileConfig = new CsvConfig().load(connectorContext.getConnectionConfig());
+        fileConfig = new CsvConfig();
         super.initConnection(connectorContext);
     }
 

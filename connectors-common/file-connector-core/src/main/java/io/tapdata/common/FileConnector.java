@@ -29,7 +29,8 @@ public abstract class FileConnector extends ConnectorBase {
     protected TapFileStorage storage;
 
     protected void initConnection(TapConnectionContext connectorContext) throws Exception {
-        isConnectorStarted(connectorContext, tapConnectorContext -> fileConfig.load(tapConnectorContext.getNodeConfig()));
+        fileConfig.load(connectorContext.getConnectionConfig());
+        fileConfig.load(connectorContext.getNodeConfig());
         String clazz = FileProtocolEnum.fromValue(fileConfig.getProtocol()).getStorage();
         storage = new TapFileStorageBuilder()
                 .withClassLoader(Class.forName(clazz).getClassLoader())
@@ -88,7 +89,7 @@ public abstract class FileConnector extends ConnectorBase {
         //beginning
         if (null == offsetState) {
             fileOffset = new FileOffset();
-            fileOffset.setPath(fileMap.entrySet().stream().findFirst().orElseGet(MapEntry::new).getKey());
+            fileOffset.setPath(fileMap.entrySet().stream().min(Map.Entry.comparingByKey()).orElseGet(MapEntry::new).getKey());
             makeFileOffset(fileOffset);
         }
         //with offset
@@ -98,7 +99,7 @@ public abstract class FileConnector extends ConnectorBase {
         AtomicReference<List<TapEvent>> tapEvents = new AtomicReference<>(new ArrayList<>());
         readOneFile(fileOffset, tapTable, eventBatchSize, eventsOffsetConsumer, tapEvents);
         fileMap.entrySet().removeIf(v -> v.getValue().getPath().compareTo(fileOffset.getPath()) <= 0);
-        Iterator<Map.Entry<String, TapFile>> iterator = fileMap.entrySet().iterator();
+        Iterator<Map.Entry<String, TapFile>> iterator = fileMap.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator();
         while (isAlive() && iterator.hasNext()) {
             fileOffset.setPath(iterator.next().getValue().getPath());
             makeFileOffset(fileOffset);
@@ -123,7 +124,7 @@ public abstract class FileConnector extends ConnectorBase {
                 fileOffset.getAllLastModified().put(stopPath, newLastModified.get(stopPath));
                 consumer.accept(Collections.emptyList(), fileOffset);
             }
-            Iterator<Map.Entry<String, Long>> iterator = newLastModified.entrySet().iterator();
+            Iterator<Map.Entry<String, Long>> iterator = newLastModified.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator();
             while (isAlive() && iterator.hasNext()) {
                 Map.Entry<String, Long> entry = iterator.next();
                 //new file or lastModified has changed
