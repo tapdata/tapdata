@@ -351,10 +351,8 @@ public class MeasurementServiceV2 {
             }
         }
 
-        Long maxRep = null;
         Number snapshotStartAtTemp = null;
         if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
-            maxRep = calculateMaxReplicateLag(querySample);
             snapshotStartAtTemp = getSnapshotStartAt(querySample);
         }
         for (String hash : data.keySet()) {
@@ -375,11 +373,10 @@ public class MeasurementServiceV2 {
             }
 
             if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
-                values.put("replicateLag", maxRep);
                 Number currentEventTimestamp = values.get("currentEventTimestamp");
                 // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
                 if (Objects.isNull(currentEventTimestamp) && Objects.nonNull(snapshotStartAtTemp)) {
-                    maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAtTemp.longValue());
+                    Number maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAtTemp.longValue());
                     values.put("replicateLag", maxRep);
                 }
 

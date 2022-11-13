@@ -30,7 +30,7 @@ public class TaskSampleReporter implements BulkReporter {
             logger.info("The bulk request is empty, skip report process.");
             return;
         }
-        TapLogger.info("XXXX", "bulkRequest " + bulkRequest.toString());
+//        TapLogger.info("XXXX", "bulkRequest " + bulkRequest.toString());
         try {
             operator.insertOne(bulkRequest, ConnectorConstant.SAMPLE_STATISTIC_COLLECTION + "/points/v2");
         } catch (Exception e) {
