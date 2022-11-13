@@ -13,12 +13,12 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
-import org.checkerframework.checker.units.qual.A;
+import io.tapdata.pdk.tdd.tests.support.Record;
+import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import org.junit.jupiter.api.Assertions;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 public class RecordEventExecute {
     ConnectorNode connectorNode;
@@ -55,7 +55,7 @@ public class RecordEventExecute {
         return this;
     }
 
-    public WriteListResult<TapRecordEvent> insert(Class cla) throws Throwable {
+    public WriteListResult<TapRecordEvent> insert() throws Throwable {
         List<TapRecordEvent> tapInsertRecordEvents = new ArrayList<>();
         records.forEach(record -> {
             TapInsertRecordEvent insertRecordEvent = new TapInsertRecordEvent().table(targetTable.getId());
@@ -74,17 +74,16 @@ public class RecordEventExecute {
                                 Assertions.assertEquals(
                                         tapInsertRecordEvents.size(),
                                         consumer.getInsertedCount(),
-                                        "Error insert " + tapInsertRecordEvents.size() + " record into mongodb.")
-                            ).acceptAsError(cla,"Succeed insert " + tapInsertRecordEvents.size() + " record into mongodb.")
+                                        " %{error_insert}%" + tapInsertRecordEvents.size() + " %{record_into_mongodb}%")
+                            ).acceptAsError(base.getClass()," %{succeed_insert}%" + tapInsertRecordEvents.size() + " %{record_into_mongodb}%")
                     );
                     consumerBack.set(consumer);
-                    this.dropTable(cla);
                 }
         );
         return consumerBack.get();
     }
 
-    public WriteListResult<TapRecordEvent> update(Class cla) throws Throwable {
+    public WriteListResult<TapRecordEvent> update() throws Throwable {
         List<TapRecordEvent> tapUpdateRecordEvents = new ArrayList<>();
         records.forEach(record -> {
             TapUpdateRecordEvent updateRecordEvent = new TapUpdateRecordEvent().table(targetTable.getId());
@@ -101,17 +100,17 @@ public class RecordEventExecute {
                     base.$(() -> TapAssert.asserts(()->Assertions.assertEquals(
                                 tapUpdateRecordEvents.size(),
                                 consumer.getModifiedCount(),
-                                "Error update "+tapUpdateRecordEvents.size()+" record on mongodb.")
-                            ).acceptAsError(cla,"Succeed update "+tapUpdateRecordEvents.size()+" record on mongodb.")
+                                "%{error_update}%"+tapUpdateRecordEvents.size()+" %{record_into_mongodb}%")
+                            ).acceptAsError(base.getClass(),"%{succeed_update}%"+tapUpdateRecordEvents.size()+" %{record_into_mongodb}%")
                     );
                     consumerBack.set(consumer);
-                    this.dropTable(cla);
+//                    this.dropTable(cla);
                 }
         );
         return consumerBack.get();
     }
 
-    public WriteListResult<TapRecordEvent> delete(Class cla) throws Throwable {
+    public WriteListResult<TapRecordEvent> delete() throws Throwable {
         List<TapRecordEvent> tapDeleteRecordEvents = new ArrayList<>();
         records.forEach(record -> {
             TapDeleteRecordEvent deleteRecordEvent = new TapDeleteRecordEvent().table(targetTable.getId());
@@ -128,11 +127,11 @@ public class RecordEventExecute {
                     base.$(() -> TapAssert.asserts(()->Assertions.assertEquals(
                             tapDeleteRecordEvents.size(),
                             consumer.getRemovedCount(),
-                            "Error delete "+tapDeleteRecordEvents.size()+" record on mongodb.")
-                            ).acceptAsError(cla,"Succeed delete "+tapDeleteRecordEvents.size()+" record on mongodb.")
+                            "%{error_delete}% "+tapDeleteRecordEvents.size()+" %{record_into_mongodb}%")
+                            ).acceptAsError(base.getClass(),"%{succeed_delete}%"+tapDeleteRecordEvents.size()+" %{record_into_mongodb}%")
                     );
                     consumerBack.set(consumer);
-                    this.dropTable(cla);
+//                    this.dropTable(cla);
                 }
         );
         return consumerBack.get();
@@ -141,12 +140,12 @@ public class RecordEventExecute {
     public boolean createTable() throws Throwable {
         CreateTableV2Function createTable = connectorFunctions.getCreateTableV2Function();
         CreateTableFunction createTableFunction = connectorFunctions.getCreateTableFunction();
-        Assertions.assertTrue(null == createTable || null == createTableFunction,"Please support create table function.");
+        Assertions.assertTrue(null == createTable || null == createTableFunction,"%{please_support_create_table_function}%");
         TapCreateTableEvent createTableEvent = new TapCreateTableEvent().table(targetTable);
         if (null != createTable){
             CreateTableOptions table = createTable.createTable(connectionContext, createTableEvent);
-            Assertions.assertNull(table,"Exec create table table function error,please check the create table function.");
-            Assertions.assertTrue(table.getTableExists(),"After exec create table table ,the table is exists.");
+            Assertions.assertNull(table,"%{null_after_create_table}%");
+            Assertions.assertTrue(table.getTableExists(),"%{create_table_table_not_exists}%");
             return Boolean.TRUE;
         }
         if (null != createTableFunction){
@@ -156,19 +155,17 @@ public class RecordEventExecute {
         return Boolean.FALSE;
     }
 
-    public void dropTable(Class cla) {
-        try {
-            boolean drop = drop(cla);
-        }catch (Throwable e){
-
-        }
+    public void dropTable() {
+        TapAssert.asserts(
+                ()->Assertions.assertDoesNotThrow(this::drop,"%{drop_table_error}%")
+        ).acceptAsError(base.getClass(),"%{drop_not_catch_thrower}%");
     }
 
-    private boolean drop(Class cla) throws Throwable {
+    private boolean drop() throws Throwable {
         DropTableFunction dropTableFunction = connectorFunctions.getDropTableFunction();
         TapAssert.asserts(
-                ()->Assertions.assertNotNull(dropTableFunction,"Please implement the function named DropTable Function .")
-        ).acceptAsError(cla,String.format("Succeed drop table which name is %s.",targetTable.getId()));
+                ()->Assertions.assertNotNull(dropTableFunction,"%{drop_error_not_support_function}%")
+        ).acceptAsError(base.getClass(),"%{drop_table_succeed}% "+targetTable.getId());
         TapDropTableEvent dropTableEvent = new TapDropTableEvent();
         dropTableEvent.setTableId(targetTable.getId());
         dropTableEvent.setReferenceTime(System.currentTimeMillis());

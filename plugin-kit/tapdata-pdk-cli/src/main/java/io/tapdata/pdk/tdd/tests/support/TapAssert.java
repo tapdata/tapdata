@@ -1,15 +1,9 @@
-package io.tapdata.pdk.tdd.tests.v2;
+package io.tapdata.pdk.tdd.tests.support;
 
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.cli.commands.TDDCli;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
-import org.junit.jupiter.api.Assertions;
 import org.opentest4j.AssertionFailedError;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
 
 public interface TapAssert {
     static final int ERROR = 0;//default
@@ -23,7 +17,9 @@ public interface TapAssert {
         switch (assertGarde){
             case WARN: {
                 //TapLogger.warn("TAP-TEST",message);
+                msg.warn();
                 histories.add(History.warn(message));
+                break;
             }
             case ERROR: {
                 //TapLogger.error("TAP-TEST",message);

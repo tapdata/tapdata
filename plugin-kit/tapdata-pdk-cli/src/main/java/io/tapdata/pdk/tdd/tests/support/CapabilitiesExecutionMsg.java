@@ -1,12 +1,12 @@
-package io.tapdata.pdk.tdd.tests.v2;
+package io.tapdata.pdk.tdd.tests.support;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class CapabilitiesExecutionMsg {
     public static final int ERROR = 0;
     public static final int SUCCEED = 1;
+    public static final int WARN = 2;
     int executionTimes = 0;
     String executionMsg;
     List<History> executionHistory = new ArrayList<>();
@@ -40,7 +40,11 @@ public class CapabilitiesExecutionMsg {
         return this;
     }
     public CapabilitiesExecutionMsg fail(){
-        this.executionResult = ERROR;
+        if (ERROR != this.executionResult) this.executionResult = ERROR;
+        return this;
+    }
+    public CapabilitiesExecutionMsg warn(){
+        if (WARN != this.executionResult) this.executionResult = WARN;
         return this;
     }
 

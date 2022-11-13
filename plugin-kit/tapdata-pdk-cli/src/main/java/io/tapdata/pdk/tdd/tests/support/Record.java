@@ -1,7 +1,6 @@
-package io.tapdata.pdk.tdd.tests.v2;
+package io.tapdata.pdk.tdd.tests.support;
 
 import java.util.HashMap;
-import java.util.UUID;
 
 public class Record extends HashMap {
     public static Record create(){

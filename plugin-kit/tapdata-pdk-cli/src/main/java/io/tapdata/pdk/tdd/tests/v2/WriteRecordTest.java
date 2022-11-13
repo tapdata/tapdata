@@ -11,7 +11,6 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
@@ -19,11 +18,10 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
-import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
 import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.target.DMLTest;
+import io.tapdata.pdk.tdd.tests.support.Record;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -142,21 +140,21 @@ public class WriteRecordTest extends PDKTestBase {
 
         //boolean table = recordEventExecute.createTable();
 
-        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert(this.getClass());
+        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
         insertRecord = insert.getInsertedCount();
         updateRecordNeed = 0;
         for (Record record : records) {
             record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
             updateRecordNeed++;
         }
-        WriteListResult<TapRecordEvent> update = recordEventExecute.update(this.getClass());
+        WriteListResult<TapRecordEvent> update = recordEventExecute.update();
         updateRecord = update.getModifiedCount();
 
         deleteRecordNeed = insertRecordNeed;
-        WriteListResult<TapRecordEvent> delete = recordEventExecute.delete(this.getClass());
+        WriteListResult<TapRecordEvent> delete = recordEventExecute.delete();
         deleteRecord = delete.getRemovedCount();
 
-        recordEventExecute.dropTable(this.getClass());
+        recordEventExecute.dropTable();
     }
 
     private void initConnectorFunctions() {
@@ -167,7 +165,7 @@ public class WriteRecordTest extends PDKTestBase {
     public static List<SupportFunction> testFunctions() {
         List<SupportFunction> supportFunctions = Arrays.asList(
                 support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
-                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
+//                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
                 support(DropTableFunction.class, "Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
                 //support(QueryByAdvanceFilterFunction.class, "QueryByAdvanceFilterFunction is a must for database which is schema free to sample some record to generate the field data types.")
                 //support(DropTableFunction.class, "DropTable is needed for TDD to drop the table created by tests, please implement it in registerCapabilities method.")

@@ -2,17 +2,10 @@ package io.tapdata.pdk.cli.commands;
 
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.CommonCli;
-import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
@@ -21,12 +14,7 @@ import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.basic.BasicTest;
-import io.tapdata.pdk.tdd.tests.source.BatchReadTest;
-import io.tapdata.pdk.tdd.tests.source.QueryByAdvanceFilterTest;
-import io.tapdata.pdk.tdd.tests.source.StreamReadTest;
-import io.tapdata.pdk.tdd.tests.target.DMLTest;
-import io.tapdata.pdk.tdd.tests.target.CreateTableTest;
-import io.tapdata.pdk.tdd.tests.v2.CapabilitiesExecutionMsg;
+import io.tapdata.pdk.tdd.tests.support.CapabilitiesExecutionMsg;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordTest;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordWithQueryTest;
 import org.apache.commons.io.FilenameUtils;
@@ -44,9 +32,7 @@ import org.junit.platform.launcher.listeners.TestExecutionSummary;
 import picocli.CommandLine;
 
 import java.io.*;
-import java.lang.reflect.Field;
 import java.util.*;
-import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass;
@@ -72,6 +58,9 @@ public class TDDCli extends CommonCli {
     private boolean verbose = false;
     @CommandLine.Option(names = { "-h", "--help" }, usageHelp = true, description = "TapData cli help")
     private boolean helpRequested = false;
+    @CommandLine.Option(names = { "-l", "--lang" }, usageHelp = false, description = "TapData cli lang，values zh_CN/zh_TW/en,default is zh_CN")
+    private String lan = "zh_CN";
+
     private SummaryGeneratingListener listener = new SummaryGeneratingListener();
     public void runOne(String testClass, TapSummary testResultSummary) {
         LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
@@ -119,31 +108,23 @@ public class TDDCli extends CommonCli {
 
         TestExecutionSummary summary = listener.getSummary();
         testResultSummary.summary = summary;
-
-        TDDPrintf.create().showCapabilities(nodeInfo());
-
+        TDDPrintf tddPrintf = TDDPrintf.create();
+//        tddPrintf.showLogo();
+//        tddPrintf.showCapabilities(nodeInfo());
         //TODO Run PDK method tests
-        TDDPrintf.create().showError(testResultSummary,file.getName());
-//        if(summary.getTestsFailedCount() > 0) {
-//            System.out.println("*****************************************************TDD Results*****************************************************");
-//            System.out.println("-------------PDK id '" + testResultSummary.tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + testResultSummary.tapNodeInfo.getNodeClass().getName() + "'-------------\n");
-//            StringBuilder builder = new StringBuilder();
-//            outputTestResult(testResultSummary, builder);
-//            System.out.print(builder.toString());
-//
-//            //@TODO print Failures
-//            //summary.printFailuresTo(new PrintWriter(System.out));
-//            System.out.println("-------------PDK id '" + testResultSummary.tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + testResultSummary.tapNodeInfo.getNodeClass().getName() + "'-------------");
-//            System.out.println("*****************************************************TDD Results*****************************************************");
-//            System.out.println("Oops, PDK " + file.getName() + " didn't pass all tests, please resolve above issue(s) and try again.");
-//            System.exit(0);
-//        }
+//        .setLanType(Locale.ENGLISH)/
+        tddPrintf.setLanType(new Locale(lan)).showTestResult(testResultSummary,nodeInfo(),file.getName());
     }
 
     public Integer execute() {
         CommonUtils.setProperty("refresh_local_jars", "true");
         if(verbose)
             CommonUtils.setProperty("tap_verbose", "true");
+        if (null == lan || (!"zh_CN".equals(lan) && !"zh_TW".equals(lan) && ! "en".equals(lan))){
+            TapLogger.fatal(TAG, "can not test file {}, {}", file,"TapData cli lang，values only zh_CN/zh_TW/en.");
+            lan = "zh_CN";
+        }
+
         try {
             testPDKJar(file, testConfig);
         } catch (Throwable throwable) {
@@ -272,7 +253,7 @@ public class TDDCli extends CommonCli {
                 runLevelWithNodeInfo(tapNodeInfo);
             }
         }
-
+//        TDDPrintf.create().setLanType(Locale.ENGLISH).showTestResult(,nodeInfo(),file.getName());
         //TDDPrintf.create(testResultSummaries).defaultShow();
         System.out.println("Congratulations! PDK " + jarFile + " has passed all tests!");
         System.exit(0);
@@ -320,14 +301,14 @@ public class TDDCli extends CommonCli {
                     try {
                         if(!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
                             allFound = false;
-                            testResultSummary.doNotSupportFunTest.put(testClass,"Do not support ["+supportFunction.getFunction().getSimpleName()+"] cause test not execution.");
+                            testResultSummary.doNotSupportFunTest.put(testClass,"%{NOT_SUPPORT_FUNCTION}%"+supportFunction.getFunction().getName());
                             //@TODO 未实现的Function导致测试用例未执行
                             break;
                         }
                     } catch (NoSuchMethodException e) {
                         e.printStackTrace();
                         allFound = false;
-                        testResultSummary.doNotSupportFunTest.put(testClass,"Do not support ["+supportFunction.getFunction().getSimpleName()+"] cause test not execution.");
+                        testResultSummary.doNotSupportFunTest.put(testClass,"%{NOT_SUPPORT_FUNCTION}%"+supportFunction.getFunction().getName());
                         //@TODO 未实现的Function导致测试用例未执行
                         break;
                     }

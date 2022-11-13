@@ -1,4 +1,4 @@
-package io.tapdata.pdk.tdd.tests.v2;
+package io.tapdata.pdk.tdd.tests.support;
 
 public class History{
     public static final String ERROR = "ERROR";
