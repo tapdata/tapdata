@@ -245,6 +245,10 @@ public class SampleCollector {
         return (AverageSampler) idSamplerMap.computeIfAbsent(id, s -> new AverageSampler());
     }
 
+    public WriteCostAvgSampler getWriteCostAvgSampler(String id) {
+        return (WriteCostAvgSampler) idSamplerMap.computeIfAbsent(id, s -> new WriteCostAvgSampler());
+    }
+
     /**
      * 根据业务指定的ID获得速度采集器
      *
