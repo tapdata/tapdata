@@ -562,7 +562,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private PartitionConcurrentProcessor initConcurrentProcessor(int cdcConcurrentWriteNum) {
 		return new PartitionConcurrentProcessor(
 				cdcConcurrentWriteNum,
-				dataProcessorContext.getTaskDto().getReadBatchSize(),
+				8000,
 				new KeysPartitioner(),
 				new TapEventPartitionKeySelector(tapEvent -> {
 					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
