@@ -72,6 +72,8 @@ public class PDKTestBase {
 
     protected TapDAG dag;
 
+    protected String lang;
+
 //    protected Map<Class, CapabilitiesExecutionMsg> capabilitiesResult = new HashMap<>();
 
     public PDKTestBase() {
@@ -670,4 +672,14 @@ public class PDKTestBase {
         return nodeOptions;
     }
 
+    public void lang(String lang){
+        this.lang = lang;
+    }
+
+    public Method getMethod(String methodName) throws NoSuchMethodException {
+        return get().getDeclaredMethod(methodName);
+    }
+    public Class<? extends PDKTestBase> get(){
+        return this.getClass();
+    }
 }

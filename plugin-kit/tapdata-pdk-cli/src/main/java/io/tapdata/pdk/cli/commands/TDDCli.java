@@ -15,7 +15,9 @@ import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.basic.BasicTest;
 import io.tapdata.pdk.tdd.tests.support.CapabilitiesExecutionMsg;
+import io.tapdata.pdk.tdd.tests.support.Case;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordTest;
+import io.tapdata.pdk.tdd.tests.v2.WriteRecordV2Test;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordWithQueryTest;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.maven.model.Model;
@@ -58,8 +60,8 @@ public class TDDCli extends CommonCli {
     private boolean verbose = false;
     @CommandLine.Option(names = { "-h", "--help" }, usageHelp = true, description = "TapData cli help")
     private boolean helpRequested = false;
-    @CommandLine.Option(names = { "-l", "--lang" }, usageHelp = false, description = "TapData cli lang，values zh_CN/zh_TW/en,default is zh_CN")
-    private String lan = "zh_CN";
+    @CommandLine.Option(names = { "-l", "--lang" }, usageHelp = false, description = "TapData cli lang，values zh_CN/zh_TW/en,default is en")
+    private String lan = "en";
 
     private SummaryGeneratingListener listener = new SummaryGeneratingListener();
     public void runOne(String testClass, TapSummary testResultSummary) {
@@ -70,14 +72,32 @@ public class TDDCli extends CommonCli {
     }
 
     public void runLevel(List<DiscoverySelector> selectors, TapSummary testResultSummary) {
-        LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
-//                .selectors(selectPackage("io.tapdata.pdk.tdd.tests.basic"),
-//                        selectPackage("io.tapdata.pdk.tdd.tests.source." + level),
-//                        selectPackage("io.tapdata.pdk.tdd.tests.target." + level))
-                .selectors(selectors)
-//                .filters(includeClassNamePatterns(".*Test"))
-                .build();
-        runTests(request, testResultSummary);
+//        LauncherDiscoveryRequest request =LauncherDiscoveryRequestBuilder.request()
+////                .selectors(selectPackage("io.tapdata.pdk.tdd.tests.basic"),
+////                        selectPackage("io.tapdata.pdk.tdd.tests.source." + level),
+////                        selectPackage("io.tapdata.pdk.tdd.tests.target." + level))
+//                .selectors(selectors)
+////                .filters(includeClassNamePatterns(".*Test"))
+//                .build();
+//        runTests(request, testResultSummary);
+        TDDPrintf.create().setLanType(new Locale(lan)).showCapabilities(testResultSummary,nodeInfo());
+        for (DiscoverySelector selector : selectors) {
+            LauncherDiscoveryRequestBuilder request = LauncherDiscoveryRequestBuilder.request();
+            LauncherDiscoveryRequest build = request.selectors(selector).build();
+            runTests(build, testResultSummary);
+        }
+
+        if(Case.ERROR.equals(TapSummary.hasPass)) {
+            System.out.println(TDDPrintf.format("TEST_ERROR_END","\n",file.getName()));
+        }else {
+            String msg = TDDPrintf.format("TEST_SUCCEED_END","\n",file.getName());
+            if (Case.WARN.equals(TapSummary.hasPass)){
+                msg += TDDPrintf.format("SUCCEED_WITH_WARN");
+            }
+            System.out.println(msg);
+        }
+        //System.out.println(TDDPrintf.format(TDDCli.TapSummary.hasPass?"FINAL_RESULT_PASS":"FINAL_RESULT_ERROR"));
+        System.exit(0);
     }
 
     public static final String LEVEL_BEGINNER = "beginner";
@@ -93,9 +113,13 @@ public class TDDCli extends CommonCli {
         List<Class<?>> testClasses = new ArrayList<>();
         public static Map<Class, CapabilitiesExecutionMsg> capabilitiesResult = new HashMap<>();
         Map<Class,String> doNotSupportFunTest = new HashMap<>();
-//        public static Map<Class, CapabilitiesExecutionMsg> capabilitiesResult(){
-//            return TapSummary.capabilitiesResult;
-//        }
+        public static String hasPass = "SUCCEED";
+        public void clean(){
+            TapSummary.capabilitiesResult = new HashMap<>();
+            doNotSupportFunTest = new HashMap<>();
+            testClasses = new ArrayList<>();
+//            this.tapNodeInfo = new TapNodeInfo();
+        }
     }
 
     private void runTests(LauncherDiscoveryRequest request, TapSummary testResultSummary) {
@@ -108,23 +132,22 @@ public class TDDCli extends CommonCli {
 
         TestExecutionSummary summary = listener.getSummary();
         testResultSummary.summary = summary;
-        TDDPrintf tddPrintf = TDDPrintf.create();
-//        tddPrintf.showLogo();
-//        tddPrintf.showCapabilities(nodeInfo());
-        //TODO Run PDK method tests
-//        .setLanType(Locale.ENGLISH)/
-        tddPrintf.setLanType(new Locale(lan)).showTestResult(testResultSummary,nodeInfo(),file.getName());
+        TDDPrintf.create().setLanType(new Locale(lan)).showTestResult(testResultSummary);
+        testResultSummary.clean();
     }
 
     public Integer execute() {
+        TapLogger.enable(false);
+        TDDPrintf.create().showLogo();
         CommonUtils.setProperty("refresh_local_jars", "true");
         if(verbose)
             CommonUtils.setProperty("tap_verbose", "true");
         if (null == lan || (!"zh_CN".equals(lan) && !"zh_TW".equals(lan) && ! "en".equals(lan))){
-            TapLogger.fatal(TAG, "can not test file {}, {}", file,"TapData cli lang，values only zh_CN/zh_TW/en.");
-            lan = "zh_CN";
+            TapLogger.fatal(TAG, "can not test file {}, TapData cli lang values only zh_CN/zh_TW/en.", file);
+            lan = "en";
         }
-
+        lan = "zh_CN";
+        CommonUtils.setProperty("tap_lang", lan);
         try {
             testPDKJar(file, testConfig);
         } catch (Throwable throwable) {
@@ -228,12 +251,9 @@ public class TDDCli extends CommonCli {
         CommonUtils.setProperty("pdk_test_config_file", testConfig);
 
         PDKTestBase testBase = new PDKTestBase();
-//        testBase.setup();
         TapConnector testConnector = testBase.getTestConnector();
         testBase.setup();
-
         DataMap testOptions = testBase.getTestOptions();
-
         testBase.tearDown();
 
         String pdkId = null;
@@ -253,9 +273,7 @@ public class TDDCli extends CommonCli {
                 runLevelWithNodeInfo(tapNodeInfo);
             }
         }
-//        TDDPrintf.create().setLanType(Locale.ENGLISH).showTestResult(,nodeInfo(),file.getName());
-        //TDDPrintf.create(testResultSummaries).defaultShow();
-        System.out.println("Congratulations! PDK " + jarFile + " has passed all tests!");
+        TDDPrintf.create(testResultSummaries).showTestResultAll(nodeInfo(),jarFile);
         System.exit(0);
     }
 
@@ -275,6 +293,7 @@ public class TDDCli extends CommonCli {
 
         List<Class<? extends PDKTestBase>> tests = Arrays.asList(
                 WriteRecordTest.class,
+                WriteRecordV2Test.class,
                 WriteRecordWithQueryTest.class
 //                DMLTest.class,
 //                CreateTableTest.class,
@@ -301,15 +320,13 @@ public class TDDCli extends CommonCli {
                     try {
                         if(!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
                             allFound = false;
-                            testResultSummary.doNotSupportFunTest.put(testClass,"%{NOT_SUPPORT_FUNCTION}%"+supportFunction.getFunction().getName());
-                            //@TODO 未实现的Function导致测试用例未执行
+                            testResultSummary.doNotSupportFunTest.put(testClass,TDDPrintf.format("NOT_SUPPORT_FUNCTION",supportFunction.getFunction().getName()));
                             break;
                         }
                     } catch (NoSuchMethodException e) {
                         e.printStackTrace();
                         allFound = false;
-                        testResultSummary.doNotSupportFunTest.put(testClass,"%{NOT_SUPPORT_FUNCTION}%"+supportFunction.getFunction().getName());
-                        //@TODO 未实现的Function导致测试用例未执行
+                        testResultSummary.doNotSupportFunTest.put(testClass,TDDPrintf.format("NOT_SUPPORT_FUNCTION",supportFunction.getFunction().getName()));
                         break;
                     }
                 }

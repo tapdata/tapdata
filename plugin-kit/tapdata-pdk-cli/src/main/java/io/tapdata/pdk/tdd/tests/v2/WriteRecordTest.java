@@ -10,7 +10,6 @@ import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
@@ -25,6 +24,7 @@ import io.tapdata.pdk.tdd.tests.support.Record;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.field;
@@ -32,7 +32,7 @@ import static io.tapdata.entity.simplify.TapSimplify.table;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 
-@DisplayName("Tests for source beginner test")
+@DisplayName("Test.WriteRecordTest")
 public class WriteRecordTest extends PDKTestBase {
     private static final String TAG = WriteRecordTest.class.getSimpleName();
     ConnectorNode tddTargetNode;
@@ -48,8 +48,8 @@ public class WriteRecordTest extends PDKTestBase {
             .add(field("name", "STRING"))
             .add(field("text", "STRING"));
     @Test
-    @DisplayName("Test method handleRead")
-    void sourceTest() throws Throwable {
+    @DisplayName("Test.WriteRecordTest.case.sourceTest1")
+    void sourceTest1() throws Throwable {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             tapNodeInfo = nodeInfo;
             originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
@@ -112,7 +112,241 @@ public class WriteRecordTest extends PDKTestBase {
 
             try {
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");
-                writeRecorde(connectionContext,connectorNode);
+                writeRecorde(connectionContext,connectorNode,this.getMethod("sourceTest1"));
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }finally {
+                if (null != connectorNode){
+                    PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP,connectorNode::connectorStop,"Stop PDK","TEST mongodb");
+                    PDKIntegration.releaseAssociateId("releaseAssociateId");
+                }
+            }
+        });
+        //waitCompleted(5000000);
+    }
+
+    @Test
+    @DisplayName("Test.WriteRecordTest.case.sourceTest2")
+    void sourceTest2() throws Throwable {
+        consumeQualifiedTapNodeInfo(nodeInfo -> {
+            tapNodeInfo = nodeInfo;
+            originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
+            testTableId = UUID.randomUUID().toString();
+            targetTable.setId(testTableId);
+            KVMap<Object> stateMap = new KVMap<Object>() {
+                @Override
+                public void init(String mapKey, Class<Object> valueClass) {
+
+                }
+
+                @Override
+                public void put(String key, Object o) {
+
+                }
+
+                @Override
+                public Object putIfAbsent(String key, Object o) {
+                    return null;
+                }
+
+                @Override
+                public Object remove(String key) {
+                    return null;
+                }
+
+                @Override
+                public void clear() {
+
+                }
+
+                @Override
+                public void reset() {
+
+                }
+
+                @Override
+                public Object get(String key) {
+                    return null;
+                }
+            };
+            String dagId = UUID.randomUUID().toString();
+            KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
+            TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
+            kvMap.put(testTableId,targetTable);
+            ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
+                    .withDagId(dagId)
+                    .withAssociateId(UUID.randomUUID().toString())
+                    .withConnectionConfig(connectionOptions)
+                    .withGroup(spec.getGroup())
+                    .withVersion(spec.getVersion())
+                    .withTableMap(kvMap)
+                    .withPdkId(spec.getId())
+                    .withGlobalStateMap(stateMap)
+                    .withStateMap(stateMap)
+                    .withTable(testTableId)
+                    .build();
+
+            TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap());
+
+            try {
+                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");
+                writeRecorde(connectionContext,connectorNode,this.getMethod("sourceTest2"));
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }finally {
+                if (null != connectorNode){
+                    PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP,connectorNode::connectorStop,"Stop PDK","TEST mongodb");
+                    PDKIntegration.releaseAssociateId("releaseAssociateId");
+                }
+            }
+        });
+        //waitCompleted(5000000);
+    }
+
+    @Test
+    @DisplayName("Test.WriteRecordTest.case.sourceTest3")
+    void sourceTest3() throws Throwable {
+        consumeQualifiedTapNodeInfo(nodeInfo -> {
+            tapNodeInfo = nodeInfo;
+            originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
+            testTableId = UUID.randomUUID().toString();
+            targetTable.setId(testTableId);
+            KVMap<Object> stateMap = new KVMap<Object>() {
+                @Override
+                public void init(String mapKey, Class<Object> valueClass) {
+
+                }
+
+                @Override
+                public void put(String key, Object o) {
+
+                }
+
+                @Override
+                public Object putIfAbsent(String key, Object o) {
+                    return null;
+                }
+
+                @Override
+                public Object remove(String key) {
+                    return null;
+                }
+
+                @Override
+                public void clear() {
+
+                }
+
+                @Override
+                public void reset() {
+
+                }
+
+                @Override
+                public Object get(String key) {
+                    return null;
+                }
+            };
+            String dagId = UUID.randomUUID().toString();
+            KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
+            TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
+            kvMap.put(testTableId,targetTable);
+            ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
+                    .withDagId(dagId)
+                    .withAssociateId(UUID.randomUUID().toString())
+                    .withConnectionConfig(connectionOptions)
+                    .withGroup(spec.getGroup())
+                    .withVersion(spec.getVersion())
+                    .withTableMap(kvMap)
+                    .withPdkId(spec.getId())
+                    .withGlobalStateMap(stateMap)
+                    .withStateMap(stateMap)
+                    .withTable(testTableId)
+                    .build();
+
+            TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap());
+
+            try {
+                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");
+                writeRecorde(connectionContext,connectorNode,this.getMethod("sourceTest3"));
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }finally {
+                if (null != connectorNode){
+                    PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP,connectorNode::connectorStop,"Stop PDK","TEST mongodb");
+                    PDKIntegration.releaseAssociateId("releaseAssociateId");
+                }
+            }
+        });
+        //waitCompleted(5000000);
+    }
+
+    @Test
+    @DisplayName("Test.WriteRecordTest.case.sourceTest4")
+    void sourceTest4() throws Throwable {
+        consumeQualifiedTapNodeInfo(nodeInfo -> {
+            tapNodeInfo = nodeInfo;
+            originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
+            testTableId = UUID.randomUUID().toString();
+            targetTable.setId(testTableId);
+            KVMap<Object> stateMap = new KVMap<Object>() {
+                @Override
+                public void init(String mapKey, Class<Object> valueClass) {
+
+                }
+
+                @Override
+                public void put(String key, Object o) {
+
+                }
+
+                @Override
+                public Object putIfAbsent(String key, Object o) {
+                    return null;
+                }
+
+                @Override
+                public Object remove(String key) {
+                    return null;
+                }
+
+                @Override
+                public void clear() {
+
+                }
+
+                @Override
+                public void reset() {
+
+                }
+
+                @Override
+                public Object get(String key) {
+                    return null;
+                }
+            };
+            String dagId = UUID.randomUUID().toString();
+            KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
+            TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
+            kvMap.put(testTableId,targetTable);
+            ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
+                    .withDagId(dagId)
+                    .withAssociateId(UUID.randomUUID().toString())
+                    .withConnectionConfig(connectionOptions)
+                    .withGroup(spec.getGroup())
+                    .withVersion(spec.getVersion())
+                    .withTableMap(kvMap)
+                    .withPdkId(spec.getId())
+                    .withGlobalStateMap(stateMap)
+                    .withStateMap(stateMap)
+                    .withTable(testTableId)
+                    .build();
+
+            TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap());
+
+            try {
+                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");
+                writeRecorde(connectionContext,connectorNode,this.getMethod("sourceTest4"));
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
@@ -133,9 +367,11 @@ public class WriteRecordTest extends PDKTestBase {
     long insertRecordNeed = 10;
     long updateRecordNeed;
     long deleteRecordNeed;
-    private void writeRecorde(TapConnectorContext connectionContext,ConnectorNode connectorNode) throws Throwable {
+
+    private void writeRecorde(TapConnectorContext connectionContext, ConnectorNode connectorNode, Method testCase) throws Throwable {
         Record[] records = Record.testStart((int)insertRecordNeed);
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode,connectionContext, this)
+                .testCase(testCase)
                 .builderRecord(records);
 
         //boolean table = recordEventExecute.createTable();
@@ -181,5 +417,9 @@ public class WriteRecordTest extends PDKTestBase {
                 this.deleteRecord,this.deleteRecordNeed
         );
 
+    }
+    @Override
+    public Class<? extends PDKTestBase> get() {
+        return this.getClass();
     }
 }

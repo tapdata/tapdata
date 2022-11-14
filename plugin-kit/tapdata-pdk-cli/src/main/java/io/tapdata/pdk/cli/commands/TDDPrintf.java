@@ -4,25 +4,29 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVMapFactory;
+import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.tdd.tests.support.CapabilitiesExecutionMsg;
+import io.tapdata.pdk.tdd.tests.support.Case;
 import io.tapdata.pdk.tdd.tests.support.History;
-import org.junit.platform.launcher.listeners.TestExecutionSummary;
+import org.junit.jupiter.api.DisplayName;
 
-import java.lang.reflect.Field;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class TDDPrintf {
     List<TDDCli.TapSummary> summarys;
-    private final String LANG_PATH = "i18n.lang";
+    private static final String LANG_PATH = "i18n.lang";
     private Locale langType = Locale.SIMPLIFIED_CHINESE;
-    private final String AREA_SPLIT = "------------------------------------------------------------------------------------\n";
+    private final String AREA_SPLIT = "------------------------------------------------------------------------------------";
 
     public TDDPrintf setLanType(Locale langType){
         this.langType = langType;
@@ -43,6 +47,9 @@ public class TDDPrintf {
     private TDDPrintf(){
     }
 
+    /**
+     * @deprecated
+     * */
     public void defaultShow(){
         if (null == summarys) return;
         System.out.println("*****************************************************TDD Results*****************************************************");
@@ -68,22 +75,41 @@ public class TDDPrintf {
         System.out.println("*****************************************************TDD Results*****************************************************");
     }
 
-    public void showTestResult(TDDCli.TapSummary summary,TapNodeInfo nodeInfo,String fileName){
-        showLogo();
-        TestExecutionSummary executionSummary = summary.summary;
-        Map<Class, CapabilitiesExecutionMsg> result = summary.capabilitiesResult;
+    public void showTestResultAll(TapNodeInfo nodeInfo,String fileName){
+        if (null != summarys && !summarys.isEmpty()) {
+            summarys.stream().filter(Objects::nonNull).forEach(summary -> showTest(summary));
+        }
+    }
+    public void showTestResult(TDDCli.TapSummary summary){
+        showTest(summary);
+    }
+    public void showCapabilities(TDDCli.TapSummary summary,TapNodeInfo nodeInfo){
         StringBuilder builder = new StringBuilder(AREA_SPLIT);
-        builder.append("------------PDK id '")
+        builder.append("\n------------PDK id '")
                 .append(summary.tapNodeInfo.getTapNodeSpecification().getId())
                 .append("' class '")
                 .append(summary.tapNodeInfo.getNodeClass().getName())
                 .append("'------------\n");
-        showCapabilities(nodeInfo,builder);
+        System.out.println(showCapabilities(nodeInfo,builder));
+    }
+    private void showTest(TDDCli.TapSummary summary){
+        Map<Class, CapabilitiesExecutionMsg> result = summary.capabilitiesResult;
+        StringBuilder builder = new StringBuilder(AREA_SPLIT);
+        builder.append("\n");
         if (null != summary.doNotSupportFunTest && !summary.doNotSupportFunTest.isEmpty()){
             summary.doNotSupportFunTest.forEach(((aClass, s) -> {
                 builder.append("☆ ")
-                        .append(aClass.getSimpleName()).append("\n[%{TEST_RESULT_ERROR}%]\n")
-                        .append("\t\t").append(s).append("\n");
+                        .append(aClass.getSimpleName()).append("\n")
+                        .append("\t").append(s).append("\n");
+                builder.append("☆ ")
+                        .append(TDDPrintf.format("ONCE_HISTORY",
+                                aClass.getSimpleName(),
+                                TDDPrintf.format("TEST_RESULT_ERROR"),
+                                0,
+                                0,
+                                0,
+                                1))
+                        .append("\n");
             }));
         }
         int allTestResult = CapabilitiesExecutionMsg.SUCCEED;//default 0 === succeed
@@ -91,46 +117,100 @@ public class TDDPrintf {
             Class cla = entry.getKey();
             CapabilitiesExecutionMsg res = entry.getValue();
 
-            builder.append("☆ ")
-                    .append(cla.getSimpleName()).append("\n[")
-                    .append(res.executionResult() == CapabilitiesExecutionMsg.ERROR?"%{TEST_RESULT_ERROR}%":"%{TEST_RESULT_SUCCEED}%")
-                    .append("(");
-            List<History> history = res.history();
-            Map<String, List<History>> collect = history.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(History::tag));
-            if (null == collect || collect.isEmpty()) return;
-            List<History> warnHistory = collect.get(History.WARN);
-            List<History> errorHistory = collect.get(History.ERROR);
-            int warnSize = null==warnHistory?0:warnHistory.size();
-            int errorSize = null==errorHistory?0:errorHistory.size();
-            builder.append("%{SUCCEED_COUNT_LABEL}%").append(res.executionTimes()-warnSize-errorSize)
-                    .append(",%{WARN_COUNT_LABEL}%").append(warnSize)
-                    .append(",%{ERROR_COUNT_LABEL}%").append(errorSize)
-                    .append(")]");
+            StringBuilder capabilityBuilder = new StringBuilder();
+            Map<Method, Case> caseMap = res.testCases();
+            Map<String, List<Map<Method, Case>>> caseGroupMapByTag = res.testCaseGroupTag();
+            int warnSize = 0;//null==warnHistory?0:warnHistory.size();
+            int errorSize = 0;//null==errorHistory?0:errorHistory.size();
+            if (null!=caseGroupMapByTag && !caseGroupMapByTag.isEmpty()){
 
-            if (res.executionResult() != CapabilitiesExecutionMsg.ERROR && null != warnHistory && !warnHistory.isEmpty()){
-                builder.append("%{HAS_WARN_COUNT}%")
-                        .append(warnHistory.size())
-                        .append(".");
-            }
-            builder.append(".\n");
-            AtomicInteger index = new AtomicInteger(1);
-            collect.forEach((tag,his)->{
-                builder.append("\t\t")
-                        .append(index.getAndIncrement()).append(") ")
-                        .append("%{TEST_OF_").append(tag).append("}%")
-                        .append("\n");
+                for (Map.Entry<String, List<Map<Method, Case>>> caseGroup : caseGroupMapByTag.entrySet()) {
+                    String key = caseGroup.getKey();
+                    List<Map<Method,Case>> value = caseGroup.getValue();
+                    switch (key){
+                        case Case.ERROR:capabilityBuilder.append(TDDPrintf.format("ERROR.CASE"));break;
+                        case Case.SUCCEED:capabilityBuilder.append(TDDPrintf.format("SUCCEED.CASE"));break;
+                        case Case.WARN:capabilityBuilder.append(TDDPrintf.format("WARN.CASE"));break;
+                    }
+                    int caseIndex = 0 ;
+                    for (Map<Method, Case> methodCaseMap : value) {
+                        for (Map.Entry<Method, Case> methodCaseEntry : methodCaseMap.entrySet()) {
+                            Case testCase = methodCaseEntry.getValue();
 
-                String flag = History.SUCCEED.equals(tag)? "✓":
-                        (History.ERROR.equals(tag)? "✗":
-                                (History.WARN.equals(tag)? "！":"？"));
-                for (int i = 0; i < his.size(); i++) {
-                    builder.append("\t\t\t[")
-                            .append(flag)
-                            .append("].").append(his.get(i).message()).append("\n");
+                            switch (testCase.tag()){
+                                case Case.ERROR:errorSize++;break;
+                                case Case.WARN:warnSize++;break;
+                            }
+                            capabilityBuilder.append("\t")
+                                    .append(((char)(65+caseIndex)))
+                                    .append(".")
+                                    .append(TDDPrintf.format(testCase.message()))
+                                    .append("\n");
+                            caseIndex++;
+
+                            List<History> history = testCase.histories();
+
+                            Map<String, List<History>> collect = history.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(History::tag));
+                            if (null == collect || collect.isEmpty()) return;
+                            AtomicInteger index = new AtomicInteger(1);
+                            collect.forEach((tag,his)->{
+                                capabilityBuilder.append("\t\t")
+                                        .append(index.getAndIncrement()).append(") ")
+                                        .append("%{TEST_OF_").append(tag).append("}%")
+                                        .append("\n");
+
+                                String flag = History.SUCCEED.equals(tag)? "✓":
+                                        (History.ERROR.equals(tag)? "✗":
+                                                (History.WARN.equals(tag)? "！":"？"));
+                                for (int i = 0; i < his.size(); i++) {
+                                    capabilityBuilder.append("\t\t\t[")
+                                            .append(flag)
+                                            .append("].").append(his.get(i).message()).append("\n");
+                                }
+                            });
+                        }
+                    }
                 }
-            });
 
-            //获取最终结果，如果出现Error，最终结果为Error.仅出现Error，最终结果为Error.
+            }
+            Annotation annotation = cla.getAnnotation(DisplayName.class);
+            builder.append("☆ ")
+                    .append(cla.getSimpleName());
+            if (null!= annotation) {
+                builder.append("(")
+                        .append(TDDPrintf.format(((DisplayName)cla.getAnnotation(DisplayName.class)).value()))
+                        .append(")");
+            }
+//            builder.append("\t[")
+//                    .append(res.executionResult() == CapabilitiesExecutionMsg.ERROR?"%{TEST_RESULT_ERROR}%":"%{TEST_RESULT_SUCCEED}%")
+//                    .append("(")
+//                    .append("%{SUCCEED_COUNT_LABEL}%").append(caseMap.size()-warnSize-errorSize)
+//                    .append(",%{WARN_COUNT_LABEL}%").append(warnSize)
+//                    .append(",%{ERROR_COUNT_LABEL}%").append(errorSize)
+//                    .append(")].");
+            if (res.executionResult() != CapabilitiesExecutionMsg.ERROR && warnSize>0){
+                builder.append(TDDPrintf.format("HAS_WARN_COUNT",warnSize));
+            }
+            builder.append("\n")
+                    .append(capabilityBuilder)
+                    .append("\n");
+            builder.append("☆ ")
+                    .append(TDDPrintf.format("ONCE_HISTORY",
+                            cla.getSimpleName(),
+                            res.executionResult() == CapabilitiesExecutionMsg.ERROR?TDDPrintf.format("TEST_RESULT_ERROR"):TDDPrintf.format("TEST_RESULT_SUCCEED"),
+                            caseMap.size()-warnSize-errorSize,
+                            warnSize,
+                            errorSize,
+                            0))
+                    .append("\n");
+//                    .append(cla.getSimpleName())
+//                    .append("\t 结果：")
+//                    .append(res.executionResult() == CapabilitiesExecutionMsg.ERROR?"%{TEST_RESULT_ERROR}%":"%{TEST_RESULT_SUCCEED}%")
+//                    .append("%{SUCCEED_COUNT_LABEL}%").append(caseMap.size()-warnSize-errorSize)
+//                    .append(",%{WARN_COUNT_LABEL}%").append(warnSize)
+//                    .append(",%{ERROR_COUNT_LABEL}%").append(errorSize)
+//                    .append(")].");
+            //获取最终结果，如果出现Error，最终结果为Error.仅出现Warn，最终结果为Warn.
             int resResult = res.executionResult();
             if (allTestResult == CapabilitiesExecutionMsg.SUCCEED
                     && (resResult == CapabilitiesExecutionMsg.WARN || resResult == CapabilitiesExecutionMsg.ERROR)){
@@ -141,34 +221,113 @@ public class TDDPrintf {
             }
         }
 
-        if(CapabilitiesExecutionMsg.ERROR == allTestResult) {
-            builder.append("\n(╳) Oops, PDK ")
-                    .append(fileName)
-                    .append(" %{TEST_ERROR_SUF}%\n\n");
+        if(CapabilitiesExecutionMsg.ERROR == allTestResult && !Case.ERROR.equals(TDDCli.TapSummary.hasPass)) {
+            //builder.append(TDDPrintf.format("TEST_ERROR_END","\n",fileName));
+            TDDCli.TapSummary.hasPass = Case.ERROR;
         }else {
-            builder.append("\n(✔)%{TEST_SUCCEED_PRE}%, PDK ")
-                    .append(fileName)
-                    .append(" %{TEST_SUCCEED_SUF}%");
-            if (CapabilitiesExecutionMsg.WARN == allTestResult){
-                builder.append("%{SUCCEED_WITH_WARN}%");
+            //builder.append(TDDPrintf.format("TEST_SUCCEED_END","\n",fileName));
+            if (CapabilitiesExecutionMsg.WARN == allTestResult && !Case.ERROR.equals(TDDCli.TapSummary.hasPass)){
+                TDDCli.TapSummary.hasPass = Case.WARN;
+                //builder.append(TDDPrintf.format("SUCCEED_WITH_WARN"));
             }
         }
-        builder.append("\n").append(AREA_SPLIT);
+        builder.append(AREA_SPLIT).append("\n");
 
         String finalStr = this.replaceAsLang(builder.toString());
 
         System.out.print(finalStr);
         //System.out.print(langType.getLanguage().equals("en")?format(finalStr):finalStr);
-        System.exit(0);
     }
-
-    public void tddShow(){
-        StringBuilder builder = new StringBuilder("TDD Result==========>");
-        for(TDDCli.TapSummary testSummary : summarys) {
-
-        }
-        System.out.println(builder.toString());
-    }
+//    private void showTest(TDDCli.TapSummary summary,TapNodeInfo nodeInfo,String fileName){
+//        Map<Class, CapabilitiesExecutionMsg> result = summary.capabilitiesResult;
+//        StringBuilder builder = new StringBuilder(AREA_SPLIT);
+//        builder.append("------------PDK id '")
+//                .append(summary.tapNodeInfo.getTapNodeSpecification().getId())
+//                .append("' class '")
+//                .append(summary.tapNodeInfo.getNodeClass().getName())
+//                .append("'------------\n");
+//        showCapabilities(nodeInfo,builder);
+//        if (null != summary.doNotSupportFunTest && !summary.doNotSupportFunTest.isEmpty()){
+//            summary.doNotSupportFunTest.forEach(((aClass, s) -> {
+//                builder.append("☆ ")
+//                        .append(aClass.getSimpleName()).append("\n[%{TEST_RESULT_ERROR}%]\n")
+//                        .append("\t\t").append(s).append("\n");
+//            }));
+//        }
+//        int allTestResult = CapabilitiesExecutionMsg.SUCCEED;//default 0 === succeed
+//        for (Map.Entry<Class,CapabilitiesExecutionMsg> entry : result.entrySet()){
+//            Class cla = entry.getKey();
+//            CapabilitiesExecutionMsg res = entry.getValue();
+//
+//            builder.append("☆ ")
+//                    .append(cla.getSimpleName()).append("\n[")
+//                    .append(res.executionResult() == CapabilitiesExecutionMsg.ERROR?"%{TEST_RESULT_ERROR}%":"%{TEST_RESULT_SUCCEED}%")
+//                    .append("(");
+//            List<History> history = res.history();
+//            Map<String, List<History>> collect = history.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(History::tag));
+//            if (null == collect || collect.isEmpty()) return;
+//            List<History> warnHistory = collect.get(History.WARN);
+//            List<History> errorHistory = collect.get(History.ERROR);
+//            int warnSize = null==warnHistory?0:warnHistory.size();
+//            int errorSize = null==errorHistory?0:errorHistory.size();
+//            builder.append("%{SUCCEED_COUNT_LABEL}%").append(res.executionTimes()-warnSize-errorSize)
+//                    .append(",%{WARN_COUNT_LABEL}%").append(warnSize)
+//                    .append(",%{ERROR_COUNT_LABEL}%").append(errorSize)
+//                    .append(")]");
+//
+//            if (res.executionResult() != CapabilitiesExecutionMsg.ERROR && null != warnHistory && !warnHistory.isEmpty()){
+//                builder.append("%{HAS_WARN_COUNT}%")
+//                        .append(warnHistory.size())
+//                        .append(".");
+//            }
+//            builder.append(".\n");
+//            AtomicInteger index = new AtomicInteger(1);
+//            collect.forEach((tag,his)->{
+//                builder.append("\t\t")
+//                        .append(index.getAndIncrement()).append(") ")
+//                        .append("%{TEST_OF_").append(tag).append("}%")
+//                        .append("\n");
+//
+//                String flag = History.SUCCEED.equals(tag)? "✓":
+//                        (History.ERROR.equals(tag)? "✗":
+//                                (History.WARN.equals(tag)? "！":"？"));
+//                for (int i = 0; i < his.size(); i++) {
+//                    builder.append("\t\t\t[")
+//                            .append(flag)
+//                            .append("].").append(his.get(i).message()).append("\n");
+//                }
+//            });
+//
+//            //获取最终结果，如果出现Error，最终结果为Error.仅出现Error，最终结果为Error.
+//            int resResult = res.executionResult();
+//            if (allTestResult == CapabilitiesExecutionMsg.SUCCEED
+//                    && (resResult == CapabilitiesExecutionMsg.WARN || resResult == CapabilitiesExecutionMsg.ERROR)){
+//                allTestResult = resResult;
+//            }
+//            if (allTestResult == CapabilitiesExecutionMsg.WARN && resResult == CapabilitiesExecutionMsg.ERROR){
+//                allTestResult = resResult;
+//            }
+//        }
+//
+//        if(CapabilitiesExecutionMsg.ERROR == allTestResult) {
+//            builder.append("\n(╳) Oops, PDK ")
+//                    .append(fileName)
+//                    .append(" %{TEST_ERROR_SUF}%\n\n");
+//        }else {
+//            builder.append("\n(✔)%{TEST_SUCCEED_PRE}%, PDK ")
+//                    .append(fileName)
+//                    .append(" %{TEST_SUCCEED_SUF}%");
+//            if (CapabilitiesExecutionMsg.WARN == allTestResult){
+//                builder.append("%{SUCCEED_WITH_WARN}%");
+//            }
+//        }
+//        builder.append("\n").append(AREA_SPLIT);
+//
+//        String finalStr = this.replaceAsLang(builder.toString());
+//
+//        System.out.print(finalStr);
+//        //System.out.print(langType.getLanguage().equals("en")?format(finalStr):finalStr);
+//    }
 
     public StringBuilder showCapabilities(TapNodeInfo nodeInfo,StringBuilder show){
         String dagId = UUID.randomUUID().toString();
@@ -225,32 +384,15 @@ public class TDDPrintf {
 
         TapNodeInfo tapNodeInfo = connectorNode.getTapNodeInfo();
         TapNodeSpecification tapNodeSpecification = tapNodeInfo.getTapNodeSpecification();
-        show.append(AREA_SPLIT)
+        show.append(AREA_SPLIT).append("\n")
                 .append(tapNodeSpecification.getName())
-                .append("%{CONNECTOR_CAPABILITIES_START}%\n");
+                .append(TDDPrintf.format("CONNECTOR_CAPABILITIES_START","\n"));
         ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-        Field[] declaredFields = connectorFunctions.getClass().getDeclaredFields();
-
-        int index = 0;
-        for (Field declaredField : declaredFields) {
-            try {
-                declaredField.setAccessible(Boolean.TRUE);
-                Object o = declaredField.get(connectorFunctions);
-                if (null != o){
-                    String name = declaredField.getName();
-                    show.append("\t\t").append(++index).append(". ").append(name).append(";\n");
-                }
-            } catch (IllegalAccessException e) {
-
-            }
-        }
-        show.append("%{TOTAL_CAPABILITIES_OF}%")
-                .append(tapNodeSpecification.getName())
-                .append(" : ").append(index)
-                .append(".\n")
-                .append(AREA_SPLIT);
+        List<Capability> capabilities = connectorFunctions.getCapabilities();
+        AtomicInteger index = new AtomicInteger();
+        capabilities.stream().filter(Objects::nonNull).forEach(capability -> show.append(TDDPrintf.format(capability.getId(),"\t",index.incrementAndGet(),"\n")));
+        show.append(TDDPrintf.format("TOTAL_CAPABILITIES_OF",tapNodeSpecification.getName(),index.get(),"\n"));
         return show;
-//        System.out.print(show.toString());
     }
 
     private String replaceAsLang(String txt){
@@ -272,22 +414,37 @@ public class TDDPrintf {
             }catch (Exception e){
                 startAt = splitEnd+1;
             }
-
         }
         return txt;
 //        return txt.replaceAll("\\n","\n|");
     }
 
     public void showLogo(){
-        System.out.println("\n"+AREA_SPLIT+ "[.___________.    ___      .______    _______       ___   .___________.    ___     ]\n" +
+//        /**
+//         * 引擎启动
+//         */
+//        public void start() {
+//            TapLogger.info(TAG, ".___________.    ___      .______    _______       ___   .___________.    ___     ");
+//            TapLogger.info(TAG, "|           |   /   \\     |   _  \\  |       \\     /   \\  |           |   /   \\    ");
+//            TapLogger.info(TAG, "`---|  |----`  /  ^  \\    |  |_)  | |  .--.  |   /  ^  \\ `---|  |----`  /  ^  \\   ");
+//            TapLogger.info(TAG, "    |  |      /  /_\\  \\   |   ___/  |  |  |  |  /  /_\\  \\    |  |      /  /_\\  \\  ");
+//            TapLogger.info(TAG, "    |  |     /  _____  \\  |  |      |  '--'  | /  _____  \\   |  |     /  _____  \\ ");
+//            TapLogger.info(TAG, "    |__|    /__/     \\__\\ | _|      |_______/ /__/     \\__\\  |__|    /__/     \\__\\");
+//            TapLogger.info(TAG, "                                                                            v{}", version);
+//            //http://www.network-science.de/ascii/
+//            //starwars
+//
+//        }
+        System.out.println("\n"+AREA_SPLIT+ "\n[.___________.    ___      .______    _______       ___   .___________.    ___     ]\n" +
                             "[|           |   /   \\     |   _  \\  |       \\     /   \\  |           |   /   \\    ]\n" +
                             "[`---|  |----`  /  ^  \\    |  |_)  | |  .--.  |   /  ^  \\ `---|  |----`  /  ^  \\   ]\n" +
                             "[    |  |      /  /_\\  \\   |   ___/  |  |  |  |  /  /_\\  \\    |  |      /  /_\\  \\  ]\n" +
                             "[    |  |     /  _____  \\  |  |      |  '--'  | /  _____  \\   |  |     /  _____  \\ ]\n" +
-                            "[    |__|    /__/     \\__\\ | _|      |_______/ /__/     \\__\\  |__|    /__/     \\__\\]");
+                            "[    |__|    /__/     \\__\\ | _|      |_______/ /__/     \\__\\  |__|    /__/     \\__\\]\n"
+                +AREA_SPLIT);
     }
 
-    private String format(String txt){
+    private String formatStr(String txt){
         StringBuilder builder = new StringBuilder();
         int len = AREA_SPLIT.length();
         int start = 0;
@@ -331,49 +488,12 @@ public class TDDPrintf {
 //        return txt;
     }
 
-    public static void main(String[] args) {
-        String s  ="[.___________.    ___      .______    _______       ___   .___________.    ___     ]\n" +
-                "[|           |   /   \\     |   _  \\  |       \\     /   \\  |           |   /   \\    ]\n" +
-                "[`---|  |----`  /  ^  \\    |  |_)  | |  .--.  |   /  ^  \\ `---|  |----`  /  ^  \\   ]\n" +
-                "[    |  |      /  /_\\  \\   |   ___/  |  |  |  |  /  /_\\  \\    |  |      /  /_\\  \\  ]\n" +
-                "[    |  |     /  _____  \\  |  |      |  '--'  | /  _____  \\   |  |     /  _____  \\ ]\n" +
-                "[    |__|    /__/     \\__\\ | _|      |_______/ /__/     \\__\\  |__|    /__/     \\__\\]\n" +
-                "[INFO]  $$tag:: PDKTestBase [Found connector name MongoDB id mongodb group io.tapdata version 1.0-SNAPSHOT icon icons/mongodb.png]\n" +
-                "------------------------------------------------------------------------------------\n" +
-                "MongoDB%{CONNECTOR_CAPABILITIES_START}%\n" +
-                "\t\t1. batchReadFunction;\n" +
-                "\t\t2. streamReadFunction;\n" +
-                "\t\t3. batchCountFunction;\n" +
-                "\t\t4. timestampToStreamOffsetFunction;\n" +
-                "\t\t5. writeRecordFunction;\n" +
-                "\t\t6. queryByAdvanceFilterFunction;\n" +
-                "\t\t7. dropTableFunction;\n" +
-                "\t\t8. createIndexFunction;\n" +
-                "%{TOTAL_CAPABILITIES_OF}%MongoDB : 8.\n" +
-                "------------------------------------------------------------------------------------\n" +
-                "-------------PDK id 'mongodb' class 'io.tapdata.mongodb.MongodbConnector'-------------\n" +
-                "WriteRecordTest=======>测试失败\n" +
-                "\t\t检测到数据源存在未实现的方法，终止了当前用例的测试流程，未实现的方法为：io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction\n" +
-                "\n" +
-                "☆WriteRecordWithQueryTest=======>测试失败(通过用例：2,告警用例：1,错误用例：1).\n" +
-                "\t\t1) 成功的记录\n" +
-                "\t\t\t[✓]. 插入操作成功，1 个记录在MongoDB执行时发生。\n" +
-                "\t\t\t[✓].Succeed query by advance when insert record,the filter Results not null.\n" +
-                "\t\t\t[✓].Succeed query by advance when insert record,the filter Results not empty results.\n" +
-                "\t\t2) 失败的记录\n" +
-                "\t\t\t[✗].insert record not succeed. ==> expected: <true> but was: <false>\n" +
-                "\t\t3) 告警的记录\n" +
-                "\t\t\t[！].insert record not succeed. ==> expected: <true> but was: <false>\n" +
-                "\n" +
-                "\n" +
-                "(╳) Oops, PDK mongodb-connector-v1.0-SNAPSHOT.jar 未通过所有测试，请解决以上问题，然后重试。\n" +
-                "\n" +
-                "Disconnected from the target VM, address: '127.0.0.1:55601', transport: 'socket'\n" +
-                "\n" +
-                "Process finished with exit code 0\n";
-
-        System.out.println(create().format(s));
-
-        System.out.println(Locale.ENGLISH.getLanguage());
+    public static String format(String key, Object ... formatValue){
+        String tap_lang = CommonUtils.getProperty("tap_lang");
+        ResourceBundle lang = ResourceBundle.getBundle(LANG_PATH, new Locale(tap_lang));
+        String value = lang.getString(key);
+        if (null == value) return "?";
+        if (null==formatValue||formatValue.length<1) return value;
+        return String.format(value,formatValue);
     }
 }

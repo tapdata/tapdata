@@ -6,9 +6,7 @@ public class History{
     public static final String SUCCEED = "SUCCEED";
     String tag;
     String message;
-    //public static History create(String tag,String msg){
-//        return new History(tag, msg);
-//    }
+
     public History(String tag,String msg){
         this.message = msg;
         this.tag = tag;

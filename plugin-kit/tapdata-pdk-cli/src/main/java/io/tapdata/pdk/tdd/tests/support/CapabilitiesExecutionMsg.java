@@ -1,41 +1,42 @@
 package io.tapdata.pdk.tdd.tests.support;
 
+
+import org.junit.jupiter.api.DisplayName;
+
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import static io.tapdata.entity.simplify.TapSimplify.entry;
+import static io.tapdata.entity.simplify.TapSimplify.map;
 
 public class CapabilitiesExecutionMsg {
     public static final int ERROR = 0;
     public static final int SUCCEED = 1;
     public static final int WARN = 2;
-    int executionTimes = 0;
+
     String executionMsg;
-    List<History> executionHistory = new ArrayList<>();
+    Map<Method,Case> testCase = new HashMap<>();
     int executionResult = SUCCEED;
 
     public static CapabilitiesExecutionMsg create(){
         return new CapabilitiesExecutionMsg();
     }
-    public CapabilitiesExecutionMsg addTimes(){
-        this.executionTimes++;
-        return this;
-    }
-    public CapabilitiesExecutionMsg addTimes(int executionTimes){
-        this.executionTimes += executionTimes;
-        return this;
-    }
+
     public CapabilitiesExecutionMsg executionMsg(String executionMsg){
         this.executionMsg = executionMsg;
         return this;
     }
-    public CapabilitiesExecutionMsg addHistory(History history){
-        if (null!=history) {
-            this.executionHistory.add(history);
-        }
-        return this;
-    }
+//    public CapabilitiesExecutionMsg addCase(Method caseMethod,Case testCase){
+//        if (null != testCase) {
+//            this.testCase.put(caseMethod,testCase);
+//        }
+//        return this;
+//    }
     public CapabilitiesExecutionMsg clean(){
-        this.executionTimes = 0;
-        this.executionHistory = new ArrayList<>();
+        this.testCase = new HashMap<>();
         this.executionMsg = "";
         return this;
     }
@@ -51,12 +52,26 @@ public class CapabilitiesExecutionMsg {
     public int executionResult(){
         return this.executionResult;
     }
-    public List<History> history(){
-        return this.executionHistory;
+    public Map<Method,Case> testCases(){
+        return this.testCase;
     }
-    public int executionTimes(){
-        return this.executionTimes;
+    public Case testCase(Method testCase){
+        DisplayName annotation = testCase.getAnnotation(DisplayName.class);
+        String value = annotation.value();
+        return this.testCase.computeIfAbsent(
+                testCase,
+                testCaseMethod -> null==this.testCase.get(testCaseMethod)?
+                        new Case(Case.SUCCEED,value):this.testCase.get(testCase)
+        );
     }
-
-
+    public Map<String, List<Map<Method,Case>>> testCaseGroupTag(){
+        Map<String, List<Map<Method,Case>>> group = new HashMap<>();
+        this.testCase.forEach((method,test)->{
+            List<Map<Method, Case>> maps = group.computeIfAbsent(test.tag, tags -> null == group.get(tags) ? new ArrayList<>() : group.get(tags));
+            HashMap<Method,Case> objectObjectHashMap = new HashMap<>();
+            objectObjectHashMap.put(method,test);
+            maps.add(objectObjectHashMap);
+        });
+        return group;
+    }
 }
