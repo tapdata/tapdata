@@ -232,7 +232,7 @@ public class SampleCollector {
     }
 
     public ResetSampler getResetSampler(String id) {
-        return (ResetSampler) idSamplerMap.computeIfAbsent(id, s -> new ResetSampler());
+        return (ResetSampler) idSamplerMap.computeIfAbsent(id, s -> new ResetSampler(null, null));
     }
 
     /**

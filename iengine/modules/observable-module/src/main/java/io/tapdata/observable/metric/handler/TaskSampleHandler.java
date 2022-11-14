@@ -142,7 +142,7 @@ public class TaskSampleHandler extends AbstractHandler {
             return currentEventTimestampRef.get();
         });
         collector.addSampler(Constants.REPLICATE_LAG, () -> {
-            AtomicReference<Long> replicateLagRef = new AtomicReference<>();
+            AtomicReference<Long> replicateLagRef = new AtomicReference<>(null);
             for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
                 Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
                     Number value = sampler.getTemp();

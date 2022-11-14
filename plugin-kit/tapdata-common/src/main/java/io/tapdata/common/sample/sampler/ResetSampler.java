@@ -3,40 +3,40 @@ package io.tapdata.common.sample.sampler;
 import io.tapdata.common.sample.Sampler;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ResetSampler implements Sampler {
-    private AtomicLong value;
+    private AtomicReference<Long> value;
 
-    private AtomicLong temp;
+    private AtomicReference<Long> temp;
 
     public ResetSampler() {
     }
 
-    public ResetSampler(AtomicLong value, AtomicLong temp) {
-        this.value = value;
-        this.temp = temp;
+    public ResetSampler(Long value, Long temp) {
+        this.value = new AtomicReference<>(value);
+        this.temp = new AtomicReference<>(temp);
     }
 
     public void setValue(Long value) {
-        this.value = new AtomicLong(value);
-        this.temp = new AtomicLong(value);
+        this.value = new AtomicReference<>(value);
+        this.temp = new AtomicReference<>(value);
     }
 
     public Long getTemp() {
         if (Objects.nonNull(temp)) {
-            return temp.getAndSet(0L);
+            return temp.getAndSet(null);
         } else {
-            return 0L;
+            return null;
         }
     }
 
     @Override
     public Number value() {
         if (Objects.nonNull(value)) {
-            return value.getAndSet(0L);
+            return value.getAndSet(null);
         } else {
-            return 0L;
+            return null;
         }
     }
 }
