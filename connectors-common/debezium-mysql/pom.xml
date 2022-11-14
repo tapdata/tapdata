@@ -74,6 +74,7 @@
         <module>debezium-connector-mysql</module>
         <module>debezium-core</module>
         <module>debezium-bom</module>
+        <module>debezium-ddl-parser</module>
     </modules>
 
     <repositories>
