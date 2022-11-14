@@ -1,5 +1,6 @@
 package io.tapdata.connector.postgres;
 
+import com.google.common.collect.Lists;
 import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.postgres.config.PostgresConfig;
@@ -30,10 +31,8 @@ public class PostgresTest extends CommonDbTest {
     }
 
     @Override
-    public Boolean testOneByOne() {
-        testFunctionMap.put("testReadPrivilege", this::testReadPrivilege);
-        testFunctionMap.put("testStreamRead", this::testStreamRead);
-        return super.testOneByOne();
+    protected List<String> supportVersions() {
+        return Lists.newArrayList("9.4", "9.5", "9.6", "10.*", "11.*", "12.*");
     }
 
     //Test number of tables and privileges

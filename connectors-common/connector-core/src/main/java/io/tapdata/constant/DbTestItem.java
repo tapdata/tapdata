@@ -6,7 +6,7 @@ public enum DbTestItem {
     CHECK_VERSION("Check supported database version"),
     CHECK_CDC_PRIVILEGES("Check replication privileges"),
     CHECK_TABLE_PRIVILEGE("Check Read for table privilege"),
-    CHECK_LOG_PLUGIN("Check log plugin for database"),
+    CHECK_LOG_PLUGIN("Check cdc plugin for database"),
     ;
 
     private final String content;
