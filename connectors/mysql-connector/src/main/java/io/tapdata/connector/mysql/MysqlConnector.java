@@ -8,6 +8,7 @@ import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
+import io.tapdata.constant.ConnectionTypeEnum;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -375,16 +376,32 @@ public class MysqlConnector extends ConnectorBase {
             if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
                 return null;
             }
-            TestItem binlogMode = mysqlConnectionTest.testBinlogMode();
-            TestItem binlogRowImage = mysqlConnectionTest.testBinlogRowImage();
-            TestItem cdcPrivileges = mysqlConnectionTest.testCDCPrivileges();
-            consumer.accept(binlogMode);
-            consumer.accept(binlogRowImage);
-            consumer.accept(cdcPrivileges);
-            consumer.accept(mysqlConnectionTest.testCreateTablePrivilege(databaseContext));
-            if (binlogMode.isSuccess() && binlogRowImage.isSuccess() && cdcPrivileges.isSuccess()) {
-                List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDL_PARSER_TYPE);
-                ddlCapabilities.forEach(connectionOptions::capability);
+            if (!ConnectionTypeEnum.SOURCE.getType().equals(databaseContext.getConnectionConfig().get("__connectionType"))) {
+                TestItem testWrite = mysqlConnectionTest.testDatabaseWritePrivilege(databaseContext);
+                consumer.accept(testWrite);
+                if (testWrite.getResult() == TestItem.RESULT_FAILED) {
+                    return null;
+                }
+                consumer.accept(mysqlConnectionTest.testCreateTablePrivilege(databaseContext));
+            }
+
+            if (!ConnectionTypeEnum.TARGET.getType().equals(databaseContext.getConnectionConfig().get("__connectionType"))) {
+                TestItem testRead = mysqlConnectionTest.testDatabaseReadPrivilege(databaseContext);
+                consumer.accept(testRead);
+                if (testRead.getResult() == TestItem.RESULT_FAILED) {
+                    return null;
+                }
+
+                TestItem binlogMode = mysqlConnectionTest.testBinlogMode();
+                TestItem binlogRowImage = mysqlConnectionTest.testBinlogRowImage();
+                TestItem cdcPrivileges = mysqlConnectionTest.testCDCPrivileges();
+                consumer.accept(binlogMode);
+                consumer.accept(binlogRowImage);
+                consumer.accept(cdcPrivileges);
+                if (binlogMode.isSuccess() && binlogRowImage.isSuccess() && cdcPrivileges.isSuccess()) {
+                    List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDL_PARSER_TYPE);
+                    ddlCapabilities.forEach(connectionOptions::capability);
+                }
             }
             return connectionOptions;
         }

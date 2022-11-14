@@ -339,6 +339,7 @@ public class MariadbConnector extends ConnectorBase {
             if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
                 return null;
             }
+
             TestItem testConnect = mariadbConnectionTest.testConnect();
             consumer.accept(testConnect);
             if (testConnect.getResult() == TestItem.RESULT_FAILED) {
@@ -349,6 +350,18 @@ public class MariadbConnector extends ConnectorBase {
             if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
                 return null;
             }
+            TestItem testWrite = mariadbConnectionTest.testDatabaseWritePrivilege(databaseContext);
+            consumer.accept(testWrite);
+            if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
+                return null;
+            }
+
+            TestItem testRead = mariadbConnectionTest.testDatabaseReadPrivilege(databaseContext);
+            consumer.accept(testRead);
+            if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
+                return null;
+            }
+
             TestItem binlogMode = mariadbConnectionTest.testBinlogMode();
             TestItem binlogRowImage = mariadbConnectionTest.testBinlogRowImage();
             TestItem cdcPrivileges = mariadbConnectionTest.testCDCPrivileges();
