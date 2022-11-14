@@ -33,7 +33,16 @@ public class TapEngineUtilsImpl implements TapEngineUtils {
 			} catch (MalformedURLException e) {
 				throw new RuntimeException(e);
 			}
-			return url.getPort();
+			int port = url.getPort();
+			if(port > 0) {
+				return port;
+			} else {
+				if(url.getProtocol().equals("http")) {
+					return 80;
+				} else if(url.getProtocol().equals("https")) {
+					return 443;
+				}
+			}
 		}
 		return wsPort;
 	}
