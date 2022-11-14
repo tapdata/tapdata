@@ -55,6 +55,10 @@ import java.util.function.Consumer;
  **/
 public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
+	public static final String TARGET_BATCH_PROP_KEY = "TARGET_BATCH";
+	public static final String TARGET_BATCH_INTERVAL_MS_PROP_KEY = "TARGET_BATCH_INTERVAL_MS";
+	public static final int DEFAULT_TARGET_BATCH_INTERVAL_MS = 3000;
+	public static final int DEFAULT_TARGET_BATCH = 10000;
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	protected String tableName;
@@ -80,6 +84,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		return thread;
 	});
 	private boolean inCdc = false;
+	private int targetBatch;
+	private long targetBatchIntervalMs;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -135,8 +141,18 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (TaskDto.TYPE_INITIAL_SYNC.equals(type)) {
 			putInGlobalMap(getCompletedInitialKey(), false);
 		}
-		this.tapEventQueue = new LinkedBlockingQueue<>(dataProcessorContext.getTaskDto().getReadBatchSize() * 2);
+		this.targetBatch = CommonUtils.getPropertyInt(TARGET_BATCH_PROP_KEY, DEFAULT_TARGET_BATCH);
+		this.targetBatchIntervalMs = CommonUtils.getPropertyLong(TARGET_BATCH_INTERVAL_MS_PROP_KEY, DEFAULT_TARGET_BATCH_INTERVAL_MS);
+		logger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
+		obsLogger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
+		logger.info("Target node {}[{}] batch max interval ms: {}", getNode().getName(), getNode().getId(), targetBatchIntervalMs);
+		obsLogger.info("Target node {}[{}] batch max interval ms: {}", getNode().getName(), getNode().getId(), targetBatchIntervalMs);
+		this.tapEventQueue = new LinkedBlockingQueue<>(targetBatch * 2);
+		logger.info("Init target queue complete, size: {}", (targetBatch * 2));
+		obsLogger.info("Init target queue complete, size: {}", (targetBatch * 2));
 		this.queueConsumerThreadPool.submit(this::queueConsume);
+		logger.info("Init target queue consumer complete");
+		obsLogger.info("Init target queue consumer complete");
 	}
 
 	@Override
@@ -191,6 +207,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		dispatchTapdataEvents(
 				tapdataEvents,
 				consumeEvents -> {
+					System.out.println("events size: " + consumeEvents.size());
 					if (!inCdc) {
 						List<TapdataEvent> partialCdcEvents = new ArrayList<>();
 						final Iterator<TapdataEvent> iterator = consumeEvents.iterator();
@@ -231,12 +248,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				if (null != tapdataEvent) {
 					tapdataEvents.add(tapdataEvent);
 				}
-				if (tapdataEvents.size() >= dataProcessorContext.getTaskDto().getReadBatchSize()) {
+				if (tapdataEvents.size() >= this.targetBatch) {
 					processTargetEvents(tapdataEvents);
 					tapdataEvents.clear();
 					lastProcessTime = System.currentTimeMillis();
 				}
-				if (System.currentTimeMillis() - lastProcessTime >= 500 && CollectionUtils.isNotEmpty(tapdataEvents)) {
+				if (System.currentTimeMillis() - lastProcessTime >= targetBatchIntervalMs && CollectionUtils.isNotEmpty(tapdataEvents)) {
 					processTargetEvents(tapdataEvents);
 					tapdataEvents.clear();
 					lastProcessTime = System.currentTimeMillis();
