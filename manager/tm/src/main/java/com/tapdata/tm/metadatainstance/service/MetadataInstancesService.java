@@ -995,7 +995,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             }
 
             if (saveHistory) {
-                qualifiedNameLinkLogic(qualifiedNames, userDetail);
+                qualifiedNameLinkLogic(qualifiedNames, userDetail, taskId);
             }
 
             if (StringUtils.isNotBlank(uuid) && !saveHistory) {
@@ -1773,18 +1773,19 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
 
-    public void qualifiedNameLinkLogic(String qualifiedName, UserDetail user){
-        qualifiedNameLinkLogic(Lists.of(qualifiedName), user);
-    }
     public void qualifiedNameLinkLogic(List<String> qualifiedNames, UserDetail user){
         List<MetadataInstancesDto> metadataInstancesDto = findByQualifiedNameNotDelete(qualifiedNames, user);
-        linkLogic(metadataInstancesDto, user);
-    }
-    public void linkLogic(MetadataInstancesDto metadataInstancesDto, UserDetail user){
-        linkLogic(Lists.of(metadataInstancesDto), user);
+        linkLogic(metadataInstancesDto, user, null);
     }
 
-    public void linkLogic(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user){
+
+    public void qualifiedNameLinkLogic(List<String> qualifiedNames, UserDetail user, String taskId){
+        List<MetadataInstancesDto> metadataInstancesDto = findByQualifiedNameNotDelete(qualifiedNames, user);
+        linkLogic(metadataInstancesDto, user, taskId);
+    }
+
+    //带有taskId的为ddl任务传过来的。所以不需要过滤一些运行状态的任务模型。
+    public void linkLogic(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, String taskId){
         try {
             List<MetadataInstancesDto> updateMetadatas = new ArrayList<>();
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
@@ -1792,16 +1793,24 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 Criteria criteria = Criteria.where("meta_type").is(metadataInstancesDto.getMetaType()).and("original_name").is(metadataInstancesDto.getOriginalName())
                         .and("source._id").is(metadataInstancesDto.getSource().get_id())
                         .and("is_deleted").ne(true).and("sourceType").is(SourceTypeEnum.VIRTUAL.name());
+
+                if (StringUtils.isNotBlank(taskId)) {
+                    criteria.and("taskId").is(taskId);
+                }
                 Query query = new Query(criteria);
                 List<MetadataInstancesDto> taskMetadatas = findAllDto(query, user);
 
                 if (CollectionUtils.isNotEmpty(taskMetadatas)) {
 
-                    List<ObjectId> taskIds = taskMetadatas.stream().map(MetadataInstancesDto::getTaskId).filter(StringUtils::isNotBlank).map(MongoUtils::toObjectId).collect(Collectors.toList());
+                    List<ObjectId> taskIds = StringUtils.isNotBlank(taskId) ? Lists.of(MongoUtils.toObjectId(taskId)) :
+                            taskMetadatas.stream().map(MetadataInstancesDto::getTaskId).filter(StringUtils::isNotBlank).map(MongoUtils::toObjectId).collect(Collectors.toList());
 
                     //对于正在运行中的任务的模型，不需要做下面的合并物理表的操作。
                     //下面这个过滤的逻辑，可能存在任务刚好点启动的时候，会被漏掉
-                    Criteria criteriaTask = Criteria.where("_id").in(taskIds).and("status").in(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START).and("is_deleted").ne(true);
+                    Criteria criteriaTask = Criteria.where("_id").in(taskIds).and("is_deleted").ne(true);
+                    if (StringUtils.isBlank(taskId)) {
+                        criteriaTask.and("status").in(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
+                    }
                     Query queryTask = new Query(criteriaTask);
                     queryTask.fields().include("_id");
                     List<TaskDto> allDto = taskService.findAllDto(queryTask, user);

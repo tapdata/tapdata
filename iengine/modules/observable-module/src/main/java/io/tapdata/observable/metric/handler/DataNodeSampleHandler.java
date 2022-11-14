@@ -329,6 +329,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(targetWriteTimeCostAvg).ifPresent(average -> average.add(total, acceptTime));
 
 
+
         Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
         Optional.ofNullable(replicateLag).ifPresent(speed -> {
             if (null != recorder.getReplicateLagTotal()) {
