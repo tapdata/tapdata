@@ -60,7 +60,7 @@ public class TidbConnector extends ConnectorBase {
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         tidbConfig = (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
-        tidbConnectionTest = new TidbConnectionTest(tidbConfig, null);
+        tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {});
         if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
             tidbContext = (TidbContext) DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, tapConnectionContext.getId());
         }

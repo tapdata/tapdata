@@ -311,7 +311,7 @@ public class PostgresConnector extends ConnectorBase {
     //initialize jdbc context, slot name, version
     private void initConnection(TapConnectionContext connectorContext) {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
-        postgresTest = new PostgresTest(postgresConfig, null).initContext();
+        postgresTest = new PostgresTest(postgresConfig, testItem -> {}).initContext();
         if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
             postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
         }
@@ -476,7 +476,8 @@ public class PostgresConnector extends ConnectorBase {
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         //test streamRead log plugin
-        if (postgresTest.testStreamRead() && EmptyKit.isNull(slotName)) {
+        boolean canCdc = EmptyKit.isNotNull(postgresTest.testStreamRead()) && postgresTest.testStreamRead();
+        if (canCdc && EmptyKit.isNull(slotName)) {
             buildSlot();
             tapConnectorContext.getStateMap().put("tapdata_pg_slot", slotName);
         }

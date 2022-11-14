@@ -51,7 +51,7 @@ public class CommonDbTest implements AutoCloseable {
     public Boolean testOneByOne() {
         for (Map.Entry<String, Supplier<Boolean>> entry : testFunctionMap.entrySet()) {
             Boolean res = entry.getValue().get();
-            if (EmptyKit.isNull(res) || !res) {
+            if (EmptyKit.isNotNull(res) && !res) {
                 return false;
             }
         }
