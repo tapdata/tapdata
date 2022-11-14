@@ -81,6 +81,7 @@ public abstract class WriteRecorder {
             listResult.addErrors(map);
             throw new RuntimeException(e);
         }
+        atomicLong.addAndGet(succeed);
     }
 
     //commit when cacheSize >= 1000

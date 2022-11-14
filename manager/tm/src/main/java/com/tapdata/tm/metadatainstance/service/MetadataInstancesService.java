@@ -1867,26 +1867,49 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         .and("is_deleted").ne(true).and("sourceType").is(SourceTypeEnum.VIRTUAL.name());
                 Query query = new Query(criteria);
                 List<MetadataInstancesDto> taskMetadatas = findAllDto(query, user);
-                com.tapdata.tm.commons.schema.Schema originalSchema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstancesDto), com.tapdata.tm.commons.schema.Schema.class);
-
 
                 if (CollectionUtils.isNotEmpty(taskMetadatas)) {
-                    //如果逻辑模型没有为空，则遍历合并物理模型跟逻辑模型，得到新的逻辑模型保存到库里面。
-                    for (MetadataInstancesDto taskMetadata : taskMetadatas) {
-                        com.tapdata.tm.commons.schema.Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(taskMetadata), com.tapdata.tm.commons.schema.Schema.class);
-                        schema = SchemaUtils.mergeSchema(Lists.of(SchemaUtils.cloneSchema(originalSchema)), schema, false);
-                        MetadataInstancesDto metadataInstancesDto1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
-                        if (metadataInstancesDto1 != null) {
-                            metadataInstancesDto1.setQualifiedName(taskMetadata.getQualifiedName());
-                            updateMetadatas.add(metadataInstancesDto1);
+
+                    List<ObjectId> taskIds = taskMetadatas.stream().map(MetadataInstancesDto::getTaskId).filter(StringUtils::isNotBlank).map(MongoUtils::toObjectId).collect(Collectors.toList());
+
+                    //对于正在运行中的任务的模型，不需要做下面的合并物理表的操作。
+                    //下面这个过滤的逻辑，可能存在任务刚好点启动的时候，会被漏掉
+                    Criteria criteriaTask = Criteria.where("_id").in(taskIds).and("status").in(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START).and("is_deleted").ne(true);
+                    Query queryTask = new Query(criteriaTask);
+                    queryTask.fields().include("_id");
+                    List<TaskDto> allDto = taskService.findAllDto(queryTask, user);
+                    final Set<String> editTaskIds;
+
+                    if (CollectionUtils.isNotEmpty(allDto)) {
+                        editTaskIds = allDto.stream().map(t -> t.getId().toHexString()).collect(Collectors.toSet());
+                        taskMetadatas = taskMetadatas.stream().filter(t -> editTaskIds.contains(t.getTaskId()) || StringUtils.isBlank(t.getTaskId())).collect(Collectors.toList());
+                    } else {
+                        continue;
+                    }
+
+                    com.tapdata.tm.commons.schema.Schema originalSchema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstancesDto), com.tapdata.tm.commons.schema.Schema.class);
+
+
+                    if (CollectionUtils.isNotEmpty(taskMetadatas)) {
+                        //如果逻辑模型没有为空，则遍历合并物理模型跟逻辑模型，得到新的逻辑模型保存到库里面。
+                        for (MetadataInstancesDto taskMetadata : taskMetadatas) {
+                            com.tapdata.tm.commons.schema.Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(taskMetadata), com.tapdata.tm.commons.schema.Schema.class);
+                            schema = SchemaUtils.mergeSchema(Lists.of(SchemaUtils.cloneSchema(originalSchema)), schema, false);
+                            MetadataInstancesDto metadataInstancesDto1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
+                            if (metadataInstancesDto1 != null) {
+                                metadataInstancesDto1.setQualifiedName(taskMetadata.getQualifiedName());
+                                updateMetadatas.add(metadataInstancesDto1);
+                            }
                         }
                     }
+
                 }
 
+                if (CollectionUtils.isNotEmpty(updateMetadatas)) {
+                    //批量入库
+                    bulkUpsetByWhere(updateMetadatas, user);
+                }
             }
-
-            //批量入库
-            bulkUpsetByWhere(updateMetadatas, user);
         } catch (Exception e) {
             log.warn("update logic metadata failed");
         }

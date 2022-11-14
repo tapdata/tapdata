@@ -3,6 +3,7 @@ package com.tapdata.tm.monitor.service;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
@@ -23,6 +24,7 @@ import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.ThrowableUtils;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
@@ -92,7 +94,7 @@ public class MeasurementServiceV2 {
             Query beforeQuery = Query.query(beforeCriteria);
             beforeQuery.limit(1);
             MeasurementEntity before = mongoOperations.findOne(beforeQuery, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
-            Sample requestSample = singleSampleRequest.getSample();
+            AtomicReference<Sample> requestSample = new AtomicReference<>(singleSampleRequest.getSample());
             Optional.ofNullable(before).ifPresent(
                     bf -> {
                         Sample sample = bf.getSamples().stream().findFirst().orElse(null);
@@ -101,18 +103,13 @@ public class MeasurementServiceV2 {
                                     Map<String, Number> vs = samp.getVs();
                                     Optional.ofNullable(vs).ifPresent(
                                             vvs -> {
-                                                Map<String, Number> numberMap = requestSample.getVs();
+                                                Map<String, Number> numberMap = requestSample.get().getVs();
                                                 vvs.forEach((key, value) -> {
                                                     if (numberMap.containsKey(key) && Objects.isNull(numberMap.get(key)) && Objects.nonNull(value)) {
-                                                        requestSample.getVs().put(key, value);
+                                                        requestSample.get().getVs().put(key, value);
                                                     }
                                                 });
-                                                if (numberMap.containsKey("currentSnapshotTableInsertRowTotal")
-                                                        && Objects.nonNull(numberMap.get("currentSnapshotTableInsertRowTotal"))
-                                                        && numberMap.get("currentSnapshotTableInsertRowTotal").longValue() == 0L
-                                                        && vvs.get("currentSnapshotTableInsertRowTotal").longValue() > 0L) {
-                                                    requestSample.getVs().put("currentSnapshotTableInsertRowTotal", vvs.get("currentSnapshotTableInsertRowTotal"));
-                                                }
+                                                requestSample.set(supplyKeyData(requestSample.get(), vvs, numberMap));
                                             }
                                     );
                                 }
@@ -122,17 +119,17 @@ public class MeasurementServiceV2 {
 
 
             Query query = Query.query(criteria);
-            requestSample.setDate(second);
+            requestSample.get().setDate(second);
 
-            Map<String, Object> sampleMap = requestSample.toMap();
+            Map<String, Object> sampleMap = requestSample.get().toMap();
             Document upd = new Document();
             upd.put("$each", Collections.singletonList(sampleMap));
             upd.put("$slice", 200); //为了保护数组过长， 在出bug的情况下
             upd.put("$sort", new Document().append(Sample.FIELD_DATE, -1));
 
             Update update = new Update()
-                    .min(MeasurementEntity.FIELD_FIRST, requestSample.getDate())
-                    .max(MeasurementEntity.FIELD_LAST, requestSample.getDate());
+                    .min(MeasurementEntity.FIELD_FIRST, requestSample.get().getDate())
+                    .max(MeasurementEntity.FIELD_LAST, requestSample.get().getDate());
             if ("table".equals(tags.get("type"))) {
                 update.set(MeasurementEntity.FIELD_SAMPLES, Collections.singletonList(sampleMap));
                 update.set(MeasurementEntity.FIELD_DATE, theDate);
@@ -144,6 +141,23 @@ public class MeasurementServiceV2 {
         }
 
         bulkOperations.execute();
+    }
+
+    private Sample supplyKeyData(Sample requestSample, Map<String, Number> vvs, Map<String, Number> numberMap) {
+        List<String> list = Lists.newArrayList("currentSnapshotTableInsertRowTotal", "timeCostAvg", "targetWriteTimeCostAvg");
+
+        for (String key : list) {
+            if (numberMap.containsKey(key)
+                    && Objects.nonNull(numberMap.get(key))
+                    && numberMap.get(key).longValue() == 0L
+                    && Objects.nonNull(vvs.get(key))
+                    && vvs.get(key).longValue() > 0L) {
+                requestSample.getVs().put(key, vvs.get(key));
+            } else if (!numberMap.containsKey(key) && vvs.containsKey(key)) {
+                requestSample.getVs().put(key, vvs.get(key));
+            }
+        }
+        return requestSample;
     }
 
     private static final String TAG_FORMAT = String.format("%s.%%s", MeasurementEntity.FIELD_TAGS);
@@ -377,7 +391,8 @@ public class MeasurementServiceV2 {
                 // 全量完成时间应该是在任务中所有涉及全量的表完成后再更新全量完成时间
                 Number snapshotTableTotal = values.get("snapshotTableTotal");
                 Number tableTotal = values.get("tableTotal");
-                if (snapshotTableTotal.longValue() == 0 || snapshotTableTotal.longValue() < tableTotal.longValue()) {
+                if ((ObjectUtils.allNotNull(snapshotTableTotal, tableTotal))
+                        && (snapshotTableTotal.longValue() == 0 || snapshotTableTotal.longValue() < tableTotal.longValue())) {
                     values.put("snapshotDoneAt", null);
                 }
 
@@ -398,27 +413,36 @@ public class MeasurementServiceV2 {
     private Long calculateMaxReplicateLag(MeasurementQueryParam.MeasurementQuerySample querySample) {
         Long maxRep = 0L;
 
-        String taskId = querySample.getTags().get("taskId");
-        String taskRecordId = querySample.getTags().get("taskRecordId");
-        Criteria repCriteria = Criteria.where("grnty").is("minute")
-                .and("tags.taskId").is(taskId)
-                .and("tags.taskRecordId").is(taskRecordId)
-                .and("tags.type").is("task");
-        MatchOperation repMatch = Aggregation.match(repCriteria);
-        GroupOperation repGroup = Aggregation.group("max").max("$ss.vs.replicateLag").as("max");
-        Aggregation repAggregation = Aggregation.newAggregation(repMatch, repGroup);
-        AggregationResults<Document> repAggregate = mongoOperations.aggregate(repAggregation, MeasurementEntity.COLLECTION_NAME, Document.class);
-        List<Document> mappedResults = repAggregate.getMappedResults();
-        for (Document document : mappedResults) {
-            Object max = document.get("max");
-            List<Integer> list = JSON.parseArray(max.toString(), Integer.class);
-            list.removeAll(Collections.singleton(null));
-            if (CollectionUtils.isNotEmpty(list)) {
-                Integer temp = Collections.max(list);
-                if (temp > maxRep) {
-                    maxRep = Long.valueOf(temp);
+        try {
+            String taskId = querySample.getTags().get("taskId");
+            String taskRecordId = querySample.getTags().get("taskRecordId");
+            Criteria repCriteria = Criteria.where("grnty").is("minute")
+                    .and("tags.taskId").is(taskId)
+                    .and("tags.taskRecordId").is(taskRecordId)
+                    .and("tags.type").is("task");
+            MatchOperation repMatch = Aggregation.match(repCriteria);
+            GroupOperation repGroup = Aggregation.group("max").max("$ss.vs.replicateLag").as("max");
+            Aggregation repAggregation = Aggregation.newAggregation(repMatch, repGroup);
+            AggregationResults<Document> repAggregate = mongoOperations.aggregate(repAggregation, MeasurementEntity.COLLECTION_NAME, Document.class);
+            List<Document> mappedResults = repAggregate.getMappedResults();
+            for (Document document : mappedResults) {
+                Object max = document.get("max");
+
+                JSONArray objects = JSON.parseArray(max.toString());
+                if (objects.size() == 0) {
+                    continue;
+                }
+                List<Integer> list = JSON.parseArray(max.toString(), Integer.class);
+                list.removeAll(Collections.singleton(null));
+                if (CollectionUtils.isNotEmpty(list)) {
+                    Integer temp = Collections.max(list);
+                    if (temp > maxRep) {
+                        maxRep = Long.valueOf(temp);
+                    }
                 }
             }
+        } catch (Exception e) {
+            log.error("calculateMaxReplicateLag error:"+ ThrowableUtils.getStackTraceByPn(e));
         }
 
         return maxRep;
