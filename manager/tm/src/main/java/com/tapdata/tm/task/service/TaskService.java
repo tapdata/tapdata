@@ -1248,9 +1248,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         //过滤调共享缓存任务
-//        HashMap<String, Object> notShareCache = new HashMap<>();
-//        notShareCache.put("$ne", true);
-//        where.put("shareCache", notShareCache);
+        HashMap<String, Object> notShareCache = new HashMap<>();
+        notShareCache.put("$ne", true);
+        where.put("shareCache", notShareCache);
 
 
         Boolean deleted = (Boolean) where.get("is_deleted");
@@ -1699,7 +1699,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Criteria criteria = Criteria.where("user_id").is(user.getUserId())
                 .and("is_deleted").ne(true)
                 .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
-                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
+                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
+                //共享缓存的任务设计的有点问题
+                .and("shareCache").ne(true);
+
 
         Query query = Query.query(criteria);
         query.fields().include("syncType", "status", "statuses");
