@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
-public abstract class CommonDbTest implements AutoCloseable {
+public class CommonDbTest implements AutoCloseable {
 
     protected CommonDbConfig commonDbConfig;
     protected JdbcContext jdbcContext;
@@ -141,9 +141,13 @@ public abstract class CommonDbTest implements AutoCloseable {
         return true;
     }
 
-    public abstract Boolean testReadPrivilege();
+    public Boolean testReadPrivilege() {
+        return true;
+    }
 
-    public abstract Boolean testStreamRead();
+    public Boolean testStreamRead() {
+        return true;
+    }
 
     //healthCheck-ping
     public ConnectionCheckItem testPing() {
