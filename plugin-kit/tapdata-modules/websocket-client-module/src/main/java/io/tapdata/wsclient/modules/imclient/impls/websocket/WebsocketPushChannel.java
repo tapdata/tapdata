@@ -184,6 +184,7 @@ public class WebsocketPushChannel extends PushChannel {
             throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login url {} loginObj {} headers {} failed, {}", baseUrl, loginObj, headers, e.getMessage());
         }
         wsPort = data.getInteger("wsPort");
+        wsPort = tapEngineUtils.getRealWsPort(wsPort, theUrl);
         sid = data.getString("token");
         String wsPath = data.getString("wsPath");
         String wsHost = data.getString("wsHost");
