@@ -8,16 +8,17 @@ import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.NumberSampler;
+import io.tapdata.common.sample.sampler.WriteCostAvgSampler;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.metric.aspect.ConnectionPingAspect;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckFunction;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import lombok.extern.slf4j.Slf4j;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -58,7 +59,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     private CounterSampler snapshotInsertRowCounter;
     private AverageSampler snapshotSourceReadTimeCostAvg;
     private AverageSampler incrementalSourceReadTimeCostAvg;
-    private AverageSampler targetWriteTimeCostAvg;
+    private WriteCostAvgSampler targetWriteTimeCostAvg;
 
     private final Set<String> nodeTables = new HashSet<>();
 
@@ -95,7 +96,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         snapshotRowCounter = getCounterSampler(values, SNAPSHOT_ROW_TOTAL);
         snapshotInsertRowCounter = getCounterSampler(values, SNAPSHOT_INSERT_ROW_TOTAL);
         snapshotSourceReadTimeCostAvg = collector.getAverageSampler(SNAPSHOT_SOURCE_READ_TIME_COST_AVG);
-        targetWriteTimeCostAvg = collector.getAverageSampler(TARGET_WRITE_TIME_COST_AVG);
+        targetWriteTimeCostAvg = collector.getWriteCostAvgSampler(TARGET_WRITE_TIME_COST_AVG);
 
         Number retrieveSnapshotStartAt = values.getOrDefault(SNAPSHOT_START_AT, null);
         if (retrieveSnapshotStartAt != null) {
@@ -304,18 +305,14 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         streamAcceptLastTs = enqueuedTime;
     }
 
-    private Long writeRecordAcceptLastTs;
-
     public void handleWriteRecordStart(Long startAt, HandlerUtil.EventTypeRecorder recorder) {
-        writeRecordAcceptLastTs = startAt;
-
+        Optional.ofNullable(targetWriteTimeCostAvg).ifPresent(average -> average.setWriteRecordAcceptLastTs(startAt));
         Optional.ofNullable(inputDdlCounter).ifPresent(counter -> counter.inc(recorder.getDdlTotal()));
         Optional.ofNullable(inputInsertCounter).ifPresent(counter -> counter.inc(recorder.getInsertTotal()));
         Optional.ofNullable(inputUpdateCounter).ifPresent(counter -> counter.inc(recorder.getUpdateTotal()));
         Optional.ofNullable(inputDeleteCounter).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
         Optional.ofNullable(inputOthersCounter).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
         Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(recorder.getTotal()));
-
     }
 
     public void handleWriteRecordAccept(Long acceptTime, WriteListResult<TapRecordEvent> result, HandlerUtil.EventTypeRecorder recorder) {
@@ -329,10 +326,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(outputDeleteCounter).ifPresent(counter -> counter.inc(deleted));
         Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
 
-        Optional.ofNullable(targetWriteTimeCostAvg).ifPresent(average -> {
-            average.add(total, acceptTime - writeRecordAcceptLastTs);
-            writeRecordAcceptLastTs = acceptTime;
-        });
+        Optional.ofNullable(targetWriteTimeCostAvg).ifPresent(average -> average.add(total, acceptTime));
+
 
 
         Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
