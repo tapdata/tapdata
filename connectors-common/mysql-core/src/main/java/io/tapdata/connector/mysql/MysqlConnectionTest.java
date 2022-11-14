@@ -1,5 +1,6 @@
 package io.tapdata.connector.mysql;
 
+import com.alibaba.fastjson.JSONObject;
 import io.tapdata.connector.mysql.constant.MysqlTestItem;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -36,6 +37,7 @@ public class MysqlConnectionTest implements AutoCloseable {
             "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE'";
     protected MysqlJdbcContext mysqlJdbcContext;
 
+
     public MysqlConnectionTest(MysqlJdbcContext mysqlJdbcContext) {
         this.mysqlJdbcContext = mysqlJdbcContext;
     }
@@ -54,13 +56,118 @@ public class MysqlConnectionTest implements AutoCloseable {
 
     public TestItem testConnect() {
         try (
-                Connection connection = mysqlJdbcContext.getConnection()
+                Connection connection = mysqlJdbcContext.getConnection();
         ) {
             return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
         } catch (Exception e) {
+            if (e instanceof SQLException) {
+                String errMsg = e.getMessage();
+                if (errMsg.contains("using password")) {
+                    String password = mysqlJdbcContext.getTapConnectionContext().getConnectionConfig().getString("password");
+                    if (StringUtils.isNotEmpty(password)) {
+                        errMsg = "password or username is error ,please check";
+                    } else {
+                        errMsg = "password is empty,please enter password";
+                    }
+                    return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, errMsg);
+
+                }
+            }
             return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage());
         }
     }
+
+
+    public TestItem testDatabaseWritePrivilege(TapConnectionContext tapConnectionContext) throws Throwable{
+        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
+        String databaseName = String.valueOf(connectionConfig.get("database"));
+        List<String> tableList = new ArrayList();
+        AtomicReference <Boolean> globalWrite = new AtomicReference();
+        AtomicReference<TestItem> testItem = new AtomicReference<>();
+        try {
+            mysqlJdbcContext.query(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
+                while (resultSet.next()) {
+                   String  grantSql = resultSet.getString(1);
+                    if(testWriteOrReadPrivilege(grantSql,tableList,databaseName,"write")){
+                        testItem.set(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
+                        globalWrite.set(true);
+                        return ;
+                    }
+                }
+
+            });
+        } catch (SQLException e) {
+
+        }
+        if (globalWrite.get() != null) {
+            return testItem.get();
+        }
+        if(CollectionUtils.isNotEmpty(tableList)) {
+            return testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, JSONObject.toJSONString(tableList));
+        }
+        return testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, "no table can write");
+
+    }
+
+
+    public boolean testWriteOrReadPrivilege(String grantSql, List<String> tableList, String databaseName, String mark) {
+        boolean privilege;
+        privilege = grantSql.contains("INSERT") && grantSql.contains("UPDATE") && grantSql.contains("DELETE");
+        if ("read".equals(mark)) {
+            privilege = grantSql.contains("SELECT");
+        }
+        if (grantSql.contains("*.* TO")) {
+            if (privilege) {
+                return true;
+            }
+
+        } else if (grantSql.contains("`"+databaseName+"`" + ".* TO")) {
+            if (privilege) {
+                return true;
+            }
+        } else if (grantSql.contains("`"+databaseName+"`" + ".")) {
+            String table = grantSql.substring(grantSql.indexOf(databaseName + "."), grantSql.indexOf("TO")).trim();
+            if (privilege) {
+                tableList.add(table);
+            }
+        }
+        return false;
+    }
+
+
+
+    public TestItem testDatabaseReadPrivilege(TapConnectionContext tapConnectionContext) throws Throwable{
+        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
+        String databaseName = String.valueOf(connectionConfig.get("database"));
+        List<String> tableList = new ArrayList();
+        AtomicReference<TestItem> testItem = new AtomicReference<>();
+        AtomicReference <Boolean> globalRead = new AtomicReference();
+
+        try {
+            mysqlJdbcContext.query(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
+                while (resultSet.next()) {
+                    String  grantSql = resultSet.getString(1);
+                    if(testWriteOrReadPrivilege(grantSql,tableList,databaseName,"read")){
+                        testItem.set(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
+                        globalRead.set(true);
+                        return ;
+                    }
+                }
+
+            });
+        } catch (SQLException e) {
+
+        }
+        if (globalRead.get() != null) {
+            return testItem.get();
+        }
+        if(CollectionUtils.isNotEmpty(tableList)) {
+            return testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, JSONObject.toJSONString(tableList));
+        }
+        return testItem(TestItem.ITEM_READ, TestItem.RESULT_FAILED, "no table can read");
+
+    }
+
 
     public TestItem testDatabaseVersion() {
         try {
