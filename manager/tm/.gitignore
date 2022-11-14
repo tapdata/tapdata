@@ -4,3 +4,4 @@ src/main/resources/oauth
 /src/test/java/com/tapdata/mongo/TestChangeStream.java
 src/main/resources/prod
 src/main/resources/cloud-dev
+src/main/resources/cloud-uat
