@@ -22,6 +22,7 @@ import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.Record;
+import io.tapdata.pdk.tdd.tests.support.TapGo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -36,6 +37,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 
 @DisplayName("Test.TestNotImplementFunErr")
+@TapGo(sort = 2)
 public class TestNotImplementFunErr extends PDKTestBase {
     private static final String TAG = TestNotImplementFunErr.class.getSimpleName();
     ConnectorNode tddTargetNode;

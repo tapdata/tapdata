@@ -15,6 +15,7 @@ import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.basic.BasicTest;
 import io.tapdata.pdk.tdd.tests.support.Case;
+import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.v2.TestNotImplementFunErr;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordTest;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordWithQueryTest;
@@ -30,10 +31,13 @@ import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
 import org.junit.platform.launcher.listeners.SummaryGeneratingListener;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
+import org.reflections.Reflections;
 import picocli.CommandLine;
 
 import java.io.*;
+import java.lang.annotation.Annotation;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass;
@@ -61,6 +65,8 @@ public class TDDCli extends CommonCli {
     private boolean helpRequested = false;
     @CommandLine.Option(names = { "-l", "--lang" }, usageHelp = false, description = "TapData cli lang，values zh_CN/zh_TW/en,default is en")
     private String lan = "en";
+    @CommandLine.Option(names = { "-p", "--path" }, usageHelp = false, description = "TapData cli path,need test package ,path split as .")
+    private String packagePath = WriteRecordTest.class.getPackage().getName();
 
 
 
@@ -280,16 +286,7 @@ public class TDDCli extends CommonCli {
         TapCodecsRegistry codecRegistry = new TapCodecsRegistry();
         connector.registerCapabilities(connectorFunctions, codecRegistry);
 
-        List<Class<? extends PDKTestBase>> tests = Arrays.asList(
-                WriteRecordTest.class,
-                TestNotImplementFunErr.class,
-                WriteRecordWithQueryTest.class
-//                DMLTest.class,
-//                CreateTableTest.class,
-//                BatchReadTest.class,
-//                StreamReadTest.class
-//                QueryByAdvanceFilterTest.class
-        );
+        List<Class<? extends PDKTestBase>> tests = allTest();
 
 //        builder.append("\n-------------PDK connector idAndGroupAndVersion " + tapNodeInfo.getTapNodeSpecification().idAndGroup() + "-------------").append("\n");
 //        builder.append("             Node class " + tapNodeInfo.getNodeClass() + " run ");
@@ -364,4 +361,29 @@ public class TDDCli extends CommonCli {
         return null;
     }
 
+
+    private List<Class<? extends PDKTestBase>> allTest(){
+        Reflections reflections = new Reflections(packagePath);
+        //返回带有指定注解的所有类对象
+        Set<Class<?>> typesAnnotatedWith = reflections.getTypesAnnotatedWith(TapGo.class);
+        return typesAnnotatedWith.stream().filter(cls->{
+            try {
+                boolean annotation = cls.getAnnotation(TapGo.class).goTest();
+                return (PDKTestBase.class.isAssignableFrom(cls)) && annotation;
+            }catch (Exception e){
+                return false;
+            }
+        }).sorted((cla1,cla2)->{
+            Annotation annotation1 = cla1.getAnnotation(TapGo.class);
+            Annotation annotation2 = cla2.getAnnotation(TapGo.class);
+            return ((TapGo)annotation1).sort()>((TapGo)annotation2).sort()?0:-1;
+        }).map(cla->{
+            try {
+                return ((PDKTestBase)cla.newInstance()).getClass();
+            } catch (InstantiationException e) {
+            } catch (IllegalAccessException e) {
+            }
+            return null;
+        }).collect(Collectors.toList());
+    }
 }

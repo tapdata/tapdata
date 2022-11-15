@@ -28,6 +28,7 @@ import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.Record;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
+import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.target.DMLTest;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +46,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 
 @DisplayName("Test.WriteRecordWithQueryTest")
+@TapGo(sort = 3)
 public class WriteRecordWithQueryTest extends PDKTestBase {
     private static final String TAG = DMLTest.class.getSimpleName();
     ConnectorNode tddTargetNode;
