@@ -8,8 +8,6 @@ public class CsvConfig extends FileConfig {
     private Boolean includeHeader;
     private String header;
     private int dataStartLine;
-    private Boolean justString;
-
 
     public CsvConfig() {
         setFileType("csv");
@@ -47,11 +45,4 @@ public class CsvConfig extends FileConfig {
         this.dataStartLine = dataStartLine;
     }
 
-    public Boolean getJustString() {
-        return justString;
-    }
-
-    public void setJustString(Boolean justString) {
-        this.justString = justString;
-    }
 }

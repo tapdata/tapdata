@@ -4,11 +4,10 @@ import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import io.tapdata.common.FileConnector;
 import io.tapdata.common.FileOffset;
+import io.tapdata.common.util.MatchUtil;
 import io.tapdata.connector.csv.config.CsvConfig;
-import io.tapdata.connector.csv.util.MatchUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapDateValue;
@@ -19,11 +18,9 @@ import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.util.DateUtil;
 
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -82,40 +79,7 @@ public class CsvConnector extends FileConnector {
         if (EmptyKit.isEmpty(sample)) {
             throw new RuntimeException("Load schema from csv files error: no headers and contents!");
         }
-        if (((CsvConfig) fileConfig).getJustString()) {
-            for (Map.Entry<String, Object> objectEntry : sample.entrySet()) {
-                TapField field = new TapField();
-                field.name(objectEntry.getKey());
-                if (EmptyKit.isNotEmpty((String) objectEntry.getValue()) && ((String) objectEntry.getValue()).length() > 200) {
-                    field.dataType("TEXT");
-                } else {
-                    field.dataType("STRING");
-                }
-                tapTable.add(field);
-            }
-        } else {
-            for (Map.Entry<String, Object> objectEntry : sample.entrySet()) {
-                TapField field = new TapField();
-                field.name(objectEntry.getKey());
-                String value = (String) objectEntry.getValue();
-                if (EmptyKit.isEmpty(value)) {
-                    field.dataType("STRING");
-                } else if (MatchUtil.matchBoolean(value)) {
-                    field.dataType("BOOLEAN");
-                } else if (MatchUtil.matchInteger(value)) {
-                    field.dataType("INTEGER");
-                } else if (MatchUtil.matchNumber(value)) {
-                    field.dataType("NUMBER");
-                } else if (MatchUtil.matchDateTime(value)) {
-                    field.dataType("DATETIME");
-                } else if (value.length() > 200) {
-                    field.dataType("TEXT");
-                } else {
-                    field.dataType("STRING");
-                }
-                tapTable.add(field);
-            }
-        }
+        makeTapTable(tapTable, sample, fileConfig.getJustString());
         consumer.accept(Collections.singletonList(tapTable));
         storage.destroy();
     }
@@ -165,23 +129,7 @@ public class CsvConnector extends FileConnector {
 
     private void putIntoMap(Map<String, Object> after, String[] headers, String[] data, Map<String, String> dataTypeMap) {
         for (int i = 0; i < headers.length && i < data.length; i++) {
-            switch (dataTypeMap.get(headers[i])) {
-                case "BOOLEAN":
-                    after.put(headers[i], "true".equalsIgnoreCase(data[i]));
-                    break;
-                case "INTEGER":
-                    after.put(headers[i], Integer.parseInt(data[i]));
-                    break;
-                case "NUMBER":
-                    after.put(headers[i], new BigDecimal(data[i]));
-                    break;
-                case "DATETIME":
-                    after.put(headers[i], DateUtil.parse(data[i]));
-                    break;
-                default:
-                    after.put(headers[i], data[i]);
-                    break;
-            }
+            after.put(headers[i], MatchUtil.parse(data[i], dataTypeMap.get(headers[i])));
         }
         for (int i = 0; i < headers.length - data.length; i++) {
             switch (dataTypeMap.get(headers[i + data.length])) {

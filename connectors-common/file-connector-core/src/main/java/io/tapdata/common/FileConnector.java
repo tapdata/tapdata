@@ -2,7 +2,9 @@ package io.tapdata.common;
 
 import com.amazonaws.transform.MapEntry;
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.util.MatchUtil;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.file.TapFile;
@@ -158,6 +160,43 @@ public abstract class FileConnector extends ConnectorBase {
         FileOffset fileOffset = new FileOffset();
         fileOffset.setAllLastModified(fileMap.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getLastModified())));
         return fileOffset;
+    }
+
+    protected void makeTapTable(TapTable tapTable, Map<String, Object> sample, boolean isJustString) {
+        if (isJustString) {
+            for (Map.Entry<String, Object> objectEntry : sample.entrySet()) {
+                TapField field = new TapField();
+                field.name(objectEntry.getKey());
+                if (EmptyKit.isNotEmpty((String) objectEntry.getValue()) && ((String) objectEntry.getValue()).length() > 200) {
+                    field.dataType("TEXT");
+                } else {
+                    field.dataType("STRING");
+                }
+                tapTable.add(field);
+            }
+        } else {
+            for (Map.Entry<String, Object> objectEntry : sample.entrySet()) {
+                TapField field = new TapField();
+                field.name(objectEntry.getKey());
+                String value = (String) objectEntry.getValue();
+                if (EmptyKit.isEmpty(value)) {
+                    field.dataType("STRING");
+                } else if (MatchUtil.matchBoolean(value)) {
+                    field.dataType("BOOLEAN");
+                } else if (MatchUtil.matchInteger(value)) {
+                    field.dataType("INTEGER");
+                } else if (MatchUtil.matchNumber(value)) {
+                    field.dataType("NUMBER");
+                } else if (MatchUtil.matchDateTime(value)) {
+                    field.dataType("DATETIME");
+                } else if (value.length() > 200) {
+                    field.dataType("TEXT");
+                } else {
+                    field.dataType("STRING");
+                }
+                tapTable.add(field);
+            }
+        }
     }
 
 }

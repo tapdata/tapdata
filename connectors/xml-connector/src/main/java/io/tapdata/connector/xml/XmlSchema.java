@@ -2,7 +2,7 @@ package io.tapdata.connector.xml;
 
 import io.tapdata.common.FileSchema;
 import io.tapdata.connector.xml.config.XmlConfig;
-import io.tapdata.connector.xml.handler.BigSaxHandler;
+import io.tapdata.connector.xml.handler.BigSaxSchemaHandler;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.exception.StopException;
 import io.tapdata.file.TapFile;
@@ -27,7 +27,9 @@ public class XmlSchema extends FileSchema {
                 Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()))
         ) {
             SAXReader saxReader = new SAXReader();
-            saxReader.setDefaultHandler(new BigSaxHandler(((XmlConfig) fileConfig).getXPath()));
+            saxReader.setDefaultHandler(new BigSaxSchemaHandler()
+                    .withPath(((XmlConfig) fileConfig).getXPath())
+                    .withSampleResult(sampleResult));
             saxReader.read(reader);
         } catch (StopException ignored) {
         } catch (Exception e) {

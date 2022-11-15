@@ -1,7 +1,5 @@
-import io.tapdata.connector.xml.handler.BigSaxHandler;
-import org.dom4j.Document;
-import org.dom4j.Node;
-import org.dom4j.XPath;
+import io.tapdata.connector.xml.handler.BigSaxSchemaHandler;
+import io.tapdata.exception.StopException;
 import org.dom4j.io.SAXReader;
 
 import java.io.File;
@@ -9,18 +7,19 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public class Main {
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
+        HashMap<String, Object> map = new HashMap<>();
         try (
                 Reader reader = new InputStreamReader(Files.newInputStream(new File("/Users/jarad/Desktop/pom.xml").toPath()))
         ) {
             SAXReader saxReader = new SAXReader();
-            saxReader.setDefaultHandler(new BigSaxHandler("/project/dependencies/dependency"));
-            Document document = saxReader.read(reader);
-            document.getText();
+            saxReader.setDefaultHandler(new BigSaxSchemaHandler()
+                    .withPath("/project/dependencies/dependency")
+                    .withSampleResult(map));
+            saxReader.read(reader);
+
 //            Map<String, String> map = new HashMap<>();
 //            String nsURI = document.getRootElement().getNamespaceURI();
 //            map.put("xmlns", nsURI);
@@ -41,6 +40,11 @@ public class Main {
 //                DataMap dataMap = jsonParser.fromJsonObject(jsonReader.nextString());
 //                dataMap.forEach((k, v) -> putValidIntoMap(sampleResult, k, v));
 //            }
+        } catch (Exception e) {
+            if (!(e.getCause() instanceof StopException)) {
+                e.printStackTrace();
+            }
         }
+        map.forEach((k, v) -> System.out.println(k + ":" + v.toString()));
     }
 }

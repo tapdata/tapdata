@@ -294,6 +294,13 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "modelName"
+        },
+        "justString": {
+          "type": "boolean",
+          "title": "${justString}",
+          "default": false,
+          "x-decorator": "FormItem",
+          "x-component": "Switch"
         }
       }
     }
@@ -325,7 +332,8 @@
       "includeRegString": "Include Reg",
       "excludeRegString": "Exclude Reg",
       "recursive": "Recursive",
-      "modelName": "Model Name"
+      "modelName": "Model Name",
+      "justString": "All To String"
     },
     "zh_CN": {
       "doc": "docs/xml_zh_CN.md",
@@ -352,7 +360,8 @@
       "includeRegString": "包含通配",
       "excludeRegString": "排除通配",
       "recursive": "目录递归",
-      "modelName": "模型名"
+      "modelName": "模型名",
+      "justString": "全转换字符串"
     },
     "zh_TW": {
       "doc": "docs/xml_zh_TW.md",
@@ -379,7 +388,8 @@
       "includeRegString": "包含通配",
       "excludeRegString": "排除通配",
       "recursive": "目錄遞歸",
-      "modelName": "模型名"
+      "modelName": "模型名",
+      "justString": "全轉換字符串"
     }
   },
   "dataTypes": {

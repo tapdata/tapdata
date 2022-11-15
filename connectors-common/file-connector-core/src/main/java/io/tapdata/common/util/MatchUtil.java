@@ -1,4 +1,4 @@
-package io.tapdata.connector.csv.util;
+package io.tapdata.common.util;
 
 import io.tapdata.util.DateUtil;
 
@@ -28,5 +28,20 @@ public class MatchUtil {
     public static boolean matchDateTime(String value) {
         Object res = DateUtil.parse(value);
         return !(res instanceof String) || !value.equals(res);
+    }
+
+    public static Object parse(String str, String dataType) {
+        switch (dataType) {
+            case "BOOLEAN":
+                return "true".equalsIgnoreCase(str);
+            case "INTEGER":
+                return Integer.parseInt(str);
+            case "NUMBER":
+                return new BigDecimal(str);
+            case "DATETIME":
+                return DateUtil.parse(str);
+            default:
+                return str;
+        }
     }
 }

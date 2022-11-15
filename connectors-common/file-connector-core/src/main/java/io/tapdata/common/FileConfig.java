@@ -28,6 +28,7 @@ public class FileConfig implements Serializable {
     private Set<String> excludeRegs;
     private Boolean recursive;
     private String modelName;
+    private Boolean justString;
 
     public FileConfig load(Map<String, Object> map) {
         assert beanUtils != null;
@@ -138,5 +139,13 @@ public class FileConfig implements Serializable {
 
     public void setModelName(String modelName) {
         this.modelName = modelName;
+    }
+
+    public Boolean getJustString() {
+        return justString;
+    }
+
+    public void setJustString(Boolean justString) {
+        this.justString = justString;
     }
 }
