@@ -177,7 +177,7 @@ public class CommonUtils {
         if(retryPeriodSeconds <= 0) {
             throw new IllegalArgumentException("PeriodSeconds can not be zero or less than zero");
         }
-        while (invoker.getRetryTimes() > 0){
+        while (invoker.getRetryTimes() >= 0){
             try {
                 runnable.run();
                 break;

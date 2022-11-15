@@ -6,7 +6,7 @@
 
   <groupId>com.tapdata</groupId>
   <artifactId>tm-sdk</artifactId>
-  <version>1.0.2-SNAPSHOT</version>
+  <version>1.0.3-SNAPSHOT</version>
 
   <name>tm-sdk</name>
   <url>https://cloud.tapdata.net</url>

@@ -995,7 +995,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             }
 
             if (saveHistory) {
-                qualifiedNameLinkLogic(qualifiedNames, userDetail);
+                qualifiedNameLinkLogic(qualifiedNames, userDetail, taskId);
             }
 
             if (StringUtils.isNotBlank(uuid) && !saveHistory) {
@@ -1773,18 +1773,19 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
 
-    public void qualifiedNameLinkLogic(String qualifiedName, UserDetail user){
-        qualifiedNameLinkLogic(Lists.of(qualifiedName), user);
-    }
     public void qualifiedNameLinkLogic(List<String> qualifiedNames, UserDetail user){
         List<MetadataInstancesDto> metadataInstancesDto = findByQualifiedNameNotDelete(qualifiedNames, user);
-        linkLogic(metadataInstancesDto, user);
-    }
-    public void linkLogic(MetadataInstancesDto metadataInstancesDto, UserDetail user){
-        linkLogic(Lists.of(metadataInstancesDto), user);
+        linkLogic(metadataInstancesDto, user, null);
     }
 
-    public void linkLogic(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user){
+
+    public void qualifiedNameLinkLogic(List<String> qualifiedNames, UserDetail user, String taskId){
+        List<MetadataInstancesDto> metadataInstancesDto = findByQualifiedNameNotDelete(qualifiedNames, user);
+        linkLogic(metadataInstancesDto, user, taskId);
+    }
+
+    //带有taskId的为ddl任务传过来的。所以不需要过滤一些运行状态的任务模型。
+    public void linkLogic(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, String taskId){
         try {
             List<MetadataInstancesDto> updateMetadatas = new ArrayList<>();
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
@@ -1792,28 +1793,59 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 Criteria criteria = Criteria.where("meta_type").is(metadataInstancesDto.getMetaType()).and("original_name").is(metadataInstancesDto.getOriginalName())
                         .and("source._id").is(metadataInstancesDto.getSource().get_id())
                         .and("is_deleted").ne(true).and("sourceType").is(SourceTypeEnum.VIRTUAL.name());
+
+                if (StringUtils.isNotBlank(taskId)) {
+                    criteria.and("taskId").is(taskId);
+                }
                 Query query = new Query(criteria);
                 List<MetadataInstancesDto> taskMetadatas = findAllDto(query, user);
-                com.tapdata.tm.commons.schema.Schema originalSchema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstancesDto), com.tapdata.tm.commons.schema.Schema.class);
-
 
                 if (CollectionUtils.isNotEmpty(taskMetadatas)) {
-                    //如果逻辑模型没有为空，则遍历合并物理模型跟逻辑模型，得到新的逻辑模型保存到库里面。
-                    for (MetadataInstancesDto taskMetadata : taskMetadatas) {
-                        com.tapdata.tm.commons.schema.Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(taskMetadata), com.tapdata.tm.commons.schema.Schema.class);
-                        schema = SchemaUtils.mergeSchema(Lists.of(SchemaUtils.cloneSchema(originalSchema)), schema, false);
-                        MetadataInstancesDto metadataInstancesDto1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
-                        if (metadataInstancesDto1 != null) {
-                            metadataInstancesDto1.setQualifiedName(taskMetadata.getQualifiedName());
-                            updateMetadatas.add(metadataInstancesDto1);
+
+                    List<ObjectId> taskIds = StringUtils.isNotBlank(taskId) ? Lists.of(MongoUtils.toObjectId(taskId)) :
+                            taskMetadatas.stream().map(MetadataInstancesDto::getTaskId).filter(StringUtils::isNotBlank).map(MongoUtils::toObjectId).collect(Collectors.toList());
+
+                    //对于正在运行中的任务的模型，不需要做下面的合并物理表的操作。
+                    //下面这个过滤的逻辑，可能存在任务刚好点启动的时候，会被漏掉
+                    Criteria criteriaTask = Criteria.where("_id").in(taskIds).and("is_deleted").ne(true);
+                    if (StringUtils.isBlank(taskId)) {
+                        criteriaTask.and("status").in(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
+                    }
+                    Query queryTask = new Query(criteriaTask);
+                    queryTask.fields().include("_id");
+                    List<TaskDto> allDto = taskService.findAllDto(queryTask, user);
+                    final Set<String> editTaskIds;
+
+                    if (CollectionUtils.isNotEmpty(allDto)) {
+                        editTaskIds = allDto.stream().map(t -> t.getId().toHexString()).collect(Collectors.toSet());
+                        taskMetadatas = taskMetadatas.stream().filter(t -> editTaskIds.contains(t.getTaskId()) || StringUtils.isBlank(t.getTaskId())).collect(Collectors.toList());
+                    } else {
+                        continue;
+                    }
+
+                    com.tapdata.tm.commons.schema.Schema originalSchema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstancesDto), com.tapdata.tm.commons.schema.Schema.class);
+
+
+                    if (CollectionUtils.isNotEmpty(taskMetadatas)) {
+                        //如果逻辑模型没有为空，则遍历合并物理模型跟逻辑模型，得到新的逻辑模型保存到库里面。
+                        for (MetadataInstancesDto taskMetadata : taskMetadatas) {
+                            com.tapdata.tm.commons.schema.Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(taskMetadata), com.tapdata.tm.commons.schema.Schema.class);
+                            schema = SchemaUtils.mergeSchema(Lists.of(SchemaUtils.cloneSchema(originalSchema)), schema, false);
+                            MetadataInstancesDto metadataInstancesDto1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
+                            if (metadataInstancesDto1 != null) {
+                                metadataInstancesDto1.setQualifiedName(taskMetadata.getQualifiedName());
+                                updateMetadatas.add(metadataInstancesDto1);
+                            }
                         }
                     }
+
                 }
 
+                if (CollectionUtils.isNotEmpty(updateMetadatas)) {
+                    //批量入库
+                    bulkUpsetByWhere(updateMetadatas, user);
+                }
             }
-
-            //批量入库
-            bulkUpsetByWhere(updateMetadatas, user);
         } catch (Exception e) {
             log.warn("update logic metadata failed");
         }

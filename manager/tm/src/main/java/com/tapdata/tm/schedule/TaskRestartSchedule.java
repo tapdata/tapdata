@@ -48,7 +48,7 @@ public class TaskRestartSchedule {
     @Scheduled(fixedDelay = 60 * 1000)
     @SchedulerLock(name ="restartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void restartTask() {
-        Thread.currentThread().setName(Thread.currentThread().getName() + "-restartTask");
+        Thread.currentThread().setName("taskSchedule-restartTask");
         //查询到所有需要重启的任务
         Criteria criteria = Criteria.where("restartFlag").is(true).and("status").is(TaskDto.STATUS_STOP);
         Query query = new Query(criteria);
@@ -68,7 +68,7 @@ public class TaskRestartSchedule {
     @Scheduled(initialDelay = 10 * 1000, fixedDelay = 60 * 1000)
     @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
-        Thread.currentThread().setName(Thread.currentThread().getName() + "-engineRestartNeedStartTask");
+        Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
         //云版不需要这个重新调度的逻辑
         Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
         if (Objects.isNull(buildProfile)) {
@@ -121,7 +121,7 @@ public class TaskRestartSchedule {
     @Scheduled(fixedDelay = 30 * 1000)
     @SchedulerLock(name ="schedulingTask_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void schedulingTask() {
-        Thread.currentThread().setName(Thread.currentThread().getName() + "-schedulingTask");
+        Thread.currentThread().setName("taskSchedule-schedulingTask");
         long heartExpire = getHeartExpire();
 
         Criteria criteria = Criteria.where("status").in(TaskDto.STATUS_WAIT_RUN, TaskDto.STATUS_SCHEDULING)

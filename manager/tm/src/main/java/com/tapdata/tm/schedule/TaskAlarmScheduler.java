@@ -31,6 +31,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.ThrowableUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -38,6 +39,7 @@ import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.executor.ExecutorsManager;
 import io.tapdata.common.sample.request.Sample;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -56,6 +58,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskAlarmScheduler {
 
@@ -73,7 +76,7 @@ public class TaskAlarmScheduler {
     @Scheduled(cron = "0 0/30 * * * ?")
     @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskDataNodeConnectAlarm() throws InterruptedException {
-        Thread.currentThread().setName(Thread.currentThread().getName() + "-taskDataNodeConnectAlarm");
+        Thread.currentThread().setName("taskSchedule-taskDataNodeConnectAlarm");
 
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
                 .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
@@ -118,17 +121,11 @@ public class TaskAlarmScheduler {
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
-            String key = connectionDto.getId().toHexString();
-
-            Map<String, Object> extParam = Maps.newHashMap();
-            extParam.put("nodeName", connectionDto.getName());
-            extParam.put("connectId", key);
-            extParam.put("templateEnum", AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT);
-            extParam.put("alarmCheck", true);
-            extParam.put("taskIds", taskMap.get(key));
-            connectionDto.setExtParam(extParam);
-
-            dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(connectionDto.getUserId()));
+            try {
+                dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(connectionDto.getUserId()));
+            }catch (Exception e) {
+                log.error("taskDataNodeConnectAlarm sendTestConnection error:" + ThrowableUtils.getStackTraceByPn(e));
+            }
 
             Thread.sleep(1000L);
         }
