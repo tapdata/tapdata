@@ -187,6 +187,7 @@ public class WebsocketPushChannel extends PushChannel {
         wsPort = tapEngineUtils.getRealWsPort(wsPort, theUrl);
         sid = data.getString("token");
         String wsPath = data.getString("wsPath");
+        wsPath = tapEngineUtils.getRealWsPath(wsPath);
         String wsHost = data.getString("wsHost");
         String wsProtocol = data.getString("wsProtocol");
         if(wsProtocol != null) {

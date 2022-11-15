@@ -46,4 +46,12 @@ public class TapEngineUtilsImpl implements TapEngineUtils {
 		}
 		return wsPort;
 	}
+
+	@Override
+	public String getRealWsPath(String wsPath) {
+		if(CloudSignUtil.isNeedSign()) {
+			return "console/tm/" + wsPath;
+		}
+		return wsPath;
+	}
 }
