@@ -6,6 +6,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.*;
 import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.ddl.index.*;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Data;
 
 import java.util.List;
@@ -15,6 +16,8 @@ import java.util.List;
  */
 public class HandlerUtil {
     public static EventTypeRecorder countTapdataEvent(List<TapdataEvent> events) {
+        long now = System.currentTimeMillis();
+
         EventTypeRecorder recorder = new EventTypeRecorder();
         for (TapdataEvent tapdataEvent : events) {
             // skip events like heartbeat
@@ -22,6 +25,11 @@ public class HandlerUtil {
                 continue;
             }
             countEventType(tapdataEvent.getTapEvent(), recorder);
+
+            CommonUtils.ignoreAnyError(() -> {
+                TapBaseEvent event = (TapBaseEvent) tapdataEvent.getTapEvent();
+                recorder.incrReplicateLagTotal(now, event.getReferenceTime());
+            }, "HandlerUtil-countTapdataEvent");
         }
 
         return recorder;
