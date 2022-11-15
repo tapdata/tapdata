@@ -14,7 +14,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.cli.commands.TDDPrintf;
+import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.cli.entity.DAGDescriber;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -72,90 +72,13 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
     @DisplayName("Test.WriteRecordWithQueryTest.case.sourceTest")
     void sourceTest() throws Throwable {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
-            tapNodeInfo = nodeInfo;
-            originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
-
-            TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
-            dataFlowDescriber = new DAGDescriber();
-            dataFlowDescriber.setId(originToSourceId);
-            testTableId = testTableName(dataFlowDescriber.getId());
-
-            dataFlowDescriber.setNodes(Arrays.asList(
-                    new TapDAGNodeEx().id(originNodeId).pdkId("tdd-source").group("io.tapdata.connector").type(TapDAGNode.TYPE_SOURCE).version("1.0-SNAPSHOT").
-                            table(tddTableId).connectionConfig(new DataMap()),
-                    new TapDAGNodeEx().id(testTargetNodeId).pdkId(spec.getId()).group(spec.getGroup()).type(TapDAGNode.TYPE_TARGET/*nodeInfo.getNodeType()*/).version(spec.getVersion()).
-                            table(testTableId).connectionConfig(connectionOptions)
-            ));
-            dataFlowDescriber.setDag(Collections.singletonList(Arrays.asList(originNodeId, testTargetNodeId)));
-            dataFlowDescriber.setJobOptions(new JobOptions().actionsBeforeStart(Arrays.asList(JobOptions.ACTION_DROP_TABLE, JobOptions.ACTION_CREATE_TABLE)).enableStreamRead(false));
-
-            dag = dataFlowDescriber.toDag();
-
-            TapConnectorContext connectionContext = new TapConnectorContext(
-                    spec,
-                    connectionOptions,
-                    new DataMap());
-            String dagId = UUID.randomUUID().toString();
-
-            testTableId = "test";UUID.randomUUID().toString();
-            targetTable.setId(testTableId);
-            KVMap<Object> stateMap = new KVMap<Object>() {
-                @Override
-                public void init(String mapKey, Class<Object> valueClass) {
-
-                }
-
-                @Override
-                public void put(String key, Object o) {
-
-                }
-
-                @Override
-                public Object putIfAbsent(String key, Object o) {
-                    return null;
-                }
-
-                @Override
-                public Object remove(String key) {
-                    return null;
-                }
-
-                @Override
-                public void clear() {
-
-                }
-
-                @Override
-                public void reset() {
-
-                }
-
-                @Override
-                public Object get(String key) {
-                    return null;
-                }
-            };
-            KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
-            kvMap.put(testTableId,targetTable);
-            ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
-                    .withDagId(dagId)
-                    .withAssociateId(UUID.randomUUID().toString())
-                    .withConnectionConfig(connectionOptions)
-                    .withGroup(spec.getGroup())
-                    .withVersion(spec.getVersion())
-                    .withTableMap(kvMap)
-                    .withPdkId(spec.getId())
-                    .withGlobalStateMap(stateMap)
-                    .withStateMap(stateMap)
-                    .withTable(testTableId)
-                    .build();
+            TestNode prepare = prepare(nodeInfo);
             //showCapabilities(connectorNode);
             try{
                 Method method = this.getMethod("sourceTest");
 
-                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");
-
-                queryByAdvanceFilterTest(connectorNode,method,connectionContext);
+                PDKInvocationMonitor.invoke(prepare.connectorNode(), PDKMethod.INIT,prepare.connectorNode()::connectorInit,"Init PDK","TEST mongodb");
+                queryByAdvanceFilterTest(prepare.connectorNode(),prepare.recordEventExecute().testCase(method));
 //
 //                insertAfterInsertSomeKey(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),this.getMethod(""),connectionContext);
 //
@@ -163,12 +86,12 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
 //
 //                deleteNotExistRecord(dataFlowWorker.getTargetNodeDriver(testTargetNodeId).getTargetNode(),this.getMethod(""),connectionContext);
 
-                RecordEventExecute.create(connectorNode,connectionContext,this).dropTable();
             }catch (Throwable e){
                 throw new RuntimeException(e);
             }finally {
-                if (null != connectorNode){
-                    PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP,connectorNode::connectorStop,"Stop PDK","TEST mongodb");
+                prepare.recordEventExecute().dropTable();
+                if (null != prepare.connectorNode()){
+                    PDKInvocationMonitor.invoke(prepare.connectorNode(), PDKMethod.STOP,prepare.connectorNode()::connectorStop,"Stop PDK","TEST mongodb");
                     PDKIntegration.releaseAssociateId("releaseAssociateId");
                 }
             }
@@ -180,103 +103,18 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
     @DisplayName("Test.WriteRecordWithQueryTest.case.sourceTest2")
     void sourceTest2() throws Throwable {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
-            tapNodeInfo = nodeInfo;
-            originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
-
-            TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
-            dataFlowDescriber = new DAGDescriber();
-            dataFlowDescriber.setId(originToSourceId);
-            testTableId = testTableName(dataFlowDescriber.getId());
-
-            dataFlowDescriber.setNodes(Arrays.asList(
-                    new TapDAGNodeEx().id(originNodeId).pdkId("tdd-source").group("io.tapdata.connector").type(TapDAGNode.TYPE_SOURCE).version("1.0-SNAPSHOT").
-                            table(tddTableId).connectionConfig(new DataMap()),
-                    new TapDAGNodeEx().id(testTargetNodeId).pdkId(spec.getId()).group(spec.getGroup()).type(TapDAGNode.TYPE_TARGET/*nodeInfo.getNodeType()*/).version(spec.getVersion()).
-                            table(testTableId).connectionConfig(connectionOptions)
-            ));
-            dataFlowDescriber.setDag(Collections.singletonList(Arrays.asList(originNodeId, testTargetNodeId)));
-            dataFlowDescriber.setJobOptions(new JobOptions().actionsBeforeStart(Arrays.asList(JobOptions.ACTION_DROP_TABLE, JobOptions.ACTION_CREATE_TABLE)).enableStreamRead(false));
-
-            dag = dataFlowDescriber.toDag();
-
-            TapConnectorContext connectionContext = new TapConnectorContext(
-                    spec,
-                    connectionOptions,
-                    new DataMap());
-            String dagId = UUID.randomUUID().toString();
-
-            testTableId = "test";UUID.randomUUID().toString();
-            targetTable.setId(testTableId);
-            KVMap<Object> stateMap = new KVMap<Object>() {
-                @Override
-                public void init(String mapKey, Class<Object> valueClass) {
-
-                }
-
-                @Override
-                public void put(String key, Object o) {
-
-                }
-
-                @Override
-                public Object putIfAbsent(String key, Object o) {
-                    return null;
-                }
-
-                @Override
-                public Object remove(String key) {
-                    return null;
-                }
-
-                @Override
-                public void clear() {
-
-                }
-
-                @Override
-                public void reset() {
-
-                }
-
-                @Override
-                public Object get(String key) {
-                    return null;
-                }
-            };
-            KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
-            kvMap.put(testTableId,targetTable);
-            ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
-                    .withDagId(dagId)
-                    .withAssociateId(UUID.randomUUID().toString())
-                    .withConnectionConfig(connectionOptions)
-                    .withGroup(spec.getGroup())
-                    .withVersion(spec.getVersion())
-                    .withTableMap(kvMap)
-                    .withPdkId(spec.getId())
-                    .withGlobalStateMap(stateMap)
-                    .withStateMap(stateMap)
-                    .withTable(testTableId)
-                    .build();
+            TestNode prepare = prepare(nodeInfo);
             //showCapabilities(connectorNode);
             try{
                 Method method = this.getMethod("sourceTest2");
-
-                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");
-
-//                queryByAdvanceFilterTest(connectorNode,method,connectionContext);
-//
-                insertAfterInsertSomeKey(connectorNode,method,connectionContext);
-
-//                updateNotExistRecord(connectorNode,this.getMethod(""),connectionContext);
-//
-//                deleteNotExistRecord(connectorNode,this.getMethod(""),connectionContext);
-
-                RecordEventExecute.create(connectorNode,connectionContext,this).dropTable();
+                PDKInvocationMonitor.invoke(prepare.connectorNode(), PDKMethod.INIT,prepare.connectorNode()::connectorInit,"Init PDK","TEST mongodb");
+                insertAfterInsertSomeKey(prepare.connectorNode(),prepare.recordEventExecute().testCase(method));
             }catch (Throwable e){
                 throw new RuntimeException(e);
             }finally {
-                if (null != connectorNode){
-                    PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP,connectorNode::connectorStop,"Stop PDK","TEST mongodb");
+                prepare.recordEventExecute().dropTable();
+                if (null != prepare.connectorNode()){
+                    PDKInvocationMonitor.invoke(prepare.connectorNode(), PDKMethod.STOP,prepare.connectorNode()::connectorStop,"Stop PDK","TEST mongodb");
                     PDKIntegration.releaseAssociateId("releaseAssociateId");
                 }
             }
@@ -284,7 +122,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
         //waitCompleted(5000000);
     }
 
-    private void queryByAdvanceFilterTest(ConnectorNode targetNode, Method testCase, TapConnectorContext connectionContext) throws Throwable{
+    private void queryByAdvanceFilterTest(ConnectorNode targetNode,RecordEventExecute recordEventExecute) throws Throwable{
         ConnectorFunctions connectorFunctions = targetNode.getConnectorFunctions();
         QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
 
@@ -292,11 +130,8 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 .builder("id", 111111)
                 .builder("name", "gavin")
                 .builder("text", "gavin test");
-        RecordEventExecute recordEventExecute =
-                RecordEventExecute.create(targetNode,connectionContext, this)
-                        .builderRecord(record)
-                        .testCase(testCase);
-
+        recordEventExecute.builderRecord(record);
+        Method testCase = recordEventExecute.testCase();
 
         //插入一条记录，并获取查询结果对比插入前后是否一致
         recordEventExecute.insert();
@@ -306,19 +141,19 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 targetTable,
                 filterResults -> $(() -> {
                     TapAssert.asserts(
-                            ()->Assertions.assertNotNull(filterResults, TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.insert.error.null"))//
-                    ).acceptAsError(this.getClass(),testCase,TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.notNull"));//
+                            ()->Assertions.assertNotNull(filterResults, TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.error.null"))//
+                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.notNull"));//
 
                     TapAssert.asserts(
-                            ()->Assertions.assertNotNull(filterResults.getResults(), TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.insert.error.nullResult"))//
-                    ).acceptAsError(this.getClass(),testCase,TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.notNullResult"));//
+                            ()->Assertions.assertNotNull(filterResults.getResults(), TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.error.nullResult"))//
+                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.notNullResult"));//
 
                     TapAssert.asserts(
                             ()-> Assertions.assertTrue(objectIsEqual(
                                 filterResults.getResults(),
                                 Collections.singletonList(record)),
-                                TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.insert.error.notEquals"))//
-                    ).acceptAsWarn(this.getClass(),testCase,TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.equals"));//
+                                TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.error.notEquals"))//
+                    ).acceptAsWarn(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.equals"));//
                 })
         );
 
@@ -331,19 +166,19 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 targetTable,
                 filterResults -> {
                     TapAssert.asserts(
-                            ()->Assertions.assertNotNull(filterResults, TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.update.error.null"))
-                    ).acceptAsError(this.getClass(),testCase,TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.update.succeed.notNull"));
+                            ()->Assertions.assertNotNull(filterResults, TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.error.null"))
+                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.notNull"));
 
                     TapAssert.asserts(
-                            ()->Assertions.assertNotNull(filterResults.getResults(), TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.update.error.nullResult"))
-                    ).acceptAsError(this.getClass(),testCase,TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.update.succeed.notNullResult"));
+                            ()->Assertions.assertNotNull(filterResults.getResults(), TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.error.nullResult"))
+                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.notNullResult"));
 
                     TapAssert.asserts(
                             ()-> Assertions.assertTrue(objectIsEqual(
                                     filterResults.getResults(),
                                     Collections.singletonList(record)),
-                                    TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.update.error.notEquals"))
-                    ).acceptAsWarn(this.getClass(),testCase,TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.update.succeed.equals"));
+                                    TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.error.notEquals"))
+                    ).acceptAsWarn(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.equals"));
                 });
 
         //删除插入的记录，并检查删除是否成功
@@ -354,20 +189,19 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 targetTable,
                 filterResults -> {
                     TapAssert.asserts(
-                            ()->Assertions.assertNotNull(filterResults, TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.delete.error.null"))
-                    ).acceptAsError(this.getClass(),testCase,TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.delete.succeed.notNull"));
+                            ()->Assertions.assertNotNull(filterResults, TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.error.null"))
+                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.succeed.notNull"));
 
                     TapAssert.asserts(
-                            ()->Assertions.assertNull(filterResults.getResults(), TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.delete.error.notNullResult"))
-                    ).acceptAsError(this.getClass(),testCase,TDDPrintf.format("WriteRecordWithQueryTest.sourceTest.delete.succeed.nullResult"));
+                            ()->Assertions.assertNull(filterResults.getResults(), TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.error.notNullResult"))
+                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.succeed.nullResult"));
                 });
     }
 
-    private void insertAfterInsertSomeKey(ConnectorNode targetNode, Method testCase,TapConnectorContext connectionContext) throws Throwable {
+    private void insertAfterInsertSomeKey(ConnectorNode targetNode,RecordEventExecute recordEventExecute) throws Throwable {
         Record[] records = Record.testStart(1);
-        RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this)
-                .builderRecord(records)
-                .testCase(testCase);
+        recordEventExecute.builderRecord(records);
+        Method testCase = recordEventExecute.testCase();
 
         //recordEventExecute.createTable();
         WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
@@ -430,12 +264,10 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 insertPolicy+" - ignore_on_exists | In node config ,your choises is xxx,so the update count must be zero,but not zero now");
     }
 
-    private void updateNotExistRecord(ConnectorNode targetNode, Method testCase,TapConnectorContext connectionContext) throws Throwable {
+    private void updateNotExistRecord(ConnectorNode targetNode,RecordEventExecute recordEventExecute) throws Throwable {
         Record[] records = Record.testStart(10);
-        RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this)
-                .builderRecord(records)
-                .testCase(testCase);
-
+        recordEventExecute.builderRecord(records);
+        Method testCase = recordEventExecute.testCase();
         //recordEventExecute.createTable();
         WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
         for (Record record : records) {
@@ -469,11 +301,10 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
         }
     }
 
-    private void deleteNotExistRecord(ConnectorNode targetNode, Method testCase,TapConnectorContext connectionContext) throws Throwable {
+    private void deleteNotExistRecord(ConnectorNode targetNode,RecordEventExecute recordEventExecute) throws Throwable {
         Record[] records = Record.testStart(10);
-        RecordEventExecute recordEventExecute = RecordEventExecute.create(targetNode,connectionContext, this)
-                .builderRecord(records)
-                .testCase(testCase);
+        recordEventExecute.builderRecord(records);
+        Method testCase = recordEventExecute.testCase();
 
         //recordEventExecute.createTable();
         WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
@@ -529,5 +360,96 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
     @Override
     public Class<? extends PDKTestBase> get() {
         return this.getClass();
+    }
+
+    private TestNode prepare(TapNodeInfo nodeInfo){
+        tapNodeInfo = nodeInfo;
+        originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
+
+        TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
+        dataFlowDescriber = new DAGDescriber();
+        dataFlowDescriber.setId(originToSourceId);
+        testTableId = testTableName(dataFlowDescriber.getId());
+
+        dataFlowDescriber.setNodes(Arrays.asList(
+                new TapDAGNodeEx().id(originNodeId).pdkId("tdd-source").group("io.tapdata.connector").type(TapDAGNode.TYPE_SOURCE).version("1.0-SNAPSHOT").
+                        table(tddTableId).connectionConfig(new DataMap()),
+                new TapDAGNodeEx().id(testTargetNodeId).pdkId(spec.getId()).group(spec.getGroup()).type(TapDAGNode.TYPE_TARGET/*nodeInfo.getNodeType()*/).version(spec.getVersion()).
+                        table(testTableId).connectionConfig(connectionOptions)
+        ));
+        dataFlowDescriber.setDag(Collections.singletonList(Arrays.asList(originNodeId, testTargetNodeId)));
+        dataFlowDescriber.setJobOptions(new JobOptions().actionsBeforeStart(Arrays.asList(JobOptions.ACTION_DROP_TABLE, JobOptions.ACTION_CREATE_TABLE)).enableStreamRead(false));
+
+        dag = dataFlowDescriber.toDag();
+
+        TapConnectorContext connectionContext = new TapConnectorContext(
+                spec,
+                connectionOptions,
+                new DataMap());
+        String dagId = UUID.randomUUID().toString();
+
+        testTableId = "test";UUID.randomUUID().toString();
+        targetTable.setId(testTableId);
+        KVMap<Object> stateMap = new KVMap<Object>() {
+            @Override
+            public void init(String mapKey, Class<Object> valueClass) {
+
+            }
+
+            @Override
+            public void put(String key, Object o) {
+
+            }
+
+            @Override
+            public Object putIfAbsent(String key, Object o) {
+                return null;
+            }
+
+            @Override
+            public Object remove(String key) {
+                return null;
+            }
+
+            @Override
+            public void clear() {
+
+            }
+
+            @Override
+            public void reset() {
+
+            }
+
+            @Override
+            public Object get(String key) {
+                return null;
+            }
+        };
+        KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
+        kvMap.put(testTableId,targetTable);
+        ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
+                .withDagId(dagId)
+                .withAssociateId(UUID.randomUUID().toString())
+                .withConnectionConfig(connectionOptions)
+                .withGroup(spec.getGroup())
+                .withVersion(spec.getVersion())
+                .withTableMap(kvMap)
+                .withPdkId(spec.getId())
+                .withGlobalStateMap(stateMap)
+                .withStateMap(stateMap)
+                .withTable(testTableId)
+                .build();
+        connectorNode.getConnectorContext().setNodeConfig(new DataMap());
+//        try {
+//            Class cla = connectorNode.getClass();
+//            Field connectorContext = cla.getDeclaredField("connectorContext");
+//            connectorContext.setAccessible(true);
+//            connectorContext.set(connectorNode,connectionContext);
+//            connectorNode.getConnectorContext().setNodeConfig(new DataMap());
+//        }catch (Exception e){
+//        }
+        RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this);
+        return new TestNode( connectorNode, recordEventExecute);
     }
 }

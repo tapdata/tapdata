@@ -1,6 +1,7 @@
 package io.tapdata.pdk.tdd.tests.support;
 
 import io.tapdata.pdk.cli.commands.TDDCli;
+import io.tapdata.pdk.cli.commands.TapSummary;
 import org.junit.jupiter.api.DisplayName;
 import org.opentest4j.AssertionFailedError;
 
@@ -13,11 +14,11 @@ public interface TapAssert {
     static final int SUCCEED = 2;
 
     public static void change(Throwable e, String message, int assertGarde, Class target, Method testCase) {
-        CapabilitiesExecutionMsg msg = TDDCli.TapSummary.capabilitiesResult.computeIfAbsent(
+        CapabilitiesExecutionMsg msg = TapSummary.capabilitiesResult.computeIfAbsent(
                 target,
-                cls -> null == TDDCli.TapSummary.capabilitiesResult.get(cls) ?
+                cls -> null == TapSummary.capabilitiesResult.get(cls) ?
                                 new CapabilitiesExecutionMsg()
-                                : TDDCli.TapSummary.capabilitiesResult.get(cls)
+                                : TapSummary.capabilitiesResult.get(cls)
         );
         Case testCases = msg.testCase(testCase);
         switch (assertGarde){
@@ -65,6 +66,7 @@ public interface TapAssert {
         }
         change(null,succeedMag,SUCCEED,target,testCase);
     }
+
     public void consumer();
 
     public static TapAssert asserts(TapAssert tapAssert){

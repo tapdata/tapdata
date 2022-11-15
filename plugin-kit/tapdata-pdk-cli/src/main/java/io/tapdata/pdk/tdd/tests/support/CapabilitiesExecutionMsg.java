@@ -9,9 +9,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.tapdata.entity.simplify.TapSimplify.entry;
-import static io.tapdata.entity.simplify.TapSimplify.map;
-
 public class CapabilitiesExecutionMsg {
     public static final int ERROR = 0;
     public static final int SUCCEED = 1;

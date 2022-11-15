@@ -11,6 +11,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.tests.support.CapabilitiesExecutionMsg;
 import io.tapdata.pdk.tdd.tests.support.Case;
 import io.tapdata.pdk.tdd.tests.support.History;
@@ -23,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class TDDPrintf {
-    List<TDDCli.TapSummary> summarys;
+    List<TapSummary> summarys;
     private static final String LANG_PATH = "i18n.lang";
     private Locale langType = Locale.SIMPLIFIED_CHINESE;
     private final String AREA_SPLIT = "------------------------------------------------------------------------------------";
@@ -33,11 +34,11 @@ public class TDDPrintf {
         return this;
     }
 
-    public static TDDPrintf create(List<TDDCli.TapSummary> summarys){
+    public static TDDPrintf create(List<TapSummary> summarys){
         return new TDDPrintf(summarys);
     }
 
-    private TDDPrintf(List<TDDCli.TapSummary> summarys){
+    private TDDPrintf(List<TapSummary> summarys){
         this.summarys = summarys;
     }
     public static TDDPrintf create(){
@@ -53,7 +54,7 @@ public class TDDPrintf {
     public void defaultShow(){
         if (null == summarys) return;
         System.out.println("*****************************************************TDD Results*****************************************************");
-        for(TDDCli.TapSummary testSummary : summarys) {
+        for(TapSummary testSummary : summarys) {
             StringBuilder builder = new StringBuilder();
             builder.append("-------------PDK id '").append(testSummary.tapNodeInfo.getTapNodeSpecification().getId()).append("' class '").append(testSummary.tapNodeInfo.getNodeClass().getName()).append("'-------------").append("\n");
             builder.append("\t\tNode class ").append(testSummary.tapNodeInfo.getNodeClass()).append(" run ");
@@ -80,10 +81,10 @@ public class TDDPrintf {
             summarys.stream().filter(Objects::nonNull).forEach(summary -> showTest(summary));
         }
     }
-    public void showTestResult(TDDCli.TapSummary summary){
+    public void showTestResult(TapSummary summary){
         showTest(summary);
     }
-    public void showCapabilities(TDDCli.TapSummary summary,TapNodeInfo nodeInfo){
+    public void showCapabilities(TapSummary summary,TapNodeInfo nodeInfo){
         StringBuilder builder = new StringBuilder(AREA_SPLIT);
         builder.append("\n------------PDK id '")
                 .append(summary.tapNodeInfo.getTapNodeSpecification().getId())
@@ -92,7 +93,8 @@ public class TDDPrintf {
                 .append("'------------\n");
         System.out.println(showCapabilities(nodeInfo,builder));
     }
-    private void showTest(TDDCli.TapSummary summary){
+    private void showTest(TapSummary summary){
+        Map<Class<? extends PDKTestBase>,Integer> resultExecution = summary.resultExecution;
         Map<Class, CapabilitiesExecutionMsg> result = summary.capabilitiesResult;
         StringBuilder builder = new StringBuilder(AREA_SPLIT);
         builder.append("\n");
@@ -146,7 +148,10 @@ public class TDDPrintf {
 
                     List<History> history = testCase.histories();
 
-                    Map<String, List<History>> collect = history.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(History::tag));
+                    //Map<String, List<History>> collect = history.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(History::tag));
+                    TreeMap<String, List<History>> collect = history.stream()
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.groupingBy(History::tag, TreeMap::new, Collectors.toList()));
                     if (null == collect || collect.isEmpty()) return;
                     AtomicInteger index = new AtomicInteger(1);
                     collect.forEach((tag, his) -> {
@@ -262,15 +267,17 @@ public class TDDPrintf {
             if (allTestResult == CapabilitiesExecutionMsg.WARN && resResult == CapabilitiesExecutionMsg.ERROR){
                 allTestResult = resResult;
             }
+            resultExecution.put(cla,allTestResult);
         }
 
-        if(CapabilitiesExecutionMsg.ERROR == allTestResult && !Case.ERROR.equals(TDDCli.TapSummary.hasPass)) {
+
+        if(CapabilitiesExecutionMsg.ERROR == allTestResult && !Case.ERROR.equals(TapSummary.hasPass)) {
             //builder.append(TDDPrintf.format("TEST_ERROR_END","\n",fileName));
-            TDDCli.TapSummary.hasPass = Case.ERROR;
+            TapSummary.hasPass = Case.ERROR;
         }else {
             //builder.append(TDDPrintf.format("TEST_SUCCEED_END","\n",fileName));
-            if (CapabilitiesExecutionMsg.WARN == allTestResult && !Case.ERROR.equals(TDDCli.TapSummary.hasPass)){
-                TDDCli.TapSummary.hasPass = Case.WARN;
+            if (CapabilitiesExecutionMsg.WARN == allTestResult && !Case.ERROR.equals(TapSummary.hasPass)){
+                TapSummary.hasPass = Case.WARN;
                 //builder.append(TDDPrintf.format("SUCCEED_WITH_WARN"));
             }
         }

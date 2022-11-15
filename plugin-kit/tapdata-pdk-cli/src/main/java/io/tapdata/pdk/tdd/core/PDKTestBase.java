@@ -11,6 +11,8 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.entity.FilterResult;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.TapFilter;
@@ -32,6 +34,7 @@ import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
 import io.tapdata.pdk.core.workflow.engine.TapDAG;
+import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -681,5 +684,50 @@ public class PDKTestBase {
     }
     public Class<? extends PDKTestBase> get(){
         return this.getClass();
+    }
+
+    private void setInsertPolicy(TapConnectorContext context,String policyName, String policy){
+        if (null == context) return;
+        ConnectorCapabilities connectorCapabilities = context.getConnectorCapabilities();
+        Map<String, String> capabilityAlternativeMap = connectorCapabilities.getCapabilityAlternativeMap();
+        if (null == capabilityAlternativeMap){
+            capabilityAlternativeMap = new HashMap<>();
+            connectorCapabilities.setCapabilityAlternativeMap(capabilityAlternativeMap);
+        }
+        capabilityAlternativeMap.put(policy,policy);
+    }
+    protected final String INSERT_POLICY = "dml_insert_policy";
+    protected final String IGNORE_ON_EXISTS = "ignore_on_exists";
+    protected final String UPDATE_ON_EXISTS = "update_on_exists";
+    public void  ignoreOnExistsWhenInsert(TapConnectorContext context){
+        setInsertPolicy(context,INSERT_POLICY,IGNORE_ON_EXISTS);
+    }
+    public void  updateOnExistsWhenInsert(TapConnectorContext context){
+        setInsertPolicy(context,INSERT_POLICY,UPDATE_ON_EXISTS);
+    }
+
+    protected final String UPDATE_POLICY = "dml_update_policy";
+    protected final String IGNORE_ON_NOT_EXISTS = "ignore_on_nonexists";
+    protected final String INSERT_ON_NOT_EXISTS = "insert_on_nonexists";
+    public void  ignoreOnExistsWhenUpdate(TapConnectorContext context){
+        setInsertPolicy(context,UPDATE_POLICY,IGNORE_ON_NOT_EXISTS);
+    }
+    public void  insertOnExistsWhenUpdate(TapConnectorContext context){
+        setInsertPolicy(context,UPDATE_POLICY,INSERT_ON_NOT_EXISTS);
+    }
+
+    protected class TestNode{
+        ConnectorNode connectorNode;
+        RecordEventExecute recordEventExecute;
+        public TestNode(ConnectorNode connectorNode,RecordEventExecute recordEventExecute){
+            this.connectorNode = connectorNode;
+            this.recordEventExecute = recordEventExecute;
+        }
+        public ConnectorNode connectorNode(){
+            return this.connectorNode;
+        }
+        public RecordEventExecute recordEventExecute(){
+            return this.recordEventExecute;
+        }
     }
 }

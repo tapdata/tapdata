@@ -35,9 +35,9 @@ import static io.tapdata.entity.simplify.TapSimplify.table;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 
-@DisplayName("Test.WriteRecordTestV2")
-public class WriteRecordV2Test extends PDKTestBase {
-    private static final String TAG = WriteRecordV2Test.class.getSimpleName();
+@DisplayName("Test.TestNotImplementFunErr")
+public class TestNotImplementFunErr extends PDKTestBase {
+    private static final String TAG = TestNotImplementFunErr.class.getSimpleName();
     ConnectorNode tddTargetNode;
     ConnectorNode sourceNode;
     DataFlowWorker dataFlowWorker;
@@ -51,7 +51,7 @@ public class WriteRecordV2Test extends PDKTestBase {
             .add(field("name", "STRING"))
             .add(field("text", "STRING"));
     @Test
-    @DisplayName("Test.WriteRecordTestV2.case.sourceTest")
+    @DisplayName("Test.TestNotImplementFunErr.case.sourceTest")
     void sourceTest() throws Throwable {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             tapNodeInfo = nodeInfo;
@@ -138,28 +138,7 @@ public class WriteRecordV2Test extends PDKTestBase {
     long deleteRecordNeed;
 
     private void writeRecorde(TapConnectorContext connectionContext, ConnectorNode connectorNode, Method testCase) throws Throwable {
-        Record[] records = Record.testStart((int)insertRecordNeed);
-        RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode,connectionContext, this)
-                .testCase(testCase)
-                .builderRecord(records);
 
-        //boolean table = recordEventExecute.createTable();
-
-        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
-        insertRecord = insert.getInsertedCount();
-        updateRecordNeed = 0;
-        for (Record record : records) {
-            record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
-            updateRecordNeed++;
-        }
-        WriteListResult<TapRecordEvent> update = recordEventExecute.update();
-        updateRecord = update.getModifiedCount();
-
-        deleteRecordNeed = insertRecordNeed;
-        WriteListResult<TapRecordEvent> delete = recordEventExecute.delete();
-        deleteRecord = delete.getRemovedCount();
-
-        recordEventExecute.dropTable();
     }
 
     private void initConnectorFunctions() {

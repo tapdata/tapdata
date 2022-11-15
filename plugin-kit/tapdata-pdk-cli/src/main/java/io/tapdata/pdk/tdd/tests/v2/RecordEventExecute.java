@@ -12,7 +12,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
-import io.tapdata.pdk.cli.commands.TDDPrintf;
+import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.tests.support.LangUtils;
@@ -31,6 +31,9 @@ public class RecordEventExecute {
     ConnectorNode connectorNode;
     PDKTestBase base;
     Method testCase;
+    public Method testCase(){
+        return this.testCase;
+    }
     public RecordEventExecute testCase(Method testCase){
         this.testCase = testCase;
         return this;
@@ -38,14 +41,12 @@ public class RecordEventExecute {
     private ConnectorFunctions connectorFunctions ;
     private WriteRecordFunction writeRecordFunction ;
     private TapTable targetTable ;
-    private TapConnectorContext connectionContext;
-    public static RecordEventExecute create(ConnectorNode connectorNode, TapConnectorContext connectionContext, PDKTestBase base){
-        return new RecordEventExecute(connectorNode,connectionContext,base);
+    public static RecordEventExecute create(ConnectorNode connectorNode, PDKTestBase base){
+        return new RecordEventExecute(connectorNode,base);
     }
-    private RecordEventExecute(ConnectorNode connectorNode, TapConnectorContext connectionContext,PDKTestBase base){
+    private RecordEventExecute(ConnectorNode connectorNode, PDKTestBase base){
         this.connectorNode = connectorNode;
         this.base = base;
-        this.connectionContext = connectionContext;
 
         connectorFunctions = connectorNode.getConnectorFunctions();
         writeRecordFunction = connectorFunctions.getWriteRecordFunction();
@@ -80,19 +81,7 @@ public class RecordEventExecute {
                 tapInsertRecordEvents,
                 targetTable,
                 consumer -> {
-                    base.$(() ->
-//                            TapAssert.asserts(()->
-//                                Assertions.assertEquals(
-//                                        tapInsertRecordEvents.size(),
-//                                        consumer.getInsertedCount(),
-//                                        "%{error_insert}% "+tapInsertRecordEvents.size()+" %{record_into_mongodb}%")
-                           TapAssert.asserts(()->
-                                Assertions.assertEquals(
-                                        tapInsertRecordEvents.size(),
-                                        consumer.getInsertedCount(),
-                                        TDDPrintf.format("RecordEventExecute.insert.assert.error", tapInsertRecordEvents.size()))
-                            ).acceptAsWarn(base.getClass(),testCase,TDDPrintf.format("RecordEventExecute.insert.assert.succeed",tapInsertRecordEvents.size()) )
-                    );
+                    base.$(() -> {});
                     consumerBack.set(consumer);
                 }
         );
@@ -113,14 +102,8 @@ public class RecordEventExecute {
                 tapUpdateRecordEvents,
                 targetTable,
                 consumer -> {
-                    base.$(() -> TapAssert.asserts(()->Assertions.assertEquals(
-                                tapUpdateRecordEvents.size(),
-                                consumer.getModifiedCount(),
-                                TDDPrintf.format("RecordEventExecute.update.assert.error",tapUpdateRecordEvents.size()))
-                            ).acceptAsError(base.getClass(),testCase,TDDPrintf.format("RecordEventExecute.update.assert.succeed",tapUpdateRecordEvents.size()))
-                    );
+                    base.$(() -> {});
                     consumerBack.set(consumer);
-//                    this.dropTable(cla);
                 }
         );
         return consumerBack.get();
@@ -140,32 +123,29 @@ public class RecordEventExecute {
                 tapDeleteRecordEvents,
                 targetTable,
                 consumer -> {
-                    base.$(() -> TapAssert.asserts(()->Assertions.assertEquals(
-                            tapDeleteRecordEvents.size(),
-                            consumer.getRemovedCount(),
-                            TDDPrintf.format("RecordEventExecute.delete.assert.error",tapDeleteRecordEvents.size()))
-                            ).acceptAsError(base.getClass(),testCase,TDDPrintf.format("RecordEventExecute.delete.assert.succeed",tapDeleteRecordEvents.size()))
-                    );
+                    base.$(() -> {});
                     consumerBack.set(consumer);
-//                    this.dropTable(cla);
                 }
         );
         return consumerBack.get();
     }
 
+    /**
+     * @deprecated
+     * */
     public boolean createTable() throws Throwable {
         CreateTableV2Function createTable = connectorFunctions.getCreateTableV2Function();
         CreateTableFunction createTableFunction = connectorFunctions.getCreateTableFunction();
         Assertions.assertTrue(null == createTable || null == createTableFunction,"%{please_support_create_table_function}%");
         TapCreateTableEvent createTableEvent = new TapCreateTableEvent().table(targetTable);
         if (null != createTable){
-            CreateTableOptions table = createTable.createTable(connectionContext, createTableEvent);
+            CreateTableOptions table = createTable.createTable(connectorNode.getConnectorContext(), createTableEvent);
             Assertions.assertNull(table,"%{null_after_create_table}%");
             Assertions.assertTrue(table.getTableExists(),"%{create_table_table_not_exists}%");
             return Boolean.TRUE;
         }
         if (null != createTableFunction){
-            createTableFunction.createTable(connectionContext, createTableEvent);
+            createTableFunction.createTable(connectorNode.getConnectorContext(), createTableEvent);
             return Boolean.TRUE;
         }
         return Boolean.FALSE;
@@ -173,19 +153,19 @@ public class RecordEventExecute {
 
     public void dropTable() {
         TapAssert.asserts(
-                ()->Assertions.assertDoesNotThrow(this::drop,TDDPrintf.format("RecordEventExecute.drop.table.error"))
-        ).acceptAsError(base.getClass(),testCase,TDDPrintf.format("RecordEventExecute.drop.notCatch.thrower"));
+                ()->Assertions.assertDoesNotThrow(this::drop,TapSummary.format("RecordEventExecute.drop.table.error"))
+        ).acceptAsError(base.getClass(),testCase,TapSummary.format("RecordEventExecute.drop.notCatch.thrower"));
     }
 
     private boolean drop() throws Throwable {
         DropTableFunction dropTableFunction = connectorFunctions.getDropTableFunction();
         TapAssert.asserts(
-                ()->Assertions.assertNotNull(dropTableFunction,TDDPrintf.format("RecordEventExecute.drop.error.not.support.function"))
-        ).acceptAsError(base.getClass(),testCase,TDDPrintf.format("RecordEventExecute.drop.table.succeed",targetTable.getId()));
+                ()->Assertions.assertNotNull(dropTableFunction,TapSummary.format("RecordEventExecute.drop.error.not.support.function"))
+        ).acceptAsError(base.getClass(),testCase,TapSummary.format("RecordEventExecute.drop.table.succeed",targetTable.getId()));
         TapDropTableEvent dropTableEvent = new TapDropTableEvent();
         dropTableEvent.setTableId(targetTable.getId());
         dropTableEvent.setReferenceTime(System.currentTimeMillis());
-        dropTableFunction.dropTable(connectionContext,dropTableEvent);
+        dropTableFunction.dropTable(connectorNode.getConnectorContext(),dropTableEvent);
         return Boolean.TRUE;
     }
 
