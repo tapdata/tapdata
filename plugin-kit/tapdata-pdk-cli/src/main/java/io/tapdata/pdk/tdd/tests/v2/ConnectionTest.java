@@ -60,7 +60,7 @@ public class ConnectionTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             try {
-                Method testCase = super.getMethod("insertWithQuery");
+                Method testCase = super.getMethod("testConnectionTest");
                 TapConnectorContext connectorContext = prepare.connectorNode().getConnectorContext();
                 ConnectorFunctions connectorFunctions = prepare.connectorNode().getConnectorFunctions();
 
