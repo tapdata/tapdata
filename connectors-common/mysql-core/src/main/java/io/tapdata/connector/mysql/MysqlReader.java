@@ -260,8 +260,8 @@ public class MysqlReader implements Closeable {
 					builder.with("snapshot.mode", MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY);
 				}
 			}
-			builder.with("database.history", "io.debezium.relational.history.MemoryDatabaseHistory");
-//			builder.with("database.history", "io.tapdata.connector.mysql.StateMapHistoryBackingStore");
+//			builder.with("database.history", "io.debezium.relational.history.MemoryDatabaseHistory");
+			builder.with("database.history", "io.tapdata.connector.mysql.StateMapHistoryBackingStore");
 
 			Configuration configuration = builder.build();
 			StringBuilder configStr = new StringBuilder("Starting binlog reader with config {\n");

@@ -68,6 +68,6 @@ public class StateMapHistoryBackingStore extends AbstractDatabaseHistory {
 
 	@Override
 	public boolean storageExists() {
-		return false;
+		return true;
 	}
 }

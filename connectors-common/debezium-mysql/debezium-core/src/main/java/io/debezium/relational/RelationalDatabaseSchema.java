@@ -5,6 +5,8 @@
  */
 package io.debezium.relational;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -202,5 +204,9 @@ public abstract class RelationalDatabaseSchema implements DatabaseSchema<TableId
         Table table = tableFor(id);
 
         buildAndRegisterSchema(table);
+    }
+
+    public List<String> tableDiff() {
+        return new ArrayList<>();
     }
 }

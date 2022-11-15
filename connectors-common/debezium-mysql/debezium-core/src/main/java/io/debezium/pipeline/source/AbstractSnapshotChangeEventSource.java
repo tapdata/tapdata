@@ -48,13 +48,6 @@ public abstract class AbstractSnapshotChangeEventSource implements SnapshotChang
     @Override
     public SnapshotResult execute(ChangeEventSourceContext context) throws InterruptedException {
         SnapshottingTask snapshottingTask = getSnapshottingTask(previousOffset);
-        if (snapshottingTask.shouldSkipSnapshot()) {
-            LOGGER.debug("Skipping snapshotting");
-            return SnapshotResult.skipped(previousOffset);
-        }
-
-        delaySnapshotIfNeeded(context);
-
         final SnapshotContext ctx;
         try {
             ctx = prepare(context);
@@ -63,6 +56,20 @@ public abstract class AbstractSnapshotChangeEventSource implements SnapshotChang
             LOGGER.error("Failed to initialize snapshot context.", e);
             throw new RuntimeException(e);
         }
+        if (snapshottingTask.shouldSkipSnapshot()) {
+            if (shouldCompleteMissingSchemaTable()) {
+                try {
+                    completeMissingSchemaTable(context, ctx, previousOffset);
+                }
+                catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            LOGGER.debug("Skipping snapshotting");
+            return SnapshotResult.skipped(previousOffset);
+        }
+
+        delaySnapshotIfNeeded(context);
 
         boolean completedSuccessfully = true;
 
@@ -149,6 +156,10 @@ public abstract class AbstractSnapshotChangeEventSource implements SnapshotChang
      * Prepares the taking of a snapshot and returns an initial {@link SnapshotContext}.
      */
     protected abstract SnapshotContext prepare(ChangeEventSourceContext changeEventSourceContext) throws Exception;
+
+    protected abstract boolean shouldCompleteMissingSchemaTable();
+
+    protected abstract void completeMissingSchemaTable(ChangeEventSourceContext context, SnapshotContext snapshotContext, OffsetContext previousOffset) throws Exception;
 
     /**
      * Completes the snapshot, doing any required clean-up (resource disposal etc.).

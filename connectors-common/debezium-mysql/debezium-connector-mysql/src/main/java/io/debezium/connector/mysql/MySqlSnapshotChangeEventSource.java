@@ -112,6 +112,36 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
     }
 
     @Override
+    protected boolean shouldCompleteMissingSchemaTable() {
+        List<String> tableDiff = databaseSchema.tableDiff();
+        if (null == tableDiff || tableDiff.isEmpty()) {
+            return false;
+        }
+        LOGGER.info("Should complete missing schema table: {}", tableDiff);
+        return true;
+    }
+
+    @Override
+    protected void completeMissingSchemaTable(ChangeEventSourceContext context, SnapshotContext snapshotContext, OffsetContext previousOffset) throws Exception {
+        RelationalSnapshotContext relationalSnapshotContext = (RelationalSnapshotContext) snapshotContext;
+        List<String> tableDiff = databaseSchema.tableDiff();
+        List<TableId> tableIds = tableDiff.stream().map(TableId::parse).collect(Collectors.toList());
+        lockTablesForSchemaSnapshot(context, relationalSnapshotContext);
+        connectionCreated(relationalSnapshotContext);
+        if (null != previousOffset) {
+            relationalSnapshotContext.offset = previousOffset;
+        }
+        createSchemaEventsForTables(relationalSnapshotContext, tableIds, false);
+        if (!schemaEvents.isEmpty()) {
+            for (SchemaChangeEvent schemaEvent : schemaEvents) {
+                TableId tableId = schemaEvent.getTables().isEmpty() ? null : schemaEvent.getTables().iterator().next().id();
+                dispatcher.dispatchSchemaChangeEvent(tableId, (receiver) -> receiver.schemaChangeEvent(schemaEvent));
+            }
+        }
+        releaseSchemaSnapshotLocks(relationalSnapshotContext);
+    }
+
+    @Override
     protected void connectionCreated(RelationalSnapshotContext snapshotContext) throws Exception {
     }
 

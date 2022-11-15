@@ -10,12 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.Optional;
-import java.util.OptionalLong;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -469,7 +464,7 @@ public abstract class RelationalSnapshotChangeEventSource extends AbstractSnapsh
         return statement;
     }
 
-    private void rollbackTransaction(Connection connection) {
+    protected void rollbackTransaction(Connection connection) {
         if (connection != null) {
             try {
                 connection.rollback();

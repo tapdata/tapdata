@@ -7,8 +7,7 @@ package io.debezium.connector.mysql;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 
 import org.apache.kafka.common.config.ConfigDef;
@@ -1291,5 +1290,11 @@ public class MySqlConnectorConfig extends HistorizedRelationalDatabaseConnectorC
     @Override
     public SourceInfoStructMaker<? extends AbstractSourceInfo> getSourceInfoStructMaker() {
         return sourceInfoStructMaker;
+    }
+
+    public List<String> getTableIncludeList() {
+        String tableIncludeListStr = config.getString(TABLE_INCLUDE_LIST);
+        tableIncludeListStr = null == tableIncludeListStr ? "" : tableIncludeListStr;
+        return Arrays.asList(tableIncludeListStr.split(","));
     }
 }

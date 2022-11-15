@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.data.Schema;
 import org.slf4j.Logger;
@@ -380,5 +381,13 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public List<String> tableDiff() {
+        List<String> tableIncludeList = connectorConfig.getTableIncludeList();
+        Set<TableId> tableIds = tableIds();
+        List<String> currentTableList = tableIds.stream().map(TableId::toString).collect(Collectors.toList());
+        return tableIncludeList.stream().filter(t -> !currentTableList.contains(t)).collect(Collectors.toList());
     }
 }
