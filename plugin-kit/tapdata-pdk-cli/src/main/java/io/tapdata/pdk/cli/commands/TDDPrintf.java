@@ -23,6 +23,9 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+/**
+ * @deprecated please use TapSummary
+ * */
 public class TDDPrintf {
     List<TapSummary> summarys;
     private static final String LANG_PATH = "i18n.lang";

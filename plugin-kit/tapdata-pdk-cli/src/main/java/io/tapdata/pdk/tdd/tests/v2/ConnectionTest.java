@@ -121,7 +121,6 @@ public class ConnectionTest extends PDKTestBase {
             }catch (Throwable e){
                 throw new RuntimeException(e.getMessage());
             }
-
         });
     }
 
