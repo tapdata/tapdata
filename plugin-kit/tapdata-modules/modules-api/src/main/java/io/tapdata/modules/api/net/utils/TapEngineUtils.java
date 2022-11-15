@@ -6,5 +6,4 @@ public interface TapEngineUtils {
 
 	Integer getRealWsPort(Integer wsPort, String baseUrl);
 
-	String getRealWsPath(String wsPath);
 }
