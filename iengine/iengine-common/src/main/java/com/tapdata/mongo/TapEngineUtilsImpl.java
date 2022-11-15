@@ -47,4 +47,29 @@ public class TapEngineUtilsImpl implements TapEngineUtils {
 		return wsPort;
 	}
 
+	@Override
+	public String getRealWsPath(String wsPath, String loginUrl) {
+		//console/tm/engine/b0169b88be1abad2d2fa6bb4adf2d8fb
+		//https://cloud.tapdata.net/console/v3/tm/api/proxy?access_token=faf78a75d7c94b69b0d8fd9a85dbdccc3e8f267599da494bbc94284e2607c4eb&accessKey=rzHPIjQAPHbTEcSq4fusFL7pfj8ngNWb&signVersion=1.0&sign=UJCA2yXoGuUt6venr24SMGYD%2BcM%3D&nonce=84f86550-02a4-4bab-89a8-c56b27481332&ts=1668508518348
+		int pos = wsPath.indexOf("engine/");
+		if(pos < 0)
+			throw new IllegalArgumentException("wsPath doesn't contain \"engine\", wsPath " + wsPath);
+		String suffix = wsPath.substring(pos);
+		try {
+			URL url = new URL(loginUrl);
+			String path = url.getPath();
+			int proxyPos = path.indexOf("api/proxy");
+			if(proxyPos < 0) {
+				throw new IllegalArgumentException("loginUrl doesn't contain \"api/proxy\", loginUrl " + loginUrl);
+			}
+			String prefix = path.substring(0, proxyPos);
+			if(prefix.startsWith("/")) {
+				prefix = prefix.substring(1);
+			}
+			return prefix + suffix;
+		} catch (MalformedURLException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
 }
