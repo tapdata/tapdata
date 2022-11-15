@@ -43,7 +43,7 @@ public class SampleCollector {
     /**
      * 复用的采样结果容器
      */
-    final Map<String, Number> result = new HashMap<>();
+//    final Map<String, Number> result = new HashMap<>();
 
     private Map<String, String> tags = new ConcurrentHashMap<>();
     private ScheduledFuture<?> reportFuture;
@@ -97,24 +97,26 @@ public class SampleCollector {
     public SampleCollector start() {
         if(periodSeconds <= 1 )
             throw new IllegalArgumentException("Pointer collector start failed, illegal parameters periodSeconds " + periodSeconds + ", pointerExecutor " + sampleReporter);
-        synchronized (this) {
-            if(scheduleExecutorService == null) {
-                if(globalScheduleExecutorService == null) {
-                    globalScheduleExecutorService = ExecutorsManager.getInstance().newSingleThreadScheduledExecutor("PointCollector-" + name);
+        if(sampleReporter != null) {
+            synchronized (this) {
+                if(scheduleExecutorService == null) {
+                    if(globalScheduleExecutorService == null) {
+                        globalScheduleExecutorService = ExecutorsManager.getInstance().newSingleThreadScheduledExecutor("PointCollector-" + name);
+                    }
+                    scheduleExecutorService = globalScheduleExecutorService;
                 }
-                scheduleExecutorService = globalScheduleExecutorService;
             }
+            if(reportFuture != null) {
+                reportFuture.cancel(false);
+            }
+            reportFuture = scheduleExecutorService.scheduleAtFixedRate(this::calculateInPeriod, periodSeconds, periodSeconds, TimeUnit.SECONDS);
         }
-        if(reportFuture != null) {
-            reportFuture.cancel(false);
-        }
-        reportFuture = scheduleExecutorService.scheduleAtFixedRate(this::calculateInPeriod, periodSeconds, periodSeconds, TimeUnit.SECONDS);
         return this;
     }
 
-    void calculateInPeriod() {
+    Map<String, Number> calculateInPeriod() {
+        Map<String, Number> result = new HashMap<>();
         try {
-            result.clear();
             for(Map.Entry<String, Sampler> entry : idSamplerMap.entrySet()) {
                 try {
                     if (entry.getValue() == null) {
@@ -143,6 +145,7 @@ public class SampleCollector {
                 logger.error("PointExecutor execute failed, {}", throwable.getMessage());
             }
         }
+        return result;
     }
 
     public SampleCollector withSampler(String id, Sampler sampler) {
@@ -228,6 +231,10 @@ public class SampleCollector {
         return (NumberSampler<T>) idSamplerMap.computeIfAbsent(id, s -> new NumberSampler<T>(initialValue));
     }
 
+    public ResetSampler getResetSampler(String id) {
+        return (ResetSampler) idSamplerMap.computeIfAbsent(id, s -> new ResetSampler(null, null));
+    }
+
     /**
      * 根据业务指定的ID获得平均采集器
      *
@@ -236,6 +243,10 @@ public class SampleCollector {
      */
     public AverageSampler getAverageSampler(String id) {
         return (AverageSampler) idSamplerMap.computeIfAbsent(id, s -> new AverageSampler());
+    }
+
+    public WriteCostAvgSampler getWriteCostAvgSampler(String id) {
+        return (WriteCostAvgSampler) idSamplerMap.computeIfAbsent(id, s -> new WriteCostAvgSampler());
     }
 
     /**
