@@ -115,8 +115,6 @@ jobs:
           echo $docker_tag > build/image/tag
           echo "docker_tag=$docker_tag" >> $GITHUB_ENV
           sudo build/build.sh -p 1 -o image
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
       - name: "启动本地测试环境"
         run: |
           echo $docker_tag
