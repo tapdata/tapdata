@@ -380,10 +380,9 @@ public class TDDCli extends CommonCli {
         }).map(cla->{
             try {
                 return ((PDKTestBase)cla.newInstance()).getClass();
-            } catch (InstantiationException e) {
-            } catch (IllegalAccessException e) {
+            } catch (Exception e) {
+                return null;
             }
-            return null;
-        }).collect(Collectors.toList());
+        }).filter(Objects::nonNull).collect(Collectors.toList());
     }
 }
