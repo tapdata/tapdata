@@ -24,9 +24,9 @@ public class CommonDbTest implements AutoCloseable {
     protected Consumer<TestItem> consumer;
     protected Map<String, Supplier<Boolean>> testFunctionMap;
     protected final String uuid = UUID.randomUUID().toString();
-    private static final String TEST_HOST_PORT_MESSAGE = "connected to %s:%s succeed!";
-    private static final String TEST_CONNECTION_LOGIN = "login succeed!";
-    private static final String TEST_WRITE_TABLE = "tapdata___test";
+    protected static final String TEST_HOST_PORT_MESSAGE = "connected to %s:%s succeed!";
+    protected static final String TEST_CONNECTION_LOGIN = "login succeed!";
+    protected static final String TEST_WRITE_TABLE = "tapdata___test";
 
     public CommonDbTest() {
 
@@ -110,12 +110,12 @@ public class CommonDbTest implements AutoCloseable {
         return Collections.singletonList("*.*");
     }
 
-    private static final String TEST_CREATE_TABLE = "create table %s(col1 int)";
-    private static final String TEST_WRITE_RECORD = "insert into %s values(0)";
-    private static final String TEST_UPDATE_RECORD = "update %s set col1=1 where 1=1";
-    private static final String TEST_DELETE_RECORD = "delete from %s where 1=1";
-    private static final String TEST_DROP_TABLE = "drop table %s";
-    private static final String TEST_WRITE_SUCCESS = "Create,Insert,Update,Delete,Drop succeed";
+    protected static final String TEST_CREATE_TABLE = "create table %s(col1 int)";
+    protected static final String TEST_WRITE_RECORD = "insert into %s values(0)";
+    protected static final String TEST_UPDATE_RECORD = "update %s set col1=1 where 1=1";
+    protected static final String TEST_DELETE_RECORD = "delete from %s where 1=1";
+    protected static final String TEST_DROP_TABLE = "drop table %s";
+    protected static final String TEST_WRITE_SUCCESS = "Create,Insert,Update,Delete,Drop succeed";
 
     protected Boolean testWritePrivilege() {
         try {
