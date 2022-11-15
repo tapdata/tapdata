@@ -553,7 +553,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private boolean handleUpdateConditionFields(TapRecordEvent tapRecordEvent) {
 		if (tapRecordEvent instanceof TapDeleteRecordEvent) {
 			TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) tapRecordEvent;
-			TapTable tapTable = this.dataProcessorContext.getTapTableMap().get(getTgtTableNameFromTapEvent(tapRecordEvent));			Collection<String> updateConditionFields = tapTable.primaryKeys(true);
+			TapTable tapTable = this.dataProcessorContext.getTapTableMap().get(getTgtTableNameFromTapEvent(tapRecordEvent));
+			Collection<String> updateConditionFields = tapTable.primaryKeys(true);
 			Map<String, Object> objectMap = tapDeleteRecordEvent.getBefore();
 			for (String field : updateConditionFields) {
 				// updateConditionField  may appear  x.x.x
