@@ -13,5 +13,5 @@ while [[ 1 ]]; do
   echo "still wait tapdata container ready..."
 done
 echo "tapdata container not ready, please check manager logs ..."
-docker exec -it tapd bash -c "cat /tapdata/apps/components/logs/*.log"
+docker exec -it tapd bash -c "cat /tapdata/apps/manager/logs/*"
 exit 1
