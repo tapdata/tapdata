@@ -119,11 +119,54 @@ public class TDDPrintf {
 
             StringBuilder capabilityBuilder = new StringBuilder();
             Map<Method, Case> caseMap = res.testCases();
-            Map<String, List<Map<Method, Case>>> caseGroupMapByTag = res.testCaseGroupTag();
+//            Map<String, List<Map<Method, Case>>> caseGroupMapByTag = res.testCaseGroupTag();
             int warnSize = 0;//null==warnHistory?0:warnHistory.size();
             int errorSize = 0;//null==errorHistory?0:errorHistory.size();
-            if (null!=caseGroupMapByTag && !caseGroupMapByTag.isEmpty()){
+//            if (null!=caseGroupMapByTag && !caseGroupMapByTag.isEmpty()){
+            Map<Method,Case> methodCaseMap = res.testCases();
+            if (null != methodCaseMap && !methodCaseMap.isEmpty()) {
+                int caseIndex = 0;
+                for (Map.Entry<Method, Case> methodCaseEntry : methodCaseMap.entrySet()) {
+                    Case testCase = methodCaseEntry.getValue();
 
+                    switch (testCase.tag()) {
+                        case Case.ERROR:
+                            errorSize++;
+                            break;
+                        case Case.WARN:
+                            warnSize++;
+                            break;
+                    }
+                    capabilityBuilder.append("\t")
+                            .append(((char) (65 + caseIndex)))
+                            .append(".")
+                            .append(TDDPrintf.format(testCase.message()))
+                            .append("\n");
+                    caseIndex++;
+
+                    List<History> history = testCase.histories();
+
+                    Map<String, List<History>> collect = history.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(History::tag));
+                    if (null == collect || collect.isEmpty()) return;
+                    AtomicInteger index = new AtomicInteger(1);
+                    collect.forEach((tag, his) -> {
+                        capabilityBuilder.append("\t\t")
+                                .append(index.getAndIncrement()).append(") ")
+                                .append("%{TEST_OF_").append(tag).append("}%")
+                                .append("\n");
+
+                        String flag = History.SUCCEED.equals(tag) ? "✓" :
+                                (History.ERROR.equals(tag) ? "✗" :
+                                        (History.WARN.equals(tag) ? "！" : "？"));
+                        for (int i = 0; i < his.size(); i++) {
+                            capabilityBuilder.append("\t\t\t[")
+                                    .append(flag)
+                                    .append("].").append(his.get(i).message()).append("\n");
+                        }
+                    });
+                }
+            }
+                /**
                 for (Map.Entry<String, List<Map<Method, Case>>> caseGroup : caseGroupMapByTag.entrySet()) {
                     String key = caseGroup.getKey();
                     List<Map<Method,Case>> value = caseGroup.getValue();
@@ -171,8 +214,8 @@ public class TDDPrintf {
                         }
                     }
                 }
-
-            }
+                 */
+//            }
             Annotation annotation = cla.getAnnotation(DisplayName.class);
             builder.append("☆ ")
                     .append(cla.getSimpleName());
