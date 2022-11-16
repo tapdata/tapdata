@@ -277,7 +277,7 @@ public class MongodbConnector extends ConnectorBase {
 				mongodbTest.testOneByOne();
 			}
 		} catch (Throwable throwable) {
-			throwable.printStackTrace();
+			TapLogger.error(TAG,throwable.getMessage());
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
 		} finally {
 			onStop(connectionContext);
