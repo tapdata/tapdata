@@ -42,7 +42,7 @@ public class CsvConnector extends FileConnector {
 
     @Override
     protected void makeFileOffset(FileOffset fileOffset) {
-        fileOffset.setDataLine(((CsvConfig) fileConfig).getDataStartLine() + (((CsvConfig) fileConfig).getIncludeHeader() ? 1 : 0));
+        fileOffset.setDataLine(fileConfig.getDataStartLine() + (fileConfig.getIncludeHeader() ? 1 : 0));
     }
 
     @Override
@@ -70,7 +70,7 @@ public class CsvConnector extends FileConnector {
         CsvSchema csvSchema = new CsvSchema((CsvConfig) fileConfig, storage);
         Map<String, Object> sample;
         //csv has column header
-        if (EmptyKit.isNotBlank(((CsvConfig) fileConfig).getHeader())) {
+        if (EmptyKit.isNotBlank(fileConfig.getHeader())) {
             sample = csvSchema.sampleFixedFileData(csvFileMap);
         } else //analyze every csv file
         {
@@ -95,12 +95,12 @@ public class CsvConnector extends FileConnector {
                 CSVReader csvReader = new CSVReaderBuilder(reader).build()
         ) {
             String[] headers;
-            if (EmptyKit.isNotBlank(((CsvConfig) fileConfig).getHeader())) {
-                headers = ((CsvConfig) fileConfig).getHeader().split(",");
+            if (EmptyKit.isNotBlank(fileConfig.getHeader())) {
+                headers = fileConfig.getHeader().split(",");
             } else {
-                csvReader.skip(((CsvConfig) fileConfig).getDataStartLine() - 1);
+                csvReader.skip(fileConfig.getDataStartLine() - 1);
                 String[] data = csvReader.readNext();
-                if (((CsvConfig) fileConfig).getIncludeHeader()) {
+                if (fileConfig.getIncludeHeader()) {
                     headers = data;
                 } else {
                     headers = new String[data.length];

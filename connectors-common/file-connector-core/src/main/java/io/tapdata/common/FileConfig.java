@@ -29,6 +29,9 @@ public class FileConfig implements Serializable {
     private Boolean recursive;
     private String modelName;
     private Boolean justString;
+    private Boolean includeHeader;
+    private String header;
+    private int dataStartLine;
 
     public FileConfig load(Map<String, Object> map) {
         assert beanUtils != null;
@@ -147,5 +150,29 @@ public class FileConfig implements Serializable {
 
     public void setJustString(Boolean justString) {
         this.justString = justString;
+    }
+
+    public Boolean getIncludeHeader() {
+        return includeHeader;
+    }
+
+    public void setIncludeHeader(Boolean includeHeader) {
+        this.includeHeader = includeHeader;
+    }
+
+    public String getHeader() {
+        return header;
+    }
+
+    public void setHeader(String header) {
+        this.header = header;
+    }
+
+    public int getDataStartLine() {
+        return dataStartLine;
+    }
+
+    public void setDataStartLine(int dataStartLine) {
+        this.dataStartLine = dataStartLine;
     }
 }

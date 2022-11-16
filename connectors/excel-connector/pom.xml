@@ -21,6 +21,11 @@
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
+            <artifactId>file-connector-core</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
             <scope>provided</scope>
         </dependency>
@@ -29,7 +34,11 @@
             <artifactId>tapdata-pdk-runner</artifactId>
             <scope>test</scope>
         </dependency>
-        <!--添加新数据源开发需要的依赖-->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi</artifactId>
+            <version>5.2.3</version>
+        </dependency>
     </dependencies>
 
     <build>

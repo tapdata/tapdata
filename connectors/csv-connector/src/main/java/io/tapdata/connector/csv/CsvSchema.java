@@ -57,8 +57,8 @@ public class CsvSchema extends FileSchema {
                 Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()));
                 CSVReader csvReader = new CSVReaderBuilder(reader).build()
         ) {
-            csvReader.skip(((CsvConfig) fileConfig).getDataStartLine() - 1);
-            if (((CsvConfig) fileConfig).getIncludeHeader()) {
+            csvReader.skip(fileConfig.getDataStartLine() - 1);
+            if (fileConfig.getIncludeHeader()) {
                 String[] headers = csvReader.readNext();
                 if (EmptyKit.isNull(headers)) {
                     return;
