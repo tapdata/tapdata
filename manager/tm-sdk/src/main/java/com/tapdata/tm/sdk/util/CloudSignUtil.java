@@ -27,8 +27,8 @@ public class CloudSignUtil {
 	private final static String secretKey;
 
 	static {
-		accessKey = System.getenv("accessKey");
-		secretKey = System.getenv("secretKey");
+		accessKey = EnvUtil.get("accessKey");
+		secretKey = EnvUtil.get("secretKey");
 		needSign = AppType.init().isCloud() && !StringUtils.isEmpty(accessKey) && !StringUtils.isEmpty(secretKey);
 		logger.info("ak/sk needSign {}, accessKey {}, secretKey {}", needSign, accessKey, secretKey);
 	}
