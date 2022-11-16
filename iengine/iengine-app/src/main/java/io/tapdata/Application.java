@@ -8,6 +8,7 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StartResultUtil;
+import com.tapdata.tm.sdk.util.EnvUtil;
 import io.tapdata.aspect.ApplicationStartAspect;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -77,6 +78,7 @@ public class Application {
 
 	public static void main(String[] args) {
 		CommonUtils.setProperty("tap_verbose", "true");
+		EnvUtil.decodeToken(System.getenv("CLOUD_TOKEN"));
 		try {
 			System.setProperty(LoggingSystem.class.getName(), "none");
 			tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
