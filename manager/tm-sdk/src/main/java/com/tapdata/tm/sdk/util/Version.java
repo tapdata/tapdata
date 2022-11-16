@@ -16,7 +16,7 @@ public class Version {
 
 	static {
 		StringBuilder sb = new StringBuilder();
-		String version = System.getenv("version");
+		String version = EnvUtil.get("version");
 		String javaVersion = System.getProperty("java.version");
 		if (!StringUtils.isEmpty(version)) {
 			sb.append("FlowEngine/").append(version).append(" ").append("java/").append(javaVersion);

@@ -23,6 +23,7 @@ import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.*;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
 import org.apache.commons.collections.CollectionUtils;
@@ -1866,7 +1867,7 @@ public class ConnectorManager {
 		this.restRetryTime = 3;
 		this.mode = "cluster";
 
-		String isCloud = System.getenv("isCloud");
+		String isCloud = CommonUtils.getProperty("isCloud");
 		if ("true".equals(isCloud)) {
 			this.mongoURI = null;
 		} else {
@@ -1899,11 +1900,11 @@ public class ConnectorManager {
 			this.sslPEM = sslCertKey;
 		}
 
-		String cloud_accessCode = System.getenv("cloud_accessCode");
+		String cloud_accessCode = CommonUtils.getProperty("cloud_accessCode");
 		if (StringUtils.isEmpty(cloud_accessCode)) {
 			logger.info("cloud_accessCode env variable does not set, will use default \"{}\".", this.accessCode);
 		} else {
-			this.accessCode = cloud_accessCode;
+ 			this.accessCode = cloud_accessCode;
 		}
 
 		String cloud_retryTime = System.getenv("cloud_retryTime");
@@ -1917,7 +1918,7 @@ public class ConnectorManager {
 			this.restRetryTime = Integer.valueOf(cloud_retryTime);
 		}
 
-		String cloud_baseURLs = System.getenv("backend_url");
+		String cloud_baseURLs = CommonUtils.getProperty("backend_url");
 		if (StringUtils.isEmpty(cloud_baseURLs)) {
 			logger.info("backend_url env variable does not set, will use default {}", this.baseURLs);
 		} else {
@@ -1947,7 +1948,7 @@ public class ConnectorManager {
 		}
 
 		this.tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
-		String processId = System.getenv("process_id");
+		String processId = CommonUtils.getProperty("process_id");
 		if (StringUtils.isBlank(processId)) {
 			processId = AgentUtil.readAgentId(tapdataWorkDir);
 			if (StringUtils.isBlank(processId)) {
@@ -1963,7 +1964,7 @@ public class ConnectorManager {
 		this.instanceNo = processId;
 		ConfigurationCenter.processId = processId;
 
-		this.jobTags = System.getenv("jobTags");
+		this.jobTags = CommonUtils.getProperty("jobTags");
 		if (appType.isDrs() && StringUtils.isNotBlank(jobTags)) {
 			String[] jobTagsSplit = jobTags.split(",");
 			if (jobTagsSplit.length < 2) {
