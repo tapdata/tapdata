@@ -173,9 +173,9 @@ public class TapSummary {
             if (null!= annotation) {
                 builder.append("(").append(annotation).append(")");
             }
-            if (res.executionResult() != CapabilitiesExecutionMsg.ERROR && warnSize>0){
-                builder.append(TapSummary.format("HAS_WARN_COUNT",warnSize));
-            }
+//            if (res.executionResult() != CapabilitiesExecutionMsg.ERROR && warnSize>0){
+//                builder.append(TapSummary.format("HAS_WARN_COUNT",warnSize));
+//            }
             builder.append("\n")
                     .append(capabilityBuilder)
                     .append("\n");
