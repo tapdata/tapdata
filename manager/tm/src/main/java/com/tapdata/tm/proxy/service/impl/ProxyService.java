@@ -41,10 +41,10 @@ public class ProxyService {
 
     }
 
-    public SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, UserDetail userDetail, String staticToken) {
-        return this.generateSubscriptionToken(subscribeDto, KEY, staticToken);
+    public SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, UserDetail userDetail, String staticToken, String requestUri) {
+        return this.generateSubscriptionToken(subscribeDto, KEY, staticToken, requestUri);
     }
-    private SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, String key, String staticToken) {
+    private SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, String key, String staticToken, String requestUri) {
         if(subscribeDto == null)
             throw new BizException("SubscribeDto is null");
         if(subscribeDto.getSubscribeId() == null)
@@ -73,7 +73,11 @@ public class ProxyService {
         }
 
         if(staticToken != null) {
-            token = "/console/tm/api/proxy/callback/" + token + "?__token=" + staticToken;
+            int pos = requestUri.indexOf("/api/");
+            if(pos < 0)
+                throw new BizException("requestUri doesn't contains \"/api/\", requestUri: " + requestUri);
+            String prefix = requestUri.substring(0, pos);
+            token = prefix + "/api/proxy/callback/" + token + "?__token=" + staticToken;
         } else {
             token = "/api/proxy/callback/" + token;
         }
