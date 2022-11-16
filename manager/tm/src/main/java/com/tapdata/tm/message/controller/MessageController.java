@@ -161,7 +161,7 @@ public class MessageController extends BaseController {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = attributes.getRequest();
 
-        String whereJson = StringUtils.isBlank(whereFromBody) ? whereFromQuery : whereFromBody;
+        String whereJson = StringUtils.isNotBlank(whereFromQuery) ? whereFromQuery : whereFromBody;
 
         //todo  兼容agent传过来的请求，只能这样写，后续优化掉
         String userAgent = request.getHeader("User-Agent");
@@ -178,10 +178,15 @@ public class MessageController extends BaseController {
             if (jsonObject == null) {
                 throw new BizException("InvalidParameter", "The 'where' parameter can't be empty.");
             }
-            JSONArray jsonArray = jsonObject.getJSONObject("id").getJSONArray("inq");
+            JSONArray jsonArray = null;
+            if (jsonObject.getJSONObject("id") != null && jsonObject.getJSONObject("id").containsKey("inq")) {
+                jsonArray = jsonObject.getJSONObject("id").getJSONArray("inq");
+            }
 
-            List<String> idList = JSONUtil.toList(jsonArray, String.class);
-            Boolean result = messageService.read(idList, getLoginUser());
+            List<String> idList = jsonArray != null ? JSONUtil.toList(jsonArray, String.class) : null;
+            if (idList != null && idList.size() > 0) {
+                Boolean result = messageService.read(idList, getLoginUser());
+            }
         }
         return success();
     }

@@ -143,18 +143,19 @@ public class MeasurementServiceV2 {
         bulkOperations.execute();
     }
 
-    private Sample supplyKeyData(Sample requestSample, Map<String, Number> vvs, Map<String, Number> numberMap) {
-        List<String> list = Lists.newArrayList("currentSnapshotTableInsertRowTotal", "timeCostAvg", "targetWriteTimeCostAvg");
+    private Sample supplyKeyData(Sample requestSample, Map<String, Number> data, Map<String, Number> requestMap) {
+        List<String> list = Lists.newArrayList("currentSnapshotTableInsertRowTotal", "timeCostAvg", "targetWriteTimeCostAvg", "replicateLag");
 
         for (String key : list) {
-            if (numberMap.containsKey(key)
-                    && Objects.nonNull(numberMap.get(key))
-                    && numberMap.get(key).longValue() == 0L
-                    && Objects.nonNull(vvs.get(key))
-                    && vvs.get(key).longValue() > 0L) {
-                requestSample.getVs().put(key, vvs.get(key));
-            } else if (!numberMap.containsKey(key) && vvs.containsKey(key)) {
-                requestSample.getVs().put(key, vvs.get(key));
+            Number value = data.get(key);
+            if (requestMap.containsKey(key)
+                    && Objects.nonNull(requestMap.get(key))
+                    && requestMap.get(key).longValue() == 0L
+                    && Objects.nonNull(value)
+                    && value.longValue() > 0L) {
+                requestSample.getVs().put(key, value);
+            } else if (!requestMap.containsKey(key) && data.containsKey(key)) {
+                requestSample.getVs().put(key, value);
             }
         }
         return requestSample;
@@ -351,10 +352,8 @@ public class MeasurementServiceV2 {
             }
         }
 
-        Long maxRep = null;
         Number snapshotStartAtTemp = null;
         if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
-            maxRep = calculateMaxReplicateLag(querySample);
             snapshotStartAtTemp = getSnapshotStartAt(querySample);
         }
         for (String hash : data.keySet()) {
@@ -375,10 +374,10 @@ public class MeasurementServiceV2 {
             }
 
             if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
-                values.put("replicateLag", maxRep);
+                Number currentEventTimestamp = values.get("currentEventTimestamp");
                 // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
-                if (Objects.nonNull(snapshotInsertRowTotal) && Objects.nonNull(snapshotStartAtTemp) && snapshotInsertRowTotal.longValue() == 0) {
-                    maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAtTemp.longValue());
+                if (Objects.isNull(currentEventTimestamp) && Objects.nonNull(snapshotStartAtTemp)) {
+                    Number maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAtTemp.longValue());
                     values.put("replicateLag", maxRep);
                 }
 

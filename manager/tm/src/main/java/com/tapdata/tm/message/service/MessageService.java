@@ -177,6 +177,7 @@ public class MessageService extends BaseService {
             messageEntity.setLastUpdAt(new Date());
 
             messageEntity.setUserId(userDetail.getUserId());
+            messageEntity.setCustomId(userDetail.getCustomerId());
             repository.getMongoOperations().save(messageEntity);
             informUser(msgTypeEnum, systemEnum, messageMetadata, sourceId, messageEntity.getId().toString(), userDetail);
         } catch (Exception e) {

@@ -72,6 +72,15 @@
 			</properties>
 		</profile>
 		<profile>
+			<id>cloud-uat</id>
+			<properties>
+				<profile.active>cloud-uat</profile.active>
+				<profile.dir>${resource.dir}/cloud-uat</profile.dir>
+				<env.GIT_COMMIT_VERSION>${maven.build.timestamp}</env.GIT_COMMIT_VERSION>
+				<env.PRODUCT>dfs</env.PRODUCT>
+			</properties>
+		</profile>
+		<profile>
 			<id>uat</id>
 			<properties>
 				<profile.active>uat</profile.active>
@@ -472,6 +481,9 @@
 					<exclude>test/*</exclude>
 					<exclude>sit/*</exclude>
 					<exclude>idaas/*</exclude>
+					<exclude>test3/*</exclude>
+					<exclude>cloud-dev/*</exclude>
+					<exclude>cloud-uat/*</exclude>
 					<exclude>*.yaml</exclude>
 				</excludes>
 			</resource>

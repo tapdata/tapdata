@@ -290,7 +290,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
         Optional.ofNullable(replicateLag).ifPresent(speed -> {
             if (null != recorder.getReplicateLagTotal()) {
-                speed.add(recorder.getTotal(), recorder.getReplicateLagTotal());
+                speed.setValue(recorder.getReplicateLagTotal());
             }
         });
 
@@ -334,10 +334,11 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
             writeRecordAcceptLastTs = acceptTime;
         });
 
+
         Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
         Optional.ofNullable(replicateLag).ifPresent(speed -> {
             if (null != recorder.getReplicateLagTotal()) {
-                speed.add(recorder.getTotal(), recorder.getReplicateLagTotal());
+                speed.setValue(recorder.getReplicateLagTotal());
             }
         });
     }

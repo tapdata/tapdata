@@ -118,9 +118,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])([a-zA-Z0-9_\\s-]|[\u4e00-\u9fa5])*$";
 	@Value("${gateway.secret:}")
 	private String gatewaySecret;
+	@Value("#{'${spring.profiles.include:idaas}'.split(',')}")
+	private List<String> productList;
 	@Autowired
 	private SettingsService settingsService;
-	private Boolean isCloud = null;
 	private final Object checkCloudLock = new Object();
 	@Autowired
 	private ClassificationService classificationService;
@@ -810,9 +811,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 						ProxyService proxyService = InstanceFactory.bean(ProxyService.class);
 
-						checkIsCloudOrNot();
 						String token = null;
-						if(isCloud) {
+						if(productList != null && productList.contains("dfs")) {
 							if(!StringUtils.isBlank(gatewaySecret))
 								token = proxyService.generateStaticToken(user.getUserId(), gatewaySecret);
 							else
@@ -826,19 +826,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					}
 				}
 			}
-	}
-	private void checkIsCloudOrNot() {
-		if(isCloud == null) {
-			synchronized (checkCloudLock) {
-				if(isCloud == null) {
-					Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
-					if (Objects.isNull(buildProfile)) {
-						buildProfile = "DAAS";
-					}
-					isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
-				}
-			}
-		}
 	}
 	/**
 	 * mongodb这种类型数据源类型的，存在库里面的就是一个uri,需要解析成为一个标准模式的返回
