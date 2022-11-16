@@ -2,16 +2,10 @@ package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.entity.utils.cache.KVMapFactory;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -23,6 +17,7 @@ import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.Record;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
+import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,20 +36,21 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
  * */
 public class WriteRecordTest extends PDKTestBase {
     private static final String TAG = WriteRecordTest.class.getSimpleName();
-    ConnectorNode tddTargetNode;
-    ConnectorNode sourceNode;
-    DataFlowWorker dataFlowWorker;
-    String targetNodeId = "t2";
-    String testSourceNodeId = "ts1";
-    String originToSourceId;
-    TapNodeInfo tapNodeInfo;
-    String testTableId;
-    TapTable targetTable = table(testTableId)
+    protected ConnectorNode tddTargetNode;
+    protected ConnectorNode sourceNode;
+    protected DataFlowWorker dataFlowWorker;
+    protected String targetNodeId = "t2";
+    protected String testSourceNodeId = "ts1";
+    protected String originToSourceId;
+    protected TapNodeInfo tapNodeInfo;
+    protected String testTableId;
+    protected TapTable targetTable = table(testTableId)
             .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
             .add(field("name", "STRING"))
             .add(field("text", "STRING"));
     @Test
     @DisplayName("Test.WriteRecordTest.case.sourceTest1")//增删改数量返回正确
+    @TapTestCase(sort = 1)
     /**
      * 插入2条数据， 修改插入的2条数据， 删除插入的2条数据 ，验证插入的数量， 修改的数量， 删除的数量是否正确。
      * */
@@ -122,6 +118,7 @@ public class WriteRecordTest extends PDKTestBase {
 
     @Test
     @DisplayName("Test.WriteRecordTest.case.sourceTest2")// 多次插入相同主键的数据， 插入修改数量应该正确
+    @TapTestCase(sort = 2)
     /**
      * 支持默认行为就是合格的， 默认以外的按警告处理
      * 插入2条数据， 再次插入相同主键的2条数据， 内容略有不同， 插入策略是update_on_exists（默认行为），
@@ -242,6 +239,7 @@ public class WriteRecordTest extends PDKTestBase {
 
     @Test
     @DisplayName("Test.WriteRecordTest.case.sourceTest3")// 删除不存在的数据时，删除数量应该正确
+    @TapTestCase(sort = 3)
     /**
      * 删除1条不存在的数据， 此时不应该报错， 且返回给引擎的插入， 修改和删除都应该为0.
      * */
@@ -312,6 +310,7 @@ public class WriteRecordTest extends PDKTestBase {
 
     @Test
     @DisplayName("Test.WriteRecordTest.case.sourceTest4")//修改不存在的数据， 插入修改数量应该正确
+    @TapTestCase(sort = 4)
     /**
      * 修改1条不存在的数据， 如果修改策略是insert_on_nonexists， 此时验证新插入应该是1个
      * 修改1条不存在的数据， 如果修改策略是 ignore_on_nonexists， 此时验证插入和修改都应该为0个
@@ -401,11 +400,6 @@ public class WriteRecordTest extends PDKTestBase {
         );
     }
 
-    private void initConnectorFunctions() {
-        tddTargetNode = dataFlowWorker.getTargetNodeDriver(targetNodeId).getTargetNode();
-        sourceNode = dataFlowWorker.getSourceNodeDriver(testSourceNodeId).getSourceNode();
-    }
-
     public static List<SupportFunction> testFunctions() {
         List<SupportFunction> supportFunctions = Arrays.asList(
                 support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
@@ -416,84 +410,4 @@ public class WriteRecordTest extends PDKTestBase {
         );
         return supportFunctions;
     }
-
-    public void tearDown() {
-        super.tearDown();
-    }
-    @Override
-    public Class<? extends PDKTestBase> get() {
-        return this.getClass();
-    }
-
-    private TestNode prepare(TapNodeInfo nodeInfo){
-        tapNodeInfo = nodeInfo;
-        originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
-        testTableId = UUID.randomUUID().toString();
-        targetTable.setId(testTableId);
-        KVMap<Object> stateMap = new KVMap<Object>() {
-            @Override
-            public void init(String mapKey, Class<Object> valueClass) {
-
-            }
-
-            @Override
-            public void put(String key, Object o) {
-
-            }
-
-            @Override
-            public Object putIfAbsent(String key, Object o) {
-                return null;
-            }
-
-            @Override
-            public Object remove(String key) {
-                return null;
-            }
-
-            @Override
-            public void clear() {
-
-            }
-
-            @Override
-            public void reset() {
-
-            }
-
-            @Override
-            public Object get(String key) {
-                return null;
-            }
-        };
-        String dagId = UUID.randomUUID().toString();
-        KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
-        TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
-        kvMap.put(testTableId,targetTable);
-        ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
-                .withDagId(dagId)
-                .withAssociateId(UUID.randomUUID().toString())
-                .withConnectionConfig(connectionOptions)
-                .withGroup(spec.getGroup())
-                .withVersion(spec.getVersion())
-                .withTableMap(kvMap)
-                .withPdkId(spec.getId())
-                .withGlobalStateMap(stateMap)
-                .withStateMap(stateMap)
-                .withTable(testTableId)
-                .build();
-        TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap());
-        connectorNode.getConnectorContext().setNodeConfig(new DataMap());
-//        try {
-//            Class cla = connectorNode.getClass();
-//            Field connectorContext = cla.getDeclaredField("connectorContext");
-//            connectorContext.setAccessible(true);
-//            connectorContext.set(connectorNode,connectionContext);
-//            connectorNode.getConnectorContext().setNodeConfig(new DataMap());
-//        }catch (Exception e){
-//        }
-        RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this);
-        return new TestNode( connectorNode, recordEventExecute);
-    }
-
 }

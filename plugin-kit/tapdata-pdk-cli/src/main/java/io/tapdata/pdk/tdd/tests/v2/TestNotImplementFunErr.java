@@ -1,14 +1,11 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
-import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
@@ -17,12 +14,10 @@ import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
-import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.Record;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
+import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -40,20 +35,14 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 @TapGo(sort = 2)
 public class TestNotImplementFunErr extends PDKTestBase {
     private static final String TAG = TestNotImplementFunErr.class.getSimpleName();
-    ConnectorNode tddTargetNode;
-    ConnectorNode sourceNode;
-    DataFlowWorker dataFlowWorker;
-    String targetNodeId = "t2";
-    String testSourceNodeId = "ts1";
-    String originToSourceId;
-    TapNodeInfo tapNodeInfo;
-    String testTableId;
-    TapTable targetTable = table(testTableId)
+
+    protected TapTable targetTable = table(testTableId)
             .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
             .add(field("name", "STRING"))
             .add(field("text", "STRING"));
     @Test
     @DisplayName("Test.TestNotImplementFunErr.case.sourceTest")
+    @TapTestCase(sort = 1)
     void sourceTest() throws Throwable {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             tapNodeInfo = nodeInfo;
@@ -131,21 +120,8 @@ public class TestNotImplementFunErr extends PDKTestBase {
     }
 
 
-    long insertRecord;
-    long updateRecord;
-    long deleteRecord;
-
-    long insertRecordNeed = 10;
-    long updateRecordNeed;
-    long deleteRecordNeed;
-
     private void writeRecorde(TapConnectorContext connectionContext, ConnectorNode connectorNode, Method testCase) throws Throwable {
 
-    }
-
-    private void initConnectorFunctions() {
-        tddTargetNode = dataFlowWorker.getTargetNodeDriver(targetNodeId).getTargetNode();
-        sourceNode = dataFlowWorker.getSourceNodeDriver(testSourceNodeId).getSourceNode();
     }
 
     public static List<SupportFunction> testFunctions() {
@@ -153,23 +129,7 @@ public class TestNotImplementFunErr extends PDKTestBase {
                 support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
                 support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
                 support(DropTableFunction.class, "Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
-                //support(QueryByAdvanceFilterFunction.class, "QueryByAdvanceFilterFunction is a must for database which is schema free to sample some record to generate the field data types.")
-                //support(DropTableFunction.class, "DropTable is needed for TDD to drop the table created by tests, please implement it in registerCapabilities method.")
         );
         return supportFunctions;
-    }
-    public void tearDown() {
-        super.tearDown();
-        TapLogger.info(TAG, "Test table name : {}, insert: {}/{}, update: {}/{}, delete: {}/{}",
-                this.testTableId,
-                this.insertRecord,this.insertRecordNeed,
-                this.updateRecord,this.updateRecordNeed,
-                this.deleteRecord,this.deleteRecordNeed
-        );
-
-    }
-    @Override
-    public Class<? extends PDKTestBase> get() {
-        return this.getClass();
     }
 }

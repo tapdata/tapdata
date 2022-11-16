@@ -6,23 +6,23 @@ import io.tapdata.entity.event.control.PatrolEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
+import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
-import io.tapdata.pdk.apis.entity.FilterResult;
-import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
-import io.tapdata.pdk.apis.entity.TapFilter;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
-import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.*;
 import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
@@ -33,7 +33,10 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
+import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.core.workflow.engine.TapDAG;
+import io.tapdata.pdk.tdd.tests.support.Record;
+import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
@@ -53,6 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Date;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class PDKTestBase {
@@ -356,18 +361,6 @@ public class PDKTestBase {
                 TapLogger.info(TAG, "************************{} tearDown************************", this.getClass().getSimpleName());
             }
         }
-//        TDDCli.TapSummary.capabilitiesResult.forEach((cab, result)->{
-//            StringBuilder capResult = new StringBuilder();
-//            int executionResult = result.executionResult();
-//            capResult.append(cab.getSimpleName())
-//                    .append(executionResult==CapabilitiesExecutionMsg.ERROR?"测试失败":"测试通过");
-//            if (executionResult == CapabilitiesExecutionMsg.ERROR){
-//
-//            }else {
-//
-//            }
-//
-//        });
     }
 
     public DataMap getTestOptions() {
@@ -729,5 +722,142 @@ public class PDKTestBase {
         public RecordEventExecute recordEventExecute(){
             return this.recordEventExecute;
         }
+    }
+
+    protected ConnectorNode tddTargetNode;
+    protected ConnectorNode sourceNode;
+    protected DataFlowWorker dataFlowWorker;
+    protected String targetNodeId = "t2";
+    protected String testSourceNodeId = "ts1";
+    protected String originToSourceId;
+    protected TapNodeInfo tapNodeInfo;
+    protected String testTableId;
+    protected TapTable targetTable = table(testTableId)
+            .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
+            .add(field("TYPE_ARRAY", JAVA_Array))
+            .add(field("TYPE_BINARY", JAVA_Binary))
+            .add(field("TYPE_BOOLEAN", JAVA_Boolean))
+            .add(field("TYPE_DATE", JAVA_Date))
+            .add(field("TYPE_DATETIME", JAVA_Date))
+            .add(field("TYPE_MAP", JAVA_Map))
+            .add(field("TYPE_NUMBER_Long", JAVA_Long))
+            .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer))
+            .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal))
+            .add(field("TYPE_NUMBER_Float", JAVA_Float))
+            .add(field("TYPE_NUMBER_Double", JAVA_Double))
+            .add(field("TYPE_STRING", JAVA_String))
+            .add(field("TYPE_TIME", JAVA_Date))
+            .add(field("TYPE_YEAR", JAVA_Date));
+
+
+    protected TestNode prepare(TapNodeInfo nodeInfo){
+        tapNodeInfo = nodeInfo;
+        originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
+        testTableId = UUID.randomUUID().toString();
+        targetTable.setId(testTableId);
+        KVMap<Object> stateMap = new KVMap<Object>() {
+            @Override
+            public void init(String mapKey, Class<Object> valueClass) {
+
+            }
+
+            @Override
+            public void put(String key, Object o) {
+
+            }
+
+            @Override
+            public Object putIfAbsent(String key, Object o) {
+                return null;
+            }
+
+            @Override
+            public Object remove(String key) {
+                return null;
+            }
+
+            @Override
+            public void clear() {
+
+            }
+
+            @Override
+            public void reset() {
+
+            }
+
+            @Override
+            public Object get(String key) {
+                return null;
+            }
+        };
+        String dagId = UUID.randomUUID().toString();
+        KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
+        TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
+        kvMap.put(testTableId,targetTable);
+        ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
+                .withDagId(dagId)
+                .withAssociateId(UUID.randomUUID().toString())
+                .withConnectionConfig(connectionOptions)
+                .withGroup(spec.getGroup())
+                .withVersion(spec.getVersion())
+                .withTableMap(kvMap)
+                .withPdkId(spec.getId())
+                .withGlobalStateMap(stateMap)
+                .withStateMap(stateMap)
+                .withTable(testTableId)
+                .build();
+        TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap());
+        connectorNode.getConnectorContext().setNodeConfig(new DataMap());
+        RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this);
+        return new TestNode( connectorNode, recordEventExecute);
+    }
+
+    protected void initConnectorFunctions() {
+        tddTargetNode = dataFlowWorker.getTargetNodeDriver(targetNodeId).getTargetNode();
+        sourceNode = dataFlowWorker.getSourceNodeDriver(testSourceNodeId).getSourceNode();
+    }
+
+    protected boolean createTable(TestNode prepare) throws Throwable {
+        TapConnectorContext connectorContext = prepare.connectorNode().getConnectorContext();
+        ConnectorFunctions connectorFunctions = prepare.connectorNode().getConnectorFunctions();
+        Method testCase = prepare.recordEventExecute().testCase();
+        if (null != connectorFunctions) {
+            CreateTableFunction createTableFunction = connectorFunctions.getCreateTableFunction();
+            CreateTableV2Function createTableV2Function = connectorFunctions.getCreateTableV2Function();
+            WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
+            TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
+            TapAssert asserts = TapAssert.asserts(() -> { });
+            if (null != createTableV2Function) {
+                try {
+                    targetTable.setId(UUID.randomUUID().toString());
+                    CreateTableOptions table = createTableV2Function.createTable(connectorContext, createTableEvent);
+                    asserts.acceptAsError(this.get(),testCase, TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.succeed"));
+                }catch (Exception e){
+                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.error"))).acceptAsError(this.get(),testCase,null);
+                }
+            } else if (null != createTableFunction) {
+                try {
+                    createTableFunction.createTable(connectorContext, createTableEvent);
+                    asserts.acceptAsError(this.get(),testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.succeed"));
+                }catch (Exception e){
+                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.error"))).acceptAsError(this.get(),testCase,null);
+                }
+            }else if(null != writeRecordFunction){
+                Record[] records = Record.testRecordWithTapTable(targetTable,1);
+                try {
+                    WriteListResult<TapRecordEvent> insert = prepare.recordEventExecute()
+                            .builderRecord(records)
+                            .insert();
+                    TapAssert.asserts(()->{}).acceptAsError(this.get(),testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.succeed",records.length,targetTable.getId()));
+                }catch (Exception e){
+                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.error",records.length))).acceptAsError(this.get(),testCase,null);
+                }
+            }else{
+                TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.error"))).acceptAsError(this.get(),testCase,null);
+                return false;
+            }
+        }
+        return true;
     }
 }

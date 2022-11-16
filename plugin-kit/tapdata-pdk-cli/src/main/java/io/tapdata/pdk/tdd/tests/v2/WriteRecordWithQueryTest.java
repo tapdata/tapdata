@@ -3,33 +3,22 @@ package io.tapdata.pdk.tdd.tests.v2;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.entity.utils.cache.KVMapFactory;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.*;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.commands.TapSummary;
-import io.tapdata.pdk.cli.entity.DAGDescriber;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.dag.TapDAGNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
-import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
-import io.tapdata.pdk.core.workflow.engine.JobOptions;
-import io.tapdata.pdk.core.workflow.engine.TapDAGNodeEx;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.Record;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.target.DMLTest;
+import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,7 +27,6 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import static io.tapdata.entity.simplify.TapSimplify.field;
 import static io.tapdata.entity.simplify.TapSimplify.table;
@@ -48,30 +36,18 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 @DisplayName("Test.WriteRecordWithQueryTest")
 @TapGo(sort = 3)
 public class WriteRecordWithQueryTest extends PDKTestBase {
-    private static final String TAG = DMLTest.class.getSimpleName();
-    ConnectorNode tddTargetNode;
-    ConnectorNode sourceNode;
-    DataFlowWorker dataFlowWorker;
-    String targetNodeId = "t2";
-    String testTargetNodeId = "tt1";
-    String testSourceNodeId = "ts1";
-    String originNodeId = "r0";
+    private static final String TAG = WriteRecordWithQueryTest.class.getSimpleName();
 
-    String originToSourceId;
+    protected String testTableId;
+    protected String tddTableId = "tdd-table";
 
-    DAGDescriber dataFlowDescriber;
-
-    TapNodeInfo tapNodeInfo;
-
-    String testTableId;
-    String tddTableId = "tdd-table";
-
-    TapTable targetTable = table(testTableId)
+    protected TapTable targetTable = table(testTableId)
             .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
             .add(field("name", "STRING"))
             .add(field("text", "STRING"));
     @Test
     @DisplayName("Test.WriteRecordWithQueryTest.case.sourceTest")
+    @TapTestCase(sort = 1)
     void sourceTest() throws Throwable {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
@@ -103,6 +79,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
 
     @Test
     @DisplayName("Test.WriteRecordWithQueryTest.case.sourceTest2")
+    @TapTestCase(sort = 2)
     void sourceTest2() throws Throwable {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
@@ -350,108 +327,4 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
         );
     }
 
-    private void initConnectorFunctions() {
-        tddTargetNode = dataFlowWorker.getTargetNodeDriver(targetNodeId).getTargetNode();
-        sourceNode = dataFlowWorker.getSourceNodeDriver(testSourceNodeId).getSourceNode();
-    }
-
-    public void tearDown() {
-        super.tearDown();
-    }
-
-    @Override
-    public Class<? extends PDKTestBase> get() {
-        return this.getClass();
-    }
-
-    private TestNode prepare(TapNodeInfo nodeInfo){
-        tapNodeInfo = nodeInfo;
-        originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
-
-        TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
-        dataFlowDescriber = new DAGDescriber();
-        dataFlowDescriber.setId(originToSourceId);
-        testTableId = testTableName(dataFlowDescriber.getId());
-
-        dataFlowDescriber.setNodes(Arrays.asList(
-                new TapDAGNodeEx().id(originNodeId).pdkId("tdd-source").group("io.tapdata.connector").type(TapDAGNode.TYPE_SOURCE).version("1.0-SNAPSHOT").
-                        table(tddTableId).connectionConfig(new DataMap()),
-                new TapDAGNodeEx().id(testTargetNodeId).pdkId(spec.getId()).group(spec.getGroup()).type(TapDAGNode.TYPE_TARGET/*nodeInfo.getNodeType()*/).version(spec.getVersion()).
-                        table(testTableId).connectionConfig(connectionOptions)
-        ));
-        dataFlowDescriber.setDag(Collections.singletonList(Arrays.asList(originNodeId, testTargetNodeId)));
-        dataFlowDescriber.setJobOptions(new JobOptions().actionsBeforeStart(Arrays.asList(JobOptions.ACTION_DROP_TABLE, JobOptions.ACTION_CREATE_TABLE)).enableStreamRead(false));
-
-        dag = dataFlowDescriber.toDag();
-
-        TapConnectorContext connectionContext = new TapConnectorContext(
-                spec,
-                connectionOptions,
-                new DataMap());
-        String dagId = UUID.randomUUID().toString();
-
-        testTableId = "test";UUID.randomUUID().toString();
-        targetTable.setId(testTableId);
-        KVMap<Object> stateMap = new KVMap<Object>() {
-            @Override
-            public void init(String mapKey, Class<Object> valueClass) {
-
-            }
-
-            @Override
-            public void put(String key, Object o) {
-
-            }
-
-            @Override
-            public Object putIfAbsent(String key, Object o) {
-                return null;
-            }
-
-            @Override
-            public Object remove(String key) {
-                return null;
-            }
-
-            @Override
-            public void clear() {
-
-            }
-
-            @Override
-            public void reset() {
-
-            }
-
-            @Override
-            public Object get(String key) {
-                return null;
-            }
-        };
-        KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
-        kvMap.put(testTableId,targetTable);
-        ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
-                .withDagId(dagId)
-                .withAssociateId(UUID.randomUUID().toString())
-                .withConnectionConfig(connectionOptions)
-                .withGroup(spec.getGroup())
-                .withVersion(spec.getVersion())
-                .withTableMap(kvMap)
-                .withPdkId(spec.getId())
-                .withGlobalStateMap(stateMap)
-                .withStateMap(stateMap)
-                .withTable(testTableId)
-                .build();
-        connectorNode.getConnectorContext().setNodeConfig(new DataMap());
-//        try {
-//            Class cla = connectorNode.getClass();
-//            Field connectorContext = cla.getDeclaredField("connectorContext");
-//            connectorContext.setAccessible(true);
-//            connectorContext.set(connectorNode,connectionContext);
-//            connectorNode.getConnectorContext().setNodeConfig(new DataMap());
-//        }catch (Exception e){
-//        }
-        RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this);
-        return new TestNode( connectorNode, recordEventExecute);
-    }
 }

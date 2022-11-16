@@ -6,7 +6,6 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -15,7 +14,6 @@ import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
-import io.tapdata.pdk.tdd.tests.support.LangUtils;
 import io.tapdata.pdk.tdd.tests.support.Record;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import org.junit.jupiter.api.Assertions;
@@ -23,9 +21,6 @@ import org.junit.jupiter.api.Assertions;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static io.tapdata.entity.simplify.TapSimplify.entry;
-import static io.tapdata.entity.simplify.TapSimplify.map;
 
 public class RecordEventExecute {
     ConnectorNode connectorNode;

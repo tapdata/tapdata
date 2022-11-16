@@ -84,13 +84,14 @@ public class TDDCli extends CommonCli {
     }
 
     public void runLevel(List<DiscoverySelector> selectors, TapSummary testResultSummary) {
-        testResultSummary.setLanType(new Locale(lan)).showCapabilities(testResultSummary,nodeInfo());
+        testResultSummary.setLanType(new Locale(lan)).showCapabilities(nodeInfo());
         for (DiscoverySelector selector : selectors) {
             LauncherDiscoveryRequestBuilder request = LauncherDiscoveryRequestBuilder.request();
             LauncherDiscoveryRequest build = request.selectors(selector).build();
             runTests(build, testResultSummary);
         }
         testResultSummary.endingShow(file.getName());
+        //testResultSummary.asFile(file.getName());
         System.exit(0);
     }
 
@@ -301,21 +302,23 @@ public class TDDCli extends CommonCli {
 
             for(Class<? extends PDKTestBase> testClass : tests) {
                 boolean allFound = true;
-                List<SupportFunction> functions = (List<SupportFunction>) ReflectionUtil.invokeStaticMethod(testClass.getName(), "testFunctions");
-                for(SupportFunction supportFunction : functions) {
-                    try {
-                        if(!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
+                try {
+                    List<SupportFunction> functions = (List<SupportFunction>) ReflectionUtil.invokeStaticMethod(testClass.getName(), "testFunctions");
+                    for(SupportFunction supportFunction : functions) {
+                        try {
+                            if(!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
+                                allFound = false;
+                                testResultSummary.doNotSupportFunTest.put(testClass,TapSummary.format("NOT_SUPPORT_FUNCTION",supportFunction.getFunction().getName()));
+                                break;
+                            }
+                        } catch (NoSuchMethodException e) {
+                            //e.printStackTrace();
                             allFound = false;
                             testResultSummary.doNotSupportFunTest.put(testClass,TapSummary.format("NOT_SUPPORT_FUNCTION",supportFunction.getFunction().getName()));
                             break;
                         }
-                    } catch (NoSuchMethodException e) {
-                        e.printStackTrace();
-                        allFound = false;
-                        testResultSummary.doNotSupportFunTest.put(testClass,TapSummary.format("NOT_SUPPORT_FUNCTION",supportFunction.getFunction().getName()));
-                        break;
                     }
-                }
+                }catch (Exception e){}
                 if(allFound) {
                     selectorsAddClass(selectors, testClass, testResultSummary);
                 }

@@ -4,9 +4,12 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.*;
 import io.tapdata.entity.schema.value.DateTime;
+import org.apache.commons.math3.analysis.function.Floor;
 
 import java.sql.Time;
 import java.util.*;
+
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 public class Record extends HashMap {
     public static Record create(){
@@ -43,48 +46,49 @@ public class Record extends HashMap {
         for (int i = 0; i < needCount; i++) {
             Record record = new Record();
             nameFieldMap.forEach((key,field)->{
-                TapType type = field.getTapType();
+                String type = field.getDataType();
                 String keyName = field.getName();
-                switch (type.getType()) {
-                    case TapType.TYPE_ARRAY:{
+                switch (type) {
+                    case JAVA_Array:{
                         List<String> list = new ArrayList<>();
                         list.add(UUID.randomUUID().toString());
                         list.add(UUID.randomUUID().toString());
                         record.builder(keyName,list);
                     };break;
-                    case TapType.TYPE_BINARY:{
+                    case JAVA_Binary:{
                         record.builder(keyName,UUID.randomUUID().getLeastSignificantBits());
                     };break;
-                    case TapType.TYPE_BOOLEAN:{
-                        record.builder(keyName,Math.random()*10+50>1000);
+                    case JAVA_Integer:{
+                        Date date = new Date();
+                        record.builder(keyName,date.getSeconds());
                     };break;
-                    case TapType.TYPE_DATE:{
+                    case JAVA_Date:{
                         record.builder(keyName,new Date());
                     };break;
-                    case TapType.TYPE_DATETIME:{
-                        record.builder(keyName,new DateTime());
-                    };break;
-                    case TapType.TYPE_MAP:{
+                    case JAVA_Map:{
                         Map<String,Object> map = new HashMap<>();
                         map.put(UUID.randomUUID().toString(),UUID.randomUUID().toString());
                         map.put(UUID.randomUUID().toString(),UUID.randomUUID().toString());
                         record.builder(keyName,map);
                     };break;
-                    case TapType.TYPE_NUMBER:{
-                        record.builder(keyName,Math.random()*5+50);
-                    };break;
-                    case TapType.TYPE_RAW:{
-                        record.builder(keyName,null);
-                    };break;
-                    case TapType.TYPE_STRING:{
+                    case JAVA_String:{
                         record.builder(keyName,UUID.randomUUID().toString());
                     };break;
-                    case TapType.TYPE_TIME:{
-                        record.builder(keyName,new DateTime().toTime());
-                    };break;
-                    case TapType.TYPE_YEAR:{
-                        record.builder(keyName,new Date().getYear());
-                    };break;
+                    case JAVA_BigDecimal:{
+                        record.builder(keyName,UUID.randomUUID().toString());
+                    }break;
+                    case JAVA_Boolean:{
+                        record.builder(keyName,Math.random()*10+50>55);
+                    }break;
+                    case JAVA_Float:{
+                        record.builder(keyName, Float.parseFloat(""+(Math.random()*10+50)));
+                    }break;
+                    case JAVA_Long:{
+                        record.builder(keyName,System.currentTimeMillis());
+                    }break;
+                    case JAVA_Double:{
+                        record.builder(keyName,Double.parseDouble(""+(Math.random()*10+50)));
+                    }break;
                     default:record.builder(keyName,null);;
                 }
             });
