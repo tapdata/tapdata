@@ -5,9 +5,13 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.statemachine.enums.DataFlowEvent;
+import com.tapdata.tm.statemachine.model.StateMachineResult;
+import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -41,6 +45,8 @@ public class TaskRestartSchedule {
     private UserService userService;
     private SettingsService settingsService;
     private WorkerService workerService;
+
+    private StateMachineService stateMachineService;
 
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
@@ -99,7 +105,15 @@ public class TaskRestartSchedule {
                     return;
                 }
             }
-            taskService.run(taskDto, userDetailMap.get(taskDto.getUserId()));
+            UserDetail user = userDetailMap.get(taskDto.getUserId());
+            if (user == null) {
+                return;
+            }
+
+            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
+            if (stateMachineResult.isOk()) {
+                taskService.scheduling(taskDto, user);
+            }
         });
     }
 
@@ -113,6 +127,7 @@ public class TaskRestartSchedule {
         }
         return heartExpire;
     }
+
 
 
     /**
@@ -132,23 +147,36 @@ public class TaskRestartSchedule {
             return;
         }
 
+        List<String> userList = all.stream().map(BaseDto::getUserId).collect(Collectors.toList());
+        Map<String, UserDetail> userMap = userService.getUserMapByIdList(userList);
+
         Iterator<TaskDto> iterator = all.iterator();
 
         Long now = System.currentTimeMillis();
         while (iterator.hasNext()) {
             TaskDto next = iterator.next();
-            if (Objects.nonNull(next.getScheduleDate()) && (now - next.getScheduleDate() > heartExpire)) {
-                taskService.updateStatus(next.getId(), TaskDto.STATUS_SCHEDULE_FAILED);
-                iterator.remove();
+            UserDetail user = userMap.get(next.getUserId());
+            if (user != null && TaskDto.STATUS_SCHEDULING.equals(next.getStatus())) {
+                if (Objects.nonNull(next.getScheduleDate()) && (now - next.getScheduleDate() > heartExpire)) {
+                    stateMachineService.executeAboutTask(next, DataFlowEvent.OVERTIME, user);
+                    iterator.remove();
+                }
             }
         }
 
-        List<String> userIds = all.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
-        List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
-        Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
         all.forEach(taskDto -> {
-            taskService.run(taskDto, userDetailMap.get(taskDto.getUserId()));
+            boolean start = true;
+            if (TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
+                StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
+                if (stateMachineResult.isFail()) {
+                    start = false;
+                }
+            }
+
+            if (start) {
+                taskService.scheduling(taskDto, userMap.get(taskDto.getUserId()));
+            }
         });
     }
 }

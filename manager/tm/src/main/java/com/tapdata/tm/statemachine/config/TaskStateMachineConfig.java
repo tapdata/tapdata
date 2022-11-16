@@ -31,32 +31,49 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 
 	@Override
 	public void configure(StateMachineBuilder<TaskState, DataFlowEvent> builder) {
-		builder.transition(TaskState.EDIT, TaskState.SCHEDULING, DataFlowEvent.START)
+		builder.transition(TaskState.EDIT, TaskState.WAIT_START, DataFlowEvent.CONFIRM)
+				.transition(TaskState.WAIT_START, TaskState.WAIT_START, DataFlowEvent.CONFIRM)
+				.transition(TaskState.WAIT_START, TaskState.DELETING, DataFlowEvent.DELETE)
+				.transition(TaskState.WAIT_START, TaskState.SCHEDULING, DataFlowEvent.START)
 				.transition(TaskState.SCHEDULING, TaskState.SCHEDULING_FAILED, DataFlowEvent.STOP)
 				.transition(TaskState.SCHEDULING, TaskState.SCHEDULING_FAILED, DataFlowEvent.SCHEDULE_FAILED)
+				.transition(TaskState.SCHEDULING, TaskState.SCHEDULING_FAILED, DataFlowEvent.OVERTIME)
 				.transition(TaskState.SCHEDULING, TaskState.WAITING_RUN, DataFlowEvent.SCHEDULE_SUCCESS)
 				.transition(TaskState.SCHEDULING_FAILED, TaskState.SCHEDULING, DataFlowEvent.START)
-				.transition(TaskState.SCHEDULING_FAILED, TaskState.EDIT, DataFlowEvent.EDIT)
+				.transition(TaskState.SCHEDULING_FAILED, TaskState.SCHEDULING_FAILED, DataFlowEvent.CONFIRM)
+				.transition(TaskState.SCHEDULING_FAILED, TaskState.RENEWING, DataFlowEvent.RENEW)
 				.transition(TaskState.WAITING_RUN, TaskState.SCHEDULING, DataFlowEvent.OVERTIME)
 				.transition(TaskState.WAITING_RUN, TaskState.SCHEDULING, DataFlowEvent.SCHEDULE_RESTART)
 				.transition(TaskState.WAITING_RUN, TaskState.RUNNING, DataFlowEvent.RUNNING)
 				.transition(TaskState.WAITING_RUN, TaskState.STOPPING, DataFlowEvent.STOP)
-				.transition(TaskState.RUNNING, TaskState.WAITING_RUN, DataFlowEvent.OVERTIME)
-				.transition(TaskState.RUNNING, TaskState.WAITING_RUN, DataFlowEvent.EXIT)
+				.transition(TaskState.RUNNING, TaskState.SCHEDULING, DataFlowEvent.OVERTIME)
+				.transition(TaskState.RUNNING, TaskState.SCHEDULING, DataFlowEvent.EXIT)
 				.transition(TaskState.RUNNING, TaskState.DONE, DataFlowEvent.COMPLETED)
 				.transition(TaskState.RUNNING, TaskState.ERROR, DataFlowEvent.ERROR)
 				.transition(TaskState.RUNNING, TaskState.STOPPING, DataFlowEvent.STOP)
-				.transition(TaskState.ERROR, TaskState.EDIT, DataFlowEvent.EDIT)
+				.transition(TaskState.RUNNING, TaskState.STOPPED, DataFlowEvent.FORCE_STOP)
+				.transition(TaskState.ERROR, TaskState.ERROR, DataFlowEvent.CONFIRM)
 				.transition(TaskState.ERROR, TaskState.SCHEDULING, DataFlowEvent.START)
+				.transition(TaskState.ERROR, TaskState.RENEWING, DataFlowEvent.RENEW)
+				.transition(TaskState.ERROR, TaskState.DELETING, DataFlowEvent.DELETE)
 				.transition(TaskState.STOPPING, TaskState.ERROR, DataFlowEvent.ERROR)
 				.transition(TaskState.STOPPING, TaskState.DONE, DataFlowEvent.COMPLETED)
 				.transition(TaskState.STOPPING, TaskState.STOPPED, DataFlowEvent.STOPPED)
 				.transition(TaskState.STOPPING, TaskState.STOPPED, DataFlowEvent.FORCE_STOP)
 				.transition(TaskState.STOPPING, TaskState.STOPPED, DataFlowEvent.OVERTIME)
-				.transition(TaskState.STOPPED, TaskState.EDIT, DataFlowEvent.EDIT)
+				.transition(TaskState.STOPPED, TaskState.STOPPED, DataFlowEvent.CONFIRM)
 				.transition(TaskState.STOPPED, TaskState.SCHEDULING, DataFlowEvent.START)
-				.transition(TaskState.DONE, TaskState.EDIT, DataFlowEvent.EDIT)
-				.transition(TaskState.DONE, TaskState.SCHEDULING, DataFlowEvent.START);
+				.transition(TaskState.STOPPED, TaskState.RENEWING, DataFlowEvent.RENEW)
+				.transition(TaskState.STOPPED, TaskState.DELETING, DataFlowEvent.DELETE)
+				.transition(TaskState.RENEWING, TaskState.RENEW_FAILED, DataFlowEvent.RENEW_DEL_FAILED)
+				.transition(TaskState.RENEWING, TaskState.WAIT_START, DataFlowEvent.RENEW_DEL_SUCCESS)
+				.transition(TaskState.RENEW_FAILED, TaskState.RENEWING, DataFlowEvent.RENEW)
+				.transition(TaskState.RENEW_FAILED, TaskState.DELETING, DataFlowEvent.DELETE)
+				.transition(TaskState.DELETING, TaskState.DELETE_FAILED, DataFlowEvent.RENEW_DEL_FAILED)
+				.transition(TaskState.DONE, TaskState.DONE, DataFlowEvent.CONFIRM)
+				.transition(TaskState.DONE, TaskState.SCHEDULING, DataFlowEvent.START)
+				.transition(TaskState.DONE, TaskState.RENEWING, DataFlowEvent.RENEW)
+				.transition(TaskState.DONE, TaskState.DELETING, DataFlowEvent.DELETE);
 	}
 
 	@Override
@@ -78,6 +95,7 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 						update, stateContext.getUserDetail());
 				if (updateResult.wasAcknowledged() && updateResult.getModifiedCount() > 0){
 					stateContext.setNeedPostProcessor(true);
+					((TaskStateContext)stateContext).getData().setStatus(stateContext.getTarget().getName());
 				}
 				return StateMachineResult.ok(updateResult.getModifiedCount());
 			}

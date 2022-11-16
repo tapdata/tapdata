@@ -45,6 +45,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -118,6 +119,11 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
         }
 
         return new UserDetail(user, roleList);
+    }
+
+    public Map<String, UserDetail> getUserMapByIdList(List<String> userIdList) {
+        List<UserDetail> userByIdList = getUserByIdList(userIdList);
+        return userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
     }
 
     public List<UserDetail> getUserByIdList(List<String> userIdList) {
