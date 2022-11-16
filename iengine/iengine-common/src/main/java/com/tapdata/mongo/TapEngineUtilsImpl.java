@@ -47,4 +47,27 @@ public class TapEngineUtilsImpl implements TapEngineUtils {
 		return wsPort;
 	}
 
+	@Override
+	public String getRealWsPath(String wsPath, String loginUrl) {
+		int pos = wsPath.indexOf("engine/");
+		if(pos < 0)
+			throw new IllegalArgumentException("wsPath doesn't contain \"engine\", wsPath " + wsPath);
+		String suffix = wsPath.substring(pos);
+		try {
+			URL url = new URL(loginUrl);
+			String path = url.getPath();
+			int proxyPos = path.indexOf("api/proxy");
+			if(proxyPos < 0) {
+				throw new IllegalArgumentException("loginUrl doesn't contain \"api/proxy\", loginUrl " + loginUrl);
+			}
+			String prefix = path.substring(0, proxyPos);
+			if(prefix.startsWith("/")) {
+				prefix = prefix.substring(1);
+			}
+			return prefix + suffix;
+		} catch (MalformedURLException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
 }
