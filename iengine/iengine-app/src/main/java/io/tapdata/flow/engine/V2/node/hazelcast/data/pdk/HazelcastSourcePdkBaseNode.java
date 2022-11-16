@@ -242,7 +242,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					break;
 			}
 			if (null != syncProgress.getStreamOffsetObj()) {
-				TapdataEvent tapdataEvent = new TapdataHeartbeatEvent(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
+				TapdataEvent tapdataEvent = TapdataHeartbeatEvent.create(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
 				enqueue(tapdataEvent);
 			}
 		} else {
@@ -584,7 +584,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				tapdataEvent.setSourceTime(((TapRecordEvent) tapEvent).getReferenceTime());
 			}
 		} else if (tapEvent instanceof HeartbeatEvent) {
-			tapdataEvent = new TapdataHeartbeatEvent(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
+			tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
 		} else if (tapEvent instanceof TapDDLEvent) {
 			logger.info("Source node received an ddl event: " + tapEvent);
 			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
