@@ -5,3 +5,4 @@ src/main/resources/oauth
 src/main/resources/prod
 src/main/resources/cloud-dev
 src/main/resources/cloud-uat
+src/main/resources/cloud-test
