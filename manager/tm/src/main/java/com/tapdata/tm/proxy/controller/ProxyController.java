@@ -146,7 +146,7 @@ public class ProxyController extends BaseController {
             else
                 throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
         }
-        return success(proxyService.generateSubscriptionToken(subscribeDto, userDetail, token));
+        return success(proxyService.generateSubscriptionToken(subscribeDto, userDetail, token, request.getRequestURI()));
 //        if(subscribeDto == null)
 //            throw new BizException("SubscribeDto is null");
 //        if(subscribeDto.getSubscribeId() == null)
