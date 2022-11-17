@@ -6,6 +6,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.zoho.ZoHoConnector;
 import io.tapdata.zoho.service.zoho.schema.Schema;
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.BeanUtil;
@@ -16,6 +17,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public interface SchemaLoader {
+    public boolean isAlive();
+    public void init(ZoHoConnector zoHoConnector);
+    public void out();
     public SchemaLoader configSchema(TapConnectionContext tapConnectionContext);
 
     public void streamRead(Object offsetState, int recordSize, StreamReadConsumer consumer );
@@ -24,23 +28,22 @@ public interface SchemaLoader {
 
     public long batchCount() throws Throwable ;
 
-    public static SchemaLoader loader(String tableName,TapConnectionContext context){
-        return  BeanUtil.bean(SchemaLoader.class.getPackage().getName()+"."+tableName+"Schema");
+    public static SchemaLoader loader(String tableName,TapConnectionContext context,ZoHoConnector zoHoConnector){
+        Object bean = BeanUtil.bean(SchemaLoader.class.getPackage().getName() + "." + tableName + "Schema");
+        SchemaLoader schema = (SchemaLoader) bean;
+        schema.init(zoHoConnector);
+        return schema;
     }
-    public static List<SchemaLoader> loaders(TapConnectionContext context){
+    public static List<SchemaLoader> loaders(TapConnectionContext context,ZoHoConnector zoHoConnector){
         List<Schema> schemas = Schemas.allSupportSchemas();
         if ( Checker.isEmpty(schemas) || schemas.isEmpty()) return null;
         Set<SchemaLoader> loaders = new HashSet<>();
         for (Schema schema : schemas) {
             if (Checker.isEmpty(schema)) continue;
-            loaders.add(SchemaLoader.loader(schema.schemaName(),context));
+            loaders.add(SchemaLoader.loader(schema.schemaName(),context,zoHoConnector));
         }
         if (loaders.isEmpty()) return null;
         return new ArrayList<SchemaLoader>(){{addAll(loaders);}};
     }
-    public default Long parseZoHoDatetime(String referenceTimeStr){
-        return DateUtil.parse(
-                referenceTimeStr.replaceAll("Z", "").replaceAll("T", " "),
-                "yyyy-MM-dd HH:mm:ss.SSS").getTime();
-    }
+
 }

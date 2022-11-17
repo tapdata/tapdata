@@ -15,10 +15,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapRawValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -188,13 +185,13 @@ public class CustomConnector extends ConnectorBase {
         List<TapEvent> eventList = new ArrayList<>();
         while (isAlive() && t.isAlive()) {
             try {
-                TapEvent event = null;
+                CustomEventMessage message = null;
                 try {
-                    event = Objects.requireNonNull(scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS)).getTapEvent();
+                    message = scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS);
                 } catch (InterruptedException ignored) {
                 }
-                if (EmptyKit.isNotNull(event)) {
-                    eventList.add(event);
+                if (EmptyKit.isNotNull(message)) {
+                    eventList.add(message.getTapEvent());
                     if (eventList.size() == eventBatchSize) {
                         eventsOffsetConsumer.accept(eventList, new HashMap<>());
                         eventList = new ArrayList<>();

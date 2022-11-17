@@ -15,14 +15,20 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.common.sample.request.SampleRequest;
 import lombok.Setter;
+import org.apache.commons.lang3.ObjectUtils;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 
 @Aspect
@@ -41,7 +47,7 @@ public class MeasureAOP {
             String type = sampleRequest.getTags().get("type");
             if ("task".equals(type)) {
                 String taskId = sampleRequest.getTags().get("taskId");
-                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId), "name", "snapshotDoneAt", "currentEventTimestamp");
+                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId), "name", "snapshotStartAt", "snapshotDoneAt", "currentEventTimestamp");
 
                 String now = DateUtil.now();
                 Map<String, Number> vs = sampleRequest.getSample().getVs();
@@ -49,7 +55,8 @@ public class MeasureAOP {
                 Number snapshotDoneAt = vs.get("snapshotDoneAt");
                 if (Objects.isNull(taskDto.getSnapshotDoneAt()) && Objects.nonNull(snapshotStartAt) && Objects.nonNull(snapshotDoneAt)) {
 
-                    String summary = MessageFormat.format(AlarmContentTemplate.TASK_FULL_COMPLETE, (Long)snapshotDoneAt - (Long)snapshotStartAt, DateUtil.date((Long) snapshotDoneAt).toString(), now);
+                    Long diff = (Long)snapshotDoneAt - (Long)snapshotStartAt;
+                    String summary = MessageFormat.format(AlarmContentTemplate.TASK_FULL_COMPLETE, diff, DateUtil.date((Long) snapshotDoneAt).toString(), now);
 
                     Map<String, Object> param = Maps.newHashMap();
                     param.put("fullTime", now);
@@ -75,6 +82,22 @@ public class MeasureAOP {
                             .param(param)
                             .build();
                     alarmService.save(alarmInfo);
+                }
+
+                Update update = new Update();
+
+                if (Objects.nonNull(snapshotStartAt)) {
+                    update.set("snapshotStartAt", snapshotStartAt);
+                }
+                if (Objects.nonNull(snapshotDoneAt)) {
+                    update.set("snapshotDoneAt", snapshotDoneAt);
+                }
+                if (Objects.nonNull(currentEventTimestamp)) {
+                    update.set("currentEventTimestamp", currentEventTimestamp);
+                }
+
+                if (ObjectUtils.allNotNull(snapshotStartAt, snapshotDoneAt, currentEventTimestamp)) {
+                    taskService.update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId))), update);
                 }
             }
         });

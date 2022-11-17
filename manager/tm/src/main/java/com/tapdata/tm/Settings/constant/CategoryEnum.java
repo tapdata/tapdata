@@ -5,7 +5,8 @@ public enum CategoryEnum {
     SYSTEM("System"),
     SMTP("SMTP"),
     FRONTEND("Frontend"),
-    JOB("Job")
+    JOB("Job"),
+    WORKER("Worker")
     ;
 
     private String value;

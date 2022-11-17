@@ -184,8 +184,10 @@ public class WebsocketPushChannel extends PushChannel {
             throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login url {} loginObj {} headers {} failed, {}", baseUrl, loginObj, headers, e.getMessage());
         }
         wsPort = data.getInteger("wsPort");
+        wsPort = tapEngineUtils.getRealWsPort(wsPort, theUrl);
         sid = data.getString("token");
         String wsPath = data.getString("wsPath");
+        wsPath = tapEngineUtils.getRealWsPath(wsPath, theUrl);
         String wsHost = data.getString("wsHost");
         String wsProtocol = data.getString("wsProtocol");
         if(wsProtocol != null) {
@@ -247,8 +249,13 @@ public class WebsocketPushChannel extends PushChannel {
                 }
             }
 
+            String url = protocol + "://" + host + ":" + wsPort + "/" + path;
+            TapEngineUtils tapEngineUtils = InstanceFactory.instance(TapEngineUtils.class);
+            if(tapEngineUtils != null) {
+                url = tapEngineUtils.signUrl("", url);
+            }
             try {
-                uri = new URI(protocol + "://" + host + ":" + wsPort + "/" + path);
+                uri = new URI(url);
             } catch (URISyntaxException e) {
                 e.printStackTrace();
             }

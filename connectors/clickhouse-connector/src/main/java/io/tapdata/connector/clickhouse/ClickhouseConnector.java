@@ -202,8 +202,8 @@ public class ClickhouseConnector extends ConnectorBase {
 
 
         //source 暂未找到 增量方案，1.x 不支持源
-        connectorFunctions.supportBatchCount(this::batchCount);
-        connectorFunctions.supportBatchRead(this::batchRead);
+//        connectorFunctions.supportBatchCount(this::batchCount);
+//        connectorFunctions.supportBatchRead(this::batchRead);
 //        connectorFunctions.supportStreamRead(this::streamRead);
 //        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         //query

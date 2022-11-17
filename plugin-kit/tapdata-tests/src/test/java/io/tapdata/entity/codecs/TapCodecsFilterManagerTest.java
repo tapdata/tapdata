@@ -25,8 +25,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TapCodecsFilterManagerTest {
     @Test
@@ -434,5 +433,37 @@ public class TapCodecsFilterManagerTest {
         codecsFilterManager.transformFromTapValueMap(map);
         assertEquals(12345678900.5678, map.get("double(15,4)"));
 //        assertEquals(((DateTime)map.get("nano")).getNano(), 123123213);
+    }
+
+    @Test
+    public void testTapMapArrayFromAndTo() {
+        TapCodecsRegistry codecsRegistry = TapCodecsRegistry.create();
+//        codecsRegistry.registerFromTapValue(TapMapValue.class, tapValue -> {
+//            return toJson(tapValue.getValue());
+//        });
+//        codecsRegistry.registerFromTapValue(TapArrayValue.class, tapValue -> {
+//            return toJson(tapValue.getValue());
+//        });
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(codecsRegistry);
+        long time = 1660792574472L;
+        Map<String, Object> map = map(
+                entry("map", map(entry("map", map(entry("a", new Date()), entry("list", list(map(entry("aa", "bb")))))))),
+                entry("list", list(map(entry("11", "aa"), entry("aaa", new Date())))),
+                entry("list1", list("1", "12"))
+        );
+
+        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+        sourceNameFieldMap.put("map", field("map", "map").tapType(tapMap()));
+        sourceNameFieldMap.put("list", field("list", "list").tapType(tapArray()));
+
+        //read from source, transform to TapValue out from source connector.
+        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+
+        //before enter a processor, transform to value from TapValue.
+        codecsFilterManager.transformFromTapValueMap(map);
+        assertTrue(map.get("list") instanceof List);
+        assertTrue(map.get("list1") instanceof List);
+        assertTrue(map.get("map") instanceof Map);
+        assertTrue(((Map<?, ?>)((Map<?, ?>) map.get("map")).get("map")).get("a") instanceof DateTime);
     }
 }

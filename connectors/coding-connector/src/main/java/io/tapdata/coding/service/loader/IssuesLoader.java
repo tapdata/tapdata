@@ -15,6 +15,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.Entry;
@@ -30,6 +31,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static io.tapdata.entity.simplify.TapSimplify.formatTapDateTime;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 import static io.tapdata.coding.enums.TapEventTypes.*;
 
@@ -409,16 +412,14 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                         ? (CodingOffset) offsetState : new CodingOffset();
         Map<String, Long> tableUpdateTimeMap = codingOffset.getTableUpdateTimeMap();
         if (null == tableUpdateTimeMap || tableUpdateTimeMap.isEmpty()) {
-            TapLogger.warn(TAG, "offsetState is Empty or not Exist! Stop to stream read.");
+            TapLogger.warn(TAG, "offsetState is Empty or not Exist. Stop to stream read.");
             return;
         }
         String currentTable = tableList.get(0);
-        TapLogger.info(TAG, "Stream read is starting.");
         consumer.streamReadStarted();
         long current = tableUpdateTimeMap.get(currentTable);
         Long last = Long.MAX_VALUE;
-        this.read(current, last, recordSize, codingOffset, consumer);
-        TapLogger.info(TAG, "Stream read is ending.");
+        this.read(current, last, recordSize, codingOffset, consumer,true);
     }
 
     @Override
@@ -429,13 +430,15 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         Object issueObj = issueEventData.get("issue");
         if (Checker.isEmpty(issueObj)) {
             TapLogger.debug(TAG, "An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
-            throw new CoreException("An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
+            return null;
+            //throw new CoreException("An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
         }
         Map<String, Object> issueMap = (Map<String, Object>) issueObj;
         Object codeObj = issueMap.get("code");
         if (Checker.isEmpty(codeObj)) {
             TapLogger.debug(TAG, "An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
-            throw new CoreException("An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
+            return null;
+            //throw new CoreException("An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
         }
         IssueType issueType = this.contextConfig.getIssueType();
         if (Checker.isNotEmpty(issueType)) {
@@ -865,7 +868,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             Long readEndTime,
             int readSize,
             Object offsetState,
-            BiConsumer<List<TapEvent>, Object> consumer) {
+            BiConsumer<List<TapEvent>, Object> consumer,
+            boolean isStreamRead) {
+        long readStart = System.currentTimeMillis();
+        if (isStreamRead){
+            TapLogger.info(TAG, "Stream read is starting at {}. Everything be ready." ,longToDateTimeStr(readStart) );
+         }
         int currentQueryCount = 0, queryIndex = 0;
         final List<TapEvent>[] events = new List[]{new CopyOnWriteArrayList()};
         HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", this.contextConfig.getToken());
@@ -906,6 +914,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             offsetState = new CodingOffset();
         }
         CodingOffset offset = (CodingOffset) offsetState;
+        int totalCount = 0;
         do {
             pageBody.builder("PageNumber", queryIndex++);
             Map<String, Object> dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
@@ -915,6 +924,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             }
             List<Map<String, Object>> resultList = (List<Map<String, Object>>) dataMap.get("List");
             currentQueryCount = resultList.size();
+            totalCount += currentQueryCount;
             batchReadPageSize = null != dataMap.get("PageSize") ? (int) (dataMap.get("PageSize")) : batchReadPageSize;
             for (Map<String, Object> stringObjectMap : resultList) {
                 Object code = stringObjectMap.get("Code");
@@ -960,5 +970,15 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             consumer.accept(events[0], offset);
         }
         //startRead.set(false);
+        long readEnd = System.currentTimeMillis();
+        if (isStreamRead) {
+            TapLogger.info(TAG,
+                    totalCount>0?
+                            "Stream read is ending at {}, it took {} ms accumulatively to process {} issues"
+                            :"Stream read is ending at {}, it took {} ms ,but {} issues were processed. Currently, no issue changes were detected.",
+                    longToDateTimeStr(readEnd),
+                    readEnd - readStart,
+                    totalCount);
+        }
     }
 }

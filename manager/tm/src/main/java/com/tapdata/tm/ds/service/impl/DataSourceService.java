@@ -13,6 +13,7 @@ import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
@@ -63,9 +64,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -73,6 +72,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -80,7 +80,9 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URL;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -93,25 +95,43 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
  */
 @Service
 @Slf4j
-@Setter(onMethod_ = {@Autowired})
+//@Setter(onMethod_ = {@Autowired})
 public class DataSourceService extends BaseService<DataSourceConnectionDto, DataSourceEntity, ObjectId, DataSourceRepository> {
 
 	private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])([a-zA-Z0-9_\\s-]|[\u4e00-\u9fa5])*$";
-
-	private ClassificationService classificationService;
-	private MetadataInstancesService metadataInstancesService;
-	private WorkerService workerService;
-	private MetadataUtil metadataUtil;
-	private JobService jobService;
-	private DataFlowService dataFlowService;
-	private TaskService taskService;
-	private MessageQueueService messageQueueService;
-	private ModulesService modulesService;
-	private LibSupportedsRepository libSupportedsRepository;
+	@Value("${gateway.secret:}")
+	private String gatewaySecret;
+	@Value("#{'${spring.profiles.include:idaas}'.split(',')}")
+	private List<String> productList;
+	@Autowired
 	private SettingsService settingsService;
+	private final Object checkCloudLock = new Object();
+	@Autowired
+	private ClassificationService classificationService;
+	@Autowired
+	private MetadataInstancesService metadataInstancesService;
+	@Autowired
+	private WorkerService workerService;
+	@Autowired
+	private MetadataUtil metadataUtil;
+	@Autowired
+	private JobService jobService;
+	@Autowired
+	private DataFlowService dataFlowService;
+	@Autowired
+	private TaskService taskService;
+	@Autowired
+	private MessageQueueService messageQueueService;
+	@Autowired
+	private ModulesService modulesService;
+	@Autowired
+	private LibSupportedsRepository libSupportedsRepository;
+	@Autowired
 	private DataSourceDefinitionService dataSourceDefinitionService;
-
+	@Autowired
 	private DefaultDataDirectoryService defaultDataDirectoryService;
+	@Autowired
+	private AlarmService alarmService;
 
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
@@ -510,7 +530,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 					if (password != null) {
 						String password1 = new String(password);
-						uri = uri.replace(password1, "******");
+						uri = uri.replace(":"+password1, ":******");
 						item.getConfig().put("uri", uri);
 					}
 
@@ -519,6 +539,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 		}
 	}
+
 
 	/**
 	 * 给数据源连接修改资源分类
@@ -650,9 +671,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	 *
 	 * @param user
 	 * @param id
+	 * @param requestURI
 	 * @return
 	 */
-	public DataSourceConnectionDto copy(UserDetail user, String id) {
+	public DataSourceConnectionDto copy(UserDetail user, String id, String requestURI) {
 		boolean boolValue = SettingsEnum.CONNECTIONS_CREAT_DUPLICATE_SOURCE.getBoolValue(true);
 		log.debug("system duplicateCreate param = {}", boolValue);
 		if (!boolValue) {
@@ -689,7 +711,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 			}
 		}
-		this.resetWebHookOnCopy(entity,user);//重置WebHook URL
+		this.resetWebHookOnCopy(entity,user, requestURI);//重置WebHook URL
 
 		log.debug("copy datasource success, datasource name = {}", connectionName);
 
@@ -703,12 +725,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	/**
 	 * 复制数据源时，重置WebHook连接（For SaaS）
 	 * 在数据源JSONSchema中对connection配置了actionOnCopy属性
-	 * @Author Gavin
-	 * @Date 2022-10-17
+	 *
 	 * @param entity
 	 * @param user
-	 * */
-	private void resetWebHookOnCopy(DataSourceEntity entity,UserDetail user){
+	 * @param requestURI
+	 * @Author Gavin
+	 * @Date 2022-10-17
+	 */
+	private void resetWebHookOnCopy(DataSourceEntity entity, UserDetail user, String requestURI){
 			ObjectId copyId = entity.getId();
 			if (null == copyId) entity.setId(copyId = new ObjectId());
 			//获取并校验pdkHash,用于获取jsonSchema
@@ -750,16 +774,31 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					Object keyObjOfCopyConnectionConfig = config.get(key);
 					if (null == keyObjOfCopyConnectionConfig) continue;
 					String keyValue = String.valueOf(keyObjOfCopyConnectionConfig);
-					if (null == keyValue || !keyValue.contains("/api/proxy/callback/")) {
+					URL url = null;
+					try {
+						url = new URL(keyValue);
+					} catch (Throwable ignored) {
+					}
+					if (null == keyValue || !keyValue.contains("/api/proxy/callback/") || url == null) {
 						config.put(key, "");
 					} else {
-						int lastCharIndex = keyValue.lastIndexOf('/') + 1;
-						int lenOfToken = keyValue.length();
+//						int lastCharIndex = keyValue.lastIndexOf('/') + 1;
+//						int lenOfToken = keyValue.length();
 						SubscribeDto subscribeDto = new SubscribeDto();
 						subscribeDto.setExpireSeconds(Integer.MAX_VALUE);
 						subscribeDto.setSubscribeId("source#" + entityId);
-						SubscribeResponseDto subscribeResponseDto = ProxyService.create().generateSubscriptionToken(subscribeDto, user);
-						String webHookUrl = keyValue.substring(0, Math.min(lastCharIndex, lenOfToken)) + subscribeResponseDto.getToken();
+
+						ProxyService proxyService = InstanceFactory.bean(ProxyService.class);
+
+						String token = null;
+						if(productList != null && productList.contains("dfs")) {
+							if(!StringUtils.isBlank(gatewaySecret))
+								token = proxyService.generateStaticToken(user.getUserId(), gatewaySecret);
+							else
+								throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
+						}
+						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, user, token, requestURI);
+						String webHookUrl = url.getProtocol() + "://" + url.getHost() + (url.getPort() > 0 ? (":" + url.getPort()) : "") + subscribeResponseDto.getToken();
 						config.put(key, webHookUrl);
 
 						repository.update(new Query(Criteria.where("_id").is(entityId)),entity);
@@ -767,7 +806,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 			}
 	}
-
 	/**
 	 * mongodb这种类型数据源类型的，存在库里面的就是一个uri,需要解析成为一个标准模式的返回
 	 *
@@ -1027,8 +1065,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if ("finished".equals(loadFieldsStatus) && schemaVersion != null) {
 			log.debug("loadFieldsStatus is finished, update model delete flag");
 			// handle delete model, not match schemaVersion will update is_deleted to true
-			Criteria criteria = Criteria.where("is_deleted").ne(true).and("databaseId").is(datasourceId)
-					.and("lastUpdate").ne(schemaVersion).and("taskId").exists(false);;
+			Criteria criteria = Criteria.where("is_deleted").ne(true).and("source._id").is(datasourceId)
+					.and("lastUpdate").ne(schemaVersion).and("taskId").exists(false).and("meta_type").ne("database");
 			log.info("Delete metadata update filter: {}", criteria);
 			Query query = new Query(criteria);
 			Update update = Update.update("is_deleted", true);
@@ -1048,8 +1086,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if (StringUtils.isBlank(connectionDto.getPlain_password())) {
 			connectionDto.setPlain_password(null);
 		}
-		Update update = Update.update("status", "testing").set("testTime", System.currentTimeMillis());
-		update(new Query(Criteria.where("_id").is(connectionDto.getId())), update, user);
 
 		List<Worker> availableAgent;
 		if (StringUtils.isBlank(connectionDto.getAccessNodeType())
@@ -1067,7 +1103,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 		}
 
-		// todo jacques 这里应该要采用 调度策略 后续补充上
 		String processId = availableAgent.get(0).getProcessId();
 		ObjectMapper objectMapper = new ObjectMapper();
 		String json;
@@ -1090,6 +1125,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		log.info("build send test connection websocket context, processId = {}, userId = {}", processId, user.getUserId());
 		messageQueueService.sendMessage(queueDto);
 
+		Update update = Update.update("status", "testing").set("testTime", System.currentTimeMillis());
+		update(new Query(Criteria.where("_id").is(connectionDto.getId())), update, user);
 	}
 
 	public void checkConn(DataSourceConnectionDto connectionDto, UserDetail user) {
@@ -1157,16 +1194,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			boolean rename = false;
 			String oldName = null;
 			Document set = null;
+			Object status = null;
 			if (update != null && update.get("$set") != null) {
 				set = setToDocumentByJsonParser(update);
-
 				if (set != null && (set.get("schema.tables") != null
 						|| DataSourceConnectionDto.STATUS_INVALID.equals(set.get("status"))
 						|| DataSourceConnectionDto.STATUS_READY.equals(set.get("status")))) {
+					status = set.get("status");
 					if (set.get("schema.tables") != null) {
 						String tablesJson = JsonUtil.toJsonUseJackson(set.get("schema.tables"));
 						tables = InstanceFactory.instance(JsonParser.class).fromJson(tablesJson, new TypeHolder<List<TapTable>>() {
-						}, TapConstants.abstractClassDetectors);
+						});
 						set.put("schema.tables", null);
 					}
 					hasSchema = true;
@@ -1222,6 +1260,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 
 				databaseModel.setSourceType(SourceTypeEnum.SOURCE.name());
+				databaseModel.setDeleted(false);
 
 				databaseModel = metadataInstancesService.upsertByWhere(Where.where("qualified_name", databaseModel.getQualifiedName()), databaseModel, user);
 				String databaseId = databaseModel.getId().toHexString();
@@ -1284,12 +1323,12 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
 							log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
 									, newModelList.size(), name, pair.getLeft(), pair.getRight());
-							deleteModels(loadFieldsStatus, databaseId, schemaVersion, user);
+							deleteModels(loadFieldsStatus, connectionId, schemaVersion, user);
 						}
 					}
 				} else {
 					if (set != null && set.get("lastUpdate") != null) {
-						deleteModels("finished", databaseId, (Long) set.get("lastUpdate"), user);
+						deleteModels("finished", connectionId, (Long) set.get("lastUpdate"), user);
 					}
 				}
 			}
@@ -1309,9 +1348,19 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				filter.setLimit(0);
 				filter.setSkip(0);
 				Query query = repository.filterToQuery(filter);
-				Update update1 = Update.fromDocument(update);
-				UpdateResult update2 = repository.update(query, update1, user);
-				return update2.getModifiedCount();
+				Update datasourceUpdate = Update.fromDocument(update);
+
+				if (Objects.nonNull(status)) {
+					datasourceUpdate.set("testTime", System.currentTimeMillis());
+					if (DataSourceEntity.STATUS_READY.equals(status.toString())) {
+						datasourceUpdate.set("testCount", 0);
+						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), true));
+					} else {
+						datasourceUpdate.inc("testCount", 1);
+						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), false));
+					}
+				}
+				return repository.update(query, datasourceUpdate, user).getModifiedCount();
 			}
 		}
 

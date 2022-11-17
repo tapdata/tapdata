@@ -9,7 +9,10 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
+import com.tapdata.tm.sdk.auth.HmacSHA256Signer;
+import com.tapdata.tm.sdk.util.Base64Util;
 import com.tapdata.tm.utils.WebUtils;
+import com.tapdata.tm.verison.dto.VersionDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.error.CoreException;
@@ -43,6 +46,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
@@ -66,12 +70,19 @@ import static org.apache.http.HttpStatus.*;
 public class ProxyController extends BaseController {
     private static final String TAG = ProxyController.class.getSimpleName();
     private final AsyncContextManager asyncContextManager = new AsyncContextManager();
-    private Boolean isCloud = null;
     private final int[] checkCloudLock = new int[0];
+    @Value("${gateway.secret:}")
+    private String gatewaySecret;
+    @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
+    private List<String> productList;
     @Autowired
     private SettingsService settingsService;
 
     private static final int wsPort = 8246;
+
+    private static final String TOKEN = CommonUtils.getProperty("tapdata_memory_token", "kajkj234kJFjfewljrlkzvnE34jfkladsdjafF");
+
+
     /**
      *
      * @return
@@ -87,7 +98,7 @@ public class ProxyController extends BaseController {
 
         String nodeId = CommonUtils.getProperty("tapdata_node_id");
         if(nodeId == null)
-            throw new BizException("Current nodeId not found");
+            throw new BizException("Current nodeId not found, may be caused by not initializing is not finished, please try later");
 
         LoginProxyResponseDto loginProxyResponseDto = new LoginProxyResponseDto();
         String token = JWTUtils.createToken(ProxyService.KEY,
@@ -112,25 +123,30 @@ public class ProxyController extends BaseController {
          *   server 10.50.1.5:11211;
          * }
          */
-        if(isCloud == null) {
-            synchronized (checkCloudLock) {
-                if(isCloud == null) {
-                    Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
-                    if (Objects.isNull(buildProfile)) {
-                        buildProfile = "DAAS";
-                    }
-                    isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
-                }
-            }
+        boolean isCloud = false;
+        if (productList != null && productList.contains("dfs")) { //is cloud env
+            isCloud = true;
         }
         String wsPath = loginProxyDto.getService() + "/" + MD5.create().digestHex(loginProxyDto.getClientId());
         loginProxyResponseDto.setWsPath(isCloud ? "console/tm/" + wsPath : wsPath);
         return success(loginProxyResponseDto);
     }
+
+
     @Operation(summary = "Generate callback url token")
     @PostMapping("subscribe")
     public ResponseMessage<SubscribeResponseDto> generateSubscriptionToken(@RequestBody SubscribeDto subscribeDto, HttpServletRequest request) {
-        return success(ProxyService.create().generateSubscriptionToken(subscribeDto,getLoginUser()));
+        UserDetail userDetail= getLoginUser();
+        String token = null;
+
+        ProxyService proxyService = InstanceFactory.bean(ProxyService.class);
+        if (productList != null && productList.contains("dfs")) { //is cloud env
+            if(!StringUtils.isBlank(gatewaySecret))
+                token = proxyService.generateStaticToken(userDetail.getUserId(), gatewaySecret);
+            else
+                throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
+        }
+        return success(proxyService.generateSubscriptionToken(subscribeDto, userDetail, token, request.getRequestURI()));
 //        if(subscribeDto == null)
 //            throw new BizException("SubscribeDto is null");
 //        if(subscribeDto.getSubscribeId() == null)
@@ -218,7 +234,7 @@ public class ProxyController extends BaseController {
             return;
         }
 
-        EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class, "sync");
+        EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class, "sync", true);
         if(eventQueueService != null) {
             MessageEntity message = new MessageEntity().content(value).time(new Date()).subscribeId(subscribeId).service(service);
             eventQueueService.offer(message);
@@ -365,7 +381,7 @@ public class ProxyController extends BaseController {
             if(!nodeId.equals(nodeMessage.getToNodeId()))
                 throw new BizException("PostRequest's nodeId {} is not current, wrong node? ", nodeMessage.getToNodeId());
 
-            NodeConnectionFactory nodeConnectionFactory = InstanceFactory.instance(NodeConnectionFactory.class);
+            NodeConnectionFactory nodeConnectionFactory = InstanceFactory.instance(NodeConnectionFactory.class, true);
             if(nodeConnectionFactory == null)
                 throw new BizException("nodeConnectionFactory is not initialized");
 
@@ -425,7 +441,12 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @GetMapping("memory")
-    public void memoryGet(@RequestParam(name = "keys", required = false) String keys, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    public void memoryGet(@RequestParam(name = "t", required = false) String token, @RequestParam(name = "keys", required = false) String keys, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if(token == null || !token.equals(TOKEN)) {
+            response.sendError(SC_UNAUTHORIZED);
+            return;
+        }
+
         if(processId != null) {
             ServiceCaller serviceCaller = new ServiceCaller()
                     .className("MemoryService")
@@ -473,7 +494,12 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @PostMapping("memory")
-    public void memory(@RequestBody MemoryDto memoryDto, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    public void memory(@RequestParam(name = "t", required = false) String token, @RequestBody MemoryDto memoryDto, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if(token == null || !token.equals(TOKEN)) {
+            response.sendError(SC_UNAUTHORIZED);
+            return;
+        }
+
         response.setContentType("application/json");
         String keyRegex = null;
         String level = null;
@@ -571,7 +597,7 @@ public class ProxyController extends BaseController {
 
     @NotNull
     private EngineMessageExecutionService getEngineMessageExecutionService() {
-        EngineMessageExecutionService engineMessageExecutionService = InstanceFactory.instance(EngineMessageExecutionService.class);
+        EngineMessageExecutionService engineMessageExecutionService = InstanceFactory.instance(EngineMessageExecutionService.class, true);
         if(engineMessageExecutionService == null) {
             throw new BizException("commandExecutionService is null");
         }

@@ -1,6 +1,5 @@
 package com.tapdata.tm.alarm.service;
 
-import com.alibaba.fastjson.JSONArray;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
 import com.tapdata.tm.alarm.dto.AlarmListReqDto;
 import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
@@ -36,10 +35,7 @@ public interface AlarmService {
     List<AlarmInfo> find(String taskId, String nodeId, AlarmKeyEnum key);
 
     void closeWhenTaskRunning(String taskId);
-
-    void connectPassAlarm(JSONArray taskIds, String nodeName, String connectId);
-
-    void connectFailAlarm(JSONArray taskIds, String nodeName, String connectId);
+    void connectAlarm(String nodeName, String connectId, String response_body, boolean pass);
 
     void delAlarm(String taskId);
 }

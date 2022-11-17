@@ -22,7 +22,7 @@ public class ImplementationAnnotationHandler extends ClassAnnotationHandler {
     public void handle(Set<Class<?>> classes) throws CoreException {
         if(classes != null) {
             newInterfaceImplementationClassMap = new ConcurrentHashMap<>();
-            TapLogger.info(TAG, "--------------Implementation Classes Start-------------");
+            TapLogger.debug(TAG, "--------------Implementation Classes Start-------------");
             for(Class<?> clazz : classes) {
                 Implementation implementation = clazz.getAnnotation(Implementation.class);
                 if(implementation != null) {
@@ -59,7 +59,7 @@ public class ImplementationAnnotationHandler extends ClassAnnotationHandler {
                         typeClassHolderMap.put(type, implClass);
                         implClasses.setTypeClassHolderMap(typeClassHolderMap);
                         newInterfaceImplementationClassMap.put(interfaceClass, implClasses);
-                        TapLogger.info(TAG, "(New Interface) Implementation {} buildNumber {} type {} for interface {} will be applied", clazz, buildNumber, type, interfaceClass);
+                        TapLogger.debug(TAG, "(New Interface) Implementation {} buildNumber {} type {} for interface {} will be applied", clazz, buildNumber, type, interfaceClass);
                     } else {
                         ImplClass implClass = implClasses.getTypeClassHolderMap().get(type);
                         if(implClass == null) {
@@ -67,12 +67,12 @@ public class ImplementationAnnotationHandler extends ClassAnnotationHandler {
                             implClass.setClazz(clazz);
                             implClass.setBuildNumber(buildNumber);
                             implClasses.getTypeClassHolderMap().put(type, implClass);
-                            TapLogger.info(TAG, "(New ClassHolder) Implementation {} buildNumber {} type {} for interface {} will be applied", clazz, buildNumber, type, interfaceClass);
+                            TapLogger.debug(TAG, "(New ClassHolder) Implementation {} buildNumber {} type {} for interface {} will be applied", clazz, buildNumber, type, interfaceClass);
                         } else {
                             if(buildNumber > implClass.getBuildNumber()) {
                                 implClass.setBuildNumber(buildNumber);
                                 implClass.setClazz(clazz);
-                                TapLogger.info(TAG, "Implementation {} buildNumber {} type {} for interface {} will be applied, as buildNumber is bigger than current {} implementation class {}", clazz, buildNumber, type, interfaceClass, implClass.getBuildNumber(), implClass.getClazz());
+                                TapLogger.debug(TAG, "Implementation {} buildNumber {} type {} for interface {} will be applied, as buildNumber is bigger than current {} implementation class {}", clazz, buildNumber, type, interfaceClass, implClass.getBuildNumber(), implClass.getClazz());
                             } else {
                                 TapLogger.warn(TAG, "Implementation {} buildNumber {} type {} for interface {} will be ignored, as buildNumber is smaller(or equal) than current {} implementation class {}", clazz, buildNumber, type, interfaceClass, implClass.getBuildNumber(), implClass.getClazz());
                             }
@@ -80,7 +80,7 @@ public class ImplementationAnnotationHandler extends ClassAnnotationHandler {
                     }
                 }
             }
-            TapLogger.info(TAG, "--------------Implementation Classes End-------------");
+            TapLogger.debug(TAG, "--------------Implementation Classes End-------------");
         }
         apply();
     }
