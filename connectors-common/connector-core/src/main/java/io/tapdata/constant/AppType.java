@@ -28,7 +28,7 @@ public enum AppType {
     }
 
     public static AppType init() {
-        String appTypeStr = System.getenv("app_type");
+        String appTypeStr = System.getProperty("app_type");
         if (EmptyKit.isBlank(appTypeStr)) {
             throw new RuntimeException("app_type is blank");
         }

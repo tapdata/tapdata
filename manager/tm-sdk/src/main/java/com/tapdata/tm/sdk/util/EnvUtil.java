@@ -17,6 +17,7 @@ public class EnvUtil {
         if (token == null) {
             prop.setProperty("backend_url", System.getenv("backend_url"));
             prop.setProperty("process_id", System.getenv("process_id"));
+            prop.setProperty("app_type", System.getenv("app_type"));
         } else {
             try {
                 Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
@@ -29,6 +30,7 @@ public class EnvUtil {
                 Map<String, Object> map = JacksonUtil.fromJson(new String(java.util.Base64.getDecoder().decode(resultStr2)), new TypeReference<Map<String, Object>>() {
                 });
                 prop.putAll(map);
+                prop.setProperty("app_type", "dfs");
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
