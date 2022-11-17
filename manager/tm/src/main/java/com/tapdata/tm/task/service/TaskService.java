@@ -132,12 +132,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private TaskDagService taskDagService;
     private MeasurementServiceV2 measurementServiceV2;
 
-    public static Set<String> stopStatus = new HashSet<>();
-    /**
-     * 停止状态
-     */
-    public static Set<String> runningStatus = new HashSet<>();
-
     private LogCollectorService logCollectorService;
 
     private TaskResetLogService taskResetLogService;
@@ -147,18 +141,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private ExceptionHandler exceptionHandler;
 
     private StateMachineService stateMachineService;
-
-    static {
-
-        runningStatus.add(TaskDto.STATUS_SCHEDULING);
-        runningStatus.add(TaskDto.STATUS_WAIT_RUN);
-        runningStatus.add(TaskDto.STATUS_RUNNING);
-        runningStatus.add(TaskDto.STATUS_STOPPING);
-
-        stopStatus.add(TaskDto.STATUS_SCHEDULE_FAILED);
-        stopStatus.add(TaskDto.STATUS_COMPLETE);
-        stopStatus.add(TaskDto.STATUS_STOP);
-    }
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
 
@@ -2304,11 +2286,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //        return findAll(query);
     }
 
-    public void updateStatus(ObjectId taskId, String status) {
-        Query query = Query.query(Criteria.where("_id").is(taskId));
-        Update update = Update.update("status", status).set("last_updated", new Date());
-        update(query, update);
-    }
+//    public void updateStatus(ObjectId taskId, String status) {
+//        Query query = Query.query(Criteria.where("_id").is(taskId));
+//        Update update = Update.update("status", status).set("last_updated", new Date());
+//        update(query, update);
+//    }
 
 
 
@@ -2700,8 +2682,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void scheduleFailed(TaskDto taskDto, UserDetail user) {
         log.warn("No available agent found, task name = {}", taskDto.getName());
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-//        Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
-//        update(query1, Update.update("status", TaskDto.STATUS_SCHEDULE_FAILED), user);
         throw new BizException("Task.AgentNotFound");
     }
 
@@ -2873,16 +2853,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //判断任务是否存在。
         TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId");
 
+        //将子任务状态更新成错误.
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.ERROR, user);
         if (stateMachineResult.isFail()) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-        //将子任务状态更新成错误.
-        Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        Update set = Update.update("errorTime", DateUtil.date()).set("stopTime", DateUtil.date())
-                .set("scheduleDate", null);
-        UpdateResult update1 = update(query1, set, user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR, user);
 
         return id.toHexString();
@@ -2903,9 +2879,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-        //将子任务状态更新成为已完成
-        Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        UpdateResult update1 = update(query1, Update.update("finishTime", DateUtil.date()).set("stopTime", DateUtil.date()), user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_COMPLETE, user);
 
         return id.toHexString();
@@ -2926,12 +2899,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-
-        Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-
-        //endConnHeartbeat(user, TaskDto);
-
-        UpdateResult update1 = update(query1, Update.update("stopTime", DateUtil.date()), user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP, user);
         return id.toHexString();
     }
