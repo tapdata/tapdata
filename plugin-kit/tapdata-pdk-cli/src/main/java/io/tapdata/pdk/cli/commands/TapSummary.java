@@ -411,7 +411,7 @@ public class TapSummary {
         try {
             value = lang.getString(key);
         }catch (Exception e){
-            return value;
+            return key;
         }
         if (null==formatValue||formatValue.length<1) return value;
         return String.format(value,formatValue);

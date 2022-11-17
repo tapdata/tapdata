@@ -5,6 +5,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import io.tapdata.pdk.cli.CommonCli;
 import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
@@ -306,13 +307,12 @@ public class TDDCli extends CommonCli {
                         try {
                             if(!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
                                 allFound = false;
-                                testResultSummary.doNotSupportFunTest.put(testClass,TapSummary.format("NOT_SUPPORT_FUNCTION",supportFunction.getFunction().getName()));
+                                testResultSummary.doNotSupportFunTest.put(testClass,TapSummary.format(supportFunction.getErrorMessage()));
                                 break;
                             }
                         } catch (NoSuchMethodException e) {
-                            //e.printStackTrace();
                             allFound = false;
-                            testResultSummary.doNotSupportFunTest.put(testClass,TapSummary.format("NOT_SUPPORT_FUNCTION",supportFunction.getFunction().getName()));
+                            testResultSummary.doNotSupportFunTest.put(testClass,TapSummary.format(supportFunction.getErrorMessage()));
                             break;
                         }
                     }

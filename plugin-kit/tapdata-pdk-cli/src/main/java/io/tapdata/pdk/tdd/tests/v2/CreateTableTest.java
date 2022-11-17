@@ -2,13 +2,12 @@ package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
+import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -23,6 +22,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -93,14 +93,14 @@ public class CreateTableTest extends PDKTestBase {
                     return;
                 }
                 //检查如果只实现了CreateTableFunction，没有实现CreateTableV2Function时，报出警告，
-                // 推荐使用CreateTableV2Function方法来实现建表
+                //推荐使用CreateTableV2Function方法来实现建表
                 createTable.createTable(connectorContext, tableEvent);
-                this.verifyTableIsCreated("CreateTableFunction",prepare);
-
+                if (this.verifyTableIsCreated("CreateTableFunction", prepare)) {
+                    prepare.recordEventExecute().dropTable();
+                }
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                prepare.recordEventExecute().dropTable();
                 if (null != prepare.connectorNode()){
                     PDKInvocationMonitor.invoke(prepare.connectorNode(),
                             PDKMethod.STOP,
@@ -114,20 +114,20 @@ public class CreateTableTest extends PDKTestBase {
         });
     }
 
-    void verifyTableIsCreated(String createMethod,TestNode prepare) throws Throwable {
+    boolean verifyTableIsCreated(String createMethod,TestNode prepare) throws Throwable {
         ConnectorNode connectorNode = prepare.connectorNode();
         TapConnector connector = connectorNode.getConnector();
         TapConnectorContext connectorContext = connectorNode.getConnectorContext();
         String tableIdTarget = targetTable.getId();
         Method testBase = prepare.recordEventExecute().testCase();
-        connector.discoverSchema(connectorContext,list(tableIdTarget),1000,consumer->{
-            TapAssert.asserts(()->{
-                Assertions.assertTrue(
-                        null!=consumer&&!consumer.isEmpty(),
-                        TapSummary.format("verifyTableIsCreated.error",createMethod,tableIdTarget)
-                );
-            }).acceptAsError(testBase,TapSummary.format("verifyTableIsCreated.succeed",createMethod,tableIdTarget));
+        List<TapTable> consumer = new ArrayList<>();
+        connector.discoverSchema(connectorContext,list(tableIdTarget),1000,con->{
+            if(null!=con) consumer.addAll(con);
         });
+        TapAssert.asserts(()->{
+            Assertions.assertFalse(consumer.isEmpty(), TapSummary.format("verifyTableIsCreated.error", createMethod, tableIdTarget));
+        }).acceptAsError(testBase,TapSummary.format("verifyTableIsCreated.succeed",createMethod,tableIdTarget));
+        return !consumer.isEmpty();
     }
 
 
@@ -238,9 +238,10 @@ public class CreateTableTest extends PDKTestBase {
         });
     }
 
-//    public static List<SupportFunction> testFunctions() {
-//        return list(
-//                supportAny(list(CreateTableFunction.class,CreateTableV2Function.class),"")
-//        );
-//    }
+    public static List<SupportFunction> testFunctions() {
+        return list(
+                support(DropTableFunction.class,""),
+                supportAny(list(WriteRecordFunction.class,CreateTableFunction.class,CreateTableV2Function.class),"")
+        );
+    }
 }
