@@ -1,5 +1,6 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -36,9 +37,7 @@ public class CreateTableTest extends PDKTestBase {
      * V2版本会返回CreateTableOptions对象，
      * 以下测试用例这两个方法都需要测试，
      * 如果同时实现了两个方法只需要测试CreateTableV2Function。
-     * 检查如果只实现了CreateTableFunction，
-     * 没有实现CreateTableV2Function时，
-     * 报出警告， 推荐使用CreateTableV2Function方法来实现建表
+     * 检查如果只实现了CreateTableFunction，没有实现CreateTableV2Function时，报出警告， 推荐使用CreateTableV2Function方法来实现建表
      * */
     void createTableV2(){
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
@@ -64,9 +63,29 @@ public class CreateTableTest extends PDKTestBase {
                 }
                 CreateTableFunction createTable = functions.getCreateTableFunction();
                 TapAssert.asserts(()->
-                        Assertions.assertNotNull(createTable, TapSummary.format(""))
-                ).acceptAsWarn(testCase,TapSummary.format(""));
-                CreateTableV2Function createTableV2Function = functions.getCreateTableV2Function();
+                        Assertions.assertNotNull(createTable, TapSummary.format("createTable.null"))
+                ).acceptAsWarn(testCase,TapSummary.format("createTable.notNull"));
+
+
+                CreateTableV2Function createTableV2 = functions.getCreateTableV2Function();
+                TapAssert.asserts(()->
+                        Assertions.assertNotNull(createTableV2, TapSummary.format("createTable.v2Null"))
+                ).acceptAsWarn(testCase,TapSummary.format("createTable.v2NotNull"));
+
+                boolean isV1 = null != createTable;
+                boolean isV2 = null != createTableV2;
+
+                if (!isV1 && !isV2){
+                    return;
+                }
+
+                if ((isV1 && isV2) || !isV1){
+//                    TapCreateTableEvent createTableEvent =
+//                    createTableV2.createTable();
+                    return;
+                }
+
+//                createTable.createTable();
 
 
             }catch (Throwable e) {
