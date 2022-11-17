@@ -7,6 +7,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -24,6 +25,9 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
+
+import static io.tapdata.entity.simplify.TapSimplify.list;
 
 @DisplayName("CreateTableTest.test")//CreateTableFunction/CreateTableV2Function建表
 @TapGo(sort = 9)
@@ -41,7 +45,7 @@ public class CreateTableTest extends PDKTestBase {
      * */
     void createTableV2(){
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             try {
                 PDKInvocationMonitor.invoke(prepare.connectorNode(),
                         PDKMethod.INIT,
@@ -78,19 +82,25 @@ public class CreateTableTest extends PDKTestBase {
                 if (!isV1 && !isV2){
                     return;
                 }
-
-                if ((isV1 && isV2) || !isV1){
-//                    TapCreateTableEvent createTableEvent =
-//                    createTableV2.createTable();
+                String tableId = UUID.randomUUID().toString();
+                targetTable.setId(tableId);
+                TapCreateTableEvent tableEvent = new TapCreateTableEvent().table(targetTable);
+                //如果同时实现了两个方法只需要测试CreateTableV2Function。(V2优先)
+                if (isV2){
+                    CreateTableOptions table = createTableV2.createTable(
+                            connectorContext,
+                            tableEvent
+                    );
                     return;
                 }
-
-//                createTable.createTable();
-
+                //检查如果只实现了CreateTableFunction，没有实现CreateTableV2Function时，报出警告，
+                // 推荐使用CreateTableV2Function方法来实现建表
+                createTable.createTable(connectorContext, tableEvent);
 
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
+                prepare.recordEventExecute().dropTable();
                 if (null != prepare.connectorNode()){
                     PDKInvocationMonitor.invoke(prepare.connectorNode(),
                             PDKMethod.STOP,
@@ -101,6 +111,14 @@ public class CreateTableTest extends PDKTestBase {
                     PDKIntegration.releaseAssociateId("releaseAssociateId");
                 }
             }
+        });
+    }
+
+    void verifyTableIsCreated(String createMethod,TestNode prepare) throws Throwable {
+        connector.discoverSchema(connectorContext,list(tableIdTarget),1000,consumer->{
+            TapAssert.asserts(()->{
+
+            }).acceptAsError();
         });
     }
 
