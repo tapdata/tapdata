@@ -7,20 +7,22 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.PkgAnnoUtil;
 import com.tapdata.entity.AppType;
-import com.tapdata.tm.sdk.util.Version;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.ping.PingDto;
+import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
+import com.tapdata.tm.sdk.util.Version;
 import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.springframework.util.concurrent.ListenableFuture;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.client.WebSocketClient;
@@ -32,10 +34,7 @@ import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -57,6 +56,8 @@ import static io.tapdata.websocket.WebSocketEventResult.Type.UNKNOWN_EVENT_RESUL
 @DependsOn("connectorManager")
 public class ManagementWebsocketHandler implements WebSocketHandler {
 
+	public static final String WEBSOCKET_CODE_KEY = "websocketCode";
+	public static final String WEBSOCKET_MESSAGE_KEY = "websocketMessage";
 	private Logger logger = LogManager.getLogger(ManagementWebsocketHandler.class);
 
 	public static final String URL_PREFIX = "ws://";
@@ -138,7 +139,12 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			}
 
 			try {
-				sendMessage(new TextMessage("{\"type\":\"ping\"}"));
+				WebSocketEvent<PingDto> webSocketEvent = new WebSocketEvent<>();
+				PingDto pingDto = new PingDto();
+				pingDto.setPingType(PingType.WEBSOCKET_HEALTH);
+				webSocketEvent.setType("ping");
+				webSocketEvent.setData(pingDto);
+				sendMessage(new TextMessage(JSONUtil.obj2Json(webSocketEvent)));
 			} catch (Exception e) {
 				logger.error("Send health message failed, will reconnect websocket", e);
 				createClients();
@@ -235,9 +241,9 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 		Map eventRequestData = event.getData();
 		String messageType = event.getType();
-		if(!org.apache.commons.lang3.StringUtils.equals(messageType, TaskDto.SYNC_TYPE_TEST_RUN)) {
+		if (!org.apache.commons.lang3.StringUtils.equals(messageType, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			messageType = eventRequestData != null && eventRequestData.containsKey("type") && eventRequestData.get("type") != null ?
-							eventRequestData.get("type").toString() : event.getType();
+					eventRequestData.get("type").toString() : event.getType();
 		}
 
 		WebSocketEventHandler<WebSocketEventResult> eventHandler = eventHandler(messageType);

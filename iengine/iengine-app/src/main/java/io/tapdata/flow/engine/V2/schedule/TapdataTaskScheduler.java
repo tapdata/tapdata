@@ -72,11 +72,8 @@ public class TapdataTaskScheduler {
 
 	private final AppType appType = AppType.init();
 
-
 	@PostConstruct
 	public void init() {
-//    instanceNo = configCenter.getConfig(ConfigurationCenter.AGENT_ID).toString();
-//    appType = (AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE);
 		instanceNo = (String) configCenter.getConfig(ConfigurationCenter.AGENT_ID);
 		logger.info("[Task scheduler] instance no: {}", instanceNo);
 

@@ -5,12 +5,11 @@ import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
@@ -493,6 +492,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (worker.getProcessId() == null || worker.getWorkerType() == null) {
             throw new BizException("IllegalArgument", "processId or workerType can't be empty.");
         }
+
+        worker.setPingTime(System.currentTimeMillis());
 
         repository.upsert(
                 Query.query(Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType())),
