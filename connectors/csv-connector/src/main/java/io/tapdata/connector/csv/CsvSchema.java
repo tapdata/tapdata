@@ -24,9 +24,8 @@ public class CsvSchema extends FileSchema {
     }
 
     public Map<String, Object> sampleFixedFileData(Map<String, TapFile> csvFileMap) throws Exception {
-        CsvConfig csvConfig = (CsvConfig) fileConfig;
         Map<String, Object> sampleResult = new LinkedHashMap<>();
-        String[] headers = csvConfig.getHeader().split(csvConfig.getDelimiter());
+        String[] headers = fileConfig.getHeader().split(",");
         if (EmptyKit.isEmpty(csvFileMap)) {
             putIntoMap(headers, null, sampleResult);
         } else {
@@ -35,10 +34,10 @@ public class CsvSchema extends FileSchema {
                         Reader reader = new InputStreamReader(storage.readFile(path));
                         CSVReader csvReader = new CSVReaderBuilder(reader).build()
                 ) {
-                    if (csvConfig.getIncludeHeader()) {
-                        csvReader.skip(csvConfig.getDataStartLine());
+                    if (fileConfig.getIncludeHeader()) {
+                        csvReader.skip(fileConfig.getDataStartLine());
                     } else {
-                        csvReader.skip(csvConfig.getDataStartLine() - 1);
+                        csvReader.skip(fileConfig.getDataStartLine() - 1);
                     }
                     String[] data = csvReader.readNext();
                     if (EmptyKit.isNotNull(data)) {

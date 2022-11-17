@@ -3,6 +3,7 @@ package io.tapdata.connector.excel.util;
 import io.tapdata.kit.EmptyKit;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -11,7 +12,7 @@ public class ExcelUtil {
     //3,5~9,12
     public static Set<Integer> getSheetNumber(String reg) {
         if (EmptyKit.isBlank(reg)) {
-            return null;
+            return Collections.emptySet();
         }
         Set<Integer> set = new HashSet<>();
         String[] arr = reg.split(",");
