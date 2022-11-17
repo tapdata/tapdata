@@ -180,6 +180,15 @@ public class PDKTestBase {
         return false;
     }
 
+    protected boolean verifyFunctions(ConnectorFunctions functions,Method testCase) {
+        boolean isNull = null == functions;
+        if (isNull){
+            TapAssert.asserts(()->Assertions.fail(TapSummary.format("notFunctions")))
+                    .acceptAsError(testCase,null);
+        }
+        return isNull;
+    }
+
     public interface AssertionCall {
         void assertIt() throws InvocationTargetException, IllegalAccessException;
     }
@@ -560,7 +569,7 @@ public class PDKTestBase {
         }
     }
 
-    private FilterResult filterResults(ConnectorNode targetNode, TapFilter filter, TapTable targetTable) {
+    protected FilterResult filterResults(ConnectorNode targetNode, TapFilter filter, TapTable targetTable) {
         QueryByFilterFunction queryByFilterFunction = targetNode.getConnectorFunctions().getQueryByFilterFunction();
         if(queryByFilterFunction != null) {
             List<FilterResult> results = new ArrayList<>();
@@ -647,6 +656,25 @@ public class PDKTestBase {
         StringBuilder builder = new StringBuilder();
         $(() -> assertTrue(mapEquals(buildInsertRecord(), result, builder), builder.toString()));
     }
+
+//    protected void verifyBatchRecordExists(ConnectorNode targetNode, DataMap filterMap,HashMap map) {
+//        TapFilter filter = new TapFilter();
+//        filter.setMatch(filterMap);
+//        TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
+//
+//        FilterResult filterResult = filterResults(targetNode, filter, targetTable);
+//        $(() -> assertNotNull(filterResult, "The filter " + InstanceFactory.instance(JsonParser.class).toJson(filterMap) + " can not get any result. Please make sure writeRecord method update record correctly and queryByFilter/queryByAdvanceFilter can query it out for verification. "));
+//
+//        $(() -> Assertions.assertNull(filterResult.getError(), "Error occurred while queryByFilter " + InstanceFactory.instance(JsonParser.class).toJson(filterMap) + " error " + filterResult.getError()));
+//        $(() -> assertNotNull(filterResult.getResult(), "Result should not be null, as the record has been inserted"));
+//        Map<String, Object> result = filterResult.getResult();
+//
+//        targetNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
+//        targetNode.getCodecsFilterManager().transformFromTapValueMap(result);
+//
+//        StringBuilder builder = new StringBuilder();
+//        $(() -> assertTrue(mapEquals(map, result, builder), builder.toString()));
+//    }
 
     public TapConnector getTestConnector() {
         return testConnector;

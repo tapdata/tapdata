@@ -29,7 +29,7 @@ import java.util.UUID;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
-@DisplayName("CreateTableTest.test")//CreateTableFunction/CreateTableV2Function建表
+@DisplayName("createTableTest.test")//CreateTableFunction/CreateTableV2Function建表
 @TapGo(sort = 9)
 public class CreateTableTest extends PDKTestBase {
 
@@ -56,15 +56,13 @@ public class CreateTableTest extends PDKTestBase {
                 prepare.recordEventExecute().testCase(testCase);
 
                 ConnectorNode connectorNode = prepare.connectorNode();
-                TapConnector connector = connectorNode.getConnector();
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
-
                 ConnectorFunctions functions = connectorNode.getConnectorFunctions();
-                if (null == functions){
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("CreateTableTest.notFunctions")))
-                            .acceptAsError(testCase,null);
+
+                if (super.verifyFunctions(functions,testCase)){
                     return;
                 }
+
                 CreateTableFunction createTable = functions.getCreateTableFunction();
                 TapAssert.asserts(()->
                         Assertions.assertNotNull(createTable, TapSummary.format("createTable.null"))
@@ -91,11 +89,13 @@ public class CreateTableTest extends PDKTestBase {
                             connectorContext,
                             tableEvent
                     );
+                    this.verifyTableIsCreated("CreateTableV2Function",prepare);
                     return;
                 }
                 //检查如果只实现了CreateTableFunction，没有实现CreateTableV2Function时，报出警告，
                 // 推荐使用CreateTableV2Function方法来实现建表
                 createTable.createTable(connectorContext, tableEvent);
+                this.verifyTableIsCreated("CreateTableFunction",prepare);
 
             }catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -115,10 +115,18 @@ public class CreateTableTest extends PDKTestBase {
     }
 
     void verifyTableIsCreated(String createMethod,TestNode prepare) throws Throwable {
+        ConnectorNode connectorNode = prepare.connectorNode();
+        TapConnector connector = connectorNode.getConnector();
+        TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+        String tableIdTarget = targetTable.getId();
+        Method testBase = prepare.recordEventExecute().testCase();
         connector.discoverSchema(connectorContext,list(tableIdTarget),1000,consumer->{
             TapAssert.asserts(()->{
-
-            }).acceptAsError();
+                Assertions.assertTrue(
+                        null!=consumer&&!consumer.isEmpty(),
+                        TapSummary.format("verifyTableIsCreated.error",createMethod,tableIdTarget)
+                );
+            }).acceptAsError(testBase,TapSummary.format("verifyTableIsCreated.succeed",createMethod,tableIdTarget));
         });
     }
 
@@ -230,10 +238,9 @@ public class CreateTableTest extends PDKTestBase {
         });
     }
 
-    public static List<SupportFunction> testFunctions() {
-        List<SupportFunction> supportFunctions = Arrays.asList(
-
-        );
-        return supportFunctions;
-    }
+//    public static List<SupportFunction> testFunctions() {
+//        return list(
+//                supportAny(list(CreateTableFunction.class,CreateTableV2Function.class),"")
+//        );
+//    }
 }

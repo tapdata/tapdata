@@ -84,7 +84,7 @@ public class Record extends HashMap {
                         record.builder(keyName, Float.parseFloat(""+(Math.random()*10+50)));
                     }break;
                     case JAVA_Long:{
-                        record.builder(keyName,System.currentTimeMillis());
+                        record.builder(keyName,System.nanoTime());
                     }break;
                     case JAVA_Double:{
                         record.builder(keyName,Double.parseDouble(""+(Math.random()*10+50)));

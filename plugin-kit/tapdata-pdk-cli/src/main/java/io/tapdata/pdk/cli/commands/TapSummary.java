@@ -14,6 +14,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.tests.support.*;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
 
 import java.io.BufferedWriter;
@@ -133,14 +134,25 @@ public class TapSummary {
                 }
                 builder.append("\n")
                         .append("\t").append(s).append("\n");
-                builder.append("☆ ")
+
+                int jumpCase = 0;
+                try {
+                    Object test = aClass.newInstance();
+                    Method[] declaredMethods = aClass.getDeclaredMethods();
+                    for (int i = 0; i < declaredMethods.length; i++) {
+                        Test testAnn = declaredMethods[i].getAnnotation(Test.class);
+                        if (null != testAnn) jumpCase++;
+                    }
+                } catch (InstantiationException | IllegalAccessException e) {
+                }
+                builder.append("★ ")
                         .append(TapSummary.format("ONCE_HISTORY",
                                 aClass.getSimpleName(),
                                 TapSummary.format("TEST_RESULT_ERROR"),
                                 0,
                                 0,
                                 0,
-                                1))
+                                jumpCase))
                         .append("\n");
 
                 if (iterator.hasNext()){
@@ -226,7 +238,7 @@ public class TapSummary {
             builder.append("\n")
                     .append(capabilityBuilder)
                     .append("\n");
-            builder.append("☆ ")
+            builder.append("★ ")
                     .append(TapSummary.format("ONCE_HISTORY",
                             cla.getSimpleName(),
                             res.executionResult() == CapabilitiesExecutionMsg.ERROR?TapSummary.format("TEST_RESULT_ERROR"):TapSummary.format("TEST_RESULT_SUCCEED"),
@@ -381,7 +393,8 @@ public class TapSummary {
         System.out.println(showLogoV2());
     }
     private String showLogoV2(){
-        String logo = "\n"+AREA_SPLIT+ "\n[.___________.    ___      .______    _______       ___   .___________.    ___     ]\n" +
+        String logo = "\n"+AREA_SPLIT+ "\n"+
+                "[.___________.    ___      .______    _______       ___   .___________.    ___     ]\n" +
                 "[|           |   /   \\     |   _  \\  |       \\     /   \\  |           |   /   \\    ]\n" +
                 "[`---|  |----`  /  ^  \\    |  |_)  | |  .--.  |   /  ^  \\ `---|  |----`  /  ^  \\   ]\n" +
                 "[    |  |      /  /_\\  \\   |   ___/  |  |  |  |  /  /_\\  \\    |  |      /  /_\\  \\  ]\n" +
@@ -414,15 +427,21 @@ public class TapSummary {
         System.out.println(endingShowV2(fileName));
     }
     public String endingShowV2(String fileName){
+        String msg = "";
         if(Case.ERROR.equals(TapSummary.hasPass)) {
-            String msg = TapSummary.format("TEST_ERROR_END","\n",fileName);
-            return msg;
+            msg = TapSummary.format("TEST_ERROR_END","",fileName);
         }else {
-            String msg = TapSummary.format("TEST_SUCCEED_END","\n",fileName);
+            msg = TapSummary.format("TEST_SUCCEED_END","",fileName);
             if (Case.WARN.equals(TapSummary.hasPass)){
                 msg += TapSummary.format("SUCCEED_WITH_WARN");
             }
-            return msg;
         }
+        final int len = msg.getBytes().length;
+        String charStr = ".";
+        StringBuilder splitStartAndEnd = new StringBuilder();
+        for (int i = 0; i < len; i++) {
+            splitStartAndEnd.append(charStr);
+        }
+        return splitStartAndEnd.toString()+"\n"+msg+"\n"+splitStartAndEnd.toString()+"\n";
     }
 }

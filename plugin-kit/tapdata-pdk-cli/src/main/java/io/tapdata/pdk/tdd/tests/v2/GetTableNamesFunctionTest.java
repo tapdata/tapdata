@@ -184,7 +184,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
     //TODO
     @DisplayName("getTableNames.byCount")//用例3， 通过指定表数量加载固定数量的表（依赖已经存在多表）
     @Test
-    @TapTestCase(sort = 2)
+    @TapTestCase(sort = 3)
     /**
      * 执行discoverSchema之后， 发现有大于1张表的返回，
      * 通过int batchSize参数指定为1，

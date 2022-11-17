@@ -21,7 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @DisplayName("connectionTest.test")//连接测试，必测方法
-@TapGo(sort = 5)
+@TapGo(sort = 4)
 public class ConnectionTest extends PDKTestBase {
 
     //此方法不需要调用PDK数据源的init/stop方法， 直接调用connectionTest即可。 至少返回一个测试项即为成功。

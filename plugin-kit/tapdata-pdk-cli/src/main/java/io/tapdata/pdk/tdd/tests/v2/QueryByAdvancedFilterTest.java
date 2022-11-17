@@ -35,8 +35,8 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 @DisplayName("Test.WriteRecordWithQueryTest")
 @TapGo(sort = 3)
-public class WriteRecordWithQueryTest extends PDKTestBase {
-    private static final String TAG = WriteRecordWithQueryTest.class.getSimpleName();
+public class QueryByAdvancedFilterTest extends PDKTestBase {
+    private static final String TAG = QueryByAdvancedFilterTest.class.getSimpleName();
 
     protected String testTableId;
     protected String tddTableId = "tdd-table";
