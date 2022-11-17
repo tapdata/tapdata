@@ -72,10 +72,8 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.Data;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -93,7 +91,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -693,9 +690,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	 *
 	 * @param user
 	 * @param id
+	 * @param requestURI
 	 * @return
 	 */
-	public DataSourceConnectionDto copy(UserDetail user, String id) {
+	public DataSourceConnectionDto copy(UserDetail user, String id, String requestURI) {
 		boolean boolValue = SettingsEnum.CONNECTIONS_CREAT_DUPLICATE_SOURCE.getBoolValue(true);
 		log.debug("system duplicateCreate param = {}", boolValue);
 		if (!boolValue) {
@@ -734,7 +732,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 			}
 		}
-		this.resetWebHookOnCopy(entity,user);//重置WebHook URL
+		this.resetWebHookOnCopy(entity,user, requestURI);//重置WebHook URL
 
 		log.debug("copy datasource success, datasource name = {}", connectionName);
 
@@ -748,12 +746,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	/**
 	 * 复制数据源时，重置WebHook连接（For SaaS）
 	 * 在数据源JSONSchema中对connection配置了actionOnCopy属性
-	 * @Author Gavin
-	 * @Date 2022-10-17
+	 *
 	 * @param entity
 	 * @param user
-	 * */
-	private void resetWebHookOnCopy(DataSourceEntity entity,UserDetail user){
+	 * @param requestURI
+	 * @Author Gavin
+	 * @Date 2022-10-17
+	 */
+	private void resetWebHookOnCopy(DataSourceEntity entity, UserDetail user, String requestURI){
 			ObjectId copyId = entity.getId();
 			if (null == copyId) entity.setId(copyId = new ObjectId());
 			//获取并校验pdkHash,用于获取jsonSchema
@@ -818,7 +818,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							else
 								throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
 						}
-						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, user, token);
+						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, user, token, requestURI);
 						String webHookUrl = url.getProtocol() + "://" + url.getHost() + (url.getPort() > 0 ? (":" + url.getPort()) : "") + subscribeResponseDto.getToken();
 						config.put(key, webHookUrl);
 
