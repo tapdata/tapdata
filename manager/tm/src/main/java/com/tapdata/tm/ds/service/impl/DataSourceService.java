@@ -782,7 +782,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					if (null == keyValue || !keyValue.contains("/api/proxy/callback/") || url == null) {
 						config.put(key, "");
 					} else {
-//						int lastCharIndex = keyValue.lastIndexOf('/') + 1;
+						int lastCharIndex = keyValue.lastIndexOf('/') + 1;
 //						int lenOfToken = keyValue.length();
 						SubscribeDto subscribeDto = new SubscribeDto();
 						subscribeDto.setExpireSeconds(Integer.MAX_VALUE);
@@ -798,7 +798,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 								throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
 						}
 						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, user, token, requestURI);
-						String webHookUrl = url.getProtocol() + "://" + url.getHost() + (url.getPort() > 0 ? (":" + url.getPort()) : "") + subscribeResponseDto.getToken();
+						String webHookUrl = keyValue.substring(0, lastCharIndex) + subscribeResponseDto.getToken();
 						config.put(key, webHookUrl);
 
 						repository.update(new Query(Criteria.where("_id").is(entityId)),entity);
