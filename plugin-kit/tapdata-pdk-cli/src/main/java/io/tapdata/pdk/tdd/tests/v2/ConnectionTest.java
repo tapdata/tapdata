@@ -54,7 +54,7 @@ public class ConnectionTest extends PDKTestBase {
                                                     TestItem.ITEM_LOGIN.equals(item),
                                             TapSummary.format("connectionTest.testConnectionTest.errorVCL")
                                     )
-                                ).acceptAsWarn(this.get(),testCase,
+                                ).acceptAsWarn(testCase,
                                         TapSummary.format("connectionTest.testConnectionTest.succeedVCL")
                                 );
 
@@ -64,8 +64,7 @@ public class ConnectionTest extends PDKTestBase {
                                     TapAssert.asserts(() ->
                                             Assertions.assertTrue(TestItem.ITEM_READ.equals(item),
                                                     TapSummary.format("connectionTest.testConnectionTest.errorBatchRead"))
-                                    ).acceptAsWarn(
-                                            this.get(), testCase,
+                                    ).acceptAsWarn(testCase,
                                             TapSummary.format("connectionTest.testConnectionTest.succeedBatchRead")
                                     );
                                 }
@@ -76,8 +75,7 @@ public class ConnectionTest extends PDKTestBase {
                                     TapAssert.asserts(()->
                                             Assertions.assertTrue(TestItem.ITEM_READ_LOG.equals(item),
                                                     TapSummary.format("connectionTest.testConnectionTest.errorStreamRead"))
-                                    ).acceptAsWarn(
-                                            this.get(),testCase,
+                                    ).acceptAsWarn(testCase,
                                             TapSummary.format("connectionTest.testConnectionTest.succeedStreamRead")
                                     );
                                 }
@@ -88,8 +86,7 @@ public class ConnectionTest extends PDKTestBase {
                                     TapAssert.asserts(()->
                                             Assertions.assertTrue(TestItem.ITEM_WRITE.equals(item),
                                                     TapSummary.format("connectionTest.testConnectionTest.errorWriteRecord"))
-                                    ).acceptAsWarn(
-                                            this.get(),testCase,
+                                    ).acceptAsWarn(testCase,
                                             TapSummary.format("connectionTest.testConnectionTest.succeedWriteRecord")
                                     );
                                 }

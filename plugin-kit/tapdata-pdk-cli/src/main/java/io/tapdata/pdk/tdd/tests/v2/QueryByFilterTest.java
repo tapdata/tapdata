@@ -60,7 +60,7 @@ public class QueryByFilterTest extends PDKTestBase {
                     TapAssert.asserts(()->
                             Assertions.assertTrue(null != finalInsert && finalInsert.getInsertedCount() == records.length,
                                     TapSummary.format(""))
-                    ).acceptAsError(this.get(),testCase,
+                    ).acceptAsError(testCase,
                                     TapSummary.format(""));
 
                     ConnectorFunctions connectorFunctions = prepare.connectorNode().getConnectorFunctions();
@@ -76,7 +76,7 @@ public class QueryByFilterTest extends PDKTestBase {
                                 TapAssert.asserts(()->{
 
                                 }).acceptAsError(
-                                        this.get(),testCase,
+                                        testCase,
                                         TapSummary.format("")
                                 );
                             }));
@@ -93,7 +93,7 @@ public class QueryByFilterTest extends PDKTestBase {
                                 TapAssert.asserts(()->{
 
                                 }).acceptAsError(
-                                        this.get(),testCase,
+                                        testCase,
                                         TapSummary.format("")
                                 );
                             }));
@@ -109,7 +109,7 @@ public class QueryByFilterTest extends PDKTestBase {
                                 TapAssert.asserts(()->{
 
                                 }).acceptAsError(
-                                        this.get(),testCase,
+                                        testCase,
                                         TapSummary.format("")
                                 );
                             }));
@@ -117,7 +117,7 @@ public class QueryByFilterTest extends PDKTestBase {
                     TapAssert.asserts(()->
                             Assertions.fail(TapSummary.format(""))
                     ).acceptAsError(
-                            this.get(),testCase,
+                            testCase,
                             TapSummary.format("")
                     );
                 }

@@ -59,7 +59,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                                     null!=consumer && !consumer.isEmpty(),
                                     TapSummary.format("getTableNames.discover.notAnyTable"));
                         }).acceptAsError(
-                                this.get(),testCase,
+                                testCase,
                                 TapSummary.format("getTableNames.discover.succeed",consumer.size())
                         );
                     }
@@ -112,7 +112,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                                 null!=consumer && !consumer.isEmpty(),
                                 TapSummary.format("discover.notAnyTable"));
                     }).acceptAsError(
-                            this.get(),testCase,
+                            testCase,
                             TapSummary.format("discover.succeed",consumer.size())
                     );
 
@@ -121,7 +121,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                         if (null == table){
                             TapAssert.asserts(()->
                                     Assertions.fail(TapSummary.format("discover.nullTable"))
-                            ).acceptAsError(this.get(),testCase,null);
+                            ).acceptAsError(testCase,null);
                             return;
                         }
                         //表里有表名即为成功
@@ -129,7 +129,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                         if (null == tableName || "".equals(tableName)){
                             TapAssert.asserts(()->
                                     Assertions.fail(TapSummary.format("discover.emptyTableName"))
-                            ).acceptAsError(this.get(),testCase,null);
+                            ).acceptAsError(testCase,null);
                             return;
                         }
                         //表里没有字段描述时，报警告
@@ -138,7 +138,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                                 Assertions.assertTrue(
                                         null != nameFieldMap && !nameFieldMap.isEmpty(),
                                         TapSummary.format("discover.emptyTFields",tableName))
-                        ).acceptAsWarn(this.get(),testCase,null);
+                        ).acceptAsWarn(testCase,null);
 
                         //表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
                         if (null != nameFieldMap && !nameFieldMap.isEmpty()){
@@ -163,7 +163,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                             Assertions.assertTrue(
                                     warnFieldMap.isEmpty(),
                                     TapSummary.format("discover.hasWarnFields",warn.toString()))
-                    ).acceptAsWarn(this.get(),testCase,TapSummary.format("discover.notWarnFields"));
+                    ).acceptAsWarn(testCase,TapSummary.format("discover.notWarnFields"));
                 });
             }catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -213,7 +213,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                                 null!=consumer && !consumer.isEmpty(),
                                 TapSummary.format("discover.notAnyTable"));
                     }).acceptAsError(
-                            this.get(),testCase,
+                            testCase,
                             TapSummary.format("discover.succeed",consumer.size())
                     );
 
@@ -222,7 +222,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                         if (null == table){
                             TapAssert.asserts(()->
                                     Assertions.fail(TapSummary.format("discover.nullTable"))
-                            ).acceptAsError(this.get(),testCase,null);
+                            ).acceptAsError(testCase,null);
                             return;
                         }
                         //表里有表名即为成功
@@ -230,7 +230,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                         if (null == tableName || "".equals(tableName)){
                             TapAssert.asserts(()->
                                     Assertions.fail(TapSummary.format("discover.emptyTableName"))
-                            ).acceptAsError(this.get(),testCase,null);
+                            ).acceptAsError(testCase,null);
                             return;
                         }
                         //表里没有字段描述时，报警告
@@ -239,7 +239,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                                 Assertions.assertTrue(
                                         null != nameFieldMap && !nameFieldMap.isEmpty(),
                                         TapSummary.format("discover.emptyTFields",tableName))
-                        ).acceptAsWarn(this.get(),testCase,null);
+                        ).acceptAsWarn(testCase,null);
 
                         //表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
                         if (null != nameFieldMap && !nameFieldMap.isEmpty()){
@@ -264,7 +264,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                             Assertions.assertTrue(
                                     warnFieldMap.isEmpty(),
                                     TapSummary.format("discover.hasWarnFields",warn.toString()))
-                    ).acceptAsWarn(this.get(),testCase,TapSummary.format("discover.notWarnFields"));
+                    ).acceptAsWarn(testCase,TapSummary.format("discover.notWarnFields"));
                 });
             }catch (Throwable e) {
                 throw new RuntimeException(e);

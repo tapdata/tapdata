@@ -1,23 +1,13 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
-import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.TableCountFunction;
-import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.Record;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
@@ -28,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 
 import static io.tapdata.entity.simplify.TapSimplify.field;
 import static io.tapdata.entity.simplify.TapSimplify.table;
@@ -82,14 +71,14 @@ public class TableCountTest extends PDKTestBase {
         }catch (Exception e){
             TapAssert.asserts(()->
                     Assertions.fail(TapSummary.format("tableCount.findTableCount.errorFun",e.getMessage()))
-            ).acceptAsError(this.get(),testCase, null);
+            ).acceptAsError(testCase, null);
         }
         int tableCountFinal = tableCount;
         TapAssert.asserts(()->
                 Assertions.assertTrue(tableCountFinal > 0,
                         TapSummary.format("tableCount.findTableCount.error",tableCountFinal)
                 )
-        ).acceptAsError(this.get(),testCase,
+        ).acceptAsError(testCase,
                 TapSummary.format("tableCount.findTableCount.succeed",tableCountFinal)
         );
         return tableCount;
@@ -131,7 +120,7 @@ public class TableCountTest extends PDKTestBase {
                         Assertions.assertTrue(tableCountNewTableAgo+1 == tableCountNewTableAfter,
                                 TapSummary.format("tableCount.findTableCountAfterNewTable.afterNewTable.error",tableCountNewTableAgo,tableCountNewTableAfter)
                         )
-                ).acceptAsWarn(this.get(),testCase,
+                ).acceptAsWarn(testCase,
                         TapSummary.format("tableCount.findTableCountAfterNewTable.afterNewTable.succeed",tableCountNewTableAgo,tableCountNewTableAfter)
                 );
 

@@ -7,7 +7,6 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
@@ -149,14 +148,14 @@ public class RecordEventExecute {
     public void dropTable() {
         TapAssert.asserts(
                 ()->Assertions.assertDoesNotThrow(this::drop,TapSummary.format("RecordEventExecute.drop.table.error"))
-        ).acceptAsError(base.getClass(),testCase,TapSummary.format("RecordEventExecute.drop.notCatch.thrower"));
+        ).acceptAsError(testCase,TapSummary.format("RecordEventExecute.drop.notCatch.thrower"));
     }
 
     private boolean drop() throws Throwable {
         DropTableFunction dropTableFunction = connectorFunctions.getDropTableFunction();
         TapAssert.asserts(
                 ()->Assertions.assertNotNull(dropTableFunction,TapSummary.format("RecordEventExecute.drop.error.not.support.function"))
-        ).acceptAsError(base.getClass(),testCase,TapSummary.format("RecordEventExecute.drop.table.succeed",targetTable.getId()));
+        ).acceptAsError(testCase,TapSummary.format("RecordEventExecute.drop.table.succeed",targetTable.getId()));
         TapDropTableEvent dropTableEvent = new TapDropTableEvent();
         dropTableEvent.setTableId(targetTable.getId());
         dropTableEvent.setReferenceTime(System.currentTimeMillis());

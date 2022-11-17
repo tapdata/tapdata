@@ -3,12 +3,16 @@ package io.tapdata.pdk.tdd.tests.v2;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
+import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
@@ -17,6 +21,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
 
 @DisplayName("CreateTableTest.test")//CreateTableFunction/CreateTableV2Function建表
 @TapGo(sort = 9)
@@ -25,6 +31,15 @@ public class CreateTableTest extends PDKTestBase {
     @DisplayName("createTableV2")//用例1，CreateTableFunction已过期， 应使用CreateTableV2Function
     @TapTestCase(sort = 1)
     @Test
+    /**
+     * CreateTableFunction和CreateTableV2Function的差距是，
+     * V2版本会返回CreateTableOptions对象，
+     * 以下测试用例这两个方法都需要测试，
+     * 如果同时实现了两个方法只需要测试CreateTableV2Function。
+     * 检查如果只实现了CreateTableFunction，
+     * 没有实现CreateTableV2Function时，
+     * 报出警告， 推荐使用CreateTableV2Function方法来实现建表
+     * */
     void createTableV2(){
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
@@ -40,6 +55,19 @@ public class CreateTableTest extends PDKTestBase {
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnector connector = connectorNode.getConnector();
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+
+                ConnectorFunctions functions = connectorNode.getConnectorFunctions();
+                if (null == functions){
+                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("CreateTableTest.notFunctions")))
+                            .acceptAsError(testCase,null);
+                    return;
+                }
+                CreateTableFunction createTable = functions.getCreateTableFunction();
+                TapAssert.asserts(()->
+                        Assertions.assertNotNull(createTable, TapSummary.format(""))
+                ).acceptAsWarn(testCase,TapSummary.format(""));
+                CreateTableV2Function createTableV2Function = functions.getCreateTableV2Function();
+
 
             }catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -163,5 +191,12 @@ public class CreateTableTest extends PDKTestBase {
                 }
             }
         });
+    }
+
+    public static List<SupportFunction> testFunctions() {
+        List<SupportFunction> supportFunctions = Arrays.asList(
+
+        );
+        return supportFunctions;
     }
 }

@@ -60,7 +60,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                 null!=consumer && !consumer.isEmpty(),
                                 TapSummary.format("discover.notAnyTable"));
                     }).acceptAsError(
-                            this.get(),testCase,
+                            testCase,
                             TapSummary.format("discover.succeed",consumer.size())
                     );
 
@@ -69,7 +69,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                         if (null == table){
                             TapAssert.asserts(()->
                                 Assertions.fail(TapSummary.format("discover.nullTable"))
-                            ).acceptAsError(this.get(),testCase,null);
+                            ).acceptAsError(testCase,null);
                             return;
                         }
                         //表里有表名即为成功
@@ -77,7 +77,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                         if (null == tableName || "".equals(tableName)){
                             TapAssert.asserts(()->
                                     Assertions.fail(TapSummary.format("discover.emptyTableName"))
-                            ).acceptAsError(this.get(),testCase,null);
+                            ).acceptAsError(testCase,null);
                             return;
                         }
                         //表里没有字段描述时，报警告
@@ -86,7 +86,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                 Assertions.assertTrue(
                                         null != nameFieldMap && !nameFieldMap.isEmpty(),
                                         TapSummary.format("discover.emptyTFields",tableName))
-                        ).acceptAsWarn(this.get(),testCase,null);
+                        ).acceptAsWarn(testCase,null);
 
                         //表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
                         if (null != nameFieldMap && !nameFieldMap.isEmpty()){
@@ -111,10 +111,10 @@ public class DiscoverSchemaTest extends PDKTestBase{
                             Assertions.assertTrue(
                                     warnFieldMap.isEmpty(),
                                     TapSummary.format("discover.hasWarnFields",warn.toString()))
-                    ).acceptAsWarn(this.get(),testCase,TapSummary.format("discover.notWarnFields"));
+                    ).acceptAsWarn(testCase,TapSummary.format("discover.notWarnFields"));
                 });
             }catch (Throwable e) {
-                throw new RuntimeException(e);
+                //throw new RuntimeException(e);
             }finally {
                 if (null != prepare.connectorNode()){
                     PDKInvocationMonitor.invoke(prepare.connectorNode(),
@@ -174,7 +174,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                             null != consumer.get(0) && targetTable.getId().equals(consumer.get(0).getId()),
                                     TapSummary.format("discoverAfterCreate.notFindTargetTable",targetTable.getId()));
                         }).acceptAsError(
-                                this.get(),testCase,
+                                testCase,
                                 TapSummary.format("discoverAfterCreate.fundTargetTable",targetTable.getId())
                         );
 
@@ -187,7 +187,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                             LinkedHashMap<String, TapField> tapTableFieldMap = tapTable.getNameFieldMap();
                             LinkedHashMap<String, TapField> targetTableFieldMap = targetTable.getNameFieldMap();
                             if ( null == tapTableFieldMap || null == targetTableFieldMap){
-                                TapAssert.asserts(()->Assertions.fail(TapSummary.format("discoverAfterCreate.exitsNullFiledMap",tableId))).acceptAsError(this.get(),testCase,null);
+                                TapAssert.asserts(()->Assertions.fail(TapSummary.format("discoverAfterCreate.exitsNullFiledMap",tableId))).acceptAsError(testCase,null);
                             }
                             int tapTableSize = tapTableFieldMap.size();
                             int targetTableSize = targetTableFieldMap.size();
@@ -197,7 +197,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                             tapTableSize>targetTableSize,
                                             TapSummary.format("discoverAfterCreate.fieldsNotEqualsCount",tapTableSize,targetTableSize));
                                 }).acceptAsError(
-                                        this.get(),testCase,
+                                        testCase,
                                         TapSummary.format("discoverAfterCreate.fieldsEqualsCount",tapTableSize,targetTableSize)
                                 );
                             }catch (Exception ignored){
@@ -250,14 +250,14 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                         hasSuchFieldFinal,
                                         TapSummary.format("discoverAfterCreate.allFieldNotEquals",tableId,targetFieldItemFinal,tapFieldItemFinal));
                             }).acceptAsError(
-                                    this.get(),testCase,
+                                    testCase,
                                     TapSummary.format("discoverAfterCreate.allFieldEquals",tableId)
                             );
                         }
                     });
                 });
             }catch (Throwable e) {
-                throw new RuntimeException(e);
+                //throw new RuntimeException(e);
             }finally {
                 //验证结束之后需要删掉随机建的表（依赖DropTableFunction）
                 execute.dropTable();
@@ -314,7 +314,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                     null!=consumer && !consumer.isEmpty() && consumer.size()>1,
                                     TapSummary.format("discoverByTableName1.notAnyTable"));
                         }).acceptAsError(
-                                this.get(),testCase,
+                                testCase,
                                 TapSummary.format("discoverByTableName1.succeed",consumer.size())
                         );
                         tableCount.set(consumer.size());
@@ -335,7 +335,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                     null!=c && !c.isEmpty(),
                                     TapSummary.format("discoverByTableName1.notAnyTableAfter",tableCount,tapTable.getId()));
                         }).acceptAsWarn(
-                                this.get(),testCase,
+                                testCase,
                                 TapSummary.format("discoverByTableName1.succeedAfter",tableCount,tapTable.getId(),c.size())
                         );
                         //如果只有一张表， 直接通过此测试。
@@ -344,13 +344,13 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                         c.size()==1,
                                         TapSummary.format("discoverByTableName1.notTable",tableCount,tapTable.getId(),c.size())
                                 )
-                        ).acceptAsWarn(this.get(),testCase,TapSummary.format("discoverByTableName1.succeedTable",tableCount,tapTable.getId(),c.size()));
+                        ).acceptAsWarn(testCase,TapSummary.format("discoverByTableName1.succeedTable",tableCount,tapTable.getId(),c.size()));
                     });
                 }catch (Throwable e){
 
                 }
             }catch (Throwable e) {
-                throw new RuntimeException(e);
+                //throw new RuntimeException(e);
             }finally {
                 if (null != prepare.connectorNode()){
                     PDKInvocationMonitor.invoke(prepare.connectorNode(),
@@ -404,7 +404,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                     null!=consumer && !consumer.isEmpty() && consumer.size()!=1,
                                     TapSummary.format("discoverByTableName2.notAnyTable",tableIdTarget,null==consumer?0:consumer.size()));
                         }).acceptAsError(
-                                this.get(),testCase,
+                                testCase,
                                 TapSummary.format("discoverByTableName2.succeed",tableIdTarget,null==consumer?0:consumer.size())
                         );
                         TapTable tapTable = consumer.get(0);
@@ -413,14 +413,14 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                     tableIdTarget.equals(tapTable.getId()),
                                     TapSummary.format("discoverByTableName2.notEqualsTable",tableIdTarget,tapTable.getId()));
                         }).acceptAsError(
-                                this.get(),testCase,
+                                testCase,
                                 TapSummary.format("discoverByTableName2.equalsTable",tableIdTarget,tapTable.getId())
                         );
                     });
                 });
 
             }catch (Throwable e) {
-                throw new RuntimeException(e);
+                //throw new RuntimeException(e);
             }finally {
                 //验证结束之后需要删掉随机建的表（依赖DropTableFunction）
                 execute.dropTable();
@@ -471,7 +471,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                     null!=consumer && !consumer.isEmpty() && consumer.size()>1,
                                     TapSummary.format("discoverByTableCount1.notAnyTable"));
                         }).acceptAsError(
-                                this.get(),testCase,
+                                testCase,
                                 TapSummary.format("discoverByTableCount1.succeed",consumer.size())
                         );
                     });
@@ -488,13 +488,13 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                         null!=c && c.size() == tableCount,
                                         TapSummary.format("discoverByTableCount1.notTable",tableCount,null!=c?c.size():0)
                                 )
-                        ).acceptAsWarn(this.get(),testCase,TapSummary.format("discoverByTableCount1.succeedTable",tableCount,c.size()));
+                        ).acceptAsWarn(testCase,TapSummary.format("discoverByTableCount1.succeedTable",tableCount,c.size()));
                     });
                 }catch (Throwable e){
 
                 }
             }catch (Throwable e) {
-                throw new RuntimeException(e);
+                //throw new RuntimeException(e);
             }finally {
                 if (null != prepare.connectorNode()){
                     PDKInvocationMonitor.invoke(prepare.connectorNode(),
@@ -552,7 +552,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                                         null!=c && c.size() == tableCount,
                                         TapSummary.format("discoverByTableCount2.error",targetTableId,tableCount,null!=c?c.size():0)
                                 )
-                        ).acceptAsWarn(this.get(),testCase,TapSummary.format("discoverByTableCount2.succeed",targetTableId,tableCount,c.size()));
+                        ).acceptAsWarn(testCase,TapSummary.format("discoverByTableCount2.succeed",targetTableId,tableCount,c.size()));
                         throw new RuntimeException("Stop test consumer");
                     });
                 }catch (RuntimeException e){
@@ -563,7 +563,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 }
 
             }catch (Throwable e) {
-                throw new RuntimeException(e);
+                //throw new RuntimeException(e);
             }finally {
                 execute.dropTable();
                 if (null != prepare.connectorNode()){

@@ -13,10 +13,12 @@ public interface TapAssert {
     static final int WARN = 1;
     static final int SUCCEED = 2;
 
-    public static void change(Throwable e, String message, int assertGarde, Class target, Method testCase) {
+    public static void change(Throwable e, String message, int assertGarde,Method testCase) {
+        Class<?> declaringClass = testCase.getDeclaringClass();
+
         CapabilitiesExecutionMsg msg = TapSummary.capabilitiesResult.computeIfAbsent(
-                target,
-                cls -> null == TapSummary.capabilitiesResult.get(cls) ?
+                declaringClass,
+                cls -> null == TapSummary.capabilitiesResult.get(declaringClass) ?
                                 new CapabilitiesExecutionMsg()
                                 : TapSummary.capabilitiesResult.get(cls)
         );
@@ -42,15 +44,15 @@ public interface TapAssert {
             }
         }
     }
-    public default void acceptAsWarn(Class target,Method testCase,String succeedMag){
-        accept(target,testCase,WARN,succeedMag);
+    public default void acceptAsWarn(Method testCase,String succeedMag){
+        accept(testCase,WARN,succeedMag);
     }
-    public default void acceptAsError(Class target,Method testCase,String succeedMag){
-        accept(target,testCase,ERROR,succeedMag);
+    public default void acceptAsError(Method testCase,String succeedMag){
+        accept(testCase,ERROR,succeedMag);
     }
 
 
-    public default void accept(Class target,Method testCase,int assertGarde,String succeedMag){
+    public default void accept(Method testCase,int assertGarde,String succeedMag){
         try {
             consumer();
         }catch (AssertionFailedError e){
@@ -58,13 +60,13 @@ public interface TapAssert {
             if (message.contains("==> expected:")){
                 message = message.substring(0,message.indexOf("==> expected:"));
             }
-            change(e,message,assertGarde,target,testCase);
+            change(e,message,assertGarde,testCase);
             return;
         }catch (Exception e){
-            change(e,e.getMessage(),assertGarde,target,testCase);
+            change(e,e.getMessage(),assertGarde,testCase);
             throw e;
         }
-        change(null,succeedMag,SUCCEED,target,testCase);
+        change(null,succeedMag,SUCCEED,testCase);
     }
 
     public void consumer();

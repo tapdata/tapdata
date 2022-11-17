@@ -57,7 +57,7 @@ public class TimestampToStreamOffsetFunctionTest extends PDKTestBase {
                 Object o = timestamp.timestampToStreamOffset(connectorContext, null);
                 TapAssert.asserts(()->{
                     Assertions.assertNotNull(o, TapSummary.format("timestamp.backStreamOffsetWithNull.error"));
-                }).acceptAsError(this.get(),testCase,TapSummary.format("timestamp.backStreamOffsetWithNull.succeed"));
+                }).acceptAsError(testCase,TapSummary.format("timestamp.backStreamOffsetWithNull.succeed"));
 
                 //方法参数Long time传距离当前时间3个小时前的时候能返回那个时间的增量断点， 非空即可。
                 LocalDateTime localDateTime = LocalDateTime.now().minusHours(3);
@@ -67,7 +67,7 @@ public class TimestampToStreamOffsetFunctionTest extends PDKTestBase {
                 );
                 TapAssert.asserts(()->{
                     Assertions.assertNotNull(o1, TapSummary.format("timestamp.backStreamOffsetWith.error"));
-                }).acceptAsError(this.get(),testCase,TapSummary.format("timestamp.backStreamOffsetWith.succeed"));
+                }).acceptAsError(testCase,TapSummary.format("timestamp.backStreamOffsetWith.succeed"));
 
             }catch (Throwable e) {
                 throw new RuntimeException(e);

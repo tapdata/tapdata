@@ -121,18 +121,18 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 filterResults -> $(() -> {
                     TapAssert.asserts(
                             ()->Assertions.assertNotNull(filterResults, TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.error.null"))//
-                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.notNull"));//
+                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.notNull"));//
 
                     TapAssert.asserts(
                             ()->Assertions.assertNotNull(filterResults.getResults(), TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.error.nullResult"))//
-                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.notNullResult"));//
+                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.notNullResult"));//
 
                     TapAssert.asserts(
                             ()-> Assertions.assertTrue(objectIsEqual(
                                 filterResults.getResults(),
                                 Collections.singletonList(record)),
                                 TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.error.notEquals"))//
-                    ).acceptAsWarn(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.equals"));//
+                    ).acceptAsWarn(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.equals"));//
                 })
         );
 
@@ -146,18 +146,18 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 filterResults -> {
                     TapAssert.asserts(
                             ()->Assertions.assertNotNull(filterResults, TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.error.null"))
-                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.notNull"));
+                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.notNull"));
 
                     TapAssert.asserts(
                             ()->Assertions.assertNotNull(filterResults.getResults(), TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.error.nullResult"))
-                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.notNullResult"));
+                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.notNullResult"));
 
                     TapAssert.asserts(
                             ()-> Assertions.assertTrue(objectIsEqual(
                                     filterResults.getResults(),
                                     Collections.singletonList(record)),
                                     TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.error.notEquals"))
-                    ).acceptAsWarn(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.equals"));
+                    ).acceptAsWarn(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.equals"));
                 });
 
         //删除插入的记录，并检查删除是否成功
@@ -169,11 +169,11 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 filterResults -> {
                     TapAssert.asserts(
                             ()->Assertions.assertNotNull(filterResults, TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.error.null"))
-                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.succeed.notNull"));
+                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.succeed.notNull"));
 
                     TapAssert.asserts(
                             ()->Assertions.assertNull(filterResults.getResults(), TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.error.notNullResult"))
-                    ).acceptAsError(this.getClass(),testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.succeed.nullResult"));
+                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.succeed.nullResult"));
                 });
     }
 
@@ -186,10 +186,10 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
         WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
 
         TapAssert.asserts(()->{Assertions.assertTrue(false,"This is an warn Case");})
-                .acceptAsWarn(this.getClass(),testCase,"This is an warn case.");
+                .acceptAsWarn(testCase,"This is an warn case.");
 
         TapAssert.asserts(()->{Assertions.assertTrue(false,"This is error Case");})
-                .acceptAsError(this.getClass(),testCase,"This is succeed case.");
+                .acceptAsError(testCase,"This is succeed case.");
 
         for (Record record : records) {
             record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
@@ -212,7 +212,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                             insertAfter.getInsertedCount()+", and the second time you update "+
                             insertAfter.getModifiedCount()+" record. The operation fails because of inconsistencies.")
         ).acceptAsError(
-                this.getClass(),
+
                 testCase,
                 "As update_on_exists policy,you insert "
                         +insert.getInsertedCount()
@@ -225,7 +225,7 @@ public class WriteRecordWithQueryTest extends PDKTestBase {
                 insertAfter.getModifiedCount(),
                 insertPolicy + " - update_on_exists | After inserting ten pieces of data, insert another record with the same primary key but different contents, and display the result. Insert " +
                         insertAfter.getInsertedCount() + ", insert another, and update " +
-                        insertAfter.getModifiedCount() + ". Poor observability")).acceptAsWarn(this.getClass(),testCase,"");
+                        insertAfter.getModifiedCount() + ". Poor observability")).acceptAsWarn(testCase,"");
 
         //@TODO Wran
         Assertions.assertNotEquals(
