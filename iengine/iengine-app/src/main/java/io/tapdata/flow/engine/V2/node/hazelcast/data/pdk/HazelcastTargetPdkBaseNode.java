@@ -21,9 +21,11 @@ import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
@@ -395,6 +397,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				return;
 			}
 		}
+
+		if(!handleUpdateConditionFields(tapRecordEvent)){
+			return ;
+		}
 		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
 		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
 		tapEvents.add(tapRecordEvent);
@@ -552,6 +558,57 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} finally {
 			ThreadContext.clearAll();
+		}
+		return true;
+	}
+
+	/**
+	 * 处理删除事件更新条件在事件中不存在对应的值
+	 */
+	private boolean handleUpdateConditionFields(TapRecordEvent tapRecordEvent) {
+		if (tapRecordEvent instanceof TapDeleteRecordEvent) {
+			TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) tapRecordEvent;
+			TapTable tapTable = this.dataProcessorContext.getTapTableMap().get(getTgtTableNameFromTapEvent(tapRecordEvent));
+			Collection<String> updateConditionFields = tapTable.primaryKeys(true);
+			Map<String, Object> objectMap = tapDeleteRecordEvent.getBefore();
+			for (String field : updateConditionFields) {
+				// updateConditionField  may appear  x.x.x
+				if (field.contains(".")) {
+					String[] updateFiled = field.split("\\.");
+					if (!objectMap.containsKey(updateFiled[0]) || !(objectMap.get(updateFiled[0]) instanceof Map ||
+							objectMap.get(updateFiled[0]) instanceof TapMapValue)) {
+						obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
+						return false;
+					}
+					TapMapValue tapMapValue = (TapMapValue) objectMap.get(updateFiled[0]);
+					for (int index = 1; index < updateFiled.length; index++) {
+						if (index != updateFiled.length - 1 && !(tapMapValue.getValue() instanceof Map ||
+								objectMap.get(updateFiled[0]) instanceof TapMapValue)) {
+							obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
+							return false;
+						}
+						if (!tapMapValue.getValue().containsKey(updateFiled[index])) {
+							obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
+							return false;
+						} else {
+							if (index == updateFiled.length - 1) {
+								return true;
+							} else
+								try {
+									tapMapValue = (TapMapValue) tapMapValue.getValue().get(updateFiled[index]);
+								} catch (Exception e) {
+									obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
+									return false;
+								}
+						}
+					}
+				} else {
+					if (!objectMap.containsKey(field)) {
+						obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
+						return false;
+					}
+				}
+			}
 		}
 		return true;
 	}
