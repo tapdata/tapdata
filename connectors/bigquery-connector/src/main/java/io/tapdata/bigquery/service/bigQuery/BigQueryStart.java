@@ -1,15 +1,12 @@
 package io.tapdata.bigquery.service.bigQuery;
 
-import cn.hutool.json.JSON;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.bigquery.entity.ContextConfig;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 
-import java.util.Map;
 
 public abstract class BigQueryStart {
     ContextConfig config;

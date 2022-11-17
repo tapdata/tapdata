@@ -3,10 +3,8 @@ package io.tapdata.bigquery.service.bigQuery;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.*;
-import io.tapdata.bigquery.entity.ContextConfig;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
