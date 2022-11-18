@@ -56,10 +56,13 @@ public class TaskRepository extends BaseRepository<TaskEntity, ObjectId> {
         if (userDetail != null){
             applyUserDetail(entity, userDetail);
         }
-        //控制其他的方法修改任务状态。状态流转需要同意控制
-        entity.setStatus(null);
+
         for (Field field : files) {
             if ("$jacocoData".equals(field.getName())) {
+                continue;
+            }
+            //控制其他的方法修改任务状态。状态流转需要同意控制
+            if ("status".equals(field.getName())) {
                 continue;
             }
             Object value = ReflectionUtils.getField(field, entity);
