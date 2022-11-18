@@ -73,4 +73,14 @@ public abstract class TapValue<T, P extends TapType> {
     public void setValue(T value) {
         this.value = value;
     }
+
+    @Override
+    public String toString() {
+        return "TapValue{" +
+                "originValue=" + originValue +
+                ", originType='" + originType + '\'' +
+                ", value=" + value +
+                ", tapType=" + tapType +
+                '}';
+    }
 }

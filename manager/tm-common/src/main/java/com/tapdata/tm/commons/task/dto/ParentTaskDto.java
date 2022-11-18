@@ -71,6 +71,14 @@ public class ParentTaskDto extends SchedulableDto {
     @EqField
     private Integer readBatchSize;
 
+    /** 写入批量条数 */
+    @EqField
+    private int writeBatchSize;
+
+    /** 写入每批最大等待时间 */
+    @EqField
+    private long writeBatchWaitMs;
+
     /** 增量同步间隔*/
     @EqField
     private Integer increaseSyncInterval;
