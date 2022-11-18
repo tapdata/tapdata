@@ -32,6 +32,11 @@ public class PingDto extends BaseDto {
 		}
 	}
 
+	public void fail(String errMessage) {
+		this.pingResult = PingResult.FAIL;
+		this.errMessage = errMessage;
+	}
+
 	public void ok() {
 		this.pingResult = PingResult.OK;
 	}
