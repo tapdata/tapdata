@@ -3,6 +3,7 @@ package io.tapdata.pdk.tdd.tests.v2;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -19,8 +20,7 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 
-import static io.tapdata.entity.simplify.TapSimplify.field;
-import static io.tapdata.entity.simplify.TapSimplify.table;
+import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 @DisplayName("tableCount.test")//tableCount表数量， 必测方法
@@ -40,25 +40,13 @@ public class TableCountTest extends PDKTestBase {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 prepare.recordEventExecute().testCase(super.getMethod("findTableCount"));
                 tableCount(prepare);
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
     }
@@ -96,15 +84,12 @@ public class TableCountTest extends PDKTestBase {
     void findTableCountAfterNewTable(){
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
+            RecordEventExecute execute = prepare.recordEventExecute();
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
 
                 Method testCase = super.getMethod("findTableCountAfterNewTable");
-                prepare.recordEventExecute().testCase(testCase);
+                execute.testCase(testCase);
 
                 //调用tableCount方法之后获得表数量，
                 int tableCountNewTableAgo = tableCount(prepare);
@@ -127,24 +112,15 @@ public class TableCountTest extends PDKTestBase {
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                prepare.recordEventExecute().dropTable();
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                execute.dropTable();
+                super.connectorOnStop(prepare);
             }
         });
     }
 
     public static List<SupportFunction> testFunctions() {
-        List<SupportFunction> supportFunctions = Arrays.asList(
-
+        return list(
+                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
-        return supportFunctions;
     }
 }

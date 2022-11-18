@@ -63,11 +63,10 @@ public class BatchReadTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
+            boolean hasCreateTable = false;
             try {
                 Method testCase = super.getMethod("readAfterInsert");
-                PDKInvocationMonitor.invoke(prepare.connectorNode(), PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit, "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 execute.testCase(testCase);
 
                 //使用WriteRecordFunction插入1条全类型（覆盖TapType的11中类型数据）数据，
@@ -80,6 +79,8 @@ public class BatchReadTest extends PDKTestBase {
                         TapSummary.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
                     )
                 ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
+                hasCreateTable = null!=insert && insert.getInsertedCount() == recordCount;
+                if (!hasCreateTable) return;
 
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnectorContext context = connectorNode.getConnectorContext();
@@ -162,14 +163,8 @@ public class BatchReadTest extends PDKTestBase {
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                prepare.recordEventExecute().dropTable();
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP, prepare.connectorNode()::connectorStop,
-                            "Stop PDK", "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                if (hasCreateTable) execute.dropTable();
+                super.connectorOnStop(prepare);
             }
         });
     }
@@ -189,9 +184,7 @@ public class BatchReadTest extends PDKTestBase {
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 Method testCase = super.getMethod("readAfterInsertByBatch");
-                PDKInvocationMonitor.invoke(prepare.connectorNode(), PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit, "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 execute.testCase(testCase);
 
                 //使用WriteRecordFunction插入3条
@@ -271,23 +264,17 @@ public class BatchReadTest extends PDKTestBase {
                 throw new RuntimeException(e);
             }finally {
                 prepare.recordEventExecute().dropTable();
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP, prepare.connectorNode()::connectorStop,
-                            "Stop PDK", "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
     }
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
-                support(BatchReadFunction.class,"BatchReadFunction is must to verify ,please implement BatchReadFunction in registerCapabilities method."),
-                support(DropTableFunction.class, "Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
-                //support(QueryByAdvanceFilterFunction.class, "QueryByAdvanceFilterFunction is a must for database which is schema free to sample some record to generate the field data types.")
+                support(WriteRecordFunction.class, TapSummary.format("write_record_function_need")),
+                support(BatchReadFunction.class,TapSummary.format("batch_read_function_need")),
+                support(DropTableFunction.class, TapSummary.format("drop_table_function_need"))
+                //support(QueryByAdvanceFilterFunction.class, TapSummary.format("query_by_advance_filter_function_need"))
         );
     }
 }

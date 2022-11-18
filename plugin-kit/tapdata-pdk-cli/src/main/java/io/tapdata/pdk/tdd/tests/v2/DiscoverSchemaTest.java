@@ -6,6 +6,10 @@ import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
+import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -42,11 +46,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discover");
                 prepare.recordEventExecute().testCase(testCase);
 
@@ -118,15 +118,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
     }
@@ -147,11 +139,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverAfterCreate");
                 execute.testCase(testCase);
 
@@ -263,15 +251,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
             }finally {
                 //验证结束之后需要删掉随机建的表（依赖DropTableFunction）
                 execute.dropTable();
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
     }
@@ -291,11 +271,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverByTableName1");
                 prepare.recordEventExecute().testCase(testCase);
 
@@ -354,15 +330,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
 
@@ -382,11 +350,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverByTableName2");
                 execute.testCase(testCase);
 
@@ -426,15 +390,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
             }finally {
                 //验证结束之后需要删掉随机建的表（依赖DropTableFunction）
                 execute.dropTable();
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
 
@@ -454,11 +410,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverByTableCount1");
                 prepare.recordEventExecute().testCase(testCase);
 
@@ -500,15 +452,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
 
@@ -528,11 +472,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverByTableCount2");
                 execute.testCase(testCase);
 
@@ -570,24 +510,18 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 throw new RuntimeException(e);
             }finally {
                 execute.dropTable();
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
 
     }
 
     public static List<SupportFunction> testFunctions() {
-        List<SupportFunction> supportFunctions = Arrays.asList(
-
+        return list(
+                supportAny(list(
+                        WriteRecordFunction.class, CreateTableFunction.class, CreateTableV2Function.class
+                ), TapSummary.format(anyOneFunFormat,"WriteRecordFunction,CreateTableFunction,CreateTableV2Function")),
+                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
-        return supportFunctions;
     }
 }

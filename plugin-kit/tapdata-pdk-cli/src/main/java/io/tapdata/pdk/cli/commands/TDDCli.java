@@ -5,7 +5,6 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import io.tapdata.pdk.cli.CommonCli;
 import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
@@ -15,7 +14,6 @@ import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.basic.BasicTest;
-import io.tapdata.pdk.tdd.tests.support.Case;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordTest;
 import org.apache.commons.io.FilenameUtils;
@@ -94,31 +92,6 @@ public class TDDCli extends CommonCli {
         System.exit(0);
     }
 
-//    public static class TapSummary {
-//        public TapSummary() {}
-//        TapNodeInfo tapNodeInfo;
-//        TestExecutionSummary summary;
-//        List<Class<?>> testClasses = new ArrayList<>();
-//
-//        //存放所有测试类的所有测试用例的全部执行断言的结果
-//        public static Map<Class, CapabilitiesExecutionMsg> capabilitiesResult = new HashMap<>();
-//
-//        //存放没有实现方法二不能进行测试的测试类
-//        Map<Class,String> doNotSupportFunTest = new HashMap<>();
-//
-//        //存放所有测试类的最终测试结果
-//        Map<Class<? extends PDKTestBase>,Integer> resultExecution = new HashMap<>();
-//
-//        //用来表示一次测试过程是否通过
-//        public static String hasPass = "SUCCEED";
-//        //每轮测试结束需要调用这个方法进行清除一些数据
-//        public void clean(){
-//            TapSummary.capabilitiesResult = new HashMap<>();
-//            doNotSupportFunTest = new HashMap<>();
-//            testClasses = new ArrayList<>();
-//        }
-//    }
-
     private void runTests(LauncherDiscoveryRequest request, TapSummary testResultSummary) {
         Launcher launcher = LauncherFactory.create();
 //        TestPlan testPlan = launcher.discover(request);
@@ -192,6 +165,7 @@ public class TDDCli extends CommonCli {
             System.setProperty("maven.home", getMavenHome(this.mavenHome));
 
             System.setProperty("maven.multiModuleProjectDirectory", file.getAbsolutePath());
+
             System.out.println(file.getName() + " is packaging...");
 
             String pomFile = file.getAbsolutePath();
@@ -241,7 +215,7 @@ public class TDDCli extends CommonCli {
         } else {
             throw new IllegalArgumentException("File " + file.getAbsolutePath() + " is not exist");
         }
-
+        Properties properties = System.getProperties();
         CommonUtils.setProperty("pdk_test_jar_file", jarFile);
         CommonUtils.setProperty("pdk_test_config_file", testConfig);
 

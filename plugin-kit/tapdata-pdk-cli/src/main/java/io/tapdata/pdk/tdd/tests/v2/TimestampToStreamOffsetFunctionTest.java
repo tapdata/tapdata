@@ -5,6 +5,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
+import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -23,6 +24,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
 
+import static io.tapdata.entity.simplify.TapSimplify.list;
+
 @DisplayName("timestamp.test")//TimestampToStreamOffsetFunction基于时间戳返回增量断点
 @TapGo(sort = 8)
 public class TimestampToStreamOffsetFunctionTest extends PDKTestBase {
@@ -38,11 +41,7 @@ public class TimestampToStreamOffsetFunctionTest extends PDKTestBase {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("backStreamOffset");
                 prepare.recordEventExecute().testCase(testCase);
 
@@ -72,23 +71,15 @@ public class TimestampToStreamOffsetFunctionTest extends PDKTestBase {
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
     }
 
     public static List<SupportFunction> testFunctions() {
-        List<SupportFunction> supportFunctions = Arrays.asList(
-                support(TimestampToStreamOffsetFunction.class,"TimestampToStreamOffsetFunction must not be null or empty,please implemented this method in your connector.")
+        return list(
+                support(TimestampToStreamOffsetFunction.class,TapSummary.format(inNeedFunFormat,"TimestampToStreamOffsetFunction")),
+                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
-        return supportFunctions;
     }
 }

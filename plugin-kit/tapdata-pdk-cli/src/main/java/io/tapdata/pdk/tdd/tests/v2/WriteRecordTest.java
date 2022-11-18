@@ -58,25 +58,13 @@ public class WriteRecordTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 writeRecorde(prepare.recordEventExecute().testCase(this.getMethod("sourceTest1")));
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
                 prepare.recordEventExecute().dropTable();
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
         //waitCompleted(5000000);
@@ -133,13 +121,7 @@ public class WriteRecordTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(
-                        prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK",
-                        "TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 sourceTest2Fun(
                         prepare.recordEventExecute().testCase(this.getMethod("sourceTest2")),
                         prepare.connectorNode()
@@ -148,16 +130,7 @@ public class WriteRecordTest extends PDKTestBase {
                 throw new RuntimeException(e);
             }finally {
                 prepare.recordEventExecute().dropTable();
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(
-                            prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
         //waitCompleted(5000000);
@@ -247,13 +220,7 @@ public class WriteRecordTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(
-                        prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK",
-                        "TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 sourceTest3Fun(
                         prepare.recordEventExecute().testCase(this.getMethod("sourceTest3")),
                         prepare.connectorNode()
@@ -262,16 +229,7 @@ public class WriteRecordTest extends PDKTestBase {
                 throw new RuntimeException(e);
             } finally {
                 prepare.recordEventExecute().dropTable();
-                if (null != prepare.connectorNode()) {
-                    PDKInvocationMonitor.invoke(
-                            prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
         //waitCompleted(5000000);
@@ -319,13 +277,7 @@ public class WriteRecordTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(
-                        prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK",
-                        "TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 sourceTest4Fun(
                         prepare.recordEventExecute().testCase(this.getMethod("sourceTest4")),
                         prepare.connectorNode()
@@ -334,16 +286,7 @@ public class WriteRecordTest extends PDKTestBase {
                 throw new RuntimeException(e);
             } finally {
                 prepare.recordEventExecute().dropTable();
-                if (null != prepare.connectorNode()) {
-                    PDKInvocationMonitor.invoke(
-                            prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
         //waitCompleted(5000000);
@@ -402,11 +345,10 @@ public class WriteRecordTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
+                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
 //                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
-                support(DropTableFunction.class, "Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
                 //support(QueryByAdvanceFilterFunction.class, "QueryByAdvanceFilterFunction is a must for database which is schema free to sample some record to generate the field data types.")
-                //support(DropTableFunction.class, "DropTable is needed for TDD to drop the table created by tests, please implement it in registerCapabilities method.")
+                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
     }
 }

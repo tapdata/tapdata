@@ -6,6 +6,7 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -25,6 +26,8 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 
+import static io.tapdata.entity.simplify.TapSimplify.list;
+
 @DisplayName("batchCountTest")//BatchCountFunction全量记录数（依赖WriteRecordFunction）
 /**
  * 都需使用随机ID建表， 如果有DropTableFunction实现， 测试用例应该自动删除创建的临时表（无论成功或是失败）
@@ -41,11 +44,7 @@ public class BatchCountTest extends PDKTestBase {
             TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("batchCountAfterInsert");
                 execute.testCase(testCase);
                 //使用WriteRecordFunction写入2条数据
@@ -75,24 +74,16 @@ public class BatchCountTest extends PDKTestBase {
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
     }
 
     public static List<SupportFunction> testFunctions() {
-        List<SupportFunction> supportFunctions = Arrays.asList(
-                support(WriteRecordFunction.class,"WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
-                support(BatchCountFunction.class,"BatchCountFunction is a must to verify, please implement it in registerCapabilities method.")
+        return list(
+                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction")),
+                support(WriteRecordFunction.class,TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
+                support(BatchCountFunction.class,TapSummary.format(inNeedFunFormat,"BatchCountFunction"))
         );
-        return supportFunctions;
     }
 }

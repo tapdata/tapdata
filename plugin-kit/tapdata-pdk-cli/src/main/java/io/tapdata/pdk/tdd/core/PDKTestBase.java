@@ -7,6 +7,9 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -17,6 +20,7 @@ import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.target.*;
@@ -54,6 +58,7 @@ import java.util.*;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
@@ -61,6 +66,9 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Date;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class PDKTestBase {
+    public static final String inNeedFunFormat = "function.inNeed";
+    public static final String anyOneFunFormat = "functions.anyOneNeed";
+
     private static final String TAG = PDKTestBase.class.getSimpleName();
     protected TapConnector testConnector;
     public TapConnector testConnector(){
@@ -82,6 +90,24 @@ public class PDKTestBase {
 
     protected String lang;
 
+    protected void connectorOnStart(TestNode prepare){
+        PDKInvocationMonitor.invoke(prepare.connectorNode(),
+                PDKMethod.INIT,
+                prepare.connectorNode()::connectorInit,
+                "Init PDK","TEST mongodb"
+        );
+    }
+    protected void connectorOnStop(TestNode prepare){
+        if (null != prepare.connectorNode()){
+            PDKInvocationMonitor.invoke(prepare.connectorNode(),
+                    PDKMethod.STOP,
+                    prepare.connectorNode()::connectorStop,
+                    "Stop PDK",
+                    "TEST mongodb"
+            );
+            PDKIntegration.releaseAssociateId("releaseAssociateId");
+        }
+    }
 //    protected Map<Class, CapabilitiesExecutionMsg> capabilitiesResult = new HashMap<>();
 
     public PDKTestBase() {
@@ -866,12 +892,14 @@ public class PDKTestBase {
                 }
             } else if (null != createTableFunction) {
                 try {
+                    targetTable.setId(UUID.randomUUID().toString());
                     createTableFunction.createTable(connectorContext, createTableEvent);
                     asserts.acceptAsError(testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.succeed"));
                 }catch (Exception e){
                     TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.error"))).acceptAsError(testCase,null);
                 }
             }else if(null != writeRecordFunction){
+                targetTable.setId(UUID.randomUUID().toString());
                 Record[] records = Record.testRecordWithTapTable(targetTable,1);
                 try {
                     WriteListResult<TapRecordEvent> insert = prepare.recordEventExecute()
@@ -887,5 +915,130 @@ public class PDKTestBase {
             }
         }
         return true;
+    }
+
+    protected void checkIndex(Method testCase, List<TapIndex> ago,List<TapIndex> after){
+        if (null == ago || ago.isEmpty()){
+            return;
+        }
+        if ( null == after || after.isEmpty() ){
+            TapAssert.asserts(()->
+                Assertions.fail(TapSummary.format("base.checkIndex.after.error",targetTable.getId()))
+            ).acceptAsError(testCase,null);
+            return;
+        }
+        Map<String, List<TapIndexField>> collect = after.stream().collect(Collectors.toMap(
+                TapIndex::getName,
+                TapIndex::getIndexFields,
+                (o1, o2) -> o1
+        ));
+        //未创建成功的字段
+        StringJoiner notSucceedIndex = new StringJoiner(",");
+        //创建了但是索引字段属性不相同
+        StringJoiner notEqualsIndex = new StringJoiner(",");
+        for (TapIndex indexItem : ago) {
+            List<TapIndexField> indexFields = indexItem.getIndexFields();
+            String indexName = indexItem.getName();
+
+            List<TapIndexField> afterFields = collect.get(indexName);
+            if (null==indexFields){
+                continue;
+            }
+            if (null == afterFields){
+                notSucceedIndex.add(indexName);
+                continue;
+            }
+            StringJoiner agoIndexStr = new StringJoiner(",");
+            StringJoiner afterIndexStr = new StringJoiner(",");
+
+            Map<String, TapIndexField> afterFieldsMap = afterFields.stream().collect(Collectors.toMap(field -> field.getName(), field -> field, (o1, o2) -> o1));
+            for (TapIndexField indexField : afterFields) {
+                afterIndexStr.add(indexField.getName());
+            }
+            boolean notEquals = false;
+            //索引字段数量不相等
+            if (indexFields.size() != afterFields.size()){
+                notEquals = true;
+            }
+            for (TapIndexField indexField : indexFields) {
+                String name = indexField.getName();
+                if (!notEquals){
+                    TapIndexField afterField = afterFieldsMap.get(name);
+                    if (null == afterField || afterField.getFieldAsc()!=indexField.getFieldAsc()){
+                        notEquals = true;
+                    }
+                }
+                agoIndexStr.add(name);
+            }
+            if (notEquals) {
+                notEqualsIndex.add(indexName + "[(" + agoIndexStr.toString() + ")->(" + afterIndexStr.toString() + ")]");
+            }
+        }
+
+        if (notSucceedIndex.length() > 0 || notEqualsIndex.length() > 0){
+            TapAssert.asserts(()->
+                Assertions.fail(TapSummary.format(
+                        "base.indexCreate.error",
+                        notSucceedIndex.length()>0?notSucceedIndex.toString():"-",
+                        notEqualsIndex.length()>0?notEqualsIndex.toString():"-",
+                        targetTable.getId()
+                    )
+                )
+            ).acceptAsError(testCase,null);
+        }else {
+            TapAssert.asserts(()->{}).acceptAsError(testCase,TapSummary.format("base.succeed.createIndex",targetTable.getId()));
+        }
+    }
+
+    protected void contrastTableFieldNameAndType(Method testCase, LinkedHashMap<String, TapField> sourceFields,LinkedHashMap<String, TapField> targetFields){
+        String tableId = targetTable.getId();
+        if (null == sourceFields || sourceFields.isEmpty()) {
+            TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.sourceFields.empty",tableId))).error(testCase);
+            return;
+        }
+        if (null == targetFields || targetFields.isEmpty()){
+            TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.targetFields.empty",tableId))).error(testCase);
+            return;
+        }
+        int sourceSize = sourceFields.size();
+        int targetSize = targetFields.size();
+        if (targetSize < sourceSize){
+            TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.targetSource.countNotEquals",sourceSize,targetSize,tableId))).error(testCase);
+            return;
+        }
+        boolean inferSucceed = true;
+        StringJoiner sourceBuilder = new StringJoiner(",");
+        StringJoiner targetBuilder = new StringJoiner(",");
+        for (Map.Entry<String, TapField> fieldEntry : sourceFields.entrySet()) {
+            TapField field = fieldEntry.getValue();
+            String name = field.getName();
+            String type = field.getDataType();
+            if (null == type || "".equals(type)){
+                //类型为空，推演失败
+                TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.source.fieldDataType.null",name,tableId))).error(testCase);
+                return;
+            }
+
+            TapField targetField = targetFields.get(name);
+            if (null == targetField){
+                TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.target.fieldDataType.null",tableId))).error(testCase);
+                return;
+            }
+            String targetType = targetField.getDataType();
+            if (!type.equals(targetType)){
+                //类型不一样，建表不一致
+                inferSucceed = false;
+                sourceBuilder.add("("+name+":"+type+")");
+                targetBuilder.add("("+name+":"+targetType+")");
+            }
+        }
+
+        boolean finalInferSucceed = inferSucceed;
+        TapAssert.asserts(()->
+            Assertions.assertTrue(
+                    finalInferSucceed,
+                    TapSummary.format("base.field.contrast.error",sourceBuilder.toString(),targetBuilder.toString(),tableId)
+            )
+        ).acceptAsError(testCase,TapSummary.format("base.field.contrast.succeed",tableId));
     }
 }

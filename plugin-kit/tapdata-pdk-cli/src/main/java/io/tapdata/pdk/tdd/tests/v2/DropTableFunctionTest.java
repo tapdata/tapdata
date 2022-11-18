@@ -47,11 +47,7 @@ public class DropTableFunctionTest extends PDKTestBase {
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 Method testCase = super.getMethod("drop");
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 execute.testCase(testCase);
 
                 //写入一条数据到随机表名进行建表，
@@ -78,23 +74,15 @@ public class DropTableFunctionTest extends PDKTestBase {
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             } finally {
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
     }
 
     public static List<SupportFunction> testFunctions() {
-        return Arrays.asList(
-                support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
-                support(DropTableFunction.class, "Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
+        return list(
+                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
+                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
     }
 }

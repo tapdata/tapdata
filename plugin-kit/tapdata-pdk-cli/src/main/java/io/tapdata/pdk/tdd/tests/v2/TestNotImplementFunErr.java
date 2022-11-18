@@ -11,6 +11,7 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -26,8 +27,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-import static io.tapdata.entity.simplify.TapSimplify.field;
-import static io.tapdata.entity.simplify.TapSimplify.table;
+import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 
@@ -125,11 +125,10 @@ public class TestNotImplementFunErr extends PDKTestBase {
     }
 
     public static List<SupportFunction> testFunctions() {
-        List<SupportFunction> supportFunctions = Arrays.asList(
-                support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
-                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
-                support(DropTableFunction.class, "Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
+        return list(
+                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
+                support(CreateTableFunction.class,TapSummary.format(inNeedFunFormat,"CreateTableFunction")),
+                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
-        return supportFunctions;
     }
 }

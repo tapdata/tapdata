@@ -25,6 +25,8 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 
+import static io.tapdata.entity.simplify.TapSimplify.list;
+
 @DisplayName("test.queryByFilterTest")//QueryByFilterFunction基于匹配字段查询（依赖WriteRecordFunction）
 @TapGo(sort = 2)
 public class QueryByFilterTest extends PDKTestBase {
@@ -44,9 +46,7 @@ public class QueryByFilterTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT, prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb");
+                super.connectorOnStart(prepare);
                 Record[] records = Record.testRecordWithTapTable(targetTable, 1);
                 RecordEventExecute recordEventExecute = prepare.recordEventExecute();
                 Method testCase = super.getMethod("insertWithQuery");
@@ -125,15 +125,7 @@ public class QueryByFilterTest extends PDKTestBase {
                 throw new RuntimeException(e);
             }finally {
                 prepare.recordEventExecute().dropTable();
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
     }
@@ -156,11 +148,10 @@ public class QueryByFilterTest extends PDKTestBase {
 
 
     public static List<SupportFunction> testFunctions() {
-        List<SupportFunction> supportFunctions = Arrays.asList(
-                support(WriteRecordFunction.class, "WriteRecord is a must to verify batchRead and streamRead, please implement it in registerCapabilities method."),
-                support(QueryByFilterFunction.class,"QueryByFilterFunction is must to verify ,please implement QueryByFilterFunction in registerCapabilities method."),
-                support(DropTableFunction.class, "Drop table is must to verify ,please implement DropTableFunction in registerCapabilities method.")
+        return list(
+                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
+                support(QueryByFilterFunction.class,TapSummary.format(inNeedFunFormat,"QueryByFilterFunction")),
+                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
-        return supportFunctions;
     }
 }

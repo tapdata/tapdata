@@ -50,6 +50,9 @@ public interface TapAssert {
     public default void acceptAsError(Method testCase,String succeedMag){
         accept(testCase,ERROR,succeedMag);
     }
+    public default void error(Method testCase){
+        accept(testCase,ERROR,null);
+    }
 
 
     public default void accept(Method testCase,int assertGarde,String succeedMag){

@@ -3,11 +3,9 @@ package io.tapdata.pdk.tdd.tests.support;
 
 import org.junit.jupiter.api.DisplayName;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class CapabilitiesExecutionMsg {
     public static final int ERROR = 0;
@@ -15,7 +13,12 @@ public class CapabilitiesExecutionMsg {
     public static final int WARN = 2;
 
     String executionMsg;
-    Map<Method,Case> testCase = new HashMap<>();
+    Map<Method,Case> testCase = new TreeMap<>((method1,method2)->{
+        Annotation annotation1 = method1.getAnnotation(TapTestCase.class);
+        Annotation annotation2 = method2.getAnnotation(TapTestCase.class);
+        if (null == annotation2 || null == annotation1) return 1;
+        return Integer.compare(((TapTestCase) annotation1).sort(), ((TapTestCase) annotation2).sort());
+    });
     int executionResult = SUCCEED;
 
     public static CapabilitiesExecutionMsg create(){

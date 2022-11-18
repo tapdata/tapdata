@@ -6,6 +6,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
+import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -22,6 +23,8 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.util.*;
 
+import static io.tapdata.entity.simplify.TapSimplify.list;
+
 @TapGo(sort = 7)
 @DisplayName("getTableNames.test")//GetTableNamesFunction获得表名列表
 public class GetTableNamesFunctionTest extends PDKTestBase {
@@ -36,11 +39,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discover");
                 prepare.recordEventExecute().testCase(testCase);
 
@@ -67,15 +66,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
     }
@@ -94,11 +85,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverAfterCreateTable");
                 prepare.recordEventExecute().testCase(testCase);
 
@@ -168,15 +155,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
     }
@@ -195,11 +174,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverByTableCount");
                 prepare.recordEventExecute().testCase(testCase);
 
@@ -269,23 +244,15 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
-                }
+                super.connectorOnStop(prepare);
             }
         });
     }
 
     public static List<SupportFunction> testFunctions() {
-        List<SupportFunction> supportFunctions = Arrays.asList(
-                support(GetTableNamesFunction.class,"GetTableNamesFunction must not be null or empty,please implemented this method in your connector.")
+        return list(
+                support(GetTableNamesFunction.class, TapSummary.format(inNeedFunFormat, "GetTableNamesFunction")),
+                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat, "DropTableFunction"))
         );
-        return supportFunctions;
     }
 }

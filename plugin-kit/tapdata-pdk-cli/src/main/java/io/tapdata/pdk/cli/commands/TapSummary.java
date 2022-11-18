@@ -28,7 +28,30 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
+//    public static class TapSummary {
+//        public TapSummary() {}
+//        TapNodeInfo tapNodeInfo;
+//        TestExecutionSummary summary;
+//        List<Class<?>> testClasses = new ArrayList<>();
+//
+//        //存放所有测试类的所有测试用例的全部执行断言的结果
+//        public static Map<Class, CapabilitiesExecutionMsg> capabilitiesResult = new HashMap<>();
+//
+//        //存放没有实现方法二不能进行测试的测试类
+//        Map<Class,String> doNotSupportFunTest = new HashMap<>();
+//
+//        //存放所有测试类的最终测试结果
+//        Map<Class<? extends PDKTestBase>,Integer> resultExecution = new HashMap<>();
+//
+//        //用来表示一次测试过程是否通过
+//        public static String hasPass = "SUCCEED";
+//        //每轮测试结束需要调用这个方法进行清除一些数据
+//        public void clean(){
+//            TapSummary.capabilitiesResult = new HashMap<>();
+//            doNotSupportFunTest = new HashMap<>();
+//            testClasses = new ArrayList<>();
+//        }
+//    }
 public class TapSummary {
     TapNodeInfo tapNodeInfo;
     TestExecutionSummary summary;
@@ -174,13 +197,7 @@ public class TapSummary {
             CapabilitiesExecutionMsg res = entry.getValue();
 
             StringBuilder capabilityBuilder = new StringBuilder();
-            TreeMap<Method, Case> methodCaseMap = new TreeMap<Method, Case>((method1,method2)->{
-                Annotation annotation1 = method1.getAnnotation(TapTestCase.class);
-                Annotation annotation2 = method2.getAnnotation(TapTestCase.class);
-                if (null == annotation2 || null == annotation1) return 1;
-                return ((TapTestCase)annotation1).sort()>((TapTestCase)annotation2).sort()?1:-1;
-            });
-            methodCaseMap.putAll(res.testCases());
+            Map<Method, Case> methodCaseMap = res.testCases();
             int warnSize = 0;
             int errorSize = 0;
             if (null != methodCaseMap && !methodCaseMap.isEmpty()) {

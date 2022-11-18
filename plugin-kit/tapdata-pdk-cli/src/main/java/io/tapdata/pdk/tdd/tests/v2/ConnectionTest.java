@@ -20,6 +20,8 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 
+import static io.tapdata.entity.simplify.TapSimplify.list;
+
 @DisplayName("connectionTest.test")//连接测试，必测方法
 @TapGo(sort = 4)
 public class ConnectionTest extends PDKTestBase {
@@ -100,9 +102,6 @@ public class ConnectionTest extends PDKTestBase {
     }
 
     public static List<SupportFunction> testFunctions() {
-        List<SupportFunction> supportFunctions = Arrays.asList(
-
-        );
-        return supportFunctions;
+        return list();
     }
 }
