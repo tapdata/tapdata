@@ -215,7 +215,7 @@ public class TDDCli extends CommonCli {
         } else {
             throw new IllegalArgumentException("File " + file.getAbsolutePath() + " is not exist");
         }
-        Properties properties = System.getProperties();
+
         CommonUtils.setProperty("pdk_test_jar_file", jarFile);
         CommonUtils.setProperty("pdk_test_config_file", testConfig);
 

@@ -1,5 +1,7 @@
 package io.tapdata.pdk.cli.commands;
-
+import javax.swing.JFileChooser;
+import javax.swing.JPanel;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVMap;
@@ -24,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -292,6 +295,18 @@ public class TapSummary {
         resultBuilder.append(finalStr);
     }
 
+    private String fileChooser() {
+        JFileChooser chooser = new JFileChooser();
+        //打开选择器面板
+        int returnVal = chooser.showSaveDialog(new JPanel());
+        //保存文件从这里入手，输出的是文件名
+        if(returnVal == JFileChooser.APPROVE_OPTION) {
+            String path = chooser.getSelectedFile().getPath();
+            return !path.endsWith(".txt")?path.replaceAll("\\.","_")+".txt":path;
+        }
+        //@TODO default save path
+        return "D:\\GavinData\\deskTop\\newFile_"+System.nanoTime()+".txt";
+    }
     public void asFile(String file){
         System.out.println("\n(？)Do you want to printout as a file?(y/n):");
         Scanner scanner = new Scanner(System.in);
@@ -301,10 +316,14 @@ public class TapSummary {
             cmd = scanner.nextLine();
         }
         if (("Y").equals(cmd) || "y".equals(cmd)) {
-            String fileName = "D:\\GavinData\\deskTop\\newFile.txt";
+            String fileName = fileChooser();
             Path path = Paths.get(fileName);
             try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
-                resultBuilder.append("\n\n").append(AREA_SPLIT_SIMPLE).append("\n\nprint time:").append(System.currentTimeMillis());
+                resultBuilder.append("\n\n")
+                        .append(AREA_SPLIT_SIMPLE)
+                        .append("\n\nprint time:")
+                        .append(new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(new Date()))
+                        .append("\n");
                 writer.write(
                         showLogoV2() +
                              showCapabilitiesV2()+
@@ -461,4 +480,5 @@ public class TapSummary {
         }
         return splitStartAndEnd.toString()+"\n"+msg+"\n"+splitStartAndEnd.toString()+"\n";
     }
+
 }
