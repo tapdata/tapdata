@@ -110,6 +110,27 @@
 
             </plugin>
             <plugin>
+                <groupId>pl.project13.maven</groupId>
+                <artifactId>git-commit-id-plugin</artifactId>
+                <version>2.2.3</version>
+                <executions>
+                    <execution>
+                        <id>get-the-git-infos</id>
+                        <goals>
+                            <goal>revision</goal>
+                        </goals>
+                        <phase>validate</phase>
+                    </execution>
+                </executions>
+                <configuration>
+                    <verbose>true</verbose>
+                    <generateGitPropertiesFile>true</generateGitPropertiesFile>
+                    <failOnNoGitDirectory>true</failOnNoGitDirectory>
+                    <injectAllReactorProjects>true</injectAllReactorProjects>
+                    <dotGitDirectory>${project.basedir}/../../.git</dotGitDirectory>
+                </configuration>
+            </plugin>
+            <plugin>
                 <artifactId>maven-resources-plugin</artifactId>
                 <version>3.1.0</version>
                 <executions>
@@ -121,7 +142,7 @@
                         </goals>
 
                         <configuration>
-                            <outputDirectory>../dist</outputDirectory>
+                            <outputDirectory>${basedir}/../dist/</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${basedir}/target/</directory>
@@ -150,5 +171,4 @@
             </plugin>
         </plugins>
     </build>
-
 </project>

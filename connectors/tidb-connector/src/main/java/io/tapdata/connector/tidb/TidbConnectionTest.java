@@ -95,7 +95,7 @@ public class TidbConnectionTest extends CommonDbTest {
                 Connection connection = jdbcContext.getConnection();
         ) {
             consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
-            return false;
+            return true;
         } catch (Exception e) {
             if (e instanceof SQLException) {
                 String errMsg = e.getMessage();
@@ -126,12 +126,17 @@ public class TidbConnectionTest extends CommonDbTest {
         List<String> tableList = new ArrayList();
         AtomicReference<Boolean> globalWrite = new AtomicReference();
         AtomicReference<TestItem> testItem = new AtomicReference<>();
+        String itemMark = TestItem.ITEM_READ;
+        if("write".equals(mark)){
+            itemMark =TestItem.ITEM_WRITE;
+        }
         try {
+            String finalItemMark = itemMark;
             jdbcContext.query(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
                 while (resultSet.next()) {
                     String grantSql = resultSet.getString(1);
                     if (testWriteOrReadPrivilege(grantSql, tableList, databaseName, mark)) {
-                        testItem.set(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
+                        testItem.set(testItem(finalItemMark, TestItem.RESULT_SUCCESSFULLY));
                         globalWrite.set(true);
                         return;
                     }
@@ -139,7 +144,7 @@ public class TidbConnectionTest extends CommonDbTest {
 
             });
         } catch (Throwable e) {
-            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, e.getMessage()));
+            consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, e.getMessage()));
             return false;
         }
         if (globalWrite.get() != null) {
@@ -147,10 +152,10 @@ public class TidbConnectionTest extends CommonDbTest {
             return true;
         }
         if (CollectionUtils.isNotEmpty(tableList)) {
-            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, JSONObject.toJSONString(tableList)));
+            consumer.accept(testItem(itemMark, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, JSONObject.toJSONString(tableList)));
             return true;
         }
-        consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, "Without table can "+mark));
+        consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, "Without table can "+mark));
         return false;
     }
 
