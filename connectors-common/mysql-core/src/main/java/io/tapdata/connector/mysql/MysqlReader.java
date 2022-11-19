@@ -58,7 +58,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static io.tapdata.connector.mysql.util.MysqlUtil.randomServerId;
@@ -403,6 +402,12 @@ public class MysqlReader implements Closeable {
 			if (null != mysqlStreamEvents && mysqlStreamEvents.size() > 0) {
 				mysqlStreamEvents.forEach(this::enqueue);
 			}
+		} else if ("io.debezium.connector.common.Heartbeat".equals(valueSchema.name())) {
+			Optional.ofNullable((Struct) record.value())
+					.map(value -> value.getInt64("ts_ms"))
+					.map(TapSimplify::heartbeatEvent)
+					.map(heartbeatEvent -> new MysqlStreamEvent(heartbeatEvent, getMysqlStreamOffset(record)))
+					.ifPresent(this::enqueue);
 		}
 	}
 
