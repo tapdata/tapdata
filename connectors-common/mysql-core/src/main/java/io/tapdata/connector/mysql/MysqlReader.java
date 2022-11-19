@@ -12,6 +12,7 @@ import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.entity.MysqlStreamEvent;
 import io.tapdata.connector.mysql.entity.MysqlStreamOffset;
+import io.tapdata.connector.mysql.util.MysqlBinlogPositionUtil;
 import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.connector.mysql.util.StringCompressUtil;
 import io.tapdata.entity.event.TapEvent;
@@ -204,6 +205,19 @@ public class MysqlReader implements Closeable {
 				mysqlStreamOffset = (MysqlStreamOffset) offset;
 			} else if (offset instanceof MysqlBinlogPosition) {
 				mysqlStreamOffset = binlogPosition2MysqlStreamOffset((MysqlBinlogPosition) offset, jsonParser);
+			} else if (offset instanceof Long) {
+				DataMap jdbcConfig = mysqlJdbcContext.getTapConnectionContext().getConnectionConfig();
+				try (MysqlBinlogPositionUtil ins = new MysqlBinlogPositionUtil(
+						jdbcConfig.getString("host"),
+						Integer.parseInt(jdbcConfig.getString("port")),
+						jdbcConfig.getString("username"),
+						jdbcConfig.getString("password"))) {
+					MysqlBinlogPosition mysqlBinlogPosition = ins.findByLessTimestamp((Long) offset, true);
+					if (null == mysqlBinlogPosition) {
+						throw new RuntimeException("Not found binlog of sync time: " + offset);
+					}
+					mysqlStreamOffset = binlogPosition2MysqlStreamOffset(mysqlBinlogPosition, jsonParser);
+				}
 			}
 			if (null != mysqlStreamOffset) {
 				offsetStr = jsonParser.toJson(mysqlStreamOffset);
