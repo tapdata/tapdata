@@ -21,6 +21,8 @@ import io.debezium.connector.common.BaseSourceTask;
 import io.debezium.connector.mysql.MySqlConnection.MySqlConnectionConfiguration;
 import io.debezium.connector.mysql.MySqlConnectorConfig.BigIntUnsignedHandlingMode;
 import io.debezium.connector.mysql.MySqlConnectorConfig.SnapshotMode;
+import io.debezium.connector.mysql.utils.MergeGTIDUtils;
+import io.debezium.heartbeat.Heartbeat;
 import io.debezium.jdbc.JdbcValueConverters.BigIntUnsignedMode;
 import io.debezium.jdbc.JdbcValueConverters.DecimalMode;
 import io.debezium.jdbc.TemporalPrecisionMode;
@@ -63,6 +65,7 @@ public class MySqlConnectorTask extends BaseSourceTask {
         final MySqlConnectorConfig connectorConfig = new MySqlConnectorConfig(
                 config.edit()
                         .with(AbstractDatabaseHistory.INTERNAL_PREFER_DDL, true)
+                        .with(Heartbeat.HEARTBEAT_INTERVAL, 10000)
                         .build());
         final TopicSelector<TableId> topicSelector = MySqlTopicSelector.defaultSelector(connectorConfig);
         final SchemaNameAdjuster schemaNameAdjuster = SchemaNameAdjuster.create();
@@ -87,6 +90,17 @@ public class MySqlConnectorTask extends BaseSourceTask {
         MySqlOffsetContext previousOffset = (MySqlOffsetContext) getPreviousOffset(new MySqlOffsetContext.Loader(connectorConfig));
         if (previousOffset == null) {
             LOGGER.info("No previous offset found");
+        }
+        else {
+            if (connection.isGtidModeEnabled()) {
+                String gtidStr = previousOffset.gtidSet();
+                if (null != gtidStr) {
+                    // merge knownGtidSet, because first run ignore some events
+                    gtidStr = MergeGTIDUtils.merge(gtidStr, connection.knownGtidSet(), MergeGTIDUtils.Mode.OverMaxIgnore).toString();
+                    gtidStr = MergeGTIDUtils.merge(gtidStr, connection.purgedGtidSet().toString(), MergeGTIDUtils.Mode.OverMaxError).toString();
+                    previousOffset.setCompletedGtidSet(gtidStr);
+                }
+            }
         }
 
         final boolean tableIdCaseInsensitive = connection.isTableIdCaseSensitive();
