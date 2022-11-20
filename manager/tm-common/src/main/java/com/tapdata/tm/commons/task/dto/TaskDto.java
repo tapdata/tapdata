@@ -38,6 +38,8 @@ public class TaskDto extends ParentTaskDto {
 
     public static final String LASTTASKRECORDID = "taskRecordId";
 
+    public static final String PING_TIME_FIELD = "pingTime";
+
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)
