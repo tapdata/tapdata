@@ -64,7 +64,7 @@ public class PingHandler implements WebSocketHandler {
 					sendResponse(context, WebSocketResult.ok(pingDto, PING_RESULT_TYPE));
 					break;
 				default:
-					log.error("Unrecognized ping type: {}, websocket context: {}", pingType.name(), context);
+					log.warn("Unrecognized ping type: {}, websocket context: {}", pingType.name(), context);
 					break;
 			}
 		}
