@@ -308,7 +308,7 @@
           "required": true,
           "type": "string",
           "title": "${dataStartLine}",
-          "default": 1,
+          "default": 2,
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "dataStartLine"
@@ -320,12 +320,12 @@
           "x-component": "Input",
           "apiServerKey": "modelName"
         },
-        "includeHeader": {
-          "type": "boolean",
-          "title": "${includeHeader}",
-          "default": true,
+        "headerLine": {
+          "type": "string",
+          "title": "${headerLine}",
+          "default": 1,
           "x-decorator": "FormItem",
-          "x-component": "Switch"
+          "x-component": "InputNumber"
         },
         "justString": {
           "type": "boolean",
@@ -368,7 +368,7 @@
       "header": "File Header",
       "dataStartLine": "Data Line",
       "modelName": "Model Name",
-      "includeHeader": "Include Header",
+      "headerLine": "Header Line",
       "justString": "All To String"
     },
     "zh_CN": {
@@ -400,7 +400,7 @@
       "header": "表头",
       "dataStartLine": "正文起始行",
       "modelName": "模型名",
-      "includeHeader": "包含表头",
+      "headerLine": "表头行",
       "justString": "全转换字符串"
     },
     "zh_TW": {
@@ -432,7 +432,7 @@
       "header": "表頭",
       "dataStartLine": "正文起始行",
       "modelName": "模型名",
-      "includeHeader": "包含表頭",
+      "headerLine": "表頭行",
       "justString": "全轉換字符串"
     }
   },

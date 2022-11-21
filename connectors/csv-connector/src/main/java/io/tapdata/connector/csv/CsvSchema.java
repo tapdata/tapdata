@@ -34,11 +34,7 @@ public class CsvSchema extends FileSchema {
                         Reader reader = new InputStreamReader(storage.readFile(path));
                         CSVReader csvReader = new CSVReaderBuilder(reader).build()
                 ) {
-                    if (fileConfig.getIncludeHeader()) {
-                        csvReader.skip(fileConfig.getDataStartLine());
-                    } else {
-                        csvReader.skip(fileConfig.getDataStartLine() - 1);
-                    }
+                    csvReader.skip(fileConfig.getDataStartLine() - 1);
                     String[] data = csvReader.readNext();
                     if (EmptyKit.isNotNull(data)) {
                         putIntoMap(headers, data, sampleResult);
@@ -56,15 +52,17 @@ public class CsvSchema extends FileSchema {
                 Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()));
                 CSVReader csvReader = new CSVReaderBuilder(reader).build()
         ) {
-            csvReader.skip(fileConfig.getDataStartLine() - 1);
-            if (fileConfig.getIncludeHeader()) {
+            if (fileConfig.getHeaderLine() > 0) {
+                csvReader.skip(fileConfig.getHeaderLine() - 1);
                 String[] headers = csvReader.readNext();
                 if (EmptyKit.isNull(headers)) {
                     return;
                 }
+                csvReader.skip(fileConfig.getDataStartLine() - fileConfig.getHeaderLine() - 1);
                 String[] data = csvReader.readNext();
                 putIntoMap(headers, data, sampleResult);
             } else {
+                csvReader.skip(fileConfig.getDataStartLine() - 1);
                 String[] data = csvReader.readNext();
                 if (EmptyKit.isNull(data)) {
                     return;

@@ -5,6 +5,7 @@ import java.util.Map;
 public class FileOffset {
 
     private String path;
+    private int sheetNum;
     private int dataLine;
     private Map<String, Long> allLastModified;
 
@@ -23,6 +24,14 @@ public class FileOffset {
 
     public void setPath(String path) {
         this.path = path;
+    }
+
+    public int getSheetNum() {
+        return sheetNum;
+    }
+
+    public void setSheetNum(int sheetNum) {
+        this.sheetNum = sheetNum;
     }
 
     public int getDataLine() {

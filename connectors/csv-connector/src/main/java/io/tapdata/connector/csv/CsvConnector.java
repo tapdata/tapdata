@@ -42,7 +42,7 @@ public class CsvConnector extends FileConnector {
 
     @Override
     protected void makeFileOffset(FileOffset fileOffset) {
-        fileOffset.setDataLine(fileConfig.getDataStartLine() + (fileConfig.getIncludeHeader() ? 1 : 0));
+        fileOffset.setDataLine(fileConfig.getDataStartLine());
     }
 
     @Override
@@ -98,11 +98,12 @@ public class CsvConnector extends FileConnector {
             if (EmptyKit.isNotBlank(fileConfig.getHeader())) {
                 headers = fileConfig.getHeader().split(",");
             } else {
-                csvReader.skip(fileConfig.getDataStartLine() - 1);
-                String[] data = csvReader.readNext();
-                if (fileConfig.getIncludeHeader()) {
-                    headers = data;
+                if (fileConfig.getHeaderLine() > 0) {
+                    csvReader.skip(fileConfig.getHeaderLine() - 1);
+                    headers = csvReader.readNext();
                 } else {
+                    csvReader.skip(fileConfig.getDataStartLine() - 1);
+                    String[] data = csvReader.readNext();
                     headers = new String[data.length];
                     for (int j = 0; j < headers.length; j++) {
                         headers[j] = "column" + (j + 1);

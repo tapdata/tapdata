@@ -29,7 +29,7 @@ public class FileConfig implements Serializable {
     private Boolean recursive;
     private String modelName;
     private Boolean justString;
-    private Boolean includeHeader;
+    private int headerLine;
     private String header;
     private int dataStartLine;
 
@@ -44,6 +44,12 @@ public class FileConfig implements Serializable {
         }
         if (EmptyKit.isNotBlank(excludeRegString)) {
             excludeRegs = Arrays.stream(excludeRegString.split(",")).collect(Collectors.toSet());
+        }
+        if (headerLine < 0) {
+            headerLine = 0;
+        }
+        if (dataStartLine < headerLine + 1) {
+            dataStartLine = headerLine + 1;
         }
         return this;
     }
@@ -152,12 +158,12 @@ public class FileConfig implements Serializable {
         this.justString = justString;
     }
 
-    public Boolean getIncludeHeader() {
-        return includeHeader;
+    public int getHeaderLine() {
+        return headerLine;
     }
 
-    public void setIncludeHeader(Boolean includeHeader) {
-        this.includeHeader = includeHeader;
+    public void setHeaderLine(int headerLine) {
+        this.headerLine = headerLine;
     }
 
     public String getHeader() {
