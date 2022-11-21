@@ -29,6 +29,7 @@
 		<module>tidb-connector</module>
 		<module>tablestore-connector</module>
 		<module>custom-connector</module>
+		<module>bigquery-connector</module>
 		<module>excel-connector</module>
 		<module>csv-connector</module>
 		<module>xml-connector</module>
