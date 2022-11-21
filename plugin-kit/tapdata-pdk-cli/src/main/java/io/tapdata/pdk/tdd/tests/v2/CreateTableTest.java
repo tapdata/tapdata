@@ -108,17 +108,17 @@ public class CreateTableTest extends PDKTestBase {
                             connectorContext,
                             tableEvent
                     );
-                    this.verifyTableIsCreated("CreateTableV2Function",prepare);
+                    hasCreateTable = this.verifyTableIsCreated("CreateTableV2Function", prepare);
                     return;
                 }
                 //检查如果只实现了CreateTableFunction，没有实现CreateTableV2Function时，报出警告，
                 //推荐使用CreateTableV2Function方法来实现建表
                 createTable.createTable(connectorContext, tableEvent);
-
+                hasCreateTable = this.verifyTableIsCreated("CreateTableFunction", prepare);
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                if (this.verifyTableIsCreated("CreateTableFunction", prepare)) {
+                if (hasCreateTable) {
                     prepare.recordEventExecute().dropTable();
                 }
                 if (null != prepare.connectorNode()){
