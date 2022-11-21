@@ -216,7 +216,7 @@ public class PDKTestBase {
         boolean isNull = null == functions;
         if (isNull){
             TapAssert.asserts(()->Assertions.fail(TapSummary.format("notFunctions")))
-                    .acceptAsError(testCase,null);
+                    .error(testCase);
         }
         return isNull;
     }
@@ -891,32 +891,35 @@ public class PDKTestBase {
             if (null != createTableV2Function) {
                 try {
                     targetTable.setId(UUID.randomUUID().toString());
+                    targetTable.setName(this.targetTable.getId());
                     CreateTableOptions table = createTableV2Function.createTable(connectorContext, createTableEvent);
                     asserts.acceptAsError(testCase, TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.succeed"));
                 }catch (Exception e){
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.error"))).acceptAsError(testCase,null);
+                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.error"))).error(testCase);
                 }
             } else if (null != createTableFunction) {
                 try {
                     targetTable.setId(UUID.randomUUID().toString());
+                    targetTable.setName(this.targetTable.getId());
                     createTableFunction.createTable(connectorContext, createTableEvent);
                     asserts.acceptAsError(testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.succeed"));
                 }catch (Exception e){
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.error"))).acceptAsError(testCase,null);
+                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.error"))).error(testCase);
                 }
             }else if(null != writeRecordFunction){
                 targetTable.setId(UUID.randomUUID().toString());
+                targetTable.setName(this.targetTable.getId());
                 Record[] records = Record.testRecordWithTapTable(targetTable,1);
                 try {
                     WriteListResult<TapRecordEvent> insert = prepare.recordEventExecute()
                             .builderRecord(records)
                             .insert();
-                    TapAssert.asserts(()->{}).acceptAsError(testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.succeed",records.length,targetTable.getId()));
+                    TapAssert.succeed(testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.succeed",records.length,targetTable.getId()));
                 }catch (Exception e){
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.error",records.length))).acceptAsError(testCase,null);
+                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.error",records.length))).error(testCase);
                 }
             }else{
-                TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.error"))).acceptAsError(testCase,null);
+                TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.error"))).error(testCase);
                 return false;
             }
         }
@@ -930,7 +933,7 @@ public class PDKTestBase {
         if ( null == after || after.isEmpty() ){
             TapAssert.asserts(()->
                 Assertions.fail(TapSummary.format("base.checkIndex.after.error",targetTable.getId()))
-            ).acceptAsError(testCase,null);
+            ).error(testCase);
             return;
         }
         Map<String, List<TapIndexField>> collect = after.stream().collect(Collectors.toMap(
@@ -990,9 +993,9 @@ public class PDKTestBase {
                         targetTable.getId()
                     )
                 )
-            ).acceptAsError(testCase,null);
+            ).error(testCase);
         }else {
-            TapAssert.asserts(()->{}).acceptAsError(testCase,TapSummary.format("base.succeed.createIndex",targetTable.getId()));
+            TapAssert.succeed(testCase,TapSummary.format("base.succeed.createIndex",targetTable.getId()));
         }
     }
 
@@ -1045,7 +1048,7 @@ public class PDKTestBase {
                     finalInferSucceed,
                     TapSummary.format("base.field.contrast.error",sourceBuilder.toString(),targetBuilder.toString(),tableId)
             )
-        ).acceptAsError(testCase,TapSummary.format("base.field.contrast.succeed",tableId));
+        ).acceptAsWarn(testCase,TapSummary.format("base.field.contrast.succeed",tableId));
     }
 
 
@@ -1069,5 +1072,8 @@ public class PDKTestBase {
         );
         //经过模型推演生成TapTable
         return tapResult.getData();
+    }
+    public TapTable getTargetTable(){
+        return this.targetTable;
     }
 }

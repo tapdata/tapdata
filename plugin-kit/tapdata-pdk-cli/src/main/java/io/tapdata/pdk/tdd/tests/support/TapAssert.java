@@ -51,13 +51,18 @@ public interface TapAssert {
     public default void acceptAsWarn(Method testCase,String succeedMag){
         accept(testCase,WARN,succeedMag);
     }
+    public default void warn(Method testCase){
+        accept(testCase,WARN,null);
+    }
     public default void acceptAsError(Method testCase,String succeedMag){
         accept(testCase,ERROR,succeedMag);
     }
     public default void error(Method testCase){
         accept(testCase,ERROR,null);
     }
-
+    public static void succeed(Method testCase,String message){
+        TapAssert.asserts(()->{}).accept(testCase,SUCCEED,message);
+    }
 
     public default void accept(Method testCase,int assertGarde,String succeedMag){
         try {

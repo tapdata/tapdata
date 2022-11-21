@@ -133,27 +133,27 @@ public class BatchReadTest extends PDKTestBase {
                         FilterResult filterResult = filterResults(connectorNode, filter, targetTable);
                         TapAssert.asserts(() ->
                             assertNotNull(
-                                    filterResult,
-                                    TapSummary.format("exact.match.filter.null",InstanceFactory.instance(JsonParser.class).toJson(filterMap))
+                                filterResult,
+                                TapSummary.format("exact.match.filter.null",InstanceFactory.instance(JsonParser.class).toJson(filterMap))
                             )
-                        ).acceptAsError(testCase,null);
+                        ).error(testCase);
                         if (null!=filterResult){
                             TapAssert.asserts(() -> Assertions.assertNull(
-                                    filterResult.getError(),
-                                    TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
-                            )).acceptAsError(testCase,null);
+                                filterResult.getError(),
+                                TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
+                            )).error(testCase);
                             if (null==filterResult.getError()){
                                 TapAssert.asserts(() -> assertNotNull(
-                                        filterResult.getResult(),
-                                        TapSummary.format("exact.match.filter.result.null")
-                                )).acceptAsError(testCase,null);
+                                    filterResult.getResult(),
+                                    TapSummary.format("exact.match.filter.result.null")
+                                )).error(testCase);
                                 if (null!=filterResult.getResult()){
                                     Map<String, Object> result = filterResult.getResult();
                                     connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
                                     connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
                                     StringBuilder builder = new StringBuilder();
                                     TapAssert.asserts(()->assertTrue(
-                                            mapEquals(record, result, builder),TapSummary.format("exact.match.failed",recordCount,builder.toString())
+                                        mapEquals(record, result, builder),TapSummary.format("exact.match.failed",recordCount,builder.toString())
                                     )).acceptAsWarn(testCase,TapSummary.format("exact.match.succeed",recordCount));
                                 }
                             }
@@ -192,10 +192,10 @@ public class BatchReadTest extends PDKTestBase {
                 Record[] records = Record.testRecordWithTapTable(targetTable,recordCount);
                 WriteListResult<TapRecordEvent> insert = execute.builderRecord(records).insert();
                 TapAssert.asserts(()->
-                        Assertions.assertTrue(
-                                null!=insert && insert.getInsertedCount() == recordCount,
-                                TapSummary.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
-                        )
+                    Assertions.assertTrue(
+                        null!=insert && insert.getInsertedCount() == recordCount,
+                        TapSummary.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
+                    )
                 ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
 
                 ConnectorNode connectorNode = prepare.connectorNode();
@@ -221,7 +221,7 @@ public class BatchReadTest extends PDKTestBase {
                             //返回数据条目数第一批应该为2，
                             TapAssert.asserts(()->
                                 Assertions.fail(TapSummary.format("batchRead.batchCount.error",indexFinal+1,batchSize,tapEvents.size())
-                            )).acceptAsError(testCase,null);
+                            )).error(testCase);
                             break;
                         }
                     }else {
@@ -229,7 +229,7 @@ public class BatchReadTest extends PDKTestBase {
                         if (null == tapEvents || tapEvents.size() != (recordCount-batchSize*index) ){
                             TapAssert.asserts(()->
                                 Assertions.fail(TapSummary.format("batchRead.batchCount.error",indexFinal,recordCount-batchSize*indexFinal,tapEvents.size()
-                            ))).acceptAsError(testCase,null);
+                            ))).error(testCase);
                             break;
                         }
                     }
@@ -256,7 +256,7 @@ public class BatchReadTest extends PDKTestBase {
                     //如此返回的2批数据， 验证这2批数据和插入的3条数据保持顺序并且主键相同
                     boolean finalIsTrue = isTrue;
                     TapAssert.asserts(()->
-                            Assertions.assertTrue(finalIsTrue,TapSummary.format("batchRead.final.error",recordCount,recordCount))
+                        Assertions.assertTrue(finalIsTrue,TapSummary.format("batchRead.final.error",recordCount,recordCount))
                     ).acceptAsError(testCase,TapSummary.format("batchRead.final.succeed",recordCount,recordCount));
                 }
 

@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
 @DisplayName("discoverSchema.test")//discoverSchema发现表， 必测方法
-@TapGo(sort = 6,goTest = false)//6
+@TapGo(sort = 6,goTest = true)//6
 public class DiscoverSchemaTest extends PDKTestBase{
 
     @DisplayName("discoverSchema.discover")//用例1， 发现表
@@ -79,25 +79,25 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 tables.stream().forEach(table->{
                     if (null == table){
                         TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("discover.nullTable"))
-                        ).acceptAsError(testCase,null);
+                            Assertions.fail(TapSummary.format("discover.nullTable"))
+                        ).error(testCase);
                         return;
                     }
                     //表里有表名即为成功
                     String tableName = table.getId();
                     if (null == tableName || "".equals(tableName)){
                         TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("discover.emptyTableName"))
-                        ).acceptAsError(testCase,null);
+                            Assertions.fail(TapSummary.format("discover.emptyTableName"))
+                        ).error(testCase);
                         return;
                     }
                     //表里没有字段描述时，报警告
                     LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
                     TapAssert.asserts(()->
-                            Assertions.assertTrue(
-                                    null != nameFieldMap && !nameFieldMap.isEmpty(),
-                                    TapSummary.format("discover.emptyTFields",tableName))
-                    ).acceptAsWarn(testCase,null);
+                        Assertions.assertTrue(
+                            null != nameFieldMap && !nameFieldMap.isEmpty(),
+                            TapSummary.format("discover.emptyTFields",tableName))
+                    ).warn(testCase);
 
                     //表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
                     if (null != nameFieldMap && !nameFieldMap.isEmpty()){
@@ -120,9 +120,9 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 });
 
                 TapAssert.asserts(()->
-                        Assertions.assertTrue(
-                                warnFieldMap.isEmpty(),
-                                TapSummary.format("discover.hasWarnFields",warn.toString()))
+                    Assertions.assertTrue(
+                        warnFieldMap.isEmpty(),
+                        TapSummary.format("discover.hasWarnFields",warn.toString()))
                 ).acceptAsWarn(testCase,TapSummary.format("discover.notWarnFields"));
             }catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -157,8 +157,6 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 Method testCase = super.getMethod("discoverAfterCreate");
                 execute.testCase(testCase);
 
-
-
                 //通过CreateTableFunction创建一张表， 表名随机，
                 //表里的字段属性是通过TapType的全类型11个字段推演得来，
                 if (!this.createTable(prepare)) return;
@@ -175,12 +173,12 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 //表列表里包含随机创建的表，
                 TapAssert.asserts(()->{
                     Assertions.assertTrue(
-                            null!=consumer && !consumer.isEmpty() &&
-                                    null != consumer.get(0) && targetTable.getId().equals(consumer.get(0).getId()),
-                            TapSummary.format("discoverAfterCreate.notFindTargetTable",targetTable.getId()));
+                    null!=consumer && !consumer.isEmpty() &&
+                            null != consumer.get(0) && targetTable.getId().equals(consumer.get(0).getId()),
+                        TapSummary.format("discoverAfterCreate.notFindTargetTable",targetTable.getId()));
                 }).acceptAsError(
-                        testCase,
-                        TapSummary.format("discoverAfterCreate.fundTargetTable",targetTable.getId())
+                    testCase,
+                    TapSummary.format("discoverAfterCreate.fundTargetTable",targetTable.getId())
                 );
 
                 boolean hasTargetTable = null!=consumer && !consumer.isEmpty() &&
@@ -193,18 +191,18 @@ public class DiscoverSchemaTest extends PDKTestBase{
                     LinkedHashMap<String, TapField> tapTableFieldMap = tapTable.getNameFieldMap();
                     LinkedHashMap<String, TapField> targetTableFieldMap = super.modelDeduction(connectorNode);//targetTable.getNameFieldMap();
                     if ( null == tapTableFieldMap || null == targetTableFieldMap){
-                        TapAssert.asserts(()->Assertions.fail(TapSummary.format("discoverAfterCreate.exitsNullFiledMap",tableId))).acceptAsError(testCase,null);
+                        TapAssert.asserts(()->Assertions.fail(TapSummary.format("discoverAfterCreate.exitsNullFiledMap",tableId))).error(testCase);
                     }
                     int tapTableSize = tapTableFieldMap.size();
                     int targetTableSize = targetTableFieldMap.size();
                     try {
                         TapAssert.asserts(()->{
                             Assertions.assertTrue(
-                                    tapTableSize>targetTableSize,
-                                    TapSummary.format("discoverAfterCreate.fieldsNotEqualsCount",tapTableSize,targetTableSize));
+                                tapTableSize>targetTableSize,
+                                TapSummary.format("discoverAfterCreate.fieldsNotEqualsCount",tapTableSize,targetTableSize));
                         }).acceptAsError(
-                                testCase,
-                                TapSummary.format("discoverAfterCreate.fieldsEqualsCount",tapTableSize,targetTableSize)
+                            testCase,
+                            TapSummary.format("discoverAfterCreate.fieldsEqualsCount",tapTableSize,targetTableSize)
                         );
                     }catch (Exception ignored){
 

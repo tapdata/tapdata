@@ -58,8 +58,8 @@ public class ClearTableTest extends PDKTestBase {
                 WriteListResult<TapRecordEvent> insert = execute.builderRecord(records).insert();
                 TapAssert.asserts(()->
                     Assertions.assertTrue(
-                            null!=insert && insert.getInsertedCount()==recordCount,
-                            TapSummary.format("clearTable.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
+                        null!=insert && insert.getInsertedCount()==recordCount,
+                        TapSummary.format("clearTable.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
                     )
                 ).acceptAsError(testCase, TapSummary.format("clearTable.insert.succeed",recordCount));
 
@@ -83,7 +83,7 @@ public class ClearTableTest extends PDKTestBase {
                 if (null!=batchCountFunction){
                     long count = batchCountFunction.count(context, targetTable);
                     TapAssert.asserts(()->
-                            Assertions.assertEquals(count, 0,TapSummary.format("clearTable.verifyBatchCountFunction.error",0,count))
+                        Assertions.assertEquals(count, 0,TapSummary.format("clearTable.verifyBatchCountFunction.error",0,count))
                     ).acceptAsError(testCase,TapSummary.format("clearTable.verifyBatchCountFunction.succeed",count));
                     return;
                 }
@@ -94,8 +94,8 @@ public class ClearTableTest extends PDKTestBase {
                         context, TapAdvanceFilter.create(),targetTable,consumer->
                             TapAssert.asserts(()->
                                 Assertions.assertTrue(
-                                        null==consumer || null==consumer.getResults() || consumer.getResults().isEmpty(),
-                                        TapSummary.format("clearTable.verifyQueryByAdvanceFilterFunction.error",recordCount))
+                                    null==consumer || null==consumer.getResults() || consumer.getResults().isEmpty(),
+                                    TapSummary.format("clearTable.verifyQueryByAdvanceFilterFunction.error",recordCount))
                             ).acceptAsWarn(testCase,TapSummary.format("clearTable.verifyQueryByAdvanceFilterFunction.succeed",recordCount))
                     );
                     return;
@@ -106,8 +106,8 @@ public class ClearTableTest extends PDKTestBase {
                         context,list(),targetTable,consumer->
                             TapAssert.asserts(()->
                                 Assertions.assertTrue(
-                                        null==consumer || consumer.isEmpty(),
-                                        TapSummary.format("clearTable.verifyQueryByFilterFunction.error",recordCount))
+                                    null==consumer || consumer.isEmpty(),
+                                    TapSummary.format("clearTable.verifyQueryByFilterFunction.error",recordCount))
                         ).acceptAsWarn(testCase,TapSummary.format("clearTable.verifyQueryByFilterFunction.succeed",recordCount))
                     );
                 }

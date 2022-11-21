@@ -34,7 +34,6 @@ public class RecordEventExecute {
     }
     private ConnectorFunctions connectorFunctions ;
     private WriteRecordFunction writeRecordFunction ;
-    private TapTable targetTable ;
     public static RecordEventExecute create(ConnectorNode connectorNode, PDKTestBase base){
         return new RecordEventExecute(connectorNode,base);
     }
@@ -44,7 +43,6 @@ public class RecordEventExecute {
 
         connectorFunctions = connectorNode.getConnectorFunctions();
         writeRecordFunction = connectorFunctions.getWriteRecordFunction();
-        targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
     }
 
     List<Record> records = new ArrayList<>();
@@ -64,7 +62,7 @@ public class RecordEventExecute {
     public WriteListResult<TapRecordEvent> insert() throws Throwable {
         List<TapRecordEvent> tapInsertRecordEvents = new ArrayList<>();
         records.forEach(record -> {
-            TapInsertRecordEvent insertRecordEvent = new TapInsertRecordEvent().table(targetTable.getId());
+            TapInsertRecordEvent insertRecordEvent = new TapInsertRecordEvent().table(base.getTargetTable().getId());
             insertRecordEvent.setAfter(record);
             insertRecordEvent.setReferenceTime(System.currentTimeMillis());
             tapInsertRecordEvents.add(insertRecordEvent);
@@ -73,7 +71,7 @@ public class RecordEventExecute {
         writeRecordFunction.writeRecord(
                 connectorNode.getConnectorContext(),
                 tapInsertRecordEvents,
-                targetTable,
+                base.getTargetTable(),
                 consumer -> {
                     base.$(() -> {});
                     consumerBack.set(consumer);
@@ -85,7 +83,7 @@ public class RecordEventExecute {
     public WriteListResult<TapRecordEvent> update() throws Throwable {
         List<TapRecordEvent> tapUpdateRecordEvents = new ArrayList<>();
         records.forEach(record -> {
-            TapUpdateRecordEvent updateRecordEvent = new TapUpdateRecordEvent().table(targetTable.getId());
+            TapUpdateRecordEvent updateRecordEvent = new TapUpdateRecordEvent().table(base.getTargetTable().getId());
             updateRecordEvent.setAfter(record);
             updateRecordEvent.setReferenceTime(System.currentTimeMillis());
             tapUpdateRecordEvents.add(updateRecordEvent);
@@ -94,7 +92,7 @@ public class RecordEventExecute {
         writeRecordFunction.writeRecord(
                 connectorNode.getConnectorContext(),
                 tapUpdateRecordEvents,
-                targetTable,
+                base.getTargetTable(),
                 consumer -> {
                     base.$(() -> {});
                     consumerBack.set(consumer);
@@ -106,7 +104,7 @@ public class RecordEventExecute {
     public WriteListResult<TapRecordEvent> delete() throws Throwable {
         List<TapRecordEvent> tapDeleteRecordEvents = new ArrayList<>();
         records.forEach(record -> {
-            TapDeleteRecordEvent deleteRecordEvent = new TapDeleteRecordEvent().table(targetTable.getId());
+            TapDeleteRecordEvent deleteRecordEvent = new TapDeleteRecordEvent().table(base.getTargetTable().getId());
             deleteRecordEvent.setBefore(record);
             deleteRecordEvent.setReferenceTime(System.currentTimeMillis());
             tapDeleteRecordEvents.add(deleteRecordEvent);
@@ -115,7 +113,7 @@ public class RecordEventExecute {
         writeRecordFunction.writeRecord(
                 connectorNode.getConnectorContext(),
                 tapDeleteRecordEvents,
-                targetTable,
+                base.getTargetTable(),
                 consumer -> {
                     base.$(() -> {});
                     consumerBack.set(consumer);
@@ -131,7 +129,7 @@ public class RecordEventExecute {
         CreateTableV2Function createTable = connectorFunctions.getCreateTableV2Function();
         CreateTableFunction createTableFunction = connectorFunctions.getCreateTableFunction();
         Assertions.assertTrue(null == createTable || null == createTableFunction,"%{please_support_create_table_function}%");
-        TapCreateTableEvent createTableEvent = new TapCreateTableEvent().table(targetTable);
+        TapCreateTableEvent createTableEvent = new TapCreateTableEvent().table(base.getTargetTable());
         if (null != createTable){
             CreateTableOptions table = createTable.createTable(connectorNode.getConnectorContext(), createTableEvent);
             Assertions.assertNull(table,"%{null_after_create_table}%");
@@ -147,17 +145,17 @@ public class RecordEventExecute {
 
     public void dropTable() {
         TapAssert.asserts(
-                ()->Assertions.assertDoesNotThrow(this::drop,TapSummary.format("RecordEventExecute.drop.table.error"))
-        ).acceptAsError(testCase,TapSummary.format("RecordEventExecute.drop.notCatch.thrower"));
+                ()->Assertions.assertDoesNotThrow(this::drop,TapSummary.format("recordEventExecute.drop.table.error"))
+        ).acceptAsError(testCase,TapSummary.format("recordEventExecute.drop.notCatch.thrower"));
     }
 
     private boolean drop() throws Throwable {
         DropTableFunction dropTableFunction = connectorFunctions.getDropTableFunction();
         TapAssert.asserts(
-                ()->Assertions.assertNotNull(dropTableFunction,TapSummary.format("RecordEventExecute.drop.error.not.support.function"))
-        ).acceptAsError(testCase,TapSummary.format("RecordEventExecute.drop.table.succeed",targetTable.getId()));
+                ()->Assertions.assertNotNull(dropTableFunction,TapSummary.format("recordEventExecute.drop.error.not.support.function"))
+        ).acceptAsError(testCase,TapSummary.format("recordEventExecute.drop.table.succeed",base.getTargetTable().getId()));
         TapDropTableEvent dropTableEvent = new TapDropTableEvent();
-        dropTableEvent.setTableId(targetTable.getId());
+        dropTableEvent.setTableId(base.getTargetTable().getId());
         dropTableEvent.setReferenceTime(System.currentTimeMillis());
         dropTableFunction.dropTable(connectorNode.getConnectorContext(),dropTableEvent);
         return Boolean.TRUE;

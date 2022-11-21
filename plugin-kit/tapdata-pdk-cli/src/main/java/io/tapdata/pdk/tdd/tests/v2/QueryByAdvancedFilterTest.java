@@ -1,7 +1,5 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
-import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
@@ -10,13 +8,10 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.Record;
@@ -31,7 +26,6 @@ import java.lang.reflect.Method;
 import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -105,17 +99,17 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                                         filterResult,
                                         TapSummary.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
                                 )
-                        ).acceptAsError(testCase,null);
+                        ).error(testCase);
                         if (null!=filterResult){
                             TapAssert.asserts(() -> Assertions.assertNull(
                                     filterResult.getError(),
                                     TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
-                            )).acceptAsError(testCase,null);
+                            )).error(testCase);
                             if (null==filterResult.getError()){
                                 TapAssert.asserts(() -> assertNotNull(
                                         filterResult.getResult(),
                                         TapSummary.format("exact.match.filter.result.null")
-                                )).acceptAsError(testCase,null);
+                                )).error(testCase);
                                 if (null!=filterResult.getResult()){
                                     Map<String, Object> result = filterResult.getResult();
                                     connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
@@ -167,10 +161,10 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 execute.builderRecord(records);
                 WriteListResult<TapRecordEvent> insert = execute.insert();
                 TapAssert.asserts(()->
-                        Assertions.assertTrue(
-                                null!=insert && insert.getInsertedCount() == insertCount,
-                                TapSummary.format("batchRead.insert.error",insertCount,null==insert?0:insert.getInsertedCount())
-                        )
+                    Assertions.assertTrue(
+                        null!=insert && insert.getInsertedCount() == insertCount,
+                        TapSummary.format("batchRead.insert.error",insertCount,null==insert?0:insert.getInsertedCount())
+                    )
                 ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",insertCount,null==insert?0:insert.getInsertedCount()));
                 hasCreateTable = null!=insert && insert.getInsertedCount() == insertCount;
                 if (!hasCreateTable) return;
@@ -182,21 +176,16 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 String tableId = targetTable.getId();
                 QueryByAdvanceFilterFunction query = functions.getQueryByAdvanceFilterFunction();
 
-                TapAdvanceFilter operatorFilter = new TapAdvanceFilter();
                 String key = "id";
-                Object value = records[0].get(key);
-                operatorFilter.match(new DataMap().kv(key,value));
-                List<Map<String, Object>> operator = filter(connectorNode, query, operatorFilter);
-                TapAssert.asserts(()->{
-                    Assertions.assertFalse(operator.isEmpty(),TapSummary.format("queryByAdvanced.operator.error",key,value,tableId));
-                }).acceptAsError(testCase,TapSummary.format("queryByAdvanced.operator.succeed",key,value,tableId));
+                Long value = (Long)records[0].get(key);
+                this.operatorEq(key,value,testCase,connectorNode,query);
+                this.operator(key,value-1,QueryOperator.GT,testCase,connectorNode,query);
+                this.operator(key,value,QueryOperator.GTE,testCase,connectorNode,query);
+                this.operator(key,value+1,QueryOperator.LT,testCase,connectorNode,query);
+                this.operator(key,value,QueryOperator.LTE,testCase,connectorNode,query);
 
-                TapAdvanceFilter sortFilter = new TapAdvanceFilter();
-                sortFilter.sort(new SortOn(key,SortOn.ASCENDING));
-                List<Map<String, Object>> sort = filter(connectorNode, query, sortFilter);
-                TapAssert.asserts(()->{
-                    Assertions.assertFalse(sort.isEmpty(),TapSummary.format("queryByAdvanced.sort.error",key,"ASCENDING",tableId));
-                }).acceptAsError(testCase,TapSummary.format("queryByAdvanced.sort.succeed",key,"ASCENDING",tableId));
+                this.sort(key,SortOn.ASCENDING,testCase,connectorNode,query);
+                this.sort(key,SortOn.DESCENDING,testCase,connectorNode,query);
 
                 TapAdvanceFilter projectionFilter = new TapAdvanceFilter();
                 projectionFilter.projection(new Projection().include(key));
@@ -213,6 +202,44 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
         });
         //waitCompleted(5000000);
     }
+    private void operatorEq(String key, Object value,Method testCase,ConnectorNode connectorNode,QueryByAdvanceFilterFunction query) throws Throwable {
+        TapAdvanceFilter operatorFilter = new TapAdvanceFilter();
+        String tableId = targetTable.getId();
+        operatorFilter.match(new DataMap().kv(key,value));
+        List<Map<String, Object>> operator = filter(connectorNode, query, operatorFilter);
+        TapAssert.asserts(()->{
+            Assertions.assertFalse(operator.isEmpty(),TapSummary.format("queryByAdvanced.operator.error","=",key,"=",value,tableId));
+        }).acceptAsError(testCase,TapSummary.format("queryByAdvanced.operator.succeed","=",key,"=",value,tableId));
+    }
+    private void operator(String key, Object value,int queryOperator,Method testCase,ConnectorNode connectorNode,QueryByAdvanceFilterFunction query) throws Throwable {
+        String operatorChar = "?";
+        switch (queryOperator){
+            case QueryOperator.GT:operatorChar = ">";break;
+            case QueryOperator.GTE:operatorChar = ">=";break;
+            case QueryOperator.LT:operatorChar = "<";break;
+            case QueryOperator.LTE:operatorChar = "<=";break;
+            default:operatorChar = "?";
+        }
+        TapAdvanceFilter operatorFilter = new TapAdvanceFilter();
+        QueryOperator operator = new QueryOperator(key,value,queryOperator);
+        String tableId = targetTable.getId();
+        operatorFilter.setOperators(list(operator));
+        List<Map<String, Object>> operatorRes = filter(connectorNode, query, operatorFilter);
+        String finalOperatorChar = operatorChar;
+        TapAssert.asserts(()->{
+            Assertions.assertFalse(operatorRes.isEmpty(),TapSummary.format("queryByAdvanced.operator.error", finalOperatorChar,key,finalOperatorChar,value,tableId));
+        }).acceptAsError(testCase,TapSummary.format("queryByAdvanced.operator.succeed",finalOperatorChar,key,finalOperatorChar,value,tableId));
+    }
+
+    private void sort(String key,int sortOn,Method testCase,ConnectorNode connectorNode,QueryByAdvanceFilterFunction query) throws Throwable {
+        TapAdvanceFilter sortFilter = new TapAdvanceFilter();
+        sortFilter.sort(new SortOn(key,sortOn));
+        String tableId = targetTable.getId();
+        List<Map<String, Object>> sort = filter(connectorNode, query, sortFilter);
+        TapAssert.asserts(()->
+            Assertions.assertFalse(sort.isEmpty(),TapSummary.format("queryByAdvanced.sort.error",key,sortOn==2?"DESCENDING":"ASCENDING",tableId))
+        ).acceptAsError(testCase,TapSummary.format("queryByAdvanced.sort.succeed",key,sortOn==2?"DESCENDING":"ASCENDING",tableId));
+    }
 
     private List<Map<String,Object>> filter(ConnectorNode connectorNode,QueryByAdvanceFilterFunction query,TapAdvanceFilter operatorFilter) throws Throwable {
         List<Map<String, Object>> events = new ArrayList<>();
@@ -227,223 +254,6 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
         return events;
     }
 
-    private void queryByAdvanceFilterTest(ConnectorNode targetNode,RecordEventExecute recordEventExecute) throws Throwable{
-        ConnectorFunctions connectorFunctions = targetNode.getConnectorFunctions();
-        QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
-
-        Record record = Record.create()
-                .builder("id", 111111)
-                .builder("name", "gavin")
-                .builder("text", "gavin test");
-        recordEventExecute.builderRecord(record);
-        Method testCase = recordEventExecute.testCase();
-
-        //插入一条记录，并获取查询结果对比插入前后是否一致
-        recordEventExecute.insert();
-        queryByAdvanceFilterFunction.query(
-                targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lte("id", 111111)).op(QueryOperator.gte("id", 111111)),
-                targetTable,
-                filterResults -> $(() -> {
-                    TapAssert.asserts(
-                            ()->Assertions.assertNotNull(filterResults, TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.error.null"))//
-                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.notNull"));//
-
-                    TapAssert.asserts(
-                            ()->Assertions.assertNotNull(filterResults.getResults(), TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.error.nullResult"))//
-                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.notNullResult"));//
-
-                    TapAssert.asserts(
-                            ()-> Assertions.assertTrue(objectIsEqual(
-                                filterResults.getResults(),
-                                Collections.singletonList(record)),
-                                TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.error.notEquals"))//
-                    ).acceptAsWarn(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.insert.succeed.equals"));//
-                })
-        );
-
-        //修改插入的记录，并对比插入前后的结果是否一致
-        record.builder("name","Gavin pro").builder("text","Gavin pro max.");
-        recordEventExecute.update();
-        queryByAdvanceFilterFunction.query(
-                targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().match(DataMap.create().kv("id", 111111).kv("name","Gavin pro").kv("text","Gavin pro max.")),
-                targetTable,
-                filterResults -> {
-                    TapAssert.asserts(
-                            ()->Assertions.assertNotNull(filterResults, TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.error.null"))
-                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.notNull"));
-
-                    TapAssert.asserts(
-                            ()->Assertions.assertNotNull(filterResults.getResults(), TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.error.nullResult"))
-                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.notNullResult"));
-
-                    TapAssert.asserts(
-                            ()-> Assertions.assertTrue(objectIsEqual(
-                                    filterResults.getResults(),
-                                    Collections.singletonList(record)),
-                                    TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.error.notEquals"))
-                    ).acceptAsWarn(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.update.succeed.equals"));
-                });
-
-        //删除插入的记录，并检查删除是否成功
-        recordEventExecute.delete();
-        queryByAdvanceFilterFunction.query(
-                targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().match(DataMap.create().kv("id", 111111).kv("name", "gavin").kv("text", "gavin test")),
-                targetTable,
-                filterResults -> {
-                    TapAssert.asserts(
-                            ()->Assertions.assertNotNull(filterResults, TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.error.null"))
-                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.succeed.notNull"));
-
-                    TapAssert.asserts(
-                            ()->Assertions.assertNull(filterResults.getResults(), TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.error.notNullResult"))
-                    ).acceptAsError(testCase,TapSummary.format("WriteRecordWithQueryTest.sourceTest.delete.succeed.nullResult"));
-                });
-    }
-
-    private void insertAfterInsertSomeKey(ConnectorNode targetNode,RecordEventExecute recordEventExecute) throws Throwable {
-        Record[] records = Record.testStart(1);
-        recordEventExecute.builderRecord(records);
-        Method testCase = recordEventExecute.testCase();
-
-        //recordEventExecute.createTable();
-        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
-
-        TapAssert.asserts(()->{Assertions.assertTrue(false,"This is an warn Case");})
-                .acceptAsWarn(testCase,"This is an warn case.");
-
-        TapAssert.asserts(()->{Assertions.assertTrue(false,"This is error Case");})
-                .acceptAsError(testCase,"This is succeed case.");
-
-        for (Record record : records) {
-            record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
-        }
-
-        final String insertPolicy = "dml_insert_policy";
-        DataMap nodeConfig = targetNode.getConnectorContext().getNodeConfig();
-
-        nodeConfig.kv(insertPolicy,"update_on_exists");
-        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert();
-
-        //插入已存在数据时， 在策略为update_on_exists时， 应该返回给引擎有插入成功的计数统计。
-        TapAssert.asserts(
-            ()->Assertions.assertNotEquals(
-                    insert.getInsertedCount(),
-                    insertAfter.getModifiedCount() + insertAfter.getInsertedCount(),
-                    insertPolicy+" - update_on_exists | The first time you insert "+
-                            insert.getInsertedCount()+" record, the second time you insert "+
-                            insert.getInsertedCount()+" records of the same primary key, the echo result is inserted "+
-                            insertAfter.getInsertedCount()+", and the second time you update "+
-                            insertAfter.getModifiedCount()+" record. The operation fails because of inconsistencies.")
-        ).acceptAsError(
-
-                testCase,
-                "As update_on_exists policy,you insert "
-                        +insert.getInsertedCount()
-                        +" records, and succeed "
-                        +(insertAfter.getModifiedCount() + insertAfter.getInsertedCount())
-                        + " records, including modifiedCount and insertedCount.");
-
-        TapAssert.asserts(()->Assertions.assertNotEquals(
-                insert.getInsertedCount(),
-                insertAfter.getModifiedCount(),
-                insertPolicy + " - update_on_exists | After inserting ten pieces of data, insert another record with the same primary key but different contents, and display the result. Insert " +
-                        insertAfter.getInsertedCount() + ", insert another, and update " +
-                        insertAfter.getModifiedCount() + ". Poor observability")).acceptAsWarn(testCase,"");
-
-        //@TODO Wran
-        Assertions.assertNotEquals(
-                insert.getInsertedCount(),
-                insertAfter.getModifiedCount(),
-                insertPolicy + " - update_on_exists | After inserting ten pieces of data, insert another record with the same primary key but different contents, and display the result. Insert " +
-                        insertAfter.getInsertedCount() + ", insert another, and update " +
-                        insertAfter.getModifiedCount() + ". Poor observability");
-
-
-        nodeConfig.kv(insertPolicy,"ignore_on_exists");
-        WriteListResult<TapRecordEvent> insertAfter2 = recordEventExecute.insert();
-        Assertions.assertFalse(
-                0 == insertAfter2.getModifiedCount() && 0 == insertAfter2.getInsertedCount(),
-                insertPolicy+" - ignore_on_exists | In node config ,your choises is xxx,so the update count must be zero,but not zero now");
-    }
-
-    private void updateNotExistRecord(ConnectorNode targetNode,RecordEventExecute recordEventExecute) throws Throwable {
-        Record[] records = Record.testStart(10);
-        recordEventExecute.builderRecord(records);
-        Method testCase = recordEventExecute.testCase();
-        //recordEventExecute.createTable();
-        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
-        for (Record record : records) {
-            record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
-        }
-        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert();
-
-        Assertions.assertNotEquals(
-                insert.getInsertedCount(),
-                insertAfter.getModifiedCount() + insertAfter.getInsertedCount(),
-                "The first time you insert "+
-                        insert.getInsertedCount()+" record, the second time you insert "+
-                        insert.getInsertedCount()+" records of the same primary key, the echo result is inserted "+
-                        insertAfter.getInsertedCount()+", and the second time you update "+
-                        insertAfter.getModifiedCount()+" record. The operation fails because of inconsistencies.");
-        String insertPolic = "";
-
-        if ("".equals(insertPolic)) {
-            //@TODO Wran
-            Assertions.assertNotEquals(
-                    insert.getInsertedCount(),
-                    insertAfter.getModifiedCount(),
-                    "After inserting ten pieces of data, insert another record with the same primary key but different contents, and display the result. Insert " +
-                            insertAfter.getInsertedCount() + ", insert another, and update " +
-                            insertAfter.getModifiedCount() + ". Poor observability");
-        }else if("".equals(insertPolic)){
-            Assertions.assertNotEquals(
-                    0,
-                    insertAfter.getModifiedCount(),
-                    "In node config ,your choises is xxx,so the update count must be zero,but not zero now");
-        }
-    }
-
-    private void deleteNotExistRecord(ConnectorNode targetNode,RecordEventExecute recordEventExecute) throws Throwable {
-        Record[] records = Record.testStart(10);
-        recordEventExecute.builderRecord(records);
-        Method testCase = recordEventExecute.testCase();
-
-        //recordEventExecute.createTable();
-        WriteListResult<TapRecordEvent> insert = recordEventExecute.insert();
-        for (Record record : records) {
-            record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
-        }
-        WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert();
-
-        Assertions.assertNotEquals(
-                insert.getInsertedCount(),
-                insertAfter.getModifiedCount() + insertAfter.getInsertedCount(),
-                "The first time you insert "+
-                        insert.getInsertedCount()+" record, the second time you insert "+
-                        insert.getInsertedCount()+" records of the same primary key, the echo result is inserted "+
-                        insertAfter.getInsertedCount()+", and the second time you update "+
-                        insertAfter.getModifiedCount()+" record. The operation fails because of inconsistencies.");
-        String insertPolic = "";
-
-        if ("".equals(insertPolic)) {
-            //@TODO Wran
-            Assertions.assertNotEquals(
-                    insert.getInsertedCount(),
-                    insertAfter.getModifiedCount(),
-                    "After inserting ten pieces of data, insert another record with the same primary key but different contents, and display the result. Insert " +
-                            insertAfter.getInsertedCount() + ", insert another, and update " +
-                            insertAfter.getModifiedCount() + ". Poor observability");
-        }else if("".equals(insertPolic)){
-            Assertions.assertNotEquals(
-                    0,
-                    insertAfter.getModifiedCount(),
-                    "In node config ,your choises is xxx,so the update count must be zero,but not zero now");
-        }
-    }
-
     public static List<SupportFunction> testFunctions() {
         return list(
                 support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
@@ -452,5 +262,4 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 support(DropTableFunction.class,TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
     }
-
 }

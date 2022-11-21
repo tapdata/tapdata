@@ -51,23 +51,23 @@ public class ConnectionTest extends PDKTestBase {
                                 String item = consumer.getItem();
                                 TapAssert.asserts(()->
                                     Assertions.assertTrue(
-                                            TestItem.ITEM_CONNECTION.equals(item)||
-                                                    TestItem.ITEM_VERSION.equals(item)||
-                                                    TestItem.ITEM_LOGIN.equals(item),
-                                            TapSummary.format("connectionTest.testConnectionTest.errorVCL")
+                                    TestItem.ITEM_CONNECTION.equals(item)||
+                                            TestItem.ITEM_VERSION.equals(item)||
+                                            TestItem.ITEM_LOGIN.equals(item),
+                                        TapSummary.format("connectionTest.testConnectionTest.errorVCL")
                                     )
                                 ).acceptAsWarn(testCase,
-                                        TapSummary.format("connectionTest.testConnectionTest.succeedVCL")
+                                    TapSummary.format("connectionTest.testConnectionTest.succeedVCL")
                                 );
 
                                 //当实现BatchReadFunction的时候， Read没有上报时， 输出警告。
                                 BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
                                 if (null!=batchReadFunction) {
                                     TapAssert.asserts(() ->
-                                            Assertions.assertTrue(TestItem.ITEM_READ.equals(item),
-                                                    TapSummary.format("connectionTest.testConnectionTest.errorBatchRead"))
+                                        Assertions.assertTrue(TestItem.ITEM_READ.equals(item),
+                                            TapSummary.format("connectionTest.testConnectionTest.errorBatchRead"))
                                     ).acceptAsWarn(testCase,
-                                            TapSummary.format("connectionTest.testConnectionTest.succeedBatchRead")
+                                        TapSummary.format("connectionTest.testConnectionTest.succeedBatchRead")
                                     );
                                 }
 
@@ -75,10 +75,10 @@ public class ConnectionTest extends PDKTestBase {
                                 StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
                                 if (null!=streamReadFunction){
                                     TapAssert.asserts(()->
-                                            Assertions.assertTrue(TestItem.ITEM_READ_LOG.equals(item),
-                                                    TapSummary.format("connectionTest.testConnectionTest.errorStreamRead"))
+                                        Assertions.assertTrue(TestItem.ITEM_READ_LOG.equals(item),
+                                            TapSummary.format("connectionTest.testConnectionTest.errorStreamRead"))
                                     ).acceptAsWarn(testCase,
-                                            TapSummary.format("connectionTest.testConnectionTest.succeedStreamRead")
+                                        TapSummary.format("connectionTest.testConnectionTest.succeedStreamRead")
                                     );
                                 }
 
@@ -86,10 +86,10 @@ public class ConnectionTest extends PDKTestBase {
                                 WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
                                 if (null!=writeRecordFunction){
                                     TapAssert.asserts(()->
-                                            Assertions.assertTrue(TestItem.ITEM_WRITE.equals(item),
-                                                    TapSummary.format("connectionTest.testConnectionTest.errorWriteRecord"))
+                                        Assertions.assertTrue(TestItem.ITEM_WRITE.equals(item),
+                                            TapSummary.format("connectionTest.testConnectionTest.errorWriteRecord"))
                                     ).acceptAsWarn(testCase,
-                                            TapSummary.format("connectionTest.testConnectionTest.succeedWriteRecord")
+                                        TapSummary.format("connectionTest.testConnectionTest.succeedWriteRecord")
                                     );
                                 }
                         });

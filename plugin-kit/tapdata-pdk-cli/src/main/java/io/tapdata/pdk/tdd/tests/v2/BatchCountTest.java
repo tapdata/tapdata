@@ -43,6 +43,7 @@ public class BatchCountTest extends PDKTestBase {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
+            boolean createTable = false;
             try {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("batchCountAfterInsert");
@@ -59,7 +60,7 @@ public class BatchCountTest extends PDKTestBase {
                 }).acceptAsError(testCase, TapSummary.format("batchCountTest.insert",records.length,insert.getInsertedCount()));
 
                 //使用BatchCountFunction查询记录数， 返回2为正确
-                if(null!=insert&&insert.getInsertedCount()==records.length){
+                if(createTable = (null!=insert && insert.getInsertedCount() == records.length) ){
                     ConnectorNode connectorNode = prepare.connectorNode();
                     ConnectorFunctions functions = connectorNode.getConnectorFunctions();
                     if (super.verifyFunctions(functions,testCase)){
@@ -74,6 +75,7 @@ public class BatchCountTest extends PDKTestBase {
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
+                if (createTable) execute.dropTable();
                 super.connectorOnStop(prepare);
             }
         });
