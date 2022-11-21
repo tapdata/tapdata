@@ -2,11 +2,17 @@ package io.tapdata.pdk.tdd.core;
 
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.conversion.TargetTypesGenerator;
 import io.tapdata.entity.event.control.PatrolEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
@@ -1040,5 +1046,28 @@ public class PDKTestBase {
                     TapSummary.format("base.field.contrast.error",sourceBuilder.toString(),targetBuilder.toString(),tableId)
             )
         ).acceptAsError(testCase,TapSummary.format("base.field.contrast.succeed",tableId));
+    }
+
+
+    //模型推演
+    protected LinkedHashMap<String,TapField>  modelDeduction(ConnectorNode connectorNode){
+        //进行模型推演获取表结构
+        //使用TapType的11种类型组织表结构（类型的长度尽量短小）
+        TargetTypesGenerator targetTypesGenerator = InstanceFactory.instance(TargetTypesGenerator.class);
+        if(targetTypesGenerator == null)
+            throw new CoreException(PDKRunnerErrorCodes.SOURCE_TARGET_TYPES_GENERATOR_NOT_FOUND, "TargetTypesGenerator's implementation is not found in current classloader");
+        TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+        if(tableFieldTypesGenerator == null)
+            throw new CoreException(PDKRunnerErrorCodes.SOURCE_TABLE_FIELD_TYPES_GENERATOR_NOT_FOUND, "TableFieldTypesGenerator's implementation is not found in current classloader");
+        TapCodecsRegistry codecRegistry = connectorNode.getCodecsRegistry();
+        TapCodecsFilterManager targetCodecFilterManager = connectorNode.getCodecsFilterManager();
+        DefaultExpressionMatchingMap dataTypesMap = connectorNode.getTapNodeInfo().getTapNodeSpecification().getDataTypesMap();
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(
+                targetTable.getNameFieldMap(),
+                dataTypesMap,
+                targetCodecFilterManager
+        );
+        //经过模型推演生成TapTable
+        return tapResult.getData();
     }
 }

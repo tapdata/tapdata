@@ -64,6 +64,8 @@ public class TDDCli extends CommonCli {
     private String lan = "en";
     @CommandLine.Option(names = { "-p", "--path" }, usageHelp = false, description = "TapData cli path,need test package ,path split as .")
     private String packagePath = WriteRecordTest.class.getPackage().getName();
+    @CommandLine.Option(names = { "-log", "--logPath" }, usageHelp = false, description = "TapData cli log,need test to log test result ,path to log ,default ./tapdata-pdk-cli/tss-logs/")
+    private String logPath = TapSummary.basePath("tdd-logs");
 
 
 
@@ -87,8 +89,8 @@ public class TDDCli extends CommonCli {
             LauncherDiscoveryRequest build = request.selectors(selector).build();
             runTests(build, testResultSummary);
         }
-        testResultSummary.endingShow(file.getName());
-        //testResultSummary.asFile(file.getName());
+        testResultSummary.endingShow(testResultSummary,file.getName());
+        testResultSummary.asFileV2(file.getName());
         System.exit(0);
     }
 
@@ -115,7 +117,11 @@ public class TDDCli extends CommonCli {
             lan = "en";
         }
         lan = "zh_CN";
+        if (null == logPath || "".equals(logPath)){
+            logPath = "/tdd-logs/";
+        }
         CommonUtils.setProperty("tap_lang", lan);
+        CommonUtils.setProperty("tap_log_path", logPath);
         try {
             testPDKJar(file, testConfig);
         } catch (Throwable throwable) {

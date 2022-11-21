@@ -26,13 +26,17 @@ public interface TapAssert {
         switch (assertGarde){
             case WARN: {
                 //TapLogger.warn("TAP-TEST",message);
-                msg.warn();
+                if (msg.executionResult() == SUCCEED) {
+                    msg.warn();
+                }
                 testCases.addWarn(message);
                 break;
             }
             case ERROR: {
                 //TapLogger.error("TAP-TEST",message);
-                msg.fail();
+                if (ERROR != msg.executionResult()) {
+                    msg.fail();
+                }
                 testCases.addError(message);
                 throw new RuntimeException(message,e);
             }

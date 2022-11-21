@@ -207,7 +207,7 @@ public class WriteRecordTest extends PDKTestBase {
         TapAssert.asserts(() -> Assertions.assertTrue(
                 lastUpdate2 == 0 && lastInsert2 == 0 ,
                         TapSummary.format(suffix2+"error",lastInsert2,lastUpdate2))
-        ).acceptAsError(testCase,TapSummary.format(suffix2+"succeed",lastInsert2,lastUpdate2));
+        ).acceptAsWarn(testCase,TapSummary.format(suffix2+"succeed",lastInsert2,lastUpdate2));
     }
 
     @Test
@@ -251,7 +251,7 @@ public class WriteRecordTest extends PDKTestBase {
                             delete.getModifiedCount(),
                             delete.getRemovedCount()
                     ))
-            ).acceptAsError(
+            ).acceptAsWarn(
                      recordEventExecute.testCase(),
                     TapSummary.format("writeRecordTest.sourceTest3.deleteNotExist.succeed",recLen)
             );
@@ -314,7 +314,7 @@ public class WriteRecordTest extends PDKTestBase {
                 Assertions.assertTrue(
                         null != updateFinal1 && updateFinal1.getInsertedCount() == recLen,
                         TapSummary.format("writeRecordTest.sourceTest4.insertOnNotExists.error",recLen,recLen,updateFinal1.getInsertedCount()))
-        ).acceptAsError(
+        ).acceptAsWarn(
                 testCase,
                 TapSummary.format("writeRecordTest.sourceTest4.insertOnNotExists.succeed",recLen,recLen,updateFinal1.getInsertedCount())
         );
@@ -337,7 +337,7 @@ public class WriteRecordTest extends PDKTestBase {
                 Assertions.assertTrue(
                         null != updateFinal2 && updateFinal2.getInsertedCount() == 0 && updateFinal2.getModifiedCount() == 0,
                         TapSummary.format("writeRecordTest.sourceTest4.ignoreOnNotExists.error",recLen2,updateFinal2.getInsertedCount(),updateFinal2.getModifiedCount()))
-        ).acceptAsError(
+        ).acceptAsWarn(
                 testCase,
                 TapSummary.format("writeRecordTest.sourceTest4.ignoreOnNotExists.succeed",recLen2,update2.getInsertedCount(),update2.getModifiedCount())
         );

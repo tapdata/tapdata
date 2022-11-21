@@ -1,7 +1,6 @@
 package io.tapdata.pdk.cli.commands;
 import javax.swing.JFileChooser;
 import javax.swing.JPanel;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVMap;
@@ -15,6 +14,7 @@ import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.tests.support.*;
+import org.apache.commons.io.FilenameUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
@@ -30,7 +30,6 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 //    public static class TapSummary {
 //        public TapSummary() {}
 //        TapNodeInfo tapNodeInfo;
@@ -72,10 +71,11 @@ public class TapSummary {
 
     //用来表示一次测试过程是否通过
     public static String hasPass = "SUCCEED";
+
     //每轮测试结束需要调用这个方法进行清除一些数据
     public void clean(){
         TapSummary.capabilitiesResult = new HashMap<>();
-        doNotSupportFunTest = new HashMap<>();
+        //doNotSupportFunTest = new HashMap<>();
         testClasses = new ArrayList<>();
     }
 
@@ -85,35 +85,46 @@ public class TapSummary {
     private Locale langType = Locale.SIMPLIFIED_CHINESE;
     private final String AREA_SPLIT = "------------------------------------------------------------------------------------";
     private final String AREA_SPLIT_SIMPLE = "————————————————————————————————————————————————————————————————————————————————————";
+
     public TapSummary setLanType(Locale langType){
         this.langType = langType;
         return this;
     }
+
     public static TapSummary create(List<TapSummary> summarys){
         return new TapSummary(summarys);
     }
+
     private TapSummary(List<TapSummary> summarys){
         this.summarys = summarys;
     }
+
     public static TapSummary create(){
         return new TapSummary();
     }
+
     private TapSummary(){
     }
 
     public void showTestResultAll(TapNodeInfo nodeInfo,String fileName){
         if (null != summarys && !summarys.isEmpty()) {
-            summarys.stream().filter(Objects::nonNull).forEach(summary -> showTest(summary));
+            summarys.stream().filter(Objects::nonNull).forEach(summary ->{
+                showTest(summary);
+                this.showNotSupport(summary);
+            } );
         }
     }
+
     public void showTestResult(TapSummary summary){
         showTest(summary);
         clean();
     }
+
     public void showCapabilities(TapNodeInfo nodeInfo){
         this.tapNodeInfo = nodeInfo;
         System.out.println(showCapabilitiesV2());
     }
+
     private String showCapabilitiesV2(){
         StringBuilder builder = new StringBuilder(AREA_SPLIT);
         builder.append("\n------------PDK id '")
@@ -125,27 +136,9 @@ public class TapSummary {
         return builder.toString();
     }
 
-    private void showNotSupport(TapSummary summary,StringBuilder builder){
+    private StringBuilder showNotSupport(TapSummary summary){
+        StringBuilder builder = new StringBuilder(AREA_SPLIT+"\n");
         if (null != summary.doNotSupportFunTest && !summary.doNotSupportFunTest.isEmpty()){
-//            summary.doNotSupportFunTest.forEach(((aClass, s) -> {
-//                builder.append("☆ ")
-//                        .append(aClass.getSimpleName());
-//                String annotation = this.getAnnotationName(aClass,DisplayName.class);
-//                if (null!= annotation) {
-//                    builder.append("(").append(annotation).append(")");
-//                }
-//                builder.append("\n")
-//                        .append("\t").append(s).append("\n");
-//                builder.append("☆ ")
-//                        .append(TapSummary.format("ONCE_HISTORY",
-//                                aClass.getSimpleName(),
-//                                TapSummary.format("TEST_RESULT_ERROR"),
-//                                0,
-//                                0,
-//                                0,
-//                                1))
-//                        .append("\n");
-//            }));
             Iterator<Map.Entry<Class, String>> iterator = summary.doNotSupportFunTest.entrySet().iterator();
             while (iterator.hasNext()){
                 Map.Entry<Class, String> next = iterator.next();
@@ -174,7 +167,7 @@ public class TapSummary {
                 builder.append("★ ")
                         .append(TapSummary.format("ONCE_HISTORY",
                                 aClass.getSimpleName(),
-                                TapSummary.format("TEST_RESULT_ERROR"),
+                                TapSummary.format("TEST_RESULT_WARN"),
                                 0,
                                 0,
                                 0,
@@ -186,14 +179,16 @@ public class TapSummary {
                 }
             }
         }
+        builder.append(AREA_SPLIT).append("\n");
+        return builder;
     }
 
     private void showTest(TapSummary summary){
         Map<Class<? extends PDKTestBase>,Integer> resultExecution = summary.resultExecution;
         Map<Class, CapabilitiesExecutionMsg> result = summary.capabilitiesResult;
+        if (null==result || result.isEmpty()) return;
         StringBuilder builder = new StringBuilder(AREA_SPLIT);
         builder.append("\n");
-        this.showNotSupport(summary,builder);
         int allTestResult = CapabilitiesExecutionMsg.SUCCEED;//default 0 === succeed
         for (Map.Entry<Class,CapabilitiesExecutionMsg> entry : result.entrySet()){
             Class cla = entry.getKey();
@@ -252,9 +247,6 @@ public class TapSummary {
             if (null!= annotation) {
                 builder.append("(").append(annotation).append(")");
             }
-//            if (res.executionResult() != CapabilitiesExecutionMsg.ERROR && warnSize>0){
-//                builder.append(TapSummary.format("HAS_WARN_COUNT",warnSize));
-//            }
             builder.append("\n")
                     .append(capabilityBuilder)
                     .append("\n");
@@ -278,7 +270,6 @@ public class TapSummary {
             }
             resultExecution.put(cla,allTestResult);
         }
-
         if(CapabilitiesExecutionMsg.ERROR == allTestResult && !Case.ERROR.equals(TapSummary.hasPass)) {
             TapSummary.hasPass = Case.ERROR;
         }else {
@@ -307,6 +298,7 @@ public class TapSummary {
         //@TODO default save path
         return "D:\\GavinData\\deskTop\\newFile_"+System.nanoTime()+".txt";
     }
+
     public void asFile(String file){
         System.out.println("\n(？)Do you want to printout as a file?(y/n):");
         Scanner scanner = new Scanner(System.in);
@@ -332,6 +324,21 @@ public class TapSummary {
                 );
             }catch (Exception e) {
             }
+        }
+    }
+
+    public void asFileV2(String file){
+        String path = CommonUtils.getProperty("tap_log_path");
+        String fileName = tapNodeInfo.getTapNodeSpecification().getId()+"-connector-v1.0-TDD-TEST-"+dateTime()+".log";
+        path += fileName;
+        try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(path), StandardCharsets.UTF_8)) {
+            writer.write(
+                    showLogoV2() + "\n"+
+                         showCapabilitiesV2()+
+                    resultBuilder.toString()+
+                         endingShowV2(file)+"\n"+new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(new Date())
+            );
+        }catch (Exception e) {
         }
     }
 
@@ -428,6 +435,7 @@ public class TapSummary {
     public void showLogo(){
         System.out.println(showLogoV2());
     }
+
     private String showLogoV2(){
         String logo = "\n"+AREA_SPLIT+ "\n"+
                 "[.___________.    ___      .______    _______       ___   .___________.    ___     ]\n" +
@@ -459,9 +467,13 @@ public class TapSummary {
         return TapSummary.format(((DisplayName)objectCla.getAnnotation(DisplayName.class)).value());
     }
 
-    public void endingShow(String fileName){
+    public void endingShow(TapSummary summary,String fileName){
+        StringBuilder builder = this.showNotSupport(summary);
+        System.out.println(builder.toString());
+        resultBuilder.append(builder);
         System.out.println(endingShowV2(fileName));
     }
+
     public String endingShowV2(String fileName){
         String msg = "";
         if(Case.ERROR.equals(TapSummary.hasPass)) {
@@ -479,6 +491,20 @@ public class TapSummary {
             splitStartAndEnd.append(charStr);
         }
         return splitStartAndEnd.toString()+"\n"+msg+"\n"+splitStartAndEnd.toString()+"\n";
+    }
+
+    public static String basePath(String logPath) {
+        try {
+            Path path = Paths.get(logPath+"..\\" );
+            return path.toFile().getCanonicalPath() + "\\";
+        } catch (Throwable throwable) {
+            return FilenameUtils.concat(logPath, "../");
+        }
+    }
+
+    private static String dateTime(){
+        String format = "yyyyMMdd_hhmmss";
+        return  (new SimpleDateFormat(format)).format(new Date());
     }
 
 }

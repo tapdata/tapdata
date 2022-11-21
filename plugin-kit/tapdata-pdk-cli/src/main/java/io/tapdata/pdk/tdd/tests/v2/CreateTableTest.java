@@ -37,6 +37,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -46,7 +47,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Date;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("createTableTest.test")//CreateTableFunction/CreateTableV2Function建表
-@TapGo(sort = 9)
+@TapGo(sort = 9,goTest = false)
 public class CreateTableTest extends PDKTestBase {
 
     @DisplayName("createTableV2")//用例1，CreateTableFunction已过期， 应使用CreateTableV2Function
@@ -148,134 +149,27 @@ public class CreateTableTest extends PDKTestBase {
 
     TapTable getTableForAllTapType(){
         return table(UUID.randomUUID().toString())
-                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
-                .add(field("TYPE_ARRAY", JAVA_Array))
-                .add(field("TYPE_BINARY", JAVA_Binary))
-                .add(field("TYPE_BOOLEAN", JAVA_Boolean))
-                .add(field("TYPE_DATE", JAVA_Date))
-                .add(field("TYPE_DATETIME", JAVA_Date))
-                .add(field("TYPE_MAP", JAVA_Map))
-                .add(field("TYPE_NUMBER_Long", JAVA_Long))
-                .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer))
-                .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal))
-                .add(field("TYPE_NUMBER_Float", JAVA_Float))
-                .add(field("TYPE_NUMBER_Double", JAVA_Double))
-                .add(field("TYPE_STRING_1", "STRING(20)"))
-                .add(field("TYPE_STRING_2", "STRING(20)"))
-                .add(field("TYPE_INT64", "INT64"))
-                .add(field("TYPE_TIME", JAVA_Date))
-                .add(field("TYPE_YEAR", JAVA_Date));
+                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
+                .add(field("TYPE_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
+                .add(field("TYPE_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
+                .add(field("TYPE_DATE", JAVA_Date).tapType(tapDate()))
+                .add(field("TYPE_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
+                .add(field("TYPE_MAP", JAVA_Map).tapType(tapMap()))
+                .add(field("TYPE_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
+                .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(10000).scale(100).fixed(true)))
+                .add(field("TYPE_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).fixed(false).scale(8).precision(38)))
+                .add(field("TYPE_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).scale(17).precision(309).fixed(false)))
+                .add(field("TYPE_STRING_1", JAVA_String).tapType(tapString().bytes(20L)))
+                .add(field("TYPE_STRING_2", JAVA_String).tapType(tapString().bytes(20L)))
+                .add(field("TYPE_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("TYPE_TIME", "Time").tapType(tapTime()))
+                .add(field("TYPE_YEAR", "Year").tapType(tapYear()));
     }
 
 
-    private TableFieldTypesGenerator tableFieldTypesGenerator;
-    private TargetTypesGenerator targetTypesGenerator;
-    private TapCodecsFilterManager targetCodecFilterManager;
-    private TapCodecsRegistry codecRegistry;
-    final String types = "{\n" +
-            "    \"DOUBLE\": {\n" +
-            "      \"to\": \"TapNumber\",\n" +
-            "      \"value\": [\n" +
-            "        \"-1.7976931348623157E+308\",\n" +
-            "        \"1.7976931348623157E+308\"\n" +
-            "      ],\n" +
-            "      \"preferPrecision\": 20,\n" +
-            "      \"preferScale\": 8,\n" +
-            "      \"scale\": 17,\n" +
-            "      \"precision\": 309,\n" +
-            "      \"fixed\": true\n" +
-            "    },\n" +
-            "    \"STRING[($byte)]\": {\n" +
-            "      \"to\": \"TapString\",\n" +
-            "      \"preferByte\": \"100\",\n" +
-            "      \"byte\": \"16m\"\n" +
-            "    },\n" +
-            "    \"DOCUMENT\": {\n" +
-            "      \"to\": \"TapMap\",\n" +
-            "      \"byte\": \"16m\"\n" +
-            "    },\n" +
-            "    \"ARRAY\": {\n" +
-            "      \"to\": \"TapArray\",\n" +
-            "      \"byte\": \"16m\"\n" +
-            "    },\n" +
-            "    \"BINARY\": {\n" +
-            "      \"to\": \"TapBinary\",\n" +
-            "      \"byte\": \"16m\"\n" +
-            "    },\n" +
-            "    \"OBJECT_ID\": {\n" +
-            "      \"to\": \"TapString\",\n" +
-            "      \"byte\": \"24\",\n" +
-            "      \"queryOnly\": true\n" +
-            "    },\n" +
-            "    \"BOOLEAN\": {\n" +
-            "      \"to\": \"TapBoolean\"\n" +
-            "    },\n" +
-            "    \"DATE_TIME\": {\n" +
-            "      \"to\": \"TapDateTime\",\n" +
-            "      \"range\": [\n" +
-            "        \"1000-01-01T00:00:00.001Z\",\n" +
-            "        \"9999-12-31T23:59:59.999Z\"\n" +
-            "      ],\n" +
-            "      \"pattern\": \"yyyy-MM-dd'T'HH:mm:ss.SSS'Z'\",\n" +
-            "      \"fraction\": [\n" +
-            "        0,\n" +
-            "        3\n" +
-            "      ],\n" +
-            "      \"defaultFraction\": 3\n" +
-            "    },\n" +
-            "    \"JAVASCRIPT\": {\n" +
-            "      \"to\": \"TapString\",\n" +
-            "      \"byte\": \"16m\",\n" +
-            "      \"queryOnly\": true\n" +
-            "    },\n" +
-            "    \"SYMBOL\": {\n" +
-            "      \"to\": \"TapString\",\n" +
-            "      \"byte\": \"16m\",\n" +
-            "      \"queryOnly\": true\n" +
-            "    },\n" +
-            "    \"INT32\": {\n" +
-            "      \"to\": \"TapNumber\",\n" +
-            "      \"bit\": 32,\n" +
-            "      \"precision\": 10,\n" +
-            "      \"value\": [\n" +
-            "        -2147483648,\n" +
-            "        2147483647\n" +
-            "      ]\n" +
-            "    },\n" +
-            "    \"TIMESTAMP\": {\n" +
-            "      \"to\": \"TapString\",\n" +
-            "      \"queryOnly\": true\n" +
-            "    },\n" +
-            "    \"INT64\": {\n" +
-            "      \"to\": \"TapNumber\",\n" +
-            "      \"bit\": 64,\n" +
-            "      \"value\": [\n" +
-            "        -9223372036854775808,\n" +
-            "        9223372036854775807\n" +
-            "      ]\n" +
-            "    },\n" +
-            "    \"DECIMAL128\": {\n" +
-            "      \"to\": \"TapNumber\",\n" +
-            "      \"value\": [\n" +
-            "        -1E+6145,\n" +
-            "        1E+6145\n" +
-            "      ],\n" +
-            "      \"scale\": 1000\n" +
-            "    },\n" +
-            "    \"MIN_KEY\": {\n" +
-            "      \"to\": \"TapString\",\n" +
-            "      \"byte\": \"16m\",\n" +
-            "      \"queryOnly\": true\n" +
-            "    },\n" +
-            "    \"MAX_KEY\": {\n" +
-            "      \"to\": \"TapString\",\n" +
-            "      \"byte\": \"16m\",\n" +
-            "      \"queryOnly\": true\n" +
-            "    },\n" +
-            "    \"NULL\": {\n" +
-            "      \"to\": \"TapRaw\"\n" +
-            "    }\n" +
-            "  }";
+
     @DisplayName("allTapType")//用例2， 使用TapType全类型11个类型推演建表测试
     @TapTestCase(sort = 2)
     @Test
@@ -289,33 +183,17 @@ public class CreateTableTest extends PDKTestBase {
     void allTapType(){
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            ConnectorNode connectorNode = prepare.connectorNode();
             //使用TapType的11种类型组织表结构（类型的长度尽量短小）
             this.targetTable = getTableForAllTapType();
             RecordEventExecute execute = prepare.recordEventExecute();
-            targetTypesGenerator = InstanceFactory.instance(TargetTypesGenerator.class);
-            if(targetTypesGenerator == null)
-                throw new CoreException(PDKRunnerErrorCodes.SOURCE_TARGET_TYPES_GENERATOR_NOT_FOUND, "TargetTypesGenerator's implementation is not found in current classloader");
-            tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
-            if(tableFieldTypesGenerator == null)
-                throw new CoreException(PDKRunnerErrorCodes.SOURCE_TABLE_FIELD_TYPES_GENERATOR_NOT_FOUND, "TableFieldTypesGenerator's implementation is not found in current classloader");
-            codecRegistry = TapCodecsRegistry.create();
-            targetCodecFilterManager = TapCodecsFilterManager.create(codecRegistry);
             boolean hasCreateTable = false;
             try {
                 Method testCase = super.getMethod("allTapType");
                 execute.testCase(testCase);
-
-                tableFieldTypesGenerator.autoFill(
-                        targetTable.getNameFieldMap(),
-                        DefaultExpressionMatchingMap.map(types)
-                );
-                TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(
-                        targetTable.getNameFieldMap(),
-                        DefaultExpressionMatchingMap.map(types),
-                        targetCodecFilterManager
-                );
+                TapConnector connector = connectorNode.getConnector();
                 //经过模型推演生成TapTable中的11个字段，
-                LinkedHashMap<String, TapField> sourceFields = tapResult.getData();
+                LinkedHashMap<String, TapField> sourceFields = super.modelDeduction(connectorNode);
 
                 super.connectorOnStart(prepare);
                 //采用随机表名建表， 建表成功之后， 返回的CreateTableOptions#tableExists应该等于false，
@@ -323,12 +201,12 @@ public class CreateTableTest extends PDKTestBase {
                     return;
                 }
                 String tableId = targetTable.getId();
-                ConnectorNode connectorNode = prepare.connectorNode();
-                TapConnector connector = connectorNode.getConnector();
+
+
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
                 //如果没有就警告； 通过调用discoverSchema指定tableName来获取随机建立的表， 能查出这个表算是成功，
                 List<TapTable> tables = new ArrayList<>();
-                connector.discoverSchema(connectorContext,list(tableId),1,con->{
+                connector.discoverSchema(connectorContext,list(tableId),1000,con->{
                     if (null!=con&&!con.isEmpty()){
                         tables.addAll(con);
                     }
@@ -336,8 +214,8 @@ public class CreateTableTest extends PDKTestBase {
                 if (tables.size()==1){
                     TapTable tapTable = tables.get(0);
                     TapAssert.asserts(()->{
-                        Assertions.assertEquals(tapTable.getId(), tableId, TapSummary.format(""));
-                    }).acceptAsError(testCase,TapSummary.format(""));
+                        Assertions.assertEquals(tapTable.getId(), tableId, TapSummary.format("createTable.allTapType.discoverSchema.error",tableId));
+                    }).acceptAsError(testCase,TapSummary.format("createTable.allTapType.discoverSchema.succeed",tableId));
                     if (tableId.equals(tapTable.getId())){
                         //对比两个TapTable里的字段名以及类型， 不同的地方需要警告。
                         LinkedHashMap<String, TapField> targetFields = tapTable.getNameFieldMap();
@@ -345,7 +223,7 @@ public class CreateTableTest extends PDKTestBase {
                     }
                 }else {
                     TapAssert.asserts(()->{
-                        Assertions.fail(TapSummary.format(""));
+                        Assertions.fail(TapSummary.format("createTable.allTapType.discoverSchema.error",tables.size(),tableId));
                     }).acceptAsError(testCase,null);
                 }
             }catch (Throwable e) {
@@ -362,23 +240,23 @@ public class CreateTableTest extends PDKTestBase {
 
     TapTable getTable(){
         return table(UUID.randomUUID().toString())
-                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
-                .add(field("TYPE_ARRAY", JAVA_Array))
-                .add(field("TYPE_BINARY", JAVA_Binary))
-                .add(field("TYPE_BOOLEAN", JAVA_Boolean))
-                .add(field("TYPE_DATE", JAVA_Date))
-                .add(field("TYPE_DATETIME", JAVA_Date))
-                .add(field("TYPE_MAP", JAVA_Map))
-                .add(field("TYPE_NUMBER_Long", JAVA_Long))
-                .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer))
-                .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal))
-                .add(field("TYPE_NUMBER_Float", JAVA_Float))
-                .add(field("TYPE_NUMBER_Double", JAVA_Double))
-                .add(field("TYPE_STRING_1", "STRING(100)"))
-                .add(field("TYPE_STRING_2", "STRING(100)"))
-                .add(field("TYPE_INT64", "INT64"))
-                .add(field("TYPE_TIME", JAVA_Date))
-                .add(field("TYPE_YEAR", JAVA_Date));
+                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
+                .add(field("TYPE_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
+                .add(field("TYPE_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
+                .add(field("TYPE_DATE", JAVA_Date).tapType(tapDate()))
+                .add(field("TYPE_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
+                .add(field("TYPE_MAP", JAVA_Map).tapType(tapMap()))
+                .add(field("TYPE_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
+                .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(10000).scale(100).fixed(true)))
+                .add(field("TYPE_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).fixed(false).scale(8).precision(38)))
+                .add(field("TYPE_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).scale(17).precision(309).fixed(false)))
+                .add(field("TYPE_STRING_1", "STRING(100)").tapType(tapString().bytes(100L)))
+                .add(field("TYPE_STRING_2", "STRING(100)").tapType(tapString().bytes(100L)))
+                .add(field("TYPE_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("TYPE_TIME", "Time").tapType(tapTime()))
+                .add(field("TYPE_YEAR", "Year").tapType(tapYear()));
     }
 
     @DisplayName("addIndex")//用例3， 建表时增加索引信息进行测试
