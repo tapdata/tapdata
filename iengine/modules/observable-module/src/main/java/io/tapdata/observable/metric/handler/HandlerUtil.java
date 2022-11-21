@@ -29,7 +29,7 @@ public class HandlerUtil {
                 }
                 continue;
             }
-            Long referenceTime = countEventType(tapdataEvent.getTapEvent(), recorder);
+            Long referenceTime = countEventTypeAndGetReferenceTime(tapdataEvent.getTapEvent(), recorder);
             CommonUtils.ignoreAnyError(() -> recorder.incrReplicateLagTotal(now, referenceTime), "HandlerUtil-countTapdataEvent");
         }
 
@@ -42,7 +42,7 @@ public class HandlerUtil {
         Long referenceTime;
         EventTypeRecorder recorder = new EventTypeRecorder();
         for (TapEvent tapEvent : events) {
-            referenceTime = countEventType(tapEvent, recorder);
+            referenceTime = countEventTypeAndGetReferenceTime(tapEvent, recorder);
             recorder.incrProcessTimeTotal(now, tapEvent.getTime());
             recorder.incrReplicateLagTotal(now, referenceTime);
         }
@@ -50,7 +50,7 @@ public class HandlerUtil {
         return recorder;
     }
 
-    private static Long countEventType(TapEvent event, EventTypeRecorder recorder) {
+    private static Long countEventTypeAndGetReferenceTime(TapEvent event, EventTypeRecorder recorder) {
         Long ts;
         if (event instanceof HeartbeatEvent) {
             ts = ((HeartbeatEvent) event).getReferenceTime();
