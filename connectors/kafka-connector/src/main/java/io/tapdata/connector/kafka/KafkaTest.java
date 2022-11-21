@@ -40,17 +40,6 @@ public class KafkaTest extends CommonDbTest {
         this.kafkaService = kafkaService;
     }
 
-
-    public Boolean testOneByOne() {
-        for (Map.Entry<String, Supplier<Boolean>> entry : testFunctionMap.entrySet()) {
-            Boolean res = entry.getValue().get();
-            if (EmptyKit.isNotNull(res) && !res) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     @Override
     public Boolean testHostPort() {
         TestItem testHostAndPort = kafkaService.testHostAndPort();

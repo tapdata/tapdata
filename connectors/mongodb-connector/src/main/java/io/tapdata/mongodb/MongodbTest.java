@@ -16,7 +16,6 @@ import org.bson.Document;
 
 import java.util.*;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 import static io.tapdata.base.ConnectorBase.testItem;
@@ -71,16 +70,6 @@ public class MongodbTest extends CommonDbTest {
         return Arrays.asList("3.2.*", "3.4.*", "3.6.*", "4.0.*", "4.2.*");
     }
 
-    public Boolean testOneByOne() {
-        for (Map.Entry<String, Supplier<Boolean>> entry : testFunctionMap.entrySet()) {
-            Boolean res = entry.getValue().get();
-            if (EmptyKit.isNotNull(res) && !res) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     @Override
     public Boolean testHostPort() {
         StringBuilder failHosts;
@@ -95,13 +84,13 @@ public class MongodbTest extends CommonDbTest {
             }
             try {
                 NetUtil.validateHostPortWithSocket(hostname, port);
-            }catch (Exception e){
+            } catch (Exception e) {
                 failHosts.append(host).append(",");
             }
         }
         if (EmptyKit.isNotBlank(String.valueOf(failHosts))) {
             failHosts = new StringBuilder(failHosts.substring(0, failHosts.length() - 1));
-            consumer.accept(testItem(DbTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED,JSONObject.toJSONString(failHosts)));
+            consumer.accept(testItem(DbTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, JSONObject.toJSONString(failHosts)));
             return false;
         }
         consumer.accept(testItem(DbTestItem.HOST_PORT.getContent(), TestItem.RESULT_SUCCESSFULLY));
@@ -122,11 +111,12 @@ public class MongodbTest extends CommonDbTest {
             return false;
         }
     }
+
     @Override
     public Boolean testVersion() {
-         try{
-            String version = MongodbUtil.getVersionString(mongoClient,mongodbConfig.getDatabase());
-            String versionMsg ="mongodb version: "+ version;
+        try {
+            String version = MongodbUtil.getVersionString(mongoClient, mongodbConfig.getDatabase());
+            String versionMsg = "mongodb version: " + version;
             if (supportVersions().stream().noneMatch(v -> {
                 String reg = v.replaceAll("\\*", ".*");
                 Pattern pattern = Pattern.compile(reg);
@@ -308,7 +298,7 @@ public class MongodbTest extends CommonDbTest {
     }
 
 
-    private  boolean validateAuthDB(Document connectionStatus) {
+    private boolean validateAuthDB(Document connectionStatus) {
         Document nodeAuthInfo = connectionStatus.get("authInfo", Document.class);
         List nodeAuthenticatedUsers = nodeAuthInfo.get("authenticatedUsers", List.class);
         if (CollectionUtils.isNotEmpty(nodeAuthenticatedUsers)) {
