@@ -9,11 +9,9 @@ import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
-import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
@@ -28,7 +26,6 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
 import com.tapdata.tm.scheduleTasks.service.ScheduleTasksService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
@@ -67,7 +64,6 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     private DataFlowService dataFlowService;
     private ClusterStateService clusterStateService;
-    private UserService userService;
     private SettingsService settingsService;
     private ScheduleTasksService scheduleTasksService;
     private TaskService taskService;
