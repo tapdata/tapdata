@@ -1,7 +1,6 @@
 package com.tapdata.tm.commons.schema;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.bean.FileSources;
@@ -14,7 +13,10 @@ import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.mapping.Field;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TimeZone;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -91,6 +93,8 @@ public class DataSourceConnectionDto extends BaseDto {
         private Boolean loadAllTables;
         /** 自定义的加载表的表名列表  都号隔开*/
         private String table_filter;
+        private String tableExcludeFilter;
+        private Boolean openTableExcludeFilter;
         private String auth_db;
         private String project;
 
