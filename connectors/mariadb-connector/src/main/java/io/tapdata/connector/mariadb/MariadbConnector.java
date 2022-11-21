@@ -1,7 +1,7 @@
 package io.tapdata.connector.mariadb;
 
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.*;
@@ -331,35 +331,13 @@ public class MariadbConnector extends ConnectorBase {
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         databaseContext.getSpecification().setId("mysql");
+        CommonDbConfig commonDbConfig = new CommonDbConfig();
+        commonDbConfig.set__connectionType(databaseContext.getConnectionConfig().getString("__connectionType"));
         try (
-                MariadbConnectionTest mariadbConnectionTest = new MariadbConnectionTest(new MysqlJdbcContext(databaseContext))
+                MariadbConnectionTest mariadbConnectionTest = new MariadbConnectionTest(new MysqlJdbcContext(databaseContext),
+                        databaseContext, consumer, commonDbConfig, connectionOptions);
         ) {
-            TestItem testHostPort = mariadbConnectionTest.testHostPort(databaseContext);
-            consumer.accept(testHostPort);
-            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem testConnect = mariadbConnectionTest.testConnect();
-            consumer.accept(testConnect);
-            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem testDatabaseVersion = mariadbConnectionTest.testDatabaseVersion();
-            consumer.accept(testDatabaseVersion);
-            if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem binlogMode = mariadbConnectionTest.testBinlogMode();
-            TestItem binlogRowImage = mariadbConnectionTest.testBinlogRowImage();
-            TestItem cdcPrivileges = mariadbConnectionTest.testCDCPrivileges();
-            consumer.accept(binlogMode);
-            consumer.accept(binlogRowImage);
-            consumer.accept(cdcPrivileges);
-            consumer.accept(mariadbConnectionTest.testCreateTablePrivilege(databaseContext));
-            if (binlogMode.isSuccess() && binlogRowImage.isSuccess() && cdcPrivileges.isSuccess()) {
-                List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDL_PARSER_TYPE);
-                ddlCapabilities.forEach(connectionOptions::capability);
-            }
+            mariadbConnectionTest.testOneByOne();
             return connectionOptions;
         }
     }

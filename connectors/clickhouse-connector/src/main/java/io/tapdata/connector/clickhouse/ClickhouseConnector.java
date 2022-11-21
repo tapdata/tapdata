@@ -380,24 +380,9 @@ public class ClickhouseConnector extends ConnectorBase {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         clickhouseConfig = (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
         try (
-                ClickhouseTest clickhouseTest = new ClickhouseTest(clickhouseConfig)
+                ClickhouseTest clickhouseTest = new ClickhouseTest(clickhouseConfig, consumer)
         ) {
-            TestItem testHostPort = clickhouseTest.testHostPort();
-            consumer.accept(testHostPort);
-            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem testConnect = clickhouseTest.testConnect();
-            consumer.accept(testConnect);
-            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            //Read test
-            //TODO execute read test by checking role permission
-            consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY));
-            //Write test
-            //TODO execute write test by checking role permission
-            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
+            clickhouseTest.testOneByOne();
             return connectionOptions;
         }
     }
