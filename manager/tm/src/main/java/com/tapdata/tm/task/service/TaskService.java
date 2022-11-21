@@ -8,7 +8,6 @@ import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
-import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
@@ -74,7 +73,6 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
-import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
 import io.tapdata.common.sample.request.Sample;
 import lombok.*;
@@ -141,6 +139,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private ExceptionHandler exceptionHandler;
 
     private StateMachineService stateMachineService;
+    private TaskScheduleService taskScheduleService;
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
 
@@ -917,10 +916,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public void renew(ObjectId id, UserDetail user) {
         TaskDto taskDto = checkExistById(id, user);
-        String status = taskDto.getStatus();
-        if (TaskDto.STATUS_WAIT_START.equals(status)) {
-            return;
-        }
+//        String status = taskDto.getStatus();
+//        if (TaskDto.STATUS_WAIT_START.equals(status)) {
+//            return;
+//        }
 
 //        //只有暂停或者停止状态可以重置
 //        if (!TaskOpStatusEnum.to_renew_status.v().contains(status)) {
@@ -2588,7 +2587,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //需要将重启标识清除
         update(query, Update.update("isEdit", false).set("restartFlag", false), user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULING, user);
-        scheduling(taskDto, user);
+        taskScheduleService.scheduling(taskDto, user);
     }
 
 
@@ -2597,95 +2596,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param taskDto
      * @param user
      */
-    public void scheduling(TaskDto taskDto, UserDetail user) {
-
-        if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())
-                && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-            taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
-        } else {
-            taskDto.setAgentId(null);
-        }
-
-        CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
-        if (StringUtils.isBlank(taskDto.getAgentId())) {
-            scheduleFailed(taskDto, user);
-        }
-
-        Date now = new Date();
-        monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getAvailable(), user, now);
-        //调度完成之后，改成待运行状态
-        Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        Update waitRunUpdate = Update.update("agentId", taskDto.getAgentId())
-                .set("monitorStartDate", now)
-                .set("last_updated", now);
-        boolean needCreateRecord = false;
-        if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
-            taskDto.setTaskRecordId(new ObjectId().toHexString());
-            waitRunUpdate.set(TaskDto.LASTTASKRECORDID, taskDto.getTaskRecordId());
-            needCreateRecord = true;
-        }
-
-        StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_SUCCESS, user);
-
-        if (stateMachineResult.isFail()) {
-            log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
-            return;
-        } else {
-
-            UpdateResult waitRunResult = update(query1, waitRunUpdate, user);
-            updateTaskRecordStatus(taskDto, TaskDto.STATUS_WAIT_RUN, user);
-        }
-        //发送websocket消息，提醒flowengin启动
-        DataSyncMq dataSyncMq = new DataSyncMq();
-        dataSyncMq.setTaskId(taskDto.getId().toHexString());
-        dataSyncMq.setOpType(DataSyncMq.OP_TYPE_START);
-        dataSyncMq.setType(MessageType.DATA_SYNC.getType());
-
-        Map<String, Object> data;
-        String json = JsonUtil.toJsonUseJackson(dataSyncMq);
-        data = JsonUtil.parseJsonUseJackson(json, Map.class);
-        MessageQueueDto queueDto = new MessageQueueDto();
-        queueDto.setReceiver(taskDto.getAgentId());
-        queueDto.setData(data);
-        queueDto.setType("pipe");
-
-        log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
-        messageQueueService.sendMessage(queueDto);
-
-        if (needCreateRecord) {
-            TaskEntity taskSnapshot = new TaskEntity();
-            BeanUtil.copyProperties(taskDto, taskSnapshot);
-            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), now));
-        } else {
-            updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
-        }
-
-        //数据发现的任务收集
-        TaskDto newTaskDto = findById(taskDto.getId(), user);
-        TaskCollectionObjDto taskCollectionObjDto = new TaskCollectionObjDto();
-        BeanUtils.copyProperties(newTaskDto, taskCollectionObjDto);
-        Query query2 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        taskCollectionObjService.upsert(query2, taskCollectionObjDto, user);
-
-        if (Objects.isNull(newTaskDto.getScheduleDate())) {
-            update(Query.query(Criteria.where("_id").is(taskDto.getId())),
-                    Update.update("scheduleDate", System.currentTimeMillis()));
-        }
-    }
-
-
-    /**
-     * @see DataFlowEvent#SCHEDULE_FAILED
-     * @param taskDto
-     * @param user
-     */
-    public void scheduleFailed(TaskDto taskDto, UserDetail user) {
-        log.warn("No available agent found, task name = {}", taskDto.getName());
-        StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-        throw new BizException("Task.AgentNotFound");
-    }
-
-    private void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
+    public void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
         dto.setStatus(status);
         if (StringUtils.isNotBlank(dto.getTaskRecordId())) {
             SyncTaskStatusDto info = SyncTaskStatusDto.builder()
@@ -2772,16 +2683,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         //将状态改为暂停中，给flowengin发送暂停消息，在回调的消息中将任务改为已暂停
-        Update update = new Update();
-        if (!force) {
-            update.set("stoppingTime", new Date());
-        }
         if (restart) {
+            Update update = new Update();
             update.set("restartFlag", true).set("restartUserId", user.getUserId());
+            Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
+            update(query1, update, user);
         }
 
-        Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        update(query1, update, user);
 
 
         DataSyncMq dataSyncMq = new DataSyncMq();
@@ -3045,6 +2953,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //    }
 
     public boolean checkPdkTask(TaskDto taskDto, UserDetail user) {
+        if (true) {
+            return true;
+        }
         DAG dag = taskDto.getDag();
         if (dag == null) {
             return false;

@@ -12,6 +12,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
+import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -42,6 +43,7 @@ import java.util.stream.Collectors;
 public class TaskRestartSchedule {
 
     private TaskService taskService;
+    private TaskScheduleService taskScheduleService;
     private UserService userService;
     private SettingsService settingsService;
     private WorkerService workerService;
@@ -112,7 +114,7 @@ public class TaskRestartSchedule {
 
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
             if (stateMachineResult.isOk()) {
-                taskService.scheduling(taskDto, user);
+                taskScheduleService.scheduling(taskDto, user);
             }
         });
     }
@@ -135,11 +137,38 @@ public class TaskRestartSchedule {
      */
     @Scheduled(fixedDelay = 30 * 1000)
     @SchedulerLock(name ="schedulingTask_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
-    public void schedulingTask() {
+    public void orverTimeTask() {
         Thread.currentThread().setName("taskSchedule-schedulingTask");
+        stoppingTask();
+        schedulingTask();
+        waitRunTask();
+    }
+
+    public void stoppingTask() {
         long heartExpire = getHeartExpire();
 
-        Criteria criteria = Criteria.where("status").in(TaskDto.STATUS_WAIT_RUN, TaskDto.STATUS_SCHEDULING)
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_STOPPING)
+                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
+        List<TaskDto> all = taskService.findAll(new Query(criteria));
+
+        if (CollectionUtils.isEmpty(all)) {
+            return;
+        }
+
+        List<String> userList = all.stream().map(BaseDto::getUserId).collect(Collectors.toList());
+        Map<String, UserDetail> userMap = userService.getUserMapByIdList(userList);
+
+
+        all.forEach(taskDto -> {
+            stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
+        });
+    }
+
+
+    public void schedulingTask() {
+        long heartExpire = getHeartExpire();
+
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
                 .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
@@ -156,7 +185,7 @@ public class TaskRestartSchedule {
         while (iterator.hasNext()) {
             TaskDto next = iterator.next();
             UserDetail user = userMap.get(next.getUserId());
-            if (user != null && TaskDto.STATUS_SCHEDULING.equals(next.getStatus())) {
+            if (user != null) {
                 if (Objects.nonNull(next.getScheduleDate()) && (now - next.getScheduleDate() > heartExpire)) {
                     stateMachineService.executeAboutTask(next, DataFlowEvent.OVERTIME, user);
                     iterator.remove();
@@ -166,16 +195,32 @@ public class TaskRestartSchedule {
 
 
         all.forEach(taskDto -> {
-            boolean start = true;
-            if (TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
-                StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
-                if (stateMachineResult.isFail()) {
-                    start = false;
-                }
-            }
+            taskScheduleService.scheduling(taskDto, userMap.get(taskDto.getUserId()));
+        });
+    }
 
+
+    public void waitRunTask() {
+        long heartExpire = getHeartExpire();
+
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN)
+                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
+        List<TaskDto> all = taskService.findAll(new Query(criteria));
+
+        if (CollectionUtils.isEmpty(all)) {
+            return;
+        }
+
+        List<String> userList = all.stream().map(BaseDto::getUserId).collect(Collectors.toList());
+        Map<String, UserDetail> userMap = userService.getUserMapByIdList(userList);
+        all.forEach(taskDto -> {
+            boolean start = true;
+            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
+            if (stateMachineResult.isFail()) {
+                start = false;
+            }
             if (start) {
-                taskService.scheduling(taskDto, userMap.get(taskDto.getUserId()));
+                taskScheduleService.scheduling(taskDto, userMap.get(taskDto.getUserId()));
             }
         });
     }

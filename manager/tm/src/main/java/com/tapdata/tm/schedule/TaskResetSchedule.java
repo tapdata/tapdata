@@ -68,7 +68,7 @@ public class TaskResetSchedule {
             Criteria taskCri = Criteria.where("status").in(TaskDto.STATUS_RENEWING, TaskDto.STATUS_DELETING);
 
             Query query1 = new Query(taskCri);
-            query1.fields().include("status", "last_updated");
+            query1.fields().include("status", "last_updated", "user_id");
             List<TaskDto> taskDtos = taskService.findAll(query1);
             List<String> taskIds = taskDtos.stream().map(t -> t.getId().toHexString()).distinct().collect(Collectors.toList());
             Criteria criteria1 = Criteria.where("taskId").in(taskIds);
@@ -121,7 +121,7 @@ public class TaskResetSchedule {
 
 
                     if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus()) || TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
-                        StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW_DEL_FAILED, user);
+                        StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
                         if (stateMachineResult.isOk()) {
                             Query query = Query.query(Criteria.where("_id").is(taskDto.getId()));
                             Update update = Update.update("last_updated", new Date());
