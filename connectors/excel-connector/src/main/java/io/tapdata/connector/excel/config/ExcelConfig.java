@@ -4,14 +4,14 @@ import io.tapdata.common.FileConfig;
 import io.tapdata.connector.excel.util.ExcelUtil;
 import io.tapdata.kit.EmptyKit;
 
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class ExcelConfig extends FileConfig {
 
     private String excelPassword;
     private String sheetLocation;
-    private Set<Integer> sheetNum;
+    private List<Integer> sheetNum;
     private String colLocation;
     private Integer firstColumn;
     private Integer lastColumn;
@@ -57,11 +57,11 @@ public class ExcelConfig extends FileConfig {
         this.colLocation = colLocation;
     }
 
-    public Set<Integer> getSheetNum() {
+    public List<Integer> getSheetNum() {
         return sheetNum;
     }
 
-    public void setSheetNum(Set<Integer> sheetNum) {
+    public void setSheetNum(List<Integer> sheetNum) {
         this.sheetNum = sheetNum;
     }
 

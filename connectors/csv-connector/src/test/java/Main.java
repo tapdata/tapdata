@@ -25,7 +25,7 @@ public class Main {
         csvConfig.setExcludeRegString(null);
         csvConfig.setRecursive(true);
         csvConfig.setDelimiter(",");
-        csvConfig.setIncludeHeader(true);
+        csvConfig.setHeaderLine(1);
         csvConfig.setDataStartLine(1);
         csvConfig.setModelName("GG");
 //        csvConfig.setHeader("name,value,age,date");

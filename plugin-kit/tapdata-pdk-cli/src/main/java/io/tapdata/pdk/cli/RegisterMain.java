@@ -1,7 +1,7 @@
 package io.tapdata.pdk.cli;
 
 import org.apache.commons.io.FilenameUtils;
-import java.io.IOException;
+
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,6 +39,9 @@ public class RegisterMain {
         Tablestore(BASE_PATH + "connectors/dist/tablestore-connector-v1.0-SNAPSHOT.jar", false, "all", "tablestore"),
         Custom(BASE_PATH + "connectors/dist/custom-connector-v1.0-SNAPSHOT.jar", false, "all", "custom"),
         Csv(BASE_PATH + "connectors/dist/csv-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
+        Json(BASE_PATH + "connectors/dist/json-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
+        Xml(BASE_PATH + "connectors/dist/xml-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
+        Excel(BASE_PATH + "connectors/dist/excel-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
         ;
 
         private final String path;
