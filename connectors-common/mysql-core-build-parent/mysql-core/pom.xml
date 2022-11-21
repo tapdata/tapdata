@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>io.tapdata</groupId>
-        <artifactId>connectors-common</artifactId>
+        <artifactId>mysql-core-build-parent</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
     <artifactId>mysql-core</artifactId>
@@ -17,9 +17,6 @@
             <email>sam@tapdata.io</email>
         </developer>
     </developers>
-    <modules>
-
-    </modules>
 
     <repositories>
         <repository>

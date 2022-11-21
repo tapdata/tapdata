@@ -91,7 +91,7 @@
         </dependencies>
     </dependencyManagement>
 
-    <build>
+    <!--<build>
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -226,11 +226,11 @@
                 </configuration>
             </plugin>
             <plugin>
-            <!--
+            &lt;!&ndash;
                    Build a test-jar for each project, so that src/test/* resources and
                    classes can be used in other projects. Also customize how the jar
                    files are assembled.
-               -->
+               &ndash;&gt;
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <executions>
@@ -261,7 +261,7 @@
                         </property>
                     </systemProperties>
                     <argLine>-Djava.awt.headless=true ${debug.argline} ${modules.argline}</argLine>
-                    <!--runOrder>alphabetical</runOrder-->
+                    &lt;!&ndash;runOrder>alphabetical</runOrder&ndash;&gt;
                     <useFile>false</useFile>
                     <enableAssertions>true</enableAssertions>
                     <forkCount>${forkCount}</forkCount>
@@ -270,14 +270,14 @@
                 </configuration>
             </plugin>
             <plugin>
-                <!-- Serves as support for configuring Revapi -->
+                &lt;!&ndash; Serves as support for configuring Revapi &ndash;&gt;
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
                 <executions>
                     <execution>
                         <id>parse-version</id>
                         <goals>
-                            <!-- This defines the ${parsedVersion.*} properties used in the Revapi config. -->
+                            &lt;!&ndash; This defines the ${parsedVersion.*} properties used in the Revapi config. &ndash;&gt;
                             <goal>parse-version</goal>
                         </goals>
                         <phase>validate</phase>
@@ -289,23 +289,23 @@
                 <artifactId>revapi-maven-plugin</artifactId>
                 <configuration>
                     <failOnMissingConfigurationFiles>false</failOnMissingConfigurationFiles>
-                    <!-- Consider changes from the latest .Final version, not from the latest non-snapshot. -->
+                    &lt;!&ndash; Consider changes from the latest .Final version, not from the latest non-snapshot. &ndash;&gt;
                     <versionFormat>\d+\.\d+\.\d+\.Final</versionFormat>
                     <ignoreSuggestionsFormat>xml</ignoreSuggestionsFormat>
                     <analysisConfigurationFiles>
                         <configurationFile>
-                            <!-- common API checking configuration -->
+                            &lt;!&ndash; common API checking configuration &ndash;&gt;
                             <resource>revapi/revapi-configuration.xml</resource>
                         </configurationFile>
                         <configurationFile>
-                            <!-- API changes recorded in the support/revapi module -->
+                            &lt;!&ndash; API changes recorded in the support/revapi module &ndash;&gt;
                             <resource>revapi/debezium-api-changes.xml</resource>
                             <roots>
-                                <!--
+                                &lt;!&ndash;
                                     The XML file has "<analysisConfiguration>" root node, underneath which
                                     there are nodes named after each version.
                                     This way we only need a single file for all releases of Debezium.
-                                -->
+                                &ndash;&gt;
                                 <root>analysisConfiguration/version-${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}</root>
                             </roots>
                         </configurationFile>
@@ -320,7 +320,7 @@
                 </executions>
             </plugin>
         </plugins>
-    </build>
+    </build>-->
     <profiles>
         <!--
            ###################################################################
