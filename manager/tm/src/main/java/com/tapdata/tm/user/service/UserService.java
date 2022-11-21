@@ -13,19 +13,28 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.customer.dto.CustomerDto;
+import com.tapdata.tm.customer.service.CustomerService;
 import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.tcm.dto.UserInfoDto;
 import com.tapdata.tm.tcm.service.TcmService;
-import com.tapdata.tm.user.dto.ChangePasswordRequest;
-import com.tapdata.tm.user.dto.CreateUserRequest;
-import com.tapdata.tm.user.dto.UserDto;
+import com.tapdata.tm.user.dto.*;
+import com.tapdata.tm.user.entity.Connected;
+import com.tapdata.tm.user.entity.ConnectionInterrupted;
 import com.tapdata.tm.user.entity.Notification;
+import com.tapdata.tm.user.entity.StoppedByError;
 import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.param.ResetPasswordParam;
 import com.tapdata.tm.user.repository.UserRepository;
+
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
+
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.SendStatus;
 import com.tapdata.tm.utils.UUIDUtil;
@@ -41,6 +50,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
@@ -73,6 +83,12 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 
     @Autowired
     private RoleService roleService;
+
+    @Autowired
+    private UserLogService userLogService;
+
+    @Autowired
+    private CustomerService customerService;
 
     private final String DEFAULT_MAIL_SUFFIX = "@custom.com";
 
@@ -167,7 +183,7 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
      */
     public UserDetail loadUserByExternalId(String userId) {
 
-        Optional<User> userOptional = repository.findOne(Query.query(Criteria.where("externalUserId").is(userId).and("customId").is(userId)));
+        Optional<User> userOptional = repository.findOne(Query.query(Criteria.where("externalUserId").is(userId)));
         User user = null;
         UserDetail userDetail = null;
         if (userOptional.isPresent()) {
@@ -190,7 +206,6 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 
                 //新增的用户，生成一个accessCode,生成一个64位的随机字符串
                 user.setAccessCode(UUIDUtil.get64UUID());
-                user.setCustomId(userId);
 
                 //set 外部用户id,对应tcm返回的userInfoDto  userId
                 user.setExternalUserId(userId);
@@ -202,7 +217,25 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
                 user.setLastUpdBy(userInfoDto.getUsername());
                 user.setCreateAt(new Date());
                 user.setCreateUser(userInfoDto.getUsername());
-                user = repository.getMongoOperations().save(user);
+
+                // 新增的用户，创建一个默认商户
+                CustomerDto customerDto = customerService.createDefaultCustomer(user);
+                user.setCustomId(customerDto.getId().toHexString());
+
+                Notification notification = new Notification();
+                notification.setConnected(new Connected(true, false));
+                notification.setStoppedByError(new StoppedByError(true, false));
+                notification.setConnectionInterrupted(new ConnectionInterrupted(true, false));
+                user.setNotification(notification);
+
+                final String email = user.getEmail();
+                user.setEmail(null);
+                Update userUpdate = repository.buildUpdateSet(user);
+                Query query = Query.query(Criteria.where("email").is(email));
+                UpdateResult res = repository.getMongoOperations().upsert(query, userUpdate, User.class);
+                Optional<User> optional = repository.findOne(query);
+                if (optional.isPresent())
+                    user = optional.get();
 
                 userDetail = getUserDetail(user);
                 roleMappingService.initUserDefaultRole(user, userDetail);
@@ -317,6 +350,30 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
         } else {
             throw new BizException("Incorrect.Password");
         }
+    }
+
+    public UserDto updatePhone(UserDetail loginUser, BindPhoneReq bindPhoneReq) {
+        UpdateResult updateResult = repository.update(
+                Query.query(Criteria.where("_id").is(loginUser.getUserId())),
+                Update.update("phone", bindPhoneReq.getPhone())
+                        .set("phoneVerified", bindPhoneReq.isPhoneVerified())
+                        .set("areaCode", bindPhoneReq.getAreaCode())
+        );
+
+        userLogService.addUserLog(Modular.USER,
+                bindPhoneReq.isBindPhone() ? Operation.BIND_PHONE : Operation.UPDATE_PHONE, loginUser, loginUser.getUsername());
+        return findById(new ObjectId(loginUser.getUserId()));
+    }
+
+    public UserDto updateEmail(UserDetail loginUser, BindEmailReq bindEmailReq) {
+        UpdateResult updateResult = repository.update(
+                Query.query(Criteria.where("_id").is(loginUser.getUserId())),
+                Update.update("email", bindEmailReq.getEmail())
+                        .set("emailVerified", bindEmailReq.isEmailVerified())
+        );
+        userLogService.addUserLog(Modular.USER,
+                bindEmailReq.isBindEmail() ? Operation.BIND_EMAIL : Operation.UPDATE_EMAIL, loginUser, loginUser.getUsername());
+        return findById(new ObjectId(loginUser.getUserId()));
     }
 
 

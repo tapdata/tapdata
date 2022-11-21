@@ -14,7 +14,6 @@ import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -205,7 +204,7 @@ public abstract class Node<S> extends Element{
                     schema1.getFields().removeAll(deleteF);
                 }
             }
-            outputSchema = mergeSchema(inputSchemas, cloneSchema(schema));
+            outputSchema = mergeSchema(inputSchemas, cloneSchema(schema), options);
             log.info("merge schema complete");
             mergedSchema = true;  // 进行merge操作，需要执行保存/更新
         } else {
@@ -290,7 +289,7 @@ public abstract class Node<S> extends Element{
         });
     }
 
-    public abstract S mergeSchema(List<S> inputSchemas, S s);
+    public abstract S mergeSchema(List<S> inputSchemas, S s, DAG.Options options);
 
     /**
      * 节点加载模型
@@ -328,6 +327,9 @@ public abstract class Node<S> extends Element{
      * @return 修改过的模型，返回 null 不执行保存
      */
     protected S filterChangedSchema(S outputSchema, DAG.Options options) {
+        if (options != null && options.getCustomTypeMappings() != null && options.getCustomTypeMappings().size() > 0) {
+            return outputSchema;
+        }
         return compareSchemaEquals(this.schema, outputSchema) ? null : outputSchema;
     }
 
@@ -429,7 +431,7 @@ public abstract class Node<S> extends Element{
          * @param schemaTransformerResults
          * @param nodeId
          */
-        void schemaTransformResult(String nodeId, List<SchemaTransformerResult> schemaTransformerResults);
+        void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults);
 
         List<SchemaTransformerResult> getSchemaTransformResult(String nodeId);
     }

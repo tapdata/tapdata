@@ -12,10 +12,16 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.behavior.BehaviorCode;
+import com.tapdata.tm.behavior.service.BehaviorService;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.*;
 import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.dataflow.service.DataflowChartService;
+import com.tapdata.tm.dataflowrecord.dto.DataFlowRecordDto;
+import com.tapdata.tm.dataflowrecord.service.DataFlowRecordService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
@@ -29,18 +35,30 @@ import com.tapdata.tm.typemappings.entity.TypeMappingsEntity;
 import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.github.openlg.graphlib.Graph;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Metrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
+
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntFunction;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -58,10 +76,21 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 public class DataFlowController extends BaseController {
 
     private DataFlowService dataFlowService;
+
+
+    @Autowired
+    @Lazy
     private TaskService taskService;
     private MessageService messageService;
     private TypeMappingsService typeMappingService;
     private StateMachineService stateMachineService;
+
+    @Autowired
+    private DataFlowRecordService dataFlowRecordService;
+    @Autowired
+    private BehaviorService behaviorService;
+
+    private final Counter dataFlowPing = Counter.builder("data_flow_ping").register(Metrics.globalRegistry);
 
     @Operation(summary = "Find all dataFlow of the model matched by filter from the data source")
     @GetMapping
@@ -207,7 +236,7 @@ public class DataFlowController extends BaseController {
     /**
      * 任务启动 和停止调用该方法
      *
-     * @param dto
+     * @param
      * @return
      */
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
@@ -219,6 +248,8 @@ public class DataFlowController extends BaseController {
             return success(new HashMap<>());
         }
 
+
+        UserDetail userDetail = getLoginUser();
         Where where = parseWhere(whereJson);
         Document body = Document.parse(reqBody);
         if (!body.containsKey("$set") && !body.containsKey("$setOnInsert") && !body.containsKey("$unset")) {
@@ -227,13 +258,22 @@ public class DataFlowController extends BaseController {
             body = _body;
         }
         Document document = body.get("$set", Document.class);
+
+        DataFlowDto oldDataFlowDto = null;
+        Date date = new Date();
+        String dataFlowStatus = null;
         if (document.containsKey("status") && where != null && (where.containsKey("_id") || where.containsKey("id"))) {
             String status = document.getString("status");
-            Date date = new Date();
+            Object id = where.get("_id");
+            String idString = id.toString();
+            oldDataFlowDto=  dataFlowService.findById(MongoUtils.toObjectId(idString));
             switch (status) {
                 case "scheduled":  //  scheduled对应startTime和scheduledTime
                     ((Document) body.get("$set")).put("startTime", date);
                     ((Document) body.get("$set")).put("scheduledTime", date);
+                    dataFlowStatus = DataFlowRecordDto.STATUS_RUNNING;
+                    oldDataFlowDto.setStartTime(date);
+                    oldDataFlowDto.setFinishTime(null);
                     break;
                 case "stopping":  // stopping对应stoppingTime
                     ((Document) body.get("$set")).put("stoppingTime", date);
@@ -247,35 +287,80 @@ public class DataFlowController extends BaseController {
                 case "error":  //  error对应errorTime和finishTime
                     ((Document) body.get("$set")).put("errorTime", date);
                     ((Document) body.get("$set")).put("finishTime", date);
+                    dataFlowStatus = DataFlowRecordDto.STATUS_ERROR;
+                    oldDataFlowDto.setFinishTime(date);
+                    behaviorService.trace(idString, userDetail, BehaviorCode.errorDataFlow);
                     break;
-                case "paused":  //   paused对应pausedTime和finishTime
-                    ((Document) body.get("$set")).put("pausedTime", date);
-                    ((Document) body.get("$set")).put("finishTime", date);
+	            case "paused":  //   paused对应pausedTime和finishTime
+		            ((Document) body.get("$set")).put("pausedTime", date);
+		            ((Document) body.get("$set")).put("finishTime", date);
+                    behaviorService.trace(idString, userDetail, BehaviorCode.pausedDataFlow);
+		            boolean isCompleted = false;
+		            oldDataFlowDto.setFinishTime(date);
+		            /*if (oldDataFlowDto != null && oldDataFlowDto.getSetting() != null && "initial_sync".equals(oldDataFlowDto.getSetting().get("sync_type")) && oldDataFlowDto.getStats() != null){
+			            List<String> sourceStageId = oldDataFlowDto.getStages().stream().filter(stage -> stage.get("outputLanes") != null
+                                && stage.get("outputLanes") instanceof List
+                                && ((List) stage.get("outputLanes")).size() > 0)
+                                .map(stage -> stage.get("id").toString())
+                                .collect(Collectors.toList());
+			            oldDataFlowDto.setFinishTime(date);
+			            Object stagesMetrics = oldDataFlowDto.getStats().get("stagesMetrics");
+                        if (stagesMetrics instanceof List && CollectionUtils.isNotEmpty((List) stagesMetrics)){
+                            int completeCount = (int) IntStream.range(0, ((List) stagesMetrics).size()).mapToObj((IntFunction<Object>) ((List) stagesMetrics)::get)
+                                    .filter(stagesMetric -> stagesMetric instanceof Map
+                                    && sourceStageId.contains(((Map) stagesMetric).get("stageId").toString())
+                                    && "initialized".equals(((Map) stagesMetric).get("status")))
+                                    .count();
+                            if (sourceStageId.size() == completeCount){
+                                isCompleted = true;
+                            }
+                        }
+                    }*/
+                    dataFlowStatus = isCompleted ? DataFlowRecordDto.STATUS_COMPLETED : DataFlowRecordDto.STATUS_PAUSED;
+
                     break;
                 default:
                     break;
             }
         }
+        long count = dataFlowService.updateByWhere(where, body, userDetail);
 
-        long count = dataFlowService.updateByWhere(where, body, getLoginUser());
+        if (count > 0){
+            if (StringUtils.isNotBlank(dataFlowStatus) && oldDataFlowDto != null && !oldDataFlowDto.getStatus().equals(document.getString("status"))){
+                dataFlowRecordService.saveRecord(oldDataFlowDto, dataFlowStatus, userDetail);
+            }
+        }
+
+        // dataflow ping
+        if (document.size() == 1 && document.containsKey("pingTime") &&
+                where != null && where.size() == 1 && where.containsKey("_id")) {
+            long size = 0;
+
+            if (where.get("_id") instanceof Map) {
+                Map pingIds = (Map) where.get("_id");
+                if (pingIds.containsKey("$in") && pingIds.get("$in") instanceof List) {
+                    size = ((List) pingIds.get("$in")).size();
+                }
+            }
+
+            dataFlowPing.increment(size);
+        }
 
         //更新完任务，addMessage
         try {
-            Object id = where.get("_id");
             String status = document.getString("status");
-            if (StringUtils.isNotEmpty(status) && null != id) {
-                String idString = id.toString();
-                DataFlowDto dataFlowDto = dataFlowService.findById(MongoUtils.toObjectId(idString));
-                String name = dataFlowDto.getName();
-                log.info("dataflow addMessage ,id :{},name :{},status:{}  ", id, name, status);
-                if ("error".equals(status)) {
-                    messageService.addMigration(name, idString, MsgTypeEnum.STOPPED_BY_ERROR, Level.ERROR, getLoginUser());
+            if (StringUtils.isNotEmpty(status) && null !=oldDataFlowDto) {
+                String name = oldDataFlowDto.getName();
+                log.info("dataflow addMessage ,id :{},name :{},status:{}  ", oldDataFlowDto.getId().toString(), name, status);
+                if (!oldDataFlowDto.getStatus().equals("error") && "error".equals(status)) {
+                    //原来不是error,被更新成error，在新增一条通知
+                    messageService.addMigration(name, oldDataFlowDto.getId().toString(), MsgTypeEnum.STOPPED_BY_ERROR, Level.ERROR, userDetail);
                 } else if ("running".equals(status)) {
-                    messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, getLoginUser());
+//                    messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, getLoginUser());
                 }
             }
         } catch (Exception e) {
-            log.error("任务状态添加message 异常",e);
+            log.error("任务状态添加message 异常", e);
         }
 
 
@@ -367,7 +452,6 @@ public class DataFlowController extends BaseController {
         }
 
 
-
         for (String inputLane : stage.getInputLanes()) {
             boolean sourceSupport = supportMapping(stageMap, inputLane, result);
             if (!sourceSupport) {
@@ -393,6 +477,16 @@ public class DataFlowController extends BaseController {
         UserDetail user = getLoginUser();
 
         return success(dataFlowService.transformSchema(dataFlowDto, user));
+
+    }
+
+    /**
+     * 模型推演
+     */
+    @GetMapping("/cron/isValidExpression")
+    public ResponseMessage<Object> checkCronExpression(@RequestParam("cron") String cronStr) {
+
+        return success(new HashMap<String, Boolean>(){{put("isValid", CronExpression.isValidExpression(cronStr));}});
 
     }
 }

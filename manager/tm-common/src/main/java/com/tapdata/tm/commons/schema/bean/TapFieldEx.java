@@ -26,7 +26,7 @@ public class TapFieldEx extends TapField {
     private String sourceDbType;
     private String nodeDataType;
 
-    private Object oriPrecision;
+    private Integer oriPrecision;
 
     private Object oriScale;
     private String originalFieldName;
@@ -161,11 +161,11 @@ public class TapFieldEx extends TapField {
         this.nodeDataType = nodeDataType;
     }
 
-    public Object getOriPrecision() {
+    public Integer getOriPrecision() {
         return oriPrecision;
     }
 
-    public void setOriPrecision(Object oriPrecision) {
+    public void setOriPrecision(Integer oriPrecision) {
         this.oriPrecision = oriPrecision;
     }
 

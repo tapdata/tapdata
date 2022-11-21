@@ -70,9 +70,8 @@ public class ClusterOperationService extends BaseService<ClusterOperationDto, Cl
                         WebSocketClusterServer.sendMessage(dto.getUuid(), dataToSend);
                         //send 完之后,  根据发送消息返回的结果 要更新表
                         updateAfterSend(dto.getId().toString());
-                    } catch (IOException e) {
-                        log.error("agent升级 异常. uuid:{}", dto.getUuid());
-                        log.error("agent升级 异常", e);
+                    } catch (Throwable e) {
+                        log.error("agent升级 异常. uuid:{}", dto.getUuid(), e);
                     }
                 }
             } else {

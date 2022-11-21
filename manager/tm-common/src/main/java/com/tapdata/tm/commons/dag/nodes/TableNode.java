@@ -169,7 +169,7 @@ public class TableNode extends DataNode {
     }
 
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         if (StringUtils.isBlank(tableName)) {
             return null;
         }
@@ -193,9 +193,9 @@ public class TableNode extends DataNode {
         );
 
         if (listener != null) {
-            listener.schemaTransformResult(getId(), schemaTransformerResults);
+            listener.schemaTransformResult(getId(), this, schemaTransformerResults);
         }
-        Schema outputSchema = super.mergeSchema(inputSchemas, schema);
+        Schema outputSchema = super.mergeSchema(inputSchemas, schema, options);
 
         outputSchema.setFields(transformFields(inputFields, outputSchema, null));
         long count = outputSchema.getFields().stream().filter(Field::isDeleted).count();

@@ -36,4 +36,32 @@ public class TcmService {
         }
         return userInfoDto;
     }
+
+    public Object getVersionInfo(String version) {
+        Object result = null;
+        String responseStr = HttpUtils.sendGetData(TMC_URL + "/api/tcm/productRelease/version/tapdataAgent/" + version, null);
+        if (StringUtils.isNotEmpty(responseStr)) {
+            ResponseMessage responseMessage = JsonUtil.parseJson(responseStr, ResponseMessage.class);
+            if (ResponseMessage.OK.equals(responseMessage.getCode())) {
+                result = responseMessage.getData();
+            } else {
+                log.error("tcm处理异常。responseMessage：{}", responseMessage);
+            }
+        }
+        return result;
+    }
+
+    public Object getDownloadUrl() {
+        Object result = null;
+        String responseStr = HttpUtils.sendGetData(TMC_URL + "/api/tcm/productRelease/downloadUrl/latest", null);
+        if (StringUtils.isNotEmpty(responseStr)) {
+            ResponseMessage responseMessage = JsonUtil.parseJson(responseStr, ResponseMessage.class);
+            if (ResponseMessage.OK.equals(responseMessage.getCode())) {
+                result = responseMessage.getData();
+            } else {
+                log.error("tcm处理异常。responseMessage：{}", responseMessage);
+            }
+        }
+        return result;
+    }
 }

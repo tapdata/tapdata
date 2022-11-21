@@ -250,7 +250,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
     }
 
     @Override
-    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
+    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
         //js节点的模型可以是直接虚拟跑出来的。 跑出来就是正确的模型，由引擎负责传值给tm
         if (CollectionUtils.isNotEmpty(schemas)) {
             return schemas;

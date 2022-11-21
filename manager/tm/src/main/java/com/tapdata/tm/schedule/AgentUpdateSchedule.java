@@ -26,10 +26,10 @@ public class AgentUpdateSchedule {
      */
     @Scheduled(cron = "0 */1 * * * ?")
     public void execute() {
-        log.info("清理 clusterOperation");
+        log.debug("清理 clusterOperation");
         clusterOperationService.cleanOperation();
 
-        log.info("清理 cleanWorkers");
+        log.debug("清理 cleanWorkers");
 //        if(server && server.daasSettings && server.daasSettings['buildProfile'] !== 'DAAS')
         String buildProfile = String.valueOf(settingsService.getByCategoryAndKey("System", "buildProfile"));
         if (!"DAAS".equals(buildProfile)){

@@ -189,9 +189,9 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					+ "?agentId={agentId}&access_token={access_token}");
 
 			// 临时处理，连接dfs时，去掉"/console"
-			if (((AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE)).isDfs()) {
+			/*if (((AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE)).isDfs()) {
 				currentWsUrl = currentWsUrl.replace("/console", "");
-			}
+			}*/
 
 			WebSocketClient client = new StandardWebSocketClient();
 

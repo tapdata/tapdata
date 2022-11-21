@@ -8,6 +8,8 @@ package com.tapdata.tm.ws.enums;
 
 public enum MessageType {
 
+	PING("ping"),
+	PONG("pong"),
 	TEST_CONNECTION("testConnection"),
 
 	PIPE("pipe"),
@@ -35,12 +37,7 @@ public enum MessageType {
 
 	CREATETABLEDDL("createTableDDL"),
 
-	AUTO_INSPECT_AGAIN("autoInspectAgain"),
-
-	PING("ping"),
-
-	PONG("pong")
-	;
+	AUTO_INSPECT_AGAIN("autoInspectAgain");
 
 	private String type;
 

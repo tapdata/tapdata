@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag.process;
 
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
@@ -35,7 +36,7 @@ public class FieldRenameProcessorNode extends FieldProcessorNode {
     }
 
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         Schema outputSchema = superMergeSchema(inputSchemas, schema);
 
         List<String> inputFields = inputSchemas.stream().map(Schema::getFields).flatMap(Collection::stream).map(Field::getFieldName).collect(Collectors.toList());

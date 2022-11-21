@@ -3,6 +3,8 @@ package com.tapdata.tm.job.dto;
 import com.google.gson.annotations.SerializedName;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -239,5 +241,12 @@ public class JobDto extends BaseDto {
     private String agentId;
 
     private Boolean editDebug;
+
+    /**
+     * 用于标记任务中已经被删除，不需要同步的字段
+     * key: 源表表名
+     * value: 源表字段名
+     */
+    private Map<String, Set<String>> deletedFields;
 
 }

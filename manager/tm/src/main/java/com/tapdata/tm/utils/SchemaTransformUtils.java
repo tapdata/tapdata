@@ -41,6 +41,7 @@ public class SchemaTransformUtils {
             MetadataInstancesDto newObj = new MetadataInstancesDto();
             newObj.setOriginalName(table.getTableName());
             newObj.setMetaType(StringUtils.isNotBlank(table.getMetaType()) ? table.getMetaType() : MetaType.collection.name());
+            newObj.setCharset(table.getCharset());
             List<Field> fields = new ArrayList<>();
             Relation relation = new Relation();
             List<Field> tableFields = table.getFields();
@@ -109,6 +110,7 @@ public class SchemaTransformUtils {
             oldTable.setMetaType(newTable.getMetaType());
             oldTable.setTableId(newTable.getId().toHexString());
             oldTable.setPartitionSet(newTable.getPartitionSet());
+            oldTable.setCharset(newTable.getCharset());
 
             List<Field> fields = newTable.getFields();
             List<Field> oldFields = new ArrayList<>();

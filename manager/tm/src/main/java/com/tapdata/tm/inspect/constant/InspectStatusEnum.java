@@ -20,4 +20,14 @@ public enum InspectStatusEnum {
         return value;
     }
 
+    public static InspectStatusEnum of(String value) {
+        InspectStatusEnum[] enums = InspectStatusEnum.values();
+        for (int i = 0; i < enums.length; i++) {
+            if (enums[i].value.equals(value)) {
+                return enums[i];
+            }
+        }
+        return null;
+    }
+
 }

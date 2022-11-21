@@ -9,6 +9,7 @@ package com.tapdata.tm.dataflow.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.dag.vo.TableOperation;
 import com.tapdata.tm.commons.task.dto.JoinTable;
 import lombok.Data;
 
@@ -91,6 +92,7 @@ public class Stage {
 	private String tableNameTransform;
 	/** ""表示不变  toUpperCase 表示变大写  toLowerCase 表示转小写 */
 	private String fieldsNameTransform;
+	private List<TableOperation> tableOperations;
 
 	private String cacheName;
 

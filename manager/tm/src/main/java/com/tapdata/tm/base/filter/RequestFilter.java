@@ -1,5 +1,6 @@
 package com.tapdata.tm.base.filter;
 
+import com.tapdata.manager.common.utils.StringUtils;
 import cn.hutool.extra.servlet.ServletUtil;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.utils.Lists;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Enumeration;
+import java.util.List;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -46,7 +48,16 @@ public class RequestFilter implements Filter {
 		}
 
 		ThreadLocalUtils.set(ThreadLocalUtils.USER_LOCALE, WebUtils.getLocale((HttpServletRequest) servletRequest));
-		String reqId = ResponseMessage.generatorReqId();
+		List<String> values = WebUtils.parseQueryString(httpServletRequest.getQueryString()).get("reqId");
+		String reqIdFromHeader = httpServletRequest.getHeader("requestId");
+		String reqId;
+		if (values != null && values.size() > 0) {
+			reqId = values.get(0);
+		} else if (StringUtils.isNotBlank(reqIdFromHeader)){
+			reqId = reqIdFromHeader;
+		} else {
+			reqId = ResponseMessage.generatorReqId();
+		}
 		String ip = ServletUtil.getClientIP(httpServletRequest);
 		ThreadLocalUtils.set(ThreadLocalUtils.REQUEST_ID, reqId);
 		Thread.currentThread().setName(ip + "-" + Thread.currentThread().getId() + "-" + reqId);
@@ -75,7 +86,14 @@ public class RequestFilter implements Filter {
 		}
 		if (servletRequest instanceof HttpServletRequestWrapper) {
 			try {
-				String requestBody = ((HttpServletRequestWrapper) servletRequest).getContentAsString();
+				String requestBody = "";
+				String contentType = httpServletRequest.getContentType();
+				if ( contentType != null && contentType.contains("multipart/form-data")) {
+					requestBody = "Ignore log for binary upload!!!!!!";
+					//requestBody = ((HttpServletRequestWrapper) servletRequest).getContentAsString();
+				} else {
+					requestBody = ((HttpServletRequestWrapper) servletRequest).getContentAsString();
+				}
 
 				log.debug(" > {}", requestBody);
 				log.debug(" > ");
@@ -90,7 +108,8 @@ public class RequestFilter implements Filter {
 		httpServletResponse.getHeaderNames().forEach(headerName -> {
 			log.debug(" < {}: {}", headerName, httpServletResponse.getHeader(headerName));
 		});
-		if (servletResponse instanceof HttpServletResponseWrapper) {
+		String contentType = httpServletResponse.getHeader("Content-Type");
+		if (!"application/zip".equals(contentType) && servletResponse instanceof HttpServletResponseWrapper) {
 			try {
 				String content = ((HttpServletResponseWrapper) servletResponse).getContentAsString();
 				log.debug(" < {}", content);

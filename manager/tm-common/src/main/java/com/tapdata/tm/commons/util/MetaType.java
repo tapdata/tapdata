@@ -20,4 +20,7 @@ public enum MetaType {
     apiendpoint,
     processor_node,
 
+    VikaDatasheet,
+    qingFlowApp
+
 }

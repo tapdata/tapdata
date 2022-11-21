@@ -1,9 +1,7 @@
 package com.tapdata.tm.base.service;
 
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.entity.BaseEntity;

@@ -17,7 +17,7 @@ public class CronUtil {
             Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
             JobDetail job = JobBuilder.newJob(InspectCronJob.class).withIdentity(id).build();
             if (scheduler.checkExists(job.getKey())){
-                log.info("id:  {}  job 定时任务已经存在，不再重复设置 ",id);
+                log.debug("id:  {}  job 定时任务已经存在，不再重复设置 ",id);
                 return;
             }
 

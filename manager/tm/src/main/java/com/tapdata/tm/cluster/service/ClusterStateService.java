@@ -32,6 +32,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -54,8 +55,14 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 @Setter(onMethod_ = {@Autowired})
 public class ClusterStateService extends BaseService<ClusterStateDto, ClusterStateEntity, ObjectId, ClusterStateRepository> {
 
-    private WorkerService workerService;
-    private ClusterOperationService clusterOperationService;
+    @Autowired(required = false)
+    @Lazy
+    WorkerService workerService;
+
+    @Autowired
+    ClusterOperationService clusterOperationService;
+
+    @Autowired
     private MessageService messageService;
     private SettingsService settingsService;
     private MongoTemplate mongoTemplate;
@@ -278,7 +285,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         Update update = Update.fromDocument(doc);
         update.set("status", "running");
         update.set("uuid",uuid);
-        update.set("insertTime", now);
+        update.setOnInsert("insertTime", now);
         update.set("ttl", new Date(newTtl.longValue()));
         update.set("last_updated",new Date());
         log.info("insert ClusterState data:{} ", JSON.toJSONString(update));
