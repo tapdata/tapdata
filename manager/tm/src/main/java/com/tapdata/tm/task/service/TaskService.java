@@ -10,6 +10,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
@@ -69,6 +72,7 @@ import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
+import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -94,6 +98,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -126,7 +131,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
     private TaskSaveService taskSaveService;
-    private TaskDagService taskDagService;
+    private SettingsService settingsService;
     private MeasurementServiceV2 measurementServiceV2;
 
     public static Set<String> stopStatus = new HashSet<>();
@@ -2599,15 +2604,25 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULING, user);
         }
 
-        if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())
-                && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-            taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
-        } else {
-            taskDto.setAgentId(null);
-        }
+        String agentId = taskDto.getAgentId();
+        Optional.ofNullable(agentId).ifPresent(id -> {
+            WorkerDto workerDto = workerService.findById(MongoUtils.toObjectId(agentId));
+
+            Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
+            long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48 ) * 1000 : 108000;
+
+            if (Objects.isNull(workerDto) || workerDto.getPingTime() > heartExpire) {
+                if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
+                        && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
+                    taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
+                } else {
+                    taskDto.setAgentId(null);
+                }
+            }
+        });
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
-        if (StringUtils.isBlank(taskDto.getAgentId())) {
+        if (StringUtils.isBlank(calculationEngineVo.getProcessId())) {
             log.warn("No available agent found, task name = {}", taskDto.getName());
             Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
             update(query1, Update.update("status", TaskDto.STATUS_SCHEDULE_FAILED), user);
@@ -2619,7 +2634,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
         Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN)
-                .set("agentId", taskDto.getAgentId())
+                .set("agentId", calculationEngineVo.getProcessId())
                 .set("monitorStartDate", now)
                 .set("last_updated", now);
         boolean needCreateRecord = false;
@@ -2645,11 +2660,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         String json = JsonUtil.toJsonUseJackson(dataSyncMq);
         data = JsonUtil.parseJsonUseJackson(json, Map.class);
         MessageQueueDto queueDto = new MessageQueueDto();
-        queueDto.setReceiver(taskDto.getAgentId());
+        queueDto.setReceiver(agentId);
         queueDto.setData(data);
         queueDto.setType("pipe");
 
-        log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
+        log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
         if (needCreateRecord) {

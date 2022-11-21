@@ -105,7 +105,7 @@ public class TaskRestartSchedule {
 
     private long getHeartExpire() {
         long heartExpire;
-        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.JOB_HEART_TIMEOUT);
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.JOB, KeyEnum.JOB_HEART_TIMEOUT);
         if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
             heartExpire = Long.parseLong(settings.getValue().toString());
         } else {

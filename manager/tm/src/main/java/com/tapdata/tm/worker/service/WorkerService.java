@@ -7,6 +7,9 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -255,13 +258,13 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         String filter;
         int availableNum;
 
-        Object jobHeartTimeout = settingsService.getByCategoryAndKey("Job", "jobHeartTimeout");
-        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+        Object jobHeartTimeout = settingsService.getByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT).getValue();
+        Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
         if ((userDetail.getUserId() == null || userDetail.getUserId().equals("")) && isCloud) {
             throw new BizException("NotFoundUserId");
         }
-        Long findTime = System.currentTimeMillis() - Long.parseLong((String) jobHeartTimeout);
+        Long findTime = System.currentTimeMillis() - Long.parseLong((String) jobHeartTimeout) * 1000L;
 
         // 53迭代Task上增加了指定Flow Engine的功能 --start
         String agentId = entity.getAgentId();
