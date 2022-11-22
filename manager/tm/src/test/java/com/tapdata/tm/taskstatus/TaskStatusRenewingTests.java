@@ -1,4 +1,4 @@
-package com.tapdata.tm;
+package com.tapdata.tm.taskstatus;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskResetEventDto;

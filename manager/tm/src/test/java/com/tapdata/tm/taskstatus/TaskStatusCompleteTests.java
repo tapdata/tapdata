@@ -1,4 +1,4 @@
-package com.tapdata.tm;
+package com.tapdata.tm.taskstatus;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -14,7 +14,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 
-public class TaskStatusStoppedTests extends TaskStatusTests {
+public class TaskStatusCompleteTests extends TaskStatusTests {
 
     @Autowired
     private TaskService taskService;
@@ -28,7 +28,7 @@ public class TaskStatusStoppedTests extends TaskStatusTests {
 
     @Test
     public void testRun() {
-        initTask(TaskDto.STATUS_STOP);
+        initTask(TaskDto.STATUS_COMPLETE);
         TaskDto taskDto = taskService.findById(taskId);
         Mockito.doNothing().when(taskScheduleService).scheduling(any(TaskDto.class), any(UserDetail.class));
         taskService.run(taskDto, user);
@@ -39,7 +39,7 @@ public class TaskStatusStoppedTests extends TaskStatusTests {
 
     @Test
     public void testRenew() {
-        initTask(TaskDto.STATUS_STOP);
+        initTask(TaskDto.STATUS_COMPLETE);
         Mockito.doNothing().when(messageQueueService).sendMessage(any(MessageQueueDto.class));
         taskService.renew(taskId, user);
         TaskDto taskDto = taskService.findById(taskId);
@@ -48,15 +48,15 @@ public class TaskStatusStoppedTests extends TaskStatusTests {
 
     @Test
     public void testEdit() {
-        initTask(TaskDto.STATUS_STOP);
+        initTask(TaskDto.STATUS_COMPLETE);
         TaskDto taskDto = taskService.findById(taskId);
         taskService.confirmById(taskDto, user, true, false);
         taskDto = taskService.findById(taskId);
-        assertEquals(TaskDto.STATUS_STOP, taskDto.getStatus());
+        assertEquals(TaskDto.STATUS_COMPLETE, taskDto.getStatus());
     }
     @Test
-    public void testDelete() throws InterruptedException {
-        initTask(TaskDto.STATUS_STOP);
+    public void testDelete() {
+        initTask(TaskDto.STATUS_COMPLETE);
         Mockito.doNothing().when(messageQueueService).sendMessage(any(MessageQueueDto.class));
         taskService.remove(taskId, user);
         TaskDto taskDto = taskService.findById(taskId);

@@ -1,7 +1,8 @@
-package com.tapdata.tm;
+package com.tapdata.tm.taskstatus;
 
 
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.TMApplication;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.entity.TaskEntity;
@@ -72,11 +73,6 @@ public class TaskStatusTests {
         TaskEntity save = taskRepository.save(taskEntity, user);
         taskId = save.getId();
         System.out.println(save);
-
-    }
-
-    @Test
-    public void test() {
 
     }
 }

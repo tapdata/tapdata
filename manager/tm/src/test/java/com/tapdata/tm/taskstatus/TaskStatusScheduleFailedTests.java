@@ -1,4 +1,4 @@
-package com.tapdata.tm;
+package com.tapdata.tm.taskstatus;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -11,32 +11,24 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 
-public class TaskStatusWaitStartTests extends TaskStatusTests {
+public class TaskStatusScheduleFailedTests extends TaskStatusTests {
 
     @Autowired
     private TaskService taskService;
     @MockBean
     private TaskScheduleService taskScheduleService;
 
+
     @MockBean
     private MessageQueueService messageQueueService;
 
     @Test
-    public void testConfirm() {
-        initTask(TaskDto.STATUS_WAIT_START);
-        TaskDto taskDto = taskService.findById(taskId);
-        taskService.confirmById(taskDto, user, false, false);
-        taskDto = taskService.findById(taskId);
-        assertEquals(TaskDto.STATUS_WAIT_START, taskDto.getStatus());
-    }
-
-
-    @Test
-    public void testStart() {
-        initTask(TaskDto.STATUS_WAIT_START);
+    public void testRun() {
+        initTask(TaskDto.STATUS_SCHEDULE_FAILED);
         TaskDto taskDto = taskService.findById(taskId);
         Mockito.doNothing().when(taskScheduleService).scheduling(any(TaskDto.class), any(UserDetail.class));
         taskService.run(taskDto, user);
@@ -47,21 +39,27 @@ public class TaskStatusWaitStartTests extends TaskStatusTests {
 
     @Test
     public void testRenew() {
-        initTask(TaskDto.STATUS_WAIT_START);
+        initTask(TaskDto.STATUS_SCHEDULE_FAILED);
         Mockito.doNothing().when(messageQueueService).sendMessage(any(MessageQueueDto.class));
         taskService.renew(taskId, user);
         TaskDto taskDto = taskService.findById(taskId);
         assertEquals(TaskDto.STATUS_RENEWING, taskDto.getStatus());
     }
 
-
+    @Test
+    public void testEdit() {
+        initTask(TaskDto.STATUS_SCHEDULE_FAILED);
+        TaskDto taskDto = taskService.findById(taskId);
+        taskService.confirmById(taskDto, user, true, false);
+        taskDto = taskService.findById(taskId);
+        assertEquals(TaskDto.STATUS_SCHEDULE_FAILED, taskDto.getStatus());
+    }
     @Test
     public void testDelete() {
-        initTask(TaskDto.STATUS_WAIT_START);
+        initTask(TaskDto.STATUS_SCHEDULE_FAILED);
         Mockito.doNothing().when(messageQueueService).sendMessage(any(MessageQueueDto.class));
         taskService.remove(taskId, user);
         TaskDto taskDto = taskService.findById(taskId);
         assertEquals(TaskDto.STATUS_DELETING, taskDto.getStatus());
     }
-
 }

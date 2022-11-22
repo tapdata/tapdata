@@ -1,4 +1,4 @@
-package com.tapdata.tm;
+package com.tapdata.tm.taskstatus;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -16,29 +16,29 @@ import java.util.Date;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 
-public class TaskStatusWaitRunTests extends TaskStatusTests {
+public class TaskStatusRunningTests extends TaskStatusTests {
 
     @Autowired
     private TaskService taskService;
     @MockBean
     private TaskScheduleService taskScheduleService;
 
-
     @Autowired
     private TaskRestartSchedule taskRestartSchedule;
 
     @Test
-    public void testSucc() {
-        initTask(TaskDto.STATUS_WAIT_RUN);
-        taskService.running(taskId, user);
+    public void testComplete() {
+        initTask(TaskDto.STATUS_RUNNING);
         TaskDto taskDto = taskService.findById(taskId);
-        assertEquals(TaskDto.STATUS_RUNNING, taskDto.getStatus());
+        taskService.complete(taskId, user);
+        taskDto = taskService.findById(taskId);
+        assertEquals(TaskDto.STATUS_COMPLETE, taskDto.getStatus());
     }
 
 
     @Test
     public void testStop() {
-        initTask(TaskDto.STATUS_WAIT_RUN);
+        initTask(TaskDto.STATUS_RUNNING);
         TaskDto taskDto = taskService.findById(taskId);
         taskService.pause(taskDto, user, false, false);
         taskDto = taskService.findById(taskId);
@@ -47,19 +47,26 @@ public class TaskStatusWaitRunTests extends TaskStatusTests {
 
     @Test
     public void testForceStop() {
-        initTask(TaskDto.STATUS_WAIT_RUN, ImmutablePair.of("lastUpdAt", new Date()));
+        initTask(TaskDto.STATUS_RUNNING, ImmutablePair.of("lastUpdAt", new Date()));
         TaskDto taskDto = taskService.findById(taskId);
         taskService.pause(taskDto, user, true, false);
         taskDto = taskService.findById(taskId);
         assertEquals(TaskDto.STATUS_STOP, taskDto.getStatus());
     }
-    @Test
-    public void tesOverTime() throws InterruptedException {
-        Thread.sleep(5000);
-        initTask(TaskDto.STATUS_WAIT_RUN);
-        Mockito.doNothing().when(taskScheduleService).scheduling(any(TaskDto.class), any(UserDetail.class));
-        taskRestartSchedule.waitRunTask();
 
+    @Test
+    public void testError() {
+        initTask(TaskDto.STATUS_RUNNING);
+        taskService.runError(taskId, user, null, null);
+        TaskDto taskDto = taskService.findById(taskId);
+        assertEquals(TaskDto.STATUS_ERROR, taskDto.getStatus());
+    }
+
+    @Test
+    public void testOverTime() {
+        initTask(TaskDto.STATUS_RUNNING, ImmutablePair.of("pingTime", System.currentTimeMillis() - 500000));
+        Mockito.doNothing().when(taskScheduleService).scheduling(any(TaskDto.class), any(UserDetail.class));
+        taskRestartSchedule.engineRestartNeedStartTask();
         TaskDto taskDto = taskService.findById(taskId);
         assertEquals(TaskDto.STATUS_SCHEDULING, taskDto.getStatus());
     }

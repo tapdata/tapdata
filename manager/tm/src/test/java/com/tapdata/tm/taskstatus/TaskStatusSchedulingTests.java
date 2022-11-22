@@ -1,4 +1,4 @@
-package com.tapdata.tm;
+package com.tapdata.tm.taskstatus;
 
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;

@@ -1,4 +1,4 @@
-package com.tapdata.tm;
+package com.tapdata.tm.taskstatus;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -55,7 +55,7 @@ public class TaskStatusErrorTests extends TaskStatusTests {
         assertEquals(TaskDto.STATUS_ERROR, taskDto.getStatus());
     }
     @Test
-    public void testDelete() throws InterruptedException {
+    public void testDelete() {
         initTask(TaskDto.STATUS_ERROR);
         Mockito.doNothing().when(messageQueueService).sendMessage(any(MessageQueueDto.class));
         taskService.remove(taskId, user);
