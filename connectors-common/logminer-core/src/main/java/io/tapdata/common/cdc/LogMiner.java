@@ -221,22 +221,29 @@ public abstract class LogMiner implements ILogMiner {
     protected void sendTransaction(Map<String, LogTransaction> txMap) {
         for (Map.Entry<String, LogTransaction> txEntry : txMap.entrySet()) {
             LogTransaction logTransaction = txEntry.getValue();
-            List<TapEvent> eventList = TapSimplify.list();
+            AtomicReference<List<TapEvent>> eventList = new AtomicReference<>(TapSimplify.list());
             AtomicReference<RedoLogContent> lastRedoLogContent = new AtomicReference<>();
             Map<String, List> redoLogContents = logTransaction.getRedoLogContents();
             if (logTransaction.isLarge()) {
-                ((ChronicleMap<String, List>) redoLogContents).forEachEntry(entry -> batchCreateEvents(entry.value().get(), eventList, lastRedoLogContent));
+                ((ChronicleMap<String, List>) redoLogContents).forEachEntry(entry -> {
+                    batchCreateEvents(entry.value().get(), eventList, lastRedoLogContent);
+                    if (eventList.get().size() >= 1000) {
+                        submitEvent(lastRedoLogContent.get(), eventList.get());
+                        eventList.set(TapSimplify.list());
+                    }
+                });
+                submitEvent(lastRedoLogContent.get(), eventList.get());
             } else {
                 for (List<RedoLogContent> redoLogContentList : redoLogContents.values()) {
                     batchCreateEvents(redoLogContentList, eventList, lastRedoLogContent);
                 }
+                submitEvent(lastRedoLogContent.get(), eventList.get());
             }
-            submitEvent(lastRedoLogContent.get(), eventList);
             txEntry.getValue().clearRedoLogContents();
         }
     }
 
-    private void batchCreateEvents(List<RedoLogContent> redoLogContentList, List<TapEvent> eventList, AtomicReference<RedoLogContent> lastRedoLogContent) {
+    private void batchCreateEvents(List<RedoLogContent> redoLogContentList, AtomicReference<List<TapEvent>> eventList, AtomicReference<RedoLogContent> lastRedoLogContent) {
         for (RedoLogContent redoLogContent : redoLogContentList) {
             lastRedoLogContent.set(redoLogContent);
             if (EmptyKit.isNull(Objects.requireNonNull(redoLogContent).getRedoRecord()) && !"DDL".equals(Objects.requireNonNull(redoLogContent).getOperation())) {
@@ -244,20 +251,20 @@ public abstract class LogMiner implements ILogMiner {
             }
             switch (Objects.requireNonNull(redoLogContent).getOperation()) {
                 case "INSERT":
-                    eventList.add(new TapInsertRecordEvent().init()
+                    eventList.get().add(new TapInsertRecordEvent().init()
                             .table(redoLogContent.getTableName())
                             .after(redoLogContent.getRedoRecord())
                             .referenceTime(redoLogContent.getTimestamp().getTime()));
                     break;
                 case "UPDATE":
-                    eventList.add(new TapUpdateRecordEvent().init()
+                    eventList.get().add(new TapUpdateRecordEvent().init()
                             .table(redoLogContent.getTableName())
                             .after(redoLogContent.getRedoRecord())
                             .before(redoLogContent.getUndoRecord())
                             .referenceTime(redoLogContent.getTimestamp().getTime()));
                     break;
                 case "DELETE":
-                    eventList.add(new TapDeleteRecordEvent().init()
+                    eventList.get().add(new TapDeleteRecordEvent().init()
                             .table(redoLogContent.getTableName())
                             .before(redoLogContent.getRedoRecord())
                             .referenceTime(redoLogContent.getTimestamp().getTime()));
@@ -280,7 +287,7 @@ public abstract class LogMiner implements ILogMiner {
                                 tapDDLEvent -> {
                                     tapDDLEvent.setTime(System.currentTimeMillis());
                                     tapDDLEvent.setReferenceTime(referenceTime);
-                                    eventList.add(tapDDLEvent);
+                                    eventList.get().add(tapDDLEvent);
                                 });
                     } catch (Throwable e) {
                         throw new RuntimeException(e);
