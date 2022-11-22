@@ -16,6 +16,11 @@ public class OceanbaseTest extends CommonDbTest implements AutoCloseable {
     }
 
     @Override
+    public Boolean testWritePrivilege() {
+        return true;
+    }
+
+    @Override
     public Boolean testReadPrivilege() {
         return true;
     }
