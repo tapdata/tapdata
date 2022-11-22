@@ -1,23 +1,26 @@
 package io.tapdata.connector.json;
 
 import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
 import io.tapdata.common.FileSchema;
 import io.tapdata.connector.json.config.JsonConfig;
+import io.tapdata.connector.json.util.JsonReaderUtil;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
 
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class JsonSchema extends FileSchema {
 
     private final static String TAG = JsonSchema.class.getSimpleName();
-    private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class); //json util
 
     public JsonSchema(JsonConfig jsonConfig, TapFileStorage storage) {
         super(jsonConfig, storage);
@@ -34,13 +37,16 @@ public class JsonSchema extends FileSchema {
 
     private void sampleJsonObjectFile(Map<String, Object> sampleResult, TapFile tapFile) {
         try (
-                Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()));
+                Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()), fileConfig.getFileEncoding());
                 JsonReader jsonReader = new JsonReader(reader)
         ) {
+            if (jsonReader.peek() != JsonToken.BEGIN_OBJECT) {
+                throw new IllegalArgumentException(String.format("Json file %s is not json object type", tapFile.getPath()));
+            }
             jsonReader.beginObject();
-            if (jsonReader.hasNext()) {
+            if (jsonReader.hasNext() && jsonReader.peek() == JsonToken.NAME) {
                 putValidIntoMap(sampleResult, "__key", jsonReader.nextName());
-                DataMap dataMap = jsonParser.fromJsonObject(jsonReader.nextString());
+                Map<String, Object> dataMap = JsonReaderUtil.traverseMap(jsonReader);
                 dataMap.forEach((k, v) -> putValidIntoMap(sampleResult, k, v));
             }
         } catch (Exception e) {
@@ -50,12 +56,15 @@ public class JsonSchema extends FileSchema {
 
     private void sampleJsonArrayFile(Map<String, Object> sampleResult, TapFile tapFile) {
         try (
-                Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()));
+                Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()), fileConfig.getFileEncoding());
                 JsonReader jsonReader = new JsonReader(reader)
         ) {
+            if (jsonReader.peek() != JsonToken.BEGIN_ARRAY) {
+                throw new IllegalArgumentException(String.format("Json file %s is not json array type", tapFile.getPath()));
+            }
             jsonReader.beginArray();
-            if (jsonReader.hasNext()) {
-                DataMap dataMap = jsonParser.fromJsonObject(jsonReader.nextString());
+            if (jsonReader.hasNext() && jsonReader.peek() == JsonToken.BEGIN_OBJECT) {
+                Map<String, Object> dataMap = JsonReaderUtil.traverseMap(jsonReader);
                 dataMap.forEach((k, v) -> putValidIntoMap(sampleResult, k, v));
             }
         } catch (Exception e) {
