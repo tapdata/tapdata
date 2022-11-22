@@ -43,13 +43,14 @@ check_env() {
 build_component() {
     start_time=`date '+%s'`
     _component=$1
-    if [[ ! -d $_component ]]; then
-        warn ""
-    fi
     info "$_component start building..."
     p=`pwd`
     cd $basepath
     cd ..
+    if [[ ! -d $_component ]]; then
+        warn "no path $_component found, skip build module $_component"
+        return 0
+    fi
     cd $_component && bash build/build.sh
     if [[ $? -ne 0 ]]; then
         cd $p
