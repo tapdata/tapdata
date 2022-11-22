@@ -7,7 +7,7 @@ import java.util.List;
  */
 public interface AsyncParallelWorker extends AsyncWorker {
 	String getId();
-	<T> AsyncQueueWorker start(String queueWorkerId, JobContext<T> jobContext);
+	<T> AsyncQueueWorker start(String queueWorkerId, JobContext jobContext);
 	List<AsyncQueueWorker> runningQueueWorkers();
 	List<String> completedIds();
 	List<AsyncQueueWorker> pendingQueueWorkers();

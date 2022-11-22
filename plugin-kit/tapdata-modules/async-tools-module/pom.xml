@@ -17,6 +17,11 @@
     <!--<dependencyManagement>-->
     <dependencies>
         <dependency>
+            <groupId>com.tapdata</groupId>
+            <artifactId>iengine-app</artifactId>
+            <version>0.5.2-SNAPSHOT</version>
+        </dependency>
+        <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
         </dependency>
@@ -24,6 +29,11 @@
             <groupId>io.tapdata</groupId>
             <artifactId>modules-api</artifactId>
             <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     <build>

@@ -3,6 +3,8 @@ package io.tapdata.aspect;
 import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -72,7 +74,7 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 			try {
 				listConsumer.accept(tapEvents);
 			} catch(Throwable throwable) {
-				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on streaming read complete consumer {}, {}", tables, listConsumer, ExceptionUtils.getStackTrace(throwable));
+				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on streaming read complete consumer {}, {}", tables, listConsumer, InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 			}
 		});
 		return this;
@@ -87,7 +89,7 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 			try {
 				listConsumer.accept(tapdataEvents);
 			} catch(Throwable throwable) {
-				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on streaming read complete consumer {}, {}", tables, listConsumer, ExceptionUtils.getStackTrace(throwable));
+				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on streaming read complete consumer {}, {}", tables, listConsumer, InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 			}
 		});
 		return this;
@@ -102,7 +104,7 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 			try {
 				listConsumer.accept(tapdataEvents);
 			} catch(Throwable throwable) {
-				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on streaming enqueued consumer {}, {}", tables, listConsumer, ExceptionUtils.getStackTrace(throwable));
+				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on streaming enqueued consumer {}, {}", tables, listConsumer, InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 			}
 		});
 		return this;

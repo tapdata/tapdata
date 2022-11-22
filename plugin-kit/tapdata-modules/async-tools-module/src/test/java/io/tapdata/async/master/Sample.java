@@ -18,6 +18,7 @@ import java.util.function.Supplier;
 public class Sample {
 	public static void main(String[] args) {
 		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
+		asyncMaster.start();
 
 
 		AsyncParallelWorker parallelWorker = asyncMaster.createAsyncParallelWorker("", 1);
@@ -30,38 +31,38 @@ public class Sample {
 
 		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("");
 		AsyncJobChain asyncJobChain = asyncMaster.createAsyncJobChain();
-		asyncJobChain.add("batchRead", (asyncTools, previousJobResult) -> {
-			String id = previousJobResult.getId();
-			List<TapEvent> eventList = (List<TapEvent>) previousJobResult.getResult();
+		asyncJobChain.add("batchRead", (jobContext) -> {
+			String id = jobContext.getId();
+			List<TapEvent> eventList = (List<TapEvent>) jobContext.getResult();
 			//batch read
 //			List<TapEvent> eventList = new ArrayList<>();
-			asyncTools.foreach(eventList, event -> {
+			jobContext.foreach(eventList, event -> {
 
 				return null;
 			});
 			Map<String, TapField> fieldMap = new HashMap<>();
-			asyncTools.foreach(fieldMap, stringTapFieldEntry -> {
+			jobContext.foreach(fieldMap, stringTapFieldEntry -> {
 				stringTapFieldEntry.getKey();
 				return null;
 			});
-			asyncTools.runOnce(() -> {
+			jobContext.runOnce(() -> {
 				eventList.add(null);
 			});
 			if(true)
 				return JobContext.create("").jumpToId("streamRead");
 			else
 				return JobContext.create("");
-		}).add("streamRead", (context, previousJobResult) -> {
-			Object o = previousJobResult.getResult();
+		}).add("streamRead", (jobContext) -> {
+			Object o = jobContext.getResult();
 			//stream read
 			return JobContext.create("");
 		});
 
 		asyncQueueWorker.add(asyncJobChain);
-		asyncQueueWorker.cancelAll().add("doSomeThing", (context, previousJobResult) -> {
+		asyncQueueWorker.cancelAll().add("doSomeThing", (jobContext) -> {
 			//Do something.
 			return null;
 		}).add(asyncJobChain);
-		asyncQueueWorker.start(JobContext.create(""));
+		asyncQueueWorker.start(JobContext.create("").context(new Object()));
 	}
 }

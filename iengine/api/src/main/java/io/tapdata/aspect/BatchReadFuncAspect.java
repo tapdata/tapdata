@@ -4,6 +4,8 @@ import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
@@ -56,7 +58,7 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 				listConsumer.accept(tapdataEvents);
 			} catch(Throwable throwable) {
 				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on enqueued consumer {}, {}",
-						table, listConsumer, ExceptionUtils.getStackTrace(throwable));
+						table, listConsumer, InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 			}
 		});
 		return this;
@@ -72,7 +74,7 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 				listConsumer.accept(tapEvents);
 			} catch(Throwable throwable) {
 				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on read complete consumer {}, {}",
-						table, listConsumer, ExceptionUtils.getStackTrace(throwable));
+						table, listConsumer, InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 			}
 		});
 		return this;
@@ -88,7 +90,7 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 				listConsumer.accept(tapdataEvents);
 			} catch(Throwable throwable) {
 				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on read complete consumer {}, {}",
-						table, listConsumer, ExceptionUtils.getStackTrace(throwable));
+						table, listConsumer, InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 			}
 		});
 		return this;
