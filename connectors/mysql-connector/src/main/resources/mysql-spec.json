@@ -1,6 +1,6 @@
 {
   "properties": {
-	"name": "Mysql",
+	"name": "MySQL",
 	"icon": "icons/mysql.png",
 	"id": "mysql",
 	"doc": "${doc}"
