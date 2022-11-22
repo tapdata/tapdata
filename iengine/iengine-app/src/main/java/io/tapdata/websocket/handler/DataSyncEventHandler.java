@@ -11,6 +11,7 @@ import io.tapdata.flow.engine.V2.task.cleaner.TaskCleanerContext;
 import io.tapdata.flow.engine.V2.task.cleaner.TaskCleanerService;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventResult;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
@@ -39,19 +40,13 @@ public class DataSyncEventHandler extends BaseEventHandler {
 			String opTypeStr = (String) event.getOrDefault("opType", "");
 			String taskId = (String) event.getOrDefault("taskId", "");
 			OpType opType = OpType.fromOp(opTypeStr);
-			TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
 			if (null != opType) {
 				switch (opType) {
 					case START:
-						Query query = Query.query(where("id").is(taskId));
-						Update update = Update.update(TaskDto.PING_TIME_FIELD, System.currentTimeMillis());
-						TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
-						logger.info("Start task from websocket event: {}", event);
-						tapdataTaskScheduler.startTask(taskDto);
+						startTask(event);
 						break;
 					case STOP:
-						logger.info("Stop task from websocket event: {}", event);
-						tapdataTaskScheduler.stopTask(taskId);
+						stopTask(event);
 						break;
 					case RESET:
 					case DELETE:
@@ -65,9 +60,34 @@ public class DataSyncEventHandler extends BaseEventHandler {
 				logger.warn("Unrecognized data sync event op type: {}, event: {}", opTypeStr, event);
 			}
 		} catch (Throwable e) {
+			logger.error("Handle task websocket event failed, error: " + e.getMessage() + ", event: " + event, e);
 			webSocketEventResult = WebSocketEventResult.handleFailed(WebSocketEventResult.Type.DATA_SYNC_RESULT, e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
 		}
 		return webSocketEventResult;
+	}
 
+	private static void stopTask(Map event) {
+		String taskId = (String) event.get("taskId");
+		if (StringUtils.isBlank(taskId)) {
+			throw new IllegalArgumentException("Stop task failed, task id cannot be blank");
+		}
+		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+		logger.info("Stop task from websocket event: {}", event);
+		tapdataTaskScheduler.sendStopTask(taskId);
+//		tapdataTaskScheduler.stopTask(taskId);
+	}
+
+	private void startTask(Map event) {
+		String taskId = (String) event.get("taskId");
+		if (StringUtils.isBlank(taskId)) {
+			throw new IllegalArgumentException("Start task failed, task id cannot be blank");
+		}
+		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+		Query query = Query.query(where("id").is(taskId));
+		Update update = Update.update(TaskDto.PING_TIME_FIELD, System.currentTimeMillis());
+		TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
+		logger.info("Start task from websocket event: {}", event);
+		tapdataTaskScheduler.sendStartTask(taskDto);
+//		tapdataTaskScheduler.startTask(taskDto);
 	}
 }
