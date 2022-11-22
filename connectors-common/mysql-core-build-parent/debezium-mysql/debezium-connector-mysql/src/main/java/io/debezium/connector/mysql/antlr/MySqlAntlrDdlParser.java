@@ -182,6 +182,7 @@ public class MySqlAntlrDdlParser extends AntlrDdlParser<MySqlLexer, MySqlParser>
                 new DataTypeEntry(Types.TIMESTAMP, MySqlParser.DATETIME),
                 new DataTypeEntry(Types.BINARY, MySqlParser.BINARY),
                 new DataTypeEntry(Types.VARBINARY, MySqlParser.VARBINARY),
+                new DataTypeEntry(Types.BLOB, MySqlParser.BLOB),
                 new DataTypeEntry(Types.INTEGER, MySqlParser.YEAR)));
         dataTypeResolverBuilder.registerDataTypes(MySqlParser.SimpleDataTypeContext.class.getCanonicalName(), Arrays.asList(
                 new DataTypeEntry(Types.DATE, MySqlParser.DATE),
@@ -189,7 +190,6 @@ public class MySqlAntlrDdlParser extends AntlrDdlParser<MySqlLexer, MySqlParser>
                 new DataTypeEntry(Types.BOOLEAN, MySqlParser.BOOLEAN),
                 new DataTypeEntry(Types.BLOB, MySqlParser.TINYBLOB),
                 new DataTypeEntry(Types.BLOB, MySqlParser.MEDIUMBLOB),
-                new DataTypeEntry(Types.BLOB, MySqlParser.BLOB),
                 new DataTypeEntry(Types.BLOB, MySqlParser.LONGBLOB),
                 new DataTypeEntry(Types.BIGINT, MySqlParser.SERIAL)));
         dataTypeResolverBuilder.registerDataTypes(MySqlParser.CollectionDataTypeContext.class.getCanonicalName(), Arrays.asList(
