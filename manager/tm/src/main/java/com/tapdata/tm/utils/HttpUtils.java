@@ -23,7 +23,7 @@ public class HttpUtils {
      * @throws IOException
      */
     public static String sendGetData(String path, Map<String, String> headMap) {
-        log.info("发送get 请求。path：{}，headMap：{}  ",path,headMap);
+        log.info("request tcm, path：{}，headMap：{}  ",path,headMap);
         String result = "";
         CloseableHttpResponse response =null;
         try {
@@ -65,6 +65,7 @@ public class HttpUtils {
                 log.error("关闭response 异常 ", e);
             }
         }
+        log.debug(result);
         return result;
     }
 
