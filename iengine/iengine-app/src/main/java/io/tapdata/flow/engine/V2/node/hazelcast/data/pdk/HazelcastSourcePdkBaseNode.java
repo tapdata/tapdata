@@ -222,7 +222,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					String connectionId = NodeUtil.getConnectionId(dataProcessorContext.getNode());
 					TaskDto.SyncPoint syncPoint = null;
 					if (null != syncPoints) {
-						//todo: need to use syncPoint on node, now fix the syncPoint does not take effect first
+						//todo: need to use syncPoint on node, fix the sync point does not take effect first
 //						syncPoint = syncPoints.stream().filter(sp -> connectionId.equals(sp.getConnectionId())).findFirst().orElse(null);
 						syncPoint = syncPoints.stream().findFirst().orElse(null);
 					}
