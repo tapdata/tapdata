@@ -47,6 +47,10 @@ build_component() {
     p=`pwd`
     cd $basepath
     cd ..
+    if [[ ! -d  $_component ]]; then
+        warn "no path $_component found, skip build module $_component"
+        return 0
+    fi
     cd $_component && bash build/build.sh
     if [[ $? -ne 0 ]]; then
         cd $p
