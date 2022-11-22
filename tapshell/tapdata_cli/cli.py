@@ -823,11 +823,6 @@ class op_object_command(Magics):
         return self.__common_op("stats", line)
 
     @line_magic
-    @help_decorate("[Job] display a job milestones", "milestones job $job_name")
-    def milestones(self, line):
-        return self.__common_op("milestones", line)
-
-    @line_magic
     @help_decorate("[Job,Datasource,Api,Table] desc a object", "desc object $object_name")
     def desc(self, line):
         if line == "":
@@ -1648,6 +1643,7 @@ class JobStats:
     output_insert = 0
     output_update = 0
     output_Delete = 0
+    snapshot_done_at = 0
 
 
 class LogMinerMode:
@@ -2011,15 +2007,6 @@ class Pipeline:
         logger.info("job {} status is: {}", self.name, status)
         return status
 
-    @help_decorate("get pipeline job milestones", args="p.milestones()")
-    def milestones(self):
-        if self.job is None:
-            logger.warn("pipeline not start, no status can show")
-            return self
-        milestones = self.job.milestones()
-        logger.info("job {} milestones is: {}", self.name, milestones)
-        return milestones
-
     def wait_status(self, status, t=30, quiet=True):
         if self.job is None:
             logger.warn("pipeline not start, no status can show")
@@ -2064,12 +2051,11 @@ class Pipeline:
             return self
         s = time.time()
         while True:
-            milestones = self.job.milestones()
-            for milestone in milestones:
-                if milestone["code"] == "WRITE_SNAPSHOT" and milestone["status"] == "finish":
-                    if not quiet:
-                        logger.info("job {} initial sync finish, wait time is: {} seconds", self.job.name, int(time.time() - s))
-                    return True
+            stats = self.job.stats()
+            if stats.snapshot_done_at > 0:
+                if not quiet:
+                    logger.info("job {} initial sync finish, wait time is: {} seconds", self.job.name, int(time.time() - s))
+                return True
             time.sleep(1)
             if time.time() - s > t:
                 break
@@ -2725,16 +2711,6 @@ class Job:
             logger.info("job status is: {}", status)
         return status
 
-    def milestones(self, res=None, quiet=True):
-        if res is None:
-            res = req.get("/Task/" + self.id).json()
-        if "milestones" not in res["data"]:
-            return []
-        milestones = res["data"]["milestones"]
-        if not quiet:
-            logger.info("job milestones is: {}", milestones)
-        return milestones
-
     def get_sub_task_ids(self):
         sub_task_ids = []
         res = req.get("/Task/" + self.id).json()
@@ -2755,7 +2731,7 @@ class Job:
                     "fields": [
                         "inputInsertTotal", "inputUpdateTotal", "inputDeleteTotal",
                         "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal",
-                        "tableTotal", "outputQps"
+                        "tableTotal", "outputQps", "snapshotDoneAt", "createTableTotal", "snapshotTableTotal"
                     ],
                     "tags": {
                         "taskId": self.id,
@@ -2778,6 +2754,7 @@ class Job:
             job_stats.output_insert = stats["outputInsertTotal"]
             job_stats.output_update = stats["outputUpdateTotal"]
             job_stats.output_Delete = stats["outputDeleteTotal"]
+            job_stats.snapshot_done_at = stats.get("snapshotDoneAt", 0)
         return job_stats
 
     def logs(self, res=None, limit=100, level="info", t=30, tail=False, quiet=True):

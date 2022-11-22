@@ -130,8 +130,8 @@ jobs:
           cd tapshell && pip3 install . && cd ..
           cd auto-test && pip3 install -r requirements.txt && cd -
           cd auto-test && chmod +x ./test.sh && bash ./test.sh
-          if [[ -f /tmp/file ]]; then echo "**基本用例集成测试结果: 未通过, 请点开步骤检查详细日志**" >> $GITHUB_STEP_SUMMARY; fi
-          if [[ ! -f /tmp/file ]]; then echo "**基本用例集成测试结果: 通过**" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ -f /tmp/fail ]]; then echo "**基本用例集成测试结果: 未通过, 请点开步骤检查详细日志**" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ ! -f /tmp/fail ]]; then echo "**基本用例集成测试结果: 通过**" >> $GITHUB_STEP_SUMMARY; fi
       - name: Setup Poetry
         uses: Gr1N/setup-poetry@v7
       - name: publish pip package if push

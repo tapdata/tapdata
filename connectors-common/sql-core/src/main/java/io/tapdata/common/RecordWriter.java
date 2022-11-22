@@ -30,14 +30,14 @@ public class RecordWriter {
     }
 
     public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
+        //result of these events
+        WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
         try {
             insertRecorder.setVersion(version);
             insertRecorder.setInsertPolicy(insertPolicy);
             updateRecorder.setVersion(version);
             updateRecorder.setUpdatePolicy(updatePolicy);
             deleteRecorder.setVersion(version);
-            //result of these events
-            WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
             //insert,update,delete events must consecutive, so execute the other two first
             for (TapRecordEvent recordEvent : tapRecordEvents) {
                 if (recordEvent instanceof TapInsertRecordEvent) {
@@ -68,6 +68,10 @@ public class RecordWriter {
                 connection.commit();
             }
             //release resource
+
+        } catch (Exception e) {
+            throw new RuntimeException(String.format("Write record(s) failed: %s | Table: %s", e.getMessage(), tapTable.getId()), e);
+        } finally {
             insertRecorder.releaseResource();
             updateRecorder.releaseResource();
             deleteRecorder.releaseResource();
@@ -76,8 +80,6 @@ public class RecordWriter {
                     .insertedCount(insertRecorder.getAtomicLong().get())
                     .modifiedCount(updateRecorder.getAtomicLong().get())
                     .removedCount(deleteRecorder.getAtomicLong().get()));
-        } catch (SQLException e) {
-            throw new SQLException(String.format("Write record(s) failed: %s | Table: %s", e.getMessage(), tapTable.getId()), e.getSQLState(), e);
         }
     }
 

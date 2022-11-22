@@ -520,13 +520,17 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 											() -> writeRecordFunction.writeRecord(getConnectorNode().getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
 												Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
 												if (MapUtils.isNotEmpty(errorMap)) {
+													TapRecordEvent lastErrorTapRecord = null;
+													Throwable lastErrorThrowable = null;
 													for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-														logger.warn(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
-														obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
+														logger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
 														logger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
+														obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
 														obsLogger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
+														lastErrorTapRecord = tapRecordEventThrowableEntry.getKey();
+														lastErrorThrowable = tapRecordEventThrowableEntry.getValue();
 													}
-													throw new RuntimeException("Write record failed");
+													throw new RuntimeException(String.format("Write record %s failed", lastErrorTapRecord), lastErrorThrowable);
 												}
 
 												if (writeRecordFuncAspect != null)
