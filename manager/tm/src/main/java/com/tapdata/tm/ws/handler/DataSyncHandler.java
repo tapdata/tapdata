@@ -53,19 +53,19 @@ public class DataSyncHandler implements WebSocketHandler{
         UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
 
         Map<String, Object> data = messageInfo.getData();
-
-        if (data.get("type").equals(MessageType.DATA_SYNC.getType() + "Result")) {
-            if (data.get("status").equals("SUCCESS")) {
-                Object result = data.get("result");
-                String jsonMq = JsonUtil.toJsonUseJackson(result);
-                DataSyncMq dataSyncMq = JsonUtil.parseJsonUseJackson(jsonMq, DataSyncMq.class);
-                if (dataSyncMq != null) {
-                    handleResult(dataSyncMq.getOpType(), MongoUtils.toObjectId(dataSyncMq.getTaskId()), userDetail);
-                    return;
-                }
-            }
-            log.warn("handle task sync result ws message error, data = {}", data);
-        } else {
+//
+//        if (data.get("type").equals(MessageType.DATA_SYNC.getType() + "Result")) {
+//            if (data.get("status").equals("SUCCESS")) {
+//                Object result = data.get("result");
+//                String jsonMq = JsonUtil.toJsonUseJackson(result);
+//                DataSyncMq dataSyncMq = JsonUtil.parseJsonUseJackson(jsonMq, DataSyncMq.class);
+//                if (dataSyncMq != null) {
+//                    handleResult(dataSyncMq.getOpType(), MongoUtils.toObjectId(dataSyncMq.getTaskId()), userDetail);
+//                    return;
+//                }
+//            }
+//            log.warn("handle task sync result ws message error, data = {}", data);
+//        } else {
 
             String json = JsonUtil.toJson(data);
             DataSyncMq dataSyncMq = JsonUtil.parseJsonUseJackson(json, DataSyncMq.class);
@@ -90,14 +90,14 @@ public class DataSyncHandler implements WebSocketHandler{
                     //任务状态在运行中，可能收到运行已完成。
                     taskService.complete(objectId, userDetail);
                     break;
-                case DataSyncMq.OP_TYPE_RESETED:
-                    //任务状态在运行中，可能收到运行已完成。
-                    taskService.reseted(objectId, userDetail);
-                    break;
-                case DataSyncMq.OP_TYPE_DELETED:
-                    //任务状态在运行中，可能收到运行已完成。
-                    taskService.deleted(objectId, userDetail);
-                    break;
+//                case DataSyncMq.OP_TYPE_RESETED:
+//                    //任务状态在运行中，可能收到运行已完成。
+//                    taskService.reseted(objectId, userDetail);
+//                    break;
+//                case DataSyncMq.OP_TYPE_DELETED:
+//                    //任务状态在运行中，可能收到运行已完成。
+//                    taskService.deleted(objectId, userDetail);
+//                    break;
 //                case DataSyncMq.OP_TYPE_RESET_DELETE_REPORT:
 //                    //任务状态在运行中，可能收到运行已完成。
 //                    taskService.resetReport(objectId, userDetail, dataSyncMq.getResetEventDto());
@@ -105,19 +105,19 @@ public class DataSyncHandler implements WebSocketHandler{
                 default:
                     break;
             }
-        }
+        //}
     }
 
-    private void handleResult(String opType, ObjectId id, UserDetail user) {
-        switch (opType) {
-            case DataSyncMq.OP_TYPE_DELETE:
-                //任务状态在运行中，可能收到运行已完成。
-                taskService.deleted(id, user);
-                break;
-            case DataSyncMq.OP_TYPE_RESET:
-                //任务状态在运行中，可能收到运行已完成。
-                taskService.reseted(id, user);
-                break;
-        }
-    }
+//    private void handleResult(String opType, ObjectId id, UserDetail user) {
+//        switch (opType) {
+//            case DataSyncMq.OP_TYPE_DELETE:
+//                //任务状态在运行中，可能收到运行已完成。
+//                taskService.deleted(id, user);
+//                break;
+//            case DataSyncMq.OP_TYPE_RESET:
+//                //任务状态在运行中，可能收到运行已完成。
+//                taskService.reseted(id, user);
+//                break;
+//        }
+//    }
 }
