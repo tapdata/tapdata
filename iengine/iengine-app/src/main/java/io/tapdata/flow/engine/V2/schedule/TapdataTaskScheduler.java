@@ -32,9 +32,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -152,15 +154,28 @@ public class TapdataTaskScheduler {
 					taskOpCountDown.countDown();
 				}
 			}
+			logger.info("Handled task operation: {}", taskOperation);
 		});
 	}
 
 	public void sendStartTask(TaskDto taskDto) {
 		taskOpEnqueue(StartTaskOperation.create().taskDto(taskDto));
+		if (logger.isDebugEnabled()) {
+			List<String> stackTraces = Arrays.stream(Thread.currentThread().getStackTrace()).map(StackTraceElement::toString).collect(Collectors.toList());
+			logger.debug("Send start task operation: {}[{}]\n{}", taskDto.getName(), taskDto.getId().toHexString(), String.join("\n", stackTraces));
+		} else if (logger.isInfoEnabled()) {
+			logger.info("Send start task operation: {}[{}]", taskDto.getName(), taskDto.getId().toHexString());
+		}
 	}
 
 	public void sendStopTask(String taskId) {
 		taskOpEnqueue(StopTaskOperation.create().taskId(taskId));
+		if (logger.isDebugEnabled()) {
+			List<String> stackTraces = Arrays.stream(Thread.currentThread().getStackTrace()).map(StackTraceElement::toString).collect(Collectors.toList());
+			logger.debug("Send stop task operation: {}\n{}", taskId, String.join("\n", stackTraces));
+		} else if (logger.isInfoEnabled()) {
+			logger.info("Send stop task operation: {}", taskId);
+		}
 	}
 
 	private void taskOpEnqueue(TaskOperation taskOperation) {
@@ -195,14 +210,13 @@ public class TapdataTaskScheduler {
 			TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
 			if (taskDto != null) {
 				sendStartTask(taskDto);
-//				startTask(taskDto);
 			}
 		} catch (Exception e) {
 			logger.error("Schedule start task failed {}", e.getMessage(), e);
 		}
 	}
 
-	public void startTask(TaskDto taskDto) {
+	private void startTask(TaskDto taskDto) {
 		final String taskId = taskDto.getId().toHexString();
 		if (taskClientMap.containsKey(taskId)) {
 			TaskClient<TaskDto> taskClient = taskClientMap.get(taskId);
@@ -244,7 +258,6 @@ public class TapdataTaskScheduler {
 				final TaskDto stopTask = findStopTask(taskDto.getId().toHexString());
 				if (stopTask != null) {
 					sendStopTask(taskDto.getId().toHexString());
-//					stopTask(taskClient);
 				}
 			}
 
@@ -389,7 +402,7 @@ public class TapdataTaskScheduler {
 		return settingService.getLong("jobHeartTimeout", 60000L);
 	}
 
-	public void stopTask(String taskId) {
+	private void stopTask(String taskId) {
 		TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
 		if (null == taskDtoTaskClient) {
 			return;

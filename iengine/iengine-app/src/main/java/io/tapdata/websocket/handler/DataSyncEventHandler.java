@@ -74,7 +74,6 @@ public class DataSyncEventHandler extends BaseEventHandler {
 		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
 		logger.info("Stop task from websocket event: {}", event);
 		tapdataTaskScheduler.sendStopTask(taskId);
-//		tapdataTaskScheduler.stopTask(taskId);
 	}
 
 	private void startTask(Map event) {
@@ -88,6 +87,5 @@ public class DataSyncEventHandler extends BaseEventHandler {
 		TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
 		logger.info("Start task from websocket event: {}", event);
 		tapdataTaskScheduler.sendStartTask(taskDto);
-//		tapdataTaskScheduler.startTask(taskDto);
 	}
 }
