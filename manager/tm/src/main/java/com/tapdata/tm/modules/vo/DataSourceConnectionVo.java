@@ -4,9 +4,9 @@ package com.tapdata.tm.modules.vo;
 import com.tapdata.tm.base.dto.ds.DsBaseDto;
 import com.tapdata.tm.commons.schema.bean.FileSources;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
-import com.tapdata.tm.commons.schema.bean.UrlInfo;
-import com.tapdata.tm.ds.bean.*;
 import com.tapdata.tm.commons.schema.bean.Schema;
+import com.tapdata.tm.commons.schema.bean.UrlInfo;
+import com.tapdata.tm.ds.bean.ResponseBody;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -62,6 +62,8 @@ public class DataSourceConnectionVo extends DsBaseDto {
     private Boolean ssl;
     private String fill;
     private String table_filter;
+    private String tableExcludeFilter;
+    private Boolean openTableExcludeFilter;
     private String auth_db;
     private String project;
 

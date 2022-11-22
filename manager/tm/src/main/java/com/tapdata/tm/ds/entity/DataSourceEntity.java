@@ -97,6 +97,8 @@ public class DataSourceEntity extends BaseEntity {
     private String fill;
     private String plain_password;
     private String table_filter;
+    private String tableExcludeFilter;
+    private Boolean openTableExcludeFilter;
     private String auth_db;
     private String project;
 
