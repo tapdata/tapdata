@@ -267,26 +267,38 @@
     "node": {
       "type": "object",
       "properties": {
+        "modelName": {
+          "required": true,
+          "type": "string",
+          "title": "${modelName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "modelName",
+          "x-index": 1
+        },
         "includeRegString": {
           "type": "string",
           "title": "${includeRegString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "includeRegString"
+          "apiServerKey": "includeRegString",
+          "x-index": 2
         },
         "excludeRegString": {
           "type": "string",
           "title": "${excludeRegString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "excludeRegString"
+          "apiServerKey": "excludeRegString",
+          "x-index": 3
         },
         "recursive": {
           "type": "boolean",
           "title": "${recursive}",
           "default": true,
           "x-decorator": "FormItem",
-          "x-component": "Switch"
+          "x-component": "Switch",
+          "x-index": 4
         },
         "delimiter": {
           "required": true,
@@ -295,14 +307,50 @@
           "title": "${delimiter}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "delimiter"
+          "apiServerKey": "delimiter",
+          "x-index": 5
+        },
+        "fileEncoding": {
+          "type": "string",
+          "title": "${fileEncoding}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 6,
+          "default": "UTF-8",
+          "enum": [
+            {
+              "label": "UTF-8",
+              "value": "UTF-8"
+            },
+            {
+              "label": "UTF-16",
+              "value": "UTF-16"
+            },
+            {
+              "label": "GBK",
+              "value": "GBK"
+            },
+            {
+              "label": "ASCII",
+              "value": "ASCII"
+            }
+          ]
         },
         "header": {
           "type": "string",
           "title": "${header}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "header"
+          "apiServerKey": "header",
+          "x-index": 7
+        },
+        "headerLine": {
+          "type": "string",
+          "title": "${headerLine}",
+          "default": 1,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "x-index": 8
         },
         "dataStartLine": {
           "required": true,
@@ -311,28 +359,16 @@
           "default": 2,
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
-          "apiServerKey": "dataStartLine"
-        },
-        "modelName": {
-          "type": "string",
-          "title": "${modelName}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "modelName"
-        },
-        "headerLine": {
-          "type": "string",
-          "title": "${headerLine}",
-          "default": 1,
-          "x-decorator": "FormItem",
-          "x-component": "InputNumber"
+          "apiServerKey": "dataStartLine",
+          "x-index": 9
         },
         "justString": {
           "type": "boolean",
           "title": "${justString}",
           "default": false,
           "x-decorator": "FormItem",
-          "x-component": "Switch"
+          "x-component": "Switch",
+          "x-index": 10
         }
       }
     }
@@ -369,7 +405,8 @@
       "dataStartLine": "Data Line",
       "modelName": "Model Name",
       "headerLine": "Header Line",
-      "justString": "All To String"
+      "justString": "All To String",
+      "fileEncoding": "File Encoding"
     },
     "zh_CN": {
       "doc": "docs/csv_zh_CN.md",
@@ -401,7 +438,8 @@
       "dataStartLine": "正文起始行",
       "modelName": "模型名",
       "headerLine": "表头行",
-      "justString": "全转换字符串"
+      "justString": "全转换字符串",
+      "fileEncoding": "文件编码"
     },
     "zh_TW": {
       "doc": "docs/csv_zh_TW.md",
@@ -433,7 +471,8 @@
       "dataStartLine": "正文起始行",
       "modelName": "模型名",
       "headerLine": "表頭行",
-      "justString": "全轉換字符串"
+      "justString": "全轉換字符串",
+      "fileEncoding": "文件編碼"
     }
   },
   "dataTypes": {

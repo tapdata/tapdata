@@ -31,7 +31,7 @@ public class CsvSchema extends FileSchema {
         } else {
             for (String path : csvFileMap.keySet().stream().sorted().collect(Collectors.toList())) {
                 try (
-                        Reader reader = new InputStreamReader(storage.readFile(path));
+                        Reader reader = new InputStreamReader(storage.readFile(path), fileConfig.getFileEncoding());
                         CSVReader csvReader = new CSVReaderBuilder(reader).build()
                 ) {
                     csvReader.skip(fileConfig.getDataStartLine() - 1);
@@ -49,7 +49,7 @@ public class CsvSchema extends FileSchema {
     @Override
     protected void sampleOneFile(Map<String, Object> sampleResult, TapFile tapFile) {
         try (
-                Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()));
+                Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()), fileConfig.getFileEncoding());
                 CSVReader csvReader = new CSVReaderBuilder(reader).build()
         ) {
             if (fileConfig.getHeaderLine() > 0) {

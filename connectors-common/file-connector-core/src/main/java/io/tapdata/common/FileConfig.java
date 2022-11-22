@@ -20,6 +20,7 @@ public class FileConfig implements Serializable {
 
     private String fileType;
     private String protocol;
+    private String fileEncoding;
     private String filePathString;
     private Set<String> filePathSet;
     private String includeRegString;
@@ -84,6 +85,14 @@ public class FileConfig implements Serializable {
 
     public void setProtocol(String protocol) {
         this.protocol = protocol;
+    }
+
+    public String getFileEncoding() {
+        return fileEncoding;
+    }
+
+    public void setFileEncoding(String fileEncoding) {
+        this.fileEncoding = fileEncoding;
     }
 
     public String getFilePathString() {

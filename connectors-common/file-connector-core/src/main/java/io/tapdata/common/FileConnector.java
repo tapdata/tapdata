@@ -139,8 +139,11 @@ public abstract class FileConnector extends ConnectorBase {
                 }
             }
             int sleep = 60;
-            while (isAlive() && (sleep-- > 0)) {
-                TapSimplify.sleep(1000);
+            try {
+                while (isAlive() && (sleep-- > 0)) {
+                    TapSimplify.sleep(1000);
+                }
+            } catch (Exception ignore) {
             }
         }
     }

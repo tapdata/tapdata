@@ -91,7 +91,7 @@ public class CsvConnector extends FileConnector {
                                AtomicReference<List<TapEvent>> tapEvents) throws Exception {
         Map<String, String> dataTypeMap = tapTable.getNameFieldMap().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getDataType()));
         try (
-                Reader reader = new InputStreamReader(storage.readFile(fileOffset.getPath()));
+                Reader reader = new InputStreamReader(storage.readFile(fileOffset.getPath()), fileConfig.getFileEncoding());
                 CSVReader csvReader = new CSVReaderBuilder(reader).build()
         ) {
             String[] headers;
@@ -111,12 +111,13 @@ public class CsvConnector extends FileConnector {
                 }
             }
             if (EmptyKit.isNotEmpty(headers)) {
-                csvReader.skip(fileOffset.getDataLine() - 1 - csvReader.getSkipLines());
+                csvReader.skip(fileOffset.getDataLine() - 2 - csvReader.getSkipLines());
                 String[] data;
+                long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
                 while (isAlive() && (data = csvReader.readNext()) != null) {
                     Map<String, Object> after = new HashMap<>();
                     putIntoMap(after, headers, data, dataTypeMap);
-                    tapEvents.get().add(insertRecordEvent(after, tapTable.getId()));
+                    tapEvents.get().add(insertRecordEvent(after, tapTable.getId()).referenceTime(lastModified));
                     if (tapEvents.get().size() == eventBatchSize) {
                         fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize);
                         fileOffset.setPath(fileOffset.getPath());
