@@ -459,7 +459,7 @@ public class CreateTableTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-            support(DropTableFunction.class,TapSummary.format(inNeedFunFormat,"DropTableFunction")),
+//            support(DropTableFunction.class,TapSummary.format(inNeedFunFormat,"DropTableFunction")),
             support(CreateIndexFunction.class,TapSummary.format(inNeedFunFormat,"CreateIndexFunction")),
             supportAny(
                     list(WriteRecordFunction.class,CreateTableFunction.class,CreateTableV2Function.class),

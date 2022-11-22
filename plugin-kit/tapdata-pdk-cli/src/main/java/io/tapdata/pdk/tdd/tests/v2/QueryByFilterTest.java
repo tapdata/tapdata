@@ -238,8 +238,8 @@ public class QueryByFilterTest extends PDKTestBase {
     public static List<SupportFunction> testFunctions() {
         return list(
                 support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-                support(QueryByFilterFunction.class,TapSummary.format(inNeedFunFormat,"QueryByFilterFunction")),
-                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
+                support(QueryByFilterFunction.class,TapSummary.format(inNeedFunFormat,"QueryByFilterFunction"))
+//                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
     }
 }

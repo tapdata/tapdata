@@ -71,6 +71,8 @@ public interface TapAssert {
             String message = e.getMessage();
             if (message.contains("==> expected:")){
                 message = message.substring(0,message.indexOf("==> expected:"));
+            }else if (message.contains("==> Unexpected exception thrown:")){
+                message = message.substring(0,message.indexOf("==> Unexpected exception thrown:"));
             }
             change(e,message,assertGarde,testCase);
             return;

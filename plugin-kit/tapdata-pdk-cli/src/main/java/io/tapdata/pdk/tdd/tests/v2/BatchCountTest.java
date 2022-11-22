@@ -83,9 +83,9 @@ public class BatchCountTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction")),
-                support(WriteRecordFunction.class,TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-                support(BatchCountFunction.class,TapSummary.format(inNeedFunFormat,"BatchCountFunction"))
+//                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction")),
+//                support(WriteRecordFunction.class,TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
+//                support(BatchCountFunction.class,TapSummary.format(inNeedFunFormat,"BatchCountFunction"))
         );
     }
 }

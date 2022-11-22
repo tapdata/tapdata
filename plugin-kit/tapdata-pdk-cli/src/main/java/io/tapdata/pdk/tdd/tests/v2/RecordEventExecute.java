@@ -6,7 +6,6 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
@@ -48,10 +47,8 @@ public class RecordEventExecute {
     List<Record> records = new ArrayList<>();
     public RecordEventExecute builderRecord(Record ... records){
         if (null == records || records.length<=0) return this;
-        if (records == null) this.records = new ArrayList<Record>();
-        for (Record record : records) {
-            this.records.add(record);
-        }
+        if (records == null) this.records = new ArrayList<>();
+        this.records.addAll(Arrays.asList(records));
         return this;
     }
     public RecordEventExecute resetRecords(){
@@ -67,15 +64,14 @@ public class RecordEventExecute {
             insertRecordEvent.setReferenceTime(System.currentTimeMillis());
             tapInsertRecordEvents.add(insertRecordEvent);
         });
-        AtomicReference<WriteListResult<TapRecordEvent>> consumerBack = new AtomicReference<>();
+        AtomicReference<WriteListResult<TapRecordEvent>> consumerBack = new AtomicReference<>(new WriteListResult<TapRecordEvent>());
         writeRecordFunction.writeRecord(
-                connectorNode.getConnectorContext(),
-                tapInsertRecordEvents,
-                base.getTargetTable(),
-                consumer -> {
-                    base.$(() -> {});
-                    consumerBack.set(consumer);
-                }
+            connectorNode.getConnectorContext(),
+            tapInsertRecordEvents,
+            base.getTargetTable(),
+            consumer -> {
+                if (null != consumer) consumerBack.set(consumer);
+            }
         );
         return consumerBack.get();
     }
@@ -90,13 +86,12 @@ public class RecordEventExecute {
         });
         AtomicReference<WriteListResult<TapRecordEvent>> consumerBack = new AtomicReference<>();
         writeRecordFunction.writeRecord(
-                connectorNode.getConnectorContext(),
-                tapUpdateRecordEvents,
-                base.getTargetTable(),
-                consumer -> {
-                    base.$(() -> {});
-                    consumerBack.set(consumer);
-                }
+            connectorNode.getConnectorContext(),
+            tapUpdateRecordEvents,
+            base.getTargetTable(),
+            consumer -> {
+               if (null!=consumer) consumerBack.set(consumer);
+            }
         );
         return consumerBack.get();
     }
@@ -111,13 +106,13 @@ public class RecordEventExecute {
         });
         AtomicReference<WriteListResult<TapRecordEvent>> consumerBack = new AtomicReference<>();
         writeRecordFunction.writeRecord(
-                connectorNode.getConnectorContext(),
-                tapDeleteRecordEvents,
-                base.getTargetTable(),
-                consumer -> {
-                    base.$(() -> {});
+            connectorNode.getConnectorContext(),
+            tapDeleteRecordEvents,
+            base.getTargetTable(),
+            consumer -> {
+                if (null != consumer)
                     consumerBack.set(consumer);
-                }
+            }
         );
         return consumerBack.get();
     }
@@ -145,14 +140,18 @@ public class RecordEventExecute {
 
     public void dropTable() {
         TapAssert.asserts(
-                ()->Assertions.assertDoesNotThrow(this::drop,TapSummary.format("recordEventExecute.drop.table.error"))
+            ()->Assertions.assertDoesNotThrow(this::drop,TapSummary.format("recordEventExecute.drop.table.error"))
         ).acceptAsError(testCase,TapSummary.format("recordEventExecute.drop.notCatch.thrower"));
     }
 
     private boolean drop() throws Throwable {
         DropTableFunction dropTableFunction = connectorFunctions.getDropTableFunction();
+        if(null == dropTableFunction){
+            TapAssert.asserts(()->Assertions.fail(TapSummary.format("base.notSupportDropTable",base.getTargetTable().getId()))).error(testCase);
+            return false;
+        }
         TapAssert.asserts(
-                ()->Assertions.assertNotNull(dropTableFunction,TapSummary.format("recordEventExecute.drop.error.not.support.function"))
+            ()->Assertions.assertNotNull(dropTableFunction,TapSummary.format("recordEventExecute.drop.error.not.support.function"))
         ).acceptAsError(testCase,TapSummary.format("recordEventExecute.drop.table.succeed",base.getTargetTable().getId()));
         TapDropTableEvent dropTableEvent = new TapDropTableEvent();
         dropTableEvent.setTableId(base.getTargetTable().getId());
@@ -160,5 +159,4 @@ public class RecordEventExecute {
         dropTableFunction.dropTable(connectorNode.getConnectorContext(),dropTableEvent);
         return Boolean.TRUE;
     }
-
 }

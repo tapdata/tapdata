@@ -68,7 +68,9 @@ public class BatchReadTest extends PDKTestBase {
                 Method testCase = super.getMethod("readAfterInsert");
                 super.connectorOnStart(prepare);
                 execute.testCase(testCase);
-
+                if (! (hasCreateTable = super.createTable(prepare))){
+                    return;
+                }
                 //使用WriteRecordFunction插入1条全类型（覆盖TapType的11中类型数据）数据，
                 final int recordCount = 1;
                 Record[] records = Record.testRecordWithTapTable(targetTable,recordCount);
@@ -79,8 +81,6 @@ public class BatchReadTest extends PDKTestBase {
                         TapSummary.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
                     )
                 ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
-                hasCreateTable = null!=insert && insert.getInsertedCount() == recordCount;
-                if (!hasCreateTable) return;
 
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnectorContext context = connectorNode.getConnectorContext();
@@ -182,11 +182,14 @@ public class BatchReadTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
+            boolean hasCreatedTable = false;
             try {
                 Method testCase = super.getMethod("readAfterInsertByBatch");
                 super.connectorOnStart(prepare);
                 execute.testCase(testCase);
-
+                if (! (hasCreatedTable = super.createTable(prepare))){
+                    return;
+                }
                 //使用WriteRecordFunction插入3条
                 final int recordCount = 3;
                 Record[] records = Record.testRecordWithTapTable(targetTable,recordCount);
@@ -263,7 +266,7 @@ public class BatchReadTest extends PDKTestBase {
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                prepare.recordEventExecute().dropTable();
+                if(hasCreatedTable) execute.dropTable();
                 super.connectorOnStop(prepare);
             }
         });
@@ -271,9 +274,9 @@ public class BatchReadTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, TapSummary.format("write_record_function_need")),
-                support(BatchReadFunction.class,TapSummary.format("batch_read_function_need")),
-                support(DropTableFunction.class, TapSummary.format("drop_table_function_need"))
+                support(WriteRecordFunction.class, TapSummary.format("WriteRecordFunctionNeed")),
+                support(BatchReadFunction.class,TapSummary.format("BatchReadFunctionNeed"))
+//                support(DropTableFunction.class, TapSummary.format("DropTableFunctionNeed"))
                 //support(QueryByAdvanceFilterFunction.class, TapSummary.format("query_by_advance_filter_function_need"))
         );
     }

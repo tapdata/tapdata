@@ -251,8 +251,8 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(GetTableNamesFunction.class, TapSummary.format(inNeedFunFormat, "GetTableNamesFunction")),
-                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat, "DropTableFunction"))
+                support(GetTableNamesFunction.class, TapSummary.format(inNeedFunFormat, "GetTableNamesFunction"))
+//                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat, "DropTableFunction"))
         );
     }
 }

@@ -56,17 +56,22 @@ public class TimestampToStreamOffsetFunctionTest extends PDKTestBase {
                 Object o = timestamp.timestampToStreamOffset(connectorContext, null);
                 TapAssert.asserts(()->{
                     Assertions.assertNotNull(o, TapSummary.format("timestamp.backStreamOffsetWithNull.error"));
-                }).acceptAsError(testCase,TapSummary.format("timestamp.backStreamOffsetWithNull.succeed"));
+                }).acceptAsError(testCase,TapSummary.format("timestamp.backStreamOffsetWithNull.succeed",o));
 
                 //方法参数Long time传距离当前时间3个小时前的时候能返回那个时间的增量断点， 非空即可。
-                LocalDateTime localDateTime = LocalDateTime.now().minusHours(3);
-                Object o1 = timestamp.timestampToStreamOffset(
-                        connectorContext,
-                        Date.from(localDateTime.atZone(ZoneId.systemDefault()).toInstant()).getTime()
-                );
-                TapAssert.asserts(()->{
-                    Assertions.assertNotNull(o1, TapSummary.format("timestamp.backStreamOffsetWith.error"));
-                }).acceptAsError(testCase,TapSummary.format("timestamp.backStreamOffsetWith.succeed"));
+                final int timeAgo = 3;
+                LocalDateTime localDateTime = LocalDateTime.now().minusHours(timeAgo);
+                try {
+                    Object o1 = timestamp.timestampToStreamOffset(
+                            connectorContext,
+                            Date.from(localDateTime.atZone(ZoneId.systemDefault()).toInstant()).getTime()
+                    );
+                    TapAssert.asserts(()->
+                        Assertions.assertNotNull(o1, TapSummary.format("timestamp.backStreamOffsetWith.error",timeAgo))
+                    ).acceptAsError(testCase,TapSummary.format("timestamp.backStreamOffsetWith.succeed",timeAgo,o1));
+                }catch (Throwable throwable){
+                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("timestamp.backStreamOffsetWith.throwable",timeAgo,throwable.getMessage()))).warn(testCase);
+                }
 
             }catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -78,8 +83,8 @@ public class TimestampToStreamOffsetFunctionTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(TimestampToStreamOffsetFunction.class,TapSummary.format(inNeedFunFormat,"TimestampToStreamOffsetFunction")),
-                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
+                support(TimestampToStreamOffsetFunction.class,TapSummary.format(inNeedFunFormat,"TimestampToStreamOffsetFunction"))
+//                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
     }
 }

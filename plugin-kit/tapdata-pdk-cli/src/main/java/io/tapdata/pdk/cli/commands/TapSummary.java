@@ -403,7 +403,12 @@ public class TapSummary {
         ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
         List<Capability> capabilities = connectorFunctions.getCapabilities();
         AtomicInteger index = new AtomicInteger();
-        capabilities.stream().filter(Objects::nonNull).forEach(capability -> show.append(TapSummary.format(capability.getId(),"\t",index.incrementAndGet(),"\n")));
+        capabilities.stream().filter(Objects::nonNull).forEach(capability -> show.append("\t")
+                .append(index.incrementAndGet())
+                .append(". ")
+                .append(TapSummary.format(capability.getId()))
+                .append("\n")
+        );
         show.append(TapSummary.format("TOTAL_CAPABILITIES_OF",tapNodeSpecification.getName(),index.get(),"\n"));
         return show;
     }

@@ -257,9 +257,9 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
     public static List<SupportFunction> testFunctions() {
         return list(
                 support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-                support(QueryByAdvanceFilterFunction.class, TapSummary.format(inNeedFunFormat,"QueryByAdvanceFilterFunction")),
+                support(QueryByAdvanceFilterFunction.class, TapSummary.format(inNeedFunFormat,"QueryByAdvanceFilterFunction"))
 //                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
-                support(DropTableFunction.class,TapSummary.format(inNeedFunFormat,"DropTableFunction"))
+//                support(DropTableFunction.class,TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
     }
 }

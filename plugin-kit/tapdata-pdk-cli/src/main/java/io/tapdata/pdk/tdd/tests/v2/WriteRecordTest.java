@@ -1,15 +1,10 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
-import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
@@ -23,10 +18,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_String;
 
 
 @DisplayName("test.writeRecordTest")
@@ -44,10 +42,12 @@ public class WriteRecordTest extends PDKTestBase {
     protected String originToSourceId;
     protected TapNodeInfo tapNodeInfo;
     protected String testTableId;
-    protected TapTable targetTable = table(testTableId)
-            .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
-            .add(field("name", "STRING"))
-            .add(field("text", "STRING"));
+    private void targetTable(){
+        this.targetTable = table(UUID.randomUUID().toString())
+                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("name", JAVA_String).tapType(tapString().bytes(100L)))
+                .add(field("text", JAVA_String).tapType(tapString().bytes(100L)));
+    }
     @Test
     @DisplayName("test.writeRecordTest.case.sourceTest1")//增删改数量返回正确
     @TapTestCase(sort = 1)
@@ -57,13 +57,18 @@ public class WriteRecordTest extends PDKTestBase {
     void sourceTest1() throws Throwable {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
+            RecordEventExecute execute = prepare.recordEventExecute();
+            targetTable();
+            boolean isCreatedTable = false;
             try {
                 super.connectorOnStart(prepare);
-                writeRecorde(prepare.recordEventExecute().testCase(this.getMethod("sourceTest1")));
+                execute.testCase(this.getMethod("sourceTest1"));
+                isCreatedTable = super.createTable(prepare);
+                writeRecorde(execute);
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                prepare.recordEventExecute().dropTable();
+                if (isCreatedTable) execute.dropTable();
                 super.connectorOnStop(prepare);
             }
         });
@@ -120,16 +125,18 @@ public class WriteRecordTest extends PDKTestBase {
     void sourceTest2() throws Throwable {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
+            RecordEventExecute execute = prepare.recordEventExecute();
+            targetTable();
+            boolean isCreatedTable = false;
             try {
                 super.connectorOnStart(prepare);
-                sourceTest2Fun(
-                    prepare.recordEventExecute().testCase(this.getMethod("sourceTest2")),
-                    prepare.connectorNode()
-                );
+                execute.testCase(this.getMethod("sourceTest2"));
+                isCreatedTable = super.createTable(prepare);
+                sourceTest2Fun(execute, prepare.connectorNode());
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                prepare.recordEventExecute().dropTable();
+                if ( isCreatedTable )execute.dropTable();
                 super.connectorOnStop(prepare);
             }
         });
@@ -166,7 +173,7 @@ public class WriteRecordTest extends PDKTestBase {
                 && lastUpdate == recLen
                 && lastInsert == 0 ,
             lastUpdate+lastInsert!=recLen?
-                TapSummary.format("wr.test2.insertAfter.notEquals",recLen,0,2,0,lastInsert,lastUpdate,lastDelete): lastInsert == recLen && lastUpdate == 0?
+                TapSummary.format("wr.test2.insertAfter.notEquals",recLen,0,2,0,2,lastInsert,lastUpdate,lastDelete): lastInsert == recLen && lastUpdate == 0?
                 TapSummary.format("wr.test2.insertAfter.warnInsert",recLen,0,2,0,lastInsert,lastUpdate,lastDelete):lastUpdate != recLen?
                 TapSummary.format("wr.test2.insertAfter.warnUpdate",recLen,0,2,0,lastInsert,lastUpdate,lastDelete)
                 :TapSummary.format("wr.test2.insertAfter.errorOther",recLen,0,2,0,lastInsert,lastUpdate,lastDelete))
@@ -179,8 +186,8 @@ public class WriteRecordTest extends PDKTestBase {
             //假如是插入2个就应该是一个警告， 代表可观测性数据可能不准确。
             asserts.acceptAsWarn(testCase,succeed);
         }else {
-            //如果是其他情况都是错误的。
-            asserts.acceptAsError(testCase,succeed);
+            //如果是其他情况都是错误的。@TODO acceptAsError
+            asserts.acceptAsWarn(testCase,succeed);
         }
 
 
@@ -212,6 +219,56 @@ public class WriteRecordTest extends PDKTestBase {
         ).acceptAsWarn(testCase,TapSummary.format("wr.test2.IOE.insertAfter.succeed",0,0,0,lastInsert2,lastUpdate2,lastDelete2));
     }
 
+    private void sourceTest2FunV2( RecordEventExecute recordEventExecute,ConnectorNode connectorNode) throws Throwable {
+        Record[] records = Record.testStart((int)insertRecordNeed);
+        final int recLen = records.length;
+        recordEventExecute.builderRecord(records);
+        Method testCase = recordEventExecute.testCase();
+        //插入2条数据， 再次插入相同主键的2条数据， 内容略有不同， 插入策略是update_on_exists（默认行为），
+        WriteListResult<TapRecordEvent> insertBefore = recordEventExecute.insert();
+        long firstInsert = insertBefore.getInsertedCount();
+        long firstUpdate = insertBefore.getModifiedCount();
+        long firstDelete = insertBefore.getRemovedCount();
+        //此时验证新插入应该是插入2个
+        String firstInsertMsgError = TapSummary.format("writeRecordTest.sourceTest2.verify.firstInsert", recLen, firstInsert,firstUpdate,firstDelete);
+        String firstInsertMsgSucceed = TapSummary.format("writeRecordTest.sourceTest2.verify.firstInsert.succeed", recLen, firstInsert,firstUpdate,firstDelete);
+        TapAssert.asserts(()-> Assertions.assertEquals(recLen, firstInsert,firstInsertMsgError ))
+                .acceptAsError(testCase,firstInsertMsgSucceed);
+        AtomicInteger count = new AtomicInteger();
+        Runnable run = ()->{
+            count.getAndIncrement();
+            for (int index = 0; index < insertRecordNeed; index++) {
+                records[index].builder("name","yes please update_on_exists."+UUID.randomUUID());
+            }
+            try {
+                WriteListResult<TapRecordEvent> insertAfter = recordEventExecute.insert();
+                super.ignoreOnExistsWhenInsert(connectorNode.getConnectorContext());
+                //插入策略是ignore_on_exists
+                //插入2条数据， 再次插入相同主键的2条数据， 内容略有不同， 插入策略是ignore_on_exists，
+                for (int index = 0; index < insertRecordNeed; index++) {
+                    records[index].builder("name","yes please ignore_on_exists."+UUID.randomUUID());
+                }
+
+                WriteListResult<TapRecordEvent> insertAfter2 = recordEventExecute.insert();
+            } catch (Throwable throwable) {
+                throwable.printStackTrace();
+            }finally {
+                count.decrementAndGet();
+            }
+        };
+        Thread[] th = new Thread[1000];
+        for (int i = 0; i < 1000; i++) {
+            th[i] = new Thread(run);
+        }
+        for (int i = 0; i < 1000; i++) {
+            th[i].start();
+        }
+
+        while (count.get()!=0){
+            //count.wait(100);
+        }
+    }
+
     @Test
     @DisplayName("test.writeRecordTest.case.sourceTest3")// 删除不存在的数据时，删除数量应该正确
     @TapTestCase(sort = 3)
@@ -221,16 +278,18 @@ public class WriteRecordTest extends PDKTestBase {
     void sourceTest3() throws Throwable {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
+            RecordEventExecute execute = prepare.recordEventExecute();
+            targetTable();
+            boolean isCreatedTable = false;
             try {
                 super.connectorOnStart(prepare);
-                sourceTest3Fun(
-                    prepare.recordEventExecute().testCase(this.getMethod("sourceTest3")),
-                    prepare.connectorNode()
-                );
+                execute.testCase(this.getMethod("sourceTest3"));
+                isCreatedTable = super.createTable(prepare);
+                sourceTest3Fun(execute, prepare.connectorNode());
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             } finally {
-                prepare.recordEventExecute().dropTable();
+                if (isCreatedTable) execute.dropTable();
                 super.connectorOnStop(prepare);
             }
         });
@@ -278,20 +337,24 @@ public class WriteRecordTest extends PDKTestBase {
     void sourceTest4() throws Throwable {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
+            boolean tableIsCreated = false;
+            targetTable();
+            RecordEventExecute execute = prepare.recordEventExecute();
             try {
+                Method testCase = this.getMethod("sourceTest4");
+                execute.testCase(testCase);
                 super.connectorOnStart(prepare);
-                sourceTest4Fun(
-                        prepare.recordEventExecute().testCase(this.getMethod("sourceTest4")),
-                        prepare.connectorNode()
-                );
+                tableIsCreated = super.createTable(prepare);
+                sourceTest4Fun(execute, prepare.connectorNode());
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             } finally {
-                prepare.recordEventExecute().dropTable();
+                if (tableIsCreated) {
+                    execute.dropTable();
+                }
                 super.connectorOnStop(prepare);
             }
         });
-        //waitCompleted(5000000);
     }
     void sourceTest4Fun(RecordEventExecute recordEventExecute, ConnectorNode connectorNode){
         Method testCase = recordEventExecute.testCase();
@@ -308,7 +371,7 @@ public class WriteRecordTest extends PDKTestBase {
         try {
             update1 = recordEventExecute.update();
         } catch (Throwable throwable) {
-            TapAssert.asserts(()-> Assertions.fail(TapSummary.format("wr.test4.insertOnNotExists.throwable", throwable.getMessage()))).acceptAsError(testCase, null);
+            TapAssert.asserts(()-> Assertions.fail(TapSummary.format("wr.test4.insertOnNotExists.throwable",recLen, throwable.getMessage()))).acceptAsError(testCase, null);
             return;
         }
         WriteListResult<TapRecordEvent> updateFinal1 = update1;
@@ -317,11 +380,11 @@ public class WriteRecordTest extends PDKTestBase {
         long delete = null==update1?0: update1.getRemovedCount();
         TapAssert.asserts(()->
             Assertions.assertTrue(
-                null != updateFinal1 && insert == recLen,
-                TapSummary.format("wr.test4.insertOnNotExists.error",recLen,0,0,insert,update,delete))
+                null != updateFinal1 && insert == recLen && update == 0,
+                TapSummary.format("wr.test4.insertOnNotExists.error",recLen,recLen,0,0,insert,update,delete))
         ).acceptAsWarn(
             testCase,
-            TapSummary.format("wr.test4.insertOnNotExists.succeed",recLen,0,0,insert,update,delete)
+            TapSummary.format("wr.test4.insertOnNotExists.succeed",recLen,recLen,0,0,insert,update,delete)
         );
     }
     private void ignoreOnNotExists(RecordEventExecute recordEventExecute, ConnectorNode connectorNode,Method testCase){
@@ -335,7 +398,7 @@ public class WriteRecordTest extends PDKTestBase {
         try {
             update2 = recordEventExecute.update();
         }catch (Throwable throwable){
-            TapAssert.asserts(()-> Assertions.fail(TapSummary.format("wr.test4.ignoreOnNotExists.throwable", throwable.getMessage()))).acceptAsError(testCase, null);
+            TapAssert.asserts(()-> Assertions.fail(TapSummary.format("wr.test4.ignoreOnNotExists.throwable",recLen2, throwable.getMessage()))).error(testCase);
             return;
         }
         final WriteListResult<TapRecordEvent> updateFinal2 = update2;
@@ -345,19 +408,19 @@ public class WriteRecordTest extends PDKTestBase {
         TapAssert.asserts(()->
             Assertions.assertTrue(
                 null != updateFinal2 && insert == 0 && update == 0,
-                TapSummary.format("wr.test4.ignoreOnNotExists.error",0,0,0,insert,update,delete))
+                TapSummary.format("wr.test4.ignoreOnNotExists.error",recLen2,0,0,0,insert,update,delete))
         ).acceptAsWarn(
             testCase,
-            TapSummary.format("wr.test4.ignoreOnNotExists.succeed",0,0,0,insert,update,delete)
+            TapSummary.format("wr.test4.ignoreOnNotExists.succeed",recLen2,0,0,0,insert,update,delete)
         );
     }
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
+                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction"))
 //                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
                 //support(QueryByAdvanceFilterFunction.class, "QueryByAdvanceFilterFunction is a must for database which is schema free to sample some record to generate the field data types.")
-                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
+//                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
     }
 }

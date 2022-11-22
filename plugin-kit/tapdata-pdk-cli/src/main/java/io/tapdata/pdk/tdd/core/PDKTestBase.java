@@ -100,7 +100,7 @@ public class PDKTestBase {
         PDKInvocationMonitor.invoke(prepare.connectorNode(),
                 PDKMethod.INIT,
                 prepare.connectorNode()::connectorInit,
-                "Init PDK","TEST mongodb"
+                "Init PDK","TEST connector"
         );
     }
     protected void connectorOnStop(TestNode prepare){
@@ -109,7 +109,7 @@ public class PDKTestBase {
                     PDKMethod.STOP,
                     prepare.connectorNode()::connectorStop,
                     "Stop PDK",
-                    "TEST mongodb"
+                    "TEST connector"
             );
             PDKIntegration.releaseAssociateId("releaseAssociateId");
         }
@@ -793,21 +793,23 @@ public class PDKTestBase {
     protected TapNodeInfo tapNodeInfo;
     protected String testTableId;
     protected TapTable targetTable = table(testTableId)
-            .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
-            .add(field("TYPE_ARRAY", JAVA_Array))
-            .add(field("TYPE_BINARY", JAVA_Binary))
-            .add(field("TYPE_BOOLEAN", JAVA_Boolean))
-            .add(field("TYPE_DATE", JAVA_Date))
-            .add(field("TYPE_DATETIME", JAVA_Date))
-            .add(field("TYPE_MAP", JAVA_Map))
-            .add(field("TYPE_NUMBER_Long", JAVA_Long))
-            .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer))
-            .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal))
-            .add(field("TYPE_NUMBER_Float", JAVA_Float))
-            .add(field("TYPE_NUMBER_Double", JAVA_Double))
-            .add(field("TYPE_STRING", JAVA_String))
-            .add(field("TYPE_TIME", JAVA_Date))
-            .add(field("TYPE_YEAR", JAVA_Date));
+            .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+//            .add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
+            .add(field("TYPE_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
+            .add(field("TYPE_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
+            .add(field("TYPE_DATE", JAVA_Date).tapType(tapDate()))
+            .add(field("TYPE_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
+//            .add(field("TYPE_MAP", JAVA_Map).tapType(tapMap()))
+            .add(field("TYPE_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+            .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
+            .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(10000).scale(1000).fixed(true)))
+            .add(field("TYPE_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).fixed(false).scale(8).precision(38)))
+            .add(field("TYPE_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).scale(17).precision(309).fixed(false)))
+            .add(field("TYPE_STRING_1", JAVA_String).tapType(tapString().bytes(50L)))
+            .add(field("TYPE_STRING_2", JAVA_String).tapType(tapString().bytes(50L)))
+            .add(field("TYPE_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+            .add(field("TYPE_TIME", "Time").tapType(tapTime()))
+            .add(field("TYPE_YEAR", "Year").tapType(tapYear()));
 
 
     protected TestNode prepare(TapNodeInfo nodeInfo){
@@ -888,42 +890,60 @@ public class PDKTestBase {
             WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
             TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
             TapAssert asserts = TapAssert.asserts(() -> { });
+
+            targetTable.setId(UUID.randomUUID().toString().replaceAll("-","_"));
+            targetTable.setName(this.targetTable.getId());
+            LinkedHashMap<String, TapField> modelDeduction = this.modelDeduction(prepare.connectorNode);
+            TapTable tabled = new TapTable();
+            modelDeduction.forEach((name,field)->{
+                tabled.add(field);
+            });
+            tabled.setName(targetTable.getName());
+            tabled.setId(targetTable.getId());
+            createTableEvent.table(tabled);
+            createTableEvent.setReferenceTime(System.currentTimeMillis());
+            createTableEvent.setTableId(targetTable.getId());
             if (null != createTableV2Function) {
                 try {
-                    targetTable.setId(UUID.randomUUID().toString());
-                    targetTable.setName(this.targetTable.getId());
                     CreateTableOptions table = createTableV2Function.createTable(connectorContext, createTableEvent);
-                    asserts.acceptAsError(testCase, TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.succeed"));
+                    asserts.acceptAsError(testCase, TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.succeed",targetTable.getId()));
                 }catch (Exception e){
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.error"))).error(testCase);
+                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.error",targetTable.getId()))).error(testCase);
                 }
             } else if (null != createTableFunction) {
                 try {
-                    targetTable.setId(UUID.randomUUID().toString());
-                    targetTable.setName(this.targetTable.getId());
                     createTableFunction.createTable(connectorContext, createTableEvent);
-                    asserts.acceptAsError(testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.succeed"));
+                    asserts.acceptAsError(testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.succeed",targetTable.getId()));
                 }catch (Exception e){
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.error"))).error(testCase);
+                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.error",targetTable.getId()))).error(testCase);
                 }
             }else if(null != writeRecordFunction){
-                targetTable.setId(UUID.randomUUID().toString());
-                targetTable.setName(this.targetTable.getId());
                 Record[] records = Record.testRecordWithTapTable(targetTable,1);
                 try {
                     WriteListResult<TapRecordEvent> insert = prepare.recordEventExecute()
                             .builderRecord(records)
                             .insert();
+                    prepare.recordEventExecute().resetRecords();
                     TapAssert.succeed(testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.succeed",records.length,targetTable.getId()));
                 }catch (Exception e){
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.error",records.length))).error(testCase);
+                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.error",records.length,targetTable.getId()))).error(testCase);
                 }
             }else{
                 TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.error"))).error(testCase);
                 return false;
             }
+            List<TapTable> tables = new ArrayList<>();
+            prepare.connectorNode.getConnector().discoverSchema(
+                connectorContext,list(targetTable.getId()),1000,consumer->{
+                    if (null != consumer) tables.addAll(consumer);
+                }
+            );
+            TapAssert.asserts(()->
+                assertFalse(tables.isEmpty(), TapSummary.format("table.create.error", targetTable.getId()))
+            ).acceptAsError(testCase,TapSummary.format("table.create.succeed",targetTable.getId()));
+            return !tables.isEmpty();
         }
-        return true;
+        return false;
     }
 
     protected void checkIndex(Method testCase, List<TapIndex> ago,List<TapIndex> after){

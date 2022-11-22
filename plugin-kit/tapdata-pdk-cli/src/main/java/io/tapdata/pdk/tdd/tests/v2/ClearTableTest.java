@@ -48,10 +48,14 @@ public class ClearTableTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
+            boolean hasCreatedTable = false;
             try {
                 Method testCase = super.getMethod("clear");
                 super.connectorOnStart(prepare);
                 execute.testCase(testCase);
+                if (! (hasCreatedTable = super.createTable(prepare))){
+                    return;
+                }
                 //使用WriteRecordFunction写入2条数据，
                 final int recordCount = 2;
                 Record[] records = Record.testRecordWithTapTable(targetTable,recordCount);
@@ -114,7 +118,7 @@ public class ClearTableTest extends PDKTestBase {
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
-                execute.dropTable();
+                if (hasCreatedTable) execute.dropTable();
                 super.connectorOnStop(prepare);
             }
         });
@@ -123,7 +127,7 @@ public class ClearTableTest extends PDKTestBase {
     public static List<SupportFunction> testFunctions() {
         return list(
                 support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction")),
+//                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction")),
                 supportAny(list(BatchCountFunction.class, QueryByFilterFunction.class, QueryByAdvanceFilterFunction.class),TapSummary.format(anyOneFunFormat,"BatchCountFunction,QueryByFilterFunction,QueryByAdvanceFilterFunction")),
                 support(ClearTableFunction.class,TapSummary.format(inNeedFunFormat,"ClearTableFunction"))
         );
