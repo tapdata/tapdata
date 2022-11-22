@@ -32,6 +32,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
@@ -57,7 +58,9 @@ import java.util.function.Consumer;
  **/
 public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
-	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
+	public static final int DEFAULT_TARGET_BATCH_INTERVAL_MS = 1000;
+	public static final int DEFAULT_TARGET_BATCH = 500;
+	private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	protected String tableName;
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
@@ -82,6 +85,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		return thread;
 	});
 	private boolean inCdc = false;
+	private int targetBatch;
+	private long targetBatchIntervalMs;
+	private TargetTapEventFilter targetTapEventFilter;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -108,6 +114,18 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		this.insertMetadata = new CopyOnWriteArrayList<>();
 		this.updateMetadata = new ConcurrentHashMap<>();
 		this.removeMetadata = new CopyOnWriteArrayList<>();
+
+		this.targetBatch = Math.max(dataProcessorContext.getTaskDto().getWriteBatchSize(), DEFAULT_TARGET_BATCH);
+		this.targetBatchIntervalMs = Math.max(dataProcessorContext.getTaskDto().getWriteBatchWaitMs(), DEFAULT_TARGET_BATCH_INTERVAL_MS);
+		logger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
+		obsLogger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
+		logger.info("Target node {}[{}] batch max wait interval ms: {}", getNode().getName(), getNode().getId(), targetBatchIntervalMs);
+		obsLogger.info("Target node {}[{}] batch max wait interval ms: {}", getNode().getName(), getNode().getId(), targetBatchIntervalMs);
+		this.tapEventQueue = new LinkedBlockingQueue<>(targetBatch * 2);
+		logger.info("Init target queue complete, size: {}", (targetBatch * 2));
+		obsLogger.info("Init target queue complete, size: {}", (targetBatch * 2));
+		this.queueConsumerThreadPool.submit(this::queueConsume);
+		logger.info("Init target queue consumer complete");
 
 		final Node<?> node = this.dataProcessorContext.getNode();
 		if (node instanceof DataParentNode) {
@@ -137,8 +155,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (TaskDto.TYPE_INITIAL_SYNC.equals(type)) {
 			putInGlobalMap(getCompletedInitialKey(), false);
 		}
-		this.tapEventQueue = new LinkedBlockingQueue<>(dataProcessorContext.getTaskDto().getReadBatchSize() * 2);
-		this.queueConsumerThreadPool.submit(this::queueConsume);
+		initTapEventFilter();
+		obsLogger.info("Init target queue consumer complete");
+	}
+
+	private void initTapEventFilter() {
+		this.targetTapEventFilter = TargetTapEventFilter.create();
+		this.targetTapEventFilter.addFilter(new DeleteConditionFieldFilter());
 	}
 
 	@Override
@@ -148,9 +171,17 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 			if (!inbox.isEmpty()) {
 				List<TapdataEvent> tapdataEvents = new ArrayList<>();
-				final int count = inbox.drainTo(tapdataEvents, dataProcessorContext.getTaskDto().getReadBatchSize());
+				final int count = inbox.drainTo(tapdataEvents, targetBatch);
 				if (count > 0) {
 					for (TapdataEvent tapdataEvent : tapdataEvents) {
+						// Filter TapEvent
+						if (null != tapdataEvent.getTapEvent() && this.targetTapEventFilter.test(tapdataEvent.getTapEvent())) {
+							if (tapdataEvent.getSyncStage().equals(SyncStage.CDC)) {
+								tapdataEvent = TapdataHeartbeatEvent.create(TapEventUtil.getTimestamp(tapdataEvent.getTapEvent()), tapdataEvent.getStreamOffset(), tapdataEvent.getNodeIds());
+							} else {
+								continue;
+							}
+						}
 						while (isRunning()) {
 							try {
 								if (tapEventQueue.offer(tapdataEvent, 1L, TimeUnit.SECONDS)) {
@@ -233,12 +264,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				if (null != tapdataEvent) {
 					tapdataEvents.add(tapdataEvent);
 				}
-				if (tapdataEvents.size() >= dataProcessorContext.getTaskDto().getReadBatchSize()) {
+				if (tapdataEvents.size() >= this.targetBatch) {
 					processTargetEvents(tapdataEvents);
 					tapdataEvents.clear();
 					lastProcessTime = System.currentTimeMillis();
 				}
-				if (System.currentTimeMillis() - lastProcessTime >= 500 && CollectionUtils.isNotEmpty(tapdataEvents)) {
+				if (System.currentTimeMillis() - lastProcessTime >= targetBatchIntervalMs && CollectionUtils.isNotEmpty(tapdataEvents)) {
 					processTargetEvents(tapdataEvents);
 					tapdataEvents.clear();
 					lastProcessTime = System.currentTimeMillis();
@@ -381,10 +412,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (!(tapRecordEvent instanceof TapInsertRecordEvent)) {
 				return;
 			}
-		}
-
-		if(!handleUpdateConditionFields(tapRecordEvent)){
-			return ;
 		}
 		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
 		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
@@ -547,62 +574,77 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		return true;
 	}
 
-	/**
-	 * 处理删除事件更新条件在事件中不存在对应的值
-	 */
-	private boolean handleUpdateConditionFields(TapRecordEvent tapRecordEvent) {
-		if (tapRecordEvent instanceof TapDeleteRecordEvent) {
-			TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) tapRecordEvent;
-			TapTable tapTable = this.dataProcessorContext.getTapTableMap().get(tableName);
+	private class DeleteConditionFieldFilter implements TargetTapEventFilter.TapEventPredicate {
+		private String tableName;
+		private String missingField;
+		private Map<String, Object> record;
+
+		/**
+		 * 处理删除事件更新条件在事件中不存在对应的值
+		 */
+		@Override
+		public <E extends TapEvent> boolean test(E tapEvent) {
+			if (!(tapEvent instanceof TapDeleteRecordEvent)) return false;
+			TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) tapEvent;
+			this.tableName = getTgtTableNameFromTapEvent(tapEvent);
+			TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
+			handleTapTablePrimaryKeys(tapTable);
 			Collection<String> updateConditionFields = tapTable.primaryKeys(true);
-			Map<String, Object> objectMap = tapDeleteRecordEvent.getBefore();
+			this.record = tapDeleteRecordEvent.getBefore();
 			for (String field : updateConditionFields) {
 				// updateConditionField  may appear  x.x.x
 				if (field.contains(".")) {
-					String[] updateFiled = field.split("\\.");
-					if (!objectMap.containsKey(updateFiled[0]) || !(objectMap.get(updateFiled[0]) instanceof Map ||
-							objectMap.get(updateFiled[0]) instanceof TapMapValue)) {
-						obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
-						return false;
+					String[] updateField = field.split("\\.");
+					if (!record.containsKey(updateField[0]) || !(record.get(updateField[0]) instanceof Map ||
+							record.get(updateField[0]) instanceof TapMapValue)) {
+						this.missingField = field;
+						return true;
 					}
-					TapMapValue tapMapValue = (TapMapValue) objectMap.get(updateFiled[0]);
-					for (int index = 1; index < updateFiled.length; index++) {
-						if (index != updateFiled.length - 1 && !(tapMapValue.getValue() instanceof Map ||
-								objectMap.get(updateFiled[0]) instanceof TapMapValue)) {
-							obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
-							return false;
+					TapMapValue tapMapValue = (TapMapValue) record.get(updateField[0]);
+					for (int index = 1; index < updateField.length; index++) {
+						if (index != updateField.length - 1 && !(tapMapValue.getValue() instanceof Map ||
+								record.get(updateField[0]) instanceof TapMapValue)) {
+							this.missingField = field;
+							return true;
 						}
-						if (!tapMapValue.getValue().containsKey(updateFiled[index])) {
-							obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
-							return false;
+						if (!tapMapValue.getValue().containsKey(updateField[index])) {
+							this.missingField = field;
+							return true;
 						} else {
-							if (index == updateFiled.length - 1) {
+							if (index == updateField.length - 1) {
 								return true;
 							} else
 								try {
-									tapMapValue = (TapMapValue) tapMapValue.getValue().get(updateFiled[index]);
+									tapMapValue = (TapMapValue) tapMapValue.getValue().get(updateField[index]);
 								} catch (Exception e) {
-									obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
-									return false;
+									this.missingField = field;
+									return true;
 								}
 						}
 					}
 				} else {
-					if (!objectMap.containsKey(field)) {
-						obsLogger.warn("Find table:" + tableName + " delete event,Because there is no association field is : " + field + " ,The delete event will not be updated to the target");
-						return false;
+					if (!record.containsKey(field)) {
+						this.missingField = field;
+						return true;
 					}
 				}
 			}
+			return false;
 		}
-		return true;
+
+		@Override
+		public <E extends TapEvent> void failHandler(E tapEvent) {
+			logger.warn("Found {}'s delete event will be ignore. Because there is no association field '{}' in before data: {}", this.tableName, this.missingField, this.record);
+			obsLogger.warn("Found {}'s delete event will be ignore. Because there is no association field '{}' in before data: {}", this.tableName, this.missingField, this.record);
+		}
 	}
 
 	@NotNull
 	private PartitionConcurrentProcessor initConcurrentProcessor(int cdcConcurrentWriteNum) {
+		int batchSize = Math.max(this.targetBatch / cdcConcurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
 		return new PartitionConcurrentProcessor(
 				cdcConcurrentWriteNum,
-				dataProcessorContext.getTaskDto().getReadBatchSize(),
+				batchSize,
 				new KeysPartitioner(),
 				new TapEventPartitionKeySelector(tapEvent -> {
 					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);

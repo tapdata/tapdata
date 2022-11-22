@@ -63,6 +63,10 @@ public class TaskEntity extends BaseEntity {
     private Integer increaseReadSize;
     /** 全量一批读取条数 */
     private Integer readBatchSize;
+    /** 写入批量条数 */
+    private int writeBatchSize;
+    /** 写入每批最大等待时间 */
+    private long writeBatchWaitMs;
 
     /** 增量同步间隔*/
     private Integer increaseSyncInterval;
