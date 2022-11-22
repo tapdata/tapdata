@@ -23,7 +23,7 @@ if [[ $_in_docker == "" ]]; then
 fi
 
 components=""
-all_components=("plugin-kit" "connectors-common" "manager" "iengine" "connectors")
+all_components=("plugin-kit" "file-storages" "connectors-common" "manager" "iengine" "connectors")
 package_all_components=("iengine" "manager")
 source_components=("plugin-kit" "connectors-common" "connectors" "tapshell" "build")
 output="package"
@@ -43,6 +43,9 @@ check_env() {
 build_component() {
     start_time=`date '+%s'`
     _component=$1
+    if [[ ! -d $_component ]]; then
+        warn ""
+    fi
     info "$_component start building..."
     p=`pwd`
     cd $basepath
