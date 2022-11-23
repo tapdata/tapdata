@@ -34,7 +34,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.sql.*;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -362,41 +362,16 @@ public class Hive1Connector extends ConnectorBase {
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         hive1Config = (Hive1Config) new Hive1Config().load(connectionContext.getConnectionConfig());
-        Hive1Test hive1Test = new Hive1Test(hive1Config);
-        TestItem testHostPort = hive1Test.testHostPort();
-        consumer.accept(testHostPort);
-        if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-            return null;
+        try (
+                Hive1Test hive1Test = new Hive1Test(hive1Config, consumer)
+        ) {
+            hive1Test.testOneByOne();
         }
-        TestItem testConnect = null;
-        if (isStreamConnection(hive1Config)) {
-            testConnect = hive1Test.testConnectOfStream(hive1Config);
-        } else {
-            testConnect = hive1Test.testConnect(hive1Config);
-        }
-        consumer.accept(testConnect);
-        if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-            return null;
-        }
-        //Read test
-        //TODO execute read test by checking role permission
-        consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY));
-        //Write test
-        //TODO execute write test by checking role permission
-        consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
-        hive1Test.close();
         return connectionOptions;
     }
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
         return hive1Writer.tableCount(connectionContext);
-    }
-
-    public boolean isStreamConnection(Hive1Config hive1Config) {
-        String hiveConnType = hive1Config.getHiveConnType();
-        if (StringUtils.isNotBlank(hiveConnType) && Hive1Writer.HIVE_STREAM_CONN.equals(hiveConnType))
-            return true;
-        return false;
     }
 }

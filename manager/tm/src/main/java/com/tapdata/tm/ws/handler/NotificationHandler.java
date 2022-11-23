@@ -8,7 +8,7 @@ package com.tapdata.tm.ws.handler;
 
 import com.mongodb.client.model.changestream.FullDocument;
 import com.tapdata.manager.common.utils.DateUtil;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.changestream.config.ChangeStreamManager;
 import com.tapdata.tm.ws.cs.NotificationListener;
@@ -24,8 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.messaging.MessageListenerContainer;
-
-import javax.print.Doc;
 
 @WebSocketMessageHandler(type = MessageType.NOTIFICATION)
 @Slf4j

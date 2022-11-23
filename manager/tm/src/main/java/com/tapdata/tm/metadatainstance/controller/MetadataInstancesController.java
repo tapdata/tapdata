@@ -2,7 +2,7 @@ package com.tapdata.tm.metadatainstance.controller;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;

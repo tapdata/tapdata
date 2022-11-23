@@ -7,7 +7,7 @@
 package com.tapdata.tm.ws.endpoint;
 
 import cn.hutool.core.bean.BeanException;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.dto.ResponseMessage;

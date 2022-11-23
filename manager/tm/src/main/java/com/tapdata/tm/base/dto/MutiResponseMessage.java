@@ -1,13 +1,10 @@
 package com.tapdata.tm.base.dto;
 
-import com.tapdata.tm.utils.ThreadLocalUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
-import java.util.Date;
-import java.util.UUID;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>

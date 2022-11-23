@@ -76,19 +76,9 @@ public class OceanbaseConnector extends ConnectorBase {
         oceanbaseConfig = new OceanbaseConfig().load(connectionContext.getConnectionConfig());
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         try (
-                OceanbaseTest oceanbaseTest = new OceanbaseTest(oceanbaseConfig)
+                OceanbaseTest oceanbaseTest = new OceanbaseTest(oceanbaseConfig, consumer)
         ) {
-            TestItem testHostPort = oceanbaseTest.testHostPort();
-            consumer.accept(testHostPort);
-            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem testConnect = oceanbaseTest.testConnect();
-            consumer.accept(testConnect);
-            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            oceanbaseTest.close();
+            oceanbaseTest.testOneByOne();
             return connectionOptions;
         }
     }
