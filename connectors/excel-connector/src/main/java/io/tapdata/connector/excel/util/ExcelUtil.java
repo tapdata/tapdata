@@ -30,6 +30,14 @@ public class ExcelUtil {
         return set.stream().sorted(Comparator.naturalOrder()).collect(Collectors.toList());
     }
 
+    public static List<Integer> getAllSheetNumber(int sheetNumber) {
+        List<Integer> list = new ArrayList<>();
+        for (int i = 1; i <= sheetNumber; i++) {
+            list.add(i);
+        }
+        return list;
+    }
+
     public static int getColumnNumber(String letter) {
         int res = 0;
         char[] arr = letter.toCharArray();
