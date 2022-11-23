@@ -114,11 +114,6 @@ public class TransformSchemaService {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
         taskDto.setUserId(user.getUserId());
         DAG dag = taskDto.getDag();
-        List<Node> dagNodes = dag.getNodes();
-        dagNodes.forEach(node -> {
-            node.setService(dagDataService);
-            node.getDag().setTaskId(taskDto.getId());
-        });
 
         DAG.Options options = new DAG.Options(taskDto.getRollback(), taskDto.getRollbackTable());
         options.setSyncType(taskDto.getSyncType());
@@ -130,6 +125,20 @@ public class TransformSchemaService {
         // update metaTransformer version
         dag.getTargets().forEach(target -> metadataTransformerService.updateVersion(taskDto.getId().toHexString(), target.getId(), options.getUuid()));
 
+        List<Node> dagNodes = dag.getNodes();
+        dagNodes.forEach(node -> {
+            node.setService(dagDataService);
+            node.getDag().setTaskId(taskDto.getId());
+
+            if (node instanceof DataParentNode) {
+                Optional.ofNullable(((DataParentNode<?>) node).getFieldChangeRules()).ifPresent(fieldChangeRules -> {
+                    if (null == options.getFieldChangeRules()) {
+                        options.setFieldChangeRules(new HashMap<>());
+                    }
+                    options.getFieldChangeRules().put(node.getId(), fieldChangeRules);
+                });
+            }
+        });
         List<Node> nodes = dagNodes;
 
         List<MetadataInstancesDto> metadataList = new ArrayList<>();

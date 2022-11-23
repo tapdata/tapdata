@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateResetTableDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateTableInfoDto;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
@@ -26,6 +27,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapType;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
@@ -149,6 +151,23 @@ public class MetadataInstancesController extends BaseController {
         List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(nodeId, fields, getLoginUser(), null);
         if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+                ////页面显示排序问题处理
+                MetadataInstancesDto.sortField(metadataInstancesDto.getFields());
+            }
+        }
+        return success(metadataInstancesDtos);
+    }
+
+    @GetMapping("node/schemaPage")
+    public ResponseMessage<Page<MetadataInstancesDto>> findPageByNodeId(@RequestParam("nodeId") String nodeId,
+                                                                    @RequestParam(value = "tableFilter", required = false) String tableFilter,
+                                                                    @RequestParam(value = "fields", required = false) List<String> fields,
+                                                                    @RequestParam(value = "page", defaultValue = "1") Integer page,
+                                                                    @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize) {
+
+        Page<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(nodeId, fields, getLoginUser(), null, tableFilter, page, pageSize);
+        if (CollectionUtils.isNotEmpty(metadataInstancesDtos.getItems())) {
+            for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos.getItems()) {
                 ////页面显示排序问题处理
                 MetadataInstancesDto.sortField(metadataInstancesDto.getFields());
             }
@@ -681,6 +700,12 @@ public class MetadataInstancesController extends BaseController {
     public ResponseMessage<Void> migrateResetAllTable(@RequestBody MigrateResetTableDto dto) {
         metaMigrateService.migrateResetAllTable(dto, getLoginUser());
         return success();
+    }
+
+    @Operation(summary = "类型映射检查")
+    @PostMapping("dataType2TapType")
+    public ResponseMessage<Map<String, TapType>> dataType2TapType(@RequestBody DataType2TapTypeDto dto) {
+        return success(metadataInstancesService.dataType2TapType(dto, getLoginUser()));
     }
 
 }
