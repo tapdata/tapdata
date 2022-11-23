@@ -36,9 +36,18 @@ public class ConnectionNode extends Node {
     public int tableCount() throws Throwable {
         return connector.tableCount(connectionContext);
     }
+
     public ConnectionOptions connectionTest(Consumer<TestItem> consumer) throws Throwable {
+        String gitBuildTime = connectionContext.getSpecification().getManifest().get("Git-Build-Time");
+        consumer.accept(new TestItem(PDK_VERSION_TEST, TestItem.RESULT_SUCCESSFULLY,
+                String.format(PDK_VERSION_MESSAGE, connectionContext.getSpecification().getVersion(),
+                        gitBuildTime.substring(0, gitBuildTime.length() - 5).replace("T", " "))));
         return connector.connectionTest(connectionContext, consumer);
     }
+
+    private static final String PDK_VERSION_TEST = "PDK Connector version";
+    private static final String PDK_VERSION_MESSAGE = "%s (build: %s)";
+
     public void connectorInit() throws Throwable {
         connector.init(connectionContext);
     }

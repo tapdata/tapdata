@@ -270,12 +270,14 @@ public class MongodbConnector extends ConnectorBase {
 		ConnectionOptions connectionOptions = ConnectionOptions.create();
 		try {
 			onStart(connectionContext);
-			try (final MongoCursor<String> mongoCursor = mongoDatabase.listCollectionNames().iterator()) {
-				mongoCursor.hasNext();
+			connectionOptions.connectionString(mongoConfig.getConnectionString());
+			try (
+					MongodbTest mongodbTest = new MongodbTest(mongoConfig, consumer,mongoClient)
+			) {
+				mongodbTest.testOneByOne();
 			}
-			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
 		} catch (Throwable throwable) {
-			throwable.printStackTrace();
+			TapLogger.error(TAG,throwable.getMessage());
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
 		} finally {
 			onStop(connectionContext);
@@ -463,7 +465,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (MapUtils.isEmpty(connectionConfig)) {
 			throw new RuntimeException(String.format("connection config cannot be empty %s", connectionConfig));
 		}
-		mongoConfig = MongodbConfig.load(connectionConfig);
+		mongoConfig =(MongodbConfig) new MongodbConfig().load(connectionConfig);
 		if (mongoConfig == null) {
 			throw new RuntimeException(String.format("load mongo config failed from connection config %s", connectionConfig));
 		}
