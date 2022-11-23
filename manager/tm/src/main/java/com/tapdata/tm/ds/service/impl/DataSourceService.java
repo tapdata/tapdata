@@ -1324,6 +1324,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
 									, newModelList.size(), name, pair.getLeft(), pair.getRight());
 							deleteModels(loadFieldsStatus, connectionId, schemaVersion, user);
+							update.put("loadSchemaTime", new Date());
+
 						}
 					}
 				} else {

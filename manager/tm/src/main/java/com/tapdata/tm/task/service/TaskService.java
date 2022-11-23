@@ -1960,6 +1960,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return findOne(query);
     }
 
+    public void rename(String taskId, String newName, UserDetail user) {
+        ObjectId objectId = MongoUtils.toObjectId(taskId);
+        TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user, "name");
+        if (newName.equals(taskDto.getName())) {
+            return;
+        }
+
+        checkTaskName(newName, user, objectId);
+
+        Update update = Update.update("name", newName);
+
+        updateById(objectId, update, user);
+
+    }
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
