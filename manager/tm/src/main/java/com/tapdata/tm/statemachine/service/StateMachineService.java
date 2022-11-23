@@ -99,7 +99,7 @@ public class StateMachineService {
 
 	}
 
-	private StateMachineResult executeAboutTask(ObjectId taskId, DataFlowEvent event, UserDetail userDetail){
+	public StateMachineResult executeAboutTask(ObjectId taskId, DataFlowEvent event, UserDetail userDetail){
 		TaskDto dto = taskService.findById(taskId, userDetail);
 		if (dto == null){
 			throw new BizException("Task.NotFound");

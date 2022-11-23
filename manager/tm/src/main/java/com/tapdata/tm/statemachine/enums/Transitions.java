@@ -23,7 +23,7 @@ public enum Transitions {
 	 * source: edit/stopped/error
 	 * target: scheduling
 	 **/
-	SUBTASK_START(DataFlowEvent.START, new TaskState[]{TaskState.EDIT, TaskState.STOPPED, TaskState.ERROR, TaskState.DONE, TaskState.SCHEDULING_FAILED}),
+	SUBTASK_START(DataFlowEvent.START, new TaskState[]{TaskState.WAIT_START, TaskState.STOPPED, TaskState.ERROR, TaskState.DONE, TaskState.SCHEDULING_FAILED}),
 	/**
 	 * source: scheduling
 	 * target: wait_run

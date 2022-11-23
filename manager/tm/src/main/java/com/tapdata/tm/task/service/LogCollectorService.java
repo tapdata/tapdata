@@ -1109,7 +1109,7 @@ public class LogCollectorService {
                 taskService.update(new Query(Criteria.where("_id").is(oldConnHeartbeatTask.getId())), Update.update(ConnHeartbeatUtils.TASK_RELATION_FIELD, heartbeatTasks), user);
             }
             if (heartbeatTasks.size() == 0) {
-                taskService.stop(oldConnHeartbeatTask.getId(), user, false);
+                taskService.pause(oldConnHeartbeatTask.getId(), user, false);
             }
         }
     }
