@@ -1,6 +1,6 @@
-package io.tapdata.common;
+package io.tapdata.util;
 
-import io.tapdata.common.constant.JsonType;
+import io.tapdata.constant.JsonType;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
@@ -9,7 +9,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 
-public class MqSchemaParser {
+public class JsonSchemaParser {
 
     public void parse(TapTable table, Map<String, Object> obj) {
         this.parse(table, null, null, obj, true);

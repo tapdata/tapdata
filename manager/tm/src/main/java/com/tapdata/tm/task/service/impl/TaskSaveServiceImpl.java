@@ -60,7 +60,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             if (any.isPresent()) {
                 noPass = true;
 
-                taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
+                //taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
             }
         }
 

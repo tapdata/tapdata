@@ -3,52 +3,44 @@ package io.tapdata.connector.hive1;
 import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.hive1.config.Hive1Config;
-import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.connector.hive1.dml.Hive1Writer;
 import io.tapdata.pdk.apis.entity.TestItem;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
-import org.apache.hadoop.hive.metastore.txn.TxnDbUtil;
 
-import java.sql.Connection;
+import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
 
 public class Hive1Test extends CommonDbTest {
 
-    public static final String TAG = Hive1Test.class.getSimpleName();
-
-    public Hive1Test(Hive1Config hive1Config) {
-        super(hive1Config);
-        try {
-            jdbcContext = (Hive1JdbcContext) DataSourcePool.getJdbcContext(hive1Config, Hive1JdbcContext.class, uuid);
-        } catch (Exception e) {
-            TapLogger.error(TAG,"create Hive1JdbcContext error:{}",e.getMessage());
-            throw new RuntimeException(e);
-        }
-
+    public Hive1Test(Hive1Config hive1Config, Consumer<TestItem> consumer) {
+        super(hive1Config, consumer);
+        jdbcContext = DataSourcePool.getJdbcContext(hive1Config, Hive1JdbcContext.class, uuid);
     }
 
-    public TestItem testConnect(Hive1Config hive1Config) {
-        try (
-                Connection connection = ((Hive1JdbcContext)jdbcContext).getConnection(hive1Config)
-        ) {
-            return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
-        } catch (Exception e) {
-            return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage());
+    @Override
+    public Boolean testOneByOne() {
+        if (isStreamConnection((Hive1Config) commonDbConfig)) {
+            testFunctionMap.put("testConnectOfStream", this::testConnectOfStream);
         }
+        return super.testOneByOne();
     }
 
-    public TestItem testConnectOfStream(Hive1Config hive1Config) {
+    public boolean testConnectOfStream() {
         IMetaStoreClient metaStoreClient = null;
         try {
-            metaStoreClient = new HiveMetaStoreClient(newHiveConf(hive1Config));
-            return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
+            metaStoreClient = new HiveMetaStoreClient(newHiveConf((Hive1Config) commonDbConfig));
+            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
+            return true;
         } catch (Exception e) {
-            return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage());
-        }finally {
-            if(metaStoreClient!=null) metaStoreClient.close();
+            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage()));
+            return false;
+        } finally {
+            if (metaStoreClient != null) metaStoreClient.close();
         }
     }
 
@@ -69,6 +61,13 @@ public class Hive1Test extends CommonDbTest {
 
     private String getMetastoreUri(Hive1Config hive1Config) {
         return String.format("thrift://%s:%d", hive1Config.getHost(), hive1Config.getPort());
+    }
+
+    private boolean isStreamConnection(Hive1Config hive1Config) {
+        String hiveConnType = hive1Config.getHiveConnType();
+        if (StringUtils.isNotBlank(hiveConnType) && Hive1Writer.HIVE_STREAM_CONN.equals(hiveConnType))
+            return true;
+        return false;
     }
 
 }
