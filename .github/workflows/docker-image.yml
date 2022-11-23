@@ -95,6 +95,10 @@ jobs:
         run: |
           chmod u+x build/build.sh
           build/build.sh -c plugin-kit || exit 1
+      - name: file-storages 模块编译
+        run: |
+          chmod u+x build/build.sh
+          build/build.sh -c file-storages || exit 1
       - name: compile connectors-common module
         run:
           build/build.sh -c connectors-common

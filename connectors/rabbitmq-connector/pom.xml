@@ -21,7 +21,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
-            <scope>provided</scope>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>

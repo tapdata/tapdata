@@ -83,7 +83,7 @@ public class TaskStartServiceImpl implements TaskStartService {
             Optional<TaskDagCheckLog> any = saveLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
             if (any.isPresent()) {
                 saveNoPass = true;
-                taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
+                //taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
             }
         }
 
@@ -94,7 +94,7 @@ public class TaskStartServiceImpl implements TaskStartService {
             if (any.isPresent()) {
                 startNoPass = true;
                 if (!saveNoPass) {
-                    taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
+                    //taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
                 }
             }
         }
