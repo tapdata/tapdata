@@ -285,8 +285,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 );
                 calculationEngineVo.setThreadLog(threadLog);
 
-                return calculationEngineVo;
             }
+            entity.setAgentId(calculationEngineVo.getProcessId());
+            entity.setScheduleTime(System.currentTimeMillis());
+            return calculationEngineVo;
         }
         // 53迭代Task上增加了指定Flow Engine的功能 --end
         BasicDBObject thread = new BasicDBObject();
