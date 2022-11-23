@@ -1,4 +1,4 @@
-package io.tapdata.common.constant;
+package io.tapdata.constant;
 
 import java.util.Collection;
 import java.util.Map;
