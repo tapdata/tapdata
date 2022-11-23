@@ -62,7 +62,9 @@ public class BigSaxSchemaHandler implements ElementHandler {
             }
             throw new StopException();
         }
-        element.detach();
+        if (!elementPath.getPath().startsWith(path) || path.equals(elementPath.getPath())) {
+            element.detach();
+        }
     }
 
     private Object analyzeElement(Element element) {
