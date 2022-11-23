@@ -95,10 +95,10 @@ public class BatchReadTest extends PDKTestBase {
                     //数据条目数需要等于1， 查询出这1条数据，只要能查出来数据就算是正确。
                     TapAssert.asserts(()->
                         Assertions.assertTrue(
-                        null!=list&&list.size()==1,
-                                TapSummary.format("batchRead.batchRead.error",batchSize,null==list?0:list.size())
+                    null!=list&&list.size()==1,
+                            TapSummary.format("batchRead.batchRead.error",recordCount,batchSize,recordCount,null==list?0:list.size())
                         )
-                    ).acceptAsError(testCase,TapSummary.format("batchRead.batchRead.succeed",batchSize,null==list?0:list.size()));
+                    ).acceptAsError(testCase,TapSummary.format("batchRead.batchRead.succeed",recordCount,batchSize,recordCount,null==list?0:list.size()));
                     if (null != list && list.size() == 1){
                         Record record = records[0];
                         TapEvent tapEvent = list.get(0);
@@ -152,9 +152,20 @@ public class BatchReadTest extends PDKTestBase {
                                     connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
                                     connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
                                     StringBuilder builder = new StringBuilder();
+                                    //boolean isEquals = mapEquals(record, result, builder);//精确匹配
                                     TapAssert.asserts(()->assertTrue(
-                                        mapEquals(record, result, builder),TapSummary.format("exact.match.failed",recordCount,builder.toString())
-                                    )).acceptAsWarn(testCase,TapSummary.format("exact.match.succeed",recordCount));
+                                        mapEquals(record, result, builder),
+                                        TapSummary.format("exact.equals.failed",recordCount,builder.toString())
+                                    )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
+//                                    if (isEquals){
+//                                        TapAssert.succeed(testCase,TapSummary.format("exact.equals.succeed",recordCount));
+//                                    }else {
+//                                        //模糊匹配
+//                                        boolean isMatch = objectIsEqual(record, result);
+//                                        TapAssert.asserts(()->assertTrue(
+//                                            isMatch,TapSummary.format("exact.match.failed",recordCount,builder.toString())
+//                                        )).acceptAsWarn(testCase,TapSummary.format("exact.match.succeed",recordCount,builder.toString()));
+//                                    }
                                 }
                             }
                         }
@@ -223,7 +234,7 @@ public class BatchReadTest extends PDKTestBase {
                         if (null == tapEvents || tapEvents.size()!=batchSize){
                             //返回数据条目数第一批应该为2，
                             TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("batchRead.batchCount.error",indexFinal+1,batchSize,tapEvents.size())
+                                Assertions.fail(TapSummary.format("batchRead.batchCount.error",recordCount,batchSize,indexFinal+1,batchSize,tapEvents.size())
                             )).error(testCase);
                             break;
                         }
@@ -231,7 +242,7 @@ public class BatchReadTest extends PDKTestBase {
                         //返回数据条目数第二批应该为1，
                         if (null == tapEvents || tapEvents.size() != (recordCount-batchSize*index) ){
                             TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("batchRead.batchCount.error",indexFinal,recordCount-batchSize*indexFinal,tapEvents.size()
+                                Assertions.fail(TapSummary.format("batchRead.batchCount.error",recordCount,batchSize,indexFinal,recordCount-batchSize*indexFinal,tapEvents.size()
                             ))).error(testCase);
                             break;
                         }

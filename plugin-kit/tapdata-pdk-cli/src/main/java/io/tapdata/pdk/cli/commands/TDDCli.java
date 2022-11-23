@@ -33,6 +33,7 @@ import picocli.CommandLine;
 
 import java.io.*;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -278,8 +279,9 @@ public class TDDCli extends CommonCli {
             }
         } else {
             selectorsAddClass(selectors, BasicTest.class, testResultSummary);
-
-            for(Class<? extends PDKTestBase> testClass : tests) {
+            List<Class<? extends PDKTestBase>> supportTest = new ArrayList<>();
+            for (int i = 0; i < tests.size(); i++) {
+                Class<? extends PDKTestBase> testClass = tests.get(i);
                 boolean allFound = true;
                 try {
                     List<SupportFunction> functions = (List<SupportFunction>) ReflectionUtil.invokeStaticMethod(testClass.getName(), "testFunctions");
@@ -288,19 +290,30 @@ public class TDDCli extends CommonCli {
                             if(!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
                                 allFound = false;
                                 testResultSummary.doNotSupportFunTest.put(testClass,TapSummary.format(supportFunction.getErrorMessage()));
-                                break;
                             }
                         } catch (NoSuchMethodException e) {
                             allFound = false;
                             testResultSummary.doNotSupportFunTest.put(testClass,TapSummary.format(supportFunction.getErrorMessage()));
+                        }
+                        if (!allFound){
+                            Set<Class<? extends PDKTestBase>> classes = subTest(testClass);
+                            if (null != classes && !classes.isEmpty()) {
+                                tests.addAll(tests.size(),classes);
+                            }
                             break;
                         }
                     }
                 }catch (Exception e){}
                 if(allFound) {
-                    selectorsAddClass(selectors, testClass, testResultSummary);
+                    supportTest.add(testClass);
                 }
             }
+
+            supportTest.stream().sorted((cla1,cla2)->{
+                Annotation annotation1 = cla1.getAnnotation(TapGo.class);
+                Annotation annotation2 = cla2.getAnnotation(TapGo.class);
+                return ((TapGo)annotation1).sort()>((TapGo)annotation2).sort()?0:-1;
+            }).forEach(testClass->selectorsAddClass(selectors, testClass, testResultSummary));
 //            if(connectorFunctions.getWriteRecordFunction() != null && connectorFunctions.getCreateTableFunction() == null) {
 //                selectorsAddClass(selectors, DMLTest.class, testResultSummary);
 //            }
@@ -315,6 +328,7 @@ public class TDDCli extends CommonCli {
 //        }
 //        builder.append("-------------PDK connector idAndGroupAndVersion " + tapNodeInfo.getTapNodeSpecification().idAndGroup() + "-------------").append("\n");
 //        PDKLogger.info(TAG, builder.toString());
+
         return selectors;
     }
 
@@ -342,15 +356,30 @@ public class TDDCli extends CommonCli {
         return null;
     }
 
-
+    private Set<Class<? extends PDKTestBase>> subTest(Class<? extends PDKTestBase> testClass){
+        TapGo tapGo = testClass.getAnnotation(TapGo.class);
+        Class<? extends PDKTestBase>[] subTest = tapGo.subTest();
+        return Arrays.asList(subTest).stream().filter(cls->{
+            try {
+                TapGo tg = cls.getAnnotation(TapGo.class);
+                boolean goTest = tg.goTest();
+                boolean isSub = tg.isSub();
+                return (PDKTestBase.class.isAssignableFrom(cls)) && goTest && isSub;
+            }catch (Exception e){
+                return false;
+            }
+        }).collect(Collectors.toSet());
+    }
     private List<Class<? extends PDKTestBase>> allTest(){
         Reflections reflections = new Reflections(packagePath);
         //返回带有指定注解的所有类对象
         Set<Class<?>> typesAnnotatedWith = reflections.getTypesAnnotatedWith(TapGo.class);
         return typesAnnotatedWith.stream().filter(cls->{
             try {
-                boolean annotation = cls.getAnnotation(TapGo.class).goTest();
-                return (PDKTestBase.class.isAssignableFrom(cls)) && annotation;
+                TapGo tapGo = cls.getAnnotation(TapGo.class);
+                boolean goTest = tapGo.goTest();
+                boolean isSub = tapGo.isSub();
+                return (PDKTestBase.class.isAssignableFrom(cls)) && goTest && !isSub;
             }catch (Exception e){
                 return false;
             }

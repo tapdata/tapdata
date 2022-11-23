@@ -1,28 +1,15 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
-import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
-import io.tapdata.entity.conversion.TableFieldTypesGenerator;
-import io.tapdata.entity.conversion.TargetTypesGenerator;
-import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
-import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
@@ -40,7 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
 @DisplayName("discoverSchema.test")//discoverSchema发现表， 必测方法
-@TapGo(sort = 99,goTest = true)//6
+@TapGo(sort = 99,goTest = true,subTest = {DiscoverSchemaTestV2.class})//6
 public class DiscoverSchemaTest extends PDKTestBase{
     @DisplayName("discoverSchema.discover")//用例1， 发现表
     @Test
@@ -66,10 +53,8 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
                 //执行discoverSchema之后， 至少返回一张表
                 TapAssert.asserts(()->
-                    Assertions.assertTrue(
-                        null!=tables && !tables.isEmpty(),
-                        TapSummary.format("discover.notAnyTable"))
-                ).acceptAsError(
+                        Assertions.assertFalse(tables.isEmpty(), TapSummary.format("discover.notAnyTable"))
+                ).acceptAsWarn(
                     testCase,
                     TapSummary.format("discover.succeed",tables.size())
                 );
@@ -133,7 +118,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
     @DisplayName("discoverSchema.discoverAfterCreate")//用例2， 建表之后能发现表（依赖CreateTableFunction）
     @Test
-    @TapTestCase(sort = 2)
+    @TapTestCase(sort = 2,dump = true)
     /**
      * 通过CreateTableFunction创建一张表， 表名随机，
      * 表里的字段属性是通过TapType的全类型11个字段推演得来，
@@ -291,22 +276,20 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
                 long discoverStart = System.currentTimeMillis();
                 connector.discoverSchema(connectorContext,new ArrayList<>(),1000,consumer->{
-                    $(()->{
-                        long discoverEnd = System.currentTimeMillis();
-                        //执行discoverSchema之后， 至少返回一张表
-                        TapAssert.asserts(()->{
-                            Assertions.assertTrue(
-                                null!=consumer && !consumer.isEmpty() && consumer.size()>1,
-                                TapSummary.format("discoverByTableName1.notAnyTable",discoverEnd-discoverStart));
-                        }).acceptAsError(
-                            testCase,
-                            TapSummary.format("discoverByTableName1.succeed",consumer.size(),discoverEnd-discoverStart)
-                        );
-                        tableCount.set(consumer.size());
-                        //通过指定第一张表之后的任意一张表名，
-                        nextTable.set(((new Random()).nextInt(tableCount.get())+2));
-                        tapTableAto.set(consumer.get(nextTable.get()));
-                    });
+                    long discoverEnd = System.currentTimeMillis();
+                    //执行discoverSchema之后， 至少返回一张表
+                    TapAssert.asserts(()->{
+                        Assertions.assertTrue(
+                            null!=consumer && !consumer.isEmpty() && consumer.size()>1,
+                            TapSummary.format("discoverByTableName1.notAnyTable",discoverEnd-discoverStart));
+                    }).acceptAsWarn(
+                        testCase,
+                        TapSummary.format("discoverByTableName1.succeed",consumer.size(),discoverEnd-discoverStart)
+                    );
+                    tableCount.set(consumer.size());
+                    //通过指定第一张表之后的任意一张表名，
+                    nextTable.set(((new Random()).nextInt(tableCount.get()-1)+1));
+                    tapTableAto.set(consumer.get(nextTable.get()));
                 });
 
                 //通过List<String> tables参数指定那张表，
@@ -347,7 +330,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
     @DisplayName("discoverSchema.discoverByTableName2")//用例4， 通过指定表名加载特定表（依赖CreateTableFunction）
     @Test
-    @TapTestCase(sort = 4)
+    @TapTestCase(sort = 4,dump = true)
     /**
      * 通过CreateTableFunction另外创建一张表，
      * 通过List<String> tables参数指定新创建的那张表，
@@ -437,7 +420,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                     Assertions.assertTrue(
                         !consumer.isEmpty() && consumer.size()>1,
                         TapSummary.format("discoverByTableCount1.notAnyTable",discoverEnd-discoverStart));
-                }).acceptAsError(
+                }).acceptAsWarn(
                     testCase,
                     TapSummary.format("discoverByTableCount1.succeed",consumer.size(),discoverEnd-discoverStart)
                 );
@@ -474,7 +457,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
     @DisplayName("discoverSchema.discoverByTableCount2")//用例6， 通过指定表数量加载固定数量的表（依赖CreateTableFunction）
     @Test
-    @TapTestCase(sort = 6)
+    @TapTestCase(sort = 6,dump = true)
     /**
      * 通过CreateTableFunction另外创建一张表，
      * 通过int tableSize参数指定为1，

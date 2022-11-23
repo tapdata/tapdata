@@ -45,6 +45,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
 import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.core.workflow.engine.TapDAG;
+import io.tapdata.pdk.tdd.tests.support.DateUtil;
 import io.tapdata.pdk.tdd.tests.support.Record;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
@@ -60,6 +61,9 @@ import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -412,7 +416,7 @@ public class PDKTestBase {
 //        return InstanceFactory.instance(ValueVerification.class).mapEquals(firstRecord, result, ValueVerification.EQUALS_TYPE_FUZZY);
         MapDifference<String, Object> difference = Maps.difference(firstRecord, result);
         Map<String, MapDifference.ValueDifference<Object>> differenceMap = difference.entriesDiffering();
-        builder.append("Differences: \n");
+        builder.append("\t\t\tDifferences: \n");
         boolean different = false;
         for (Map.Entry<String, MapDifference.ValueDifference<Object>> entry : differenceMap.entrySet()) {
             MapDifference.ValueDifference<Object> diff = entry.getValue();
@@ -423,18 +427,18 @@ public class PDKTestBase {
 
             if (!equalResult) {
                 different = true;
-                builder.append("\t").append("Key ").append(entry.getKey()).append("\n");
-                builder.append("\t\t").append("Left ").append(diff.leftValue()).append(" class ").append(diff.leftValue().getClass().getSimpleName()).append("\n");
-                builder.append("\t\t").append("Right ").append(diff.rightValue()).append(" class ").append(diff.rightValue().getClass().getSimpleName()).append("\n");
+                builder.append("\t\t\t\t").append("Key ").append(entry.getKey()).append("\n");
+                builder.append("\t\t\t\t\t").append("Left ").append(diff.leftValue()).append(" class ").append(diff.leftValue().getClass().getSimpleName()).append("\n");
+                builder.append("\t\t\t\t\t").append("Right ").append(diff.rightValue()).append(" class ").append(diff.rightValue().getClass().getSimpleName()).append("\n");
             }
         }
         Map<String, Object> onlyOnLeft = difference.entriesOnlyOnLeft();
         if(!onlyOnLeft.isEmpty()) {
             different = true;
             for(Map.Entry<String, Object> entry : onlyOnLeft.entrySet()) {
-                builder.append("\t").append("Key ").append(entry.getKey()).append("\n");
-                builder.append("\t\t").append("Left ").append(entry.getValue()).append(" class ").append(entry.getValue().getClass().getSimpleName()).append("\n");
-                builder.append("\t\t").append("Right ").append("N/A").append("\n");
+                builder.append("\t\t\t\t").append("Key ").append(entry.getKey()).append("\n");
+                builder.append("\t\t\t\t\t").append("Left ").append(entry.getValue()).append(" class ").append(entry.getValue().getClass().getSimpleName()).append("\n");
+                builder.append("\t\t\t\t\t").append("Right ").append("N/A").append("\n");
             }
         }
         //Allow more on right.
@@ -482,10 +486,10 @@ public class PDKTestBase {
                 rightB = (BigDecimal) rightValue;
             }
             if (leftB == null) {
-                leftB = BigDecimal.valueOf(((Number) leftValue).doubleValue());
+                leftB = BigDecimal.valueOf(Double.parseDouble(String.valueOf((leftValue))));
             }
             if (rightB == null) {
-                rightB = BigDecimal.valueOf(((Number) rightValue).doubleValue());
+                rightB = BigDecimal.valueOf(Double.parseDouble(String.valueOf((rightValue))));
             }
             equalResult = leftB.compareTo(rightB) == 0;
         } else if ((leftValue instanceof Boolean)) {
@@ -506,7 +510,12 @@ public class PDKTestBase {
                     equalResult = ((String) rightValue).equalsIgnoreCase("false");
                 }
             }
-        }else{
+        }else if(rightValue instanceof Date){
+            Date date = (Date) rightValue;
+            String dataStr = DateUtil.dateTimeToStr(date);
+            equalResult = dataStr.contains(String.valueOf(leftValue));
+        }
+        else{
             equalResult = leftValue.equals(rightValue);
         }
         return equalResult;
@@ -802,13 +811,13 @@ public class PDKTestBase {
 //            .add(field("TYPE_MAP", JAVA_Map).tapType(tapMap()))
             .add(field("TYPE_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
             .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
-            .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(10000).scale(1000).fixed(true)))
-            .add(field("TYPE_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).fixed(false).scale(8).precision(38)))
-            .add(field("TYPE_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).scale(17).precision(309).fixed(false)))
+            .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(55).fixed(true)))
+            .add(field("TYPE_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).precision(200).scale(55).fixed(false)))
+            .add(field("TYPE_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(55).fixed(false)))
             .add(field("TYPE_STRING_1", JAVA_String).tapType(tapString().bytes(50L)))
             .add(field("TYPE_STRING_2", JAVA_String).tapType(tapString().bytes(50L)))
             .add(field("TYPE_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-            .add(field("TYPE_TIME", "Time").tapType(tapTime()))
+            .add(field("TYPE_TIME", "Time").tapType(tapTime().withTimeZone(false)))
             .add(field("TYPE_YEAR", "Year").tapType(tapYear()));
 
 
@@ -907,6 +916,7 @@ public class PDKTestBase {
                 try {
                     CreateTableOptions table = createTableV2Function.createTable(connectorContext, createTableEvent);
                     asserts.acceptAsError(testCase, TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.succeed",targetTable.getId()));
+                    return verifyCreateTable(prepare);
                 }catch (Exception e){
                     TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.error",targetTable.getId()))).error(testCase);
                 }
@@ -914,6 +924,7 @@ public class PDKTestBase {
                 try {
                     createTableFunction.createTable(connectorContext, createTableEvent);
                     asserts.acceptAsError(testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.succeed",targetTable.getId()));
+                    return verifyCreateTable(prepare);
                 }catch (Exception e){
                     TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.error",targetTable.getId()))).error(testCase);
                 }
@@ -923,27 +934,36 @@ public class PDKTestBase {
                     WriteListResult<TapRecordEvent> insert = prepare.recordEventExecute()
                             .builderRecord(records)
                             .insert();
-                    prepare.recordEventExecute().resetRecords();
                     TapAssert.succeed(testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.succeed",records.length,targetTable.getId()));
+                    if (verifyCreateTable(prepare)) {
+                        prepare.recordEventExecute().delete();
+                        return true;
+                    }
                 }catch (Exception e){
                     TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.error",records.length,targetTable.getId()))).error(testCase);
+                }finally {
+                    prepare.recordEventExecute().resetRecords();
                 }
             }else{
-                TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.error"))).error(testCase);
-                return false;
+                String message = TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.error");
+                TapAssert.asserts(()->Assertions.fail(message)).warn(testCase);
+                throw new RuntimeException(message);
             }
-            List<TapTable> tables = new ArrayList<>();
-            prepare.connectorNode.getConnector().discoverSchema(
+        }
+        return false;
+    }
+    private boolean verifyCreateTable(TestNode prepare) throws Throwable {
+        TapConnectorContext connectorContext = prepare.connectorNode().getConnectorContext();
+        List<TapTable> tables = new ArrayList<>();
+        prepare.connectorNode.getConnector().discoverSchema(
                 connectorContext,list(targetTable.getId()),1000,consumer->{
                     if (null != consumer) tables.addAll(consumer);
                 }
-            );
-            TapAssert.asserts(()->
+        );
+        TapAssert.asserts(()->
                 assertFalse(tables.isEmpty(), TapSummary.format("table.create.error", targetTable.getId()))
-            ).acceptAsError(testCase,TapSummary.format("table.create.succeed",targetTable.getId()));
-            return !tables.isEmpty();
-        }
-        return false;
+        ).acceptAsError(prepare.recordEventExecute.testCase(), TapSummary.format("table.create.succeed",targetTable.getId()));
+        return !tables.isEmpty();
     }
 
     protected void checkIndex(Method testCase, List<TapIndex> ago,List<TapIndex> after){

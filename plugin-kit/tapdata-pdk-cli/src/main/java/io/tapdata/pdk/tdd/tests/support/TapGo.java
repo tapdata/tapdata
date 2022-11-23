@@ -1,5 +1,7 @@
 package io.tapdata.pdk.tdd.tests.support;
 
+import io.tapdata.pdk.tdd.core.PDKTestBase;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -10,4 +12,6 @@ import java.lang.annotation.Target;
 public @interface TapGo {
     boolean goTest() default true;
     int sort() default 0;
+    Class<? extends PDKTestBase>[] subTest() default {};
+    boolean isSub() default false;
 }

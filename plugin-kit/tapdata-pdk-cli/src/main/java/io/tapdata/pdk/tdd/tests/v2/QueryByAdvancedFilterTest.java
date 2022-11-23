@@ -116,8 +116,24 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                                     connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
                                     StringBuilder builder = new StringBuilder();
                                     TapAssert.asserts(()->assertTrue(
-                                            mapEquals(record, result, builder),TapSummary.format("exact.match.failed",recordCount,builder.toString())
-                                    )).acceptAsWarn(testCase,TapSummary.format("exact.match.succeed",recordCount));
+                                            mapEquals(record, result, builder),
+                                            TapSummary.format("exact.equals.failed",recordCount,builder.toString())
+                                    )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
+//                                    boolean isEquals = mapEquals(record, result, builder);//精确匹配
+//                                    if (isEquals){
+//                                        TapAssert.succeed(testCase,TapSummary.format("exact.equals.succeed",recordCount));
+//                                    }else {
+//                                        //模糊匹配
+//                                        boolean isMatch = objectIsEqual(record, result);
+//                                        TapAssert.asserts(()->assertTrue(
+//                                                isMatch,TapSummary.format("exact.match.failed",recordCount,builder.toString())
+//                                        )).acceptAsWarn(testCase,TapSummary.format("exact.match.succeed",recordCount,builder.toString()));
+//                                    }
+
+//                                    StringBuilder builder = new StringBuilder();
+//                                    TapAssert.asserts(()->assertTrue(
+//                                            mapEquals(record, result, builder),TapSummary.format("exact.equals.failed",recordCount,builder.toString())
+//                                    )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount));
                                 }
                             }
                         }

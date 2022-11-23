@@ -72,6 +72,8 @@ public class TapSummary {
     //用来表示一次测试过程是否通过
     public static String hasPass = "SUCCEED";
 
+    SummaryData summaryData = new SummaryData();
+
     //每轮测试结束需要调用这个方法进行清除一些数据
     public void clean(){
         TapSummary.capabilitiesResult = new HashMap<>();
@@ -155,15 +157,37 @@ public class TapSummary {
                         .append("\t").append(s).append("\n");
 
                 int jumpCase = 0;
-                try {
-                    Object test = aClass.newInstance();
-                    Method[] declaredMethods = aClass.getDeclaredMethods();
-                    for (int i = 0; i < declaredMethods.length; i++) {
-                        Test testAnn = declaredMethods[i].getAnnotation(Test.class);
-                        if (null != testAnn) jumpCase++;
+
+                List<Method> declaredMethods = (new HashSet<>(Arrays.asList(aClass.getDeclaredMethods())))
+                        .stream()
+                        .filter(cls->null!=cls.getAnnotation(Test.class))
+                        .sorted((m1,m2)->{
+                            TapTestCase testCase1 = m1.getDeclaredAnnotation(TapTestCase.class);
+                            TapTestCase testCase2 = m2.getDeclaredAnnotation(TapTestCase.class);
+                            return null == testCase1 || null ==testCase2 ||testCase1.sort()>testCase2.sort() ?0:-1;
+                        }).collect(Collectors.toList());
+                StringBuilder jumpCaseTest = new StringBuilder();
+                int caseIndex = 0;
+                for (Method method : declaredMethods) {
+                    Test testAnn = method.getAnnotation(Test.class);
+                    DisplayName testCase = method.getAnnotation(DisplayName.class);
+                    if (null != testAnn){
+                        jumpCaseTest.append("\t\t")
+                                .append(((char) (65 + caseIndex)))
+                                .append(".")
+                                .append(TapSummary.format(testCase.value()))
+                                .append("\n");
+                        jumpCase++;
+                        caseIndex++;
                     }
-                } catch (InstantiationException | IllegalAccessException e) {
                 }
+                if (caseIndex>0){
+                    builder.append("\t◉ ")
+                            .append(TapSummary.format("base.jumpCase.list"))
+                            .append("\n")
+                            .append(jumpCaseTest);
+                }
+                summaryData.summaryOnce(jumpCase, 0, 0, 0, 0, jumpCase);
                 builder.append("★ ")
                         .append(TapSummary.format("ONCE_HISTORY",
                                 aClass.getSimpleName(),
@@ -241,6 +265,7 @@ public class TapSummary {
                     });
                 }
             }
+            int total = null == methodCaseMap || methodCaseMap.isEmpty()?0:methodCaseMap.size();
             builder.append("☆ ")
                     .append(cla.getSimpleName());
             String annotation = this.getAnnotationName(cla,DisplayName.class);
@@ -250,6 +275,13 @@ public class TapSummary {
             builder.append("\n")
                     .append(capabilityBuilder)
                     .append("\n");
+            summaryData.summaryOnce(total,
+                    total,
+                    total - warnSize - errorSize,
+                    warnSize,
+                    errorSize,
+                    0
+            );
             builder.append("★ ")
                     .append(TapSummary.format("ONCE_HISTORY",
                             cla.getSimpleName(),
@@ -335,8 +367,8 @@ public class TapSummary {
             writer.write(
                     showLogoV2() + "\n"+
                          showCapabilitiesV2()+
-                    resultBuilder.toString()+
-                         endingShowV2(file)+"\n"+new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(new Date())
+                    resultBuilder.toString()
+
             );
         }catch (Exception e) {
         }
@@ -476,7 +508,27 @@ public class TapSummary {
         StringBuilder builder = this.showNotSupport(summary);
         System.out.println(builder.toString());
         resultBuilder.append(builder);
-        System.out.println(endingShowV2(fileName));
+
+        StringBuilder builderEnd = new StringBuilder("\n\n====================================================================================\n");
+        String end = endingShowV2(fileName);
+        String connectorName = tapNodeInfo.getTapNodeSpecification().getId();
+        int totalCase = summaryData.totalCase();
+        int exeCase = summaryData.exeCase();
+        int error = summaryData.error();
+        int succeed = summaryData.succeed();
+        int warn = summaryData.warn();
+        int dump = summaryData.dump();
+        builderEnd.append(TapSummary.format("SUMMARY_END",connectorName,totalCase,exeCase,succeed,warn,error,dump))
+                .append("————————————————————————————————————————————————————————————————————————————————————\n")
+                .append(end)
+                .append("\n")
+                .append("====================================================================================\n");
+
+        System.out.println(builderEnd.toString());
+        resultBuilder.append(builderEnd)
+                .append("\n")
+                .append(DateUtil.dateTimeToStr());
+
     }
 
     public String endingShowV2(String fileName){
@@ -489,13 +541,8 @@ public class TapSummary {
                 msg += TapSummary.format("SUCCEED_WITH_WARN");
             }
         }
-        final int len = msg.getBytes().length;
-        String charStr = ".";
-        StringBuilder splitStartAndEnd = new StringBuilder();
-        for (int i = 0; i < len; i++) {
-            splitStartAndEnd.append(charStr);
-        }
-        return splitStartAndEnd.toString()+"\n"+msg+"\n"+splitStartAndEnd.toString()+"\n";
+
+        return msg;
     }
 
     public static String basePath(String logPath) {
@@ -508,8 +555,98 @@ public class TapSummary {
     }
 
     private static String dateTime(){
-        String format = "yyyyMMdd_hhmmss";
+        String format = "yyyyMMdd_HHmmss";
         return  (new SimpleDateFormat(format)).format(new Date());
     }
 
+    public void summaryInEnding(StringBuilder builder){
+
+
+    }
+
+}
+class SummaryData{
+    int totalCase = 0;
+    int exeCase = 0;
+    int error = 0;
+    int succeed = 0;
+    int warn = 0;
+    int dump = 0;
+    public void summaryOnce(int totalCase,int exeCase,int succeed,int warn,int error,int dump){
+        this.totalCase += totalCase;
+        this.exeCase += exeCase;
+        this.error += error;
+        this.succeed += succeed;
+        this.warn += warn;
+        this.dump += dump;
+    }
+    public int totalCaseInc() {
+        return ++this.totalCase;
+    }
+
+    public int exeCaseInc() {
+        return ++this.exeCase;
+    }
+
+    public int errorInc() {
+        return ++this.error;
+    }
+
+    public int succeedInc() {
+        return ++this.succeed;
+    }
+
+    public int warnInc() {
+        return ++this.warn;
+    }
+
+    public int dumpInc() {
+        return ++this.dump;
+    }
+    public int totalCaseInc(int num) {
+        return this.totalCase += num;
+    }
+
+    public int exeCaseInc(int num) {
+        return this.exeCase += num;
+    }
+
+    public int errorInc(int num) {
+        return this.error += num;
+    }
+
+    public int succeedInc(int num) {
+        return this.succeed += num;
+    }
+
+    public int warnInc(int num) {
+        return this.warn += num;
+    }
+
+    public int dumpInc(int num) {
+        return this.dump += num;
+    }
+    public int totalCase() {
+        return this.totalCase;
+    }
+
+    public int exeCase() {
+        return this.exeCase;
+    }
+
+    public int error() {
+        return this.error;
+    }
+
+    public int succeed() {
+        return this.succeed;
+    }
+
+    public int warn() {
+        return this.warn;
+    }
+
+    public int dump() {
+        return this.dump;
+    }
 }

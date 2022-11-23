@@ -2,14 +2,10 @@ package io.tapdata.pdk.tdd.tests.support;
 
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.*;
-import io.tapdata.entity.schema.value.DateTime;
-import org.apache.commons.math3.analysis.function.Floor;
-import sun.util.resources.LocaleData;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.sql.Time;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -60,14 +56,14 @@ public class Record extends HashMap {
                         record.builder(keyName,list);
                     };break;
                     case JAVA_Binary:{
-                        record.builder(keyName,UUID.randomUUID().getLeastSignificantBits());
+                        record.builder(keyName,UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
                     };break;
                     case JAVA_Integer:{
                         Date date = new Date();
                         record.builder(keyName,date.getSeconds());
                     };break;
                     case JAVA_Date:{
-                        record.builder(keyName,new Date());
+                        record.builder(keyName,DateUtil.dateToStr());
                     };break;
                     case JAVA_Map:{
                         Map<String,Object> map = new HashMap<>();
@@ -95,7 +91,7 @@ public class Record extends HashMap {
                         record.builder(keyName,Double.parseDouble(""+(Math.random()*10+50)));
                     }break;
                     case "Date_Time":{
-                        record.builder(keyName,dateTime());
+                        record.builder(keyName,DateUtil.dateTimeToStr());
                     }break;
                     case "STRING(100)":{
                         record.builder(keyName,UUID.randomUUID().toString());
@@ -104,10 +100,10 @@ public class Record extends HashMap {
                         record.builder(keyName,System.currentTimeMillis());
                     }break;
                     case "Time":{
-                        record.builder(keyName, time());
+                        record.builder(keyName, DateUtil.timeToStr());
                     }break;
                     case "Year":{
-                        record.builder(keyName,year());
+                        record.builder(keyName,DateUtil.yearToStr());
                     }break;
                     default:record.builder(keyName,null);;
                 }
@@ -117,30 +113,30 @@ public class Record extends HashMap {
         return records;
     }
 
-    public static final String DATE_TIME_FORMAT = "yyyy-MM-dd hh:mm:ss";
-    public static String dateTime(){
-        return date(DATE_TIME_FORMAT);
-    }
-    public static final String TIME_FORMAT = "hh:mm:ss";
-    public static String time(){
-        return date(TIME_FORMAT);
-    }
-    public static final String DATE_FORMAT = "yyyy-MM-dd";
-    public static String date(){
-        return date(DATE_FORMAT);
-    }
-    public static final String YEAR_FORMAT = "yyyy";
-    public static final String year(){
-        return date(YEAR_FORMAT);
-    }
-
-    private static String date(String format){
-        if ( null == format || (
-                !DATE_FORMAT.equals(format) &&
-                !DATE_TIME_FORMAT.equals(format) &&
-                !TIME_FORMAT.equals(format) &&
-                !YEAR_FORMAT.equals(format) ) ) format = DATE_TIME_FORMAT;
-       return  (new SimpleDateFormat(format)).format(new Date());
-    }
+//    public static final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss.sss";
+//    public static String dateTime(){
+//        return date(DATE_TIME_FORMAT);
+//    }
+//    public static final String TIME_FORMAT = "HH:mm:ss";
+//    public static String time(){
+//        return date(TIME_FORMAT);
+//    }
+//    public static final String DATE_FORMAT = "yyyy-MM-dd";
+//    public static String date(){
+//        return date(DATE_FORMAT);
+//    }
+//    public static final String YEAR_FORMAT = "yyyy";
+//    public static String year(){
+//        return date(YEAR_FORMAT);
+//    }
+//
+//    private static String date(String format){
+//        if ( null == format || (
+//                !DATE_FORMAT.equals(format) &&
+//                !DATE_TIME_FORMAT.equals(format) &&
+//                !TIME_FORMAT.equals(format) &&
+//                !YEAR_FORMAT.equals(format) ) ) format = DATE_TIME_FORMAT;
+//       return  (new SimpleDateFormat(format)).format(new Date());
+//    }
 
 }

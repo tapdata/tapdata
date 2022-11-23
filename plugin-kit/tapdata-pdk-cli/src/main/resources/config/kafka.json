@@ -1,7 +1,7 @@
 {
   "connection": {
     "name": "auto_kafka",
-    "nameSrvAddr": "192.168.1.183:11433",
+    "nameSrvAddr": "192.168.1.183:9092",
     "mqTopicString": "",
     "database_type": "kafka",
     "kafkaBootstrapServers": "192.168.1.183:11433",

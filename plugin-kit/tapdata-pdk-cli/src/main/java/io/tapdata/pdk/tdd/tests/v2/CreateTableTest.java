@@ -83,15 +83,16 @@ public class CreateTableTest extends PDKTestBase {
                 }
 
                 CreateTableFunction createTable = functions.getCreateTableFunction();
+                String tableId = targetTable.getId().replaceAll("-","_");
                 TapAssert.asserts(()->
                         Assertions.assertNotNull(createTable, TapSummary.format("createTable.null",targetTable.getId()))
-                ).acceptAsWarn(testCase,TapSummary.format("createTable.notNull",targetTable.getId()));
+                ).acceptAsWarn(testCase,TapSummary.format("createTable.notNull",tableId));
 
 
                 CreateTableV2Function createTableV2 = functions.getCreateTableV2Function();
                 TapAssert.asserts(()->
                         Assertions.assertNotNull(createTableV2, TapSummary.format("createTable.v2Null",targetTable.getId()))
-                ).acceptAsWarn(testCase,TapSummary.format("createTable.v2NotNull",targetTable.getId()));
+                ).acceptAsWarn(testCase,TapSummary.format("createTable.v2NotNull",tableId));
 
                 boolean isV1 = null != createTable;
                 boolean isV2 = null != createTableV2;
@@ -99,21 +100,29 @@ public class CreateTableTest extends PDKTestBase {
                 if (!isV1 && !isV2){
                     return;
                 }
-                String tableId = UUID.randomUUID().toString();
                 targetTable.setId(tableId);
-                TapCreateTableEvent tableEvent = new TapCreateTableEvent().table(targetTable);
+                TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
+                targetTable.setName(this.targetTable.getId());
+                LinkedHashMap<String, TapField> modelDeduction = this.modelDeduction(prepare.connectorNode());
+                TapTable tabled = new TapTable();
+                modelDeduction.forEach((name,field)->tabled.add(field));
+                tabled.setName(targetTable.getName());
+                tabled.setId(targetTable.getId());
+                createTableEvent.table(tabled);
+                createTableEvent.setReferenceTime(System.currentTimeMillis());
+                createTableEvent.setTableId(targetTable.getId());
                 //如果同时实现了两个方法只需要测试CreateTableV2Function。(V2优先)
                 if (isV2){
                     CreateTableOptions table = createTableV2.createTable(
                             connectorContext,
-                            tableEvent
+                            createTableEvent
                     );
                     hasCreateTable = this.verifyTableIsCreated("CreateTableV2Function", prepare);
                     return;
                 }
                 //检查如果只实现了CreateTableFunction，没有实现CreateTableV2Function时，报出警告，
                 //推荐使用CreateTableV2Function方法来实现建表
-                createTable.createTable(connectorContext, tableEvent);
+                createTable.createTable(connectorContext, createTableEvent);
                 hasCreateTable = this.verifyTableIsCreated("CreateTableFunction", prepare);
             }catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -148,8 +157,8 @@ public class CreateTableTest extends PDKTestBase {
         } catch (Throwable throwable) {
         }
         TapAssert.asserts(()->{
-            Assertions.assertFalse(consumer.isEmpty(), TapSummary.format("verifyTableIsCreated.error", createMethod, tableIdTarget));
-        }).acceptAsError(testBase,TapSummary.format("verifyTableIsCreated.succeed",createMethod,tableIdTarget));
+            Assertions.assertFalse(consumer.isEmpty(), TapSummary.format("verifyTableIsCreated.error",tableIdTarget,consumer.size(), createMethod, tableIdTarget));
+        }).acceptAsError(testBase,TapSummary.format("verifyTableIsCreated.succeed",tableIdTarget,consumer.size(), createMethod,tableIdTarget));
         return !consumer.isEmpty();
     }
 
