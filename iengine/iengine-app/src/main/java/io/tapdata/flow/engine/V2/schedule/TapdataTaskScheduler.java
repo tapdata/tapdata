@@ -13,6 +13,8 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
+import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
+import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
@@ -28,6 +30,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -48,31 +51,30 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 @DependsOn("connectorManager")
 public class TapdataTaskScheduler {
 	private Logger logger = LogManager.getLogger(TapdataTaskScheduler.class);
-
 	private Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
-
 	private String instanceNo;
-
 	@Autowired
 	private ClientMongoOperator clientMongoOperator;
-
 	@Autowired
 	private ConfigurationCenter configCenter;
-
 	@Autowired
 	private SettingService settingService;
-
 	@Autowired
 	private TaskService<TaskDto> hazelcastTaskService;
-
 	@Autowired
 	private MessageDao messageDao;
-
+	@Autowired
+	private TaskScheduler taskScheduler;
 	private final AppType appType = AppType.init();
 	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
 	private CountDownLatch taskOpCountDown;
+	private Map<String, ScheduleTaskConfig> scheduleTaskConfigs = new ConcurrentHashMap<>();
+	private Map<String, ScheduledFuture<?>> scheduledFutureMap = new ConcurrentHashMap<>();
+
+	public final static String SCHEDULE_START_TASK_NAME = "scheduleStartTask";
+	public final static String SCHEDULE_STOP_TASK_NAME = "scheduleStopTask";
 
 	@PostConstruct
 	public void init() {
@@ -129,6 +131,44 @@ public class TapdataTaskScheduler {
 				}
 			}
 		});
+		initScheduleTask();
+	}
+
+	private void initScheduleTask() {
+		FixScheduleTaskConfig startTaskScheduler = FixScheduleTaskConfig.create(SCHEDULE_START_TASK_NAME, 1000L);
+		FixScheduleTaskConfig stopTaskScheduler = FixScheduleTaskConfig.create(SCHEDULE_STOP_TASK_NAME, 5 * 1000L);
+		scheduleTaskConfigs.put(startTaskScheduler.getName(), startTaskScheduler);
+		scheduleTaskConfigs.put(stopTaskScheduler.getName(), stopTaskScheduler);
+	}
+
+	public void startScheduleTask(String name) {
+		if (StringUtils.isBlank(name)) return;
+		if (scheduledFutureMap.containsKey(name)) return;
+		ScheduleTaskConfig scheduleTaskConfig = scheduleTaskConfigs.get(name);
+		if (null == scheduleTaskConfig) return;
+		if (scheduleTaskConfig instanceof FixScheduleTaskConfig) {
+			FixScheduleTaskConfig fixScheduleTaskConfig = (FixScheduleTaskConfig) scheduleTaskConfig;
+			switch (name) {
+				case SCHEDULE_START_TASK_NAME:
+					scheduledFutureMap.put(name, taskScheduler.scheduleAtFixedRate(this::scheduledTask, fixScheduleTaskConfig.getFixedDelay()));
+					break;
+				case SCHEDULE_STOP_TASK_NAME:
+					scheduledFutureMap.put(name, taskScheduler.scheduleAtFixedRate(this::forceStoppingTask, fixScheduleTaskConfig.getFixedDelay()));
+					break;
+				default:
+					break;
+			}
+			logger.info("Start schedule task: " + name);
+		}
+	}
+
+	public void stopScheduleTask(String name) {
+		if (StringUtils.isBlank(name)) return;
+		ScheduledFuture<?> scheduledFuture = scheduledFutureMap.get(name);
+		if (null == scheduledFuture) return;
+		scheduledFuture.cancel(true);
+		scheduledFutureMap.remove(name);
+		logger.info("Stop schedule task: " + name);
 	}
 
 	private void handleTaskOperation(TaskOperation taskOperation) {
@@ -194,7 +234,6 @@ public class TapdataTaskScheduler {
 	/**
 	 * 调度编排任务方法
 	 */
-	@Scheduled(fixedDelay = 10000L)
 	public void scheduledTask() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.START_TASK_THREAD, instanceNo));
 		try {
@@ -248,7 +287,6 @@ public class TapdataTaskScheduler {
 	/**
 	 * 扫描状态为force stopping状态的编排任务，执行强制停止
 	 */
-	@Scheduled(fixedDelay = 10000L)
 	public void forceStoppingTask() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.STOP_TASK_THREAD, instanceNo));
 		try {

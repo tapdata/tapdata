@@ -2,10 +2,7 @@ package io.tapdata.websocket;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.PkgAnnoUtil;
+import com.tapdata.constant.*;
 import com.tapdata.entity.AppType;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.ping.PingDto;
@@ -14,7 +11,9 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
 import com.tapdata.tm.sdk.util.Version;
 import io.tapdata.common.SettingService;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskService;
+import io.tapdata.websocket.handler.PongHandler;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -34,10 +33,14 @@ import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.websocket.WebSocketEventResult.Type.HANDLE_EVENT_ERROR_RESULT;
 import static io.tapdata.websocket.WebSocketEventResult.Type.UNKNOWN_EVENT_RESULT;
@@ -58,6 +61,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 	public static final String WEBSOCKET_CODE_KEY = "websocketCode";
 	public static final String WEBSOCKET_MESSAGE_KEY = "websocketMessage";
+	public static final int MAX_PING_FAIL_TIME = 3;
 	private Logger logger = LogManager.getLogger(ManagementWebsocketHandler.class);
 
 	public static final String URL_PREFIX = "ws://";
@@ -122,6 +126,9 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	private ScheduledExecutorService healthThreadPool;
 
 	private Set<BeanDefinition> fileDetectorDefinition;
+	private final AtomicInteger pingFailTime = new AtomicInteger();
+	private boolean wsAlive;
+	private String currentWsUrl;
 
 	@PostConstruct
 	public void init() {
@@ -141,15 +148,41 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			try {
 				WebSocketEvent<PingDto> webSocketEvent = new WebSocketEvent<>();
 				PingDto pingDto = new PingDto();
+				String pingId = UUIDGenerator.uuid();
+				pingDto.setPingId(pingId);
 				pingDto.setPingType(PingType.WEBSOCKET_HEALTH);
 				webSocketEvent.setType("ping");
 				webSocketEvent.setData(pingDto);
 				sendMessage(new TextMessage(JSONUtil.obj2Json(webSocketEvent)));
+				boolean response = PongHandler.handleResponse(pingId, event -> {
+					pingFailTime.set(0);
+					handleWhenPingSucceed();
+				});
+				if (!response) {
+					if (pingFailTime.incrementAndGet() > MAX_PING_FAIL_TIME) {
+						throw new RuntimeException(String.format("No response was received for %s consecutive websocket heartbeats", MAX_PING_FAIL_TIME));
+					}
+				}
 			} catch (Exception e) {
-				logger.error("Send health message failed, will reconnect websocket", e);
+				logger.error("Websocket heartbeat failed, will reconnect. Error: " + e.getMessage(), e);
+				handleWhenPingFailed();
 				createClients();
 			}
 		}, 0, PING_INTERVAL, TimeUnit.SECONDS);
+	}
+
+	private void handleWhenPingFailed() {
+		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+		if(null == tapdataTaskScheduler) return;
+		tapdataTaskScheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
+		tapdataTaskScheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_STOP_TASK_NAME);
+	}
+
+	private void handleWhenPingSucceed() {
+		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+		if(null == tapdataTaskScheduler) return;
+		tapdataTaskScheduler.stopScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
+		tapdataTaskScheduler.stopScheduleTask(TapdataTaskScheduler.SCHEDULE_STOP_TASK_NAME);
 	}
 
 	/**
@@ -182,7 +215,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	}
 
 	private void connect(String baseURL) {
-		String currentWsUrl = null;
+		currentWsUrl = null;
 		try {
 			if (StringUtils.startsWithIgnoreCase(baseURL, "http://")) {
 				currentWsUrl = baseURL.replace("http://", URL_PREFIX);
@@ -324,7 +357,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 	@Override
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) {
-		logger.info("Web socket closed, session: {}, status code: {}, reason: {}", session.getUri() != null ? session.getUri().toString() : "", closeStatus.getCode(), closeStatus.getReason());
+		logger.info("Web socket closed, session: {}, status code: {}, reason: {}", currentWsUrl != null ? currentWsUrl : "", closeStatus.getCode(), closeStatus.getReason());
 	}
 
 	@Override

@@ -1327,7 +1327,11 @@ public class ConnectorManager {
 			WebSocketEvent<PingDto> webSocketEvent = new WebSocketEvent<>();
 			webSocketEvent.setType("ping");
 			webSocketEvent.setData(pingDto);
-			BeanUtil.getBean(ManagementWebsocketHandler.class).sendMessage(new TextMessage(JSONUtil.obj2Json(webSocketEvent)));
+			ManagementWebsocketHandler managementWebsocketHandler = BeanUtil.getBean(ManagementWebsocketHandler.class);
+			if (null == managementWebsocketHandler) {
+				return;
+			}
+			managementWebsocketHandler.sendMessage(new TextMessage(JSONUtil.obj2Json(webSocketEvent)));
 			boolean handleResponse = PongHandler.handleResponse(
 					pingId,
 					cache -> {

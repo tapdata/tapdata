@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 
 import java.util.Map;
+import java.util.Random;
 
 @WebSocketMessageHandler(type = MessageType.PING)
 @Slf4j
@@ -53,7 +54,8 @@ public class PingHandler implements WebSocketHandler {
 			}
 			switch (pingType) {
 				case WEBSOCKET_HEALTH:
-					sendResponse(context, WebSocketResult.ok(null, PING_RESULT_TYPE));
+					pingDto.ok();
+					sendResponse(context, WebSocketResult.ok(pingDto, PING_RESULT_TYPE));
 					break;
 				case TASK_PING:
 					taskPingTime(context, pingDto);
