@@ -2,7 +2,7 @@
 package com.tapdata.tm.commons.schema;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.*;

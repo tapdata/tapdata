@@ -77,4 +77,14 @@ public class WebSocketResult {
 	public static WebSocketResult fail(String message, String type){
 		return new WebSocketResult(FAIL, null, message, type);
 	}
+
+	@Override
+	public String toString() {
+		return "WebSocketResult{" +
+				"code='" + code + '\'' +
+				", data=" + data +
+				", message='" + message + '\'' +
+				", type='" + type + '\'' +
+				'}';
+	}
 }

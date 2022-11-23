@@ -71,8 +71,9 @@ public class TaskScheduleTests {
 
 
     protected void initTask(Pair<String, Object>... kvs) {
-
-        taskRepository.deleteAll(new Query());
+        initTask(true, kvs);
+    }
+    protected void initTask(boolean castTaskId, Pair<String, Object>... kvs) {
 
         user = userService.loadUserById(MongoUtils.toObjectId("62bc5008d4958d013d97c7a6"));
 
@@ -98,7 +99,9 @@ public class TaskScheduleTests {
         }
 
         TaskEntity save = taskRepository.save(taskEntity, user);
-        taskId = save.getId();
+        if (castTaskId) {
+            taskId = save.getId();
+        }
 
     }
 
@@ -146,6 +149,7 @@ public class TaskScheduleTests {
     @Test
     public void manuallySpecifiedSucc() {
         //构造一个任务对象。指定了agentId, 并且能找到指定agent的情况
+        taskRepository.deleteAll(new Query());
         initTask(ImmutablePair.of("accessNodeType", AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name())
                 , ImmutablePair.of("accessNodeProcessId", "zed_flow_engine")
                 , ImmutablePair.of("accessNodeProcessIdList", Lists.of("zed_flow_engine")));
@@ -160,6 +164,7 @@ public class TaskScheduleTests {
     @Test
     public void manuallySpecifiedFail() {
         //构造一个任务对象。指定了agentId, 并且找不到指定agent的情况
+        taskRepository.deleteAll(new Query());
         initTask(ImmutablePair.of("accessNodeType", AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name())
                 , ImmutablePair.of("accessNodeProcessId", "zed_flow_engine1")
                 , ImmutablePair.of("accessNodeProcessIdList", Lists.of("zed_flow_engine1")));
@@ -179,6 +184,7 @@ public class TaskScheduleTests {
     @Test
     public void agentNotFound() {
         //找不到可用agent
+        taskRepository.deleteAll(new Query());
         initTask();
         workerService.deleteAll(new Query());
         Mockito.doNothing().when(messageQueueService).sendMessage(any(MessageQueueDto.class));
@@ -197,6 +203,7 @@ public class TaskScheduleTests {
     @Test
     public void agentNormal() {
         //找不到可用pingTime不超时的agent
+        taskRepository.deleteAll(new Query());
         initTask();
         workerService.deleteAll(new Query());
         initWorker();
@@ -210,6 +217,7 @@ public class TaskScheduleTests {
     @Test
     public void agentPingTimeout() {
         //找不到可用pingTime不超时的agent
+        taskRepository.deleteAll(new Query());
         initTask();
         workerService.deleteAll(new Query());
         initWorker(ImmutablePair.of("pingTime", System.currentTimeMillis() - 500000));
@@ -229,11 +237,27 @@ public class TaskScheduleTests {
         //找到多个空闲agent，取权重
 
         //找不到可用pingTime不超时的agent
+        taskRepository.deleteAll(new Query());
         initTask();
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed01"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed01"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed01"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed02"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed02"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed02"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed02"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed02"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed03"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed03"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed04"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed04"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed04"));
+        initTask(false, ImmutablePair.of("status", TaskDto.STATUS_RUNNING), ImmutablePair.of("agentId", "zed04"));
         workerService.deleteAll(new Query());
         initWorker(ImmutablePair.of("processId", "zed01"), ImmutablePair.of("runningThread", 3));
         initWorker(ImmutablePair.of("processId", "zed02"), ImmutablePair.of("runningThread", 5));
         initWorker(ImmutablePair.of("processId", "zed03"), ImmutablePair.of("runningThread", 2));
+        initWorker(ImmutablePair.of("processId", "zed04"), ImmutablePair.of("runningThread", 4));
         Mockito.doNothing().when(messageQueueService).sendMessage(any(MessageQueueDto.class));
         TaskDto taskDto = taskService.findById(taskId);
         taskScheduleService.scheduling(taskDto, user);

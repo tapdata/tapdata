@@ -35,6 +35,14 @@ public class Log4jUtil {
 		ThreadContext.put("taskId", taskDto.getId().toHexString());
 	}
 
+	public static void setThreadContext(String taskId) {
+		if (taskId == null) {
+			return;
+		}
+		ThreadContext.clearAll();
+		ThreadContext.put("taskId", taskId);
+	}
+
 	public static String getStackString(Throwable throwable) {
 		StringWriter sw = new StringWriter();
 		try (
