@@ -115,7 +115,11 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             start = taskDto.getMonitorStartDate().getTime();
         }
 
-        criteria.and("timestamp").gte(start).lt(param.getEnd());
+        // monitor log save will after task stopTime 5s, so add 10s;
+        Long end = param.getEnd();
+        end += 10000L;
+
+        criteria.and("timestamp").gte(start).lt(end);
 
         if (StringUtils.isNotEmpty(param.getNodeId())) {
             criteria.and("nodeId").is(param.getNodeId());

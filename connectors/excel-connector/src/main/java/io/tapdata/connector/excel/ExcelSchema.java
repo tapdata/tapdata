@@ -13,6 +13,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -30,8 +31,9 @@ public class ExcelSchema extends FileSchema {
         try (
                 Workbook wb = WorkbookFactory.create(storage.readFile(tapFile.getPath()), excelConfig.getExcelPassword())
         ) {
-            for (Integer num : excelConfig.getSheetNum()) {
-                Sheet sheet = wb.getSheetAt(num);
+            List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
+            for (Integer num : sheetNumbers) {
+                Sheet sheet = wb.getSheetAt(num - 1);
                 if (excelConfig.getHeaderLine() > 0) {
                     Row headerRow = sheet.getRow(excelConfig.getHeaderLine() - 1);
                     if (EmptyKit.isNull(headerRow)) {
@@ -67,8 +69,9 @@ public class ExcelSchema extends FileSchema {
                 try (
                         Workbook wb = WorkbookFactory.create(storage.readFile(path), excelConfig.getExcelPassword())
                 ) {
-                    for (Integer num : excelConfig.getSheetNum()) {
-                        Sheet sheet = wb.getSheetAt(num);
+                    List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
+                    for (Integer num : sheetNumbers) {
+                        Sheet sheet = wb.getSheetAt(num - 1);
                         Row dataRow = sheet.getRow(excelConfig.getDataStartLine() - 1);
                         if (EmptyKit.isNull(dataRow)) {
                             continue;

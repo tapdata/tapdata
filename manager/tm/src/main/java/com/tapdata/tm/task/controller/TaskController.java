@@ -1042,4 +1042,11 @@ public class TaskController extends BaseController {
         taskService.updateTaskLogSetting(taskId, logSettingParam, getLoginUser());
         return success();
     }
+
+
+    @PatchMapping("rename/{taskId}")
+    public ResponseMessage<Void> rename(@PathVariable("taskId") String taskId, @RequestParam("newName") String newName) {
+        taskService.rename(taskId, newName, getLoginUser());
+        return success();
+    }
 }

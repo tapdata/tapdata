@@ -6,9 +6,8 @@
  */
 package com.tapdata.tm.statemachine;
 
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.statemachine.exception.StateException;
 import com.tapdata.tm.statemachine.model.StateContext;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.model.Transition;
