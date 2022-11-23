@@ -3,6 +3,9 @@ package com.tapdata.tm.task.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
@@ -32,6 +35,10 @@ import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
@@ -47,9 +54,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.util.Date;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 
 @Service
@@ -62,18 +67,31 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     private DisruptorService disruptorService;
     private MonitoringLogsService monitoringLogsService;
     private TaskCollectionObjService taskCollectionObjService;
-
+    private SettingsService settingsService;
     private StateMachineService stateMachineService;
 
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user) {
 
-        if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())
-                && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-            taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
-        } else {
-            taskDto.setAgentId(null);
-        }
+        String agentId = taskDto.getAgentId();
+        Optional.ofNullable(agentId).ifPresent(id -> {
+            List<Worker> workerList = workerService.findAvailableAgentByAccessNode(user, Lists.newArrayList(agentId));
+            Optional.ofNullable(workerList).ifPresent(list -> {
+                Worker workerDto = workerList.get(0);
+
+                Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
+                long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48 ) * 1000 : 108000;
+
+                if (workerDto.getPingTime() > heartExpire) {
+                    if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
+                            && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
+                        taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
+                    } else {
+                        taskDto.setAgentId(null);
+                    }
+                }
+            });
+        });
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
         if (StringUtils.isBlank(taskDto.getAgentId())) {
