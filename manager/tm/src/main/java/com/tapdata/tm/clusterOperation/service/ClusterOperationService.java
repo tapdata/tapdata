@@ -2,7 +2,7 @@ package com.tapdata.tm.clusterOperation.service;
 
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.clusterOperation.constant.AgentStatusEnum;

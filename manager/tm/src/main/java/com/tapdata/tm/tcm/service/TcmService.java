@@ -2,7 +2,7 @@ package com.tapdata.tm.tcm.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.tcm.dto.ResponseMessage;
 import com.tapdata.tm.tcm.dto.UserInfoDto;
 import com.tapdata.tm.utils.HttpUtils;

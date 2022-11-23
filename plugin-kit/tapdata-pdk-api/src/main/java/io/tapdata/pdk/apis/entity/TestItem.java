@@ -1,10 +1,11 @@
 package io.tapdata.pdk.apis.entity;
 
 public class TestItem {
-    public static final String ITEM_CONNECTION = "Connection";
+    public static final String ITEM_CONNECTION = "Connection login";
+    public static final String ITEM_VERSION = "DataSource version";
     public static final String ITEM_LOGIN = "Login";
-    public static final String ITEM_READ = "Read";
-    public static final String ITEM_WRITE = "Write";
+    public static final String ITEM_READ = "Check Read privilege";
+    public static final String ITEM_WRITE = "Check Write privilege";
     public static final String ITEM_READ_LOG = "Read log";
 
     public TestItem(String item, int result, String information) {
@@ -54,7 +55,7 @@ public class TestItem {
     }
 
     public boolean isSuccess() {
-		return result == RESULT_SUCCESSFULLY || result == RESULT_SUCCESSFULLY_WITH_WARN;
+        return result == RESULT_SUCCESSFULLY || result == RESULT_SUCCESSFULLY_WITH_WARN;
     }
 
     @Override
