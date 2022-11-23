@@ -54,9 +54,10 @@ public class ExcelConnector extends FileConnector {
         try (
                 Workbook wb = WorkbookFactory.create(storage.readFile(fileOffset.getPath()), excelConfig.getExcelPassword())
         ) {
-            List<Integer> sheets = excelConfig.getSheetNum().stream().filter(n -> n >= fileOffset.getSheetNum()).collect(Collectors.toList());
+            List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
+            List<Integer> sheets = sheetNumbers.stream().filter(n -> n >= fileOffset.getSheetNum()).collect(Collectors.toList());
             for (int i = 0; isAlive() && i < sheets.size(); i++) {
-                Sheet sheet = wb.getSheetAt(sheets.get(i));
+                Sheet sheet = wb.getSheetAt(sheets.get(i) - 1);
                 fileOffset.setSheetNum(sheets.get(i));
                 fileOffset.setDataLine(excelConfig.getDataStartLine());
                 for (int j = fileOffset.getDataLine() - 1; isAlive() && j <= sheet.getLastRowNum(); j++) {
