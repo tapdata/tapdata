@@ -1,11 +1,9 @@
 package com.tapdata.tm.commons.util;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.TableIndex;
@@ -19,8 +17,6 @@ import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
-import io.tapdata.entity.utils.TypeHolder;
-import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
