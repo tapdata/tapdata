@@ -45,7 +45,7 @@ public class PaidPlanService {
             pipelineLimit = 3;
         }
 
-        long count = taskService.count(Query.query(new Criteria()), loginUser);
+        long count = taskService.count(Query.query(Criteria.where("is_deleted").ne(true)), loginUser);
 
 
         CheckPaidPlanRes result = new CheckPaidPlanRes();
@@ -58,6 +58,8 @@ public class PaidPlanService {
         }
         result.setValid(isValid);
         result.setMessages(message);
+        result.setLimit(pipelineLimit);
+        result.setCurrent(count);
         return result;
     }
 }

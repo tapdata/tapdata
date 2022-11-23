@@ -14,4 +14,7 @@ public class CheckPaidPlanRes {
 
     private boolean isValid;
     private Map<String, String> messages;
+
+    private int limit;
+    private long current;
 }
