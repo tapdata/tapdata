@@ -1,6 +1,6 @@
 package com.tapdata.tm.ws.handler;
 
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.task.dto.DataSyncMq;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.service.TaskService;

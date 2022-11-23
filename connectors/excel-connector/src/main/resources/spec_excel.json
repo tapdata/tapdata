@@ -267,77 +267,90 @@
     "node": {
       "type": "object",
       "properties": {
+        "modelName": {
+          "required": true,
+          "type": "string",
+          "title": "${modelName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "modelName",
+          "x-index": 1
+        },
         "includeRegString": {
           "type": "string",
           "title": "${includeRegString}",
+          "default": "*.xls,*.xlsx",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "includeRegString"
+          "apiServerKey": "includeRegString",
+          "x-index": 2
         },
         "excludeRegString": {
           "type": "string",
           "title": "${excludeRegString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "excludeRegString"
+          "apiServerKey": "excludeRegString",
+          "x-index": 3
         },
         "recursive": {
           "type": "boolean",
           "title": "${recursive}",
           "default": true,
           "x-decorator": "FormItem",
-          "x-component": "Switch"
+          "x-component": "Switch",
+          "x-index": 4
         },
         "excelPassword": {
           "type": "string",
           "title": "${excelPassword}",
           "x-decorator": "FormItem",
           "x-component": "Password",
-          "apiServerKey": "excelPassword"
+          "apiServerKey": "excelPassword",
+          "x-index": 5
         },
         "sheetLocation": {
           "type": "string",
           "title": "${sheetLocation}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "sheetLocation"
+          "apiServerKey": "sheetLocation",
+          "x-index": 6
         },
         "colLocation": {
+          "required": true,
           "type": "string",
           "title": "${colLocation}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "colLocation"
+          "apiServerKey": "colLocation",
+          "x-index": 7
         },
         "header": {
           "type": "string",
           "title": "${header}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "header"
-        },
-        "dataStartLine": {
-          "required": true,
-          "type": "string",
-          "title": "${dataStartLine}",
-          "default": 1,
-          "x-decorator": "FormItem",
-          "x-component": "InputNumber",
-          "apiServerKey": "dataStartLine"
-        },
-        "modelName": {
-          "type": "string",
-          "title": "${modelName}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "modelName"
+          "apiServerKey": "header",
+          "x-index": 8
         },
         "headerLine": {
           "type": "string",
           "title": "${headerLine}",
           "default": 1,
           "x-decorator": "FormItem",
-          "x-component": "InputNumber"
+          "x-component": "InputNumber",
+          "x-index": 9
+        },
+        "dataStartLine": {
+          "required": true,
+          "type": "string",
+          "title": "${dataStartLine}",
+          "default": 2,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "dataStartLine",
+          "x-index": 10
         }
       }
     }

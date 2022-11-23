@@ -35,6 +35,7 @@ public class BigSaxDataHandler implements ElementHandler {
     private AtomicReference<List<TapEvent>> tapEvents;
     private Supplier<Boolean> isAlive;
     private Map<String, String> dataTypeMap;
+    private long lastModified;
 
     public BigSaxDataHandler() {
 
@@ -42,6 +43,11 @@ public class BigSaxDataHandler implements ElementHandler {
 
     public String getPath() {
         return path;
+    }
+
+    public BigSaxDataHandler withLastModified(long lastModified) {
+        this.lastModified = lastModified;
+        return this;
     }
 
     public BigSaxDataHandler withPath(String path) {
@@ -80,7 +86,7 @@ public class BigSaxDataHandler implements ElementHandler {
             } else {
                 dataMap.put(element.getName(), res);
             }
-            tapEvents.get().add(insertRecordEvent(dataMap, tapTable.getId()));
+            tapEvents.get().add(insertRecordEvent(dataMap, tapTable.getId()).referenceTime(lastModified));
             if (tapEvents.get().size() == eventBatchSize) {
                 fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize);
                 fileOffset.setPath(fileOffset.getPath());
@@ -88,7 +94,9 @@ public class BigSaxDataHandler implements ElementHandler {
                 tapEvents.set(list());
             }
         }
-        element.detach();
+        if (!elementPath.getPath().startsWith(path) || path.equals(elementPath.getPath())) {
+            element.detach();
+        }
         if (!isAlive.get()) {
             throw new StopException();
         }

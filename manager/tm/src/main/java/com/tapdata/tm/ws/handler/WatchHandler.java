@@ -7,7 +7,7 @@
 package com.tapdata.tm.ws.handler;
 
 import com.mongodb.client.model.changestream.FullDocument;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.changestream.config.ChangeStreamManager;
 import com.tapdata.tm.dataflow.entity.DataFlow;

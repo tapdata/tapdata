@@ -6,7 +6,7 @@
  */
 package com.tapdata.tm.ws.endpoint;
 
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.websocket.MessageInfoBuilder;
 import com.tapdata.tm.commons.websocket.ReturnCallback;
@@ -16,7 +16,6 @@ import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.handler.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,7 +23,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.web.socket.TextMessage;
 
 @Slf4j

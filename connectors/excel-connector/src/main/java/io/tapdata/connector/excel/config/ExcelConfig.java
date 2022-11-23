@@ -27,8 +27,8 @@ public class ExcelConfig extends FileConfig {
         }
         if (EmptyKit.isNotBlank(colLocation)) {
             String[] arr = colLocation.split("~");
-            firstColumn = Integer.parseInt(arr[0]);
-            lastColumn = Integer.parseInt(arr[arr.length - 1]);
+            firstColumn = ExcelUtil.getColumnNumber(arr[0]);
+            lastColumn = ExcelUtil.getColumnNumber(arr[arr.length - 1]);
         }
         return this;
     }

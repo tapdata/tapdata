@@ -24,7 +24,7 @@ public class XmlSchema extends FileSchema {
     @Override
     protected void sampleOneFile(Map<String, Object> sampleResult, TapFile tapFile) {
         try (
-                Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()))
+                Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()), fileConfig.getFileEncoding())
         ) {
             SAXReader saxReader = new SAXReader();
             saxReader.setDefaultHandler(new BigSaxSchemaHandler()

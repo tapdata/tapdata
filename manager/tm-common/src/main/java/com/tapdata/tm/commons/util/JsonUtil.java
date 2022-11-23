@@ -1,4 +1,4 @@
-package com.tapdata.manager.common.utils;
+package com.tapdata.tm.commons.util;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.tapdata.manager.common.utils.Utils;
 import io.tapdata.entity.schema.type.TapType;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Type;
+import java.util.Map;
 
 @Slf4j
 public class JsonUtil {
@@ -127,6 +129,18 @@ public class JsonUtil {
 				return null;
 			}
 		}
+	}
+
+	public static <T> T map2PojoUseJackson(Map<String, Object> map, Class<T> className) {
+		if (null == map || null == className) return null;
+		ObjectMapper objectMapper = buildObjectMapper();
+		return objectMapper.convertValue(map, className);
+	}
+
+	public static <T> T map2PojoUseJackson(Map<String, Object> map, TypeReference<T> typeReference) {
+		if (null == map || null == typeReference) return null;
+		ObjectMapper objectMapper = buildObjectMapper();
+		return objectMapper.convertValue(map, typeReference);
 	}
 
 	static class TapTypeDeserializer extends JsonDeserializer<TapType> {
