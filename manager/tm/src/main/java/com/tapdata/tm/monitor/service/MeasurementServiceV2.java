@@ -332,7 +332,7 @@ public class MeasurementServiceV2 {
                 .first(MeasurementEntity.FIELD_TAGS).as(MeasurementEntity.FIELD_TAGS)
                 .first(MeasurementEntity.FIELD_SAMPLES).as(MeasurementEntity.FIELD_SAMPLES);
         // match should be at the first param, sort should be the second while group be the last
-        Aggregation aggregation = Aggregation.newAggregation( match, sort, group);
+        Aggregation aggregation = Aggregation.newAggregation( match, sort, group).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
         List<MeasurementEntity> entities = results.getMappedResults();
 
