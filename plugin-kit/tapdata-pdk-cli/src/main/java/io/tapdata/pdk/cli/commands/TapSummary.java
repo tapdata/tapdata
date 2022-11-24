@@ -550,8 +550,8 @@ public class TapSummary {
 
     public static String basePath(String logPath) {
         try {
-            Path path = Paths.get(logPath+"..\\" );
-            String pathFinal = path.toFile().getCanonicalPath() + "\\";
+            Path path = Paths.get(logPath );
+            String pathFinal = path.toFile().getCanonicalPath() + "/";
             File file = new File(pathFinal);
             if (!file.exists()){
                 file.mkdir();
