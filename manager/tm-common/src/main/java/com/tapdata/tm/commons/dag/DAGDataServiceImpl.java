@@ -1,15 +1,14 @@
 package com.tapdata.tm.commons.dag;
 
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.*;
-import com.tapdata.tm.commons.dag.vo.FieldChangeRules;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
@@ -393,7 +392,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             /*MetadataInstancesDto result = metadataInstancesService.upsertByWhere(
                     Where.where("qualified_name", metadataInstancesDto.getQualifiedName()), metadataInstancesDto, userDetail);*/
 
-            processFieldChangeRules(metadataInstancesDto, options.getFieldChangeRules().get(metadataInstancesDto.getNodeId()));
+            options.processRule(metadataInstancesDto);
             return metadataInstancesDto;
         }).collect(Collectors.toList());
 
@@ -468,28 +467,6 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         return existsMetadataInstances;
-    }
-
-    public void processFieldChangeRules(MetadataInstancesDto dto, FieldChangeRules fieldChangeRules) {
-        if (null == fieldChangeRules) return;
-
-        Map<String, String> result;
-        FieldChangeRules.Rule rule;
-        for (Field f : dto.getFields()) {
-            rule = fieldChangeRules.getRule(dto.getQualifiedName(), f.getFieldName(), f.getDataType());
-            if (null == rule) continue;
-
-            switch (rule.getType()) {
-                case DataType:
-                    result = rule.getResult();
-                    f.setDataType(result.get("dataType"));
-                    f.setTapType(result.get("tapType"));
-                    break;
-                default:
-                    logger.warn("not support FieldChangeRules type: " + rule.getType());
-                    break;
-            }
-        }
     }
 
     /**

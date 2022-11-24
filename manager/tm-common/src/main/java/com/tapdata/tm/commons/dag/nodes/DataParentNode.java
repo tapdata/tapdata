@@ -5,7 +5,7 @@ import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.vo.FieldChangeRules;
+import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -68,7 +68,7 @@ public abstract class DataParentNode<S> extends Node<S> {
 	/** 增量写入线程数*/
 	private Integer cdcConcurrentWriteNum;
     /** 目标节点配置字段修改规则 */
-    private FieldChangeRules fieldChangeRules;
+    private List<FieldChangeRule> fieldChangeRules;
     /**
      * constructor for node
      *
