@@ -350,8 +350,8 @@ public class TapSummary {
                         .append("\n");
                 writer.write(
                         showLogoV2() +
-                             showCapabilitiesV2()+
-                        resultBuilder.toString()+
+                             showCapabilitiesV2() +
+                        resultBuilder.toString() +
                              endingShowV2(file)
                 );
             }catch (Exception e) {

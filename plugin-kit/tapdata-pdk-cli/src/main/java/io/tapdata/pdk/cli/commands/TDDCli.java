@@ -68,6 +68,9 @@ public class TDDCli extends CommonCli {
     @CommandLine.Option(names = { "-log", "--logPath" }, usageHelp = false, description = "TapData cli log,need test to log test result ,path to log ,default ./tapdata-pdk-cli/tss-logs/")
     private String logPath = TapSummary.basePath("tdd-logs");
 
+    /**
+     * 默认true，或设置TDD_AUTO_EXIT=1，CommonUtils.setProperty("TDD_AUTO_EXIT","1")
+     * */
     private boolean autoExit = true;//对应TDD_AUTO_EXIT ，是否执行完一个数据源的所有用例就自动推出程序，TDDFactory 中设置TDD_AUTO_EXIT = 0 （CommonUtils.setProperty("TDD_AUTO_EXIT","0")），表示手动退出，
 
 

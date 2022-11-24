@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
@@ -147,30 +148,30 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 TapConnector connector = connectorNode.getConnector();
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
                 ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-                List<TapTable> consumer = new ArrayList<>();
+                //List<TapTable> consumer = new ArrayList<>();
+                Map<String ,TapTable> consumer = new HashMap<>();
                 long discoverStart = System.currentTimeMillis();
-                //@todo
-                connector.discoverSchema(connectorContext,list(tableIdTarget),100, con->{if (null!=con) consumer.addAll(con);});
+
+                connector.discoverSchema(connectorContext,list(tableIdTarget),100, con->{
+                    if (null!=con)
+                        consumer.putAll(con.stream().filter(Objects::nonNull).collect(  Collectors.toMap(TapTable::getId, c->c,(c1, c2)->c1)));
+                });
+                String tableId = targetTable.getId();
+                TapTable consumerTable = consumer.get(tableId);
                 long discoverEnd = System.currentTimeMillis();
+                boolean hasTargetTable = !consumer.isEmpty() && null != consumerTable;
                 //表列表里包含随机创建的表，
                 TapAssert.asserts(()->
                     Assertions.assertTrue(
-                    !consumer.isEmpty() &&
-                            null != consumer.get(0) && targetTable.getId().equals(consumer.get(0).getId()),
-                        TapSummary.format("discoverAfterCreate.notFindTargetTable",targetTable.getId(),discoverEnd-discoverStart))
+                            hasTargetTable,
+                        TapSummary.format("discoverAfterCreate.notFindTargetTable",tableId,discoverEnd-discoverStart))
                 ).acceptAsError(
                     testCase,
-                    TapSummary.format("discoverAfterCreate.fundTargetTable",targetTable.getId(),discoverEnd-discoverStart)
+                    TapSummary.format("discoverAfterCreate.fundTargetTable",tableId,discoverEnd-discoverStart)
                 );
-
-                boolean hasTargetTable = !consumer.isEmpty() &&
-                        null != consumer.get(0) &&
-                        targetTable.getId().equals(consumer.get(0).getId());
                 if (hasTargetTable){
                     //且所有字段的name和dataType一致即为成功。
-                    TapTable tapTable = consumer.get(0);
-                    String tableId = tapTable.getId();
-                    LinkedHashMap<String, TapField> tapTableFieldMap = tapTable.getNameFieldMap();
+                    LinkedHashMap<String, TapField> tapTableFieldMap = consumerTable.getNameFieldMap();
                     LinkedHashMap<String, TapField> targetTableFieldMap = super.modelDeduction(connectorNode);//targetTable.getNameFieldMap();
                     if ( null == tapTableFieldMap || null == targetTableFieldMap){
                         TapAssert.asserts(()->Assertions.fail(TapSummary.format("discoverAfterCreate.exitsNullFiledMap",tableId))).error(testCase);
@@ -427,27 +428,53 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 );
 
                 //通过int tableSize参数指定为1，
-                int count = connector.tableCount(connectorContext);
-                final int tableCount = count>1?count-1:1;
+                final int tableCount = 1;
                 //通过Consumer<List<TapTable>> consumer返回了一张表为成功。
-                List<TapTable> consumer2 = new ArrayList<>();
+                List<List<TapTable>> consumer2 = new ArrayList<>();
                 long discoverStart2 = System.currentTimeMillis();
-                connector.discoverSchema(connectorContext,list(),tableCount,con->{if (null!=con) consumer2.addAll(con);});
+                connector.discoverSchema(connectorContext,list(),tableCount,con->{if (null!=con) consumer2.add(con);});
                 long discoverEnd2 = System.currentTimeMillis();
-                //如果只有一张表， 直接通过此测试。
+                //如果只有一张表，直接通过此测试。
+                boolean consumerFlag = true;
+                int consumerErrorIndex = 0;
+                int totalCount = 0;
+                for (int consumerIndex = 0; consumerIndex < consumer2.size(); consumerIndex++) {
+                    List<TapTable> tables = consumer2.get(consumerIndex);
+                    if (consumerFlag) {
+                        if (null == tables || tableCount < tables.size()) {
+                            consumerErrorIndex = consumerIndex;
+                            consumerFlag = false;
+                        }
+                    }
+                    totalCount += null==tables?0:tables.size();
+                }
+                boolean finalConsumerFlag = consumerFlag;
+                int finalConsumerErrorIndex = consumerErrorIndex;
+
+                int finalTotalCount = totalCount;
                 TapAssert.asserts(()->
-                    Assertions.assertEquals(
-                        tableCount,
-                        consumer2.size(),
+                    Assertions.assertTrue(
+                            finalConsumerFlag ,
                         TapSummary.format(
-                            "discoverByTableCount1.notTable",
+                            "discoverByTableCount1.consumer.error",
+                                finalTotalCount,
                             tableCount,
                             tableCount,
-                            consumer2.size(),
+                            tableCount,
+                            finalConsumerErrorIndex+1,
+                            consumer2.size()<finalConsumerErrorIndex+1 || null== consumer2.get(finalConsumerErrorIndex)?0:consumer2.get(finalConsumerErrorIndex).size(),
                             discoverEnd2 - discoverStart2
                         )
                     )
-                ).acceptAsError(testCase,TapSummary.format("discoverByTableCount1.succeedTable",tableCount,consumer2.size(),discoverEnd2-discoverStart2));
+                ).acceptAsError(testCase,TapSummary.format("discoverByTableCount1.consumer.succeed",
+                        finalTotalCount,
+                        tableCount,
+                        tableCount,
+                        tableCount,
+                        consumer2.size(),
+                        tableCount,
+                        discoverEnd2 - discoverStart2
+                ));
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
@@ -482,47 +509,84 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
                 //通过CreateTableFunction另外创建一张表，
                 if (! ( hasCreateTable =this.createTable(prepare) )) return;
-                String targetTableId = targetTable.getId();
+                final String targetTableId = targetTable.getId();
 
                 //通过int tableSize参数指定为1，
-                int count = connector.tableCount(connectorContext);
-                int tableCount = count>1?count-1:1;
-                try {
-                    long discoverStart = System.currentTimeMillis();
-                    connector.discoverSchema(connectorContext,new ArrayList<>(),tableCount,c->{
-                        //通过Consumer<List<TapTable>> consumer返回了一张表为成功。
-                        //如果只有一张表， 直接通过此测试。
-                        long discoverEnd = System.currentTimeMillis();
-                        TapAssert.asserts(()->
-                            Assertions.assertTrue(
-                                null!=c && c.size() == tableCount,
-                                TapSummary.format(
-                                    "discoverByTableCount2.error",
-                                    targetTableId,
-                                    tableCount,
-                                    null!=c?c.size():0
-                                    ,discoverEnd-discoverStart
-                                )
-                            )
-                        ).acceptAsWarn(
-                            testCase,
-                            TapSummary.format(
-                                "discoverByTableCount2.succeed",
-                                targetTableId,
-                                tableCount,
-                                c.size(),
-                                discoverEnd-discoverStart
-                            )
-                        );
-                        throw new RuntimeException("Stop test consumer");
-                    });
-                }catch (RuntimeException e){
-                    String msg = e.getMessage();
-                    if (!"Stop test consumer".equals(msg)){
-                        throw e;
-                    }
-                }
+                int tableCount = 1;
 
+                List<List<TapTable>> consumer = new ArrayList<>();
+
+                long discoverStart = System.currentTimeMillis();
+                connector.discoverSchema(connectorContext,new ArrayList<>(),tableCount,c->{
+                    if (null != c) consumer.add(c);
+                });
+                long discoverEnd = System.currentTimeMillis();
+
+                boolean consumerFlag = true;
+                int consumerErrorIndex = 0;
+                int totalCount = 0;
+                for (int consumerIndex = 0; consumerIndex < consumer.size(); consumerIndex++) {
+                    List<TapTable> tables = consumer.get(consumerIndex);
+                    if (consumerFlag) {
+                        if (null == tables || tableCount < tables.size()) {
+                            consumerErrorIndex = consumerIndex;
+                            consumerFlag = false;
+                        }
+                    }
+                    totalCount += null==tables?0:tables.size();
+                }
+                boolean finalConsumerFlag = consumerFlag;
+                int finalConsumerErrorIndex = consumerErrorIndex;
+                int finalTotalCount = totalCount;
+//              通过Consumer<List<TapTable>> consumer返回了一张表为成功。
+//              如果只有一张表， 直接通过此测试。
+                TapAssert.asserts(()->
+                    Assertions.assertTrue(
+                        finalConsumerFlag,
+                        TapSummary.format(
+                            "discoverByTableCount2.consumer.error",
+                            1,
+                            targetTableId,
+                            tableCount,
+                            tableCount,
+                            finalTotalCount,
+                            finalConsumerErrorIndex+1,
+                            null== consumer.get(finalConsumerErrorIndex)?0:consumer.get(finalConsumerErrorIndex).size(),
+                            discoverEnd - discoverStart
+                        )
+                    )
+                ).acceptAsError(testCase,TapSummary.format("discoverByTableCount2.consumer.succeed",
+                    1,
+                    targetTableId,
+                    tableCount,
+                    tableCount,
+                    consumer.size(),
+                    tableCount,
+                    discoverEnd - discoverStart
+                ));
+
+//                TapAssert.asserts(()->
+//                    Assertions.assertTrue(
+//                        null!=c && c.size() == tableCount,
+//                        TapSummary.format(
+//                            "discoverByTableCount2.error",
+//                            targetTableId,
+//                            tableCount,
+//                            null!=c?c.size():0
+//                            ,discoverEnd-discoverStart
+//                        )
+//                    )
+//                ).acceptAsWarn(
+//                    testCase,
+//                    TapSummary.format(
+//                        "discoverByTableCount2.succeed",
+//                        targetTableId,
+//                        tableCount,
+//                        c.size(),
+//                        discoverEnd-discoverStart
+//                    )
+//                );
+//                    throw new RuntimeException("Stop test consumer");
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
