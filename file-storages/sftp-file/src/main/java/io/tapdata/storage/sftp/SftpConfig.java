@@ -12,6 +12,7 @@ public class SftpConfig implements Serializable {
     private int sftpPort = 22;
     private String sftpUsername;
     private String sftpPassword;
+    private String encoding;
 
     private static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
 
@@ -51,5 +52,13 @@ public class SftpConfig implements Serializable {
 
     public void setSftpPassword(String sftpPassword) {
         this.sftpPassword = sftpPassword;
+    }
+
+    public String getEncoding() {
+        return encoding;
+    }
+
+    public void setEncoding(String encoding) {
+        this.encoding = encoding;
     }
 }
