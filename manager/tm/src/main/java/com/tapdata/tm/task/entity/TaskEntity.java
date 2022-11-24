@@ -222,6 +222,8 @@ public class TaskEntity extends BaseEntity {
 
     private Long currentEventTimestamp;
     private Long snapshotDoneAt;
+
+    private boolean needCreateRecord;
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }
