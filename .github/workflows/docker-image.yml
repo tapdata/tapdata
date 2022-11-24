@@ -82,8 +82,8 @@ jobs:
         uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets._GITHUB_USER }}
+          password: ${{ secrets._GITHUB_TOKEN }}
       - name: get test history
         uses: actions/checkout@v2
         if: always()
@@ -132,6 +132,10 @@ jobs:
           cd auto-test && chmod +x ./test.sh && bash ./test.sh
           if [[ -f /tmp/fail ]]; then echo "**基本用例集成测试结果: 未通过, 请点开步骤检查详细日志**" >> $GITHUB_STEP_SUMMARY; fi
           if [[ ! -f /tmp/fail ]]; then echo "**基本用例集成测试结果: 通过**" >> $GITHUB_STEP_SUMMARY; fi
+      - name: "推送开源镜像"
+        run: |
+          echo "opensource docker image is: $docker_tag"
+          docker push $docker_tag
       - name: Setup Poetry
         uses: Gr1N/setup-poetry@v7
       - name: publish pip package if push
