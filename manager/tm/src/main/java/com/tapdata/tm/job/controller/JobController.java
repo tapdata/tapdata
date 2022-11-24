@@ -1,10 +1,7 @@
 package com.tapdata.tm.job.controller;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
-import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.job.dto.JobDto;
 import com.tapdata.tm.job.service.JobService;
 import com.tapdata.tm.utils.MongoUtils;

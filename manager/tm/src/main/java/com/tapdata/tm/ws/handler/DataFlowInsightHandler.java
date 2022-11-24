@@ -7,7 +7,7 @@
 package com.tapdata.tm.ws.handler;
 
 import cn.hutool.core.thread.ThreadFactoryBuilder;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.dataflow.entity.DataFlow;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightDto;
@@ -15,7 +15,7 @@ import com.tapdata.tm.dataflowinsight.service.DataFlowInsightService;
 import static com.tapdata.tm.dataflowinsight.service.DataFlowInsightService.granularityMap;
 import com.tapdata.tm.utils.MapUtils;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
-import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
+
 import com.tapdata.tm.ws.dto.DataFlowInsightCache;
 import com.tapdata.tm.ws.dto.GranularityInfo;
 import com.tapdata.tm.ws.dto.MessageInfo;

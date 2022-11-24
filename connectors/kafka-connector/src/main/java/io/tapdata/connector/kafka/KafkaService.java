@@ -57,6 +57,10 @@ public class KafkaService extends AbstractMqService {
         this.connectorId = connectorId;
     }
 
+    public String getConnectorId() {
+        return connectorId;
+    }
+
     @Override
     protected <T> Map<String, Object> analyzeTable(Object object, T topic, TapTable tapTable) {
         return null;

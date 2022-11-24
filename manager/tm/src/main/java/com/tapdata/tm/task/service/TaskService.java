@@ -8,7 +8,10 @@ import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
@@ -71,6 +74,7 @@ import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
+import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
@@ -95,6 +99,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -127,7 +132,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
     private TaskSaveService taskSaveService;
-    private TaskDagService taskDagService;
+    private SettingsService settingsService;
     private MeasurementServiceV2 measurementServiceV2;
 
     private LogCollectorService logCollectorService;
@@ -1958,6 +1963,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query = new Query(Criteria.where("_id").is(id));
         query.fields().include(fields);
         return findOne(query);
+    }
+
+    public void rename(String taskId, String newName, UserDetail user) {
+        ObjectId objectId = MongoUtils.toObjectId(taskId);
+        TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user, "name");
+        if (newName.equals(taskDto.getName())) {
+            return;
+        }
+
+        checkTaskName(newName, user, objectId);
+
+        Update update = Update.update("name", newName);
+
+        updateById(objectId, update, user);
+
     }
 
     @Data

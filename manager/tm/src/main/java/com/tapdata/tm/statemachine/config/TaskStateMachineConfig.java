@@ -36,6 +36,7 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 	@Override
 	public void configure(StateMachineBuilder<TaskState, DataFlowEvent> builder) {
 		builder.transition(TaskState.EDIT, TaskState.WAIT_START, DataFlowEvent.CONFIRM)
+				.transition(TaskState.EDIT, TaskState.DELETING, DataFlowEvent.DELETE)
 				.transition(TaskState.WAIT_START, TaskState.WAIT_START, DataFlowEvent.CONFIRM)
 				.transition(TaskState.WAIT_START, TaskState.RENEWING, DataFlowEvent.RENEW)
 				.transition(TaskState.WAIT_START, TaskState.DELETING, DataFlowEvent.DELETE)

@@ -159,13 +159,8 @@ public class TaskAlarmScheduler {
             return;
         }
 
-        long heartExpire;
-        Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.JOB_HEART_TIMEOUT);
-        if (Objects.nonNull(heartTime)) {
-            heartExpire = (Long.parseLong(heartTime.toString()) + 48 ) * 1000;
-        } else {
-            heartExpire = 108000;
-        }
+        Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
+        long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48 ) * 1000 : 108000;
 
         Map<String, WorkerDto> stopEgineMap = workers.stream().filter(w -> (Objects.nonNull(w.getIsDeleted()) && w.getIsDeleted()) ||
                         (Objects.nonNull(w.getStopping()) && w.getStopping()) ||
