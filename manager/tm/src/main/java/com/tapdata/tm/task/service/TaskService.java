@@ -3181,12 +3181,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
 
         List<MeasurementEntity>  allMeasurements = new ArrayList<>();
-        ids.parallelStream().forEach(id -> {
-            MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
-            if (measurement != null) {
-                allMeasurements.add(measurement);
-            }
-        });
+        if (CollectionUtils.isNotEmpty(ids)) {
+            ids.parallelStream().forEach(id -> {
+                MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
+                if (measurement != null) {
+                    allMeasurements.add(measurement);
+                }
+            });
+        }
 
         long output = 0;
         long input = 0;
