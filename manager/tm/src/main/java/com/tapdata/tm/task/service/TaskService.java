@@ -2701,6 +2701,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void start(ObjectId id, UserDetail user) {
         String startFlag = "11";
         TaskDto taskDto = checkExistById(id, user);
+        addScheduleTask(taskDto);
         start(taskDto, user, startFlag);
     }
 
@@ -2713,6 +2714,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     private void start(TaskDto taskDto, UserDetail user) {
+        addScheduleTask(taskDto);
         start(taskDto, user, "11");
     }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
@@ -2821,6 +2823,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public void pause(ObjectId id, UserDetail user, boolean force) {
         TaskDto TaskDto = checkExistById(id, user);
+        deleteScheduleTask(TaskDto);
         pause(TaskDto, user, force);
     }
 
@@ -3422,5 +3425,26 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         chart6Map.put("updatedTotal", update);
         chart6Map.put("deletedTotal", delete);
         return chart6Map;
+    }
+
+    public void addScheduleTask(TaskDto taskDto){
+        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
+                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
+                && taskDto.getIsSchedule()) {
+            CronUtil.addJob(taskDto);
+        }
+    }
+
+    public void deleteScheduleTask(TaskDto taskDto) {
+        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
+                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
+                && taskDto.getIsSchedule()) {
+            CronUtil.removeJob(String.valueOf(taskDto.getId()));
+        }
+
+    }
+
+    public void startScheduleTask(TaskDto taskDto, UserDetail user, String startFlag) {
+        start(taskDto, user, startFlag);
     }
 }
