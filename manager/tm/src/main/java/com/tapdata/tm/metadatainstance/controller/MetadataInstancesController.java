@@ -671,7 +671,7 @@ public class MetadataInstancesController extends BaseController {
 
     @Operation(summary = "复制任务目标节点字段保存元数据")
     @PostMapping("migrate/saveTable")
-    public ResponseMessage<Void> saveMigrateTableInfo(@RequestBody MigrateTableInfoDto dto) {
+    public ResponseMessage<Void>    saveMigrateTableInfo(@RequestBody MigrateTableInfoDto dto) {
         metaMigrateService.saveMigrateTableInfo(dto, getLoginUser());
         return success();
     }
