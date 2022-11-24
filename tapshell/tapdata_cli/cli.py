@@ -686,6 +686,8 @@ def show_tables(source=None, quiet=False):
                            *["notice" for i in range(each_line_table_count)])
                 each_line_tables = []
             each_line_tables.append(pad(data[i]["original_name"], max_table_name_len))
+    if len(each_line_tables) > 0:
+        logger.log("{} " * len(each_line_tables), *each_line_tables, *["notice" for i in range(len(each_line_tables))])
         tables[data[i]["name"]] = data[i]
     return tables.values()
 
@@ -1202,6 +1204,7 @@ def desc_table(line):
         return
 
     display_fields = get_table_fields(line, source=connection_id)
+    print(json.dumps(display_fields, indent=4))
 
 
 def login_with_access_code(server, access_code):
