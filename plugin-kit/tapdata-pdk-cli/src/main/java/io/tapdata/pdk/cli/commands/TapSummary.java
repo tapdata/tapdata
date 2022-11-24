@@ -486,8 +486,10 @@ public class TapSummary {
     }
 
     public static String format(String key, Object ... formatValue){
-        String tap_lang = CommonUtils.getProperty("tap_lang");
-        ResourceBundle lang = ResourceBundle.getBundle(LANG_PATH, new Locale(tap_lang));
+        String tapLang = CommonUtils.getProperty("tap_lang");
+        String langArr[] = tapLang.split("_");
+        if (langArr.length<1) langArr = new String[]{"zh","CN"};
+        ResourceBundle lang = ResourceBundle.getBundle(LANG_PATH, new Locale(langArr[0],langArr.length>1?langArr[1]:""));
         String value = "?";
         try {
             value = lang.getString(key);
