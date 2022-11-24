@@ -270,7 +270,6 @@ public class MongodbConnector extends ConnectorBase {
 		ConnectionOptions connectionOptions = ConnectionOptions.create();
 		try {
 			onStart(connectionContext);
-			connectionOptions.connectionString(mongoConfig.getConnectionString());
 			try (
 					MongodbTest mongodbTest = new MongodbTest(mongoConfig, consumer,mongoClient)
 			) {
