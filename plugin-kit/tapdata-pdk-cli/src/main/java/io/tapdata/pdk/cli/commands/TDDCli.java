@@ -97,6 +97,9 @@ public class TDDCli extends CommonCli {
         }
         testResultSummary.endingShow(testResultSummary,file.getName());
         testResultSummary.asFileV2(file.getName());
+
+        TapSummary.hasPass = "SUCCEED";
+        TapSummary.capabilitiesResult = new HashMap<>();
         if (this.autoExit) System.exit(0);
     }
 

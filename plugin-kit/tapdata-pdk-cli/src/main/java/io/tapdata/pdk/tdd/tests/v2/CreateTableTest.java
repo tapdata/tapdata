@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.simplify.TapSimplify.field;
@@ -212,7 +213,7 @@ public class CreateTableTest extends PDKTestBase {
 
                 super.connectorOnStart(prepare);
                 //采用随机表名建表， 建表成功之后， 返回的CreateTableOptions#tableExists应该等于false，
-                if (!(hasCreateTable = super.createTable(prepare))){
+                if (!(hasCreateTable = super.createTable(prepare,false))){
                     return;
                 }
                 String tableId = targetTable.getId();
@@ -220,18 +221,20 @@ public class CreateTableTest extends PDKTestBase {
 
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
                 //如果没有就警告； 通过调用discoverSchema指定tableName来获取随机建立的表， 能查出这个表算是成功，
-                List<TapTable> tables = new ArrayList<>();
+                Map<String,TapTable> tableMap = new HashMap<>();
                     connector.discoverSchema(connectorContext,list(tableId),1000,con->{
-                    if (null!=con&&!con.isEmpty()){
-                        tables.addAll(con);
-                    }
+                        if (null!=con)
+                            tableMap.putAll(
+                                    con.stream()
+                                            .filter(Objects::nonNull)
+                                            .collect(Collectors.toMap(TapTable::getId,tap->tap,(t1,t2)->t2)));
                 });
-                if (tables.size()==1){
-                    TapTable tapTable = tables.get(0);
+                if (!tableMap.isEmpty()){
+                    TapTable tapTable = tableMap.get(tableId);
                     TapAssert.asserts(()->{
-                        Assertions.assertEquals(tapTable.getId(), tableId, TapSummary.format("createTable.allTapType.discoverSchema.error",tableId));
+                        Assertions.assertNotNull(tapTable, TapSummary.format("createTable.allTapType.discoverSchema.error", tableId));
                     }).acceptAsError(testCase,TapSummary.format("createTable.allTapType.discoverSchema.succeed",tableId));
-                    if (tableId.equals(tapTable.getId())){
+                    if (null!=tapTable){
                         //对比两个TapTable里的字段名以及类型， 不同的地方需要警告。
                         LinkedHashMap<String, TapField> targetFields = tapTable.getNameFieldMap();
                         super.contrastTableFieldNameAndType(testCase,sourceFields,targetFields);
@@ -301,7 +304,7 @@ public class CreateTableTest extends PDKTestBase {
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
                 //采用随机表名建表， 建表成功之后，
                 //使用TapType的11种类型（类型的长度尽量短小）经过模型推演生成TapTable中的11个字段， 里面包含name和dataType，
-                if(!(hasCreatedTable = super.createTable(prepare))){
+                if(!(hasCreatedTable = super.createTable(prepare,false))){
                     return;
                 }
                 String tableId = targetTable.getId();

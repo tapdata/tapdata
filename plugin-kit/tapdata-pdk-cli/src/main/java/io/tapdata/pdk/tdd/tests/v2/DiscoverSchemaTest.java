@@ -140,7 +140,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
                 //通过CreateTableFunction创建一张表， 表名随机，
                 //表里的字段属性是通过TapType的全类型11个字段推演得来，
-                if (! ( hasCreateTable =this.createTable(prepare) ) ) return;
+                if (! ( hasCreateTable =this.createTable(prepare,false) ) ) return;
                 String tableIdTarget = targetTable.getId();
 
                 //建表之后执行discoverySchema获得表列表，
@@ -357,24 +357,28 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnector connector = connectorNode.getConnector();
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
-                List<TapTable> consumer = new ArrayList<>();
+                //List<TapTable> consumer = new ArrayList<>();
+                //List<List<TapTable>> consumer = new ArrayList<>();
+                Map<String,TapTable> tabMap = new HashMap<>();
                 //通过Consumer<List<TapTable>> consumer返回了这一张且仅此一张表为成功。
                 long discoverStart = System.currentTimeMillis();
-                connector.discoverSchema(connectorContext,list(tableIdTarget),1000, consumer::addAll);
+                connector.discoverSchema(connectorContext,list(tableIdTarget),1000, con->{
+                    if (null!=con){
+                        tabMap.putAll(con.stream()
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toMap(TapTable::getId,tab->tab,(t1,t2)->t2)));
+                    }
+                });
                 long discoverEnd = System.currentTimeMillis();
                 TapAssert.asserts(()->{
-                    Assertions.assertFalse(
-                         !consumer.isEmpty() && consumer.size()!=1,
-                        TapSummary.format("discoverByTableName2.notAnyTable",tableIdTarget,null==consumer?0:consumer.size(),discoverEnd-discoverStart));
+                    Assertions.assertFalse(tabMap.isEmpty(), TapSummary.format("discoverByTableName2.notAnyTable", tableIdTarget, tabMap.size(), discoverEnd - discoverStart));
                 }).acceptAsError(
                     testCase,
-                    TapSummary.format("discoverByTableName2.succeed",tableIdTarget,null==consumer?0:consumer.size(),discoverEnd-discoverStart)
+                    TapSummary.format("discoverByTableName2.succeed",tableIdTarget,tabMap.size(),discoverEnd-discoverStart)
                 );
-                TapTable tapTable = consumer.get(0);
+                TapTable tapTable = tabMap.get(tableIdTarget);
                 TapAssert.asserts(()->{
-                    Assertions.assertTrue(
-                        tableIdTarget.equals(tapTable.getId()),
-                        TapSummary.format("discoverByTableName2.notEqualsTable",tableIdTarget,tapTable.getId(),discoverEnd-discoverStart));
+                    Assertions.assertNotNull(tapTable, TapSummary.format("discoverByTableName2.notEqualsTable", tableIdTarget, tapTable.getId(), discoverEnd - discoverStart));
                 }).acceptAsError(
                     testCase,
                     TapSummary.format("discoverByTableName2.equalsTable",tableIdTarget,tapTable.getId(),discoverEnd-discoverStart)
@@ -428,10 +432,11 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 );
 
                 //通过int tableSize参数指定为1，
-                final int tableCount = 1;
+                final int tableCount = 100;
                 //通过Consumer<List<TapTable>> consumer返回了一张表为成功。
                 List<List<TapTable>> consumer2 = new ArrayList<>();
                 long discoverStart2 = System.currentTimeMillis();
+                // @TODO tableSize = tableCount
                 connector.discoverSchema(connectorContext,list(),tableCount,con->{if (null!=con) consumer2.add(con);});
                 long discoverEnd2 = System.currentTimeMillis();
                 //如果只有一张表，直接通过此测试。
@@ -512,11 +517,12 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 final String targetTableId = targetTable.getId();
 
                 //通过int tableSize参数指定为1，
-                int tableCount = 1;
+                int tableCount = 100;
 
                 List<List<TapTable>> consumer = new ArrayList<>();
 
                 long discoverStart = System.currentTimeMillis();
+                //@TODO tableSize = tableCount
                 connector.discoverSchema(connectorContext,new ArrayList<>(),tableCount,c->{
                     if (null != c) consumer.add(c);
                 });

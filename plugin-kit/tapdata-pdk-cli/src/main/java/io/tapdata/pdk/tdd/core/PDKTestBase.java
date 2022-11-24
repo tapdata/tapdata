@@ -889,8 +889,10 @@ public class PDKTestBase {
         tddTargetNode = dataFlowWorker.getTargetNodeDriver(targetNodeId).getTargetNode();
         sourceNode = dataFlowWorker.getSourceNodeDriver(testSourceNodeId).getSourceNode();
     }
-
-    protected boolean createTable(TestNode prepare) throws Throwable {
+    protected boolean createTable(TestNode prepare) throws Throwable{
+        return createTable(prepare,true);
+    }
+    protected boolean createTable(TestNode prepare,boolean deleteRecordAfterCreateTable) throws Throwable {
         TapConnectorContext connectorContext = prepare.connectorNode().getConnectorContext();
         ConnectorFunctions connectorFunctions = prepare.connectorNode().getConnectorFunctions();
         Method testCase = prepare.recordEventExecute().testCase();
@@ -936,10 +938,11 @@ public class PDKTestBase {
                             .builderRecord(records)
                             .insert();
                     TapAssert.succeed(testCase,TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.succeed",records.length,targetTable.getId()));
-                    if (verifyCreateTable(prepare)) {
+                    if (verifyCreateTable(prepare) && deleteRecordAfterCreateTable) {
                         prepare.recordEventExecute().delete();
                         return true;
                     }
+                    return true;
                 }catch (Exception e){
                     TapAssert.asserts(()->Assertions.fail(TapSummary.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.error",records.length,targetTable.getId()))).error(testCase);
                 }finally {
@@ -1003,7 +1006,7 @@ public class PDKTestBase {
 
             Map<String, TapIndexField> afterFieldsMap = afterFields.stream().collect(Collectors.toMap(field -> field.getName(), field -> field, (o1, o2) -> o1));
             for (TapIndexField indexField : afterFields) {
-                afterIndexStr.add(indexField.getName());
+                afterIndexStr.add(indexField.getName()+"("+indexField.getFieldAsc()+")");
             }
             boolean notEquals = false;
             //索引字段数量不相等
@@ -1014,11 +1017,11 @@ public class PDKTestBase {
                 String name = indexField.getName();
                 if (!notEquals){
                     TapIndexField afterField = afterFieldsMap.get(name);
-                    if (null == afterField || afterField.getFieldAsc()!=indexField.getFieldAsc()){
+                    if (null == afterField || afterField.getFieldAsc() != indexField.getFieldAsc()){
                         notEquals = true;
                     }
                 }
-                agoIndexStr.add(name);
+                agoIndexStr.add(name+"("+indexField.getFieldAsc()+")");
             }
             if (notEquals) {
                 notEqualsIndex.add(indexName + "[(" + agoIndexStr.toString() + ")->(" + afterIndexStr.toString() + ")]");
