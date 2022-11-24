@@ -430,7 +430,7 @@ def gen_dag_stage(obj):
     if objType == Sink:
         return obj.to_dict()
 
-    if objType == Merge:
+    if isinstance(obj, Merge) or isinstance(obj, TableEditor):
         return obj.to_dict()
 
     if obj.func_header:
@@ -661,7 +661,7 @@ def show_tables(source=None, quiet=False):
     res = req.get("/MetadataInstances", params={"filter": json.dumps(f)})
     data = res.json()["data"]["items"]
     client_cache["tables"][source] = {"name_index": {}, "id_index": {}, "number_index": {}}
-    tables = []
+    tables = {}
     each_line_table_count = 5
     each_line_tables = []
     max_table_name_len = 0
@@ -672,7 +672,6 @@ def show_tables(source=None, quiet=False):
     for i in range(len(data)):
         if data[i]["meta_type"] == "database":
             continue
-        tables.append(data[i])
         client_cache["tables"][source]["name_index"][data[i]["original_name"]] = data[i]
         client_cache["tables"][source]["id_index"][data[i]["id"]] = data[i]
         client_cache["tables"][source]["number_index"][str(i)] = data[i]
@@ -682,14 +681,15 @@ def show_tables(source=None, quiet=False):
         except Exception as e:
             pass
         if not quiet:
-            if len(each_line_tables) == each_line_table_count:
+            if len(each_line_tables) == each_line_table_count and tables.get(data[i]["name"]) is None:
                 logger.log("{} " * each_line_table_count, *each_line_tables,
                            *["notice" for i in range(each_line_table_count)])
                 each_line_tables = []
             each_line_tables.append(pad(data[i]["original_name"], max_table_name_len))
     if len(each_line_tables) > 0:
         logger.log("{} " * len(each_line_tables), *each_line_tables, *["notice" for i in range(len(each_line_tables))])
-    return tables
+        tables[data[i]["name"]] = data[i]
+    return tables.values()
 
 
 # a quick datasource migrate job create direct use db name
@@ -1353,6 +1353,73 @@ class BaseObj:
         self.func_header = True
 
 
+class LetterCase:
+    unchanged = "unchanged"
+    upper = "upper"
+    lower = "lower"
+
+
+class TableEditor(BaseObj):
+    def __init__(self, source):
+        super(TableEditor, self).__init__()
+        self.source = source
+        self.tables = self._get_table()
+
+    def _get_table(self):
+        tables = show_tables(self.source.connection.id, quiet=True)
+        target_table = []
+        for table in tables:
+            target_table.append((table["name"], table["name"]))
+        return target_table
+
+    def filter_table(self, value):
+        target_table = []
+        for table in self.tables:
+            if value in table[0]:
+                target_table.append((table[0], table[1]))
+        self.tables = target_table
+
+    def replace_table_name(self, ori, cur):
+        target_table = []
+        for table in self.tables:
+            target_name = table[1].replace(ori, cur)
+            target_table.append((table[0], target_name))
+        self.tables = target_table
+
+    def prefix_table_name(self, val):
+        for index, table in enumerate(self.tables):
+            self.tables[index] = (table[0], val + table[1])
+
+    def suffix_table_name(self, val):
+        for index, table in enumerate(self.tables):
+            self.tables[index] = (table[0], table[1] + val)
+
+    def upper(self):
+        for index, table in enumerate(self.tables):
+            self.tables[index] = (table[0], table[1].upper())
+
+    def lower(self):
+        for index, table in enumerate(self.tables):
+            self.tables[index] = (table[0], table[1].lower())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": "表编辑",
+            "type": "table_rename_processor",
+            "attrs": {
+                "position": [
+                    0, 0
+                ]
+            },
+            "tableNames": [{
+                "currentTableName": table[1],
+                "originTableName": table[0],
+                "previousTableName": table[0],
+            } for table in self.tables],
+        }
+
+
 class MergeNode(BaseObj):
 
     def __init__(self,
@@ -1717,6 +1784,26 @@ class Pipeline:
                 script = js_script
             f = Js(script)
         return self._common_stage(f)
+
+    @help_decorate("editor target table name", args="p.table_editor()")
+    def table_editor(self, filter_table="", replace=(), prefix="", suffix="", letter_case=LetterCase.unchanged):
+        if self.dag.jobType == JobType.sync:
+            logger.warn("{}", "sync job not support table editor")
+            return self
+        t = TableEditor(self.sources[0])
+        if filter_table:
+            t.filter_table(filter_table)
+        if replace and len(replace) == 2:
+            t.replace_table_name(replace[0], replace[1])
+        if prefix:
+            t.prefix_table_name(prefix)
+        if suffix:
+            t.suffix_table_name(suffix)
+        if letter_case == LetterCase.upper:
+            t.upper()
+        if letter_case == LetterCase.lower:
+            t.lower()
+        return self._common_stage(t)
 
     @help_decorate("merge another pipeline", args="p.merge($pipeline)")
     def merge(self, pipeline, association: Iterable[Sequence[Tuple[str, str]]] = None, mergeType="updateWrite",
