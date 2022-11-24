@@ -68,6 +68,8 @@ public class TDDCli extends CommonCli {
     @CommandLine.Option(names = { "-log", "--logPath" }, usageHelp = false, description = "TapData cli log,need test to log test result ,path to log ,default ./tapdata-pdk-cli/tss-logs/")
     private String logPath = TapSummary.basePath("tdd-logs");
 
+    private boolean autoExit = true;//对应TDD_AUTO_EXIT ，是否执行完一个数据源的所有用例就自动推出程序，TDDFactory 中设置TDD_AUTO_EXIT = 0 （CommonUtils.setProperty("TDD_AUTO_EXIT","0")），表示手动退出，
+
 
 
     public static final String LEVEL_BEGINNER = "beginner";
@@ -92,7 +94,7 @@ public class TDDCli extends CommonCli {
         }
         testResultSummary.endingShow(testResultSummary,file.getName());
         testResultSummary.asFileV2(file.getName());
-        System.exit(0);
+        if (this.autoExit) System.exit(0);
     }
 
     private void runTests(LauncherDiscoveryRequest request, TapSummary testResultSummary) {
@@ -121,6 +123,9 @@ public class TDDCli extends CommonCli {
         if (null == logPath || "".equals(logPath)){
             logPath = "/tdd-logs/";
         }
+        String tddAutoExit = CommonUtils.getProperty("TDD_AUTO_EXIT");
+        this.autoExit = null==tddAutoExit || "1".equals(tddAutoExit);
+
         CommonUtils.setProperty("tap_lang", lan);
         CommonUtils.setProperty("tap_log_path", logPath);
         try {
@@ -162,7 +167,8 @@ public class TDDCli extends CommonCli {
                         if(result.getExecutionException() != null)
                             System.out.println(result.getExecutionException().getMessage());
                         System.out.println("------------- Dependency project " + pomFile + " installed Failed --------------");
-                        System.exit(0);
+                        if (this.autoExit) System.exit(0);
+                        return;
                     } else {
                         System.out.println("------------- Dependency project " + pomFile + " installed successfully -------------");
                     }
@@ -191,7 +197,8 @@ public class TDDCli extends CommonCli {
                 if(result.getExecutionException() != null)
                     System.out.println(result.getExecutionException().getMessage());
                 System.out.println("------------- Maven package Failed --------------");
-                System.exit(0);
+                if (this.autoExit) System.exit(0);
+                return;
             } else {
                 MavenXpp3Reader reader = new MavenXpp3Reader();
                 Model model = reader.read(new FileReader(FilenameUtils.concat(file.getAbsolutePath(), "pom.xml")));
@@ -250,7 +257,7 @@ public class TDDCli extends CommonCli {
             }
         }
         TapSummary.create(testResultSummaries).showTestResultAll(nodeInfo(),jarFile);
-        System.exit(0);
+        if (this.autoExit) System.exit(0);
     }
 
     private void runLevelWithNodeInfo(TapNodeInfo tapNodeInfo) throws Throwable {

@@ -95,10 +95,10 @@ public class BatchReadTest extends PDKTestBase {
                     //数据条目数需要等于1， 查询出这1条数据，只要能查出来数据就算是正确。
                     TapAssert.asserts(()->
                         Assertions.assertTrue(
-                    null!=list&&list.size()==1,
+                    null!=list&&list.size()>=1,
                             TapSummary.format("batchRead.batchRead.error",recordCount,batchSize,recordCount,null==list?0:list.size())
                         )
-                    ).acceptAsError(testCase,TapSummary.format("batchRead.batchRead.succeed",recordCount,batchSize,recordCount,null==list?0:list.size()));
+                    ).acceptAsWarn(testCase,TapSummary.format("batchRead.batchRead.succeed",recordCount,batchSize,recordCount,null==list?0:list.size()));
                     if (null != list && list.size() == 1){
                         Record record = records[0];
                         TapEvent tapEvent = list.get(0);
@@ -229,22 +229,27 @@ public class BatchReadTest extends PDKTestBase {
                 boolean isTrue = true;
                 for (int index = 0; index < backData.size(); index++) {
                     List<TapEvent> tapEvents = backData.get(index);
+                    int tapEventSize = null==tapEvents?0:tapEvents.size();
                     final int indexFinal = index;
                     if (times-1 != index){
                         if (null == tapEvents || tapEvents.size()!=batchSize){
                             //返回数据条目数第一批应该为2，
                             TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("batchRead.batchCount.error",recordCount,batchSize,indexFinal+1,batchSize,tapEvents.size())
+                                Assertions.fail(TapSummary.format("batchRead.batchCount.error",recordCount,batchSize,indexFinal+1,batchSize,tapEventSize)
                             )).error(testCase);
                             break;
+                        }else{
+                            TapAssert.succeed(testCase,TapSummary.format("batchRead.batchCount.succeed",recordCount,batchSize,indexFinal+1,batchSize,tapEventSize));
                         }
                     }else {
                         //返回数据条目数第二批应该为1，
                         if (null == tapEvents || tapEvents.size() != (recordCount-batchSize*index) ){
                             TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("batchRead.batchCount.error",recordCount,batchSize,indexFinal,recordCount-batchSize*indexFinal,tapEvents.size()
+                                Assertions.fail(TapSummary.format("batchRead.batchCount.error",recordCount,batchSize,indexFinal+1,recordCount-batchSize*indexFinal,tapEventSize
                             ))).error(testCase);
                             break;
+                        }else {
+                            TapAssert.succeed(testCase,TapSummary.format("batchRead.batchCount.succeed",recordCount,batchSize,indexFinal+1,batchSize,tapEventSize));
                         }
                     }
 

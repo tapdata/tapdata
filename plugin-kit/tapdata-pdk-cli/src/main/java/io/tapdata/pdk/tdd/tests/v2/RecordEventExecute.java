@@ -141,13 +141,13 @@ public class RecordEventExecute {
     public void dropTable() {
         TapAssert.asserts(
             ()->Assertions.assertDoesNotThrow(this::drop,TapSummary.format("recordEventExecute.drop.table.error"))
-        ).acceptAsError(testCase,TapSummary.format("recordEventExecute.drop.notCatch.thrower"));
+        ).acceptAsWarn(testCase,TapSummary.format("recordEventExecute.drop.notCatch.thrower"));
     }
 
     private boolean drop() throws Throwable {
         DropTableFunction dropTableFunction = connectorFunctions.getDropTableFunction();
         if(null == dropTableFunction){
-            TapAssert.asserts(()->Assertions.fail(TapSummary.format("base.notSupportDropTable",base.getTargetTable().getId()))).error(testCase);
+            TapAssert.asserts(()->Assertions.fail(TapSummary.format("base.notSupportDropTable",base.getTargetTable().getId()))).warn(testCase);
             return false;
         }
         TapAssert.asserts(

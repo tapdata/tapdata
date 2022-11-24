@@ -137,6 +137,7 @@ public class PDKTestBase {
         jarFile = new File(jarUrl);
         if (!jarFile.isFile())
             throw new IllegalArgumentException("PDK jar file " + jarFile.getAbsolutePath() + " is not a file or not exists");
+//        TapConnectorManager.getInstance().start();
         TapConnectorManager.getInstance().start(Arrays.asList(jarFile, tddJarFile));
         testConnector = TapConnectorManager.getInstance().getTapConnectorByJarName(jarFile.getName());
         Collection<TapNodeInfo> tapNodeInfoCollection = testConnector.getTapNodeClassFactory().getConnectorTapNodeInfos();

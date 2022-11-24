@@ -149,7 +149,8 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
                 List<TapTable> consumer = new ArrayList<>();
                 long discoverStart = System.currentTimeMillis();
-                connector.discoverSchema(connectorContext,list(tableIdTarget),1, con->{if (null!=con) consumer.addAll(con);});
+                //@todo
+                connector.discoverSchema(connectorContext,list(tableIdTarget),100, con->{if (null!=con) consumer.addAll(con);});
                 long discoverEnd = System.currentTimeMillis();
                 //表列表里包含随机创建的表，
                 TapAssert.asserts(()->
@@ -426,7 +427,8 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 );
 
                 //通过int tableSize参数指定为1，
-                final int tableCount = 1;
+                int count = connector.tableCount(connectorContext);
+                final int tableCount = count>1?count-1:1;
                 //通过Consumer<List<TapTable>> consumer返回了一张表为成功。
                 List<TapTable> consumer2 = new ArrayList<>();
                 long discoverStart2 = System.currentTimeMillis();
@@ -483,7 +485,8 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 String targetTableId = targetTable.getId();
 
                 //通过int tableSize参数指定为1，
-                int tableCount = 1;
+                int count = connector.tableCount(connectorContext);
+                int tableCount = count>1?count-1:1;
                 try {
                     long discoverStart = System.currentTimeMillis();
                     connector.discoverSchema(connectorContext,new ArrayList<>(),tableCount,c->{
