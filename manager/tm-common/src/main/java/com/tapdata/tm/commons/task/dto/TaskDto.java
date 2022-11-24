@@ -126,6 +126,8 @@ public class TaskDto extends ParentTaskDto {
     private Long scheduleDate;
     private Date monitorStartDate;
 
+    private boolean needCreateRecord;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());
