@@ -50,6 +50,8 @@ backend/client/
 backend/tapdata-management
 localpkg/
 
+/tdd-logs
+
 
 target/
 /tapdata-web.log.*
