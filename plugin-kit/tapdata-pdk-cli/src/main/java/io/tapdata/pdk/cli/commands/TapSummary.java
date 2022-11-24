@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -550,9 +551,19 @@ public class TapSummary {
     public static String basePath(String logPath) {
         try {
             Path path = Paths.get(logPath+"..\\" );
-            return path.toFile().getCanonicalPath() + "\\";
+            String pathFinal = path.toFile().getCanonicalPath() + "\\";
+            File file = new File(pathFinal);
+            if (!file.exists()){
+                file.mkdir();
+            }
+            return pathFinal;
         } catch (Throwable throwable) {
-            return FilenameUtils.concat(logPath, "../");
+            String pathFinal = FilenameUtils.concat(logPath, "../");
+            File file = new File(pathFinal);
+            if (!file.exists()){
+                file.mkdir();
+            }
+            return pathFinal;
         }
     }
 
