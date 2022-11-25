@@ -21,12 +21,12 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 	private Ringbuffer<Document> ringbuffer;
 
 	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String name) {
-		super();
+		super(name);
 		this.ringbuffer = hazelcastInstance.getRingbuffer(name);
 	}
 
 	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String name, Integer shareCdcTTLDay) {
-		super();
+		super(name);
 		this.ringbuffer = hazelcastInstance.getRingbuffer(name);
 		if (shareCdcTTLDay != null && shareCdcTTLDay > 0) {
 			convertTtlDay2Second(shareCdcTTLDay);

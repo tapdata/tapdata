@@ -1,5 +1,6 @@
 package io.tapdata.construct.constructImpl;
 
+import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.construct.HazelcastConstruct;
 
@@ -14,15 +15,13 @@ public class BaseConstruct<T> implements HazelcastConstruct<T> {
 	protected Integer ttlSecond;
 	protected ExternalStorageDto externalStorageDto;
 
-	protected BaseConstruct() {
+	protected BaseConstruct(String name) {
+		this.name = name;
 	}
 
 	protected BaseConstruct(String name, ExternalStorageDto externalStorageDto) {
+		this.name = name;
 		this.externalStorageDto = externalStorageDto;
-		if (null != externalStorageDto) {
-			// todo add hazelcast persistence config
-
-		}
 	}
 
 	protected void convertTtlDay2Second(Integer ttlDay) {

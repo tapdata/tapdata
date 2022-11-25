@@ -41,7 +41,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class ExternalStorageUtil {
 	private final static String LOG_PREFIX = "[Hazelcast IMDG Persistence] - ";
 	private static final Logger logger = LogManager.getLogger(ExternalStorageUtil.class);
-	public static final int DEFAULT_IN_MEM_SIZE = 1;
+	public static final int DEFAULT_IN_MEM_SIZE = 100;
 
 	public static void initHazelcastDefaultPersistence(ClientMongoOperator clientMongoOperator, Config config) {
 		Query query = Query.query(where("name").is(ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME));
@@ -49,22 +49,57 @@ public class ExternalStorageUtil {
 		if (null == externalStorageDto) {
 			throw new RuntimeException(LOG_PREFIX + String.format("Init hazelcast default persistence failed. Default config name '%s' not exists", ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME));
 		}
+		initHZPersistenceStorage(externalStorageDto, "", config);
+	}
+
+	public synchronized static void initHZPersistenceStorage(ExternalStorageDto externalStorageDto, String name, Config config) {
+		initProperty(externalStorageDto);
+		// Init hazelcast config
+		try {
+			if (StringUtils.isBlank(name)) {
+				PersistenceStorage.getInstance().initHZConfig(config);
+			} else {
+				PersistenceStorage.getInstance().initHZConfig(config, name);
+			}
+		} catch (Exception e) {
+			throw new RuntimeException(LOG_PREFIX + "Init hazelcast persistence failed. " + e.getMessage(), e);
+		}
+	}
+
+	public synchronized static void initHZMapStorage(ExternalStorageDto externalStorageDto, String name, Config config) {
+		initProperty(externalStorageDto);
+		// Init hazelcast config
+		try {
+			if (StringUtils.isBlank(name)) {
+				PersistenceStorage.getInstance().initMapStoreConfig(config);
+			} else {
+				PersistenceStorage.getInstance().initMapStoreConfig(config, name);
+			}
+		} catch (Exception e) {
+			throw new RuntimeException(LOG_PREFIX + "Init hazelcast IMap persistence failed. " + e.getMessage(), e);
+		}
+	}
+
+	public synchronized static void initHZRingBufferStorage(ExternalStorageDto externalStorageDto, String name, Config config) {
+		initProperty(externalStorageDto);
+		// Init hazelcast config
+		try {
+			if (StringUtils.isBlank(name)) {
+				PersistenceStorage.getInstance().initRingBufferConfig(config);
+			} else {
+				PersistenceStorage.getInstance().initRingBufferConfig(config, name);
+			}
+		} catch (Exception e) {
+			throw new RuntimeException(LOG_PREFIX + "Init hazelcast RingBuffer persistence failed. " + e.getMessage(), e);
+		}
+	}
+
+	private static void initProperty(ExternalStorageDto externalStorageDto) {
+		if (null == externalStorageDto) throw new IllegalArgumentException("External storage dto cannot be null");
 		PersistenceStorage persistenceStorage = PersistenceStorage.getInstance();
 		// Set storage mode
 		ExternalStorageType externalStorageType = initMode(externalStorageDto, persistenceStorage);
 		// Set properties
-		initProperty(externalStorageDto, persistenceStorage, externalStorageType);
-		// Set memory size
-		persistenceStorage.setInMemSize(DEFAULT_IN_MEM_SIZE);
-		// Init hazelcast config
-		try {
-			persistenceStorage.initHZConfig(config);
-		} catch (Exception e) {
-			throw new RuntimeException(LOG_PREFIX + "Init hazelcast default persistence failed. " + e.getMessage(), e);
-		}
-	}
-
-	private static void initProperty(ExternalStorageDto externalStorageDto, PersistenceStorage persistenceStorage, ExternalStorageType externalStorageType) {
 		switch (externalStorageType) {
 			case memory:
 				break;
@@ -77,6 +112,8 @@ public class ExternalStorageUtil {
 			default:
 				break;
 		}
+		// Set memory size
+		persistenceStorage.setInMemSize(DEFAULT_IN_MEM_SIZE);
 	}
 
 	private static void initRocksDBProperty(ExternalStorageDto externalStorageDto, PersistenceStorage persistenceStorage) {

@@ -151,7 +151,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				}
 				ConstructIMap<Document> hazelcastConstruct = new ConstructIMap<>(jetContext.hazelcastInstance(), cacheName, externalStorageDto);
 				this.mergeCacheMap.put(mergeProperty.getId(), hazelcastConstruct);
-				logger.info("Init hazelcast cache, name: " + cacheName + "(" + mergeProperty.getId() + ")");
+				logger.info("Create imap name: {}, external storage: {}", cacheName, externalStorageDto);
+				obsLogger.info("Create imap name: {}, external storage: {}", cacheName, externalStorageDto);
 			}
 		}
 	}

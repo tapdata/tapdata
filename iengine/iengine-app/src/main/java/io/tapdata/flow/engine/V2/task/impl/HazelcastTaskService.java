@@ -597,6 +597,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withEdges(edges)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;
