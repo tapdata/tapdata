@@ -40,6 +40,14 @@
           ],
           "x-reactions": [
             {
+              "target": "encoding",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='ftp' || $self.value==='sftp'}}"
+                }
+              }
+            },
+            {
               "target": "*(ftpHost,ftpPort,ftpUsername,ftpPassword,ftpPassiveMode)",
               "fulfill": {
                 "state": {
@@ -374,6 +382,7 @@
       "smbHost": "Host",
       "smbUsername": "Username",
       "smbPassword": "Password",
+      "smbShareDir": "Shared Dir",
       "accessKey": "Access-Key",
       "secretKey": "Secret-Key",
       "endpoint": "Endpoint",
@@ -403,6 +412,7 @@
       "smbHost": "地址",
       "smbUsername": "用户名",
       "smbPassword": "口令",
+      "smbShareDir": "共享目录",
       "accessKey": "Access-Key",
       "secretKey": "Secret-Key",
       "endpoint": "终端",
@@ -432,6 +442,7 @@
       "smbHost": "地址",
       "smbUsername": "用戶名",
       "smbPassword": "口令",
+      "smbShareDir": "共享目錄",
       "accessKey": "Access-Key",
       "secretKey": "Secret-Key",
       "endpoint": "終端",
