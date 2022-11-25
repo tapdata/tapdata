@@ -2,18 +2,18 @@ package io.tapdata.async.master;
 
 import io.tapdata.modules.api.async.master.AsyncJob;
 import io.tapdata.modules.api.async.master.AsyncJobClass;
-import io.tapdata.modules.api.async.master.AsyncTools;
 import io.tapdata.modules.api.async.master.JobContext;
+
+import static io.tapdata.entity.simplify.TapSimplify.*;
 
 /**
  * @author aplomb
  */
 @AsyncJobClass("batchRead")
-public class BatchReadJob extends SourceAsyncJob {
+public class BatchReadJob implements AsyncJob {
 
 	@Override
-	public JobContext execute(JobContext previousJobContext) {
-
-		return null;
+	public JobContext run(JobContext jobContext) {
+		return JobContext.create(list(insertRecordEvent(map(entry("a", 1)), "table")));
 	}
 }

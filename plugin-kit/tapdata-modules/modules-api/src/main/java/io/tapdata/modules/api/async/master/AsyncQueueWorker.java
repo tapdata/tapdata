@@ -1,10 +1,13 @@
 package io.tapdata.modules.api.async.master;
 
+import java.util.function.Function;
+
 public interface AsyncQueueWorker extends AsyncWorker {
 	String getId();
 	int getState();
-	AsyncQueueWorker add(AsyncJobChain asyncJobChain);
-	AsyncQueueWorker add(String id, AsyncJob asyncJob);
+	AsyncQueueWorker job(AsyncJobChain asyncJobChain);
+	AsyncQueueWorker job(String id, AsyncJob asyncJob);
+	AsyncQueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer);
 	AsyncQueueWorker cancelAll();
 	AsyncQueueWorker cancel(String id);
 	AsyncQueueWorker cancel(String id, boolean immediately);

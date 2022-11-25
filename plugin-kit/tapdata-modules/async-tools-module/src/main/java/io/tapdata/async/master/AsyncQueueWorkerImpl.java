@@ -8,11 +8,13 @@ import io.tapdata.modules.api.async.master.*;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.modules.api.async.master.QueueWorkerStateListener.*;
@@ -24,7 +26,7 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	private static final String TAG = AsyncQueueWorkerImpl.class.getSimpleName();
 	private final String id;
 	private final AsyncJobChainImpl asyncJobChain;
-	private ThreadPoolExecutor threadPoolExecutor;
+	private final ThreadPoolExecutor threadPoolExecutor;
 	private JobContext initialJobContext;
 	private AsyncJobErrorListener asyncJobErrorListener;
 	private QueueWorkerStateListener queueWorkerStateListener;
@@ -42,9 +44,11 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	private ScheduledFuture<?> periodScheduleFuture;
 //	@Bean
 //	private DeadThreadPoolCleaner deadThreadPoolCleaner;
+	private final Map<String, Class<? extends AsyncJob>> asyncJobMap;
 
-	public AsyncQueueWorkerImpl(String id) {
+	public AsyncQueueWorkerImpl(String id, Map<String, Class<? extends AsyncJob>> asyncJobMap) {
 		this.id = id;
+		this.asyncJobMap = asyncJobMap;
 		asyncJobChain = new AsyncJobChainImpl();
 		tapUtils = InstanceFactory.instance(TapUtils.class);
 		if(tapUtils == null)
@@ -59,11 +63,11 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	}
 
 	@Override
-	public AsyncQueueWorker add(AsyncJobChain asyncJobChain) {
+	public AsyncQueueWorker job(AsyncJobChain asyncJobChain) {
 		if(asyncJobChain != null) {
 			Set<Map.Entry<String, AsyncJob>> asyncJobCollection = asyncJobChain.asyncJobs();
 			for(Map.Entry<String, AsyncJob> entry : asyncJobCollection) {
-				this.asyncJobChain.add(entry.getKey(), entry.getValue());
+				this.asyncJobChain.job(entry.getKey(), entry.getValue());
 			}
 			if (state.get() > STATE_NONE && state.get() < STATE_STOPPED)
 				startPrivate();
@@ -72,8 +76,28 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	}
 
 	@Override
-	public AsyncQueueWorker add(String id, AsyncJob asyncJob) {
-		asyncJobChain.add(id, asyncJob);
+	public AsyncQueueWorker job(String id, AsyncJob asyncJob) {
+		asyncJobChain.job(id, asyncJob);
+		if (state.get() > STATE_NONE && state.get() < STATE_STOPPED)
+			startPrivate();
+		return this;
+	}
+
+	@Override
+	public AsyncQueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer) {
+		Class<? extends AsyncJob> jobClass = asyncJobMap.get(id);
+		if(jobClass == null)
+			throw new CoreException(AsyncErrors.MISSING_JOB_CLASS_FOR_TYPE, "Job class is missing for type {}", id);
+		AsyncJob asyncJob;
+		try {
+			asyncJob = jobClass.getConstructor().newInstance();
+		} catch (Throwable e) {
+			throw new CoreException(AsyncErrors.INITIATE_JOB_CLASS_FAILED, "Initiate job class {} failed, {}", jobClass, tapUtils.getStackTrace(e));
+		}
+		asyncJobChain.job(id, jobContext -> {
+			JobContext context = asyncJob.run(jobContext);
+			return jobContextConsumer.apply(context);
+		});
 		if (state.get() > STATE_NONE && state.get() < STATE_STOPPED)
 			startPrivate();
 		return this;
@@ -164,11 +188,11 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 		if(state.get() != STATE_STOPPED) {
 			changeState(state.get(), STATE_STOPPED, Collections.EMPTY_LIST, false);
 			cancelAll("Stopped");
-			threadPoolExecutor.shutdownNow();
 			if(periodScheduleFuture != null) {
 				periodScheduleFuture.cancel(true);
 				periodScheduleFuture = null;
 			}
+			threadPoolExecutor.shutdownNow();
 		}
 	}
 

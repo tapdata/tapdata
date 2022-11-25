@@ -3,25 +3,18 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>iengine</artifactId>
+        <artifactId>modules</artifactId>
         <groupId>com.tapdata</groupId>
         <version>0.5.2-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
-    <packaging>pom</packaging>
-    <artifactId>modules</artifactId>
 
-    <modules>
-        <module>observable-module</module>
-        <module>test-run-module</module>
-        <module>deduction-module</module>
-        <module>proxy-client-module</module>
-        <module>engine-source-module</module>
-    </modules>
+    <artifactId>engine-source-module</artifactId>
+
     <dependencies>
         <dependency>
             <groupId>com.tapdata</groupId>
-            <artifactId>api</artifactId>
+            <artifactId>iengine-app</artifactId>
             <version>0.5.2-SNAPSHOT</version>
         </dependency>
     </dependencies>

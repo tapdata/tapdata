@@ -2,10 +2,10 @@ package io.tapdata.async.master;
 
 import io.tapdata.modules.api.async.master.AsyncJob;
 import io.tapdata.modules.api.async.master.AsyncJobChain;
-import io.tapdata.modules.api.async.master.AsyncTools;
 import io.tapdata.modules.api.async.master.JobContext;
 
 import java.util.*;
+import java.util.function.Function;
 
 /**
  * @author aplomb
@@ -18,15 +18,20 @@ public class AsyncJobChainImpl implements AsyncJobChain {
 	}
 
 	@Override
-	public AsyncJobChain add(Map.Entry<String, AsyncJob> asyncJobChain) {
-
-		return null;
+	public AsyncJobChain job(Map.Entry<String, AsyncJob> entry) {
+		asyncJobLinkedMap.put(entry.getKey(), entry.getValue());
+		return this;
 	}
 
 	@Override
-	public AsyncJobChain add(String id, AsyncJob asyncJob) {
+	public AsyncJobChain job(String id, AsyncJob asyncJob) {
 		asyncJobLinkedMap.put(id, asyncJob);
 		return this;
+	}
+
+	@Override
+	public AsyncJobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer) {
+		return null;
 	}
 
 	@Override
@@ -41,29 +46,29 @@ public class AsyncJobChainImpl implements AsyncJobChain {
 
 	public static void main(String[] args) {
 		AsyncJobChainImpl asyncJobChain = new AsyncJobChainImpl();
-		asyncJobChain.add("a", new SourceAsyncJob() {
+		asyncJobChain.job("a", new AsyncJob() {
 			@Override
-			public JobContext execute(JobContext previousJobContext) {
+			public JobContext run(JobContext previousJobContext) {
 				return null;
 			}
 		});
-		asyncJobChain.add("b", new SourceAsyncJob() {
+		asyncJobChain.job("b", new AsyncJob() {
 			@Override
-			public JobContext execute(JobContext previousJobContext) {
+			public JobContext run(JobContext previousJobContext) {
 				return null;
 			}
 		});
-		asyncJobChain.add("c", new SourceAsyncJob() {
+		asyncJobChain.job("c", new AsyncJob() {
 			@Override
-			public JobContext execute(JobContext previousJobContext) {
+			public JobContext run(JobContext previousJobContext) {
 				return null;
 			}
 		});
 		System.out.println("map " + asyncJobChain.asyncJobLinkedMap);
 		asyncJobChain.remove("a");
-		asyncJobChain.add("a", new SourceAsyncJob() {
+		asyncJobChain.job("a", new AsyncJob() {
 			@Override
-			public JobContext execute(JobContext previousJobContext) {
+			public JobContext run(JobContext previousJobContext) {
 				return null;
 			}
 		});
