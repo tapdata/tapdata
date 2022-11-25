@@ -57,6 +57,7 @@ public class ScriptExecutorRunInit implements ApplicationRunner {
 //    executeScript("init", VersionDto.SCRIPT_VERSION_KEY);
 //    log.info("Execute the initialization script to complete...");
 
+		initReplaceMap();
 
 			executeScript("init/idaas", VersionDto.DAAS_SCRIPT_VERSION_KEY);
 			log.info("Execute the daas product initialization script to complete...");
@@ -304,11 +305,23 @@ public class ScriptExecutorRunInit implements ApplicationRunner {
 
   public void executeCommand(String scripts) {
     try {
-      Document document = mongoTemplate.executeCommand(scripts);
+		for (Map.Entry<String, String> entry : replaceMap.entrySet()) {
+			scripts = scripts.replaceAll(formatKey(entry.getKey()), entry.getValue());
+		}
+		Document document = mongoTemplate.executeCommand(scripts);
     } catch (Exception e) {
       log.warn("execute scripts failed, scripts = "+ scripts, e);
     }
-
   }
+
+	private static String formatKey(String key) {
+		return String.format("\\$\\{%s\\}", key);
+	}
+
+	private void initReplaceMap() {
+		replaceMap = new HashMap<String, String>() {{
+			put("TAPDATA.MONGODB.URI", mongodbUri);
+		}};
+	}
 
 }
