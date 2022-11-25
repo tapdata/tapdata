@@ -922,6 +922,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TaskDto taskDto = checkExistById(id, user);
         String status = taskDto.getStatus();
 
+        boolean needCreateRecord = true;
+
         //只有暂停或者停止状态可以重置
         if (!TaskOpStatusEnum.to_renew_status.v().contains(status)) {
             //需要停止的时候才可以操作
@@ -932,8 +934,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
             throw new BizException("Task.statusIsNotStop");
         } else if (TaskDto.STATUS_WAIT_START.equals(status)) {
-            return;
+            needCreateRecord = false;
         }
+        taskDto.setNeedCreateRecord(needCreateRecord);
 
         log.debug("check task status complete, task name = {}", taskDto.getName());
         taskResetLogService.clearLogByTaskId(id.toHexString());
@@ -950,23 +953,23 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId).unset("temp");
         updateById(taskDto.getId(), update, user);
 
-
-        taskDto.setStatus(TaskDto.STATUS_WAIT_START);
-        taskDto.setAgentId(null);
-        taskDto.setTaskRecordId(lastTaskRecordId);
-        taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
-        taskDto.setAccessNodeProcessIdList(Lists.newArrayList());
-
         //清除校验结果
         taskAutoInspectResultsService.cleanResultsByTask(taskDto);
 
+        if (taskDto.isNeedCreateRecord()) {
+            taskDto.setStatus(TaskDto.STATUS_WAIT_START);
+            taskDto.setAgentId(null);
+            taskDto.setTaskRecordId(lastTaskRecordId);
+            taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+            taskDto.setAccessNodeProcessIdList(Lists.newArrayList());
+            TaskEntity taskSnapshot = new TaskEntity();
+            BeanUtil.copyProperties(taskDto, taskSnapshot);
+
+            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
+                    new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+        }
+
         // publish queue
-        TaskEntity taskSnapshot = new TaskEntity();
-        BeanUtil.copyProperties(taskDto, taskSnapshot);
-
-        disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
-                new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
-
         renewNotSendMq(taskDto, user);
     }
 
@@ -2428,7 +2431,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-            Update update = new Update().unset("startTime").unset("lastStartDate").unset("stopTime");
+            Update update = new Update().unset("startTime").unset("lastStartDate").unset("stopTime").set("needCreateRecord", taskDto.isNeedCreateRecord());
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
