@@ -22,7 +22,8 @@ public class Main {
                         entry("sftpHost", "192.168.1.189"),
                         entry("sftpPort", 22),
                         entry("sftpUsername", "root"),
-                        entry("sftpPassword", "Gotapd8!")
+                        entry("sftpPassword", "Gotapd8!"),
+                        entry("encoding", "UTF-8")
                 ))
                 .withStorageClassName("io.tapdata.storage.sftp.SftpFileStorage")
                 .build();

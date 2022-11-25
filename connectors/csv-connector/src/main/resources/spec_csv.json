@@ -56,7 +56,7 @@
               }
             },
             {
-              "target": "*(smbHost,smbUsername,smbPassword)",
+              "target": "*(smbHost,smbUsername,smbPassword,smbShareDir)",
               "fulfill": {
                 "state": {
                   "visible": "{{$self.value==='smb'}}"
@@ -203,6 +203,14 @@
           "x-component": "Password",
           "apiServerKey": "smbPassword",
           "x-index": 140
+        },
+        "smbShareDir": {
+          "type": "string",
+          "title": "${smbShareDir}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "smbShareDir",
+          "x-index": 145
         },
         "accessKey": {
           "required": true,

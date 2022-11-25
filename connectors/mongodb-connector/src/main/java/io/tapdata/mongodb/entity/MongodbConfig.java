@@ -91,6 +91,11 @@ public class MongodbConfig extends CommonDbConfig {
 		return connectionString.getHosts();
 	}
 
+	@Override
+	public String getConnectionString() {
+		return getUri();
+	}
+
 	public void setUri(String uri) {
 		this.uri = uri;
 	}
