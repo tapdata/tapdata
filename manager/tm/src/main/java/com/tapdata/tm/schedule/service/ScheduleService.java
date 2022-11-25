@@ -15,17 +15,16 @@ import com.tapdata.tm.utils.CronUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
-import org.quartz.Job;
-import org.quartz.JobExecutionContext;
-import org.quartz.JobExecutionException;
-import org.quartz.JobKey;
+import org.quartz.*;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
 
 @Service
 @Slf4j
+@DisallowConcurrentExecution
 public class ScheduleService implements Job {
 
 
@@ -37,14 +36,13 @@ public class ScheduleService implements Job {
         JobKey jobKey = jobExecutionContext.getJobDetail().getKey();
         String jobId = jobKey.getName();
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(jobId));
-        // 防止任务被删除
-        if(taskDto == null){
+        if(taskDto.is_deleted()){
             log.info("Taskid :" +jobId+" has be deleted" );
             CronUtil.removeJob(jobId);
             return;
         }
-       // 修改任务状态
-        if(!taskDto.getIsSchedule()){
+        // 修改任务状态
+        if(StringUtils.isBlank(taskDto.getCrontabExpression()) || !taskDto.isPlanStartDateFlag()){
             log.info("Taskid :" +jobId+" has not schedule" );
             CronUtil.removeJob(jobId);
             return;

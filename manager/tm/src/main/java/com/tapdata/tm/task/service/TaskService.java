@@ -2823,7 +2823,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public void pause(ObjectId id, UserDetail user, boolean force) {
         TaskDto TaskDto = checkExistById(id, user);
-        deleteScheduleTask(TaskDto);
         pause(TaskDto, user, force);
     }
 
@@ -2870,7 +2869,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return;
         }
 
-
+        deleteScheduleTask(taskDto);
         String pauseStatus = TaskDto.STATUS_STOPPING;
         StateMachineResult stateMachineResult;
         if (force) {
