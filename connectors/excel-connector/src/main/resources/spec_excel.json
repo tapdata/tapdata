@@ -40,6 +40,14 @@
           ],
           "x-reactions": [
             {
+              "target": "encoding",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='ftp' || $self.value==='sftp'}}"
+                }
+              }
+            },
+            {
               "target": "*(ftpHost,ftpPort,ftpUsername,ftpPassword,ftpPassiveMode)",
               "fulfill": {
                 "state": {
@@ -56,7 +64,7 @@
               }
             },
             {
-              "target": "*(smbHost,smbUsername,smbPassword)",
+              "target": "*(smbHost,smbUsername,smbPassword,smbShareDir)",
               "fulfill": {
                 "state": {
                   "visible": "{{$self.value==='smb'}}"
@@ -203,6 +211,14 @@
           "x-component": "Password",
           "apiServerKey": "smbPassword",
           "x-index": 140
+        },
+        "smbShareDir": {
+          "type": "string",
+          "title": "${smbShareDir}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "smbShareDir",
+          "x-index": 145
         },
         "accessKey": {
           "required": true,
@@ -373,6 +389,7 @@
       "smbHost": "Host",
       "smbUsername": "Username",
       "smbPassword": "Password",
+      "smbShareDir": "Shared Dir",
       "accessKey": "Access-Key",
       "secretKey": "Secret-Key",
       "endpoint": "Endpoint",
@@ -407,6 +424,7 @@
       "smbHost": "地址",
       "smbUsername": "用户名",
       "smbPassword": "口令",
+      "smbShareDir": "共享目录",
       "accessKey": "Access-Key",
       "secretKey": "Secret-Key",
       "endpoint": "终端",
@@ -440,6 +458,7 @@
       "smbHost": "地址",
       "smbUsername": "用戶名",
       "smbPassword": "口令",
+      "smbShareDir": "共享目錄",
       "accessKey": "Access-Key",
       "secretKey": "Secret-Key",
       "endpoint": "終端",

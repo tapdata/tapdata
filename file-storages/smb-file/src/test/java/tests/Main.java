@@ -18,8 +18,8 @@ public class Main {
         TapFileStorage storage = new TapFileStorageBuilder()
                 .withClassLoader(SmbFileStorage.class.getClassLoader()) //PDK's classloader
 				.withParams(map(
-                        entry("host", "192.168.0.110"),
-                        entry("shareDir", "share")
+                        entry("smbHost", "192.168.0.110"),
+                        entry("smbShareDir", "share")
                 ))
                 .withStorageClassName("io.tapdata.storage.smb.SmbFileStorage")
                 .build();

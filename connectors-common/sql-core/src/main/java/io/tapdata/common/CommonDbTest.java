@@ -110,7 +110,7 @@ public class CommonDbTest implements AutoCloseable {
         return Collections.singletonList("*.*");
     }
 
-    protected static final String TEST_CREATE_TABLE = "create table %s(col1 int)";
+    protected static final String TEST_CREATE_TABLE = "create table %s(col1 int not null, primary key(col1))";
     protected static final String TEST_WRITE_RECORD = "insert into %s values(0)";
     protected static final String TEST_UPDATE_RECORD = "update %s set col1=1 where 1=1";
     protected static final String TEST_DELETE_RECORD = "delete from %s where 1=1";

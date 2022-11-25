@@ -152,6 +152,9 @@ public class S3fsFileStorage implements TapFileStorage {
                 }
             }
         });
+        if (listAtomicReference.get().size() > 0) {
+            consumer.accept(listAtomicReference.get());
+        }
     }
 
     @Override

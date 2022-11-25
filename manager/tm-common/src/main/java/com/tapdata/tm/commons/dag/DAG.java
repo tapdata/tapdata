@@ -5,22 +5,24 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.Message;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.Loader;
 import io.github.openlg.graphlib.Graph;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import lombok.*;
-import io.tapdata.entity.event.ddl.TapDDLEvent;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.bson.types.ObjectId;
@@ -1031,7 +1033,15 @@ public class DAG implements Serializable, Cloneable {
         private String uuid;
 
         private String syncType;
+        private FieldChangeRuleGroup fieldChangeRules;
 
+        public void processRule(MetadataInstancesDto dto) {
+            if (null == fieldChangeRules) return;
+            String nodeId = dto.getNodeId();
+            for (Field f : dto.getFields()) {
+                fieldChangeRules.process(nodeId, dto.getQualifiedName(), f);
+            }
+        }
     }
 
 

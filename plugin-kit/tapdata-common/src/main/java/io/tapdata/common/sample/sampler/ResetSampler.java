@@ -30,7 +30,7 @@ public class ResetSampler implements Sampler {
     }
 
     public Long getTemp() {
-        if (Objects.nonNull(counterTemp)) {
+        if (Objects.nonNull(valueTemp.get()) && Objects.nonNull(counterTemp.get())) {
             return (valueTemp.getAndSet(null)) / (counterTemp.getAndSet(null));
         } else {
             return null;
@@ -39,7 +39,7 @@ public class ResetSampler implements Sampler {
 
     @Override
     public Number value() {
-        if (Objects.nonNull(counter)) {
+        if (Objects.nonNull(value.get()) && Objects.nonNull(value.get()) ) {
             return (value.getAndSet(null)) / (counter.getAndSet(null));
         } else {
             return null;

@@ -20,7 +20,7 @@ public class SftpFileStorage implements TapFileStorage {
     private ChannelSftp channel;
 
     @Override
-    public void init(Map<String, Object> params) throws JSchException {
+    public void init(Map<String, Object> params) throws JSchException, SftpException {
         sftpConfig = new SftpConfig().load(params);
         JSch jsch = new JSch();
         session = jsch.getSession(sftpConfig.getSftpUsername(), sftpConfig.getSftpHost(), sftpConfig.getSftpPort());
@@ -34,6 +34,7 @@ public class SftpFileStorage implements TapFileStorage {
         session.connect();
         channel = (ChannelSftp) session.openChannel("sftp");
         channel.connect();
+        channel.setFilenameEncoding(sftpConfig.getEncoding());
     }
 
     @Override
