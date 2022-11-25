@@ -102,9 +102,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return criteria;
     }
 
-    public List<Worker> findAvailableAgentBySystem() {
+    public List<Worker> findAvailableAgentBySystem(UserDetail user) {
         Query query = getAvailableAgentQuery();
-        return repository.findAll(query);
+        return repository.findAll(query, user);
     }
 
     public List<Worker> findAvailableAgentBySystem(List<String> processIdList) {
