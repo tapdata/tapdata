@@ -37,6 +37,11 @@ public class RegisterMain {
         ZoHo(BASE_PATH + "connectors/dist/zoho-connector-v1.0-SNAPSHOT.jar", false, "all", "zoho"),
         Tidb(BASE_PATH + "connectors/dist/tidb-connector-v1.0-SNAPSHOT.jar", true,"all", "tidb"),Tablestore(BASE_PATH + "connectors/dist/tablestore-connector-v1.0-SNAPSHOT.jar", false, "all", "tablestore"),
         Custom(BASE_PATH + "connectors/dist/custom-connector-v1.0-SNAPSHOT.jar", false, "all", "custom"),
+        Csv(BASE_PATH + "connectors/dist/csv-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
+        Json(BASE_PATH + "connectors/dist/json-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
+        Xml(BASE_PATH + "connectors/dist/xml-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
+        Excel(BASE_PATH + "connectors/dist/excel-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
+        BigQuery(BASE_PATH + "connectors/dist/bigquery-connector-v1.0-SNAPSHOT.jar", false, "all", "bigquery")
         ;
 
         private final String path;

@@ -148,7 +148,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
 
     @Override
     public Long streamReadTime() {
-        return 1*60*1000l;
+        return 5*60*1000l;
     }
 
     @Override

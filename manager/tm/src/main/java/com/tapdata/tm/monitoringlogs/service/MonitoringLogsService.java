@@ -92,7 +92,13 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             return null;
         }
 
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        ObjectId objectId = MongoUtils.toObjectId(taskId);
+
+        if (objectId == null) {
+            return null;
+        }
+
+        TaskDto taskDto = taskService.findById(objectId);
 
         Criteria criteria = Criteria.where("taskId").is(taskId);
         if (StringUtils.isNotBlank(param.getTaskRecordId())) {
@@ -109,7 +115,11 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             start = taskDto.getMonitorStartDate().getTime();
         }
 
-        criteria.and("timestamp").gte(start).lt(param.getEnd());
+        // monitor log save will after task stopTime 5s, so add 10s;
+        Long end = param.getEnd();
+        end += 10000L;
+
+        criteria.and("timestamp").gte(start).lt(end);
 
         if (StringUtils.isNotEmpty(param.getNodeId())) {
             criteria.and("nodeId").is(param.getNodeId());

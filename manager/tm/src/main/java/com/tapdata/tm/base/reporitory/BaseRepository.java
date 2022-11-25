@@ -259,7 +259,7 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
         return update;
     }
 
-    private Update buildReplaceSet(Entity entity) {
+    protected Update buildReplaceSet(Entity entity) {
         Update update = new Update();
         Field[] files = ReflectionUtils.getAllDeclaredFields(entityClass);
         for (Field field : files) {

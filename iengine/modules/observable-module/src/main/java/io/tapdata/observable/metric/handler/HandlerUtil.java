@@ -1,11 +1,14 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.dml.*;
 import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.ddl.index.*;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Data;
 
 import java.util.List;
@@ -15,13 +18,19 @@ import java.util.List;
  */
 public class HandlerUtil {
     public static EventTypeRecorder countTapdataEvent(List<TapdataEvent> events) {
+        long now = System.currentTimeMillis();
+
         EventTypeRecorder recorder = new EventTypeRecorder();
         for (TapdataEvent tapdataEvent : events) {
             // skip events like heartbeat
             if (null == tapdataEvent.getTapEvent()) {
+                if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+                    setEventTimestamp(recorder, tapdataEvent.getSourceTime());
+                }
                 continue;
             }
-            countEventType(tapdataEvent.getTapEvent(), recorder);
+            Long referenceTime = countEventTypeAndGetReferenceTime(tapdataEvent.getTapEvent(), recorder);
+            CommonUtils.ignoreAnyError(() -> recorder.incrReplicateLagTotal(now, referenceTime), "HandlerUtil-countTapdataEvent");
         }
 
         return recorder;
@@ -30,47 +39,58 @@ public class HandlerUtil {
     public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
         long now = System.currentTimeMillis();
 
+        Long referenceTime;
         EventTypeRecorder recorder = new EventTypeRecorder();
         for (TapEvent tapEvent : events) {
-            TapBaseEvent event = (TapBaseEvent) tapEvent;
-            countEventType(event, recorder);
-            recorder.incrProcessTimeTotal(now, event.getTime());
-            recorder.incrReplicateLagTotal(now, event.getReferenceTime());
+            referenceTime = countEventTypeAndGetReferenceTime(tapEvent, recorder);
+            recorder.incrProcessTimeTotal(now, tapEvent.getTime());
+            recorder.incrReplicateLagTotal(now, referenceTime);
         }
 
         return recorder;
     }
 
-    private static void countEventType(TapEvent event, EventTypeRecorder recorder) {
-        switch (event.getType()) {
-            case TapInsertRecordEvent.TYPE:
-                recorder.incrInsertTotal();
-                break;
-            case TapDeleteRecordEvent.TYPE:
-                recorder.incrDeleteTotal();
-                break;
-            case TapUpdateRecordEvent.TYPE:
-                recorder.incrUpdateTotal();
-                break;
-            case TapDeleteIndexEvent.TYPE:
-            case TapCreateIndexEvent.TYPE:
-            case TapAlterDatabaseTimezoneEvent.TYPE:
-            case TapAlterFieldAttributesEvent.TYPE:
-            case TapAlterFieldNameEvent.TYPE:
-            case TapAlterFieldPrimaryKeyEvent.TYPE:
-            case TapAlterTableCharsetEvent.TYPE:
-            case TapClearTableEvent.TYPE:
-            case TapCreateTableEvent.TYPE:
-            case TapDropFieldEvent.TYPE:
-            case TapDropTableEvent.TYPE:
-            case TapNewFieldEvent.TYPE:
-            case TapRenameTableEvent.TYPE:
-                recorder.incrDdlTotal();
-                break;
-            default:
-                recorder.incrOthersTotal();
+    private static Long countEventTypeAndGetReferenceTime(TapEvent event, EventTypeRecorder recorder) {
+        Long ts;
+        if (event instanceof HeartbeatEvent) {
+            ts = ((HeartbeatEvent) event).getReferenceTime();
+        } else {
+            ts = ((TapBaseEvent) event).getReferenceTime();
+
+            switch (event.getType()) {
+                case TapInsertRecordEvent.TYPE:
+                    recorder.incrInsertTotal();
+                    break;
+                case TapDeleteRecordEvent.TYPE:
+                    recorder.incrDeleteTotal();
+                    break;
+                case TapUpdateRecordEvent.TYPE:
+                    recorder.incrUpdateTotal();
+                    break;
+                case TapDeleteIndexEvent.TYPE:
+                case TapCreateIndexEvent.TYPE:
+                case TapAlterDatabaseTimezoneEvent.TYPE:
+                case TapAlterFieldAttributesEvent.TYPE:
+                case TapAlterFieldNameEvent.TYPE:
+                case TapAlterFieldPrimaryKeyEvent.TYPE:
+                case TapAlterTableCharsetEvent.TYPE:
+                case TapClearTableEvent.TYPE:
+                case TapCreateTableEvent.TYPE:
+                case TapDropFieldEvent.TYPE:
+                case TapDropTableEvent.TYPE:
+                case TapNewFieldEvent.TYPE:
+                case TapRenameTableEvent.TYPE:
+                    recorder.incrDdlTotal();
+                    break;
+                default:
+                    recorder.incrOthersTotal();
+            }
         }
-        Long ts = ((TapBaseEvent) event).getReferenceTime();
+        setEventTimestamp(recorder, ts);
+        return ts;
+    }
+
+    private static void setEventTimestamp(EventTypeRecorder recorder, Long ts) {
         if (null != ts) {
             if (null == recorder.getNewestEventTimestamp() || ts > recorder.getNewestEventTimestamp()) {
                 recorder.setNewestEventTimestamp(ts);

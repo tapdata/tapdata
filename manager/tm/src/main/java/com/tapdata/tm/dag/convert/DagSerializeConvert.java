@@ -1,6 +1,6 @@
 package com.tapdata.tm.dag.convert;
 
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.task.dto.Dag;
 import org.bson.Document;

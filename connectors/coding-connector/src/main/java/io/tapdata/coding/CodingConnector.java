@@ -78,7 +78,7 @@ public class CodingConnector extends ConnectorBase {
 		synchronized (this) {
 			this.notify();
 		}
-		TapLogger.debug(TAG, "Stop connector");
+		TapLogger.info(TAG, "Stop connector");
 	}
 
 	private ConnectorFunctions connectorFunctions;
@@ -204,8 +204,17 @@ public class CodingConnector extends ConnectorBase {
 			throw new CoreException("Connection Mode is not empty or not null.");
 		}
 		List<TapTable> tapTables = connectionMode.discoverSchema(tables, tableSize);
+		List<TapTable> tablesFinal = new ArrayList<>();
+		if (null != tapTables && !tapTables.isEmpty()){
+			tapTables.stream().filter(Objects::nonNull).forEach(tab->{
+				String tabId = tab.getId();
+				if ( null==tables || tables.isEmpty() || tables.contains(tabId) ){
+					tablesFinal.add(tab);
+				}
+			});
+		}
 		if (null != tapTables){
-			consumer.accept(tapTables);
+			consumer.accept(tablesFinal.subList(0,Math.min(tablesFinal.size(),tableSize)));
 		}
 	}
 
@@ -233,8 +242,7 @@ public class CodingConnector extends ConnectorBase {
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-		return 3;
-//		List<SchemaStart> allSchemas = SchemaStart.getAllSchemas();
-//		return allSchemas.size();
+		List<SchemaStart> allSchemas = SchemaStart.getAllSchemas(connectionContext);
+		return allSchemas.size();
 	}
 }

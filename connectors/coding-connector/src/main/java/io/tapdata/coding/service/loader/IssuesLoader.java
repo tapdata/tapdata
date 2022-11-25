@@ -15,6 +15,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.Entry;
@@ -30,6 +31,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static io.tapdata.entity.simplify.TapSimplify.formatTapDateTime;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 import static io.tapdata.coding.enums.TapEventTypes.*;
 
@@ -255,7 +258,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
     @Override
     public Long streamReadTime() {
-        return 1 * 60 * 1000l;
+        return 5 * 60 * 1000l;
     }
 
     @Override
@@ -409,16 +412,14 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                         ? (CodingOffset) offsetState : new CodingOffset();
         Map<String, Long> tableUpdateTimeMap = codingOffset.getTableUpdateTimeMap();
         if (null == tableUpdateTimeMap || tableUpdateTimeMap.isEmpty()) {
-            TapLogger.warn(TAG, "offsetState is Empty or not Exist! Stop to stream read.");
+            TapLogger.warn(TAG, "offsetState is Empty or not Exist. Stop to stream read.");
             return;
         }
         String currentTable = tableList.get(0);
-        TapLogger.info(TAG, "Stream read is starting.");
         consumer.streamReadStarted();
         long current = tableUpdateTimeMap.get(currentTable);
         Long last = Long.MAX_VALUE;
-        this.read(current, last, recordSize, codingOffset, consumer);
-        TapLogger.info(TAG, "Stream read is ending.");
+        this.read(current, last, recordSize, codingOffset, consumer,true);
     }
 
     @Override
@@ -867,7 +868,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             Long readEndTime,
             int readSize,
             Object offsetState,
-            BiConsumer<List<TapEvent>, Object> consumer) {
+            BiConsumer<List<TapEvent>, Object> consumer,
+            boolean isStreamRead) {
+        long readStart = System.currentTimeMillis();
+        if (isStreamRead){
+            TapLogger.info(TAG, "Stream read is starting at {}. Everything be ready." ,longToDateTimeStr(readStart) );
+         }
         int currentQueryCount = 0, queryIndex = 0;
         final List<TapEvent>[] events = new List[]{new CopyOnWriteArrayList()};
         HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", this.contextConfig.getToken());
@@ -908,6 +914,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             offsetState = new CodingOffset();
         }
         CodingOffset offset = (CodingOffset) offsetState;
+        int totalCount = 0;
         do {
             pageBody.builder("PageNumber", queryIndex++);
             Map<String, Object> dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
@@ -937,7 +944,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
                     if (!lastTimeSplitIssueCode.contains(issueDetialHash)) {
                         events[0].add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
-
+                        totalCount += 1;
                         if (null == currentTimePoint || !currentTimePoint.equals(this.lastTimePoint)) {
                             this.lastTimePoint = currentTimePoint;
                             lastTimeSplitIssueCode = new ArrayList<Integer>();
@@ -962,5 +969,15 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             consumer.accept(events[0], offset);
         }
         //startRead.set(false);
+        long readEnd = System.currentTimeMillis();
+        if (isStreamRead) {
+            TapLogger.info(TAG,
+                    totalCount>0?
+                            "Stream read is ending at {}, it took {} ms accumulatively to process {} issues"
+                            :"Stream read is ending at {}, it took {} ms ,but {} issues were processed. Currently, no issue changes were detected.",
+                    longToDateTimeStr(readEnd),
+                    readEnd - readStart,
+                    totalCount);
+        }
     }
 }

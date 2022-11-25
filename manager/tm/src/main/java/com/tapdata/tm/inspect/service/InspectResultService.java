@@ -1,7 +1,7 @@
 package com.tapdata.tm.inspect.service;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;

@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.task.cleaner;
 
 import com.tapdata.mongo.ClientMongoOperator;
+import io.tapdata.flow.engine.V2.task.OpType;
 
 /**
  * @author samuel

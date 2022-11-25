@@ -10,6 +10,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.utils.WebUtils;
+import com.tapdata.tm.verison.dto.VersionDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.error.CoreException;
@@ -70,9 +71,10 @@ public class ProxyController extends BaseController {
     private final int[] checkCloudLock = new int[0];
     @Value("${gateway.secret:}")
     private String gatewaySecret;
+    @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
+    private List<String> productList;
     @Autowired
     private SettingsService settingsService;
-    private Boolean isCloud = null;
 
     private static final int wsPort = 8246;
 
@@ -119,25 +121,15 @@ public class ProxyController extends BaseController {
          *   server 10.50.1.5:11211;
          * }
          */
-        checkIsCloudOrNot();
+        boolean isCloud = false;
+        if (productList != null && productList.contains("dfs")) { //is cloud env
+            isCloud = true;
+        }
         String wsPath = loginProxyDto.getService() + "/" + MD5.create().digestHex(loginProxyDto.getClientId());
         loginProxyResponseDto.setWsPath(isCloud ? "console/tm/" + wsPath : wsPath);
         return success(loginProxyResponseDto);
     }
 
-    private void checkIsCloudOrNot() {
-        if(isCloud == null) {
-            synchronized (checkCloudLock) {
-                if(isCloud == null) {
-                    Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
-                    if (Objects.isNull(buildProfile)) {
-                        buildProfile = "DAAS";
-                    }
-                    isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
-                }
-            }
-        }
-    }
 
     @Operation(summary = "Generate callback url token")
     @PostMapping("subscribe")
@@ -146,14 +138,13 @@ public class ProxyController extends BaseController {
         String token = null;
 
         ProxyService proxyService = InstanceFactory.bean(ProxyService.class);
-        checkIsCloudOrNot();
-        if(isCloud) {
+        if (productList != null && productList.contains("dfs")) { //is cloud env
             if(!StringUtils.isBlank(gatewaySecret))
                 token = proxyService.generateStaticToken(userDetail.getUserId(), gatewaySecret);
             else
                 throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
         }
-        return success(proxyService.generateSubscriptionToken(subscribeDto, userDetail, token));
+        return success(proxyService.generateSubscriptionToken(subscribeDto, userDetail, token, request.getRequestURI()));
 //        if(subscribeDto == null)
 //            throw new BizException("SubscribeDto is null");
 //        if(subscribeDto.getSubscribeId() == null)

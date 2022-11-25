@@ -91,6 +91,18 @@
                             <Implementation-Title>${project.artifactId}</Implementation-Title>
                             <Implementation-Version>${project.version}</Implementation-Version>
                             <Implementation-Vendor>${project.groupId}</Implementation-Vendor>
+
+                            <Build-OS>${os.name} ${os.version}</Build-OS>
+                            <Build-Java>Java ${java.version}</Build-Java>
+                            <PDK-Runner-Version>${tapdata.pdk.runner.version}</PDK-Runner-Version>
+                            <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
+                            <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
+                            <Version>${version}</Version>
+                            <Git-Build-Time>${git.build.time}</Git-Build-Time>
+                            <Git-Branch>${git.branch}</Git-Branch>
+                            <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>
+                            <Git-Build-User-Name>${git.build.user.name}</Git-Build-User-Name>
+                            <Git-Build-User-Email>${git.build.user.email}</Git-Build-User-Email>
                         </manifestEntries>
                     </archive>
                     <appendAssemblyId>false</appendAssemblyId>
@@ -108,6 +120,27 @@
 
             </plugin>
             <plugin>
+                <groupId>pl.project13.maven</groupId>
+                <artifactId>git-commit-id-plugin</artifactId>
+                <version>2.2.3</version>
+                <executions>
+                    <execution>
+                        <id>get-the-git-infos</id>
+                        <goals>
+                            <goal>revision</goal>
+                        </goals>
+                        <phase>validate</phase>
+                    </execution>
+                </executions>
+                <configuration>
+                    <verbose>true</verbose>
+                    <generateGitPropertiesFile>true</generateGitPropertiesFile>
+                    <failOnNoGitDirectory>true</failOnNoGitDirectory>
+                    <injectAllReactorProjects>true</injectAllReactorProjects>
+                    <dotGitDirectory>${project.basedir}/../../.git</dotGitDirectory>
+                </configuration>
+            </plugin>
+            <plugin>
                 <artifactId>maven-resources-plugin</artifactId>
                 <version>3.1.0</version>
                 <executions>
@@ -119,7 +152,7 @@
                         </goals>
 
                         <configuration>
-                            <outputDirectory>../dist</outputDirectory>
+                            <outputDirectory>${basedir}/../dist/</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${basedir}/target/</directory>

@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
@@ -64,9 +64,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -82,7 +80,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -104,9 +101,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])([a-zA-Z0-9_\\s-]|[\u4e00-\u9fa5])*$";
 	@Value("${gateway.secret:}")
 	private String gatewaySecret;
+	@Value("#{'${spring.profiles.include:idaas}'.split(',')}")
+	private List<String> productList;
 	@Autowired
 	private SettingsService settingsService;
-	private Boolean isCloud = null;
 	private final Object checkCloudLock = new Object();
 	@Autowired
 	private ClassificationService classificationService;
@@ -673,9 +671,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	 *
 	 * @param user
 	 * @param id
+	 * @param requestURI
 	 * @return
 	 */
-	public DataSourceConnectionDto copy(UserDetail user, String id) {
+	public DataSourceConnectionDto copy(UserDetail user, String id, String requestURI) {
 		boolean boolValue = SettingsEnum.CONNECTIONS_CREAT_DUPLICATE_SOURCE.getBoolValue(true);
 		log.debug("system duplicateCreate param = {}", boolValue);
 		if (!boolValue) {
@@ -712,7 +711,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 			}
 		}
-		this.resetWebHookOnCopy(entity,user);//重置WebHook URL
+		this.resetWebHookOnCopy(entity,user, requestURI);//重置WebHook URL
 
 		log.debug("copy datasource success, datasource name = {}", connectionName);
 
@@ -726,12 +725,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	/**
 	 * 复制数据源时，重置WebHook连接（For SaaS）
 	 * 在数据源JSONSchema中对connection配置了actionOnCopy属性
-	 * @Author Gavin
-	 * @Date 2022-10-17
+	 *
 	 * @param entity
 	 * @param user
-	 * */
-	private void resetWebHookOnCopy(DataSourceEntity entity,UserDetail user){
+	 * @param requestURI
+	 * @Author Gavin
+	 * @Date 2022-10-17
+	 */
+	private void resetWebHookOnCopy(DataSourceEntity entity, UserDetail user, String requestURI){
 			ObjectId copyId = entity.getId();
 			if (null == copyId) entity.setId(copyId = new ObjectId());
 			//获取并校验pdkHash,用于获取jsonSchema
@@ -789,15 +790,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 						ProxyService proxyService = InstanceFactory.bean(ProxyService.class);
 
-						checkIsCloudOrNot();
 						String token = null;
-						if(isCloud) {
+						if(productList != null && productList.contains("dfs")) {
 							if(!StringUtils.isBlank(gatewaySecret))
 								token = proxyService.generateStaticToken(user.getUserId(), gatewaySecret);
 							else
 								throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
 						}
-						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, user, token);
+						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, user, token, requestURI);
 						String webHookUrl = url.getProtocol() + "://" + url.getHost() + (url.getPort() > 0 ? (":" + url.getPort()) : "") + subscribeResponseDto.getToken();
 						config.put(key, webHookUrl);
 
@@ -805,19 +805,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					}
 				}
 			}
-	}
-	private void checkIsCloudOrNot() {
-		if(isCloud == null) {
-			synchronized (checkCloudLock) {
-				if(isCloud == null) {
-					Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
-					if (Objects.isNull(buildProfile)) {
-						buildProfile = "DAAS";
-					}
-					isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
-				}
-			}
-		}
 	}
 	/**
 	 * mongodb这种类型数据源类型的，存在库里面的就是一个uri,需要解析成为一个标准模式的返回
@@ -1337,6 +1324,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
 									, newModelList.size(), name, pair.getLeft(), pair.getRight());
 							deleteModels(loadFieldsStatus, connectionId, schemaVersion, user);
+							update.put("loadSchemaTime", new Date());
+
 						}
 					}
 				} else {

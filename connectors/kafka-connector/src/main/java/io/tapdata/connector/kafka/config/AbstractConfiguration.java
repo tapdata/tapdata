@@ -1,7 +1,7 @@
 package io.tapdata.connector.kafka.config;
 
 import io.tapdata.connector.kafka.util.Krb5Util;
-import org.apache.commons.lang3.StringUtils;
+import io.tapdata.kit.EmptyKit;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -29,7 +29,7 @@ public abstract class AbstractConfiguration implements KafkaConfiguration {
         if (kafkaConfig.getKrb5()) {
             String krb5Path = Krb5Util.saveByCatalog("connections-" + connectorId, kafkaConfig.getKrb5Keytab(), kafkaConfig.getKrb5Conf(), true);
             Krb5Util.updateKafkaConf(kafkaConfig.getKrb5ServiceName(), kafkaConfig.getKrb5Principal(), krb5Path, kafkaConfig.getKrb5Conf(), configMap);
-        } else if (StringUtils.isNotEmpty(this.kafkaConfig.getMqUsername()) && StringUtils.isNotEmpty(this.kafkaConfig.getMqPassword())) {
+        } else if (EmptyKit.isNotEmpty(this.kafkaConfig.getMqUsername()) && EmptyKit.isNotEmpty(this.kafkaConfig.getMqPassword())) {
             configMap.put("security.protocol", "SASL_PLAINTEXT");
             String saslMechanism;
             String model;
@@ -44,7 +44,7 @@ public abstract class AbstractConfiguration implements KafkaConfiguration {
                     break;
                 case "SHA512":
                     saslMechanism = "SCRAM-SHA-512";
-                    model ="org.apache.kafka.common.security.scram.ScramLoginModule";
+                    model = "org.apache.kafka.common.security.scram.ScramLoginModule";
                     break;
                 default:
                     throw new IllegalArgumentException("Un-supported sasl.mechanism: " + kafkaConfig.getKafkaSaslMechanism().toUpperCase());

@@ -2,14 +2,16 @@ package io.tapdata.flow.engine.V2.monitor.impl;
 
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.Log4jUtil;
+import com.tapdata.entity.Connections;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.node.pdk.ConnectorNodeService;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -45,8 +47,9 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 	private TableResult tableResult;
 	private TaskDto taskDto;
 	private Set<String> removeTables;
+	private Connections connections;
 
-	public TableMonitor(TapTableMap<String, TapTable> tapTableMap, String associateId, TaskDto taskDto) {
+	public TableMonitor(TapTableMap<String, TapTable> tapTableMap, String associateId, TaskDto taskDto, Connections connections) {
 		if (null == tapTableMap) {
 			throw new RuntimeException("Missing Tap Table Map");
 		}
@@ -56,6 +59,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 		this.tapTableMap = tapTableMap;
 		this.associateId = associateId;
 		this.taskDto = taskDto;
+		this.connections = connections;
 		this.lock = new ReentrantLock();
 		this.threadPool = new ScheduledThreadPoolExecutor(1);
 		this.tableResult = TableResult.create();
@@ -93,15 +97,23 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 						break;
 					}
 				}
+				LoadSchemaRunner.TableFilter tableFilter = LoadSchemaRunner.TableFilter.create(connections.getTable_filter(), connections.getIfOpenTableExcludeFilter());
 				List<String> tapTableNames = new ArrayList<>(tapTableMap.keySet());
 				tapTableNames = tapTableNames.stream().filter(name -> !removeTables.contains(name)).collect(Collectors.toList());
 				GetTableNamesFunction getTableNamesFunction = connectorNode.getConnectorFunctions().getGetTableNamesFunction();
+				if (null == getTableNamesFunction) {
+					logger.warn("Connector [" + connectorNode.getConnectorContext().getSpecification().getName() + "] not support get table names function," +
+							"start dynamic table monitor failed");
+					this.close();
+					return;
+				}
 				List<String> finalTapTableNames = tapTableNames;
 				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.GET_TABLE_NAMES,
 						() -> getTableNamesFunction.tableNames(connectorNode.getConnectorContext(), BATCH_SIZE, dbTableNames -> {
 							if (null == dbTableNames) {
 								return;
 							}
+							dbTableNames = dbTableNames.stream().filter(tableFilter).collect(Collectors.toList());
 							for (String dbTableName : dbTableNames) {
 								if (finalTapTableNames.contains(dbTableName)) {
 									finalTapTableNames.remove(dbTableName);

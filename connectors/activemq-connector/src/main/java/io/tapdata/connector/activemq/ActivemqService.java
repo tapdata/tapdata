@@ -23,7 +23,6 @@ import org.apache.activemq.ActiveMQConnection;
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.activemq.command.ActiveMQTextMessage;
-import org.apache.commons.lang3.StringUtils;
 
 import javax.jms.Queue;
 import javax.jms.*;
@@ -47,10 +46,10 @@ public class ActivemqService extends AbstractMqService {
         this.mqConfig = activemqConfig;
         activeMQConnectionFactory = new ActiveMQConnectionFactory();
         activeMQConnectionFactory.setBrokerURL(activemqConfig.getBrokerURL());
-        if (StringUtils.isNotEmpty(activemqConfig.getMqUsername())) {
+        if (EmptyKit.isNotEmpty(activemqConfig.getMqUsername())) {
             activeMQConnectionFactory.setUserName(activemqConfig.getMqUsername());
         }
-        if (StringUtils.isNotEmpty(activemqConfig.getMqPassword())) {
+        if (EmptyKit.isNotEmpty(activemqConfig.getMqPassword())) {
             activeMQConnectionFactory.setPassword(activemqConfig.getMqPassword());
         }
     }

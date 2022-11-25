@@ -2,7 +2,7 @@ package com.tapdata.tm.monitor.service.impl;
 
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Lists;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.monitor.constant.BatchServiceEnum;
 import com.tapdata.tm.monitor.dto.BatchRequestDto;
 import com.tapdata.tm.monitor.dto.BatchUriParamDto;
@@ -60,9 +60,7 @@ public class BatchServiceImpl implements BatchService {
                     Object obj = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(param), paramClass);
                     Object bean = SpringUtil.getBean(serviceClass);
                     Object data = method.invoke(bean, obj);
-                    if (bean == null ||  data == null) {
-                        result.put(k, new BatchDataVo("ok", null, data));
-                    }
+                    result.put(k, new BatchDataVo("ok", null, data));
                     return result;
                 } catch (ClassNotFoundException | InvocationTargetException | NoSuchMethodException |
                          IllegalAccessException e) {
