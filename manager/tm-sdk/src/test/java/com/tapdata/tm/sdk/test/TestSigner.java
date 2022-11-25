@@ -3,6 +3,7 @@ package com.tapdata.tm.sdk.test;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.tapdata.tm.sdk.auth.BasicCredentials;
+import com.tapdata.tm.sdk.auth.HmacSHA256Signer;
 import com.tapdata.tm.sdk.auth.Signer;
 import com.tapdata.tm.sdk.util.Base64Util;
 import com.tapdata.tm.sdk.util.IOUtil;
@@ -17,6 +18,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -275,6 +277,26 @@ public class TestSigner {
         Map<String, Object> result = parseJson(response, new TypeToken<Map<String, Object>>() {
         });
         Assert.assertEquals(result.get("code"), "ok");
+    }
+
+    @Test
+    public void testGeneratorStaticToken() {
+
+        final String secret = "xxxxxx";
+
+        String userId = "userId";
+
+        byte[] digestData = new HmacSHA256Signer().sign(userId + secret, secret);
+
+        StringBuilder result = new StringBuilder();
+        for (byte aByte : digestData) {
+            result.append(String.format("%02x", aByte));
+        }
+        String sign = Base64Util.encode(result.toString().getBytes());
+
+        String token = String.format("%s.%s", Base64Util.encode(userId.getBytes()), sign);
+        System.out.println(token);
+
     }
 
 }

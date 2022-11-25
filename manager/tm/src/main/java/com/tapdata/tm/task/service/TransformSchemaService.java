@@ -4,7 +4,6 @@ import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -13,16 +12,15 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.lock.annotation.Lock;
-import com.tapdata.tm.lock.constant.LockType;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
@@ -33,14 +31,12 @@ import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -114,11 +110,6 @@ public class TransformSchemaService {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
         taskDto.setUserId(user.getUserId());
         DAG dag = taskDto.getDag();
-        List<Node> dagNodes = dag.getNodes();
-        dagNodes.forEach(node -> {
-            node.setService(dagDataService);
-            node.getDag().setTaskId(taskDto.getId());
-        });
 
         DAG.Options options = new DAG.Options(taskDto.getRollback(), taskDto.getRollbackTable());
         options.setSyncType(taskDto.getSyncType());
@@ -130,6 +121,20 @@ public class TransformSchemaService {
         // update metaTransformer version
         dag.getTargets().forEach(target -> metadataTransformerService.updateVersion(taskDto.getId().toHexString(), target.getId(), options.getUuid()));
 
+        List<Node> dagNodes = dag.getNodes();
+        dagNodes.forEach(node -> {
+            node.setService(dagDataService);
+            node.getDag().setTaskId(taskDto.getId());
+
+            if (node instanceof DataParentNode) {
+                Optional.ofNullable(((DataParentNode<?>) node).getFieldChangeRules()).ifPresent(fieldChangeRules -> {
+                    if (null == options.getFieldChangeRules()) {
+                        options.setFieldChangeRules(new FieldChangeRuleGroup());
+                    }
+                    options.getFieldChangeRules().addAll(node.getId(), fieldChangeRules);
+                });
+            }
+        });
         List<Node> nodes = dagNodes;
 
         List<MetadataInstancesDto> metadataList = new ArrayList<>();

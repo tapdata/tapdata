@@ -1,6 +1,7 @@
 package io.tapdata.autoinspect.connector;
 
 import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.task.config.TaskRetryConfig;
@@ -23,9 +24,12 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableUtil;
 import lombok.NonNull;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.util.*;
@@ -39,7 +43,7 @@ import java.util.function.Supplier;
  */
 public class PdkConnector implements IPdkConnector {
     private static final String TAG = PdkConnector.class.getSimpleName();
-
+    private final Logger logger = LogManager.getLogger(PdkConnector.class);
     private final Connections connections;
     private final ConnectorNode connectorNode;
     private final Supplier<Boolean> isRunning;
@@ -146,8 +150,14 @@ public class PdkConnector implements IPdkConnector {
     @Override
     public void close() throws Exception {
         if (null != connectorNode) {
-            PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
-            PDKIntegration.releaseAssociateId(connectorNode.getAssociateId());
+            CommonUtils.handleAnyError(() -> {
+                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
+                logger.info("Inspect stop pdk node complete, connection: {}[{}], pdk node: {}", connections.getName(), connections.getId(), connectorNode);
+            }, err -> logger.warn("Inspect stop pdk node failed, connection: {}[{}], pdk node: {}, error: {}\n{}", connections.getName(), connections.getId(), connectorNode, err.getMessage(), Log4jUtil.getStackString(err)));
+            CommonUtils.handleAnyError(() -> {
+                PDKIntegration.releaseAssociateId(connectorNode.getAssociateId());
+                logger.info("Inspect release pdk node complete, connection: {}[{}], pdk node: {}", connections.getName(), connections.getId(), connectorNode);
+            }, err -> logger.warn("Inspect release pdk node failed,  connection: {}[{}], pdk node: {}, error: {}\n{}", connections.getName(), connections.getId(), connectorNode, err.getMessage(), Log4jUtil.getStackString(err)));
         }
     }
 }

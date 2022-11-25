@@ -6,8 +6,6 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.extra.spring.SpringUtil;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -19,13 +17,10 @@ import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
-import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
-import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
-import com.tapdata.tm.commons.task.dto.Milestone;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
@@ -36,8 +31,8 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.service.MessageService;
-import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
@@ -328,7 +323,9 @@ public class AlarmServiceImpl implements AlarmService {
             criteria.and("status").is(AlarmStatusEnum.valueOf(status));
         }
         if (Objects.nonNull(keyword)) {
-            criteria.and("name").regex(keyword);
+            criteria.orOperator(Criteria.where("name").regex(keyword),
+                    Criteria.where("node").regex(keyword),
+                    Criteria.where("summary").regex(keyword));
         }
 
         if (Objects.nonNull(start) && Objects.nonNull(end)){
@@ -477,17 +474,16 @@ public class AlarmServiceImpl implements AlarmService {
                 .receivers(Arrays.asList(split)).build();
     }
 
-    @Override
-    public void connectPassAlarm(JSONArray taskIds, String nodeName, String connectId, String response_body) {
-        String summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_RECOVER, nodeName, DateUtil.now());
-
-        List<String> list = JSONObject.parseArray(taskIds.toJSONString(), String.class);
-
-        List<TaskDto> taskEntityList = taskService.findAllTasksByIds(list);
-
+    private void connectPassAlarm(String nodeName, String connectId, String response_body, List<TaskDto> taskEntityList) {
         if (CollectionUtils.isEmpty(taskEntityList)) {
             return;
         }
+
+        if (Objects.isNull(nodeName)) {
+            return;
+        }
+
+        String summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_RECOVER, nodeName, DateUtil.now());
 
         for (TaskDto task : taskEntityList) {
             String agentId = task.getAgentId();
@@ -497,9 +493,6 @@ public class AlarmServiceImpl implements AlarmService {
             Node<?> nodeTemp = task.getDag().getNodes().stream()
                     .filter(node -> node instanceof DataParentNode && connectId.equals(((DataParentNode<?>) node).getConnectionId()))
                     .findFirst().orElse(null);
-            if (Objects.isNull(nodeName)) {
-                continue;
-            }
             String nodeId = nodeTemp.getId();
 
             HashMap<String, Object> param = Maps.newHashMap();
@@ -520,15 +513,9 @@ public class AlarmServiceImpl implements AlarmService {
                 this.save(alarmInfo);
             }
         }
-
     }
 
-    @Override
-    public void connectFailAlarm(JSONArray taskIds, String nodeName, String connectId, String response_body) {
-        List<String> list = JSONObject.parseArray(taskIds.toJSONString(), String.class);
-
-        List<TaskDto> taskEntityList = taskService.findAllTasksByIds(list);
-
+    private void connectFailAlarm(String nodeName, String connectId, String response_body, List<TaskDto> taskEntityList) {
         if (CollectionUtils.isEmpty(taskEntityList)) {
             return;
         }
@@ -577,6 +564,20 @@ public class AlarmServiceImpl implements AlarmService {
                 SpringUtil.getBean(AlarmService.class).save(alarmInfo);
             });
         }
+    }
+
+    @Override
+    public void connectAlarm(String nodeName, String connectId, String response_body, boolean pass) {
+        Criteria taskCriteria = Criteria.where("status").is(TaskDto.STATUS_RUNNING)
+                .and("dag.nodes.connectionId").is(connectId);
+        List<TaskDto> taskList = taskService.findAll(Query.query(taskCriteria));
+
+        if (CollectionUtils.isEmpty(taskList)) return;
+
+        FunctionUtils.isTureOrFalse(pass).trueOrFalseHandle(
+                () -> connectPassAlarm(nodeName, connectId, response_body, taskList),
+                () -> connectFailAlarm(nodeName, connectId, response_body, taskList)
+        );
     }
 
     @Override

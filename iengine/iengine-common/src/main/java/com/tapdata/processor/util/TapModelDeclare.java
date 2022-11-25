@@ -5,14 +5,13 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.utils.JavaTypesToTapTypes;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -97,7 +96,7 @@ public class TapModelDeclare {
     Optional<TapField> optionalTapField = tapTable.getNameFieldMap().entrySet().stream().filter(t -> StringUtils.equals(fieldName, t.getKey())).map(Map.Entry::getValue)
             .peek(f -> {
               f.setPrimaryKey(true);
-              f.setPrimaryKeyPos(1);
+              f.setPrimaryKeyPos(tapTable.getMaxPKPos() + 1);
             }).findFirst();
 
     optionalTapField.ifPresent(f-> tapTable.getNameFieldMap().put(fieldName, f));
@@ -126,26 +125,32 @@ public class TapModelDeclare {
   }
 
   public static void addIndex(TapTable tapTable, String indexName, List<Map<String, Object>> descMap) {
+    addIndex(tapTable, indexName, false, false, null, descMap);
+  }
+
+  public static void addIndex(TapTable tapTable, String indexName, Boolean unique, Boolean primary, Boolean cluster, List<Map<String, Object>> descMap) {
     if (StringUtils.isEmpty(indexName) || CollectionUtils.isEmpty(descMap)) {
       throw new IllegalArgumentException("The index name and the description of the index are illegal");
     }
-    if (tapTable.getIndexList().stream().anyMatch(i -> i.getName().equals(indexName))) {
+    if (CollectionUtils.isNotEmpty(tapTable.getIndexList())
+            && tapTable.getIndexList().stream().anyMatch(i -> i.getName().equals(indexName))) {
       throw new IllegalArgumentException("index name already exists");
     }
-    TapIndex tapIndex = getTapIndex(indexName, descMap);
+    TapIndex tapIndex = getTapIndex(indexName, unique, primary, cluster, descMap);
     tapTable.add(tapIndex);
   }
 
-  public static void addIndex(List<SchemaApplyResult> schemaApplyResultList, String indexName, List<Map<String, Object>> descMap) {
+  public static void addIndex(List<SchemaApplyResult> schemaApplyResultList, String indexName, Boolean unique, Boolean primary, Boolean cluster, List<Map<String, Object>> descMap) {
     if (StringUtils.isEmpty(indexName) || CollectionUtils.isEmpty(descMap)) {
       throw new IllegalArgumentException("The index name and the description of the index are illegal");
     }
-    TapIndex tapIndex = getTapIndex(indexName, descMap);
+    TapIndex tapIndex = getTapIndex(indexName, unique, primary, cluster, descMap);
     schemaApplyResultList.add(new SchemaApplyResult(SchemaApplyResult.OP_TYPE_ADD_INDEX, tapIndex));
   }
 
   public static void removeIndex(TapTable tapTable, String indexName) {
-    if (tapTable.getIndexList().stream().noneMatch(i -> i.getName().equals(indexName))) {
+    if (CollectionUtils.isEmpty(tapTable.getIndexList())
+            || tapTable.getIndexList().stream().noneMatch(i -> i.getName().equals(indexName))) {
       logger.warn("index does not exist");
       return;
     }
@@ -156,30 +161,35 @@ public class TapModelDeclare {
     schemaApplyResultList.add(new SchemaApplyResult(SchemaApplyResult.OP_TYPE_REMOVE_INDEX, new TapIndex().name(indexName)));
   }
 
-  private static TapIndex getTapIndex(String indexName, List<Map<String, Object>> descMap) {
+  private static TapIndex getTapIndex(String indexName, Boolean unique, Boolean primary, Boolean cluster, List<Map<String, Object>> descMap) {
     TapIndex tapIndex = new TapIndex().name(indexName);
+    if (unique != null) {
+      tapIndex.unique(unique);
+    }
+    if (primary != null) {
+      tapIndex.primary(primary);
+    }
+    if (cluster != null) {
+      tapIndex.cluster(cluster);
+    }
     for (Map<String, Object> map : descMap) {
       String fieldName = (String) map.get("fieldName");
       if (StringUtils.isEmpty(fieldName)) {
         throw new IllegalArgumentException("The field name of the index cannot be empty");
       }
-      boolean order = (boolean) map.get("order");
-      tapIndex.indexField(new TapIndexField().name(fieldName).fieldAsc(order));
+      String order = (String) map.get("order");
+      tapIndex.indexField(new TapIndexField().name(fieldName).fieldAsc(StringUtils.equalsIgnoreCase(order, "asc")));
     }
     return tapIndex;
   }
 
-  private static TapField getTapField(String fieldName, String tapType, String dataType) throws InstantiationException, IllegalAccessException {
+  private static TapField getTapField(String fieldName, String tapType, String dataType) {
     Class<? extends TapType> tapTypeClass = TapType.getTapTypeClass(tapType);
     if (tapTypeClass == null) {
       throw new IllegalArgumentException("unknown tap type: " + tapType);
     }
-    TapType tapTypeInstance;
-    if (tapTypeClass == TapNumber.class) {
-      tapTypeInstance = new TapNumber().maxValue(new BigDecimal(Long.MAX_VALUE)).minValue(new BigDecimal(Long.MIN_VALUE));
-    } else {
-      tapTypeInstance = tapTypeClass.newInstance();
-    }
+
+    TapType tapTypeInstance = JavaTypesToTapTypes.toTapType(tapTypeClass);
     return new TapField(fieldName, dataType).tapType(tapTypeInstance);
   }
 }

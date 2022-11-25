@@ -42,7 +42,6 @@ import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
-import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
@@ -171,7 +170,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (needDynamicTable(null)) {
 				this.newTables = new CopyOnWriteArrayList<>();
 				this.removeTables = new CopyOnWriteArrayList<>();
-				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(), associateId, dataProcessorContext.getTaskDto());
+				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(),
+						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn());
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
@@ -222,7 +222,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					String connectionId = NodeUtil.getConnectionId(dataProcessorContext.getNode());
 					TaskDto.SyncPoint syncPoint = null;
 					if (null != syncPoints) {
-						syncPoint = syncPoints.stream().filter(sp -> connectionId.equals(sp.getConnectionId())).findFirst().orElse(null);
+						//todo: need to use syncPoint on node, fix the sync point does not take effect first
+//						syncPoint = syncPoints.stream().filter(sp -> connectionId.equals(sp.getConnectionId())).findFirst().orElse(null);
+						syncPoint = syncPoints.stream().findFirst().orElse(null);
 					}
 					String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
 					if (StringUtils.isBlank(pointType)) {
@@ -241,7 +243,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					break;
 			}
 			if (null != syncProgress.getStreamOffsetObj()) {
-				TapdataEvent tapdataEvent = new TapdataHeartbeatEvent(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
+				TapdataEvent tapdataEvent = TapdataHeartbeatEvent.create(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
 				enqueue(tapdataEvent);
 			}
 		} else {
@@ -272,12 +274,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						}
 					} else {
 						// switch share cdc to normal task
-						Long eventTime = syncProgress.getEventTime();
-						if (null == eventTime) {
-							throw new NodeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
-									+ " Please try to reset and start the task.").context(getProcessorBaseContext());
+						if (StringUtils.isNotBlank(streamOffset)) {
+							syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+						} else {
+							Long eventTime = syncProgress.getEventTime();
+							if (null == eventTime) {
+								throw new NodeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
+										+ " Please try to reset and start the task.").context(getProcessorBaseContext());
+							}
+							initStreamOffsetFromTime(eventTime);
 						}
-						initStreamOffsetFromTime(eventTime);
 					}
 					break;
 			}
@@ -316,7 +322,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Log4jUtil.setThreadContext(taskDto);
-			TapdataEvent dataEvent;
+			Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
+			TapdataEvent dataEvent = null;
 			if (!isRunning()) {
 				return true;
 			}
@@ -324,7 +331,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				dataEvent = pendingEvent;
 				pendingEvent = null;
 			} else {
-				dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
+				try {
+					dataEvent = eventQueue.poll(1, TimeUnit.SECONDS);
+				} catch (InterruptedException ignored) {
+				}
 				if (null != dataEvent) {
 					// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
 					// the event is considered been output to the next node.
@@ -339,8 +349,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					pendingEvent = dataEvent;
 					return false;
 				}
-				Optional.ofNullable(snapshotProgressManager)
-						.ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
 			}
 			if (error != null) {
 				throw new NodeException(error).context(getProcessorBaseContext());
@@ -577,7 +585,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				tapdataEvent.setSourceTime(((TapRecordEvent) tapEvent).getReferenceTime());
 			}
 		} else if (tapEvent instanceof HeartbeatEvent) {
-			tapdataEvent = new TapdataHeartbeatEvent(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
+			tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
 		} else if (tapEvent instanceof TapDDLEvent) {
 			logger.info("Source node received an ddl event: " + tapEvent);
 			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {

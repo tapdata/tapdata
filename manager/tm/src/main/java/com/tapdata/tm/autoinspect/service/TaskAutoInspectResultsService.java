@@ -22,16 +22,21 @@ import com.tapdata.tm.ws.enums.MessageType;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.GroupOperation;
+import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -99,5 +104,22 @@ public class TaskAutoInspectResultsService extends BaseService<TaskAutoInspectRe
         Query query = new Query(Criteria.where("taskId").is(taskId));
 
         return repository.count(query);
+    }
+
+
+    public Set<String> groupByTask(UserDetail user) {
+        GroupOperation groupOperation = Aggregation.group("taskId");
+        ProjectionOperation project = Aggregation.project("taskId");
+        Aggregation aggregation = Aggregation.newAggregation(groupOperation, project);
+        AggregationResults<Document> autoInspectResults = repository.getMongoOperations().aggregate(aggregation, "TaskAutoInspectResults", Document.class);
+        List<Document> mappedResults = autoInspectResults.getMappedResults();
+
+        Set<String> taskIds = new HashSet<>();
+
+        if (CollectionUtils.isNotEmpty(mappedResults)) {
+            taskIds = mappedResults.stream().map(d -> ((String) d.get("taskId"))).collect(Collectors.toSet());
+        }
+
+        return taskIds;
     }
 }

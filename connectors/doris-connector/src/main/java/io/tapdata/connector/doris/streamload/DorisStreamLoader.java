@@ -77,6 +77,7 @@ public class DorisStreamLoader {
     }
 
     public synchronized void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
+        TapLogger.info(TAG, "batch events length is: {}", tapRecordEvents.size());
         WriteListResult<TapRecordEvent> listResult = writeListResult();
         int index =0;
         boolean before_is_null =false;

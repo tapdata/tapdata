@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.schema.SchemaApplyResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.base.convert.DagDeserialize;
@@ -80,7 +80,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		) {
 
 			@Override
-			public TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, TaskDto taskDto) {
+			public TapTable loadTapTable(String nodeId, String virtualId, TaskDto taskDto) {
 				// 跑任务加载js模型
 				String schemaKey = taskDto.getId() + "-" + virtualId;
 				long startTs = System.currentTimeMillis();
@@ -106,7 +106,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 
 				TaskClient<TaskDto> taskClient = execTask(taskDto);
 
-				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+				logger.info("load MigrateJsResultVos task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 				if (TaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
 					//成功
 					List<SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);

@@ -182,7 +182,7 @@ public class TapdataTaskScheduler {
 				}
 			}
 		} catch (Exception e) {
-			logger.error("Find task type {} executor fail {} ", task_type, e.getMessage(), e);
+			logger.warn("Find task type {} executor fail {} ", task_type, e.getMessage());
 		}
 		return task;
 	}

@@ -1,13 +1,9 @@
 package com.tapdata.tm.commons.schema;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
-import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
-import io.tapdata.pdk.core.utils.TapConstants;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;

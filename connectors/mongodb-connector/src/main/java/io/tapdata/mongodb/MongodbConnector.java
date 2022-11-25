@@ -44,6 +44,7 @@ import org.bson.types.*;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -269,12 +270,13 @@ public class MongodbConnector extends ConnectorBase {
 		ConnectionOptions connectionOptions = ConnectionOptions.create();
 		try {
 			onStart(connectionContext);
-			try (final MongoCursor<String> mongoCursor = mongoDatabase.listCollectionNames().iterator()) {
-				mongoCursor.hasNext();
+			try (
+					MongodbTest mongodbTest = new MongodbTest(mongoConfig, consumer,mongoClient)
+			) {
+				mongodbTest.testOneByOne();
 			}
-			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
 		} catch (Throwable throwable) {
-			throwable.printStackTrace();
+			TapLogger.error(TAG,throwable.getMessage());
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
 		} finally {
 			onStop(connectionContext);
@@ -355,6 +357,16 @@ public class MongodbConnector extends ConnectorBase {
 			Decimal128 decimal128 = (Decimal128) value;
 			return new TapNumberValue(decimal128.doubleValue());
 		});
+
+		codecRegistry.registerToTapValue(Document.class, (value, tapType) -> {
+			Document  document  = (Document) value;
+			for (Map.Entry<String, Object> entry : document.entrySet()) {
+				if (entry.getValue() instanceof Double && entry.getValue().toString().contains("E")) {
+					entry.setValue(new BigDecimal(entry.getValue().toString()).toString());
+				}
+			}
+				return new TapMapValue(document);
+		});
 		codecRegistry.registerToTapValue(Symbol.class, (value, tapType) -> {
 			Symbol symbol = (Symbol) value;
 			return new TapStringValue(symbol.getSymbol());
@@ -364,6 +376,7 @@ public class MongodbConnector extends ConnectorBase {
 		codecRegistry.registerFromTapValue(TapTimeValue.class, "DATE_TIME", tapTimeValue -> tapTimeValue.getValue().toDate());
 		codecRegistry.registerFromTapValue(TapDateTimeValue.class, "DATE_TIME", tapDateTimeValue -> tapDateTimeValue.getValue().toDate());
 		codecRegistry.registerFromTapValue(TapDateValue.class, "DATE_TIME", tapDateValue -> tapDateValue.getValue().toDate());
+		codecRegistry.registerFromTapValue(TapYearValue.class, "STRING(4)", tapYearValue -> formatTapDateTime(tapYearValue.getValue(), "yyyy"));
 
 		//Handle ObjectId when the source is also mongodb, we convert ObjectId to String before enter incremental engine.
 		//We need check the TapStringValue, when will write to mongodb, if the originValue is ObjectId, then use originValue instead of the converted String value.
@@ -451,7 +464,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (MapUtils.isEmpty(connectionConfig)) {
 			throw new RuntimeException(String.format("connection config cannot be empty %s", connectionConfig));
 		}
-		mongoConfig = MongodbConfig.load(connectionConfig);
+		mongoConfig =(MongodbConfig) new MongodbConfig().load(connectionConfig);
 		if (mongoConfig == null) {
 			throw new RuntimeException(String.format("load mongo config failed from connection config %s", connectionConfig));
 		}

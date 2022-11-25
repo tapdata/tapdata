@@ -198,7 +198,7 @@ public class PartitionConcurrentProcessor {
 							break;
 						} catch (Throwable throwable) {
 							currentRunning.compareAndSet(true, false);
-							errorHandler.accept(throwable, "process watermark event failed");
+							errorHandler.accept(throwable, "target write record(s) failed");
 						}
 					}
 				} finally {
