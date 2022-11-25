@@ -43,7 +43,7 @@ public class TidbConnectionTest extends CommonDbTest {
     protected static final String CHECK_DATABASE_BINLOG_ROW_IMAGE_SQL = "SHOW VARIABLES LIKE '%binlog_row_image%'";
     protected static final String CHECK_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
             "FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
-            "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE'";
+            "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'Create'";
 
     private boolean cdcCapability;
     private ConnectionOptions connectionOptions;
@@ -289,7 +289,7 @@ public class TidbConnectionTest extends CommonDbTest {
                 if (!"ROW".equalsIgnoreCase(mode) || !"ON".equalsIgnoreCase(logbin)) {
                     cdcCapability = false;
                     testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                            "MySqlServer dose not open row level binlog mode, will not be able to use the incremental sync feature"));
+                            "TidbServer dose not open row level binlog mode, will not be able to use the incremental sync feature"));
                 } else {
                     testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY));
                 }
@@ -387,11 +387,8 @@ public class TidbConnectionTest extends CommonDbTest {
 
     protected enum CdcPrivilege {
         ALL_PRIVILEGES("ALL PRIVILEGES ON *.*", true),
-        REPLICATION_CLIENT("REPLICATION CLIENT|SUPER", false),
+        REPLICATION_CLIENT("REPLICATION CLIENT|Super", false),
         REPLICATION_SLAVE("REPLICATION SLAVE", false);
-        //		LOCK_TABLES("LOCK TABLES|ALL", false),
-//    RELOAD("RELOAD", false);
-
 
         private final String privileges;
         private final boolean onlyNeed;
