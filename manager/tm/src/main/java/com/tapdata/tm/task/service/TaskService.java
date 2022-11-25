@@ -721,6 +721,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         String status = taskDto.getStatus();
 
+        deleteScheduleTask(taskDto);
+
         if (!TaskOpStatusEnum.to_delete_status.v().contains(status)) {
             log.warn("task current status not allow to delete, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
             throw new BizException("Task.DeleteStatusInvalid");
@@ -3447,10 +3449,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return chart6Map;
     }
 
-    public void addScheduleTask(TaskDto taskDto){
+    public void addScheduleTask(TaskDto taskDto) {
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
                 && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.getIsSchedule()) {
+                && taskDto.isPlanStartDateFlag()) {
             CronUtil.addJob(taskDto);
         }
     }
@@ -3458,7 +3460,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void deleteScheduleTask(TaskDto taskDto) {
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
                 && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.getIsSchedule()) {
+                && taskDto.isPlanStartDateFlag()) {
             CronUtil.removeJob(String.valueOf(taskDto.getId()));
         }
 

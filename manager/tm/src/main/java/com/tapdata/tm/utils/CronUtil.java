@@ -67,11 +67,12 @@ public class CronUtil {
                 return;
             }
             // 基于表达式构建触发器
-            String cronString = "0 0/1 * * * ?";
-            //taskDto.getCrontabExpression()
+            //String cronString = "0 0/1 * * * ?";
+            String cronString =  taskDto.getCrontabExpression();
             CronScheduleBuilder cronScheduleBuilder = CronScheduleBuilder.cronSchedule(cronString);
             // CronTrigger表达式触发器 继承于Trigger
             // TriggerBuilder 用于构建触发器实例
+            // Date startDate = new Date(taskDto.getScheduleDate());
             CronTrigger cronTrigger = TriggerBuilder.newTrigger().withIdentity(taskDto.getId()+"_trigger")
                     .withSchedule(cronScheduleBuilder).build();
             scheduler.scheduleJob(jobDetail, cronTrigger);
