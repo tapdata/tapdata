@@ -2,12 +2,11 @@ package com.tapdata.tm.message.service;
 
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.NotificationDto;

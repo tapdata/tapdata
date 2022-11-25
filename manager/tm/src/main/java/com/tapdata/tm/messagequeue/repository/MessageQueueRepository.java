@@ -6,7 +6,6 @@
  */
 package com.tapdata.tm.messagequeue.repository;
 
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.messagequeue.entity.MessageQueue;
 import org.bson.types.ObjectId;

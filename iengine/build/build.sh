@@ -1,7 +1,7 @@
 ulimit -c unlimited
 sbin_file="ie.jar"
 
-mvn clean package
+mvn clean package -DskipTests
 if [[ $? -ne 0 ]]; then
     exit -1
 fi

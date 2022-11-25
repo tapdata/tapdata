@@ -96,7 +96,7 @@ public class TapModelDeclare {
     Optional<TapField> optionalTapField = tapTable.getNameFieldMap().entrySet().stream().filter(t -> StringUtils.equals(fieldName, t.getKey())).map(Map.Entry::getValue)
             .peek(f -> {
               f.setPrimaryKey(true);
-              f.setPrimaryKeyPos(tapTable.getMaxPKPos());
+              f.setPrimaryKeyPos(tapTable.getMaxPKPos() + 1);
             }).findFirst();
 
     optionalTapField.ifPresent(f-> tapTable.getNameFieldMap().put(fieldName, f));

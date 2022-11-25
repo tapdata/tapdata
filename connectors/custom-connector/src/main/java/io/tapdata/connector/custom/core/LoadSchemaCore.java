@@ -1,6 +1,6 @@
 package io.tapdata.connector.custom.core;
 
-import io.tapdata.connector.custom.exception.StopException;
+import io.tapdata.exception.StopException;
 import io.tapdata.kit.EmptyKit;
 
 import java.util.HashMap;

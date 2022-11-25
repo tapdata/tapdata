@@ -1,7 +1,6 @@
 package com.tapdata.tm.commons.schema;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.bean.FileSources;
@@ -92,6 +91,8 @@ public class DataSourceConnectionDto extends BaseDto {
         private Boolean loadAllTables;
         /** 自定义的加载表的表名列表  都号隔开*/
         private String table_filter;
+        private String tableExcludeFilter;
+        private Boolean openTableExcludeFilter;
         private String auth_db;
         private String project;
 
@@ -274,6 +275,8 @@ public class DataSourceConnectionDto extends BaseDto {
         private String connectionString;
 
         private Map<String, Object> extParam;
+
+        private Date loadSchemaTime;
 
         /**
          * 后续 开放可以多选 flow engine 的话，这里一定要删除

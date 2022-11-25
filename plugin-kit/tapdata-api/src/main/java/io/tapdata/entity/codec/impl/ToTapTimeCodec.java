@@ -35,7 +35,12 @@ public class ToTapTimeCodec implements ToTapValueCodec<TapTimeValue> {
             dateTimeValue.setOriginValue((String)value);
             return dateTimeValue;
         } else {
+            DateTime dateTime = AnyTimeToDateTime.toDateTime(value);
+            if (dateTime != null)
+                return new TapTimeValue(dateTime);
+        } /*else {
             throw new IllegalArgumentException("DateTime constructor time not support with " + value.getClass().getName());
-        }
+        }*/
+        return null;
     }
 }

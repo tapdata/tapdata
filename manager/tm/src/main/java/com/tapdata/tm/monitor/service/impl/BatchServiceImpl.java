@@ -2,7 +2,7 @@ package com.tapdata.tm.monitor.service.impl;
 
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Lists;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.monitor.constant.BatchServiceEnum;
 import com.tapdata.tm.monitor.dto.BatchRequestDto;
 import com.tapdata.tm.monitor.dto.BatchUriParamDto;

@@ -3,7 +3,7 @@ package com.tapdata.tm.tcm.service;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
 import com.google.gson.reflect.TypeToken;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.tcm.dto.PaidPlanRes;
 import com.tapdata.tm.tcm.dto.ResponseMessage;
 import com.tapdata.tm.tcm.dto.UserInfoDto;

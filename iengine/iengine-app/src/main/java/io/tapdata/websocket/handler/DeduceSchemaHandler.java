@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.schema.SchemaApplyResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.base.convert.DagDeserialize;

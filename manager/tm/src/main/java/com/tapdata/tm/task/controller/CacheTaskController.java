@@ -207,7 +207,7 @@ public class CacheTaskController extends BaseController {
     @PutMapping("stop/{id}")
     public ResponseMessage<TaskDto> stop(@PathVariable("id") String id
             , @RequestParam(value = "force", defaultValue = "false") Boolean force) {
-        taskService.stop(MongoUtils.toObjectId(id), getLoginUser(), force);
+        taskService.pause(MongoUtils.toObjectId(id), getLoginUser(), force);
         return success();
     }
 

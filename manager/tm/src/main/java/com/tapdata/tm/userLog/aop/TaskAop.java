@@ -39,7 +39,7 @@ public class TaskAop {
     @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.start(..)) || execution(* com.tapdata.tm.task.service.TaskService.batchStart(..))")
     public void startPointcut() {}
 
-    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.stop(..)) || execution(* com.tapdata.tm.task.service.TaskService.batchStop(..))")
+    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.pause(..)) || execution(* com.tapdata.tm.task.service.TaskService.batchStop(..))")
     public void stoppedPointcut() {}
 
     @After("stoppedPointcut()")

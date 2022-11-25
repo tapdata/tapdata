@@ -1,7 +1,7 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.google.common.collect.Lists;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
@@ -14,7 +14,6 @@ import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.schema.type.TapMap;
 import lombok.Getter;
 import lombok.Setter;

@@ -134,11 +134,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
       for (Object o : (List) obj) {
         Map<String, Object> recordMap = new HashMap<>();
         MapUtil.copyToNewMap((Map<String, Object>) o, recordMap);
-        TapEventUtil.setBefore(tapEvent, null);
-        TapEventUtil.setAfter(tapEvent, null);
-        TapdataEvent clone = (TapdataEvent) tapdataEvent.clone();
-        setRecordMap(tapEvent, op, recordMap);
-        consumer.accept(clone, processResult);
+        TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
+        setRecordMap(cloneTapdataEvent.getTapEvent(), op, recordMap);
+        consumer.accept(cloneTapdataEvent, processResult);
       }
     } else {
       Map<String, Object> recordMap = new HashMap<>();

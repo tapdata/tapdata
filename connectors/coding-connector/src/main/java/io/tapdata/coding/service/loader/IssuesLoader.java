@@ -258,7 +258,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
     @Override
     public Long streamReadTime() {
-        return 1 * 60 * 1000l;
+        return 5 * 60 * 1000l;
     }
 
     @Override
@@ -924,7 +924,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             }
             List<Map<String, Object>> resultList = (List<Map<String, Object>>) dataMap.get("List");
             currentQueryCount = resultList.size();
-            totalCount += currentQueryCount;
             batchReadPageSize = null != dataMap.get("PageSize") ? (int) (dataMap.get("PageSize")) : batchReadPageSize;
             for (Map<String, Object> stringObjectMap : resultList) {
                 Object code = stringObjectMap.get("Code");
@@ -945,7 +944,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
                     if (!lastTimeSplitIssueCode.contains(issueDetialHash)) {
                         events[0].add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
-
+                        totalCount += 1;
                         if (null == currentTimePoint || !currentTimePoint.equals(this.lastTimePoint)) {
                             this.lastTimePoint = currentTimePoint;
                             lastTimeSplitIssueCode = new ArrayList<Integer>();

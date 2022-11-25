@@ -5,12 +5,13 @@ import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
@@ -287,13 +288,13 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         String filter;
         int availableNum;
 
-        Object jobHeartTimeout = settingsService.getByCategoryAndKey("Job", "jobHeartTimeout");
-        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+        Object jobHeartTimeout = settingsService.getByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT).getValue();
+        Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
         if ((userDetail.getUserId() == null || userDetail.getUserId().equals("")) && isCloud) {
             throw new BizException("NotFoundUserId");
         }
-        Long findTime = System.currentTimeMillis() - Long.parseLong((String) jobHeartTimeout);
+        Long findTime = System.currentTimeMillis() - Long.parseLong((String) jobHeartTimeout) * 1000L;
 
         // 53迭代Task上增加了指定Flow Engine的功能 --start
         String agentId = entity.getAgentId();
@@ -317,8 +318,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 );
                 calculationEngineVo.setThreadLog(threadLog);
 
-                return calculationEngineVo;
             }
+            entity.setAgentId(calculationEngineVo.getProcessId());
+            entity.setScheduleTime(System.currentTimeMillis());
+            return calculationEngineVo;
         }
         // 53迭代Task上增加了指定Flow Engine的功能 --end
         BasicDBObject thread = new BasicDBObject();
@@ -520,6 +523,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (worker.getProcessId() == null || worker.getWorkerType() == null) {
             throw new BizException("IllegalArgument", "processId or workerType can't be empty.");
         }
+
+        worker.setPingTime(System.currentTimeMillis());
 
         repository.upsert(
                 Query.query(Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType())),

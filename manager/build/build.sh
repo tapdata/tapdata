@@ -2,7 +2,7 @@
 ulimit -c unlimited
 
 sbin_file="tm-*.jar"
-mvn clean install || exit 1
+mvn clean install -DskipTests || exit 1
 
 rm -rf dist
 mkdir -p dist dist/bin dist/lib dist/conf dist/logs

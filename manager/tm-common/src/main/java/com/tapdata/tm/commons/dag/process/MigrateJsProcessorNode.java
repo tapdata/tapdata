@@ -2,7 +2,7 @@ package com.tapdata.tm.commons.dag.process;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Lists;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;

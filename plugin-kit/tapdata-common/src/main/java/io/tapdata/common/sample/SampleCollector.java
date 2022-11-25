@@ -129,20 +129,17 @@ public class SampleCollector {
                         logger.warn("PointSampler {} key {} execute more than 10 milliseconds, {}", entry.getValue().getClass().getSimpleName(), entry.getKey(), takes);
                     }
                 } catch(Throwable throwable) {
-                    throwable.printStackTrace();
-                    logger.error("PointSampler {} key {} sample failed, {}", entry.getValue().getClass().getSimpleName(), entry.getKey(), throwable.getMessage());
+                    logger.error("PointSampler {} key {} sample failed, {}", entry.getValue().getClass().getSimpleName(), entry.getKey(), throwable.getMessage(), throwable);
                 }
             }
         } catch (Throwable throwable) {
-            throwable.printStackTrace();
-            logger.error("PointExecutor calculate result failed, {}", throwable.getMessage());
+            logger.error("PointExecutor calculate result failed, {}", throwable.getMessage(), throwable);
         }
         if(sampleReporter != null) {
             try {
                 sampleReporter.execute(result, tags);
             } catch(Throwable throwable) {
-                throwable.printStackTrace();
-                logger.error("PointExecutor execute failed, {}", throwable.getMessage());
+                logger.error("PointExecutor execute failed, {}", throwable.getMessage(), throwable);
             }
         }
         return result;
@@ -243,6 +240,10 @@ public class SampleCollector {
      */
     public AverageSampler getAverageSampler(String id) {
         return (AverageSampler) idSamplerMap.computeIfAbsent(id, s -> new AverageSampler());
+    }
+
+    public WriteCostAvgSampler getWriteCostAvgSampler(String id) {
+        return (WriteCostAvgSampler) idSamplerMap.computeIfAbsent(id, s -> new WriteCostAvgSampler());
     }
 
     /**

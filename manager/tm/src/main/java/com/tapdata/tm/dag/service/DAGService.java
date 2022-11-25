@@ -2,7 +2,7 @@ package com.tapdata.tm.dag.service;
 
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.vo.CustomTypeMapping;

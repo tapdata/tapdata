@@ -48,7 +48,6 @@ public class MongodbWriter {
 
 	private boolean  is_cloud ;
 
-
 	public MongodbWriter(KVMap<Object> globalStateMap, MongodbConfig mongodbConfig, MongoClient mongoClient) {
 		this.globalStateMap = globalStateMap;
 		this.mongoClient = mongoClient;
@@ -56,7 +55,6 @@ public class MongodbWriter {
 		this.connectionString = new ConnectionString(mongodbConfig.getUri());
 		this.mongodbConfig = mongodbConfig;
 		this.is_cloud = AppType.init().isCloud();
-
 	}
 
 	/**
