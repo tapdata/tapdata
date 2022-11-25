@@ -214,7 +214,14 @@ public class CodingConnector extends ConnectorBase {
 			});
 		}
 		if (null != tapTables){
-			consumer.accept(tablesFinal.subList(0,Math.min(tablesFinal.size(),tableSize)));
+			int index = 0;
+			final int tableSizeFinal = tablesFinal.size();
+			while (index <= tableSizeFinal ){
+				consumer.accept(tablesFinal.subList(index,Math.min(tableSizeFinal,index=index+tableSize)));
+				if (index + tableSize <= tableSizeFinal){
+					break;
+				}
+			}
 		}
 	}
 
