@@ -146,6 +146,7 @@ public class Field implements Serializable {
      */
     private Boolean fixed;
     private String createSource; // manual/auto/job_analyze
+    private String changeRuleId; // 如果命中字段变更规则则存在值
 
     private boolean useDefaultValue = true;
 
