@@ -249,6 +249,16 @@ public class MongodbConnector extends ConnectorBase {
 		if (COLLECTION_ID_FIELD.equals(fieldName)) {
 			field.primaryKeyPos(1);
 		}
+		TapField currentFiled = null;
+		if(table.getNameFieldMap() != null)
+			currentFiled = table.getNameFieldMap().get(fieldName);
+		if(currentFiled != null &&
+				currentFiled.getDataType() != null &&
+				!currentFiled.getDataType().equals(BsonType.NULL.name()) &&
+				field.getDataType() != null && field.getDataType().equals(BsonType.NULL.name())
+		) {
+			return;
+		}
 		tableFieldTypesGenerator.autoFill(field, connectionContext.getSpecification().getDataTypesMap());
 		table.add(field);
 	}
