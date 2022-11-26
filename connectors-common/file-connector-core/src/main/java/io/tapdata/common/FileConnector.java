@@ -68,6 +68,8 @@ public abstract class FileConnector extends ConnectorBase {
             connectionOptions.connectionString(fileTest.getConnectionString());
             TestItem testConnect = fileTest.testConnect();
             consumer.accept(testConnect);
+        } catch (Exception e) {
+            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage()));
         }
         return connectionOptions;
     }

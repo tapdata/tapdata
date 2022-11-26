@@ -27,6 +27,8 @@ public class FtpFileStorage implements TapFileStorage {
     public void init(Map<String, Object> params) throws IOException {
         ftpConfig = new FtpConfig().load(params);
         ftpClient = new FTPClient();
+        ftpClient.setConnectTimeout(ftpConfig.getFtpConnectTimeout());
+        ftpClient.setDataTimeout(ftpConfig.getFtpDataTimeout());
         ftpClient.connect(ftpConfig.getFtpHost(), ftpConfig.getFtpPort());
         if (ftpConfig.getFtpSsl() && EmptyKit.isNotBlank(ftpConfig.getFtpAccount())) {
             ftpClient.login(ftpConfig.getFtpUsername(), ftpConfig.getFtpPassword(), ftpConfig.getFtpAccount());
