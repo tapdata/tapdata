@@ -7,10 +7,8 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
 import io.tapdata.kit.EmptyKit;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,9 +29,12 @@ public class ExcelSchema extends FileSchema {
         try (
                 Workbook wb = WorkbookFactory.create(storage.readFile(tapFile.getPath()), excelConfig.getExcelPassword())
         ) {
+            FormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
             List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
             for (Integer num : sheetNumbers) {
                 Sheet sheet = wb.getSheetAt(num - 1);
+                List<CellRangeAddress> mergedList = sheet.getMergedRegions();
+                Map<CellRangeAddress, Cell> mergedDataMap = ExcelUtil.getMergedDataMap(sheet);
                 if (excelConfig.getHeaderLine() > 0) {
                     Row headerRow = sheet.getRow(excelConfig.getHeaderLine() - 1);
                     if (EmptyKit.isNull(headerRow)) {
@@ -41,7 +42,8 @@ public class ExcelSchema extends FileSchema {
                     }
                     Row dataRow = sheet.getRow(excelConfig.getDataStartLine() - 1);
                     for (int i = excelConfig.getFirstColumn() - 1; i < excelConfig.getLastColumn(); i++) {
-                        putValidIntoMap(sampleResult, String.valueOf(ExcelUtil.getCellValue(headerRow.getCell(i), null)), ExcelUtil.getCellValue(dataRow.getCell(i), null));
+                        putValidIntoMap(sampleResult, String.valueOf(ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, headerRow.getCell(i), formulaEvaluator)),
+                                ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, dataRow.getCell(i), formulaEvaluator));
                     }
                 } else {
                     Row dataRow = sheet.getRow(excelConfig.getDataStartLine() - 1);
@@ -49,7 +51,8 @@ public class ExcelSchema extends FileSchema {
                         continue;
                     }
                     for (int i = excelConfig.getFirstColumn() - 1; i < excelConfig.getLastColumn(); i++) {
-                        putValidIntoMap(sampleResult, "column" + (i - excelConfig.getFirstColumn() + 2), ExcelUtil.getCellValue(dataRow.getCell(i), null));
+                        putValidIntoMap(sampleResult, "column" + (i - excelConfig.getFirstColumn() + 2),
+                                ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, dataRow.getCell(i), formulaEvaluator));
                     }
                 }
             }
@@ -69,15 +72,18 @@ public class ExcelSchema extends FileSchema {
                 try (
                         Workbook wb = WorkbookFactory.create(storage.readFile(path), excelConfig.getExcelPassword())
                 ) {
+                    FormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
                     List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
                     for (Integer num : sheetNumbers) {
                         Sheet sheet = wb.getSheetAt(num - 1);
+                        List<CellRangeAddress> mergedList = sheet.getMergedRegions();
+                        Map<CellRangeAddress, Cell> mergedDataMap = ExcelUtil.getMergedDataMap(sheet);
                         Row dataRow = sheet.getRow(excelConfig.getDataStartLine() - 1);
                         if (EmptyKit.isNull(dataRow)) {
                             continue;
                         }
                         for (int i = excelConfig.getFirstColumn() - 1; i < excelConfig.getLastColumn(); i++) {
-                            sampleResult.put(headers[i - excelConfig.getFirstColumn() + 1], ExcelUtil.getCellValue(dataRow.getCell(i), null));
+                            sampleResult.put(headers[i - excelConfig.getFirstColumn() + 1], ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, dataRow.getCell(i), formulaEvaluator));
                         }
                         break;
                     }

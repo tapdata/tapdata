@@ -478,13 +478,7 @@
     }
   },
   "dataTypes": {
-    "OBJECT": {
-      "to": "TapMap"
-    },
-    "ARRAY": {
-      "to": "TapArray"
-    },
-    "NUMBER": {
+    "DOUBLE": {
       "precision": [
         1,
         1000
@@ -499,29 +493,16 @@
       "priority": 1,
       "to": "TapNumber"
     },
-    "DATETIME": {
+    "DATE": {
       "range": [
-        "1000-01-01 00:00:00.000000000",
-        "9999-12-31 23:59:59.999999999"
+        "1000-01-01 00:00:00.000",
+        "9999-12-31 23:59:59.999"
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSSSSS",
-      "fraction": [
-        0,
-        9
-      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSS",
       "defaultFraction": 3,
       "withTimeZone": false,
       "priority": 2,
       "to": "TapDateTime"
-    },
-    "INTEGER": {
-      "bit": 32,
-      "priority": 1,
-      "value": [
-        -2147483648,
-        2147483647
-      ],
-      "to": "TapNumber"
     },
     "BOOLEAN": {
       "to": "TapBoolean"
