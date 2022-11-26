@@ -1,6 +1,5 @@
 package io.tapdata.storage.ftp;
 
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
 import io.tapdata.pdk.apis.error.NotSupportedException;
@@ -42,9 +41,10 @@ public class FtpFileStorage implements TapFileStorage {
             }
             ftpClient.setFileType(FTP.BINARY_FILE_TYPE);
         } else {
-            TapLogger.error(TAG, "connect to ftp server failed! message:{}", ftpClient.getReplyString());
             ftpClient.disconnect();
+            throw new IOException(String.format("connect to ftp server failed! code:%s", ftpClient.getReplyCode()));
         }
+
     }
 
     @Override
