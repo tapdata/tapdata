@@ -1,8 +1,9 @@
 package io.tapdata.async.master;
 
-import io.tapdata.modules.api.async.master.AsyncJob;
-import io.tapdata.modules.api.async.master.AsyncJobChain;
-import io.tapdata.modules.api.async.master.JobContext;
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
+import io.tapdata.modules.api.async.master.*;
 
 import java.util.*;
 import java.util.function.Function;
@@ -12,26 +13,51 @@ import java.util.function.Function;
  */
 public class AsyncJobChainImpl implements AsyncJobChain {
 	final Map<String, AsyncJob> asyncJobLinkedMap = Collections.synchronizedMap(new LinkedHashMap<>());
+	final Set<String> pendingJobIds = Collections.synchronizedSet(new HashSet<>());
+	private final Map<String, Class<? extends AsyncJob>> asyncJobMap;
+	private final TapUtils tapUtils;
+	public AsyncJobChainImpl(Map<String, Class<? extends AsyncJob>> asyncJobMap) {
+		this.asyncJobMap = asyncJobMap;
+		tapUtils = InstanceFactory.instance(TapUtils.class);
+	}
 
-	public Map<String, AsyncJob> clone() {
+	public Map<String, AsyncJob> cloneChain() {
 		return Collections.synchronizedMap(new LinkedHashMap<>(asyncJobLinkedMap));
 	}
 
 	@Override
-	public AsyncJobChain job(Map.Entry<String, AsyncJob> entry) {
-		asyncJobLinkedMap.put(entry.getKey(), entry.getValue());
-		return this;
-	}
-
-	@Override
 	public AsyncJobChain job(String id, AsyncJob asyncJob) {
+		return job(id, asyncJob, false);
+	}
+	@Override
+	public AsyncJobChain job(String id, AsyncJob asyncJob, boolean pending) {
 		asyncJobLinkedMap.put(id, asyncJob);
+		if(pending) {
+			pendingJobIds.add(id);
+		}
 		return this;
 	}
 
 	@Override
 	public AsyncJobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer) {
-		return null;
+		return externalJob(id, jobContextConsumer, false);
+	}
+	@Override
+	public AsyncJobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
+		Class<? extends AsyncJob> jobClass = asyncJobMap.get(id);
+		if(jobClass == null)
+			throw new CoreException(AsyncErrors.MISSING_JOB_CLASS_FOR_TYPE, "Job class is missing for type {}", id);
+		AsyncJob asyncJob;
+		try {
+			asyncJob = jobClass.getConstructor().newInstance();
+		} catch (Throwable e) {
+			throw new CoreException(AsyncErrors.INITIATE_JOB_CLASS_FAILED, "Initiate job class {} failed, {}", jobClass, tapUtils.getStackTrace(e));
+		}
+		job(id, jobContext -> {
+			JobContext context = asyncJob.run(jobContext);
+			return jobContextConsumer.apply(context);
+		}, pending);
+		return this;
 	}
 
 	@Override
@@ -45,7 +71,7 @@ public class AsyncJobChainImpl implements AsyncJobChain {
 	}
 
 	public static void main(String[] args) {
-		AsyncJobChainImpl asyncJobChain = new AsyncJobChainImpl();
+		AsyncJobChainImpl asyncJobChain = new AsyncJobChainImpl(null);
 		asyncJobChain.job("a", new AsyncJob() {
 			@Override
 			public JobContext run(JobContext previousJobContext) {

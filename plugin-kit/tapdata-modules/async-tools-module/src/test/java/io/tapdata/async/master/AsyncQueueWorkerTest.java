@@ -495,4 +495,75 @@ public class AsyncQueueWorkerTest extends AsyncTestBase {
 
 		waitCompleted(6);
 	}
+
+	@Test
+	public void testPendingJobWithoutJump() throws Throwable {
+		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
+		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
+			System.out.println("id " + id + " from " + fromState + " to " + toState);
+		});
+		asyncQueueWorker.setAsyncJobErrorListener((id, asyncJob, throwable) -> {
+
+		});
+		AtomicInteger counter = new AtomicInteger(0);
+		JobContext initialContext = JobContext.create("initial");
+		asyncQueueWorker.job("job1", previousJobContext -> {
+//			$(() -> Assertions.assertEquals("initial", previousJobContext.getResult()));
+			counter.incrementAndGet();
+			System.out.println("job1 " + Thread.currentThread());
+			return JobContext.create("Hello world");
+		}).job("pendingJob1", jobContext -> {
+			$(Assertions::fail);
+			return null;
+		}, true).job("pendingJob2", jobContext -> {
+			$(Assertions::fail);
+			return null;
+		}, true).externalJob("batchRead", previousJobContext -> {
+			counter.incrementAndGet();
+			System.out.println("job2 " + Thread.currentThread());
+			$(() -> Assertions.assertEquals(1, ((TapInsertRecordEvent)((List)previousJobContext.getResult()).get(0)).getAfter().get("a")));
+			completed();
+			return null;
+		});
+		asyncQueueWorker.start(initialContext);
+
+		waitCompleted(6);
+	}
+
+	@Test
+	public void testPendingJob() throws Throwable {
+		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
+		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
+			System.out.println("id " + id + " from " + fromState + " to " + toState);
+		});
+		asyncQueueWorker.setAsyncJobErrorListener((id, asyncJob, throwable) -> {
+
+		});
+		AtomicInteger counter = new AtomicInteger(0);
+		JobContext initialContext = JobContext.create("initial");
+		asyncQueueWorker.job("job1", previousJobContext -> {
+//			$(() -> Assertions.assertEquals("initial", previousJobContext.getResult()));
+			counter.incrementAndGet();
+			System.out.println("job1 " + Thread.currentThread());
+			return JobContext.create("Hello world").jumpToId("pendingJob1");
+		}).job("pendingJob1", jobContext -> {
+			counter.incrementAndGet();
+			return null;
+		}, true).job("pendingJob2", jobContext -> {
+			$(Assertions::fail);
+			return null;
+		}, true).externalJob("batchRead", previousJobContext -> {
+			counter.incrementAndGet();
+			System.out.println("job2 " + Thread.currentThread());
+			$(() -> Assertions.assertEquals(1, ((TapInsertRecordEvent)((List)previousJobContext.getResult()).get(0)).getAfter().get("a")));
+			$(() -> Assertions.assertEquals(3, counter.get()));
+			completed();
+			return null;
+		});
+		asyncQueueWorker.start(initialContext);
+
+		waitCompleted(6);
+	}
 }

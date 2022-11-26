@@ -8,10 +8,13 @@ import java.util.function.Function;
  * @author aplomb
  */
 public interface AsyncJobChain {
-	AsyncJobChain job(Map.Entry<String, AsyncJob> asyncJobChain);
 	AsyncJobChain job(String id, AsyncJob asyncJob);
 
+	AsyncJobChain job(String id, AsyncJob asyncJob, boolean pending);
+
 	AsyncJobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer);
+
+	AsyncJobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending);
 
 	AsyncJob remove(String id);
 

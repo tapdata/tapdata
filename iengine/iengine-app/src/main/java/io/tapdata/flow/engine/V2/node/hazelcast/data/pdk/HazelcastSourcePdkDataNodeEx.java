@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
@@ -25,6 +26,10 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
+import io.tapdata.modules.api.async.master.AsyncJobChain;
+import io.tapdata.modules.api.async.master.AsyncMaster;
+import io.tapdata.modules.api.async.master.AsyncQueueWorker;
+import io.tapdata.modules.api.async.master.JobContext;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.*;
@@ -43,6 +48,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * @author jackin
@@ -59,10 +65,12 @@ public class HazelcastSourcePdkDataNodeEx extends HazelcastSourcePdkBaseNode {
 	private final SourceStateAspect sourceStateAspect;
 	private Map<String, Long> snapshotRowSizeMap;
 	private ExecutorService snapshotRowSizeThreadPool;
+	private final AsyncMaster asyncMaster;
 
 	public HazelcastSourcePdkDataNodeEx(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		sourceStateAspect = new SourceStateAspect().dataProcessorContext(dataProcessorContext);
+		asyncMaster = InstanceFactory.instance(AsyncMaster.class);
 	}
 
 	@Override
@@ -79,6 +87,31 @@ public class HazelcastSourcePdkDataNodeEx extends HazelcastSourcePdkBaseNode {
 			//Notify error for task.
 			throw errorHandle(e, "init failed");
 		}
+	}
+
+	public void startAsyncJobs() {
+		AsyncJobChain jobChain = asyncMaster.createAsyncJobChain();
+		jobChain.job("need2InitialSync", jobContext -> {
+			boolean bool =  need2InitialSync(syncProgress);
+			if(bool) {
+				return JobContext.create(null);
+			} else {
+				return JobContext.create(null).jumpToId("needCDC");
+			}
+		}).externalJob("batchRead", jobContext -> {
+			return JobContext.create(null);
+		}).job("needCDC", jobContext -> {
+			boolean bool = need2CDC();
+			if(bool) {
+				return JobContext.create(null);
+			} else {
+				return JobContext.create(null);
+			}
+		}).externalJob("streamRead", jobContext -> {
+			return null;
+		});
+//		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("SourceJob " + getNode().getId()));
+//		asyncQueueWorker.job(jobChain);
 	}
 
 	@Override

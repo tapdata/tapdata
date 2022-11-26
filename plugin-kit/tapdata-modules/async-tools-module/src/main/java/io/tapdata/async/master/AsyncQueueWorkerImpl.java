@@ -8,7 +8,6 @@ import io.tapdata.modules.api.async.master.*;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -49,7 +48,7 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	public AsyncQueueWorkerImpl(String id, Map<String, Class<? extends AsyncJob>> asyncJobMap) {
 		this.id = id;
 		this.asyncJobMap = asyncJobMap;
-		asyncJobChain = new AsyncJobChainImpl();
+		asyncJobChain = new AsyncJobChainImpl(this.asyncJobMap);
 		tapUtils = InstanceFactory.instance(TapUtils.class);
 		if(tapUtils == null)
 			throw new CoreException(AsyncErrors.MISSING_TAP_UTILS, "Missing TapUtils' implementation");
@@ -77,28 +76,24 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 
 	@Override
 	public AsyncQueueWorker job(String id, AsyncJob asyncJob) {
-		asyncJobChain.job(id, asyncJob);
-		if (state.get() > STATE_NONE && state.get() < STATE_STOPPED)
+		return job(id, asyncJob, false);
+	}
+	@Override
+	public AsyncQueueWorker job(String id, AsyncJob asyncJob, boolean pending) {
+		asyncJobChain.job(id, asyncJob, pending);
+		if (!pending && state.get() > STATE_NONE && state.get() < STATE_STOPPED)
 			startPrivate();
 		return this;
 	}
 
 	@Override
 	public AsyncQueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer) {
-		Class<? extends AsyncJob> jobClass = asyncJobMap.get(id);
-		if(jobClass == null)
-			throw new CoreException(AsyncErrors.MISSING_JOB_CLASS_FOR_TYPE, "Job class is missing for type {}", id);
-		AsyncJob asyncJob;
-		try {
-			asyncJob = jobClass.getConstructor().newInstance();
-		} catch (Throwable e) {
-			throw new CoreException(AsyncErrors.INITIATE_JOB_CLASS_FAILED, "Initiate job class {} failed, {}", jobClass, tapUtils.getStackTrace(e));
-		}
-		asyncJobChain.job(id, jobContext -> {
-			JobContext context = asyncJob.run(jobContext);
-			return jobContextConsumer.apply(context);
-		});
-		if (state.get() > STATE_NONE && state.get() < STATE_STOPPED)
+		return externalJob(id, jobContextConsumer, false);
+	}
+	@Override
+	public AsyncQueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
+		asyncJobChain.externalJob(id, jobContextConsumer, pending);
+		if (!pending && state.get() > STATE_NONE && state.get() < STATE_STOPPED)
 			startPrivate();
 		return this;
 	}
@@ -260,7 +255,7 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 			}
 			Map<String, AsyncJob> asyncJobLinkedMap;
 			if(periodScheduleFuture != null) {
-				asyncJobLinkedMap = asyncJobChain.clone();
+				asyncJobLinkedMap = asyncJobChain.cloneChain();
 			} else {
 				asyncJobLinkedMap = asyncJobChain.asyncJobLinkedMap;
 			}
@@ -270,6 +265,14 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 					asyncJob = asyncJobLinkedMap.remove(first);
 					if(asyncJob == null)
 						continue;
+					if(currentJobContext != null) {
+						jumpTo = currentJobContext.getJumpToId();
+						if(jumpTo != null)
+							asyncJobChain.pendingJobIds.remove(jumpTo);
+					}
+					if(asyncJobChain.pendingJobIds.contains(first)) {
+						continue;
+					}
 					if(currentJobContext == null) {
 						currentJobContext = new JobContextImpl();
 					}
@@ -278,7 +281,6 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 					currentJobContext.id(first);
 					currentJobContext.alive();
 					runningId = first;
-					jumpTo = currentJobContext.getJumpToId();
 				}
 				if(jumpTo != null && !jumpTo.equals(first))
 					continue;

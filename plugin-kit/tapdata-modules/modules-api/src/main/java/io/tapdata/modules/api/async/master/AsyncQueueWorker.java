@@ -7,7 +7,13 @@ public interface AsyncQueueWorker extends AsyncWorker {
 	int getState();
 	AsyncQueueWorker job(AsyncJobChain asyncJobChain);
 	AsyncQueueWorker job(String id, AsyncJob asyncJob);
+
+	AsyncQueueWorker job(String id, AsyncJob asyncJob, boolean pending);
+
 	AsyncQueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer);
+
+	AsyncQueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending);
+
 	AsyncQueueWorker cancelAll();
 	AsyncQueueWorker cancel(String id);
 	AsyncQueueWorker cancel(String id, boolean immediately);

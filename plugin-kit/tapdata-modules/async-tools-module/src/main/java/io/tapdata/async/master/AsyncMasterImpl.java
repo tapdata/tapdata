@@ -34,7 +34,7 @@ public class AsyncMasterImpl implements AsyncMaster {
 
 	@Override
 	public AsyncJobChain createAsyncJobChain() {
-		return new AsyncJobChainImpl();
+		return new AsyncJobChainImpl(asyncJobAnnotationHandler.getAsyncJobMap());
 	}
 
 	@Override
