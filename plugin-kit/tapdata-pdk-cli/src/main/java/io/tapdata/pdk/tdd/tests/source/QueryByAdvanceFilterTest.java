@@ -289,7 +289,7 @@ public class QueryByAdvanceFilterTest extends PDKTestBase {
         );
     }
 
-    private void initConnectorFunctions() {
+    protected void initConnectorFunctions() {
         tddTargetNode = dataFlowWorker.getTargetNodeDriver(targetNodeId).getTargetNode();
         sourceNode = dataFlowWorker.getSourceNodeDriver(testSourceNodeId).getSourceNode();
     }

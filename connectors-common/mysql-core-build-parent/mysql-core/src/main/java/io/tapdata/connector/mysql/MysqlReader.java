@@ -121,7 +121,7 @@ public class MysqlReader implements Closeable {
 								value = rs.getString(i + 1);
 							} else {
 								value = rs.getObject(i + 1);
-								if (EmptyKit.isNull(value)) {
+								if (null == value && dateTypeSet.contains(columnName)) {
 									value = rs.getString(i + 1);
 								}
 							}
@@ -168,10 +168,9 @@ public class MysqlReader implements Closeable {
 							if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
 								value = rs.getString(i + 1);
 							} else {
-								if (dateTypeSet.contains(columnName)) {
+								value = rs.getObject(i + 1);
+								if (null == value && dateTypeSet.contains(columnName)) {
 									value = rs.getString(i + 1);
-								} else {
-									value = rs.getObject(i + 1);
 								}
 							}
 							data.put(columnName, value);
