@@ -95,7 +95,6 @@ public class TablestoreConnector extends ConnectorBase {
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportCreateTableV2(this::createTableV2);
-        connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, ColumnType.STRING.name(), tapRawValue -> {
@@ -263,8 +262,7 @@ public class TablestoreConnector extends ConnectorBase {
                                 PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
                                 for (String k : resSet) {
                                     ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
-                                    Object value = after.get(k);
-                                    transferValueType(columnType, value);
+                                    Object value = transferValueType(columnType, after.get(k));
                                     pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                                 }
                                 putChange = new RowPutChange(tableId, pkBuilder.build());
@@ -278,8 +276,7 @@ public class TablestoreConnector extends ConnectorBase {
                                     continue;
                                 }
                                 ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
-                                Object value = entry.getValue();
-                                value = transferValueType(columnType, value);
+                                Object value = transferValueType(columnType, entry.getValue());
                                 putChange.addColumn(fieldName, new ColumnValue(value, columnType));
                             }
                             client.putRow(new PutRowRequest(putChange));
@@ -299,8 +296,7 @@ public class TablestoreConnector extends ConnectorBase {
                                 PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
                                 for (String k : resSet) {
                                     ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
-                                    Object value = after.get(k);
-                                    transferValueType(columnType, value);
+                                    Object value = transferValueType(columnType, after.get(k));
                                     pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                                 }
                                 updateChange = new RowUpdateChange(tableId, pkBuilder.build());
@@ -314,8 +310,7 @@ public class TablestoreConnector extends ConnectorBase {
                                     continue;
                                 }
                                 ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
-                                Object value = entry.getValue();
-                                value = transferValueType(columnType, value);
+                                Object value = transferValueType(columnType, entry.getValue());
                                 updateChange.put(fieldName, new ColumnValue(value, columnType));
                             }
 
@@ -431,30 +426,28 @@ public class TablestoreConnector extends ConnectorBase {
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
         String tableId = tapClearTableEvent.getTableId();
         if ("NORMAL".equals(tablestoreConfig.getClientType())) {
-            DescribeTableRequest request = new DescribeTableRequest(tableId);
-            DescribeTableResponse response = client.describeTable(request);
-            TableMeta tableMeta = response.getTableMeta();
-            if (Objects.nonNull(tableMeta)) {
-                DeleteRowRequest deleteRowRequest = new DeleteRowRequest(new RowDeleteChange(tableId));
-                client.deleteRow(deleteRowRequest);
-            }
-        } else if ("TIMESERIES".equals(tablestoreConfig.getClientType())) {
-
+            ListTableResponse listTableResponse = client.listTable();
+            List<String> tableNames = listTableResponse.getTableNames();
+            Optional.ofNullable(tableNames).ifPresent(list -> {
+                        if (list.contains(tableId)) {
+                        }
+                    }
+            );
         }
     }
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) throws Throwable {
         String tableId = tapDropTableEvent.getTableId();
         if ("NORMAL".equals(tablestoreConfig.getClientType())) {
-            DescribeTableRequest request = new DescribeTableRequest(tableId);
-            DescribeTableResponse response = client.describeTable(request);
-            TableMeta tableMeta = response.getTableMeta();
-            if (Objects.nonNull(tableMeta)) {
-                DeleteTableRequest deleteTableRequest = new DeleteTableRequest(tableId);
-                client.deleteTable(deleteTableRequest);
-            }
-        } else if ("TIMESERIES".equals(tablestoreConfig.getClientType())) {
-
+            ListTableResponse listTableResponse = client.listTable();
+            List<String> tableNames = listTableResponse.getTableNames();
+            Optional.ofNullable(tableNames).ifPresent(list -> {
+                        if (list.contains(tableId)) {
+                            DeleteTableRequest deleteTableRequest = new DeleteTableRequest(tableId);
+                            client.deleteTable(deleteTableRequest);
+                        }
+                    }
+            );
         }
     }
 }
