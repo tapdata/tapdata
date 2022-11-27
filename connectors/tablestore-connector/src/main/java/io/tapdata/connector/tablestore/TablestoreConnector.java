@@ -382,6 +382,10 @@ public class TablestoreConnector extends ConnectorBase {
 
                 Collection<String> primaryKeyList = tapTable.primaryKeys(true);
 
+                if (EmptyKit.isEmpty(primaryKeyList) || primaryKeyList.size() > 4) {
+                    throw new Exception("create table error, The primary key of the data table must be specified when creating the data table. The primary key contains 1 to 4 primary key columns, each of which has a name and type.");
+                }
+
                 for (TapField field : tapTable.getNameFieldMap().values()) {
                     String dataType = field.getDataType();
                     if (primaryKeyList.contains(field.getName())) {
