@@ -395,7 +395,7 @@ public class TablestoreConnector extends ConnectorBase {
                 int maxVersions = 1;
                 TableOptions tableOptions = new TableOptions(timeToLive, maxVersions);
 
-                ArrayList<IndexMeta> indexMetas = new ArrayList<IndexMeta>();
+                ArrayList<IndexMeta> indexMetas = new ArrayList<>();
                 if (Objects.nonNull(tapTable.getIndexList())) {
                     for (TapIndex index : tapTable.getIndexList()) {
                         IndexMeta indexMeta = new IndexMeta(index.getName());
