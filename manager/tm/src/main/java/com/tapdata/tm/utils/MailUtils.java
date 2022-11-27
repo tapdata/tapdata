@@ -7,6 +7,7 @@ import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jsoup.nodes.Document;
@@ -14,7 +15,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.*;
 import java.util.List;
-import java.util.Objects;
 
 
 /**
@@ -299,7 +299,7 @@ public class MailUtils {
      */
     public static void sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
         boolean flag = true;
-        if (StringUtils.isAnyBlank(parms.getHost(), parms.getFrom(),parms.getUser(), parms.getPass())) {
+        if (StringUtils.isAnyBlank(parms.getHost(), parms.getFrom(),parms.getUser(), parms.getPass()) || CollectionUtils.isEmpty(adressees)) {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));
             flag = false;
         } else {
