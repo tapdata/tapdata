@@ -115,7 +115,46 @@ public class TapCodecsFilterManagerTest {
 
         assertEquals("v", ((Map)((List)((Map)((List)map.get("tapArrayMap")).get(1)).get("n")).get(2)).get("k"));
     }
+    @Test
+    public void testNewFieldWithoutDetector() {
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+        Map<String, Object> map = map(
+                entry("string1", "string"),
+                entry("int1", 5555),
+                entry("long1", 34324L),
+                entry("double1", 343.324d)
+        );
 
+        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+        sourceNameFieldMap.put("string1", field("string", "varchar").tapType(tapString().bytes(50L)));
+        sourceNameFieldMap.put("int1", field("int", "number(32)").tapType(tapNumber().bit(32).maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))));
+        sourceNameFieldMap.put("long1", field("long", "number(64)").tapType(tapNumber().bit(64).minValue(BigDecimal.valueOf(Long.MIN_VALUE)).maxValue(BigDecimal.valueOf(Long.MAX_VALUE))));
+        sourceNameFieldMap.put("double1", field("double", "double").tapType(tapNumber().scale(3).bit(64).minValue(BigDecimal.valueOf(Double.MIN_VALUE)).maxValue(BigDecimal.valueOf(Double.MAX_VALUE))));
+
+        //Add fields outside of fields in Table.
+        map.put("dateTime", new Date());
+        map.put("double", 11.3d);
+        map.put("bigDecimal", BigDecimal.ONE);
+        map.put("string", "hello");
+        map.put("map", map(entry("1", 1)));
+        map.put("array", list("1"));
+        map.put("boolean", true);
+        map.put("bytes", new byte[]{'1'});
+        map.put("arrayMap", list(map(entry("1", 1))));
+
+        //read from source, transform to TapValue out from source connector.
+        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+
+        //before enter a processor, transform to value from TapValue.
+        Map<String, TapField> nameFieldMap = new ConcurrentHashMap<>();
+        codecsFilterManager.transformFromTapValueMap(map ,nameFieldMap);
+
+        assertEquals("hello", map.get("string"));
+        assertEquals(true, map.get("boolean"));
+        assertEquals(11.3d, map.get("double"));
+
+        assertEquals(13, map.size());
+    }
     @Test
     public void testNewFieldDetector() {
         TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
