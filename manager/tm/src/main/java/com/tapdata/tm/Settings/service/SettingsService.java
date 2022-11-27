@@ -82,6 +82,14 @@ public class SettingsService {
         return value;
     }
 
+    public boolean isCloud() {
+        Object buildProfile = getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
+        if (Objects.isNull(buildProfile)) {
+            buildProfile = "DAAS";
+        }
+        return buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+    }
+
     public Settings getByCategoryAndKey(CategoryEnum category, KeyEnum key) {
         Query query = Query.query(Criteria.where("category").is(category.getValue()));
         query.addCriteria(Criteria.where("key").is(key.getValue()));
