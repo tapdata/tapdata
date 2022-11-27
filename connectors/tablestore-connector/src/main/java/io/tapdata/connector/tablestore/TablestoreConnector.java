@@ -261,7 +261,10 @@ public class TablestoreConnector extends ConnectorBase {
                             if (EmptyKit.isNotEmpty(resSet)) {
                                 PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
                                 for (String k : resSet) {
-                                    ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
+                                    ColumnType columnType = ColumnType.valueOf(
+                                            Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
+                                                    .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
+                                                    .name());
                                     Object value = transferValueType(columnType, after.get(k));
                                     pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                                 }
@@ -275,7 +278,11 @@ public class TablestoreConnector extends ConnectorBase {
                                 if (resSet.contains(fieldName)) {
                                     continue;
                                 }
-                                ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
+
+                                ColumnType columnType = ColumnType.valueOf(
+                                        Optional.ofNullable(tableMeta.getDefinedColumnMap().get(fieldName))
+                                        .orElseThrow(() -> new RuntimeException("table definedColumnMap not find "+fieldName))
+                                                .name());
                                 Object value = transferValueType(columnType, entry.getValue());
                                 putChange.addColumn(fieldName, new ColumnValue(value, columnType));
                             }
@@ -295,7 +302,10 @@ public class TablestoreConnector extends ConnectorBase {
                             if (EmptyKit.isNotEmpty(resSet)) {
                                 PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
                                 for (String k : resSet) {
-                                    ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
+                                    ColumnType columnType = ColumnType.valueOf(
+                                            Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
+                                                    .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
+                                                    .name());
                                     Object value = transferValueType(columnType, after.get(k));
                                     pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                                 }
@@ -309,7 +319,10 @@ public class TablestoreConnector extends ConnectorBase {
                                 if (resSet.contains(fieldName)) {
                                     continue;
                                 }
-                                ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
+                                ColumnType columnType = ColumnType.valueOf(
+                                        Optional.ofNullable(tableMeta.getDefinedColumnMap().get(fieldName))
+                                                .orElseThrow(() -> new RuntimeException("table definedColumnMap not find "+fieldName))
+                                                .name());
                                 Object value = transferValueType(columnType, entry.getValue());
                                 updateChange.put(fieldName, new ColumnValue(value, columnType));
                             }
@@ -328,7 +341,10 @@ public class TablestoreConnector extends ConnectorBase {
                             if (EmptyKit.isNotEmpty(resSet)) {
                                 PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
                                 for (String k : resSet) {
-                                    ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
+                                    ColumnType columnType = ColumnType.valueOf(
+                                            Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
+                                                    .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
+                                                    .name());
                                     Object value = before.get(k);
                                     transferValueType(columnType, value);
                                     pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
