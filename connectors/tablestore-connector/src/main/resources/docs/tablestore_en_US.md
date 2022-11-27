@@ -22,3 +22,4 @@ To access AliCloud's tablestore service, you need to have a valid access key for
 ### **5. Cautions**
 * It takes a few seconds for the data table to load after it is created, and any read/write operations on the data table will fail during this time. Please wait until the data table is loaded before performing data operations.
 * When creating a data table, you must specify the primary key of the data table. The primary key contains 1 to 4 primary key columns, each of which has a name and type.
+* Emptying table data is not supported.
