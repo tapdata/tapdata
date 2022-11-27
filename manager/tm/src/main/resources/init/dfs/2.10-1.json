@@ -1,0 +1,29 @@
+[
+	{
+		"update": "Settings_Alarm",
+		"updates": [
+			{
+				"q": {
+					"key": "TASK_STATUS_ERROR"
+				},
+				"u": {
+					"$set": {
+						"notify": ["SYSTEM","EMAIL"]
+					}
+				},
+				"upsert": true
+			},
+			{
+				"q": {
+					"key": "TASK_STATUS_STOP"
+				},
+				"u": {
+					"$set": {
+						"notify": ["SYSTEM","EMAIL"]
+					}
+				},
+				"upsert": true
+			}
+		]
+	}
+]
