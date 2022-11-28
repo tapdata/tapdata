@@ -211,7 +211,13 @@ public class MongodbConnector extends ConnectorBase {
 			BsonDocument bsonDocument = new BsonDocument();
 			for (BsonValue bsonValue : bsonArray) {
 				if (bsonValue instanceof BsonDocument) {
-					bsonDocument.putAll((BsonDocument) bsonValue);
+					BsonDocument theDoc = (BsonDocument) bsonValue;
+					for(Map.Entry<String, BsonValue> entry : theDoc.entrySet()) {
+						BsonValue bsonValue1 = bsonDocument.get(entry.getKey());
+						if((bsonValue1 == null || bsonValue1.isNull()) || !entry.getValue().isNull()) {
+							bsonDocument.put(entry.getKey(), entry.getValue());
+						}
+					}
 				}
 			}
 			if (MapUtils.isNotEmpty(bsonDocument)) {
@@ -221,7 +227,7 @@ public class MongodbConnector extends ConnectorBase {
 			}
 		}
 		TapField field;
-		if (value != null) {
+		if (value != null && !value.isNull()) {
 			BsonType bsonType = value.getBsonType();
 			if (BsonType.STRING.equals(bsonType)) {
 				if (!(value instanceof BsonString)) {
@@ -243,7 +249,8 @@ public class MongodbConnector extends ConnectorBase {
 				field = TapSimplify.field(fieldName, bsonType.name());
 			}
 		} else {
-			field = TapSimplify.field(fieldName, BsonType.NULL.name());
+//			field = TapSimplify.field(fieldName, BsonType.NULL.name());
+			return;
 		}
 
 		if (COLLECTION_ID_FIELD.equals(fieldName)) {
