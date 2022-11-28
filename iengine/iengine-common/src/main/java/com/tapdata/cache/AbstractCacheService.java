@@ -55,7 +55,10 @@ public abstract class AbstractCacheService implements ICacheService {
       // 如果不存在，则向tm查询
       TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + cacheName, TaskDto.class);
       DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(taskDto, clientMongoOperator);
-      logger.warn("The cache task [{}] is abnormal, query by tm, cache config is [{}]...", cacheName, cacheConfig);
+      logger.warn("The cache task [{}] is abnormal, query by tm...", cacheName);
+      if (logger.isDebugEnabled()) {
+        logger.debug("query cache config is [{}]", cacheConfig);
+      }
       if (cacheConfig != null) {
         this.cacheStatusMap.remove(cacheName);
         registerCache(cacheConfig);
