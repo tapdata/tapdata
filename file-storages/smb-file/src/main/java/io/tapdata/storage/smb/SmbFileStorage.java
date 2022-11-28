@@ -92,9 +92,11 @@ public class SmbFileStorage implements TapFileStorage {
     }
 
     @Override
-    public InputStream readFile(String path) {
-        return share.openFile(path, EnumSet.of(AccessMask.GENERIC_READ), null,
+    public void readFile(String path, Consumer<InputStream> consumer) throws IOException {
+        InputStream is = share.openFile(path, EnumSet.of(AccessMask.GENERIC_READ), null,
                 SMB2ShareAccess.ALL, SMB2CreateDisposition.FILE_OPEN, null).getInputStream();
+        consumer.accept(is);
+        is.close();
     }
 
     @Override

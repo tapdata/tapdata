@@ -22,6 +22,7 @@ import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.CellRangeAddressBase;
 import org.apache.poi.xssf.usermodel.XSSFWorkbookFactory;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,41 +61,45 @@ public class ExcelConnector extends FileConnector {
     protected void readOneFile(FileOffset fileOffset, TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer, AtomicReference<List<TapEvent>> tapEvents) throws Exception {
         ExcelConfig excelConfig = (ExcelConfig) fileConfig;
         Object[] headers = tapTable.getNameFieldMap().values().stream().map(TapField::getName).toArray();
-        try (
-                Workbook wb = WorkbookFactory.create(storage.readFile(fileOffset.getPath()), excelConfig.getExcelPassword())
-        ) {
-            FormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
-            List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
-            List<Integer> sheets = sheetNumbers.stream().filter(n -> n >= fileOffset.getSheetNum()).collect(Collectors.toList());
-            for (int i = 0; isAlive() && i < sheets.size(); i++) {
-                Sheet sheet = wb.getSheetAt(sheets.get(i) - 1);
-                List<CellRangeAddress> mergedList = sheet.getMergedRegions();
-                int lastMergedRow = mergedList.stream().map(CellRangeAddressBase::getLastRow).max(Comparator.naturalOrder()).orElse(-1);
-                Map<CellRangeAddress, Cell> mergedDataMap = ExcelUtil.getMergedDataMap(sheet);
-                fileOffset.setSheetNum(sheets.get(i));
-                fileOffset.setDataLine(excelConfig.getDataStartLine());
-                for (int j = fileOffset.getDataLine() - 1; isAlive() && j <= sheet.getLastRowNum(); j++) {
-                    Row row = sheet.getRow(j);
-                    Map<String, Object> after = new HashMap<>();
-                    if (j > lastMergedRow) {
-                        for (int k = excelConfig.getFirstColumn() - 1; k < excelConfig.getLastColumn(); k++) {
-                            after.put((String) headers[k - excelConfig.getFirstColumn() + 1], ExcelUtil.getCellValue(row.getCell(k), formulaEvaluator));
+        storage.readFile(fileOffset.getPath(), is -> {
+            try (
+                    Workbook wb = WorkbookFactory.create(is, excelConfig.getExcelPassword())
+            ) {
+                FormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
+                List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
+                List<Integer> sheets = sheetNumbers.stream().filter(n -> n >= fileOffset.getSheetNum()).collect(Collectors.toList());
+                for (int i = 0; isAlive() && i < sheets.size(); i++) {
+                    Sheet sheet = wb.getSheetAt(sheets.get(i) - 1);
+                    List<CellRangeAddress> mergedList = sheet.getMergedRegions();
+                    int lastMergedRow = mergedList.stream().map(CellRangeAddressBase::getLastRow).max(Comparator.naturalOrder()).orElse(-1);
+                    Map<CellRangeAddress, Cell> mergedDataMap = ExcelUtil.getMergedDataMap(sheet);
+                    fileOffset.setSheetNum(sheets.get(i));
+                    fileOffset.setDataLine(excelConfig.getDataStartLine());
+                    for (int j = fileOffset.getDataLine() - 1; isAlive() && j <= sheet.getLastRowNum(); j++) {
+                        Row row = sheet.getRow(j);
+                        Map<String, Object> after = new HashMap<>();
+                        if (j > lastMergedRow) {
+                            for (int k = excelConfig.getFirstColumn() - 1; k < excelConfig.getLastColumn(); k++) {
+                                after.put((String) headers[k - excelConfig.getFirstColumn() + 1], ExcelUtil.getCellValue(row.getCell(k), formulaEvaluator));
+                            }
+                        } else {
+                            for (int k = excelConfig.getFirstColumn() - 1; k < excelConfig.getLastColumn(); k++) {
+                                after.put((String) headers[k - excelConfig.getFirstColumn() + 1], ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, row.getCell(k), formulaEvaluator));
+                            }
                         }
-                    } else {
-                        for (int k = excelConfig.getFirstColumn() - 1; k < excelConfig.getLastColumn(); k++) {
-                            after.put((String) headers[k - excelConfig.getFirstColumn() + 1], ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, row.getCell(k), formulaEvaluator));
+                        tapEvents.get().add(insertRecordEvent(after, tapTable.getId()));
+                        if (tapEvents.get().size() == eventBatchSize) {
+                            fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize);
+                            fileOffset.setPath(fileOffset.getPath());
+                            eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
+                            tapEvents.set(list());
                         }
-                    }
-                    tapEvents.get().add(insertRecordEvent(after, tapTable.getId()));
-                    if (tapEvents.get().size() == eventBatchSize) {
-                        fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize);
-                        fileOffset.setPath(fileOffset.getPath());
-                        eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
-                        tapEvents.set(list());
                     }
                 }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-        }
+        });
     }
 
     @Override
@@ -124,19 +129,22 @@ public class ExcelConnector extends FileConnector {
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         initConnection(connectionContext);
+        if (EmptyKit.isBlank(fileConfig.getModelName())) {
+            return;
+        }
         TapTable tapTable = table(fileConfig.getModelName());
-        ConcurrentMap<String, TapFile> csvFileMap = getFilteredFiles();
+        ConcurrentMap<String, TapFile> excelFileMap = getFilteredFiles();
         ExcelSchema excelSchema = new ExcelSchema((ExcelConfig) fileConfig, storage);
         Map<String, Object> sample;
         //excel has column header
         if (EmptyKit.isNotBlank(fileConfig.getHeader())) {
-            sample = excelSchema.sampleFixedFileData(csvFileMap);
+            sample = excelSchema.sampleFixedFileData(excelFileMap);
         } else //analyze every excel file
         {
-            sample = excelSchema.sampleEveryFileData(csvFileMap);
+            sample = excelSchema.sampleEveryFileData(excelFileMap);
         }
         if (EmptyKit.isEmpty(sample)) {
-            throw new RuntimeException("Load schema from csv files error: no headers and contents!");
+            throw new RuntimeException("Load schema from excel files error: no headers and contents!");
         }
         makeTapTable(tapTable, sample, false);
         consumer.accept(Collections.singletonList(tapTable));
