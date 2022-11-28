@@ -166,7 +166,7 @@ public class TapdataTaskScheduler {
 		if (StringUtils.isBlank(name)) return;
 		ScheduledFuture<?> scheduledFuture = scheduledFutureMap.get(name);
 		if (null == scheduledFuture) return;
-		scheduledFuture.cancel(true);
+		scheduledFuture.cancel(false);
 		scheduledFutureMap.remove(name);
 		logger.info("Stop schedule task: " + name);
 	}
@@ -242,13 +242,19 @@ public class TapdataTaskScheduler {
 							.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_WAIT_RUN)
 			);
 			query.with(Sort.by(DataFlow.PING_TIME_FIELD).ascending());
-			Update update = new Update();
-			update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
-			addAgentIdUpdate(update);
+			query.fields().include("_id").include("name");
+			List<TaskDto> allWaitRunTasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+			for (TaskDto waitRunTask : allWaitRunTasks) {
+				logger.info("Staring task from http query: {}[{}]", waitRunTask.getName(), waitRunTask.getId());
+				query = new Query(Criteria.where("id").is(waitRunTask.getId()));
+				Update update = new Update();
+				update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
+				addAgentIdUpdate(update);
 
-			TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
-			if (taskDto != null) {
-				sendStartTask(taskDto);
+				TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
+				if (taskDto != null) {
+					sendStartTask(taskDto);
+				}
 			}
 		} catch (Exception e) {
 			logger.error("Schedule start task failed {}", e.getMessage(), e);

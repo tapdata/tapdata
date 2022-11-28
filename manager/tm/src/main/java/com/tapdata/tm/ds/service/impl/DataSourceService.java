@@ -1053,7 +1053,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			boolean matches = name.matches(connectNameReg);
 			if (!matches) {
 				log.warn("Illegal name, name = {}", name);
-				throw new BizException("Datasource.IllegalName", "Illegal name");
+				throw new BizException("Datasource.IllegalName");
 			}
 		}
 	}

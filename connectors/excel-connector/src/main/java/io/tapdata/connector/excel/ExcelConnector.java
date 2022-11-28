@@ -6,26 +6,23 @@ import io.tapdata.connector.excel.config.ExcelConfig;
 import io.tapdata.connector.excel.util.ExcelUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapRawValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.file.TapFile;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.ss.util.CellRangeAddressBase;
+import org.apache.poi.xssf.usermodel.XSSFWorkbookFactory;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -35,6 +32,17 @@ import java.util.stream.Collectors;
 @TapConnectorClass("spec_excel.json")
 public class ExcelConnector extends FileConnector {
 
+    private static final String TAG = ExcelConnector.class.getSimpleName();
+
+    static {
+        try {
+            XSSFWorkbookFactory factory = new XSSFWorkbookFactory();
+            WorkbookFactory.addProvider(factory);
+        } catch (Throwable throwable) {
+            TapLogger.error(TAG, "Add provider XSSFWorkbookFactory failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
+        }
+    }
+
     @Override
     protected void initConnection(TapConnectionContext connectorContext) throws Exception {
         fileConfig = new ExcelConfig();
@@ -43,7 +51,8 @@ public class ExcelConnector extends FileConnector {
 
     @Override
     protected void makeFileOffset(FileOffset fileOffset) {
-        fileOffset.setSheetNum(((ExcelConfig) fileConfig).getSheetNum().stream().findFirst().orElse(1));
+        List<Integer> sheetNumber = ((ExcelConfig) fileConfig).getSheetNum();
+        fileOffset.setSheetNum(EmptyKit.isEmpty(sheetNumber) ? 1 : sheetNumber.stream().findFirst().orElse(1));
         fileOffset.setDataLine(fileConfig.getDataStartLine());
     }
 
@@ -54,17 +63,27 @@ public class ExcelConnector extends FileConnector {
         try (
                 Workbook wb = WorkbookFactory.create(storage.readFile(fileOffset.getPath()), excelConfig.getExcelPassword())
         ) {
+            FormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
             List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
             List<Integer> sheets = sheetNumbers.stream().filter(n -> n >= fileOffset.getSheetNum()).collect(Collectors.toList());
             for (int i = 0; isAlive() && i < sheets.size(); i++) {
                 Sheet sheet = wb.getSheetAt(sheets.get(i) - 1);
+                List<CellRangeAddress> mergedList = sheet.getMergedRegions();
+                int lastMergedRow = mergedList.stream().map(CellRangeAddressBase::getLastRow).max(Comparator.naturalOrder()).orElse(-1);
+                Map<CellRangeAddress, Cell> mergedDataMap = ExcelUtil.getMergedDataMap(sheet);
                 fileOffset.setSheetNum(sheets.get(i));
                 fileOffset.setDataLine(excelConfig.getDataStartLine());
                 for (int j = fileOffset.getDataLine() - 1; isAlive() && j <= sheet.getLastRowNum(); j++) {
                     Row row = sheet.getRow(j);
                     Map<String, Object> after = new HashMap<>();
-                    for (int k = excelConfig.getFirstColumn() - 1; k < excelConfig.getLastColumn(); k++) {
-                        after.put((String) headers[k - excelConfig.getFirstColumn() + 1], ExcelUtil.getCellValue(row.getCell(k), null));
+                    if (j > lastMergedRow) {
+                        for (int k = excelConfig.getFirstColumn() - 1; k < excelConfig.getLastColumn(); k++) {
+                            after.put((String) headers[k - excelConfig.getFirstColumn() + 1], ExcelUtil.getCellValue(row.getCell(k), formulaEvaluator));
+                        }
+                    } else {
+                        for (int k = excelConfig.getFirstColumn() - 1; k < excelConfig.getLastColumn(); k++) {
+                            after.put((String) headers[k - excelConfig.getFirstColumn() + 1], ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, row.getCell(k), formulaEvaluator));
+                        }
                     }
                     tapEvents.get().add(insertRecordEvent(after, tapTable.getId()));
                     if (tapEvents.get().size() == eventBatchSize) {
@@ -81,7 +100,15 @@ public class ExcelConnector extends FileConnector {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         codecRegistry.registerFromTapValue(TapRawValue.class, "STRING", tapRawValue -> {
-            if (tapRawValue != null && tapRawValue.getValue() != null) return tapRawValue.getValue().toString();
+            if (tapRawValue != null && tapRawValue.getValue() != null) return toJson(tapRawValue.getValue());
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapMapValue.class, "STRING", tapMapValue -> {
+            if (tapMapValue != null && tapMapValue.getValue() != null) return toJson(tapMapValue.getValue());
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapArrayValue.class, "STRING", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null) return toJson(tapValue.getValue());
             return "null";
         });
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
@@ -111,9 +138,28 @@ public class ExcelConnector extends FileConnector {
         if (EmptyKit.isEmpty(sample)) {
             throw new RuntimeException("Load schema from csv files error: no headers and contents!");
         }
-        makeTapTable(tapTable, sample, fileConfig.getJustString());
+        makeTapTable(tapTable, sample, false);
         consumer.accept(Collections.singletonList(tapTable));
         storage.destroy();
+    }
+
+    @Override
+    protected void makeTapTable(TapTable tapTable, Map<String, Object> sample, boolean isJustString) {
+        for (Map.Entry<String, Object> objectEntry : sample.entrySet()) {
+            TapField field = new TapField();
+            field.name(objectEntry.getKey());
+            Object val = objectEntry.getValue();
+            if (val instanceof String) {
+                if (EmptyKit.isNotEmpty((String) val) && ((String) val).length() > 200) {
+                    field.dataType("TEXT");
+                } else {
+                    field.dataType("STRING");
+                }
+            } else {
+                field.dataType(val.getClass().getSimpleName().toUpperCase());
+            }
+            tapTable.add(field);
+        }
     }
 
 }
