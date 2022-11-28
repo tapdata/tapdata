@@ -45,6 +45,7 @@ public class XmlConnector extends FileConnector {
 
     @Override
     protected void readOneFile(FileOffset fileOffset, TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer, AtomicReference<List<TapEvent>> tapEvents) throws Exception {
+        long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
         storage.readFile(fileOffset.getPath(), is -> {
             try (
                     Reader reader = new InputStreamReader(is, fileConfig.getFileEncoding())
@@ -53,7 +54,7 @@ public class XmlConnector extends FileConnector {
                 saxReader.setDefaultHandler(new BigSaxDataHandler()
                         .withPath(((XmlConfig) fileConfig).getXPath())
                         .withFlag(this::isAlive)
-                        .withLastModified(storage.getFile(fileOffset.getPath()).getLastModified())
+                        .withLastModified(lastModified)
                         .withConfig(fileOffset, tapTable, eventBatchSize, eventsOffsetConsumer, tapEvents));
                 saxReader.read(reader);
             } catch (StopException ignored) {

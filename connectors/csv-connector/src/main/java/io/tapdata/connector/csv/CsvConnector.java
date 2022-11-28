@@ -93,6 +93,7 @@ public class CsvConnector extends FileConnector {
                                BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer,
                                AtomicReference<List<TapEvent>> tapEvents) throws Exception {
         Map<String, String> dataTypeMap = tapTable.getNameFieldMap().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getDataType()));
+        long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
         storage.readFile(fileOffset.getPath(), is -> {
             try (
                     Reader reader = new InputStreamReader(is, fileConfig.getFileEncoding());
@@ -117,7 +118,6 @@ public class CsvConnector extends FileConnector {
                 if (EmptyKit.isNotEmpty(headers)) {
                     csvReader.skip(fileOffset.getDataLine() - 2 - csvReader.getSkipLines());
                     String[] data;
-                    long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
                     while (isAlive() && (data = csvReader.readNext()) != null) {
                         Map<String, Object> after = new HashMap<>();
                         putIntoMap(after, headers, data, dataTypeMap);

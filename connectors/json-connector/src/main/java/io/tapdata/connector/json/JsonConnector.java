@@ -50,12 +50,12 @@ public class JsonConnector extends FileConnector {
     }
 
     private void readJsonObjectFile(FileOffset fileOffset, TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer, AtomicReference<List<TapEvent>> tapEvents) throws Exception {
+        long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
         storage.readFile(fileOffset.getPath(), is -> {
             try (
                     Reader reader = new InputStreamReader(is, fileConfig.getFileEncoding());
                     JsonReader jsonReader = new JsonReader(reader)
             ) {
-                long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
                 jsonReader.beginObject();
                 while (isAlive() && jsonReader.hasNext()) {
                     String __key = jsonReader.nextName();
@@ -76,12 +76,12 @@ public class JsonConnector extends FileConnector {
     }
 
     private void readJsonArrayFile(FileOffset fileOffset, TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer, AtomicReference<List<TapEvent>> tapEvents) throws Exception {
+        long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
         storage.readFile(fileOffset.getPath(), is -> {
             try (
                     Reader reader = new InputStreamReader(is, fileConfig.getFileEncoding());
                     JsonReader jsonReader = new JsonReader(reader)
             ) {
-                long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
                 jsonReader.beginArray();
                 while (isAlive() && jsonReader.hasNext()) {
                     tapEvents.get().add(insertRecordEvent(JsonReaderUtil.traverseMap(jsonReader), tapTable.getId()).referenceTime(lastModified));
