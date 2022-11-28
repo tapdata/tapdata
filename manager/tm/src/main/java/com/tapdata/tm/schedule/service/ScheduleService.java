@@ -17,16 +17,14 @@ import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
-import org.quartz.Job;
-import org.quartz.JobExecutionContext;
-import org.quartz.JobExecutionException;
-import org.quartz.JobKey;
+import org.quartz.*;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
 
 @Service
 @Slf4j
+@DisallowConcurrentExecution
 public class ScheduleService implements Job {
 
 
