@@ -66,7 +66,7 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 		if(asyncJobChain != null) {
 			Set<Map.Entry<String, AsyncJob>> asyncJobCollection = asyncJobChain.asyncJobs();
 			for(Map.Entry<String, AsyncJob> entry : asyncJobCollection) {
-				this.asyncJobChain.job(entry.getKey(), entry.getValue());
+				this.asyncJobChain.job(entry.getKey(), entry.getValue(), asyncJobChain.isPending(entry.getKey()));
 			}
 			if (state.get() > STATE_NONE && state.get() < STATE_STOPPED)
 				startPrivate();

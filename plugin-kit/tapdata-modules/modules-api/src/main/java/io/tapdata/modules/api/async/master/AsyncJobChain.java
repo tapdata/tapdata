@@ -16,6 +16,8 @@ public interface AsyncJobChain {
 
 	AsyncJobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending);
 
+	boolean isPending(String id);
+
 	AsyncJob remove(String id);
 
 	Set<Map.Entry<String, AsyncJob>> asyncJobs();

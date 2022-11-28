@@ -19,10 +19,10 @@ public class Sample {
 
 
 		AsyncParallelWorker parallelWorker = asyncMaster.createAsyncParallelWorker("", 1);
-		parallelWorker.start("", JobContext.create(""));
-		parallelWorker.start("", JobContext.create(""));
-		parallelWorker.start("", JobContext.create(""));
-		parallelWorker.start("", JobContext.create(""));
+		parallelWorker.start("", JobContext.create(""), null);
+		parallelWorker.start("", JobContext.create(""), null);
+		parallelWorker.start("", JobContext.create(""), null);
+		parallelWorker.start("", JobContext.create(""), null);
 
 
 

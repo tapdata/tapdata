@@ -5,11 +5,9 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.Container;
 import io.tapdata.modules.api.async.master.*;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Consumer;
 
 /**
  * @author aplomb
@@ -30,12 +28,16 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 
 	@Override
 	public String getId() {
-		return null;
+		return id;
 	}
 
 	@Override
-	public synchronized AsyncQueueWorker start(String queueWorkerId, JobContext jobContext) {
+	public synchronized AsyncQueueWorker start(String queueWorkerId, JobContext jobContext, Consumer<AsyncQueueWorker> consumer) {
 		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker(queueWorkerId);
+		if (consumer != null) {
+			consumer.accept(asyncQueueWorker);
+		}
+
 		if(runningQueueWorkers.size() < parallelCount) {
 			AsyncQueueWorker old = runningQueueWorkers.putIfAbsent(queueWorkerId, asyncQueueWorker);
 			if(old == null) {
@@ -79,8 +81,8 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	}
 
 	@Override
-	public List<AsyncQueueWorker> runningQueueWorkers() {
-		return null;
+	public Collection<AsyncQueueWorker> runningQueueWorkers() {
+		return runningQueueWorkers.values();
 	}
 
 	@Override
@@ -89,8 +91,8 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	}
 
 	@Override
-	public List<AsyncQueueWorker> pendingQueueWorkers() {
-		return null;
+	public List<Container<JobContext, AsyncQueueWorker>> pendingQueueWorkers() {
+		return pendingQueueWorkers;
 	}
 
 	public void setId(String id) {

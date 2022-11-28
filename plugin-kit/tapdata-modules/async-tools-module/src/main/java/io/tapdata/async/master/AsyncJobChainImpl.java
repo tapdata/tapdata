@@ -61,6 +61,11 @@ public class AsyncJobChainImpl implements AsyncJobChain {
 	}
 
 	@Override
+	public boolean isPending(String id) {
+		return pendingJobIds.contains(id);
+	}
+
+	@Override
 	public AsyncJob remove(String id) {
 		return asyncJobLinkedMap.remove(id);
 	}
