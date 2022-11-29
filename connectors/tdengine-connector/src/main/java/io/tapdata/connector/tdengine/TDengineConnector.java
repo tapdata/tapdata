@@ -372,18 +372,9 @@ public class TDengineConnector extends ConnectorBase {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(tdengineConfig.getConnectionString());
         try (
-                TDengineTest tdengineTest = new TDengineTest(tdengineConfig)
+                TDengineTest tdengineTest = new TDengineTest(tdengineConfig, consumer)
         ) {
-            TestItem testHostPort = tdengineTest.testHostPort();
-            consumer.accept(testHostPort);
-            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-                return connectionOptions;
-            }
-            TestItem testConnect = tdengineTest.testConnect();
-            consumer.accept(testConnect);
-            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-                return connectionOptions;
-            }
+            tdengineTest.testOneByOne();
 
             return connectionOptions;
         }
