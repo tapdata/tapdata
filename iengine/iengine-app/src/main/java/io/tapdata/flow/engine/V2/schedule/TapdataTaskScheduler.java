@@ -432,10 +432,13 @@ public class TapdataTaskScheduler {
 		if (taskClient == null || taskClient.getTask() == null || StringUtils.isBlank(taskClient.getTask().getId().toHexString())) {
 			return;
 		}
-		final String taskId = taskClient.getTask().getId().toHexString();
-		clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/complete", taskId, TaskDto.class);
-		removeTask(taskId, true);
-		destroyCache(taskClient);
+		boolean stop = taskClient.stop();
+		if (stop) {
+			final String taskId = taskClient.getTask().getId().toHexString();
+			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/complete", taskId, TaskDto.class);
+			removeTask(taskId, true);
+			destroyCache(taskClient);
+		}
 	}
 
 	private void addAgentIdUpdate(Update update) {

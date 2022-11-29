@@ -88,7 +88,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			job.cancel();
 		}
 
-		if (job.getStatus() == JobStatus.SUSPENDED || job.getStatus() == JobStatus.FAILED) {
+		if (job.getStatus() == JobStatus.SUSPENDED || job.getStatus() == JobStatus.FAILED || job.getStatus() == JobStatus.COMPLETED) {
 			try {
 				monitorManager.close();
 			} catch (IOException ignore) {
