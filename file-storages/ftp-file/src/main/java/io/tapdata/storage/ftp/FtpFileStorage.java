@@ -95,10 +95,16 @@ public class FtpFileStorage implements TapFileStorage {
 
     @Override
     public void readFile(String path, Consumer<InputStream> consumer) throws IOException {
-        InputStream is = ftpClient.retrieveFileStream(encodeISO(path));
-        consumer.accept(is);
-        is.close();
-        ftpClient.completePendingCommand();
+        if (!isFileExist(path)) {
+            return;
+        }
+        try (
+                InputStream is = ftpClient.retrieveFileStream(encodeISO(path))
+        ) {
+            consumer.accept(is);
+        } finally {
+            ftpClient.completePendingCommand();
+        }
     }
 
     @Override

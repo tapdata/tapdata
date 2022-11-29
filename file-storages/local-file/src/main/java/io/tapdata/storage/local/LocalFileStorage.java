@@ -50,9 +50,14 @@ public class LocalFileStorage implements TapFileStorage {
 
     @Override
     public void readFile(String path, Consumer<InputStream> consumer) throws IOException {
-        InputStream is = Files.newInputStream(Paths.get(path));
-        consumer.accept(is);
-        is.close();
+        if (!isFileExist(path)) {
+            return;
+        }
+        try (
+                InputStream is = Files.newInputStream(Paths.get(path))
+        ) {
+            consumer.accept(is);
+        }
     }
 
     @Override
