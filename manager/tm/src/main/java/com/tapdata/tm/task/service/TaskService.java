@@ -416,6 +416,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setTransformUuid(null);
         taskDto.setTransformDagHash(dagHash);
 
+        taskDto.setWriteBatchSize(null);
+        taskDto.setWriteBatchWaitMs(null);
+
         return save(taskDto, user);
 
     }
