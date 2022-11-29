@@ -63,9 +63,10 @@ public class TaskStatusRunningTests extends TaskStatusTests {
     }
 
     @Test
-    public void testOverTime() {
+    public void testOverTime() throws InterruptedException {
         initTask(TaskDto.STATUS_RUNNING, ImmutablePair.of("pingTime", System.currentTimeMillis() - 500000));
         Mockito.doNothing().when(taskScheduleService).scheduling(any(TaskDto.class), any(UserDetail.class));
+        Thread.sleep(5000);
         taskRestartSchedule.engineRestartNeedStartTask();
         TaskDto taskDto = taskService.findById(taskId);
         assertEquals(TaskDto.STATUS_SCHEDULING, taskDto.getStatus());

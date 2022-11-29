@@ -36,7 +36,6 @@ import java.util.Date;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 
-@ActiveProfiles("dev")
 @SpringBootTest(classes = {TMApplication.class})
 public class TaskScheduleTests {
 
@@ -209,7 +208,7 @@ public class TaskScheduleTests {
         initWorker();
         Mockito.doNothing().when(messageQueueService).sendMessage(any(MessageQueueDto.class));
         TaskDto taskDto = taskService.findById(taskId);
-            taskScheduleService.scheduling(taskDto, user);
+        taskScheduleService.scheduling(taskDto, user);
         taskDto = taskService.findById(taskId);
         assertEquals(TaskDto.STATUS_WAIT_RUN, taskDto.getStatus());
     }

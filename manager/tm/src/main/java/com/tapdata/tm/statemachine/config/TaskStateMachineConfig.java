@@ -81,6 +81,7 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 				.transition(TaskState.RENEW_FAILED, TaskState.DELETING, DataFlowEvent.DELETE)
 				.transition(TaskState.DELETING, TaskState.DELETE_FAILED, DataFlowEvent.RENEW_DEL_FAILED)
 				.transition(TaskState.DELETING, TaskState.DELETE_FAILED, DataFlowEvent.OVERTIME)
+				.transition(TaskState.DELETE_FAILED, TaskState.DELETING, DataFlowEvent.DELETE)
 				.transition(TaskState.DONE, TaskState.DONE, DataFlowEvent.CONFIRM)
 				.transition(TaskState.DONE, TaskState.SCHEDULING, DataFlowEvent.START)
 				.transition(TaskState.DONE, TaskState.RENEWING, DataFlowEvent.RENEW)
