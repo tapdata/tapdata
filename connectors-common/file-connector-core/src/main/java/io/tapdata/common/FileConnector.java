@@ -107,6 +107,8 @@ public abstract class FileConnector extends ConnectorBase {
         while (isAlive() && iterator.hasNext()) {
             fileOffset.setPath(iterator.next().getValue().getPath());
             makeFileOffset(fileOffset);
+            eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
+            tapEvents.set(new ArrayList<>());
             readOneFile(fileOffset, tapTable, eventBatchSize, eventsOffsetConsumer, tapEvents);
         }
         if (EmptyKit.isNotEmpty(tapEvents.get())) {
@@ -134,9 +136,14 @@ public abstract class FileConnector extends ConnectorBase {
                 Map.Entry<String, TapFile> entry = iterator.next();
                 fileOffset.setPath(entry.getKey());
                 makeFileOffset(fileOffset);
+                consumer.accept(tapEvents.get(), fileOffset);
+                tapEvents.set(new ArrayList<>());
                 readOneFile(fileOffset, tapTable, recordSize, consumer, tapEvents);
                 allFiles.put(entry.getKey(), entry.getValue());
-                consumer.accept(Collections.emptyList(), fileOffset);
+            }
+            if (EmptyKit.isNotEmpty(tapEvents.get())) {
+                fileOffset.setDataLine(fileOffset.getDataLine() + tapEvents.get().size());
+                consumer.accept(tapEvents.get(), fileOffset);
             }
             needReadFiles.clear();
             needReadFiles.putAll(changedFiles);
