@@ -289,7 +289,7 @@ public class TablestoreConnector extends ConnectorBase {
                             client.putRow(new PutRowRequest(putChange));
                             insertCount++;
                         } catch (Exception e) {
-                            listResult.addError(recordEvent, e);
+                            throw new RuntimeException(e);
                         }
 
                     } else if (recordEvent instanceof TapUpdateRecordEvent) {
@@ -330,7 +330,7 @@ public class TablestoreConnector extends ConnectorBase {
                             client.updateRow(new UpdateRowRequest(updateChange));
                             updateCount++;
                         }  catch (Exception e) {
-                            listResult.addError(recordEvent, e);
+                            throw new RuntimeException(e);
                         }
                     } else if (recordEvent instanceof TapDeleteRecordEvent) {
                         try {
@@ -357,7 +357,7 @@ public class TablestoreConnector extends ConnectorBase {
                             client.deleteRow(new DeleteRowRequest(deleteChange));
                             deleteCount++;
                         }  catch (Exception e) {
-                            listResult.addError(recordEvent, e);
+                            throw new RuntimeException(e);
                         }
                     }
                 }
