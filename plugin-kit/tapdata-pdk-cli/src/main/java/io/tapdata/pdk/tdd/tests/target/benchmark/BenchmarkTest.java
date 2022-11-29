@@ -102,7 +102,7 @@ public class BenchmarkTest extends PDKTestBase {
 //        $(() -> Assertions.assertNotNull(connectorFunctions.getBatchCountFunction(), "BatchCount is needed for verify how many records have inserted"));
     }
 
-    private void initConnectorFunctions() {
+    protected void initConnectorFunctions() {
         targetNode = dataFlowWorker.getTargetNodeDriver(targetNodeId).getTargetNode();
         tddSourceNode = dataFlowWorker.getSourceNodeDriver(sourceNodeId).getSourceNode();
     }

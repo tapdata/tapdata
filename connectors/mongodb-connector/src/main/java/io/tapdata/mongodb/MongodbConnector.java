@@ -211,7 +211,13 @@ public class MongodbConnector extends ConnectorBase {
 			BsonDocument bsonDocument = new BsonDocument();
 			for (BsonValue bsonValue : bsonArray) {
 				if (bsonValue instanceof BsonDocument) {
-					bsonDocument.putAll((BsonDocument) bsonValue);
+					BsonDocument theDoc = (BsonDocument) bsonValue;
+					for(Map.Entry<String, BsonValue> entry : theDoc.entrySet()) {
+						BsonValue bsonValue1 = bsonDocument.get(entry.getKey());
+						if((bsonValue1 == null || bsonValue1.isNull()) || !entry.getValue().isNull()) {
+							bsonDocument.put(entry.getKey(), entry.getValue());
+						}
+					}
 				}
 			}
 			if (MapUtils.isNotEmpty(bsonDocument)) {
@@ -221,7 +227,7 @@ public class MongodbConnector extends ConnectorBase {
 			}
 		}
 		TapField field;
-		if (value != null) {
+		if (value != null && !value.isNull()) {
 			BsonType bsonType = value.getBsonType();
 			if (BsonType.STRING.equals(bsonType)) {
 				if (!(value instanceof BsonString)) {
@@ -243,11 +249,22 @@ public class MongodbConnector extends ConnectorBase {
 				field = TapSimplify.field(fieldName, bsonType.name());
 			}
 		} else {
-			field = TapSimplify.field(fieldName, BsonType.NULL.name());
+//			field = TapSimplify.field(fieldName, BsonType.NULL.name());
+			return;
 		}
 
 		if (COLLECTION_ID_FIELD.equals(fieldName)) {
 			field.primaryKeyPos(1);
+		}
+		TapField currentFiled = null;
+		if(table.getNameFieldMap() != null)
+			currentFiled = table.getNameFieldMap().get(fieldName);
+		if(currentFiled != null &&
+				currentFiled.getDataType() != null &&
+				!currentFiled.getDataType().equals(BsonType.NULL.name()) &&
+				field.getDataType() != null && field.getDataType().equals(BsonType.NULL.name())
+		) {
+			return;
 		}
 		tableFieldTypesGenerator.autoFill(field, connectionContext.getSpecification().getDataTypesMap());
 		table.add(field);
@@ -509,7 +526,7 @@ public class MongodbConnector extends ConnectorBase {
 	 * @param writeListResultConsumer
 	 */
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-		if (mongodbWriter == null) {
+	    if (mongodbWriter == null) {
 			synchronized (this) {
 				if (mongodbWriter == null) {
 					mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap(), mongoConfig, mongoClient);

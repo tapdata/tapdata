@@ -173,14 +173,14 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 	private void handleWhenPingFailed() {
 		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
-		if(null == tapdataTaskScheduler) return;
+		if (null == tapdataTaskScheduler) return;
 		tapdataTaskScheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
 		tapdataTaskScheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_STOP_TASK_NAME);
 	}
 
 	private void handleWhenPingSucceed() {
 		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
-		if(null == tapdataTaskScheduler) return;
+		if (null == tapdataTaskScheduler) return;
 		tapdataTaskScheduler.stopScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
 		tapdataTaskScheduler.stopScheduleTask(TapdataTaskScheduler.SCHEDULE_STOP_TASK_NAME);
 	}

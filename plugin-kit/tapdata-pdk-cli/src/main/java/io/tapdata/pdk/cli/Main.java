@@ -25,6 +25,7 @@ public class Main {
         commandLine.addSubcommand("test", new TDDCli());
         commandLine.addSubcommand("modelPrediction", new ModelPredictionCli());
         commandLine.addSubcommand("jar", new JarHijackerCli());
+        commandLine.addSubcommand("capabilities", new TapCapabilitiesCli());
         return commandLine;
     }
 }

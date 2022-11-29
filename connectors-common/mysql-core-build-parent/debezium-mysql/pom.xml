@@ -69,6 +69,7 @@
     </properties>
 
     <modules>
+        <module>debezium-parent</module>
         <module>debezium-api</module>
         <module>debezium-embedded</module>
         <module>debezium-connector-mysql</module>

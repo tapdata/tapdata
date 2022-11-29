@@ -7,14 +7,14 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
 import io.tapdata.kit.EmptyKit;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
 
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class ExcelSchema extends FileSchema {
@@ -26,36 +26,43 @@ public class ExcelSchema extends FileSchema {
     }
 
     @Override
-    protected void sampleOneFile(Map<String, Object> sampleResult, TapFile tapFile) {
+    protected void sampleOneFile(Map<String, Object> sampleResult, TapFile tapFile) throws Exception {
         ExcelConfig excelConfig = (ExcelConfig) fileConfig;
-        try (
-                Workbook wb = WorkbookFactory.create(storage.readFile(tapFile.getPath()), excelConfig.getExcelPassword())
-        ) {
-            List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
-            for (Integer num : sheetNumbers) {
-                Sheet sheet = wb.getSheetAt(num - 1);
-                if (excelConfig.getHeaderLine() > 0) {
-                    Row headerRow = sheet.getRow(excelConfig.getHeaderLine() - 1);
-                    if (EmptyKit.isNull(headerRow)) {
-                        continue;
-                    }
-                    Row dataRow = sheet.getRow(excelConfig.getDataStartLine() - 1);
-                    for (int i = excelConfig.getFirstColumn() - 1; i < excelConfig.getLastColumn(); i++) {
-                        putValidIntoMap(sampleResult, String.valueOf(ExcelUtil.getCellValue(headerRow.getCell(i), null)), ExcelUtil.getCellValue(dataRow.getCell(i), null));
-                    }
-                } else {
-                    Row dataRow = sheet.getRow(excelConfig.getDataStartLine() - 1);
-                    if (EmptyKit.isNull(dataRow)) {
-                        continue;
-                    }
-                    for (int i = excelConfig.getFirstColumn() - 1; i < excelConfig.getLastColumn(); i++) {
-                        putValidIntoMap(sampleResult, "column" + (i - excelConfig.getFirstColumn() + 2), ExcelUtil.getCellValue(dataRow.getCell(i), null));
+        storage.readFile(tapFile.getPath(), is -> {
+            try (
+                    Workbook wb = WorkbookFactory.create(is, excelConfig.getExcelPassword())
+            ) {
+                FormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
+                List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
+                for (Integer num : sheetNumbers) {
+                    Sheet sheet = wb.getSheetAt(num - 1);
+                    List<CellRangeAddress> mergedList = sheet.getMergedRegions();
+                    Map<CellRangeAddress, Cell> mergedDataMap = ExcelUtil.getMergedDataMap(sheet);
+                    if (excelConfig.getHeaderLine() > 0) {
+                        Row headerRow = sheet.getRow(excelConfig.getHeaderLine() - 1);
+                        if (EmptyKit.isNull(headerRow)) {
+                            continue;
+                        }
+                        Row dataRow = sheet.getRow(excelConfig.getDataStartLine() - 1);
+                        for (int i = excelConfig.getFirstColumn() - 1; i < excelConfig.getLastColumn(); i++) {
+                            putValidIntoMap(sampleResult, String.valueOf(ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, headerRow.getCell(i), formulaEvaluator)),
+                                    ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, dataRow.getCell(i), formulaEvaluator));
+                        }
+                    } else {
+                        Row dataRow = sheet.getRow(excelConfig.getDataStartLine() - 1);
+                        if (EmptyKit.isNull(dataRow)) {
+                            continue;
+                        }
+                        for (int i = excelConfig.getFirstColumn() - 1; i < excelConfig.getLastColumn(); i++) {
+                            putValidIntoMap(sampleResult, "column" + (i - excelConfig.getFirstColumn() + 2),
+                                    ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, dataRow.getCell(i), formulaEvaluator));
+                        }
                     }
                 }
+            } catch (Exception e) {
+                TapLogger.error(TAG, "read excel file error!", e);
             }
-        } catch (Exception e) {
-            TapLogger.error(TAG, "read excel file error!", e);
-        }
+        });
     }
 
     public Map<String, Object> sampleFixedFileData(Map<String, TapFile> excelFileMap) throws Exception {
@@ -66,24 +73,35 @@ public class ExcelSchema extends FileSchema {
             putIntoMap(headers, null, sampleResult);
         } else {
             for (String path : excelFileMap.keySet().stream().sorted().collect(Collectors.toList())) {
-                try (
-                        Workbook wb = WorkbookFactory.create(storage.readFile(path), excelConfig.getExcelPassword())
-                ) {
-                    List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
-                    for (Integer num : sheetNumbers) {
-                        Sheet sheet = wb.getSheetAt(num - 1);
-                        Row dataRow = sheet.getRow(excelConfig.getDataStartLine() - 1);
-                        if (EmptyKit.isNull(dataRow)) {
-                            continue;
+                AtomicBoolean needStop = new AtomicBoolean(false);
+                storage.readFile(path, is -> {
+                    try (
+                            Workbook wb = WorkbookFactory.create(is, excelConfig.getExcelPassword())
+                    ) {
+                        FormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
+                        List<Integer> sheetNumbers = EmptyKit.isEmpty(excelConfig.getSheetNum()) ? ExcelUtil.getAllSheetNumber(wb.getNumberOfSheets()) : excelConfig.getSheetNum();
+                        for (Integer num : sheetNumbers) {
+                            Sheet sheet = wb.getSheetAt(num - 1);
+                            List<CellRangeAddress> mergedList = sheet.getMergedRegions();
+                            Map<CellRangeAddress, Cell> mergedDataMap = ExcelUtil.getMergedDataMap(sheet);
+                            Row dataRow = sheet.getRow(excelConfig.getDataStartLine() - 1);
+                            if (EmptyKit.isNull(dataRow)) {
+                                continue;
+                            }
+                            for (int i = excelConfig.getFirstColumn() - 1; i < excelConfig.getLastColumn(); i++) {
+                                sampleResult.put(headers[i - excelConfig.getFirstColumn() + 1], ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, dataRow.getCell(i), formulaEvaluator));
+                            }
+                            break;
                         }
-                        for (int i = excelConfig.getFirstColumn() - 1; i < excelConfig.getLastColumn(); i++) {
-                            sampleResult.put(headers[i - excelConfig.getFirstColumn() + 1], ExcelUtil.getCellValue(dataRow.getCell(i), null));
+                        if (EmptyKit.isNotEmpty(sampleResult)) {
+                            needStop.set(true);
                         }
-                        break;
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
                     }
-                    if (EmptyKit.isNotEmpty(sampleResult)) {
-                        break;
-                    }
+                });
+                if (needStop.get()) {
+                    break;
                 }
             }
         }

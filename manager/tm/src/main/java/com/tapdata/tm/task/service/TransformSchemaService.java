@@ -4,7 +4,6 @@ import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -13,10 +12,12 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -110,11 +111,6 @@ public class TransformSchemaService {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
         taskDto.setUserId(user.getUserId());
         DAG dag = taskDto.getDag();
-        List<Node> dagNodes = dag.getNodes();
-        dagNodes.forEach(node -> {
-            node.setService(dagDataService);
-            node.getDag().setTaskId(taskDto.getId());
-        });
 
         Map<String, List<SchemaTransformerResult>> results = new HashMap<>();
         Map<String, List<SchemaTransformerResult>> lastBatchResults = new HashMap<>();
@@ -179,6 +175,20 @@ public class TransformSchemaService {
         // update metaTransformer version
         dag.getTargets().forEach(target -> metadataTransformerService.updateVersion(taskDto.getId().toHexString(), target.getId(), options.getUuid()));
 
+        List<Node> dagNodes = dag.getNodes();
+        dagNodes.forEach(node -> {
+            node.setService(dagDataService);
+            node.getDag().setTaskId(taskDto.getId());
+
+            if (node instanceof DataParentNode) {
+                Optional.ofNullable(((DataParentNode<?>) node).getFieldChangeRules()).ifPresent(fieldChangeRules -> {
+                    if (null == options.getFieldChangeRules()) {
+                        options.setFieldChangeRules(new FieldChangeRuleGroup());
+                    }
+                    options.getFieldChangeRules().addAll(node.getId(), fieldChangeRules);
+                });
+            }
+        });
         List<Node> nodes = dagNodes;
 
         List<MetadataInstancesDto> metadataList = new ArrayList<>();
