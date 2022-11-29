@@ -4,6 +4,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.file.TapFileStorage;
 import io.tapdata.file.TapFileStorageBuilder;
 import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.storage.kit.EmptyKit;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +51,12 @@ public class FileTest implements AutoCloseable {
     }
 
     public String getConnectionString() {
-        return storage.getConnectInfo() + "[" + fileConfig.getFilePathString() + "]";
+        String filePathString = fileConfig.getFilePathString();
+        if (EmptyKit.isBlank(filePathString)) {
+            return storage.getConnectInfo();
+        } else {
+            return storage.getConnectInfo() + (filePathString.startsWith("/") ? filePathString.substring(1) : filePathString);
+        }
     }
 
     @Override
