@@ -506,7 +506,8 @@ def show_jobs(quiet=False):
     data = res.json()["data"]["items"]
     global client_cache
     jobs = {"name_index": {}, "id_index": {}, "number_index": {}}
-    logger.info("system has {} jobs", len(data))
+    if not quiet:
+        logger.info("system has {} jobs", len(data))
     for i in range(len(data)):
         if "name" not in data[i]:
             continue
@@ -1659,7 +1660,7 @@ class Pipeline:
     @help_decorate("__init__ method", args="p = Pipeline($name)")
     def __init__(self, name=None, mode="migrate"):
         if name is None:
-            name = str(uuid.uuid4())
+            name = str(uuid.uuid4()).split("-")[-1]
         self.dag = Dag(name="name")
         self.dag.config({})
         self.dag.jobType = mode
@@ -1676,6 +1677,7 @@ class Pipeline:
 
     def mode(self, value):
         self.dag.jobType = value
+        return self
 
     @help_decorate("read data from source", args="p.readFrom($source)")
     def readFrom(self, source):
@@ -1685,6 +1687,8 @@ class Pipeline:
         elif isinstance(source, str):
             if "." in source:
                 db, table = source.split(".")
+                # single table force use sync job
+                self.dag.jobType = "sync"
                 source = Source(db, table, mode=self.dag.jobType)
             else:
                 source = Source(source, mode=self.dag.jobType)
@@ -2545,6 +2549,8 @@ class ApiServer:
 class Job:
     def __init__(self, name=None, id=None, dag=None, pipeline=None):
         self.id = None
+        self.taskRecordId = None
+        self.scheduleDate = 0
         self.setting = {}
         self.job = {}
         self.validateConfig = None
@@ -2603,6 +2609,7 @@ class Job:
             if j["name"] == self.name:
                 self.id = j["id"]
                 self.job = j
+                self.taskRecordId = j.get("taskRecordId", "")
                 return
 
     def _get(self):
@@ -2612,6 +2619,8 @@ class Job:
                 return None
             res = res.json()
             self.name = res["data"]["name"]
+            self.taskRecordId = res["data"].get("taskRecordId", "")
+            self.scheduleDate = res["data"].get("scheduleDate", 0)
             self._get_by_name()
             return
 
@@ -2700,7 +2709,8 @@ class Job:
         res = req.put("/Task/batchStart", params={"taskIds": self.id}).json()
         if res["code"] != "ok":
             return False
-
+        
+        self._get()
         return True
 
     def config(self, config):
@@ -2760,57 +2770,47 @@ class Job:
             job_stats.snapshot_done_at = stats.get("snapshotDoneAt", 0)
         return job_stats
 
-    def logs(self, res=None, limit=100, level="info", t=30, tail=False, quiet=True):
+    def logs(self, res=None, limit=100, level="", t=30, tail=False, quiet=True):
         logs = []
         log_ids = {}
         start_time = time.time()
+        start = self.scheduleDate
+        end = int(time.time())*1000
+        if tail:
+            start_time = time.time()
+        if level == "":
+            levels = ["INFO", "WARN", "ERROR"]
+        else:
+            levels = [level.upper()]
+        while True:
+            post_body = {
+                "start": start,
+                "end": end,
+                "page": 1,
+                "pageSize": limit,
+                "order": "desc",
+                "taskId": self.id,
+                "taskRecordId": self.taskRecordId,
+                "search": "",
+                "levels": levels
+            }
+            result = req.post("/MonitoringLogs/query", json=post_body,
+            ).json()
+            run_logs = result.get("data", {}).get("items", [])
+            for i in range(len(run_logs)):
+                j = run_logs[len(run_logs) - i - 1]
+                if not quiet:
+                    logger.log("[{}] {}: {}", j["level"], time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(j["timestamp"])), j["message"],
+                            j["level"].lower(), "info", "debug"
+                    )
+            if time.time() - start_time > t:
+                return
+            if not tail:
+                return
+            time.sleep(1)
+            start=end
+            end=time.time()
 
-        async def l():
-            async with websockets.connect(system_server_conf["ws_uri"]) as websocket:
-                sub_task_ids = self.get_sub_task_ids()
-                for sub_task_id in sub_task_ids:
-                    payload = {
-                        "type": "logs",
-                        "filter": {
-                            "limit": limit,
-                            "order": "id asc",
-                            "where": {
-                                "contextMap.dataFlowId": {
-                                    "eq": sub_task_id,
-                                }
-                            }
-                        }
-                    }
-                    while True:
-                        await websocket.send(json.dumps(payload))
-                        while True:
-                            recv = await asyncio.wait_for(websocket.recv(), timeout=t)
-                            if time.time() - start_time > t:
-                                break
-                            result = json.loads(recv)
-                            if result["type"] != "logs":
-                                continue
-                            for i in result["data"]:
-                                if "id" not in i:
-                                    print(i)
-                                    continue
-                                if i["id"] not in log_ids:
-                                    if get_log_level(i["level"]) >= get_log_level(level) and not quiet:
-                                        logger.log("[{}] {} {}: {}", i["level"],
-                                                   time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(i["date"])),
-                                                   i["loggerName"], i["message"],
-                                                   i["level"].lower(), "info", "info", "debug")
-                                    log_ids[i["id"]] = 1
-                            if not tail:
-                                break
-                            time.sleep(1)
-                        await websocket.close()
-                        return logs
-
-        try:
-            asyncio.get_event_loop().run_until_complete(l())
-        except Exception as e:
-            pass
 
     def wait(self, print_log=False, t=600):
         start_time = time.time()

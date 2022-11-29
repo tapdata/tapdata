@@ -45,13 +45,26 @@ public abstract class AbstractCacheService implements ICacheService {
     this.cacheGetterMap.destory((k, getter) -> {
       getter.close();
       return -1L;
-    }).autoRemove(true).maxSize(100).interval(60).expire(300).create();
+    }).autoRemove(true).maxSize(100).interval(60).expire(300).supplier(this::getCacheGetterInstance).create();
     this.cacheStoreMap = new ConcurrentHashMap<>();
     this.lastLogTSMap = new ConcurrentHashMap<>();
     this.cacheStatsMap = new ConcurrentHashMap<>();
     this.cacheStatusLockMap = new ConcurrentHashMap<>();
     this.cacheConfigMap = new CacheMap<>();
-    this.cacheConfigMap.autoRemove(true).maxSize(100).interval(60).expire(300).create();
+    this.cacheConfigMap.autoRemove(true).maxSize(100).interval(60).expire(600).supplier(cacheName -> {
+      // 如果不存在，则向tm查询
+      TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + cacheName, TaskDto.class);
+      DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(taskDto, clientMongoOperator);
+      logger.warn("The cache task [{}] is abnormal, query by tm...", cacheName);
+      if (logger.isDebugEnabled()) {
+        logger.debug("query cache config is [{}]", cacheConfig);
+      }
+      if (cacheConfig != null) {
+        this.cacheStatusMap.remove(cacheName);
+        registerCache(cacheConfig);
+      }
+      return cacheConfig;
+    }).create();
 
   }
 
