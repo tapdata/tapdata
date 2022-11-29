@@ -89,7 +89,11 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		}
 		int row;
 		try {
-			row = doInsert(tapConnectorContext, tapTable, tapRecordEvent);
+			if (rowExists(tapConnectorContext, tapTable, tapRecordEvent)) {
+				row = doUpdate(tapConnectorContext, tapTable, tapRecordEvent);
+			} else {
+				row = doInsert(tapConnectorContext, tapTable, tapRecordEvent);
+			}
 		} catch (Throwable e) {
 			if (e.getCause() instanceof SQLIntegrityConstraintViolationException) {
 				if (rowExists(tapConnectorContext, tapTable, tapRecordEvent)) {
