@@ -879,7 +879,7 @@ public class PDKTestBase {
                 .withStateMap(stateMap)
                 .withTable(testTableId)
                 .build();
-        TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap());
+        TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, nodeOptions);
         connectorNode.getConnectorContext().setNodeConfig(new DataMap());
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this);
         return new TestNode( connectorNode, recordEventExecute);
