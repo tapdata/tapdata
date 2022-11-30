@@ -67,7 +67,7 @@ public class MongodbTest extends CommonDbTest {
 
     @Override
     protected List<String> supportVersions() {
-        return Arrays.asList("3.2.*", "3.4.*", "3.6.*", "4.0.*", "4.2.*");
+        return Arrays.asList("3.2.*", "3.4.*", "3.6.*", "4.0.*", "4.2.*","4.4.*","5.0.*");
     }
 
     @Override
