@@ -7,6 +7,6 @@
     "streamReadType": "Polling"
   },
   "node": {
-
+    "DescribeIterationList": "1,2,3"
   }
 }
