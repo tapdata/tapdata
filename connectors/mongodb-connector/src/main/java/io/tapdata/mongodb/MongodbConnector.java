@@ -557,13 +557,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
 				TapField tapField = map.get(entry.getKey());
-				if (tapField.getTapType() instanceof TapNumber && entry.getValue() instanceof String) {
-					if (entry.getValue().toString().contains(".")) {
-						entry.setValue(Double.valueOf(entry.getValue().toString()));
-					} else {
-						entry.setValue(Long.valueOf(entry.getValue().toString()));
-					}
-				}
+				entry.setValue(setNumberValue(tapField,entry.getKey(),entry.getValue()));
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
 		}
@@ -572,13 +566,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (ops != null) {
 			for (QueryOperator op : ops) {
 				TapField tapField = map.get(op.getKey());
-				if (tapField.getTapType() instanceof TapNumber && op.getValue() instanceof String) {
-					if (op.getValue().toString().contains(".")) {
-						op.setValue(Double.valueOf(op.getValue().toString()));
-					} else {
-						op.setValue(Long.valueOf(op.getValue().toString()));
-					}
-				}
+				op.setValue(setNumberValue(tapField,op.getKey(),op.getValue()));
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
 						bsonList.add(gt(op.getKey(), op.getValue()));
@@ -655,6 +643,18 @@ public class MongodbConnector extends ConnectorBase {
 			}
 		}
 		consumer.accept(filterResults);
+	}
+
+	private Object setNumberValue(TapField tapField,String key,Object value) {
+		if (tapField.getTapType() instanceof TapNumber && value instanceof String) {
+			if (value.toString().contains(".")) {
+				value = Double.valueOf(value.toString());
+			} else {
+				value = Long.valueOf(value.toString());
+			}
+
+		}
+		return value;
 	}
 
 	/**
