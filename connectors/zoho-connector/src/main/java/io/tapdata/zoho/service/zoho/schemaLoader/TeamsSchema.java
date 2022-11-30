@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class TeamsSchema implements SchemaLoader {
+public class TeamsSchema extends Schema implements SchemaLoader {
 
     private static final String TAG = TeamsSchema.class.getSimpleName();
     TeamsOpenApi teamsOpenApi;
@@ -51,6 +51,7 @@ public class TeamsSchema implements SchemaLoader {
         if (Checker.isEmpty(list) || list.isEmpty()) return;
         List<TapEvent> events = new ArrayList<>();
         for (Map<String, Object> product : list) {
+            if (!isAlive()) break;
             Map<String, Object> oneProduct = connectionMode.attributeAssignment(product,tableName,teamsOpenApi);
             if (Checker.isEmpty(oneProduct) || oneProduct.isEmpty()) continue;
             events.add(( TapSimplify.insertRecordEvent(oneProduct, tableName).referenceTime(System.currentTimeMillis()) ));
@@ -58,7 +59,7 @@ public class TeamsSchema implements SchemaLoader {
             consumer.accept(events, offsetState);
             events = new ArrayList<>();
         }
-        if (events.size() <= 0) return;
+        if (events.isEmpty()) return;
         consumer.accept(events, offsetState);
     }
 }

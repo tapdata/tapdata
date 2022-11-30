@@ -150,7 +150,7 @@ public class MongodbLookupUtil {
 				}
 
 				if (oid == null) {
-						return "Missing input args ObjectId";
+						return "Do not delete the _id field when mongo replicates data to mongo. Otherwise, the deletion event will not be replicated.";
 				}
 
 				if (globalStateMap == null) {

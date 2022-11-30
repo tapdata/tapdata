@@ -1,6 +1,5 @@
 package com.tapdata.tm.monitor.controller;
 
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -39,7 +38,7 @@ public class MeasureController extends BaseController {
 
     @PostMapping("points/v2")
     public ResponseMessage<Void> pointsV2(@RequestBody BulkRequest bulkRequest) {
-        log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
+//        log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
         List<SampleRequest> samples = bulkRequest.getSamples();
         //List statistics = bulkRequest.getStatistics();
         if (CollectionUtils.isNotEmpty(samples)) {

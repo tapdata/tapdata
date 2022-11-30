@@ -184,12 +184,12 @@ public class ClickhouseConnector extends ConnectorBase {
 //        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             DateTime datetime = tapDateTimeValue.getValue();
-            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+//            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
             return datetime.toTimestamp();
         });
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
             DateTime datetime = tapDateValue.getValue();
-            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+//            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
             return datetime.toSqlDate();
         });
 
@@ -202,8 +202,8 @@ public class ClickhouseConnector extends ConnectorBase {
 
 
         //source 暂未找到 增量方案，1.x 不支持源
-        connectorFunctions.supportBatchCount(this::batchCount);
-        connectorFunctions.supportBatchRead(this::batchRead);
+//        connectorFunctions.supportBatchCount(this::batchCount);
+//        connectorFunctions.supportBatchRead(this::batchRead);
 //        connectorFunctions.supportStreamRead(this::streamRead);
 //        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         //query
@@ -211,10 +211,10 @@ public class ClickhouseConnector extends ConnectorBase {
 //        connectorFunctions.supportQueryByFilter(this::queryByFilter);
 
         // ddl
-        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
-        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
-        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
-        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
     }
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
@@ -266,16 +266,15 @@ public class ClickhouseConnector extends ConnectorBase {
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>();
-        TapTableWriter instance = clickhouseWriter.partition(clickhouseJdbcContext, tapTable, this::isAlive);
+        TapTableWriter instance = clickhouseWriter.partition(clickhouseJdbcContext, this::isAlive);
         for (TapRecordEvent event : tapRecordEvents) {
             if (!isAlive()) {
                 throw new InterruptedException("node not alive");
             }
-            instance.addBath(event, writeListResult);
+            instance.addBath(tapTable, event, writeListResult);
         }
         instance.summit(writeListResult);
         consumer.accept(writeListResult);
-        instance.optimizeTable(); // 去除重复数据
     }
 
     //需要改写成ck的创建索引方式
@@ -381,24 +380,9 @@ public class ClickhouseConnector extends ConnectorBase {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         clickhouseConfig = (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
         try (
-                ClickhouseTest clickhouseTest = new ClickhouseTest(clickhouseConfig)
+                ClickhouseTest clickhouseTest = new ClickhouseTest(clickhouseConfig, consumer)
         ) {
-            TestItem testHostPort = clickhouseTest.testHostPort();
-            consumer.accept(testHostPort);
-            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem testConnect = clickhouseTest.testConnect();
-            consumer.accept(testConnect);
-            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            //Read test
-            //TODO execute read test by checking role permission
-            consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY));
-            //Write test
-            //TODO execute write test by checking role permission
-            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
+            clickhouseTest.testOneByOne();
             return connectionOptions;
         }
     }

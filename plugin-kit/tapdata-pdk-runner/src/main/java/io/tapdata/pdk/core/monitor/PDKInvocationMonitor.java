@@ -1,17 +1,20 @@
 package io.tapdata.pdk.core.monitor;
 
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
-import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.RetryUtils;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -37,10 +40,12 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     }
 
     public static void release(Node releaseNode,PDKMethodInvoker releaseInvoker){
-        List<PDKMethodInvoker> list = nodeStopInvokerMap.get(releaseNode);
-        if (null != releaseInvoker && null != list && !list.isEmpty()){
-            releaseInvoker.cancelRetry();
-            list.remove(releaseInvoker);
+        if (releaseNode != null) {
+            List<PDKMethodInvoker> list = nodeStopInvokerMap.get(releaseNode);
+            if (null != releaseInvoker && null != list && !list.isEmpty()){
+                releaseInvoker.cancelRetry();
+                list.remove(releaseInvoker);
+            }
         }
     }
 
@@ -136,13 +141,13 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                         Thread.currentThread().setContextClassLoader(contextClassLoader);
                     }
                     if (retryTimes > 0) {
-                        CommonUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
+                        RetryUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
                     } else {
                         node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
                     }
                 });
             } else {
-                CommonUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
+                RetryUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
             }
         }finally {
             PDKInvocationMonitor.release(node,invoker);

@@ -5,13 +5,12 @@ import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.dto.MessageDto;
@@ -19,9 +18,8 @@ import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.message.vo.MessageListVo;
 import com.tapdata.tm.utils.MapUtils;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,12 +44,9 @@ import java.util.stream.Collectors;
 @RestController
 @Slf4j
 @RequestMapping("/api/Messages")
+@Setter(onMethod_ = {@Autowired})
 public class MessageController extends BaseController {
-
-    @Autowired
     private MessageService messageService;
-
-
 
     /**
      * 获取消息通知列表

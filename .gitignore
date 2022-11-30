@@ -50,6 +50,8 @@ backend/client/
 backend/tapdata-management
 localpkg/
 
+/tdd-logs
+
 
 target/
 /tapdata-web.log.*
@@ -59,6 +61,7 @@ api-gateway/.*
 /api-gateway/api-gateway.jar
 /build/agent/tapdata-agent-*.tar.gz
 apig/
+/auto-test/config.yaml
 
 dump
 dev.sh
@@ -102,6 +105,7 @@ tap-dumping/
 cacheData/
 output/
 /plugin-kit/connector-archetypes/source-connector-archetype/target/
+/tdd-logs/
 !/plugin-kit/tapdata-pdk-api/src/main/java/io/tapdata/pdk/apis/functions/connector/target/
 !/plugin-kit/tapdata-pdk-cli/src/main/java/io/tapdata/pdk/tdd/tests/target
 

@@ -152,6 +152,19 @@ public class TimeUtil {
         return dateWithoutSecond;
     }
 
+    public static Date cleanTimeAfterSecond(Date date) {
+        Date dateWithoutSecond = date;
+        try {
+            //TODO 强制设置时区
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            String s = sdf.format(date);
+            dateWithoutSecond = sdf.parse(s);
+        } catch (Exception e) {
+            log.error("情况秒出错", e);
+        }
+        return dateWithoutSecond;
+    }
+
 
 
     public static Date format(Date date, String datePattern) {

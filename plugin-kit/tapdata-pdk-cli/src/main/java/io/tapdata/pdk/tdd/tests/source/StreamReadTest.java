@@ -275,7 +275,7 @@ public class StreamReadTest extends PDKTestBase {
         );
     }
 
-    private void initConnectorFunctions() {
+    protected void initConnectorFunctions() {
         tddTargetNode = dataFlowWorker.getTargetNodeDriver(tddTargetNodeId).getTargetNode();
         sourceNode = dataFlowWorker.getSourceNodeDriver(testSourceNodeId).getSourceNode();
     }

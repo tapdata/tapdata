@@ -45,7 +45,6 @@ show variables like 'binlog_row_image';
 
 #### **3.3 创建MySQL账号**
 Mysql8以后，对密码加密的方式不同，请注意使用对应版本的方式，设置密码，否则会导致无法进行增量同步
-使用以下命令，确认 supplemental logging 是否开启
 ##### **3.3.1 5.x版本**
 ```
 create user 'username'@'localhost' identified by 'password';

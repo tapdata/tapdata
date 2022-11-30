@@ -173,14 +173,16 @@ public class TapdataTaskScheduler {
 		try {
 			Set<BeanDefinition> taskDefinitions = PkgAnnoUtil.getBeanSetWithAnno(Arrays.asList(PKG_PATH), Arrays.asList(TaskType.class));
 			for (BeanDefinition beanDefinition : taskDefinitions) {
+				if(null == beanDefinition || null == beanDefinition.getBeanClassName()) continue;
 				Class<Task> aClass = (Class<Task>) Class.forName(beanDefinition.getBeanClassName());
 				TaskType annotation = aClass.getAnnotation(TaskType.class);
+				if(null == annotation || null == annotation.type()) continue;
 				if (task_type.equals(annotation.type())) {
 					task = aClass.newInstance();
 				}
 			}
 		} catch (Exception e) {
-			logger.error("Find task type {} executor fail {} ", task_type, e.getMessage(), e);
+			logger.warn("Find task type {} executor fail {} ", task_type, e.getMessage());
 		}
 		return task;
 	}

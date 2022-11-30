@@ -69,9 +69,7 @@ public class MonitorManager implements Closeable {
 
 	public enum MonitorType {
 		SOURCE_TS_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.SourceTSMonitor"),
-		SUBTASK_MILESTONE_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.TaskMilestoneMonitor"),
-		SUBTASK_PING_TIME("io.tapdata.flow.engine.V2.monitor.impl.TaskPingTimeMonitor"),
-		STREAM_OFFSET_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.StreamOffsetMonitor"),
+		TASK_PING_TIME("io.tapdata.flow.engine.V2.monitor.impl.TaskPingTimeMonitor"),
 		TABLE_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.TableMonitor"),
 		;
 

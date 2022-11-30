@@ -1,11 +1,9 @@
 package io.tapdata.coding.service.connectionMode;
 
-import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.List;
 import java.util.Map;

@@ -2,7 +2,7 @@ package com.tapdata.tm.clusterOperation.service;
 
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.clusterOperation.constant.AgentStatusEnum;
@@ -95,7 +95,7 @@ public class ClusterOperationService extends BaseService<ClusterOperationDto, Cl
 
             timeoutList.forEach(clusterOperationDto -> {
                 Update update = new Update();
-                update.set("status", AgentStatusEnum.UPDATED_TIME_OUT);
+                update.set("status", AgentStatusEnum.UPDATED_TIME_OUT.getValue());
                 update.set("msg", "执行超时");
                 Query updateQuery = Query.query(Criteria.where("id").is(clusterOperationDto.getId()));
                 update(updateQuery, update);

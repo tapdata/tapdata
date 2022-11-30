@@ -13,7 +13,7 @@ import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.task.TaskClient;
-import io.tapdata.milestone.MilestoneService;
+import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,7 +41,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private SnapshotProgressManager snapshotProgressManager;
 	private String cacheName;
 
-	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance, MilestoneService milestoneService) {
+	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		this.job = job;
 		this.taskDto = taskDto;
 		this.clientMongoOperator = clientMongoOperator;
@@ -50,13 +50,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 			try {
-				this.monitorManager.startMonitor(MonitorManager.MonitorType.SUBTASK_MILESTONE_MONITOR, taskDto, milestoneService);
-			} catch (Exception e) {
-				logger.warn("The milestone monitor failed to start, which may affect the milestone functionality; Error: "
-						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-			}
-			try {
-				this.monitorManager.startMonitor(MonitorManager.MonitorType.SUBTASK_PING_TIME, taskDto, clientMongoOperator);
+				this.monitorManager.startMonitor(MonitorManager.MonitorType.TASK_PING_TIME, taskDto, clientMongoOperator, new SupplierImpl<>(this::stop));
 			} catch (Exception e) {
 				logger.warn("The task ping time monitor failed to start, which may affect the ping time functionality; Error: "
 						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));
@@ -84,7 +78,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	}
 
 	@Override
-	public boolean stop() {
+	public synchronized boolean stop() {
 		Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
 		if (job.getStatus() == JobStatus.RUNNING) {
 			job.suspend();
@@ -94,7 +88,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			job.cancel();
 		}
 
-		if (job.getStatus() == JobStatus.SUSPENDED || job.getStatus() == JobStatus.FAILED) {
+		if (job.getStatus() == JobStatus.SUSPENDED || job.getStatus() == JobStatus.FAILED || job.getStatus() == JobStatus.COMPLETED) {
 			try {
 				monitorManager.close();
 			} catch (IOException ignore) {

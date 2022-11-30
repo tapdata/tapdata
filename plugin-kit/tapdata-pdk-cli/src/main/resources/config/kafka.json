@@ -1,0 +1,29 @@
+{
+  "connection": {
+    "name": "auto_kafka",
+    "nameSrvAddr": "192.168.1.183:9092",
+    "mqTopicString": "",
+    "database_type": "kafka",
+    "kafkaBootstrapServers": "192.168.1.183:11433",
+    "connection_type": "source_and_target",
+    "kafkaPatternTopics": ".",
+    "krb5": false,
+    "krb5Keytab": "",
+    "krb5Conf": "",
+    "krb5Principal": "",
+    "krb5ServiceName": "",
+    "mqUsername": "sa",
+    "mqPassword": "Gotapd8-",
+    "kafkaSaslMechanism": "PLAIN",
+    "kafkaIgnoreInvalidRecord": false,
+    "kafkaAcks": "0",
+    "kafkaCompressionType": "gzip",
+    "kafkaIgnorePushError": false,
+    "bootstrap": {
+      "servers": ""
+    }
+  },
+  "node": {
+
+  }
+}

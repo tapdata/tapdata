@@ -17,6 +17,8 @@ public class RedoLogContent implements Serializable {
 
     private final static String ID_DELIM = "-";
 
+    private Boolean isGrpc = false;
+
     private long scn;
 
     private String scnStr;
@@ -200,6 +202,14 @@ public class RedoLogContent implements Serializable {
         if (EmptyKit.isBlank(operation)) {
             setOperationFromOperationCode();
         }
+    }
+
+    public Boolean getGrpc() {
+        return isGrpc;
+    }
+
+    public void setGrpc(Boolean grpc) {
+        isGrpc = grpc;
     }
 
     public long getScn() {

@@ -5,6 +5,9 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskResetEventDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitor.dto.TaskLogDto;
+import com.tapdata.tm.statemachine.enums.DataFlowEvent;
+import com.tapdata.tm.statemachine.model.StateMachineResult;
+import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskResetLogService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.vo.TaskDagCheckLogVo;
@@ -19,6 +22,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -36,11 +40,20 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
     @Value("${task.reset.interval: 30000}")
     private int resetInterval;
 
+    @Autowired
+    private StateMachineService stateMachineService;
+
     public TaskResetLogServiceImpl(MongoTemplate mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 
 
+    /**
+     * @see com.tapdata.tm.statemachine.enums.DataFlowEvent#RENEW_DEL_FAILED
+     * @param resetEventDto
+     * @param user
+     * @return
+     */
     @Override
     public TaskResetEventDto save(TaskResetEventDto resetEventDto, UserDetail user) {
          //封装成为日志上报给前端。
@@ -59,11 +72,14 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
                 break;
             case TASK_FAILED:
                 //根据任务的状态，如果是重置中，更新成为重置失败，如果为删除中，则删除失败
-                if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
-                    taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_RENEW_FAILED);
-                } else if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
-                    taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_DELETE_FAILED);
+
+                StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW_DEL_FAILED, user);
+                if (stateMachineResult.isOk()) {
+                    Query query = Query.query(Criteria.where("_id").is(taskDto.getId()));
+                    Update update = Update.update("last_updated", new Date());
+                    taskService.update(query, update);
                 }
+
                 resetEventDto.setResetInterval(resetInterval / 1000);
                 resetEventDto.setResetAllTimes(resetAllTimes);
                 break;
@@ -71,13 +87,11 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
                 break;
         }
 
-        TaskResetEventDto taskResetEventDto = mongoTemplate.insert(resetEventDto);
-
-//        推送给前端
+        //        推送给前端
 //        if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
 //            EditFlushHandler.sendEditFlushMessage(taskDto.getId().toHexString(), resetEventDto, "resetReport");
 //        }
-        return taskResetEventDto;
+        return mongoTemplate.insert(resetEventDto);
     }
 
 

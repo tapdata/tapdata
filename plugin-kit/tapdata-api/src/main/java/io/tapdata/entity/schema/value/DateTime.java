@@ -77,27 +77,31 @@ public class DateTime {
     public DateTime(Long time, int fraction) {
         if (time == null)
             throw new IllegalArgumentException("DateTime constructor time is null");
-
-        switch (fraction) {
-            case 0:
-                seconds = time;
-                nano = 0;
-                break;
-            case 3:
-                seconds = time / 1000;
-                nano = (int) ((time % 1000) * 1000000);
-                break;
-            case 6:
-                seconds = time / 1000000;
-                nano = (int) ((time % 1000000) * 1000);
-                break;
-            case 9:
-                seconds = time / 1000000000;
-                nano = (int) (time % 1000000000);
-                break;
-            default:
-                throw new IllegalArgumentException("Fraction must be 0, 3, 6, 9");
+        if (fraction > 9 || fraction < 0) {
+            throw new IllegalArgumentException("Fraction must be 0~9");
         }
+        seconds = time / ((Double) Math.pow(10, fraction)).longValue();
+        nano = (int) ((time % ((Double) Math.pow(10, fraction)).longValue()) * ((Double) Math.pow(10, 9 - fraction)).longValue());
+//        switch (fraction) {
+//            case 0:
+//                seconds = time;
+//                nano = 0;
+//                break;
+//            case 3:
+//                seconds = time / 1000;
+//                nano = (int) ((time % 1000) * 1000000);
+//                break;
+//            case 6:
+//                seconds = time / 1000000;
+//                nano = (int) ((time % 1000000) * 1000);
+//                break;
+//            case 9:
+//                seconds = time / 1000000000;
+//                nano = (int) (time % 1000000000);
+//                break;
+//            default:
+//                throw new IllegalArgumentException("Fraction must be 0, 3, 6, 9");
+//        }
     }
 
     /**
@@ -119,6 +123,52 @@ public class DateTime {
         Instant instant = localDateTime.toInstant(ZoneOffset.UTC);
         seconds = instant.getEpochSecond();
         nano = instant.getNano();
+    }
+
+    public static DateTime withTimeStr(String timeStr) {
+        if (timeStr == null)
+            throw new IllegalArgumentException("DateTime constructor timeStr is null");
+
+        DateTime dateTime = new DateTime();
+        String[] scaleArr = timeStr.split("\\.");
+        if (scaleArr.length > 1) {
+            switch (scaleArr[1].length()) {
+                case 1:
+                case 2:
+                case 3:
+                    dateTime.nano = Integer.parseInt(scaleArr[1]) * 1000 * 1000;
+                    break;
+                case 4:
+                case 5:
+                case 6:
+                    dateTime.nano = Integer.parseInt(scaleArr[1]) * 1000;
+                    break;
+                case 7:
+                case 8:
+                case 9:
+                    dateTime.nano = Integer.parseInt(scaleArr[1]);
+                    break;
+                default:
+                    throw new IllegalArgumentException("DateTime constructor illegal timeStr with nano: " + timeStr);
+            }
+        } else {
+            dateTime.nano = 0;
+        }
+        scaleArr = scaleArr[0].split(":");
+        switch (scaleArr.length) {
+            case 1:
+                dateTime.seconds = Long.parseLong(scaleArr[0]);
+                break;
+            case 2:
+                dateTime.seconds = Long.parseLong(scaleArr[0]) * 60 + Long.parseLong(scaleArr[1]);
+                break;
+            case 3:
+                dateTime.seconds = Long.parseLong(scaleArr[0]) * 60 *60 + Long.parseLong(scaleArr[1]) * 60 + Long.parseLong(scaleArr[2]);
+                break;
+            default:
+                throw new IllegalArgumentException("DateTime constructor illegal timeStr: " + timeStr);
+        }
+        return dateTime;
     }
 
     public Instant toInstant() {

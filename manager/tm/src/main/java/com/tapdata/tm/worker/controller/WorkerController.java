@@ -1,7 +1,7 @@
 package com.tapdata.tm.worker.controller;
 
 import com.google.gson.reflect.TypeToken;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
@@ -69,7 +69,6 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping("/health")
     public ResponseMessage<WorkerDto> health(@RequestBody WorkerDto worker) {
-        worker.setPingTime(new Date().getTime());
         return success(workerService.health(worker, getLoginUser()));
     }
 

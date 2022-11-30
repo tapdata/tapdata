@@ -5,7 +5,8 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
@@ -13,6 +14,7 @@ import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -28,6 +30,8 @@ import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.ThrowableUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -35,12 +39,14 @@ import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.executor.ExecutorsManager;
 import io.tapdata.common.sample.request.Sample;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -52,6 +58,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskAlarmScheduler {
 
@@ -66,9 +73,11 @@ public class TaskAlarmScheduler {
     private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
 
 
-    @Scheduled(initialDelay = 5000, fixedDelay = 30*60*1000)
+    @Scheduled(cron = "0 0/30 * * * ?")
     @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
-    public void taskDataNodeConnectAlarm() {
+    public void taskDataNodeConnectAlarm() throws InterruptedException {
+        Thread.currentThread().setName("taskSchedule-taskDataNodeConnectAlarm");
+
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
                 .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
                 .and("is_deleted").is(false));
@@ -77,14 +86,14 @@ public class TaskAlarmScheduler {
             return;
         }
 
-        Set<String> connectionIds = Sets.newHashSet();
+        Set<ObjectId> connectionIds = Sets.newHashSet();
         Map<String, List<String>> taskMap = Maps.newHashMap();
         for (TaskDto taskDto : taskDtos) {
             String taskId = taskDto.getId().toHexString();
             DAG dag = taskDto.getDag();
             dag.getNodes().stream().filter(node -> node instanceof DataParentNode).forEach(node -> {
                 String connectionId = ((DataParentNode<?>) node).getConnectionId();
-                connectionIds.add(connectionId);
+                connectionIds.add(MongoUtils.toObjectId(connectionId));
 
                 if (taskMap.containsKey(connectionId)) {
                     List<String> list = taskMap.get(connectionId);
@@ -100,7 +109,9 @@ public class TaskAlarmScheduler {
             return;
         }
 
-        List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAllByIds(new ArrayList<>(connectionIds));
+        Query connectQuery = new Query(Criteria.where("_id").in(connectionIds));
+        connectQuery.with(Sort.by("testTime"));
+        List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAll(connectQuery);
         if (CollectionUtils.isEmpty(connectionDtos)) {
             return;
         }
@@ -110,25 +121,27 @@ public class TaskAlarmScheduler {
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
-            String key = connectionDto.getId().toHexString();
+            try {
+                dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(connectionDto.getUserId()));
+            }catch (Exception e) {
+                log.error("taskDataNodeConnectAlarm sendTestConnection error:" + ThrowableUtils.getStackTraceByPn(e));
+            }
 
-            Map<String, Object> extParam = Maps.newHashMap();
-            extParam.put("nodeName", connectionDto.getName());
-            extParam.put("connectId", key);
-            extParam.put("templateEnum", AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT);
-            extParam.put("alarmCheck", true);
-            extParam.put("taskIds", taskMap.get(key));
-            connectionDto.setExtParam(extParam);
-
-            dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(connectionDto.getUserId()));
+            Thread.sleep(1000L);
         }
 
     }
 
 
-    @Scheduled(initialDelay = 5000, fixedDelay = 5*60*1000)
+    @Scheduled(cron = "0 0/5 * * * ? ")
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
+        Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
+        if (Objects.isNull(buildProfile)) {
+            buildProfile = "DAAS";
+        }
+        boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
                 .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
                 .and("is_deleted").is(false));
@@ -146,13 +159,8 @@ public class TaskAlarmScheduler {
             return;
         }
 
-        long heartExpire;
-        Settings settings = settingsService.findAll().stream().filter(k -> "lastHeartbeat".equals(k.getKey())).findFirst().orElse(null);
-        if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
-            heartExpire = (Long.parseLong(settings.getValue().toString()) + 48 ) * 1000;
-        } else {
-            heartExpire = 108000;
-        }
+        Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
+        long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48 ) * 1000 : 108000;
 
         Map<String, WorkerDto> stopEgineMap = workers.stream().filter(w -> (Objects.nonNull(w.getIsDeleted()) && w.getIsDeleted()) ||
                         (Objects.nonNull(w.getStopping()) && w.getStopping()) ||
@@ -165,15 +173,20 @@ public class TaskAlarmScheduler {
         Set<String> agentIds = stopEgineMap.keySet();
 
         // 云版需要修改这里
-        List<Worker> availableWorkers = workerService.findAvailableAgentBySystem();
         List<TaskDto> taskList = taskDtos.stream().filter(t -> agentIds.contains(t.getAgentId())).collect(Collectors.toList());
 
         List<String> userIds = taskList.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
         List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
-        taskList.forEach(data -> {
-            if (CollectionUtils.isEmpty(availableWorkers)) {
+        for (TaskDto data : taskList) {
+            List<Worker> workerList = workerService.findAvailableAgentBySystem(userDetailMap.get(data.getUserId()));;
+            if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.getName().equals(data.getAccessNodeType())) {
+                List<String> processIdList = data.getAccessNodeProcessIdList();
+                workerList = workerList.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
+            }
+
+            if (CollectionUtils.isEmpty(workerList)) {
                 String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT, data.getAgentId(), DateUtil.now());
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(data.getId().toHexString())
@@ -185,20 +198,21 @@ public class TaskAlarmScheduler {
                 data.setAgentId(null);
                 CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(data, userDetailMap.get(data.getUserId()), "task", data.getName());
 
-                String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT, orginAgentId, availableWorkers.size(), calculationEngineVo.getProcessId(), DateUtil.now());
+                String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT, orginAgentId, workerList.size(), calculationEngineVo.getProcessId(), DateUtil.now());
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(orginAgentId).taskId(data.getId().toHexString())
                         .name(data.getName()).summary(summary).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
                         .build();
                 alarmService.save(alarmInfo);
 
-                Update update = new Update().set("status", TaskDto.STATUS_SCHEDULING).set("restartFlag", true);
-                taskService.update(Query.query(Criteria.where("_id").is(data.getId())), update);
+                if (!isCloud) {
+                    taskService.run(data, userDetailMap.get(data.getUserId()));
+                }
             }
-        });
+        }
     }
 
-    @Scheduled(initialDelay = 5000, fixedRate = 30000)
+    @Scheduled(cron = "0 0/1 * * * ? ")
     @SchedulerLock(name ="task_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAlarm() {
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
@@ -308,15 +322,18 @@ public class TaskAlarmScheduler {
             AtomicInteger delay = new AtomicInteger(0);
             long count = samples.stream().filter(ss -> {
                 int current = (int) ss.getVs().getOrDefault(avgName, 0);
+                boolean b;
                 if (alarmRuleDto.getEqualsFlag() == -1) {
-                    delay.set(current);
-                    return current <= alarmRuleDto.getMs();
+                    b = current <= alarmRuleDto.getMs();
                 } else if (alarmRuleDto.getEqualsFlag() == 1) {
-                    delay.set(current);
-                    return current >= alarmRuleDto.getMs();
+                    b = current >= alarmRuleDto.getMs();
                 } else {
-                    return false;
+                    b = false;
                 }
+                if (b) {
+                    delay.set(current);
+                }
+                return b;
             }).count();
 
             List<AlarmInfo> alarmInfos = alarmService.find(taskId, nodeId, alarmKeyEnum);
@@ -383,15 +400,18 @@ public class TaskAlarmScheduler {
             long count = taskSamples.stream().filter(ss -> {
                 int replicateLag = (int) ss.getVs().getOrDefault("replicateLag", 0);
 
+                boolean b;
                 if (alarmRuleDto.getEqualsFlag() == -1) {
-                    delay.set(replicateLag);
-                    return replicateLag <= alarmRuleDto.getMs();
+                    b = replicateLag <= alarmRuleDto.getMs();
                 } else if (alarmRuleDto.getEqualsFlag() == 1) {
-                    delay.set(replicateLag);
-                    return replicateLag >= alarmRuleDto.getMs();
+                    b = replicateLag >= alarmRuleDto.getMs();
                 } else {
-                    return false;
+                    b = false;
                 }
+                if (b) {
+                    delay.set(replicateLag);
+                }
+                return b;
             }).count();
 
             List<AlarmInfo> alarmInfos = alarmService.find(taskId, null, AlarmKeyEnum.TASK_INCREMENT_DELAY);
@@ -403,15 +423,14 @@ public class TaskAlarmScheduler {
             if (count >= alarmRuleDto.getPoint()) {
                 String summary;
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
+                alarmInfo.setStatus(AlarmStatusEnum.ING);
                 if (first.isPresent()) {
                     AlarmInfo data = first.get();
                     alarmInfo.setId(data.getId());
-                    alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
 
                     long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
                     summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_ALWAYS, alarmRuleDto.getMs(), continued, delay, DateUtil.now(), flag);
                 } else {
-                    alarmInfo.setStatus(AlarmStatusEnum.ING);
                     summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_START, alarmRuleDto.getMs(), delay, DateUtil.now(), flag);
                     Map<String, Object> param = Maps.newHashMap();
                     param.put("time", delay);

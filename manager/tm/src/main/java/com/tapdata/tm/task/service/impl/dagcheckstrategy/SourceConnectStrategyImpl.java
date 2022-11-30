@@ -1,12 +1,11 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
@@ -41,6 +40,9 @@ public class SourceConnectStrategyImpl implements DagLogStrategy {
         for (DatabaseNode node : sourceNode) {
             String connectionId = node.getConnectionId();
             DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
+            if (DataSourceEntity.STATUS_READY.equals(connectionDto.getStatus())) {
+                continue;
+            }
             Map<String, Object> extParam = Maps.newHashMap();
             extParam.put("taskId", taskDto.getId().toHexString());
             extParam.put("templateEnum", templateEnum);

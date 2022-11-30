@@ -1,13 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MapUtil;
-import com.tapdata.constant.MilestoneUtil;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.constant.*;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.NodeUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -48,7 +42,6 @@ import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
-import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
@@ -85,7 +78,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	public static final long PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT = 10L;
 	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
 	protected SyncProgress syncProgress;
-	protected ExecutorService sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
+	protected ExecutorService sourceRunner;
 	protected ScheduledExecutorService tableMonitorResultHandler;
 	protected SnapshotProgressManager snapshotProgressManager;
 
@@ -110,6 +103,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private Future<?> sourceRunnerFuture;
 	// on cdc step if TableMap not exists heartbeat table, add heartbeat table to cdc whitelist and filter heartbeat records
 	protected ICdcDelay cdcDelayCalculation;
+	private final Object waitObj = new Object();
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -136,9 +130,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		syncProgress = initSyncProgress(taskDto.getAttrs());
+		logger.info("Found sync progress: " + syncProgress);
+		obsLogger.info("Found sync progress: " + syncProgress);
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			initBatchAndStreamOffset(taskDto);
+			obsLogger.info(String.format("Node %s[%s] batch offset: %s", getNode().getName(), getNode().getId(), JSONUtil.obj2Json(syncProgress.getBatchOffsetObj())));
+			obsLogger.info(String.format("Node %s[%s] stream offset: %s", getNode().getName(), getNode().getId(), JSONUtil.obj2Json(syncProgress.getStreamOffsetObj())));
 		}
 		initDDLFilter();
 		this.sourceRunnerLock = new ReentrantLock(true);
@@ -147,6 +145,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
+		this.sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
+				r -> {
+					Thread thread = new Thread(r);
+					thread.setName(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()));
+					return thread;
+				});
 		sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
 		initTableMonitor();
 	}
@@ -166,7 +170,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (needDynamicTable(null)) {
 				this.newTables = new CopyOnWriteArrayList<>();
 				this.removeTables = new CopyOnWriteArrayList<>();
-				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(), associateId, dataProcessorContext.getTaskDto());
+				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(),
+						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn());
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
@@ -217,7 +222,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					String connectionId = NodeUtil.getConnectionId(dataProcessorContext.getNode());
 					TaskDto.SyncPoint syncPoint = null;
 					if (null != syncPoints) {
-						syncPoint = syncPoints.stream().filter(sp -> connectionId.equals(sp.getConnectionId())).findFirst().orElse(null);
+						//todo: need to use syncPoint on node, fix the sync point does not take effect first
+//						syncPoint = syncPoints.stream().filter(sp -> connectionId.equals(sp.getConnectionId())).findFirst().orElse(null);
+						syncPoint = syncPoints.stream().findFirst().orElse(null);
 					}
 					String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
 					if (StringUtils.isBlank(pointType)) {
@@ -236,7 +243,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					break;
 			}
 			if (null != syncProgress.getStreamOffsetObj()) {
-				TapdataEvent tapdataEvent = new TapdataHeartbeatEvent(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
+				TapdataEvent tapdataEvent = TapdataHeartbeatEvent.create(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
 				enqueue(tapdataEvent);
 			}
 		} else {
@@ -267,12 +274,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						}
 					} else {
 						// switch share cdc to normal task
-						Long eventTime = syncProgress.getEventTime();
-						if (null == eventTime) {
-							throw new NodeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
-									+ " Please try to reset and start the task.").context(getProcessorBaseContext());
+						if (StringUtils.isNotBlank(streamOffset)) {
+							syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+						} else {
+							Long eventTime = syncProgress.getEventTime();
+							if (null == eventTime) {
+								throw new NodeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
+										+ " Please try to reset and start the task.").context(getProcessorBaseContext());
+							}
+							initStreamOffsetFromTime(eventTime);
 						}
-						initStreamOffsetFromTime(eventTime);
 					}
 					break;
 			}
@@ -292,6 +303,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 						obsLogger.warn("Call timestamp to stream offset function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+						this.offsetFromTimeError = e;
 					} else {
 						throw new NodeException("Call timestamp to stream offset function failed, will stop task, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e)).context(getProcessorBaseContext());
@@ -310,7 +322,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Log4jUtil.setThreadContext(taskDto);
-			TapdataEvent dataEvent;
+			Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
+			TapdataEvent dataEvent = null;
 			if (!isRunning()) {
 				return true;
 			}
@@ -318,7 +331,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				dataEvent = pendingEvent;
 				pendingEvent = null;
 			} else {
-				dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
+				try {
+					dataEvent = eventQueue.poll(1, TimeUnit.SECONDS);
+				} catch (InterruptedException ignored) {
+				}
 				if (null != dataEvent) {
 					// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
 					// the event is considered been output to the next node.
@@ -333,8 +349,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					pendingEvent = dataEvent;
 					return false;
 				}
-				Optional.ofNullable(snapshotProgressManager)
-						.ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
 			}
 			if (error != null) {
 				throw new NodeException(error).context(getProcessorBaseContext());
@@ -343,9 +357,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()
 					&& null == pendingEvent && eventQueue.isEmpty()) {
 				if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())) {
-					Object completedInitial = getGlobalMap(getCompletedInitialKey());
-					if (completedInitial instanceof Boolean && (Boolean) completedInitial) {
-						this.running.set(false);
+					Object residueSnapshot = getGlobalMap(getCompletedInitialKey());
+					if (residueSnapshot instanceof Integer) {
+						int residueSnapshotInt = (int) residueSnapshot;
+						if (residueSnapshotInt <= 0) {
+							this.running.set(false);
+						}
 					}
 				} else {
 					this.running.set(false);
@@ -386,12 +403,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							// Handle new table(s)
 							if (CollectionUtils.isNotEmpty(addList)) {
 								logger.info("Found new table(s): " + addList);
+								obsLogger.info("Found new table(s): " + addList);
 								addList.forEach(a -> removeTables.remove(a));
 								List<TapTable> addTapTables = new ArrayList<>();
 								List<TapdataEvent> tapdataEvents = new ArrayList<>();
 								// Load schema
 								LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, addTapTables::add);
 								logger.info("Load new table's schema finished");
+								obsLogger.info("Load new table's schema finished");
 								if (CollectionUtils.isEmpty(addTapTables)) {
 									String error = "Load new table schema failed, expect table count: " + addList.size() + ", actual: 0";
 									errorHandle(new RuntimeException(error), error);
@@ -427,12 +446,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 										.tapdataEvents(tapdataEvents));
 								if (this.endSnapshotLoop.get()) {
 									logger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
+									obsLogger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
 									// Restart source runner
 									if (null != sourceRunner) {
 										this.sourceRunnerFirstTime.set(false);
 										if (null != getConnectorNode()) {
 											//Release webhook waiting thread before stop connectorNode.
-											if(streamReadFuncAspect != null) {
+											if (streamReadFuncAspect != null) {
 												streamReadFuncAspect.noMoreWaitRawData();
 												streamReadFuncAspect = null;
 											}
@@ -568,7 +588,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				tapdataEvent.setSourceTime(((TapRecordEvent) tapEvent).getReferenceTime());
 			}
 		} else if (tapEvent instanceof HeartbeatEvent) {
-			tapdataEvent = new TapdataHeartbeatEvent(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
+			tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
 		} else if (tapEvent instanceof TapDDLEvent) {
 			logger.info("Source node received an ddl event: " + tapEvent);
 			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
@@ -631,21 +651,26 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (tapEvent instanceof TapCreateTableEvent) {
 					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable, processorBaseContext.getTaskDto().getId().toHexString());
 					logger.info("Create new table in memory, qualified name: " + qualifiedName);
+					obsLogger.info("Create new table in memory, qualified name: " + qualifiedName);
 					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
 					insertMetadata.add(metadata);
 					logger.info("Create new table schema transform finished: " + tapTable);
+					obsLogger.info("Create new table schema transform finished: " + tapTable);
 				} else if (tapEvent instanceof TapDropTableEvent) {
 					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(((TapDropTableEvent) tapEvent).getTableId());
 					logger.info("Drop table in memory qualified name: " + qualifiedName);
+					obsLogger.info("Drop table in memory qualified name: " + qualifiedName);
 					dagDataService.dropTable(qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					removeMetadata.add(qualifiedName);
 					logger.info("Drop table schema transform finished");
+					obsLogger.info("Drop table schema transform finished");
 				} else {
 					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tableId);
 					logger.info("Alter table in memory, qualified name: " + qualifiedName);
+					obsLogger.info("Alter table in memory, qualified name: " + qualifiedName);
 					dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
@@ -654,6 +679,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 					updateMetadata.put(metadata.getId().toHexString(), metadata);
 					logger.info("Alter table schema transform finished");
+					obsLogger.info("Alter table schema transform finished");
 				}
 				tapEvent.addInfo(INSERT_METADATA_INFO_KEY, insertMetadata);
 				tapEvent.addInfo(UPDATE_METADATA_INFO_KEY, updateMetadata);
@@ -693,8 +719,28 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
+	protected boolean need2CDC() {
+		if (null != offsetFromTimeError) {
+			enqueue(new TapdataTaskErrorEvent(offsetFromTimeError));
+			try {
+				synchronized (this.waitObj) {
+					waitObj.wait();
+				}
+			} catch (InterruptedException ignored) {
+			}
+			return false;
+		}
+		return super.need2CDC();
+	}
+
+	@Override
 	public void doClose() throws Exception {
 		try {
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(waitObj).ifPresent(w -> {
+				synchronized (this.waitObj) {
+					this.waitObj.notify();
+				}
+			}), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(tableMonitorResultHandler).ifPresent(ExecutorService::shutdownNow), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(sourceRunner).ifPresent(ExecutorService::shutdownNow), TAG);
 		} finally {

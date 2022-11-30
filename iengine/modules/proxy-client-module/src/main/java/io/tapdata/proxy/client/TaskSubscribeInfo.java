@@ -35,7 +35,7 @@ class TaskSubscribeInfo implements MemoryFetcher {
 		}
 
 		//TODO not finished
-		return null;
+		return dataMap;
 	}
 }
 

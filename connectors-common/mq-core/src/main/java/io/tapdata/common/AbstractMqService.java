@@ -7,6 +7,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
+import io.tapdata.util.JsonSchemaParser;
 import io.tapdata.util.NetUtil;
 
 import java.io.IOException;
@@ -24,7 +25,7 @@ public abstract class AbstractMqService implements MqService {
 
     private static final String TAG = AbstractMqService.class.getSimpleName();
     protected final static long SINGLE_MAX_LOAD_TIMEOUT = TimeUnit.SECONDS.toMillis(2L);
-    protected final static MqSchemaParser SCHEMA_PARSER = new MqSchemaParser();
+    protected final static JsonSchemaParser SCHEMA_PARSER = new JsonSchemaParser();
     protected final AtomicBoolean consuming = new AtomicBoolean(false);
     protected final static int concurrency = 5;
     protected ExecutorService executorService;

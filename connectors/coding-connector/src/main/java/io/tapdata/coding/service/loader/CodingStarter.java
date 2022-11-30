@@ -1,5 +1,6 @@
 package io.tapdata.coding.service.loader;
 
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.enums.IssueType;
 import io.tapdata.coding.utils.tool.Checker;
@@ -9,9 +10,6 @@ import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 
 public abstract class CodingStarter {
     private static final String TAG = CodingStarter.class.getSimpleName();
@@ -22,6 +20,24 @@ public abstract class CodingStarter {
     public static final String TOKEN_PREF = "token ";
 
     protected TapConnectionContext tapConnectionContext;
+
+    CodingConnector codingConnector;
+    public CodingStarter connectorInit(CodingConnector codingConnector){
+        this.codingConnector = codingConnector;
+        return this;
+    }
+
+    public CodingStarter connectorOut() {
+        this.codingConnector = null;
+        return this;
+    }
+
+    public boolean sync(){
+        synchronized (codingConnector){
+            return null != codingConnector && codingConnector.isAlive();
+        }
+    }
+
     protected boolean isVerify;
     ContextConfig contextConfig;
     public CodingStarter(TapConnectionContext tapConnectionContext){
@@ -59,29 +75,14 @@ public abstract class CodingStarter {
             if (null == nodeConfigMap) {
                 config.issueType(IssueType.ALL);
                 config.iterationCodes("-1");
-                //TapLogger.debug(TAG,"TapTable' NodeConfig is empty. ");
-                //throw new IllegalArgumentException("TapTable' NodeConfig cannot be null");
             }else{
-                //iterationName is Multiple selection values separated by commas
-//                Object iterationCodeList = nodeConfigMap.getObject("iterations");
-//                if (iterationCodeList instanceof Collection){
-//                    ((List)iterationCodeList).spliterator().
-//                }
                 String iterationCodeArr = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
                 if (null != iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
                 String issueType = nodeConfigMap.getString("issueType");
                 if (null != issueType) issueType = issueType.trim();
                 String issueCodes = nodeConfigMap.getString("issueCodes");
                 if (null != issueCodes) issueCodes = issueCodes.trim();
-                //if (Checker.isEmpty(issueCodes)){
-                    //TapLogger.info(TAG, "Connection node config issueCodes exception: {} ", projectName);
-                //}
-                //if (Checker.isEmpty(iterationCodeArr)) {
-                    //TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
-                //}
-                //if (Checker.isEmpty(issueType)) {
-                    //TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
-                //}
+
                 config.issueType(issueType).iterationCodes(iterationCodeArr).issueCodes(issueCodes);
             }
         }
