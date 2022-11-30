@@ -42,7 +42,7 @@ public class ScheduleService implements Job {
             CronUtil.removeJob(jobId);
             return;
         }
-       // 修改任务状态
+        // 修改任务状态
         if(StringUtils.isBlank(taskDto.getCrontabExpression()) || !taskDto.isPlanStartDateFlag()){
             log.info("Taskid :" +jobId+" has not schedule" );
             CronUtil.removeJob(jobId);

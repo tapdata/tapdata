@@ -2795,8 +2795,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     /**
      * @see DataFlowEvent#SCHEDULE_SUCCESS
-     * @param taskDto
-     * @param user
      */
     public void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
         dto.setStatus(status);
@@ -3428,10 +3426,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return chart6Map;
     }
 
-    public void addScheduleTask(TaskDto taskDto) {
+    public void addScheduleTask(TaskDto taskDto){
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
                 && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.isPlanStartDateFlag()) {
+                && taskDto.getIsSchedule()) {
             CronUtil.addJob(taskDto);
         }
     }
@@ -3439,7 +3437,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void deleteScheduleTask(TaskDto taskDto) {
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
                 && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.isPlanStartDateFlag()) {
+                && taskDto.getIsSchedule()) {
             CronUtil.removeJob(String.valueOf(taskDto.getId()));
         }
 

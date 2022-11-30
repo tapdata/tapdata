@@ -56,7 +56,6 @@ public class CronUtil {
         }
     }
 
-
     public static void addJob(TaskDto taskDto) {
         try {
             String id = String.valueOf(taskDto.getId());
@@ -87,7 +86,6 @@ public class CronUtil {
         }
     }
 
-
     /**
      * @Description: 移除一个任务
      */
@@ -96,7 +94,6 @@ public class CronUtil {
         try {
             TriggerKey triggerKey = TriggerKey.triggerKey(triggerName);
             Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
-            Trigger abc = scheduler.getTrigger(triggerKey);
             scheduler.pauseTrigger(triggerKey);// 停止触发器
             scheduler.unscheduleJob(triggerKey);// 移除触发器
             scheduler.deleteJob(JobKey.jobKey(id));// 删除任务
