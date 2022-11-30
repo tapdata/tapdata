@@ -8,12 +8,8 @@ import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.Settings.constant.CategoryEnum;
-import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
-import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
@@ -35,6 +31,7 @@ import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
@@ -75,24 +72,19 @@ import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.task.vo.TaskStatsDto;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
-import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
-import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
-import io.tapdata.common.sample.request.Sample;
-import jdk.nashorn.internal.parser.TokenType;
-import com.tapdata.tm.ws.handler.EditFlushHandler;
 import io.tapdata.common.sample.request.Sample;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.time.DateUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -100,8 +92,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
-import org.springframework.data.mongodb.core.aggregation.Fields;
-import org.springframework.data.mongodb.core.aggregation.GroupOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -2611,7 +2601,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-            Update update = new Update().unset("startTime").unset("lastStartDate").unset("stopTime").set("needCreateRecord", taskDto.isNeedCreateRecord());
+            Update update = new Update().unset("startTime").unset("lastStartDate").unset("stopTime").set("needCreateRecord", taskDto.isNeedCreateRecord())
+                   .unset("crontabPrepar");;
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
@@ -3244,14 +3235,27 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void startPlanCronTask() {
         Criteria migrateCriteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_START)
                 .and("crontabExpressionFlag").is(true)
-                .and("crontabExpression").exists(true);
+                .and("crontabExpression").exists(true)
+                .and("crontabPrepar").exists(false);
+        ;
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
             taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
                     .collect(Collectors.toList());
+            List<String> userIdList = taskList.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
+            List<UserDetail> userList = userService.getUserByIdList(userIdList);
+
+            Map<String, UserDetail> userMap = new HashMap<>();
+            if (CollectionUtils.isNotEmpty(userList)) {
+                userMap = userList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity()));
+            }
+
+            Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
                  addScheduleTask(taskDto);
+                Update set = new Update().set("crontabPrepar",true);
+                updateById(taskDto.getId(), set, finalUserMap.get(taskDto.getUserId()));
             }
         }
     }
