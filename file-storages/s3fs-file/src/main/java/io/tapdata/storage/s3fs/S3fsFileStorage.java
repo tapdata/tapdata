@@ -86,8 +86,15 @@ public class S3fsFileStorage implements TapFileStorage {
     }
 
     @Override
-    public InputStream readFile(String path) {
-        return amazonS3Client.getObject(s3fsConfig.getBucket(), path).getObjectContent();
+    public void readFile(String path, Consumer<InputStream> consumer) throws IOException {
+        if (!isFileExist(path)) {
+            return;
+        }
+        try (
+                InputStream is = amazonS3Client.getObject(s3fsConfig.getBucket(), path).getObjectContent()
+        ) {
+            consumer.accept(is);
+        }
     }
 
     @Override

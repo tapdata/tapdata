@@ -22,18 +22,20 @@ public class XmlSchema extends FileSchema {
     }
 
     @Override
-    protected void sampleOneFile(Map<String, Object> sampleResult, TapFile tapFile) {
-        try (
-                Reader reader = new InputStreamReader(storage.readFile(tapFile.getPath()), fileConfig.getFileEncoding())
-        ) {
-            SAXReader saxReader = new SAXReader();
-            saxReader.setDefaultHandler(new BigSaxSchemaHandler()
-                    .withPath(((XmlConfig) fileConfig).getXPath())
-                    .withSampleResult(sampleResult));
-            saxReader.read(reader);
-        } catch (StopException ignored) {
-        } catch (Exception e) {
-            TapLogger.error(TAG, "read xml file error!", e);
-        }
+    protected void sampleOneFile(Map<String, Object> sampleResult, TapFile tapFile) throws Exception {
+        storage.readFile(tapFile.getPath(), is -> {
+            try (
+                    Reader reader = new InputStreamReader(is, fileConfig.getFileEncoding())
+            ) {
+                SAXReader saxReader = new SAXReader();
+                saxReader.setDefaultHandler(new BigSaxSchemaHandler()
+                        .withPath(((XmlConfig) fileConfig).getXPath())
+                        .withSampleResult(sampleResult));
+                saxReader.read(reader);
+            } catch (StopException ignored) {
+            } catch (Exception e) {
+                TapLogger.error(TAG, "read xml file error!", e);
+            }
+        });
     }
 }

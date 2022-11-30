@@ -407,6 +407,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setTransformUuid(null);
         taskDto.setTransformDagHash(dagHash);
 
+        taskDto.setWriteBatchSize(null);
+        taskDto.setWriteBatchWaitMs(null);
+
         return save(taskDto, user);
 
     }
@@ -2435,7 +2438,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-            Update update = new Update().unset("startTime").unset("lastStartDate").unset("stopTime").set("needCreateRecord", taskDto.isNeedCreateRecord());
+            Update update = new Update()
+                    .unset("startTime")
+                    .unset("lastStartDate")
+                    .unset("stopTime")
+                    .unset("currentEventTimestamp")
+                    .set("needCreateRecord", taskDto.isNeedCreateRecord());
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
@@ -2524,6 +2532,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void start(ObjectId id, UserDetail user) {
         String startFlag = "11";
         TaskDto taskDto = checkExistById(id, user);
+        addScheduleTask(taskDto);
         start(taskDto, user, startFlag);
     }
 
@@ -2536,6 +2545,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     private void start(TaskDto taskDto, UserDetail user) {
+        addScheduleTask(taskDto);
         start(taskDto, user, "11");
     }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
@@ -2690,7 +2700,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return;
         }
 
-
+        deleteScheduleTask(taskDto);
         String pauseStatus = TaskDto.STATUS_STOPPING;
         StateMachineResult stateMachineResult;
         if (force) {
@@ -3184,12 +3194,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
 
         List<MeasurementEntity>  allMeasurements = new ArrayList<>();
-        ids.parallelStream().forEach(id -> {
-            MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
-            if (measurement != null) {
-                allMeasurements.add(measurement);
-            }
-        });
+        if (CollectionUtils.isNotEmpty(ids)) {
+            ids.parallelStream().forEach(id -> {
+                MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
+                if (measurement != null) {
+                    allMeasurements.add(measurement);
+                }
+            });
+        }
 
         long output = 0;
         long input = 0;
@@ -3246,4 +3258,27 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         chart6Map.put("deletedTotal", delete);
         return chart6Map;
     }
+
+    public void addScheduleTask(TaskDto taskDto) {
+        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
+                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
+                && taskDto.isPlanStartDateFlag()) {
+            CronUtil.addJob(taskDto);
+        }
+    }
+
+    public void deleteScheduleTask(TaskDto taskDto) {
+        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
+                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
+                && taskDto.isPlanStartDateFlag()) {
+            CronUtil.removeJob(String.valueOf(taskDto.getId()));
+        }
+
+    }
+
+    public void startScheduleTask(TaskDto taskDto, UserDetail user, String startFlag) {
+        start(taskDto, user, startFlag);
+    }
+
+
 }
