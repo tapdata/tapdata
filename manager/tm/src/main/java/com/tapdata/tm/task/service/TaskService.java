@@ -8,12 +8,8 @@ import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.Settings.constant.CategoryEnum;
-import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
-import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
@@ -35,6 +31,7 @@ import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
@@ -75,24 +72,19 @@ import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.task.vo.TaskStatsDto;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
-import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
-import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
-import io.tapdata.common.sample.request.Sample;
-import jdk.nashorn.internal.parser.TokenType;
-import com.tapdata.tm.ws.handler.EditFlushHandler;
 import io.tapdata.common.sample.request.Sample;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.time.DateUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -100,8 +92,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
-import org.springframework.data.mongodb.core.aggregation.Fields;
-import org.springframework.data.mongodb.core.aggregation.GroupOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -118,7 +108,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -2701,7 +2690,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void start(ObjectId id, UserDetail user) {
         String startFlag = "11";
         TaskDto taskDto = checkExistById(id, user);
-        addScheduleTask(taskDto);
         start(taskDto, user, startFlag);
     }
 
@@ -2714,7 +2702,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     private void start(TaskDto taskDto, UserDetail user) {
-        addScheduleTask(taskDto);
         start(taskDto, user, "11");
     }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
@@ -3244,6 +3231,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
+    public void startPlanCronTask() {
+        Criteria migrateCriteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_START)
+                .and("crontabExpressionFlag").is(true)
+                .and("crontabExpression").exists(true);
+        Query taskQuery = new Query(migrateCriteria);
+        List<TaskDto> taskList = findAll(taskQuery);
+        if (CollectionUtils.isNotEmpty(taskList)) {
+            taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
+                    .collect(Collectors.toList());
+            for (TaskDto taskDto : taskList) {
+                 addScheduleTask(taskDto);
+            }
+        }
+    }
+
     public TaskDto findByCacheName(String cacheName, UserDetail user) {
         Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where("catalog").is("memCache").and("cacheName").is(cacheName));
         Query query = new Query(taskCriteria);
@@ -3426,10 +3428,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return chart6Map;
     }
 
-    public void addScheduleTask(TaskDto taskDto){
+    public void addScheduleTask(TaskDto taskDto) {
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
                 && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.getIsSchedule()) {
+                && taskDto.isCrontabExpressionFlag()) {
             CronUtil.addJob(taskDto);
         }
     }
@@ -3437,7 +3439,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void deleteScheduleTask(TaskDto taskDto) {
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
                 && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.getIsSchedule()) {
+                && taskDto.isCrontabExpressionFlag()) {
             CronUtil.removeJob(String.valueOf(taskDto.getId()));
         }
 

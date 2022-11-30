@@ -5,7 +5,6 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskRecordService;
@@ -42,8 +41,8 @@ public class ScheduleService implements Job {
             CronUtil.removeJob(jobId);
             return;
         }
-        // 修改任务状态
-        if(StringUtils.isBlank(taskDto.getCrontabExpression()) || !taskDto.isPlanStartDateFlag()){
+       // 修改任务状态
+        if(StringUtils.isBlank(taskDto.getCrontabExpression()) || !taskDto.isCrontabExpressionFlag()){
             log.info("Taskid :" +jobId+" has not schedule" );
             CronUtil.removeJob(jobId);
             return;
@@ -58,7 +57,7 @@ public class ScheduleService implements Job {
             log.info("工作任务的名称:" + taskDto.getName() + " has stop ");
             return;
         }
-        if (InspectStatusEnum.SCHEDULING.getValue().equals(status) || InspectStatusEnum.RUNNING.getValue().equals(status)) {
+        if (TaskDto.STATUS_SCHEDULING.equals(status) || TaskDto.STATUS_RUNNING.equals(status)) {
             log.info("taskId {},status:{}  不用在进行全量任务", jobId, status);
         } else {
             log.info("taskId {},status:{}  定时在全量任务", jobId, status);
