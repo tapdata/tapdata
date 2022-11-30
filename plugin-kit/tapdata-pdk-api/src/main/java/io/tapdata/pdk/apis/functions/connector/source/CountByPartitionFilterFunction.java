@@ -1,0 +1,13 @@
+package io.tapdata.pdk.apis.functions.connector.source;
+
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.partition.TapPartitionFilter;
+
+/**
+ * filter为空时， 查所有数据。 
+ * filter里只用关心里面的operators， 作为条件count数据
+ */
+public interface CountByPartitionFilterFunction {
+    long countByAdvanceFilter(TapConnectorContext connectorContext, TapTable table, TapPartitionFilter filter);
+}

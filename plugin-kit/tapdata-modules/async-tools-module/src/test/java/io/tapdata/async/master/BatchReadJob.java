@@ -1,8 +1,6 @@
 package io.tapdata.async.master;
 
-import io.tapdata.modules.api.async.master.AsyncJob;
 import io.tapdata.modules.api.async.master.AsyncJobClass;
-import io.tapdata.modules.api.async.master.JobContext;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 

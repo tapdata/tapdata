@@ -1,4 +1,4 @@
-package io.tapdata.modules.api.async.master;
+package io.tapdata.async.master;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.utils.ClassFactory;
@@ -52,7 +52,7 @@ public abstract class JobContext {
 	public static JobContext create(Object result) {
 		JobContext jobContext = ClassFactory.create(JobContext.class);
 		if(jobContext == null)
-			throw new CoreException(AsyncErrors.MISSING_JOB_CONTEXT, "Missing jobContext's implementation");
+			throw new CoreException(9000, "Missing jobContext's implementation");
 		return jobContext.result(result);
 	}
 
@@ -88,6 +88,9 @@ public abstract class JobContext {
 		this.id = id;
 	}
 
+	public <T> T getResult(Class<T> tClass) {
+		return (T) result;
+	}
 	public Object getResult() {
 		return result;
 	}
@@ -102,6 +105,10 @@ public abstract class JobContext {
 
 	public void setResult(Object result) {
 		this.result = result;
+	}
+
+	public <T> T getContext(Class<T> tClass) {
+		return (T) context;
 	}
 
 	public Object getContext() {

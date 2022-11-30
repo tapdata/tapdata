@@ -1,4 +1,4 @@
-package io.tapdata.modules.api.async.master;
+package io.tapdata.async.master;
 
 import java.util.Map;
 import java.util.Set;

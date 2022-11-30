@@ -2,7 +2,6 @@ package io.tapdata.async.master;
 
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.modules.api.async.master.*;
 import io.tapdata.pdk.core.utils.test.AsyncTestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;

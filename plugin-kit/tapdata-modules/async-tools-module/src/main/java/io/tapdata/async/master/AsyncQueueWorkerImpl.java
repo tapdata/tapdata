@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
-import static io.tapdata.modules.api.async.master.QueueWorkerStateListener.*;
+import static io.tapdata.async.master.QueueWorkerStateListener.*;
 
 /**
  * @author aplomb

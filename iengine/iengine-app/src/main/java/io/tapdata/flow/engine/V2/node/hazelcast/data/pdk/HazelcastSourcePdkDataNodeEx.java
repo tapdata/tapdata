@@ -26,10 +26,10 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
-import io.tapdata.modules.api.async.master.AsyncJobChain;
-import io.tapdata.modules.api.async.master.AsyncMaster;
-import io.tapdata.modules.api.async.master.AsyncQueueWorker;
-import io.tapdata.modules.api.async.master.JobContext;
+import io.tapdata.async.master.AsyncJobChain;
+import io.tapdata.async.master.AsyncMaster;
+import io.tapdata.async.master.AsyncQueueWorker;
+import io.tapdata.async.master.JobContext;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.*;
@@ -48,7 +48,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 /**
  * @author jackin
@@ -98,20 +97,38 @@ public class HazelcastSourcePdkDataNodeEx extends HazelcastSourcePdkBaseNode {
 			} else {
 				return JobContext.create(null).jumpToId("needCDC");
 			}
-		}).externalJob("batchRead", jobContext -> {
+		}).externalJob("batchReadAll", jobContext -> {
+			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+			doSnapshot(new ArrayList<>(tapTableMap.keySet()));
+//			jobChain.remove()
 			return JobContext.create(null);
+		}).externalJob("batchReadMore", jobContext -> {
+			if (CollectionUtils.isNotEmpty(newTables)) {
+				doSnapshot(newTables);
+			}
+			return null;
 		}).job("needCDC", jobContext -> {
 			boolean bool = need2CDC();
 			if(bool) {
-				return JobContext.create(null);
+				return JobContext.create(null).jumpToId("streamRead");
 			} else {
 				return JobContext.create(null);
 			}
 		}).externalJob("streamRead", jobContext -> {
 			return null;
+		}, true);
+		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("SourceJob " + getNode().getId());
+		asyncQueueWorker.job(jobChain);
+
+
+		AsyncQueueWorker loadMoreTablesWorker = asyncMaster.createAsyncQueueWorker("loadMoreTables");
+		loadMoreTablesWorker.job("loadTables", jobContext -> {
+			return null;
+		}).job("loadSchema", jobContext -> {
+//			asyncQueueWorker.cancelAll()
+			return null;
 		});
-//		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("SourceJob " + getNode().getId()));
-//		asyncQueueWorker.job(jobChain);
+		loadMoreTablesWorker.start(JobContext.create(null), 60000, 60000);
 	}
 
 	@Override

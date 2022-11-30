@@ -3,7 +3,6 @@ package io.tapdata.async.master;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
-import io.tapdata.modules.api.async.master.AsyncJob;
 import io.tapdata.modules.api.async.master.AsyncJobClass;
 
 import java.lang.annotation.Annotation;

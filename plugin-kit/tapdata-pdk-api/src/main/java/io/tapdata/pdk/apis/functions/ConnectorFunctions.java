@@ -50,6 +50,27 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
     protected NewFieldFunction newFieldFunction;
     protected RawDataCallbackFilterFunction rawDataCallbackFilterFunction;
     protected RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2;
+    protected CountByPartitionFilterFunction countByPartitionFilterFunction;
+    protected GetReadPartitionsFunction getReadPartitionsFunction;
+    protected PartitionReadFunction partitionReadFunction;
+    protected QueryFieldMinMaxValueFunction queryFieldMinMaxValueFunction;
+
+    public ConnectorFunctions supportCountByPartitionFilterFunction(CountByPartitionFilterFunction function) {
+        countByPartitionFilterFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportGetReadPartitionsFunction(GetReadPartitionsFunction function) {
+        getReadPartitionsFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportPartitionReadFunction(PartitionReadFunction function) {
+        this.partitionReadFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportQueryFieldMinMaxValueFunction(QueryFieldMinMaxValueFunction function) {
+        this.queryFieldMinMaxValueFunction = function;
+        return this;
+    }
     public ConnectorFunctions supportRawDataCallbackFilterFunction(RawDataCallbackFilterFunction function) {
         rawDataCallbackFilterFunction = function;
         return this;
@@ -341,5 +362,21 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
 
     public RawDataCallbackFilterFunctionV2 getRawDataCallbackFilterFunctionV2() {
         return rawDataCallbackFilterFunctionV2;
+    }
+
+    public CountByPartitionFilterFunction getCountByPartitionFilterFunction() {
+        return countByPartitionFilterFunction;
+    }
+
+    public GetReadPartitionsFunction getGetReadPartitionsFunction() {
+        return getReadPartitionsFunction;
+    }
+
+    public PartitionReadFunction getPartitionReadFunction() {
+        return partitionReadFunction;
+    }
+
+    public QueryFieldMinMaxValueFunction getQueryFieldMinMaxValueFunction() {
+        return queryFieldMinMaxValueFunction;
     }
 }

@@ -7,15 +7,13 @@ import com.mongodb.client.model.Sorts;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.TapIndex;
-import io.tapdata.entity.schema.TapIndexField;
-import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.*;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
@@ -35,6 +33,9 @@ import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
+import io.tapdata.pdk.apis.partition.ReadPartition;
+import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -58,6 +59,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.mongodb.client.model.Filters.*;
+import static java.util.Collections.max;
 import static java.util.Collections.singletonList;
 
 /**
@@ -420,7 +422,163 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportStreamRead(this::streamRead);
 		connectorFunctions.supportTimestampToStreamOffset(this::streamOffset);
 		connectorFunctions.supportErrorHandleFunction(this::errorHandle);
+
+		connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
+		connectorFunctions.supportCountByPartitionFilterFunction(this::countByPartitionFilter);
+		connectorFunctions.supportPartitionReadFunction(this::partitionRead);
+		connectorFunctions.supportQueryFieldMinMaxValueFunction(this::queryFieldMinMaxValue);
 //        connectorFunctions.supportStreamOffset((connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer) -> streamOffset(connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer));
+	}
+
+	private FieldMinMaxValue queryFieldMinMaxValue(TapConnectorContext connectorContext, TapTable table, TapPartitionFilter partitionFilter, String fieldName) {
+		MongoCollection<Document> collection = getMongoCollection(table.getId());
+		TapIndexEx partitionIndex = table.partitionIndex();
+		if(partitionIndex == null)
+			throw new CoreException(MongoErrors.NO_INDEX_FOR_PARTITION, "No index to do partition");
+
+		Bson query = queryForPartitionFilter(partitionFilter, partitionIndex);
+
+		List<TapIndexField> indexFields = partitionIndex.getIndexFields();
+		Document sort = new Document();
+		Boolean fieldAsc = null;
+		for(TapIndexField indexField : indexFields) {
+			Boolean asc = indexField.getFieldAsc();
+			if(asc == null)
+				asc = true;
+			if(indexField.getName().equals(fieldName)) {
+				fieldAsc = asc;
+			}
+			sort.put(indexField.getName(), asc ? 1 : -1);
+		}
+		if(fieldAsc == null)
+			throw new CoreException(MongoErrors.FIELD_NOT_IN_PARTITION_INDEXES, "field {} not found in partition indexes {}", fieldName, partitionIndex.getIndexMap().keySet());
+		FieldMinMaxValue fieldMinMaxValue = FieldMinMaxValue.create().fieldName(fieldName);
+
+		Document minSort;
+		Document maxSort;
+		if(fieldAsc) {
+			minSort = sort;
+			maxSort = reverseSort(minSort);
+		} else {
+			maxSort = sort;
+			minSort = reverseSort(maxSort);
+		}
+		//Get min value
+		FindIterable<Document> minIterable = collection.find(query).sort(minSort).projection(new Document().append(fieldName, 1)).limit(1);
+		Document minDoc = minIterable.first();
+		if(minDoc == null)
+			throw new CoreException(MongoErrors.NO_RECORD_WHILE_GET_MIN, "No record while get min for field {}, query {}, sort {}", fieldName, query, sort);
+		Object minValue = minDoc.get(fieldName);
+		if(minValue == null)
+			throw new CoreException(MongoErrors.MIN_VALUE_IS_NULL, "Min value is null for field {}, query {}, sort {}", fieldName, query, sort);
+		fieldMinMaxValue.min(minValue).detectType(minValue);
+
+		//Get max value
+		FindIterable<Document> maxIterable = collection.find(query).sort(maxSort).projection(new Document().append(fieldName, 1)).limit(1);
+		Document maxDoc = maxIterable.first();
+		if(maxDoc == null)
+			throw new CoreException(MongoErrors.NO_RECORD_WHILE_GET_MAX, "No record while get max for field {}, query {}, sort {}", fieldName, query, sort);
+		Object maxValue = maxDoc.get(fieldName);
+		if(maxValue == null)
+			throw new CoreException(MongoErrors.MAX_VALUE_IS_NULL, "Max value is null for field {}, query {}, sort {}", fieldName, query, sort);
+		fieldMinMaxValue.max(maxValue);
+
+		return fieldMinMaxValue;
+	}
+
+	private Document reverseSort(Document sort) {
+		Document newSort = new Document();
+		for(Map.Entry<String, Object> entry : sort.entrySet()) {
+			int value = (int) entry.getValue();
+			newSort.put(entry.getKey(), -value);
+		}
+		return newSort;
+	}
+
+	private void partitionRead(TapConnectorContext connectorContext, TapTable table, ReadPartition readPartition, int eventBatchSize, Consumer<List<TapEvent>> consumer) {
+
+	}
+
+	private long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapPartitionFilter partitionFilter) {
+		Bson query = queryForPartitionFilter(partitionFilter, table.partitionIndex());
+		return getCollectionNotAggregateCountByTableName(mongoClient, mongoConfig.getDatabase(), table.getId(), query);
+	}
+
+	private Bson queryForPartitionFilter(TapPartitionFilter partitionFilter, TapIndexEx partitionKeys) {
+		List<Bson> bsonList = new ArrayList<>();
+		List<QueryOperator> ops = partitionFilter.getOperators();
+		if (ops != null) {
+			for (QueryOperator op : ops) {
+				if(!partitionKeys.getIndexMap().containsKey(op.getKey())) {
+					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in operators", op.getKey(), partitionKeys);
+				}
+				switch (op.getOperator()) {
+					case QueryOperator.GT:
+						bsonList.add(gt(op.getKey(), op.getValue()));
+						break;
+					case QueryOperator.GTE:
+						bsonList.add(gte(op.getKey(), op.getValue()));
+						break;
+					case QueryOperator.LT:
+						bsonList.add(lt(op.getKey(), op.getValue()));
+						break;
+					case QueryOperator.LTE:
+						bsonList.add(lte(op.getKey(), op.getValue()));
+						break;
+				}
+			}
+		}
+		DataMap match = partitionFilter.getMatch();
+		if (match != null) {
+			for (Map.Entry<String, Object> entry : match.entrySet()) {
+				if(!partitionKeys.getIndexMap().containsKey(entry.getKey())) {
+					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in match", entry.getKey(), partitionKeys);
+				}
+				bsonList.add(eq(entry.getKey(), entry.getValue()));
+			}
+		}
+		Bson query;
+		if (bsonList.isEmpty())
+			query = new Document();
+		else
+			query = and(bsonList.toArray(new Bson[0]));
+		return query;
+	}
+
+	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, Long maxRecordInPartition, List<ReadPartition> existingPartitions, Consumer<ReadPartition> consumer) {
+		calculateDatabaseReadPartitions(connectorContext, table, maxRecordInPartition, existingPartitions, consumer)
+				.countByPartitionFilter(this::countByPartitionFilter)
+				.queryFieldMinMaxValue(this::queryFieldMinMaxValue)
+				.registerCustomSplitter(ObjectId.class, this::objectIdSplitter)
+				.startSplitting();
+	}
+
+	private List<TapPartitionFilter> objectIdSplitter(FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces) {
+		ObjectId min = (ObjectId) fieldMinMaxValue.getMin();
+		ObjectId max = (ObjectId) fieldMinMaxValue.getMax();
+		int minSeconds = min.getTimestamp();
+		int maxSeconds = max.getTimestamp();
+		int value = maxSeconds - minSeconds;
+		int pieceSize = value / maxSplitPieces;
+
+		List<TapPartitionFilter> partitionFilters = new ArrayList<>();
+		if(min.equals(max)) {
+			partitionFilters.add(TapPartitionFilter.create().match(fieldMinMaxValue.getFieldName(), min));
+		} else {
+			for(int i = 0; i < maxSplitPieces; i++) {
+				if(i == 0) {
+					partitionFilters.add(TapPartitionFilter.create().op(QueryOperator.lt(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize, 0))));
+				} else if(i == maxSplitPieces - 1) {
+					partitionFilters.add(TapPartitionFilter.create().op(QueryOperator.gte(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize * i, 0))));
+				} else {
+					partitionFilters.add(TapPartitionFilter.create()
+							.op(QueryOperator.gte(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize * i, 0)))
+							.op(QueryOperator.lt(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize * (i + 1), 0)))
+					);
+				}
+			}
+		}
+		return partitionFilters;
 	}
 
 	private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
@@ -660,7 +818,7 @@ public class MongodbConnector extends ConnectorBase {
 		return getCollectionNotAggregateCountByTableName(mongoClient, mongoConfig.getDatabase(), table.getId(), null);
 	}
 
-	public static long getCollectionNotAggregateCountByTableName(MongoClient mongoClient, String db, String collectionName, Document filter) {
+	public static long getCollectionNotAggregateCountByTableName(MongoClient mongoClient, String db, String collectionName, Bson filter) {
 		long dbCount = 0L;
 		MongoDatabase database = mongoClient.getDatabase(db);
 		Document countDocument = database.runCommand(
@@ -695,6 +853,15 @@ public class MongodbConnector extends ConnectorBase {
 	 * @param tapReadOffsetConsumer
 	 */
 	private void batchRead(TapConnectorContext connectorContext, TapTable table, Object offset, int eventBatchSize, BiConsumer<List<TapEvent>, Object> tapReadOffsetConsumer) throws Throwable {
+		if(true) {
+			getReadPartitions(connectorContext, table, 500000L, null, new Consumer<ReadPartition>() {
+				@Override
+				public void accept(ReadPartition readPartition) {
+					TapLogger.info(TAG, "readPartition {}", readPartition);
+				}
+			});
+			return;
+		}
 		List<TapEvent> tapEvents = list();
 		MongoCursor<Document> mongoCursor;
 		MongoCollection<Document> collection = getMongoCollection(table.getId());

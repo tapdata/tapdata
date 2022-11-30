@@ -3,7 +3,6 @@ package io.tapdata.async.master;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.modules.api.async.master.*;
 
 import java.util.HashMap;
 import java.util.List;
@@ -15,7 +14,6 @@ import java.util.Map;
 public class Sample {
 	public static void main(String[] args) {
 		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		asyncMaster.start();
 
 
 		AsyncParallelWorker parallelWorker = asyncMaster.createAsyncParallelWorker("", 1);

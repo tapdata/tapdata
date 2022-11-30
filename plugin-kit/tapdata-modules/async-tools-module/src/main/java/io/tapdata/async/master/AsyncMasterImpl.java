@@ -4,10 +4,6 @@ import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.reflection.ClassAnnotationManager;
 import io.tapdata.entity.utils.ClassFactory;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.modules.api.async.master.AsyncJobChain;
-import io.tapdata.modules.api.async.master.AsyncMaster;
-import io.tapdata.modules.api.async.master.AsyncParallelWorker;
-import io.tapdata.modules.api.async.master.AsyncQueueWorker;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.Map;
@@ -37,13 +33,24 @@ public class AsyncMasterImpl implements AsyncMaster {
 		return new AsyncJobChainImpl(asyncJobAnnotationHandler.getAsyncJobMap());
 	}
 
-	@Override
 	public AsyncQueueWorker createAsyncQueueWorker(String id) {
-		return asyncQueueWorkerMap.computeIfAbsent(id, id1 -> {
+		return createAsyncQueueWorker(id, true);
+	}
+
+	@Override
+	public AsyncQueueWorker createAsyncQueueWorker(String id, boolean globalUniqueId) {
+		if(globalUniqueId) {
+			return asyncQueueWorkerMap.computeIfAbsent(id, id1 -> {
+				AsyncQueueWorkerImpl asyncQueueWorker = new AsyncQueueWorkerImpl(id, asyncJobAnnotationHandler.getAsyncJobMap());
+				InstanceFactory.injectBean(asyncQueueWorker);
+				return asyncQueueWorker;
+			});
+		} else {
 			AsyncQueueWorkerImpl asyncQueueWorker = new AsyncQueueWorkerImpl(id, asyncJobAnnotationHandler.getAsyncJobMap());
 			InstanceFactory.injectBean(asyncQueueWorker);
 			return asyncQueueWorker;
-		});
+		}
+
 	}
 
 	@Override
@@ -56,16 +63,32 @@ public class AsyncMasterImpl implements AsyncMaster {
 	}
 
 	@Override
-	public AsyncParallelWorker createAsyncParallelWorker(String id, int parallelCount) {
-		return asyncParallelWorkerMap.computeIfAbsent(id, id1 -> {
+	public AsyncParallelWorker createAsyncParallelWorker(String id, int parallelCount, boolean globalUniqueId) {
+		if(globalUniqueId) {
+			return asyncParallelWorkerMap.computeIfAbsent(id, id1 -> {
+				AsyncParallelWorkerImpl asyncParallelWorker = new AsyncParallelWorkerImpl(id, parallelCount);
+				InstanceFactory.injectBean(asyncParallelWorker);
+				return asyncParallelWorker;
+			});
+		} else {
 			AsyncParallelWorkerImpl asyncParallelWorker = new AsyncParallelWorkerImpl(id, parallelCount);
 			InstanceFactory.injectBean(asyncParallelWorker);
 			return asyncParallelWorker;
-		});
+		}
 	}
 
 	@Override
-	public void start() {
-
+	public AsyncParallelWorker createAsyncParallelWorker(String id, int parallelCount) {
+		return createAsyncParallelWorker(id, parallelCount, true);
 	}
+
+	@Override
+	public AsyncParallelWorker destroyAsyncParallelWorker(String id) {
+		AsyncParallelWorker parallelWorker = asyncParallelWorkerMap.remove(id);
+		if(parallelWorker != null) {
+			parallelWorker.stop();
+		}
+		return parallelWorker;
+	}
+
 }

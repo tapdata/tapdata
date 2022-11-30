@@ -3,10 +3,11 @@ package io.tapdata.async.master;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.Container;
-import io.tapdata.modules.api.async.master.*;
+import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -21,6 +22,7 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	private final Map<String, AsyncQueueWorker> runningQueueWorkers = Collections.synchronizedMap(new LinkedHashMap<>());
 //	private final AtomicInteger runningCount = new AtomicInteger(0);
 	private final List<Container<JobContext, AsyncQueueWorker>> pendingQueueWorkers = new CopyOnWriteArrayList<>();
+	private final AtomicBoolean stopped = new AtomicBoolean(false);
 	public AsyncParallelWorkerImpl(String id, int parallelCount) {
 		this.id = id;
 		this.parallelCount = parallelCount;
@@ -33,7 +35,9 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 
 	@Override
 	public synchronized AsyncQueueWorker start(String queueWorkerId, JobContext jobContext, Consumer<AsyncQueueWorker> consumer) {
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker(queueWorkerId);
+		if(stopped.get())
+			return null;
+		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker(queueWorkerId, false);
 		if (consumer != null) {
 			consumer.accept(asyncQueueWorker);
 		}
@@ -51,6 +55,27 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 		return asyncQueueWorker;
 	}
 
+	@Override
+	public void stop() {
+		Map<String, AsyncQueueWorker> theRunningQueueWorkers = null;
+		List<Container<JobContext, AsyncQueueWorker>> thePendingQueueWorkers = null;
+		synchronized (this) {
+			if(stopped.compareAndSet(false, true)) {
+				theRunningQueueWorkers = runningQueueWorkers;
+				thePendingQueueWorkers = pendingQueueWorkers;
+			}
+		}
+		if(theRunningQueueWorkers != null) {
+			for(AsyncQueueWorker asyncQueueWorker : theRunningQueueWorkers.values()) {
+				CommonUtils.ignoreAnyError(asyncQueueWorker::stop, TAG);
+			}
+		}
+		if(thePendingQueueWorkers != null) {
+			for(Container<JobContext, AsyncQueueWorker> container : thePendingQueueWorkers) {
+				CommonUtils.ignoreAnyError(() -> container.getP().stop(), TAG);
+			}
+		}
+	}
 	private void startAsyncQueueWorker(JobContext jobContext, AsyncQueueWorker asyncQueueWorker) {
 		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
 			if(toState == QueueWorkerStateListener.STATE_STOPPED) {
@@ -61,8 +86,8 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	}
 
 	private synchronized void executePendingWorker(String id) {
-		AsyncQueueWorker worker = runningQueueWorkers.remove(id);
-		if(worker != null && !pendingQueueWorkers.isEmpty()) {
+		AsyncQueueWorker worker = runningQueueWorkers.remove(id); //this worker is already in stopped state.
+		if(worker != null && !pendingQueueWorkers.isEmpty() && !stopped.get()) {
 			Container<JobContext, AsyncQueueWorker> container = pendingQueueWorkers.remove(0);
 			if(container != null) {
 				if(runningQueueWorkers.size() < parallelCount) {

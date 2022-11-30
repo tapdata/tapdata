@@ -11,11 +11,13 @@ import io.tapdata.entity.schema.type.*;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.*;
+import io.tapdata.partition.DatabaseReadPartitionSplitter;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.utils.TypeConverter;
 
 import java.io.PrintWriter;
@@ -35,6 +37,24 @@ public abstract class ConnectorBase implements TapConnector {
 	private static final TapUtils tapUtils = InstanceFactory.instance(TapUtils.class);
 	private static final SimpleDateFormat tapDateTimeFormat = new SimpleDateFormat();
 	private static final String TAG = ConnectorBase.class.getSimpleName();
+
+	private volatile DatabaseReadPartitionSplitter databaseReadPartitionSplitter;
+	protected DatabaseReadPartitionSplitter calculateDatabaseReadPartitions(TapConnectorContext connectorContext, TapTable table, Long maxRecordInPartition, List<ReadPartition> existingPartitions, Consumer<ReadPartition> consumer) {
+		if(databaseReadPartitionSplitter == null) {
+			synchronized (this) {
+				if(databaseReadPartitionSplitter == null) {
+					databaseReadPartitionSplitter = new DatabaseReadPartitionSplitter()
+							.context(connectorContext)
+							.table(table)
+							.maxRecordInPartition(maxRecordInPartition)
+							.consumer(consumer)
+							.existingPartitions(existingPartitions)
+					;
+				}
+			}
+		}
+		return databaseReadPartitionSplitter;
+	}
 
 	public static void interval(Runnable runnable, int seconds) {
 		TapSimplify.interval(runnable, seconds);
@@ -344,4 +364,5 @@ public abstract class ConnectorBase implements TapConnector {
 		}
 		return matched;
 	}
+
 }

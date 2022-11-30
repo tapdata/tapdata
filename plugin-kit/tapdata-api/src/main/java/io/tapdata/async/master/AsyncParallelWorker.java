@@ -1,4 +1,4 @@
-package io.tapdata.modules.api.async.master;
+package io.tapdata.async.master;
 
 import io.tapdata.entity.utils.Container;
 
@@ -12,6 +12,8 @@ import java.util.function.Consumer;
 public interface AsyncParallelWorker extends AsyncWorker {
 	String getId();
 	AsyncQueueWorker start(String queueWorkerId, JobContext jobContext, Consumer<AsyncQueueWorker> consumer);
+
+	void stop();
 
 	Collection<AsyncQueueWorker> runningQueueWorkers();
 	List<String> completedIds();
