@@ -10,6 +10,7 @@ import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.RetryUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -140,13 +141,13 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                         Thread.currentThread().setContextClassLoader(contextClassLoader);
                     }
                     if (retryTimes > 0) {
-                        CommonUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
+                        RetryUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
                     } else {
                         node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
                     }
                 });
             } else {
-                CommonUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
+                RetryUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
             }
         }finally {
             PDKInvocationMonitor.release(node,invoker);
