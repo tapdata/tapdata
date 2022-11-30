@@ -3429,7 +3429,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void addScheduleTask(TaskDto taskDto){
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
                 && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.getIsSchedule()) {
+                && taskDto.isPlanStartDateFlag()) {
             CronUtil.addJob(taskDto);
         }
     }
@@ -3437,7 +3437,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void deleteScheduleTask(TaskDto taskDto) {
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
                 && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.getIsSchedule()) {
+                && taskDto.isPlanStartDateFlag()) {
             CronUtil.removeJob(String.valueOf(taskDto.getId()));
         }
 
