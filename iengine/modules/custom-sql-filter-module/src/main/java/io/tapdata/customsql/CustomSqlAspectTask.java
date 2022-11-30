@@ -27,15 +27,16 @@ import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @AspectTaskSession(
         includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC},
         order = Integer.MIN_VALUE)
 public class CustomSqlAspectTask extends AbstractAspectTask {
 
-  private StreamReadFuncAspect aspect;
 
   public CustomSqlAspectTask() {
     observerHandlers.register(StreamReadFuncAspect.class, this::handleStreamReadFunc);
@@ -44,18 +45,34 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
   public Void handleStreamReadFunc(StreamReadFuncAspect aspect) {
     switch (aspect.getState()) {
       case BatchReadFuncAspect.STATE_START:
+       TableNode tableNode = (TableNode) aspect.getDataProcessorContext().getNode();
+        if (!tableNode.getIsFilter() || CollectionUtils.isEmpty(tableNode.getConditions())) {
+          return null;
+        }
         aspect.streamingProcessCompleteConsumers(events -> {
-          // 不存在则直接返回
-          TableNode tableNode  = (TableNode) aspect.getDataProcessorContext().getNode();
-         if(!tableNode.getIsFilter() && CollectionUtils.isEmpty(tableNode.getConditions())){
-            return;
-          }
           TapTableMap<String, TapTable> tapTableMap = aspect.getDataProcessorContext().getTapTableMap();
           // 遍历所有events
-          for (TapdataEvent tapdataEvent : events) {
-            TapEvent tapEvent = tapdataEvent.getTapEvent();
+          boolean heartbeat = false;
+          List<TapdataEvent> deletedEvents = new ArrayList<>();
+          for (int index = 0; index < events.size(); index++) {
+            TapEvent tapEvent = events.get(index).getTapEvent();
             if (tapEvent instanceof TapRecordEvent) {
-              checkAndFilter(tapdataEvent,tapTableMap, tableNode);
+              boolean result = checkAndFilter(events.get(index), tapTableMap, tableNode);
+              if (index == events.size() - 1 && !result) {
+                heartbeat = true;
+              }
+              if (!result) {
+                deletedEvents.add(events.get(index));
+              }
+            }
+          }
+          // 删除过滤的事件，最后一个事件如果过滤则转化为心态事件
+          if (CollectionUtils.isNotEmpty(deletedEvents)) {
+            events.removeAll(deletedEvents);
+            if (heartbeat) {
+              TapdataEvent tapdataEvent = events.get(events.size() - 1);
+              events.add(TapdataHeartbeatEvent.create(TapEventUtil.getTimestamp(tapdataEvent.getTapEvent()),
+                      tapdataEvent.getStreamOffset(), tapdataEvent.getNodeIds()));
             }
           }
         });
@@ -66,9 +83,9 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
     return null;
   }
 
-  public void checkAndFilter(TapdataEvent tapdataEvent,  TapTableMap<String, TapTable> tapTableMap, TableNode tableNode) {
+  public boolean checkAndFilter(TapdataEvent tapdataEvent,  TapTableMap<String, TapTable> tapTableMap, TableNode tableNode) {
     TapEvent tapEvent  = tapdataEvent.getTapEvent();
-    Map<String, TapField> nameFieldMap = (Map<String, TapField>) tapTableMap.get(((TapRecordEvent) tapEvent).getTableId());
+    Map nameFieldMap = tapTableMap.get(((TapRecordEvent) tapEvent).getTableId()).getNameFieldMap();
     // 遍历所有条件
     Map<String, Object> map = null;
     if (tapEvent instanceof TapDeleteRecordEvent) {
@@ -78,32 +95,30 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
     } else if (tapEvent instanceof TapInsertRecordEvent) {
       map = ((TapInsertRecordEvent) tapEvent).getAfter();
     }
-    boolean flag =  compareValue(map, nameFieldMap, tableNode);
-    if (!flag) {
-      // 如果不符合则转换为心跳事件
-      tapdataEvent = TapdataHeartbeatEvent.create(TapEventUtil.getTimestamp(tapdataEvent.getTapEvent()), tapdataEvent.getStreamOffset(), tapdataEvent.getNodeIds());
-      return;
-    }
-
+    return  compareValue(map, nameFieldMap, tableNode);
   }
 
 
   public boolean compareValue(Map<String, Object> map, Map<String, TapField> nameFieldMap, TableNode tableNode) {
     List<QueryOperator> operators = tableNode.getConditions();
     TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+    AtomicBoolean filterValue = new AtomicBoolean(true);
     codecsFilterManager.transformToTapValueMap(map, nameFieldMap, (ToTapValueCheck) (key, value) -> {
       for (QueryOperator queryOperator : operators) {
         if (key.equals(queryOperator.getKey())) {
           if (value instanceof Number) {
             if (!NumberUtil.compare(queryOperator.getValue(), value, queryOperator.getOperator())) {
+              filterValue.set(false);
               return false;
             }
           } else if (value instanceof DateTime) {
             if (!DateTimeUtil.compare(queryOperator.getValue(), value, queryOperator.getOperator())) {
+              filterValue.set(false);
               return false;
             }
           } else if (value instanceof String) {
             if (!StringUtil.compare(queryOperator.getValue(), value, queryOperator.getOperator())) {
+              filterValue.set(false);
               return false;
             }
           }
@@ -111,6 +126,8 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
       }
       return true;
     });
-    return true;
+    return filterValue.get();
   }
+
+
 }

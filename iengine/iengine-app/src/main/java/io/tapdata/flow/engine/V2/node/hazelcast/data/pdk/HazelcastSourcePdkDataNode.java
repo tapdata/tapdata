@@ -197,12 +197,40 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									batchReadFuncAspect -> PDKInvocationMonitor.invoke(
 											getConnectorNode(), PDKMethod.SOURCE_BATCH_READ,
 											createPdkMethodInvoker().runnable(() -> {
-												BiConsumer<List<TapEvent>, Object> consumer =null;
+												BiConsumer<List<TapEvent>, Object> consumer =(events, offsetObject) -> {
+													if (events != null && !events.isEmpty()) {
+														events.forEach(event -> {
+															if (null == event.getTime()) {
+																throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
+															}
+															event.addInfo("eventId", UUID.randomUUID().toString());
+														});
+
+														if (batchReadFuncAspect != null)
+															AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
+
+														if (logger.isDebugEnabled()) {
+															logger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+														}
+														((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
+														List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
+
+														if (batchReadFuncAspect != null)
+															AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
+
+														if (CollectionUtil.isNotEmpty(tapdataEvents)) {
+															tapdataEvents.forEach(this::enqueue);
+
+															if (batchReadFuncAspect != null)
+																AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
+														}
+													}
+												};
 												TableNode tableNode =  (TableNode)dataProcessorContext.getNode();
-												List<TapEvent> tempList = new ArrayList<>();
-												if(tableNode.getIsFilter() && CollectionUtils.isEmpty(tableNode.getConditions())){
+												if(tableNode.getIsFilter() && CollectionUtils.isNotEmpty(tableNode.getConditions())){
 													TapAdvanceFilter tapAdvanceFilter = btachFilterRead();
 													queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(),tapAdvanceFilter,tapTable,filterResults->{
+														List<TapEvent> tempList = new ArrayList<>();
 														if(filterResults !=null && CollectionUtils.isNotEmpty(filterResults.getResults())){
 															filterResults.getResults().forEach(filterResult->{
 																tempList.add(TapSimplify.insertRecordEvent(filterResult, tapTable.getId()));	;
@@ -214,36 +242,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 														}
 
 													});
+												}else {
+													batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, eventBatchSize, consumer);
 												}
-												batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, eventBatchSize, (events, offsetObject) -> {
-															if (events != null && !events.isEmpty()) {
-																events.forEach(event -> {
-																	if (null == event.getTime()) {
-																		throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
-																	}
-																	event.addInfo("eventId", UUID.randomUUID().toString());
-																});
 
-																if (batchReadFuncAspect != null)
-																	AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
-
-																if (logger.isDebugEnabled()) {
-																	logger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
-																}
-																((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
-																List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
-
-																if (batchReadFuncAspect != null)
-																	AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
-
-																if (CollectionUtil.isNotEmpty(tapdataEvents)) {
-																	tapdataEvents.forEach(this::enqueue);
-
-																	if (batchReadFuncAspect != null)
-																		AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
-																}
-															}
-														});
 													}
 											)
 									));
@@ -627,18 +629,19 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private TapAdvanceFilter btachFilterRead() {
 		TapAdvanceFilter tapAdvanceFilter = new TapAdvanceFilter();
 		DataMap match = new DataMap();
-		// 遍历
 		TableNode tableNode =  (TableNode)dataProcessorContext.getNode();
 		List<QueryOperator> operators = tableNode.getConditions();
 		Iterator<QueryOperator> iterator = operators.listIterator();
 		while (iterator.hasNext()){
-			if (iterator.next().getOperator() == EQUAL_VALUE) {
-				match.put(iterator.next().getKey(), iterator.next().getValue());
+			QueryOperator queryOperator = iterator.next();
+			if (EQUAL_VALUE == queryOperator.getOperator()) {
+				match.put(queryOperator.getKey(), queryOperator.getValue());
 				iterator.remove();
 			}
 		}
 		tapAdvanceFilter.setMatch(match);
 		tapAdvanceFilter.setOperators(operators);
+		tapAdvanceFilter.setLimit(tableNode.getLimit());
 		return tapAdvanceFilter;
 	}
 

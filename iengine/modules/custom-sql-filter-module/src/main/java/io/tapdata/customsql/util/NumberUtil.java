@@ -1,6 +1,7 @@
 package io.tapdata.customsql.util;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 
 public class NumberUtil {
 
@@ -9,7 +10,13 @@ public class NumberUtil {
         // queryOperator   1:> 2:>= 3:< 4:<= 5:=
         BigDecimal filterBigDecimal = new BigDecimal(filterValue.toString());
         BigDecimal databaseBigDecimal = new BigDecimal(databaseValue.toString());
-        int compareResult = filterBigDecimal.compareTo(databaseBigDecimal);
+        if (filterValue == null || databaseValue == null) {
+            return Objects.equals(filterBigDecimal, filterBigDecimal) && (
+                    queryOperator == QueryOpertorEnum.GTE.getOp()
+                            || queryOperator == QueryOpertorEnum.LTE.getOp()
+                            || queryOperator == QueryOpertorEnum.EQL.getOp());
+        }
+        int compareResult = databaseBigDecimal.compareTo(filterBigDecimal);
         if (compareResult > 0 && (queryOperator == QueryOpertorEnum.GT.getOp()
                 || queryOperator == QueryOpertorEnum.GTE.getOp())) {
             return true;
@@ -20,7 +27,8 @@ public class NumberUtil {
             return true;
 
         }
-        if (compareResult < 1 && (queryOperator == QueryOpertorEnum.LE.getOp() || queryOperator == QueryOpertorEnum.LTE.getOp())) {
+        if (compareResult < 1 && (queryOperator == QueryOpertorEnum.LE.getOp() ||
+                queryOperator == QueryOpertorEnum.LTE.getOp())) {
             return true;
 
         }

@@ -16,6 +16,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
@@ -552,14 +553,32 @@ public class MongodbConnector extends ConnectorBase {
 		FilterResults filterResults = new FilterResults();
 		List<Bson> bsonList = new ArrayList<>();
 		DataMap match = tapAdvanceFilter.getMatch();
+		Map<String,TapField> map = table.getNameFieldMap();
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
+				TapField tapField = map.get(entry.getKey());
+				if (tapField.getTapType() instanceof TapNumber && entry.getValue() instanceof String) {
+					if (entry.getValue().toString().contains(".")) {
+						entry.setValue(Double.valueOf(entry.getValue().toString()));
+					} else {
+						entry.setValue(Long.valueOf(entry.getValue().toString()));
+					}
+				}
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
 		}
 		List<QueryOperator> ops = tapAdvanceFilter.getOperators();
+
 		if (ops != null) {
 			for (QueryOperator op : ops) {
+				TapField tapField = map.get(op.getKey());
+				if (tapField.getTapType() instanceof TapNumber && op.getValue() instanceof String) {
+					if (op.getValue().toString().contains(".")) {
+						op.setValue(Double.valueOf(op.getValue().toString()));
+					} else {
+						op.setValue(Long.valueOf(op.getValue().toString()));
+					}
+				}
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
 						bsonList.add(gt(op.getKey(), op.getValue()));
