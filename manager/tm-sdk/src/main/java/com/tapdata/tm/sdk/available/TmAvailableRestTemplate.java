@@ -36,10 +36,6 @@ public class TmAvailableRestTemplate extends RestTemplate {
     ClientHttpResponse response = null;
     try {
 
-      if (TmStatusService.isNotAllowReport()) {
-        logger.warn("Tm not available, skip report, -> " + url);
-        return responseExtractor.extractData(getDefaultResponse());
-      }
       ClientHttpRequest request = createRequest(url, method);
       if (requestCallback != null) {
         requestCallback.doWithRequest(request);
