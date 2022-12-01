@@ -107,8 +107,6 @@ public class CodingConnector extends ConnectorBase {
 		TapLogger.info(TAG,"Not find table name {},Coding write record error.",tapTable.getId());
 	}
 
-	private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo){
-		return this.handleCommandV2(tapConnectionContext, commandInfo);
 	private DataMap memoryFetcher(String keyRegex, String memoryLevel) {
 		return DataMap.create().keyRegex(keyRegex)
 				.kv("streamExecutionGap", streamExecutionGap)
