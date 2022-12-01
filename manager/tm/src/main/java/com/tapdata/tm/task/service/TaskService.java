@@ -2855,7 +2855,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return;
         }
 
-        deleteScheduleTask(taskDto);
         String pauseStatus = TaskDto.STATUS_STOPPING;
         StateMachineResult stateMachineResult;
         if (force) {
