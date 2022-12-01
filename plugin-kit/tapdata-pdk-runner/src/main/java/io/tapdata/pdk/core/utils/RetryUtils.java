@@ -85,7 +85,7 @@ public class RetryUtils extends CommonUtils {
 					boolean needDefaultRetry = needDefaultRetry(errThrowable);
 					RetryOptions retryOptions = callErrorHandleFunctionIfNeed(method, message, errThrowable, errorHandleFunction, functionAndContext.tapConnectionContext());
 					if (!needDefaultRetry) {
-						throwIfNeed(retryOptions, message, errThrowable, logTag);
+						throwIfNeed(retryOptions, message, errThrowable);
 					}
 					TapLogger.warn(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({} s) | error [{}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage());
 					Optional.ofNullable(invoker.getLogListener())
@@ -127,9 +127,12 @@ public class RetryUtils extends CommonUtils {
 		return retryOptions;
 	}
 
-	private static void throwIfNeed(RetryOptions retryOptions, String message, Throwable errThrowable, String logTag) {
+	private static void throwIfNeed(RetryOptions retryOptions, String message, Throwable errThrowable) {
+		if (null == retryOptions) {
+			return;
+		}
 		try {
-			if (retryOptions == null || !retryOptions.isNeedRetry()) {
+			if (!retryOptions.isNeedRetry()) {
 				throw errThrowable;
 			}
 		} catch (Throwable e) {
@@ -168,7 +171,7 @@ public class RetryUtils extends CommonUtils {
 			if (throwables.contains(cause)) {
 				break;
 			}
-			if (cause.getClass().getName().equals(match.getName())) {
+			if (match.isInstance(cause)) {
 				matched = cause;
 				break;
 			}
