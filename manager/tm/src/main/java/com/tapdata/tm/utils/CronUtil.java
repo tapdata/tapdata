@@ -79,8 +79,6 @@ public class CronUtil {
             if (!scheduler.isShutdown()) {
                 scheduler.start();
             }
-            // 调度启动
-            scheduler.start();
         } catch (Exception e) {
             log.error("设置定时任务异常", e);
         }
