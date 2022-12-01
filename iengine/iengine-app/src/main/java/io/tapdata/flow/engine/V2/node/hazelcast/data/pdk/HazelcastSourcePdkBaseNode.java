@@ -33,7 +33,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.exception.SourceException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
@@ -60,7 +59,6 @@ import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -325,7 +323,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
 			TapdataEvent dataEvent = null;
 			if (!isRunning()) {
-				return true;
+				return null == error;
 			}
 			if (pendingEvent != null) {
 				dataEvent = pendingEvent;
@@ -350,9 +348,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					return false;
 				}
 			}
-			if (error != null) {
-				throw new NodeException(error).context(getProcessorBaseContext());
-			}
 
 			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()
 					&& null == pendingEvent && eventQueue.isEmpty()) {
@@ -368,10 +363,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					this.running.set(false);
 				}
 			}
+			/*if (1 == 1) {
+				Thread.sleep(5000L);
+				throw new RuntimeException("test");
+			}*/
 		} catch (Exception e) {
-			logger.error("Source sync failed {}.", e.getMessage(), e);
-			obsLogger.error(MessageFormat.format("Source sync failed {0}.", e.getMessage()), e);
-			throw new SourceException(e, true);
+			String errorMsg = String.format("Source sync failed: %s", e.getMessage());
+			logger.error(errorMsg, e);
+			obsLogger.error(errorMsg, e);
+//			throw new RuntimeException(errorMsg, e);
+			errorHandle(e, errorMsg);
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -760,4 +761,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		NORMAL,
 		SHARE_CDC,
 	}
+
+
 }

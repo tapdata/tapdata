@@ -86,12 +86,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					});
 				});
 			} catch (Throwable throwable) {
-				NodeException nodeException = new NodeException("Error occurred when process events in processor", throwable)
+				throw new NodeException("Error occurred when process events in processor", throwable)
 						.context(getProcessorBaseContext())
 						.event(tapdataEvent.getTapEvent());
-				logger.error(nodeException.getMessage(), nodeException);
-				obsLogger.error(nodeException);
-				throw nodeException;
 			}
 
 			if (CollectionUtils.isNotEmpty(processedEventList)) {
@@ -103,6 +100,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					}
 				}
 			}
+		} catch (Throwable throwable) {
+			errorHandle(throwable, throwable.getMessage());
 		} finally {
 			ThreadContext.clearAll();
 		}
