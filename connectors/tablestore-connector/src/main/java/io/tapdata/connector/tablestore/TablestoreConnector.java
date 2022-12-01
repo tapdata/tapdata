@@ -345,8 +345,7 @@ public class TablestoreConnector extends ConnectorBase {
                                             Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
                                                     .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
                                                     .name());
-                                    Object value = before.get(k);
-                                    transferValueType(columnType, value);
+                                    Object value = transferValueType(columnType, before.get(k));
                                     pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                                 }
                                 deleteChange = new RowDeleteChange(tableId, pkBuilder.build());
