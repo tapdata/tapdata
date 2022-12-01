@@ -172,7 +172,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			}
 			doInit(context);
 		} catch (Throwable e) {
-			throw errorHandle(e, "Node init failed: " + e.getMessage());
+			errorHandle(e, "Node init failed: " + e.getMessage());
 		}
 	}
 
@@ -503,15 +503,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 				}
 			}, TAG);
-			if (error != null) {
-				obsLogger.error(errorMessage, error);
-				throw new RuntimeException(errorMessage, error);
-			}
 		} finally {
 			ThreadContext.clearAll();
 			super.close();
+			obsLogger.info(String.format("Node %s[%s] close complete", getNode().getName(), getNode().getId()));
 		}
-		obsLogger.info(String.format("Node %s[%s] close complete", getNode().getName(), getNode().getId()));
 	}
 
 	public void setMilestoneService(MilestoneService milestoneService) {
@@ -670,7 +666,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				if (hazelcastJob != null) {
 					AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
 					JobStatus status = hazelcastJob.getStatus();
-					if (JobStatus.SUSPENDED != status) {
+					if (JobStatus.SUSPENDED != status && JobStatus.SUSPENDED_EXPORTING_SNAPSHOT != status) {
 						logger.info("Job cancel in error handle");
 						obsLogger.info("Job cancel in error handle");
 						hazelcastJob.cancel();

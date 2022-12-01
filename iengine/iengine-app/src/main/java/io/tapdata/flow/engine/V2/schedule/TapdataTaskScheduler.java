@@ -360,7 +360,11 @@ public class TapdataTaskScheduler {
 		final boolean stop = taskClient.stop();
 		if (stop) {
 			final String taskId = taskClient.getTask().getId().toHexString();
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+			try {
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+			} catch (Exception e) {
+				logger.warn(e.getMessage(), e);
+			}
 			removeTask(taskId, false);
 			destroyCache(taskClient);
 		}
@@ -422,7 +426,11 @@ public class TapdataTaskScheduler {
 		final boolean stop = taskClient.stop();
 		if (stop) {
 			final String taskId = taskClient.getTask().getId().toHexString();
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+			try {
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+			} catch (Exception e) {
+				logger.warn(e.getMessage(), e);
+			}
 			removeTask(taskId, true);
 			destroyCache(taskClient);
 		}
@@ -435,7 +443,11 @@ public class TapdataTaskScheduler {
 		boolean stop = taskClient.stop();
 		if (stop) {
 			final String taskId = taskClient.getTask().getId().toHexString();
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/complete", taskId, TaskDto.class);
+			try {
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/complete", taskId, TaskDto.class);
+			} catch (Exception e) {
+				logger.warn(e.getMessage(), e);
+			}
 			removeTask(taskId, true);
 			destroyCache(taskClient);
 		}
