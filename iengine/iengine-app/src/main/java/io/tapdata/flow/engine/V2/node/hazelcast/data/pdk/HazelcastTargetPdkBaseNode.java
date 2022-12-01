@@ -196,7 +196,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			}
 		} catch (Throwable e) {
-			throw new RuntimeException(String.format("Drain from inbox failed: %s", e.getMessage()), e);
+			RuntimeException runtimeException = new RuntimeException(String.format("Drain from inbox failed: %s", e.getMessage()), e);
+			errorHandle(runtimeException, runtimeException.getMessage());
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -575,6 +576,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 				uploadDagService.compareAndSet(true, false);
 			}
+		} catch (Throwable throwable) {
+			errorHandle(throwable, throwable.getMessage());
 		} finally {
 			ThreadContext.clearAll();
 		}
