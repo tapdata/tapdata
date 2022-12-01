@@ -8,9 +8,6 @@ import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.Settings.constant.CategoryEnum;
-import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
@@ -34,6 +31,7 @@ import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
@@ -74,7 +72,6 @@ import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
-import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
@@ -99,7 +96,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -2532,7 +2528,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void start(ObjectId id, UserDetail user) {
         String startFlag = "11";
         TaskDto taskDto = checkExistById(id, user);
-        addScheduleTask(taskDto);
         start(taskDto, user, startFlag);
     }
 
@@ -2545,7 +2540,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     private void start(TaskDto taskDto, UserDetail user) {
-        addScheduleTask(taskDto);
         start(taskDto, user, "11");
     }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
@@ -2700,7 +2694,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return;
         }
 
-        deleteScheduleTask(taskDto);
         String pauseStatus = TaskDto.STATUS_STOPPING;
         StateMachineResult stateMachineResult;
         if (force) {
