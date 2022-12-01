@@ -317,7 +317,7 @@ public class MongodbTest extends CommonDbTest {
     public Boolean testStreamRead() {
         Map<String, String> nodeConnURIs = MongodbUtil.nodesURI(mongoClient, mongodbConfig.getUri());
         if (nodeConnURIs.size() == 0 || nodeConnURIs.get("single") != null) {
-            consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_FAILED, "mongodb standalone mode not support cdc."));
+            consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "mongodb standalone mode not support cdc."));
             return false;
         }
         consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
