@@ -130,6 +130,11 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         ClassLoader contextClassLoader = invoker.getContextClassLoader();
         if (!this.invokerRetrySetter(invoker)){
             TapLogger.debug(logTag, "Do not retry : maxRetryTimeMinute {}, retryPeriodSeconds {}, retryTimes {}. ",invoker.getMaxRetryTimeMinute(),invoker.getRetryPeriodSeconds(),invoker.getRetryTimes());
+            try {
+                invoker.getR().run();
+            } catch (Throwable throwable) {
+                throw new RuntimeException(throwable);
+            }
             return;
         }
         long retryTimes = invoker.getRetryTimes();
