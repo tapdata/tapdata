@@ -38,7 +38,9 @@ public class PongHandler extends BaseEventHandler {
 		long currentTimeMillis = System.currentTimeMillis();
 		Map<String, Object> cache;
 		while (true) {
-			cache = cacheList.stream().filter(map -> map.get("pingId").toString().equals(pingId)).findFirst().orElse(null);
+			synchronized (cacheList) {
+				cache = cacheList.stream().filter(map -> map.get("pingId").toString().equals(pingId)).findFirst().orElse(null);
+			}
 			if (null != cache) {
 				if (!cache.containsKey(PingDto.PING_RESULT)) {
 					logger.error("Missing field '{}'", PingDto.PING_RESULT);
