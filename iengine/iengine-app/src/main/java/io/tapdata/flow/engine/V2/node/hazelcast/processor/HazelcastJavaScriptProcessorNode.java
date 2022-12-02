@@ -82,8 +82,11 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
   @Override
   protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
     TapEvent tapEvent = tapdataEvent.getTapEvent();
+    String tableName = TapEventUtil.getTableId(tapEvent);
+    ProcessResult processResult = getProcessResult(tableName);
+
     if (!(tapEvent instanceof TapRecordEvent)) {
-      consumer.accept(tapdataEvent, null);
+      consumer.accept(tapdataEvent, processResult);
       return;
     }
 
@@ -92,12 +95,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
       record = TapEventUtil.getBefore(tapEvent);
     }
     if (MapUtils.isEmpty(record)) {
-      consumer.accept(tapdataEvent, null);
+      consumer.accept(tapdataEvent, processResult);
       return;
     }
 
-    String tableName = TapEventUtil.getTableId(tapEvent);
-    ProcessResult processResult = getProcessResult(tableName);
     String op = TapEventUtil.getOp(tapEvent);
     ProcessContext processContext = new ProcessContext(op, tableName, null, null, null, tapdataEvent.getOffset());
 
