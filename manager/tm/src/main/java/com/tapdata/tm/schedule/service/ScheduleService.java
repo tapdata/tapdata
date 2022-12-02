@@ -45,11 +45,11 @@ public class ScheduleService{
         log.info("工作任务的名称:" + taskDto.getName());
 
         // 防止错误或者没有释放掉任务，再次释放
-        if (TaskDto.STATUS_ERROR.equalsIgnoreCase(status) ||
-                TaskDto.STATUS_STOP.equalsIgnoreCase(status)) {
-            log.info("工作任务的名称:" + taskDto.getName() + " has stop ");
-            return;
-        }
+//        if (TaskDto.STATUS_ERROR.equalsIgnoreCase(status) ||
+//                TaskDto.STATUS_STOP.equalsIgnoreCase(status)) {
+//            log.info("工作任务的名称:" + taskDto.getName() + " has stop ");
+//            return;
+//        }
         CronTrigger cronTrigger = TriggerBuilder.newTrigger().withIdentity("Caclulate Date")
                 .withSchedule(CronScheduleBuilder.cronSchedule(taskDto.getCrontabExpression())).build();
         Date startTime = cronTrigger.getStartTime();
