@@ -53,6 +53,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
@@ -161,6 +162,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private StateMachineService stateMachineService;
     private TaskScheduleService taskScheduleService;
+
+    private ScheduleService scheduleService;
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
 
@@ -3232,29 +3235,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public void startPlanCronTask() {
-        Criteria migrateCriteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_START)
-                .and("crontabExpressionFlag").is(true)
+        Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
                 .and("crontabExpression").exists(true)
-                .and("crontabPrepar").exists(false);
-        ;
+                .andOperator(Criteria.where("status").in(TaskDto.STATUS_WAIT_START,TaskDto.STATUS_COMPLETE));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
             taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
                     .collect(Collectors.toList());
-            List<String> userIdList = taskList.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
-            List<UserDetail> userList = userService.getUserByIdList(userIdList);
-
-            Map<String, UserDetail> userMap = new HashMap<>();
-            if (CollectionUtils.isNotEmpty(userList)) {
-                userMap = userList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity()));
-            }
-
-            Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
-                 addScheduleTask(taskDto);
-                Update set = new Update().set("crontabPrepar",true);
-                updateById(taskDto.getId(), set, finalUserMap.get(taskDto.getUserId()));
+                scheduleService.executeTask(taskDto);
             }
         }
     }
@@ -3439,27 +3429,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         chart6Map.put("updatedTotal", update);
         chart6Map.put("deletedTotal", delete);
         return chart6Map;
-    }
-
-    public void addScheduleTask(TaskDto taskDto) {
-        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
-                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.isCrontabExpressionFlag()) {
-            CronUtil.addJob(taskDto);
-        }
-    }
-
-    public void deleteScheduleTask(TaskDto taskDto) {
-        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
-                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.isCrontabExpressionFlag()) {
-            CronUtil.removeJob(String.valueOf(taskDto.getId()));
-        }
-
-    }
-
-    public void startScheduleTask(TaskDto taskDto, UserDetail user, String startFlag) {
-        start(taskDto, user, startFlag);
     }
 
 
