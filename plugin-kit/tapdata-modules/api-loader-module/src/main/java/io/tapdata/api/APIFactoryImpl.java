@@ -1,6 +1,8 @@
 package io.tapdata.api;
 
+import io.tapdata.api.postman.PostManAPIInvoker;
 import io.tapdata.entity.annotations.Implementation;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.apis.api.APIFactory;
 import io.tapdata.pdk.apis.api.APIInvoker;
 
@@ -13,6 +15,8 @@ import java.util.Map;
 public class APIFactoryImpl implements APIFactory {
 	@Override
 	public APIInvoker loadAPI(String apiContent, String type, Map<String, Object> params) {
-		return null;
+		PostManAPIInvoker apiFactory = InstanceFactory.instance(PostManAPIInvoker.class);
+		Map<String, Object> invoke = apiFactory.invoke(apiContent, type, params);
+		return apiFactory;
 	}
 }

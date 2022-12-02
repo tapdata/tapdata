@@ -10,6 +10,12 @@ import java.util.Map;
 public class PostManAPIInvoker implements APIInvoker {
 	@Override
 	public Map<String, Object> invoke(String uri, String method, Map<String, Object> params) {
+		loadApiMap();
+
+		return null;
+	}
+	private Map<String,Object> loadApiMap(){
+
 		return null;
 	}
 }
