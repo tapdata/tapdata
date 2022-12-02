@@ -2018,10 +2018,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 taskDto.setLastUpdBy(null);
                 taskDto.setUserId(null);
                 taskDto.setAgentId(null);
-                taskDto.setListtags(null);
-                taskDto.setAccessNodeProcessId(null);
-                taskDto.setAccessNodeProcessIdList(new ArrayList<>());
-                taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
                 Map<String, Object> attrs = taskDto.getAttrs();
@@ -2042,7 +2038,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                     metadataInstancesDto.setCustomId(null);
                                     metadataInstancesDto.setLastUpdBy(null);
                                     metadataInstancesDto.setUserId(null);
-                                    metadataInstancesDto.setListtags(null);
                                     jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(metadataInstancesDto)));
                                 }
                             }
@@ -2054,10 +2049,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                 dataSourceConnectionDto.setCustomId(null);
                                 dataSourceConnectionDto.setLastUpdBy(null);
                                 dataSourceConnectionDto.setUserId(null);
-                                dataSourceConnectionDto.setListtags(null);
-                                dataSourceConnectionDto.setAccessNodeProcessId(null);
-                                dataSourceConnectionDto.setAccessNodeProcessIdList(new ArrayList<>());
-                                dataSourceConnectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
                                 String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
                                 MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
                                         Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)), user);
@@ -2159,11 +2150,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 attrs.remove("edgeMilestones");
                 attrs.remove("syncProgress");
             }
-
-            taskDto.setListtags(null);
-            taskDto.setAccessNodeProcessId(null);
-            taskDto.setAccessNodeProcessIdList(new ArrayList<>());
-            taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 
             if (one == null || cover) {
                 ObjectId objectId = null;
