@@ -294,8 +294,20 @@ public class TransformSchemaService {
 
         metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId(), result.getTransformUuid());
 
-        if (CollectionUtils.isNotEmpty(result.getBatchRemoveMetaDataList())) {
-            Criteria criteria = Criteria.where("qualified_name").in(result.getBatchRemoveMetaDataList());
+        List<String> batchRemoveMetaDataList = result.getBatchRemoveMetaDataList();
+        List<String> newBatchRemoveMetaDataList = new ArrayList<>();
+        if (CollectionUtils.isNotEmpty(batchRemoveMetaDataList)) {
+            for (String q : batchRemoveMetaDataList) {
+                if (!q.endsWith(taskId)) {
+                    newBatchRemoveMetaDataList.add(q + "_" + taskId);
+                } else {
+                    int i = q.lastIndexOf("_");
+                    String oldQualifiedName = q.substring(0, i);
+                    newBatchRemoveMetaDataList.add(oldQualifiedName);
+                }
+            }
+            batchRemoveMetaDataList.addAll(newBatchRemoveMetaDataList);
+            Criteria criteria = Criteria.where("qualified_name").in(batchRemoveMetaDataList);
             Query query = new Query(criteria);
             metadataInstancesService.deleteAll(query, user);
         }
