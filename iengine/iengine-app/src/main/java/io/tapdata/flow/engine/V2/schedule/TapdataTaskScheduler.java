@@ -365,18 +365,13 @@ public class TapdataTaskScheduler {
 			} catch (Exception e) {
 				logger.warn(e.getMessage(), e);
 			}
-			removeTask(taskId, false);
+			removeTask(taskId);
 			destroyCache(taskClient);
 		}
 	}
 
-	private void removeTask(String taskId, boolean stopAspect) {
-		TaskClient<TaskDto> taskClient;
-		if ((taskClient = taskClientMap.remove(taskId)) != null) {
-			if (stopAspect && taskClient.getTask() != null) {
-				AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
-			}
-		}
+	private void removeTask(String taskId) {
+		taskClientMap.remove(taskId);
 		TmStatusService.removeTask(taskId);
 	}
 
@@ -431,7 +426,7 @@ public class TapdataTaskScheduler {
 			} catch (Exception e) {
 				logger.warn(e.getMessage(), e);
 			}
-			removeTask(taskId, true);
+			removeTask(taskId);
 			destroyCache(taskClient);
 		}
 	}
@@ -448,7 +443,7 @@ public class TapdataTaskScheduler {
 			} catch (Exception e) {
 				logger.warn(e.getMessage(), e);
 			}
-			removeTask(taskId, true);
+			removeTask(taskId);
 			destroyCache(taskClient);
 		}
 	}
@@ -467,5 +462,9 @@ public class TapdataTaskScheduler {
 			return;
 		}
 		stopTask(taskDtoTaskClient);
+	}
+
+	public Map<String, TaskClient<TaskDto>> getTaskClientMap() {
+		return taskClientMap;
 	}
 }
