@@ -250,15 +250,20 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	public Void handleSourceState(SourceStateAspect aspect) {
+		Node<?> node = aspect.getDataProcessorContext().getNode();
 		switch (aspect.getState()) {
 			case SourceStateAspect.STATE_INITIAL_SYNC_START:
 				taskSampleHandler.handleSnapshotStart(aspect.getInitialSyncStartTime());
 				for(String table : aspect.getDataProcessorContext().getTapTableMap().keySet()) {
 					taskSampleHandler.addTable(table);
 				}
+
+				Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
+						handler -> taskSampleHandler.addSourceNodeHandler(node.getId(), handler)
+				);
 				break;
 			case SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED:
-				taskSampleHandler.handleSnapshotDone(aspect.getInitialSyncCompletedTime());
+//				taskSampleHandler.handleSnapshotDone(aspect.getInitialSyncCompletedTime());
 				break;
 			default:
 				break;
