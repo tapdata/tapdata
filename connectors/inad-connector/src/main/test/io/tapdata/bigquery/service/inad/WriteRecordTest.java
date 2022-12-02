@@ -1,4 +1,4 @@
-package io.tapdata.inad.service.bigQuery;
+package io.tapdata.inad.service.inad;
 
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;

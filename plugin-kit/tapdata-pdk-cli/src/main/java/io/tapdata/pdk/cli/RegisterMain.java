@@ -42,7 +42,8 @@ public class RegisterMain {
         Json(BASE_PATH + "connectors/dist/json-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
         Xml(BASE_PATH + "connectors/dist/xml-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
         Excel(BASE_PATH + "connectors/dist/excel-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
-        BigQuery(BASE_PATH + "connectors/dist/bigquery-connector-v1.0-SNAPSHOT.jar", false, "all", "bigquery")
+        BigQuery(BASE_PATH + "connectors/dist/bigquery-connector-v1.0-SNAPSHOT.jar", false, "all", "bigquery"),
+        Inad(BASE_PATH + "connectors/dist/inad-connector-v1.0-SNAPSHOT.jar", false, "all", "inad")
         ;
 
         private final String path;
