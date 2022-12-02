@@ -2604,8 +2604,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-            Update update = new Update().unset("startTime").unset("lastStartDate").unset("stopTime").set("needCreateRecord", taskDto.isNeedCreateRecord())
-                   .unset("crontabPrepar");;
+            Update update = new Update().unset("startTime").unset("lastStartDate").unset("stopTime").set("needCreateRecord", taskDto.isNeedCreateRecord());
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
