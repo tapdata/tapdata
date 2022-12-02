@@ -26,7 +26,7 @@ public class PongHandler extends BaseEventHandler {
 	public Object handle(Map event) {
 		if (null == event) return null;
 		synchronized (cacheList) {
-			if (event.size() >= MAX_SIZE) {
+			if (cacheList.size() >= MAX_SIZE) {
 				cacheList.remove(0);
 			}
 			cacheList.add(event);
