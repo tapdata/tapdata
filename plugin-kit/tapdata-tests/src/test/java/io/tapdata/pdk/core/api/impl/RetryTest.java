@@ -115,6 +115,52 @@ public class RetryTest {
         assertTrue(elapsedTimeMS >= (elapsedRetrySecond * 1000), "Expect elapsed time at least " + elapsedRetrySecond + " seconds");
     }
 
+    @Test
+    public void testRetryOfZeroMaxRetryTimeMinute() throws Exception {
+        ConnectionNode node = new ConnectionNode();
+        Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
+        field.setAccessible(true);
+        field.set(node, new TapConnectionContext(null, null, null));
+
+        node.init(new TapConnectorTest());
+        ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
+        AtomicInteger executeTimes = new AtomicInteger(0);
+        AtomicInteger beforeExecuteTimes = new AtomicInteger(0);
+        connectionFunctions.supportErrorHandleFunction((nodeContext, method, throwable) -> RetryOptions.create().needRetry(false).beforeRetryMethod(() -> {
+            beforeExecuteTimes.incrementAndGet();
+            System.out.println("before retry...");
+        }));
+        int retryTimes = 0;
+        long retryPeriodSecond = 0;
+        long elapsedRetrySecond = 0;
+        long maxRetryTimes = 0;
+        PDKMethodInvoker invoker = PDKMethodInvoker.create()
+                .runnable(() -> {
+                    executeTimes.incrementAndGet();
+                    System.out.println("exception ...");
+                    throw new IOException("Test retry error");
+                })
+                .message("call connection functions coding@io.tapdata-v1.0-SNAPSHOT associateId codingSource_1662088750311")
+                .logTag("")
+                .errorConsumer(null)
+                .async(false)
+                .contextClassLoader(null)
+                .maxRetryTimeMinute(maxRetryTimes)
+                .retryTimes(retryTimes)
+                .retryPeriodSeconds(retryPeriodSecond);
+        long startTs = System.currentTimeMillis();
+        try {
+            PDKInvocationMonitor.invoke( node, PDKMethod.REGISTER_CAPABILITIES, invoker );
+        }catch (Exception e){
+
+        }
+
+        long elapsedTimeMS = System.currentTimeMillis() - startTs;
+        assertEquals(retryTimes + 1, executeTimes.get(), "Expect execute 4 times(First time execute + Retry " + retryTimes + " times)");
+        assertEquals(retryTimes, beforeExecuteTimes.get(), "Expect execute before retry method " + retryTimes + " times");
+        assertTrue(elapsedTimeMS >= (elapsedRetrySecond * 1000), "Expect elapsed time at least " + elapsedRetrySecond + " seconds");
+    }
+
     //测试报错不需要重试
     @Test
     public void testNotNeedRetry() throws Exception {
