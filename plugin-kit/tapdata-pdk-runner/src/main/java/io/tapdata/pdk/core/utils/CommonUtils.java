@@ -227,7 +227,7 @@ public class CommonUtils {
         }
     }
 
-    private static void prepareFunctionAndContextForNode(Node node,FunctionAndContext functionAndContext){
+    protected static void prepareFunctionAndContextForNode(Node node,FunctionAndContext functionAndContext){
         ErrorHandleFunction function = null;
         TapConnectionContext tapConnectionContext = null;
         ConnectionFunctions<?> connectionFunctions;
