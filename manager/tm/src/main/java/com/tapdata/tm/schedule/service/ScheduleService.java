@@ -55,11 +55,18 @@ public class ScheduleService{
         Date startTime = cronTrigger.getStartTime();
         Long newScheduleDate = cronTrigger.getFireTimeAfter(startTime).getTime();
         Long scheduleDate = taskDto.getScheduleDate();
+        UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+        if (scheduleDate == null || newScheduleDate < scheduleDate) {
+            taskDto.setScheduleDate(newScheduleDate);
+            taskService.save(taskDto, userDetail);
+            return;
+        }
         if (TaskDto.STATUS_SCHEDULING.equals(status) || TaskDto.STATUS_RUNNING.equals(status)) {
             log.info("taskId {},status:{}  不用在进行全量任务", taskDto.getId(), status);
-        } else if (scheduleDate == null || scheduleDate < newScheduleDate) {
+            return;
+        }
+        if (scheduleDate == null || scheduleDate < new Date().getTime()) {
             log.info("taskId {},status:{}  定时在全量任务", taskDto.getId(), status);
-            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
             TaskEntity taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
             taskSnapshot.setStatus(TaskDto.STATUS_RUNNING);
