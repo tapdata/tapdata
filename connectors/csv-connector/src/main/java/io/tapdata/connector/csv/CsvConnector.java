@@ -118,12 +118,18 @@ public class CsvConnector extends FileConnector {
                 if (EmptyKit.isNotEmpty(headers)) {
                     csvReader.skip(fileOffset.getDataLine() - 2 - csvReader.getSkipLines());
                     String[] data;
+                    int blankSkip = 0;
                     while (isAlive() && (data = csvReader.readNext()) != null) {
                         Map<String, Object> after = new HashMap<>();
                         putIntoMap(after, headers, data, dataTypeMap);
+                        if (after.entrySet().stream().allMatch(v -> EmptyKit.isNull(v.getValue()))) {
+                            blankSkip++;
+                            continue;
+                        }
                         tapEvents.get().add(insertRecordEvent(after, tapTable.getId()).referenceTime(lastModified));
                         if (tapEvents.get().size() == eventBatchSize) {
-                            fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize);
+                            fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize + blankSkip);
+                            blankSkip = 0;
                             fileOffset.setPath(fileOffset.getPath());
                             eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
                             tapEvents.set(list());
@@ -138,7 +144,11 @@ public class CsvConnector extends FileConnector {
 
     private void putIntoMap(Map<String, Object> after, String[] headers, String[] data, Map<String, String> dataTypeMap) {
         for (int i = 0; i < headers.length && i < data.length; i++) {
-            after.put(headers[i], MatchUtil.parse(data[i], dataTypeMap.get(headers[i])));
+            try {
+                after.put(headers[i], MatchUtil.parse(data[i], dataTypeMap.get(headers[i])));
+            } catch (Exception e) {
+                throw new RuntimeException(String.format("%s field has invalid value", headers[i]), e);
+            }
         }
         for (int i = 0; i < headers.length - data.length; i++) {
             switch (dataTypeMap.get(headers[i + data.length])) {

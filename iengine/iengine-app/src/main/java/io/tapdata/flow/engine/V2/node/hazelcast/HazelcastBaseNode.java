@@ -44,6 +44,8 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
+import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -232,7 +234,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (null == tapTable)
 			throw new IllegalArgumentException("Transform to TapValue failed, table schema is empty, table name: " + tableName);
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-		if (MapUtils.isEmpty(nameFieldMap))
+		if (nameFieldMap == null)
 			throw new IllegalArgumentException("Transform to TapValue failed, field map is empty, table name: " + tableName);
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 
@@ -664,12 +666,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				}
 
 				if (hazelcastJob != null) {
-					AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
 					JobStatus status = hazelcastJob.getStatus();
 					if (JobStatus.SUSPENDED != status && JobStatus.SUSPENDED_EXPORTING_SNAPSHOT != status) {
 						logger.info("Job cancel in error handle");
 						obsLogger.info("Job cancel in error handle");
 						hazelcastJob.cancel();
+						TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());
+						if (null != taskDtoTaskClient) {
+							taskDtoTaskClient.error(error);
+						}
 					}
 				} else {
 					logger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
