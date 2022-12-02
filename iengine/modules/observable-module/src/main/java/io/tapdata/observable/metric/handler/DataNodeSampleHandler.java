@@ -18,6 +18,7 @@ import io.tapdata.pdk.apis.functions.connection.ConnectionCheckFunction;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -68,6 +69,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	private Long currentSnapshotTableInsertRowTotal = null;
 
 	private Long snapshotStartAt = null;
+	@Getter
 	private Long snapshotDoneAt = null;
 
 	@Override
