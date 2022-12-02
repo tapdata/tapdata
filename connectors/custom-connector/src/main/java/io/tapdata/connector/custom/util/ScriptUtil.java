@@ -1,6 +1,6 @@
 package io.tapdata.connector.custom.util;
 
-import io.tapdata.connector.custom.exception.StopException;
+import io.tapdata.exception.StopException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.kit.EmptyKit;
 

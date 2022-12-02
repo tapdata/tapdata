@@ -71,6 +71,14 @@ public class ParentTaskDto extends SchedulableDto {
     @EqField
     private Integer readBatchSize;
 
+    /** 写入批量条数 */
+    @EqField
+    private Integer writeBatchSize;
+
+    /** 写入每批最大等待时间 */
+    @EqField
+    private Long writeBatchWaitMs;
+
     /** 增量同步间隔*/
     @EqField
     private Integer increaseSyncInterval;
@@ -215,7 +223,7 @@ public class ParentTaskDto extends SchedulableDto {
     private Date errorTime;
     private Date pausedTime;
     private Date finishTime;
-    private Date pingTime;
+    private Long pingTime;
 
     //需要重启标识
     private Boolean restartFlag;
@@ -234,6 +242,24 @@ public class ParentTaskDto extends SchedulableDto {
     private Boolean transformed;
 
     private int transformDagHash;
+
+    // 1分钟内不能强制停止（不存库，根据 stoppingTime 来判断）
+    private Boolean canForceStopping;
+
+    public Integer getWriteBatchSize() {
+        return Objects.isNull(writeBatchSize) ? 0 : writeBatchSize;
+    }
+
+    public Long getWriteBatchWaitMs() {
+        return Objects.isNull(writeBatchWaitMs) ? 0L : writeBatchWaitMs;
+    }
+
+    public Boolean getCanForceStopping() {
+        if (null == stoppingTime) {
+            return null;
+        }
+        return System.currentTimeMillis() - stoppingTime.getTime() > 60 * 1000L;
+    }
 
     public List<String> getAccessNodeProcessIdList() {
         accessNodeProcessIdList = new ArrayList<>();

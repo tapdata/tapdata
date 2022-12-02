@@ -22,6 +22,7 @@ public class ScriptCore extends Core {
     private static final ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class); //bean util
     private final String collectionName;
     private final LinkedBlockingQueue<CustomEventMessage> eventQueue = new LinkedBlockingQueue<>(5000);
+    private int fullQueueWarn = 0;
     private int alwaysWarn = 0;
 
     public ScriptCore(String collectionName) {
@@ -76,7 +77,14 @@ public class ScriptCore extends Core {
                             //put into the queue
                             while (!eventQueue.offer(new CustomEventMessage().tapEvent(tapEvent)
                                     .contextMap(contextMap), 1, TimeUnit.SECONDS)) {
-                                TapLogger.warn(TAG, "log queue is full, waiting...");
+                                fullQueueWarn++;
+                                if (fullQueueWarn < 4) {
+                                    TapLogger.info(TAG, "log queue is full, waiting...");
+                                }
+                            }
+                            if (fullQueueWarn > 0) {
+                                TapLogger.info(TAG, "log queue has been released!");
+                                fullQueueWarn = 0;
                             }
                         } catch (InterruptedException ignored) {
 

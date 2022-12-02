@@ -8,7 +8,7 @@ import com.tapdata.entity.BaseEntity;
 import com.tapdata.entity.ResponseBody;
 import com.tapdata.entity.TapLog;
 import com.tapdata.interceptor.LoggingInterceptor;
-import com.tapdata.interceptor.VersionHeaderInterceptor;
+import com.tapdata.tm.sdk.interceptor.VersionHeaderInterceptor;
 import com.tapdata.tm.sdk.available.CloudRestTemplate;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
@@ -36,6 +36,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.ResourceHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -807,7 +808,9 @@ public class RestTemplateOperator {
 					}
 				} catch (RestDoNotRetryException e) {
 					throw e;
-				} catch (Exception e) {
+				} catch (HttpMessageConversionException e){
+				    throw e;
+                } catch (Exception e) {
 					retry++;
 					exception = retryExceptionHandle(e, url, HttpMethod.GET.name(), params, responseBody);
 				}

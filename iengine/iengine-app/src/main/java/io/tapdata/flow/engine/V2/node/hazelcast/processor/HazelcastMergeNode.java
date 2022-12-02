@@ -450,7 +450,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			}
 			values.add(String.valueOf(value));
 		}
-		return String.join("_", values);
+		return MD5Util.crypt(String.join("_", values), false);
 	}
 
 	private String getJoinValueKeyByTarget(Map<String, Object> data, MergeTableProperties mergeProperty, MergeTableProperties lastMergeProperty) {

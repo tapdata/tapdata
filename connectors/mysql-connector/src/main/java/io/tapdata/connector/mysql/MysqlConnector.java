@@ -1,7 +1,7 @@
 package io.tapdata.connector.mysql;
 
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
@@ -20,7 +20,6 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -45,7 +44,7 @@ import java.util.function.Consumer;
 public class MysqlConnector extends ConnectorBase {
     private static final String TAG = MysqlConnector.class.getSimpleName();
     private static final int MAX_FILTER_RESULT_SIZE = 100;
-    private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.MYSQL_CCJ_SQL_PARSER;
+
     private MysqlJdbcContext mysqlJdbcContext;
     private MysqlReader mysqlReader;
     private MysqlWriter mysqlWriter;
@@ -78,7 +77,7 @@ public class MysqlConnector extends ConnectorBase {
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         codecRegistry.registerFromTapValue(TapMapValue.class, "json", tapValue -> toJson(tapValue.getValue()));
         codecRegistry.registerFromTapValue(TapArrayValue.class, "json", tapValue -> toJson(tapValue.getValue()));
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SSSSSS"));
+
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
                 tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
@@ -91,6 +90,14 @@ public class MysqlConnector extends ConnectorBase {
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
+
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
         connectorFunctions.supportCreateTable(this::createTable);
@@ -102,24 +109,12 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         connectorFunctions.supportQueryByAdvanceFilter(this::query);
         connectorFunctions.supportWriteRecord(this::writeRecord);
-//        connectorFunctions.supportCreateIndex(this::createIndex);
+        connectorFunctions.supportCreateIndex(this::createIndex);
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportReleaseExternalFunction(this::releaseExternal);
-    }
-
-    private void releaseExternal(TapConnectorContext tapConnectorContext) {
-        try {
-            KVMap<Object> stateMap = tapConnectorContext.getStateMap();
-            if (null != stateMap) {
-                stateMap.clear();
-            }
-        } catch (Throwable throwable) {
-            TapLogger.warn(TAG, "Release mysql state map failed, error: " + throwable.getMessage());
-        }
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
@@ -320,7 +315,7 @@ public class MysqlConnector extends ConnectorBase {
     }
 
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
-        mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, DDL_PARSER_TYPE, consumer);
+        mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, DDLParserType.MYSQL_CCJ_SQL_PARSER, consumer);
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
@@ -362,35 +357,13 @@ public class MysqlConnector extends ConnectorBase {
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
+        CommonDbConfig commonDbConfig = new CommonDbConfig();
+        commonDbConfig.set__connectionType(databaseContext.getConnectionConfig().getString("__connectionType"));
         try (
-                MysqlConnectionTest mysqlConnectionTest = new MysqlConnectionTest(new MysqlJdbcContext(databaseContext))
+                MysqlConnectionTest mysqlConnectionTest = new MysqlConnectionTest(new MysqlJdbcContext(databaseContext),
+                        databaseContext, consumer, commonDbConfig, connectionOptions);
         ) {
-            TestItem testHostPort = mysqlConnectionTest.testHostPort(databaseContext);
-            consumer.accept(testHostPort);
-            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem testConnect = mysqlConnectionTest.testConnect();
-            consumer.accept(testConnect);
-            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem testDatabaseVersion = mysqlConnectionTest.testDatabaseVersion();
-            consumer.accept(testDatabaseVersion);
-            if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem binlogMode = mysqlConnectionTest.testBinlogMode();
-            TestItem binlogRowImage = mysqlConnectionTest.testBinlogRowImage();
-            TestItem cdcPrivileges = mysqlConnectionTest.testCDCPrivileges();
-            consumer.accept(binlogMode);
-            consumer.accept(binlogRowImage);
-            consumer.accept(cdcPrivileges);
-            consumer.accept(mysqlConnectionTest.testCreateTablePrivilege(databaseContext));
-            if (binlogMode.isSuccess() && binlogRowImage.isSuccess() && cdcPrivileges.isSuccess()) {
-                List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDL_PARSER_TYPE);
-                ddlCapabilities.forEach(connectionOptions::capability);
-            }
+            mysqlConnectionTest.testOneByOne();
             return connectionOptions;
         }
     }
@@ -398,8 +371,7 @@ public class MysqlConnector extends ConnectorBase {
     private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {
         if (null == startTime) {
             return this.mysqlJdbcContext.readBinlogPosition();
-        } else {
-            throw new NotSupportedException();
         }
+        return startTime;
     }
 }

@@ -16,6 +16,7 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,8 +43,8 @@ public class CacheTaskController extends BaseController {
      */
     @Operation(summary = "创建共享缓存依赖任务")
     @PostMapping
-    public ResponseMessage<TaskDto> save(@RequestBody SaveShareCacheParam saveShareCacheParam) {
-        return success(taskService.createShareCacheTask(saveShareCacheParam, getLoginUser()));
+    public ResponseMessage<TaskDto> save(@RequestBody SaveShareCacheParam saveShareCacheParam, HttpServletRequest request) {
+        return success(taskService.createShareCacheTask(saveShareCacheParam, getLoginUser(), request));
     }
 
 
@@ -204,30 +205,30 @@ public class CacheTaskController extends BaseController {
     @PutMapping("stop/{id}")
     public ResponseMessage<TaskDto> stop(@PathVariable("id") String id
             , @RequestParam(value = "force", defaultValue = "false") Boolean force) {
-        taskService.stop(MongoUtils.toObjectId(id), getLoginUser(), force);
+        taskService.pause(MongoUtils.toObjectId(id), getLoginUser(), force);
         return success();
     }
 
 
     @PutMapping("batchStart")
-    public ResponseMessage<Void> batchStart(@RequestParam("taskIds") List<String> taskIds) {
+    public ResponseMessage<List<MutiResponseMessage>> batchStart(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        taskService.batchStart(taskObjectIds, getLoginUser());
-        return success();
+        List<MutiResponseMessage> responseMessages = taskService.batchStart(taskObjectIds, getLoginUser(), request);
+        return success(responseMessages);
     }
 
     @PutMapping("batchStop")
-    public ResponseMessage<Void> batchStop(@RequestParam("taskIds") List<String> taskIds) {
+    public ResponseMessage<List<MutiResponseMessage>> batchStop(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        taskService.batchStop(taskObjectIds, getLoginUser());
-        return success();
+        List<MutiResponseMessage> responseMessages = taskService.batchStop(taskObjectIds, getLoginUser(), request);
+        return success(responseMessages);
     }
 
     @DeleteMapping("batchDelete")
-    public ResponseMessage<Void> batchDelete(@RequestParam("taskIds") List<String> taskIds) {
+    public ResponseMessage<List<MutiResponseMessage>> batchDelete(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        taskService.batchDelete(taskObjectIds, getLoginUser());
-        return success();
+        List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskObjectIds, getLoginUser(), request);
+        return success(responseMessages);
     }
 
 

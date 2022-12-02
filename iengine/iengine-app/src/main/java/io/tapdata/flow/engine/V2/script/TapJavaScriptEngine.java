@@ -36,11 +36,11 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
     private ScriptEngine initScriptEngine(String jsEngineName) {
         JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
         ScriptEngine scriptEngine;
-        if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        try {
             //need to change as engine classLoader
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
-            try {
+            if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
                 scriptEngine = GraalJSScriptEngine
                         .create(null,
                                 Context.newBuilder("js")
@@ -52,13 +52,12 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
                                                 ).build()
                                         )
                         );
-            } finally {
-                //return pdk classLoader
-                Thread.currentThread().setContextClassLoader(classLoader);
+            } else {
+                scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
             }
-
-        } else {
-            scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
+        } finally {
+            //return pdk classLoader
+            Thread.currentThread().setContextClassLoader(classLoader);
         }
         return scriptEngine;
     }

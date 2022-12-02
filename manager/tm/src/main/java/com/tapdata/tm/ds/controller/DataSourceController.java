@@ -2,7 +2,7 @@ package com.tapdata.tm.ds.controller;
 
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
@@ -36,6 +36,7 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -409,8 +410,8 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "复制数据源")
     @PostMapping("{id}/copy")
-    public ResponseMessage<DataSourceConnectionDto> copy(@PathVariable("id") String id) {
-        return success(dataSourceService.copy(getLoginUser(), id));
+    public ResponseMessage<DataSourceConnectionDto> copy(@PathVariable("id") String id, HttpServletRequest request) {
+        return success(dataSourceService.copy(getLoginUser(), id, request.getRequestURI()));
     }
 
     /**

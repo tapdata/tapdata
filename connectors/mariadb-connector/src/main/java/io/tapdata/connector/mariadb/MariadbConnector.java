@@ -1,13 +1,12 @@
 package io.tapdata.connector.mariadb;
 
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.*;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
-import io.tapdata.connector.mysql.writer.MysqlJdbcOneByOneWriter;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -22,7 +21,6 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -77,7 +75,7 @@ public class MariadbConnector extends ConnectorBase {
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         codecRegistry.registerFromTapValue(TapMapValue.class, "json", tapValue -> toJson(tapValue.getValue()));
         codecRegistry.registerFromTapValue(TapArrayValue.class, "json", tapValue -> toJson(tapValue.getValue()));
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SSSSSS"));
+
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
                 tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
@@ -90,6 +88,13 @@ public class MariadbConnector extends ConnectorBase {
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
         connectorFunctions.supportCreateTable(this::createTable);
@@ -107,18 +112,6 @@ public class MariadbConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportReleaseExternalFunction(this::releaseExternal);
-    }
-
-    private void releaseExternal(TapConnectorContext tapConnectorContext) {
-        try {
-            KVMap<Object> stateMap = tapConnectorContext.getStateMap();
-            if (null != stateMap) {
-                stateMap.clear();
-            }
-        } catch (Throwable throwable) {
-            TapLogger.warn(TAG, "Release mysql state map failed, error: " + throwable.getMessage());
-        }
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
@@ -337,35 +330,14 @@ public class MariadbConnector extends ConnectorBase {
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
+        databaseContext.getSpecification().setId("mysql");
+        CommonDbConfig commonDbConfig = new CommonDbConfig();
+        commonDbConfig.set__connectionType(databaseContext.getConnectionConfig().getString("__connectionType"));
         try (
-                MariadbConnectionTest mariadbConnectionTest = new MariadbConnectionTest(new MysqlJdbcContext(databaseContext))
+                MariadbConnectionTest mariadbConnectionTest = new MariadbConnectionTest(new MysqlJdbcContext(databaseContext),
+                        databaseContext, consumer, commonDbConfig, connectionOptions);
         ) {
-            TestItem testHostPort = mariadbConnectionTest.testHostPort(databaseContext);
-            consumer.accept(testHostPort);
-            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem testConnect = mariadbConnectionTest.testConnect();
-            consumer.accept(testConnect);
-            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem testDatabaseVersion = mariadbConnectionTest.testDatabaseVersion();
-            consumer.accept(testDatabaseVersion);
-            if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
-                return null;
-            }
-            TestItem binlogMode = mariadbConnectionTest.testBinlogMode();
-            TestItem binlogRowImage = mariadbConnectionTest.testBinlogRowImage();
-            TestItem cdcPrivileges = mariadbConnectionTest.testCDCPrivileges();
-            consumer.accept(binlogMode);
-            consumer.accept(binlogRowImage);
-            consumer.accept(cdcPrivileges);
-            consumer.accept(mariadbConnectionTest.testCreateTablePrivilege(databaseContext));
-            if (binlogMode.isSuccess() && binlogRowImage.isSuccess() && cdcPrivileges.isSuccess()) {
-                List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDL_PARSER_TYPE);
-                ddlCapabilities.forEach(connectionOptions::capability);
-            }
+            mariadbConnectionTest.testOneByOne();
             return connectionOptions;
         }
     }

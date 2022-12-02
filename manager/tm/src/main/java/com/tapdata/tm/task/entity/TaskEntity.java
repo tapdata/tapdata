@@ -63,6 +63,10 @@ public class TaskEntity extends BaseEntity {
     private Integer increaseReadSize;
     /** 全量一批读取条数 */
     private Integer readBatchSize;
+    /** 写入批量条数 */
+    private Integer writeBatchSize;
+    /** 写入每批最大等待时间 */
+    private Long writeBatchWaitMs;
 
     /** 增量同步间隔*/
     private Integer increaseSyncInterval;
@@ -161,6 +165,8 @@ public class TaskEntity extends BaseEntity {
     private Date startTime;
     private Long lastStartDate;
     private Date stopTime;
+    private Long scheduleDate;
+    private Date monitorStartDate;
 
     private HashSet<String> heartbeatTasks;
 
@@ -183,7 +189,7 @@ public class TaskEntity extends BaseEntity {
     private Date errorTime;
     private Date pausedTime;
     private Date finishTime;
-    private Date pingTime;
+    private Long pingTime;
 
     //需要重启标识
     private Boolean restartFlag;
@@ -214,6 +220,10 @@ public class TaskEntity extends BaseEntity {
     private Map<String, Object> logSetting;
     private Integer resetTimes;
 
+    private Long currentEventTimestamp;
+    private Long snapshotDoneAt;
+
+    private boolean needCreateRecord;
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

@@ -1,10 +1,6 @@
 package io.tapdata.coding.utils.tool;
 
-import cn.hutool.core.date.DateUtil;
-import io.tapdata.coding.service.sync.Sync;
-
 import java.text.SimpleDateFormat;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public class Checker {

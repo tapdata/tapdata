@@ -279,8 +279,9 @@ public class ConnectorConstant {
 	public final static String LOAD_SETTINGS_THREAD = "%s Load Settings Handler[%s]";
 	public final static String CLEAR_TRIGGER_LOG_THREAD = "%s Clear Trigger Log Handler[%s]";
 	public final static String CLEAR_GRIDFS_EXPIRED_FILE_THREAD = "%s Clear Gridfs Expired File Handler[%s]";
-	public final static String START_DATAFLOW_THREAD = "Start Dataflow Handler[%s]";
-	public final static String STATS_DATAFLOW_THREAD = "Stats Dataflow Handler[%s]";
+	public final static String START_TASK_THREAD = "Start Task Scheduler[%s]";
+	public final static String STOP_TASK_THREAD = "Stop Task Scheduler[%s]";
+	public final static String INTERNAL_STOP_TASK_THREAD = "Internal Stop Task Scheduler[%s]";
 
 	/**
 	 * ================== stats status ==================

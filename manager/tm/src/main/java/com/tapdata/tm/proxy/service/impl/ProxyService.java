@@ -4,6 +4,8 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
+import com.tapdata.tm.sdk.auth.HmacSHA256Signer;
+import com.tapdata.tm.sdk.util.Base64Util;
 import io.tapdata.modules.api.net.entity.SubscribeToken;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import java.io.ByteArrayOutputStream;
@@ -18,13 +20,31 @@ import java.util.Base64;
  */
 public class ProxyService {
     public static final String KEY = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
-    public static ProxyService create(){
-        return new ProxyService();
+
+    public String generateStaticToken(String userId, String secret) {
+
+//        final String secret = "xxxxxx";
+
+//        String userId = "userId";
+
+        byte[] digestData = new HmacSHA256Signer().sign(userId + secret, secret);
+
+        StringBuilder result = new StringBuilder();
+        for (byte aByte : digestData) {
+            result.append(String.format("%02x", aByte));
+        }
+        String sign = Base64Util.encode(result.toString().getBytes());
+
+        String token = String.format("%s.%s", Base64Util.encode(userId.getBytes()), sign);
+        System.out.println(token);
+        return token;
+
     }
-    public SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, UserDetail userDetail) {
-        return this.generateSubscriptionToken(subscribeDto, KEY);
+
+    public SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, UserDetail userDetail, String staticToken, String requestUri) {
+        return this.generateSubscriptionToken(subscribeDto, KEY, staticToken, requestUri);
     }
-    private SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, String key) {
+    private SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, String key, String staticToken, String requestUri) {
         if(subscribeDto == null)
             throw new BizException("SubscribeDto is null");
         if(subscribeDto.getSubscribeId() == null)
@@ -52,6 +72,15 @@ public class ProxyService {
             throw new BizException("Encrypt SubscribeDto failed, " + e.getMessage());
         }
 
+        if(staticToken != null) {
+            int pos = requestUri.indexOf("/api/");
+            if(pos < 0)
+                throw new BizException("requestUri doesn't contains \"/api/\", requestUri: " + requestUri);
+            String prefix = requestUri.substring(0, pos);
+            token = prefix + "/api/proxy/callback/" + token + "?__token=" + staticToken;
+        } else {
+            token = "/api/proxy/callback/" + token;
+        }
         SubscribeResponseDto subscribeResponseDto = new SubscribeResponseDto();
         subscribeResponseDto.setToken(token);
         return subscribeResponseDto;

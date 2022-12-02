@@ -1,6 +1,7 @@
 package io.tapdata.modules.api.proxy.data;
 
 import io.tapdata.entity.annotations.Implementation;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
@@ -13,6 +14,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Objects;
+
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 @Implementation(value = TapEntity.class, type = "ServiceCallerReceived")
 public class ServiceCallerReceived extends TapEntityEx {

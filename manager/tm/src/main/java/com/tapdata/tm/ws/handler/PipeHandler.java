@@ -11,9 +11,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.JSONValidator;
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
@@ -38,7 +36,6 @@ public class PipeHandler implements WebSocketHandler {
 
 	private final MessageQueueService queueService;
 	private TaskDagCheckLogService taskDagCheckLogService;
-	private AlarmService alarmService;
 
 	public PipeHandler(MessageQueueService queueService) {
 		this.queueService = queueService;
@@ -57,15 +54,12 @@ public class PipeHandler implements WebSocketHandler {
 			if (jsonValidator.getType() == JSONValidator.Type.Object) {
 				JSONObject jsonObject = JSON.parseObject(jsonStr);
 				if (Objects.nonNull(jsonObject)) {
+					log.info("PipeHandler info:{}", jsonStr);
 					JSONObject extParam = jsonObject.getJSONObject("extParam");
 					if (Objects.nonNull(extParam) && "testConnectionResult".equals(data.get("type").toString())) {
 						String taskId = extParam.getString("taskId");
 						String templateEnum = extParam.getString("templateEnum");
 						String userId = extParam.getString("userId");
-						String nodeName = extParam.getString("nodeName");
-						String connectId = extParam.getString("connectId");
-						JSONArray taskIds = extParam.getJSONArray("taskIds");
-						boolean alarmCheck = (Boolean) extParam.getOrDefault("alarmCheck", false);
 
 						if (StringUtils.isNotBlank(templateEnum)) {
 							JSONObject responseBody = jsonObject.getJSONObject("response_body");
@@ -73,14 +67,9 @@ public class PipeHandler implements WebSocketHandler {
 
 							Level grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ? Level.INFO : Level.ERROR;
 
-							if (!alarmCheck) {
-								taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
-										true, true, DateUtil.now(), jsonObject.getJSONObject("response_body").toJSONString());
-							} else if (grade == Level.ERROR) {
-								alarmService.connectFailAlarm(taskIds, nodeName, connectId);
-							} else {
-								alarmService.connectPassAlarm(taskIds, nodeName, connectId);
-							}
+							String response_body = jsonObject.getJSONObject("response_body").toJSONString();
+							taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
+									true, true, DateUtil.now(), response_body);
 						}
 					}
 				}
@@ -98,7 +87,7 @@ public class PipeHandler implements WebSocketHandler {
 				queueService.sendMessage(messageDto);
 			}
 		}else {
-			log.warn("WebSocket send message failed, receiver is blank");
+			log.warn("WebSocket send message failed, receiver is blank, msg:{}", JSON.toJSONString(messageInfo));
 		}
 	}
 }

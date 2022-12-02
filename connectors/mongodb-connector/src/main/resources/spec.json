@@ -347,7 +347,7 @@
       "precision": 309,
       "fixed": true
     },
-    "STRING": {
+    "STRING[($byte)]": {
       "to": "TapString",
       "preferByte": "100",
       "byte": "16m"

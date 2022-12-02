@@ -67,10 +67,6 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 		if (SyncTypeEnum.CDC != syncType && SyncTypeEnum.INITIAL_SYNC_CDC != syncType) {
 			return false;
 		}
-		if (null != offsetFromTimeError) {
-			offer(new TapdataTaskErrorEvent(offsetFromTimeError));
-			return false;
-		}
 
 		return true;
 	}
@@ -110,7 +106,6 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 						}
 					}
 				}
-				logger.info("Init sync progress result: " + syncProgress);
 			} else {
 				if (null == syncProgressObj) {
 					logger.info("Sync progress not exists, will run task as first time");

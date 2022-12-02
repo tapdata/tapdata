@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 
 import com.hazelcast.jet.core.Inbox;
+import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.schema.SchemaApplyResult;
@@ -14,9 +15,12 @@ import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.schema.Schema;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.JavaTypesToTapTypes;
 import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
@@ -24,6 +28,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -49,7 +54,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	public static final String FUNCTION_NAME_DECLARE = "declare";
 
 	private final String schemaKey;
-	private final TapTableMap oldTapTableMap;
+	private final TapTableMap<String, TapTable> oldTapTableMap;
 
 	private Invocable engine;
 
@@ -159,6 +164,9 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	protected void doClose() throws Exception {
 		super.doClose();
 		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.oldTapTableMap).ifPresent(TapTableMap::reset), HazelcastSchemaTargetNode.class.getSimpleName());
+		if (this.engine instanceof GraalJSScriptEngine) {
+			((GraalJSScriptEngine) this.engine).close();
+		}
 	}
 
 	@NotNull
@@ -169,24 +177,54 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		}
 		TapTable tapTable = new TapTable(tapEvent.getTableId());
 		if (MapUtils.isNotEmpty(after)) {
+			LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap(tapEvent.getTableId());
 			for (Map.Entry<String, Object> entry : after.entrySet()) {
+				String fieldName = entry.getKey();
 				if (logger.isDebugEnabled()) {
-					logger.debug("entry type: {} - {}", entry.getKey(), entry.getValue().getClass());
+					logger.debug("entry type: {} - {}", fieldName, entry.getValue().getClass());
 				}
+				TapType tapType;
 				if (entry.getValue() instanceof TapValue) {
 					TapValue<?, ?> tapValue = (TapValue<?, ?>) entry.getValue();
-					TapField tapField = new TapField()
-									.name(entry.getKey())
-									.dataType(tapValue.getOriginType())
-									.tapType(tapValue.getTapType());
-					tapField.setTapType(tapValue.getTapType());
-					tapTable.add(tapField);
+					tapType = tapValue.getTapType();
 				} else {
-					TapType tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
-					TapField tapField = new TapField()
-									.name(entry.getKey())
-									.tapType(tapType);
-					tapTable.add(tapField);
+					tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
+					if (tapType == null) {
+						tapType = TapSimplify.tapRaw();
+					}
+				}
+				TapField tapField = null;
+				if (oldNameFieldMap != null) {
+					TapField oldTapField = oldNameFieldMap.get(fieldName);
+					if (oldTapField != null && oldTapField.getTapType() != null
+									&& oldTapField.getTapType().getType() == tapType.getType()) {
+						tapField = oldTapField;
+					}
+				}
+				if (tapField == null) {
+					tapField = new TapField().name(fieldName).tapType(tapType);
+				}
+				tapTable.add(tapField);
+			}
+		}
+
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		if (MapUtils.isNotEmpty(nameFieldMap)) {
+			Set<String> fieldNames = nameFieldMap.keySet();
+			List<TapIndex> oldTapIndexList = getOldTapIndexList(tapEvent.getTableId());
+			if (CollectionUtils.isNotEmpty(oldTapIndexList)) {
+				for (TapIndex oldTapIndex : oldTapIndexList) {
+					List<TapIndexField> oldIndexFields = oldTapIndex.getIndexFields();
+					List<TapIndexField> newIndexFields = new ArrayList<>();
+					for (TapIndexField oldIndexField : oldIndexFields) {
+						if (fieldNames.contains(oldIndexField.getName())) {
+							newIndexFields.add(oldIndexField);
+						}
+					}
+					if (CollectionUtils.isNotEmpty(newIndexFields)) {
+						oldTapIndex.setIndexFields(newIndexFields);
+						tapTable.add(oldTapIndex);
+					}
 				}
 			}
 		}
@@ -231,6 +269,13 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			return null;
 		}
 		return oldTapTableMap.get(tableName).getNameFieldMap();
+	}
+
+	private List<TapIndex> getOldTapIndexList(String tableName) {
+		if (oldTapTableMap == null || !oldTapTableMap.containsKey(tableName)) {
+			return null;
+		}
+		return oldTapTableMap.get(tableName).getIndexList();
 	}
 
 }

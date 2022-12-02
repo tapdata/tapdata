@@ -141,6 +141,8 @@ public class Connections implements Serializable {
 	private String fileDefaultCharset;
 
 	private String table_filter;
+	private String tableExcludeFilter;
+	private Boolean openTableExcludeFilter;
 
 	/**
 	 * byte
@@ -1117,6 +1119,9 @@ public class Connections implements Serializable {
 	}
 
 	public String getTable_filter() {
+		if (null == table_filter) {
+			return null;
+		}
 		if (isCaseInSensitive()) {
 			return table_filter.toLowerCase();
 		}
@@ -1125,6 +1130,35 @@ public class Connections implements Serializable {
 
 	public void setTable_filter(String table_filter) {
 		this.table_filter = table_filter;
+	}
+
+	public String getTableExcludeFilter() {
+		if (null == tableExcludeFilter) {
+			return null;
+		}
+		if (isCaseInSensitive()) {
+			return tableExcludeFilter.toLowerCase();
+		}
+		return tableExcludeFilter;
+	}
+
+	public String getIfOpenTableExcludeFilter() {
+		if (Boolean.TRUE.equals(getOpenTableExcludeFilter())) {
+			return getTableExcludeFilter();
+		}
+		return null;
+	}
+
+	public void setTableExcludeFilter(String tableExcludeFilter) {
+		this.tableExcludeFilter = tableExcludeFilter;
+	}
+
+	public Boolean getOpenTableExcludeFilter() {
+		return openTableExcludeFilter;
+	}
+
+	public void setOpenTableExcludeFilter(Boolean openTableExcludeFilter) {
+		this.openTableExcludeFilter = openTableExcludeFilter;
 	}
 
 	public String getSheet_start() {

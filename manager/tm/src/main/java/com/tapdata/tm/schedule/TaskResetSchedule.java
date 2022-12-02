@@ -1,9 +1,13 @@
 package com.tapdata.tm.schedule;
 
 
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskResetEventDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.statemachine.enums.DataFlowEvent;
+import com.tapdata.tm.statemachine.model.StateMachineResult;
+import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskResetLogService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
@@ -42,6 +46,9 @@ public class TaskResetSchedule {
     @Value("${task.reset.timeoutInterval: 50}")
     private int timeoutInterval;
 
+    @Autowired
+    private StateMachineService stateMachineService;
+
 
     @Scheduled(fixedDelayString = "30000")
     @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "15s", lockAtLeastFor = "15s")
@@ -52,13 +59,16 @@ public class TaskResetSchedule {
     }
 
 
+    /**
+     * @see com.tapdata.tm.statemachine.enums.DataFlowEvent#RENEW_DEL_FAILED
+     */
     public void checkNoResponseOp() {
 
         try {
             Criteria taskCri = Criteria.where("status").in(TaskDto.STATUS_RENEWING, TaskDto.STATUS_DELETING);
 
             Query query1 = new Query(taskCri);
-            query1.fields().include("status", "last_updated");
+            query1.fields().include("status", "last_updated", "user_id");
             List<TaskDto> taskDtos = taskService.findAll(query1);
             List<String> taskIds = taskDtos.stream().map(t -> t.getId().toHexString()).distinct().collect(Collectors.toList());
             Criteria criteria1 = Criteria.where("taskId").in(taskIds);
@@ -97,15 +107,29 @@ public class TaskResetSchedule {
                 }
 
             }
+            List<String> userLists = updateTask.stream().map(BaseDto::getUserId).collect(Collectors.toList());
 
+            Map<String, UserDetail> userDetailMap = userService.getUserMapByIdList(userLists);
 
             for (TaskDto taskDto : updateTask) {
                 try {
-                    if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
-                        taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_RENEW_FAILED);
-                    } else if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
-                        taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_DELETE_FAILED);
-                    } else {
+
+                    UserDetail user = userDetailMap.get(taskDto.getUserId());
+                    if (user == null) {
+                        continue;
+                    }
+
+
+                    if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus()) || TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
+                        StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
+                        if (stateMachineResult.isOk()) {
+                            Query query = Query.query(Criteria.where("_id").is(taskDto.getId()));
+                            Update update = Update.update("last_updated", new Date());
+                            taskService.update(query, update);
+                        }
+
+                        //taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_RENEW_FAILED);
+                    }  else {
                         taskResetLogService.clearLogByTaskId(taskDto.getId().toHexString());
                     }
                 } catch (Exception e) {
@@ -129,9 +153,17 @@ public class TaskResetSchedule {
             if (CollectionUtils.isEmpty(taskDtos)) {
                 return;
             }
+
+            List<String> userLists = taskDtos.stream().map(BaseDto::getUserId).collect(Collectors.toList());
+
+            Map<String, UserDetail> userDetailMap = userService.getUserMapByIdList(userLists);
+
             for (TaskDto taskDto : taskDtos) {
                 try {
-                    UserDetail user = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+                    UserDetail user = userDetailMap.get(taskDto.getUserId());
+                    if (user == null) {
+                        continue;
+                    }
                     int resetTimes = taskDto.getResetTimes() == null ? 0 : taskDto.getResetTimes();
                     Update update = Update.update("resetTimes", resetTimes + 1);
                     Query queryTask = new Query(Criteria.where("_id").is(taskDto.getId()));

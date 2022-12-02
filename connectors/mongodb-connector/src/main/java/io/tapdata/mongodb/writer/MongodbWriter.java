@@ -5,6 +5,7 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.*;
+import io.tapdata.constant.AppType;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -30,8 +31,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.writeListResult;
-import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
-import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 
 /**
  * @author jackin
@@ -47,12 +46,15 @@ public class MongodbWriter {
 	private ConnectionString connectionString;
 	private MongodbConfig mongodbConfig;
 
+	private boolean  is_cloud ;
+
 	public MongodbWriter(KVMap<Object> globalStateMap, MongodbConfig mongodbConfig, MongoClient mongoClient) {
 		this.globalStateMap = globalStateMap;
 		this.mongoClient = mongoClient;
 		this.mongoDatabase = mongoClient.getDatabase(mongodbConfig.getDatabase());
 		this.connectionString = new ConnectionString(mongodbConfig.getUri());
 		this.mongodbConfig = mongodbConfig;
+		this.is_cloud = AppType.init().isCloud();
 	}
 
 	/**
@@ -83,10 +85,14 @@ public class MongodbWriter {
 
 		MongoCollection<Document> collection = getMongoCollection(table.getId());
 
-		final Collection<String> pks = table.primaryKeys(true);
+		Object pksCache = table.primaryKeys(true);
+		if (null == pksCache) pksCache = table.primaryKeys();
+		final Collection<String> pks = (Collection<String>)pksCache;
 
-		MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
-
+		// daas  data will cache local
+		if(!is_cloud) {
+			MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
+		}
 		for (TapRecordEvent recordEvent : tapRecordEvents) {
 			UpdateOptions options = new UpdateOptions().upsert(true);
 

@@ -207,45 +207,51 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 			if(commandInfo.getType() == null || commandInfo.getCommand() == null || commandInfo.getPdkHash() == null)
 				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "some parameter are null, type {}, command {}, pdkHash {}", commandInfo.getType(), commandInfo.getCommand(), commandInfo.getPdkHash());
 
+			String associateId = UUID.randomUUID().toString();
 			PDKUtils.PDKInfo pdkInfo = pdkUtils.downloadPdkFileIfNeed(commandInfo.getPdkHash());
 			ConnectionNode connectionNode = PDKIntegration.createConnectionConnectorBuilder()
 //					.withConnectionConfig(DataMap.create(commandInfo.getConnectionConfig()))
 					.withGroup(pdkInfo.getGroup())
 					.withPdkId(pdkInfo.getPdkId())
-					.withAssociateId(UUID.randomUUID().toString())
+					.withAssociateId(associateId)
 					.withVersion(pdkInfo.getVersion())
 					.build();
 
-			if(commandInfo.getType().equals(CommandInfo.TYPE_NODE) && commandInfo.getConnectionConfig() == null && commandInfo.getConnectionId() != null) {
-				commandInfo.setConnectionConfig(pdkUtils.getConnectionConfig(commandInfo.getConnectionId()));
-			}
-			CommandCallbackFunction commandCallbackFunction = connectionNode.getConnectionFunctions().getCommandCallbackFunction();
-			if(commandCallbackFunction == null) {
-				EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
-						.id(commandInfo.getId())
-						.code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK)
-						.message("pdkId " + pdkInfo.getPdkId() + " doesn't support CommandCallbackFunction");
-				imClient.sendData(new IncomingData().message(engineMessageResultEntity))
-						.exceptionally(throwable -> {
-							TapLogger.error(TAG, "Send CommandResultEntity(PDK_NOT_SUPPORT_COMMAND_CALLBACK) failed, {} CommandResultEntity {}", throwable.getMessage(), engineMessageResultEntity);
-							return null;
-						});
-				return;
+			try {
+				if(commandInfo.getType().equals(CommandInfo.TYPE_NODE) && commandInfo.getConnectionConfig() == null && commandInfo.getConnectionId() != null) {
+					commandInfo.setConnectionConfig(pdkUtils.getConnectionConfig(commandInfo.getConnectionId()));
+				}
+				CommandCallbackFunction commandCallbackFunction = connectionNode.getConnectionFunctions().getCommandCallbackFunction();
+				if(commandCallbackFunction == null) {
+					EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
+							.id(commandInfo.getId())
+							.code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK)
+							.message("pdkId " + pdkInfo.getPdkId() + " doesn't support CommandCallbackFunction");
+					imClient.sendData(new IncomingData().message(engineMessageResultEntity))
+							.exceptionally(throwable -> {
+								TapLogger.error(TAG, "Send CommandResultEntity(PDK_NOT_SUPPORT_COMMAND_CALLBACK) failed, {} CommandResultEntity {}", throwable.getMessage(), engineMessageResultEntity);
+								return null;
+							});
+					return;
 //			return new Result().code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK).description("pdkId " + commandInfo.getPdkId() + " doesn't support CommandCallbackFunction");
+				}
+				AtomicReference<EngineMessageResultEntity> mapAtomicReference = new AtomicReference<>();
+				PDKInvocationMonitor.invoke(connectionNode, PDKMethod.COMMAND_CALLBACK,
+						() -> {
+							CommandResult commandResult = commandCallbackFunction.filter(connectionNode.getConnectionContext(), commandInfo);
+							mapAtomicReference.set(new EngineMessageResultEntity()
+									.content(commandResult != null ? (commandResult.getData() != null ? commandResult.getData() : commandResult.getResult()) : null)
+									.code(Data.CODE_SUCCESS)
+									.id(commandInfo.getId()));
+						}, TAG) ;
+				imClient.sendData(new IncomingData().message(mapAtomicReference.get())).exceptionally(throwable -> {
+					TapLogger.error(TAG, "Send CommandResultEntity failed, {} CommandResultEntity {}", throwable.getMessage(), mapAtomicReference.get());
+					return null;
+				});
+			} finally {
+				connectionNode.unregisterMemoryFetcher();
+				PDKIntegration.releaseAssociateId(associateId);
 			}
-			AtomicReference<EngineMessageResultEntity> mapAtomicReference = new AtomicReference<>();
-			PDKInvocationMonitor.invoke(connectionNode, PDKMethod.COMMAND_CALLBACK,
-					() -> {
-						CommandResult commandResult = commandCallbackFunction.filter(connectionNode.getConnectionContext(), commandInfo);
-						mapAtomicReference.set(new EngineMessageResultEntity()
-								.content(commandResult != null ? (commandResult.getData() != null ? commandResult.getData() : commandResult.getResult()) : null)
-								.code(Data.CODE_SUCCESS)
-								.id(commandInfo.getId()));
-					}, TAG) ;
-			imClient.sendData(new IncomingData().message(mapAtomicReference.get())).exceptionally(throwable -> {
-				TapLogger.error(TAG, "Send CommandResultEntity failed, {} CommandResultEntity {}", throwable.getMessage(), mapAtomicReference.get());
-				return null;
-			});
 		} catch(Throwable throwable) {
 			int code = NetErrors.COMMAND_EXECUTE_FAILED;
 			if(throwable instanceof CoreException) {
@@ -394,15 +400,18 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
+		List<DataMap> taskSubscribeInfos = new ArrayList<>();
 		DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
-//				.kv("maxFrequencyLimiter", maxFrequencyLimiter.toString())
-//				.kv("needSync", needSync.get())
-//				.kv("imClient", imClient.memory(keyRegex, memoryLevel))
+				.kv("taskSubscribeInfos", taskSubscribeInfos)
+				.kv("userId", userId)
+				.kv("processId", processId)
+				.kv("imClient", imClient.memory(keyRegex, memoryLevel))
 				;
+		for(TaskSubscribeInfo taskSubscribeInfo : this.taskSubscribeInfos) {
+			taskSubscribeInfos.add(taskSubscribeInfo.memory(keyRegex, memoryLevel));
+		}
 
-		//TODO not finished
-
-		return null;
+		return dataMap;
 	}
 
 	public String getUserId() {
