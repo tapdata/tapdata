@@ -52,6 +52,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
@@ -141,6 +142,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private StateMachineService stateMachineService;
     private TaskScheduleService taskScheduleService;
+
+    private ScheduleService scheduleService;
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
 
@@ -2686,7 +2689,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return;
         }
 
-        deleteScheduleTask(taskDto);
         String pauseStatus = TaskDto.STATUS_STOPPING;
         StateMachineResult stateMachineResult;
         if (force) {
@@ -3064,19 +3066,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public void startPlanCronTask() {
-        Criteria migrateCriteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_START)
-                .and("crontabExpressionFlag").is(true)
-                .and("crontabExpression").exists(true);
+        Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
+                .and("crontabExpression").exists(true)
+                .andOperator(Criteria.where("status").in(TaskDto.STATUS_WAIT_START,TaskDto.STATUS_COMPLETE));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
             taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
                     .collect(Collectors.toList());
             for (TaskDto taskDto : taskList) {
-                 addScheduleTask(taskDto);
+                scheduleService.executeTask(taskDto);
             }
         }
     }
+
 
     public TaskDto findByCacheName(String cacheName, UserDetail user) {
         Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where("catalog").is("memCache").and("cacheName").is(cacheName));
@@ -3259,27 +3262,5 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         chart6Map.put("deletedTotal", delete);
         return chart6Map;
     }
-
-    public void addScheduleTask(TaskDto taskDto) {
-        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
-                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.isCrontabExpressionFlag()) {
-            CronUtil.addJob(taskDto);
-        }
-    }
-
-    public void deleteScheduleTask(TaskDto taskDto) {
-        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
-                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.isCrontabExpressionFlag()) {
-            CronUtil.removeJob(String.valueOf(taskDto.getId()));
-        }
-
-    }
-
-    public void startScheduleTask(TaskDto taskDto, UserDetail user, String startFlag) {
-        start(taskDto, user, startFlag);
-    }
-
 
 }
