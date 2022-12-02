@@ -3237,6 +3237,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void startPlanCronTask() {
         Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
                 .and("crontabExpression").exists(true)
+                .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").in(TaskDto.STATUS_WAIT_START,TaskDto.STATUS_COMPLETE));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
