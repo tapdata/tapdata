@@ -234,7 +234,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (null == tapTable)
 			throw new IllegalArgumentException("Transform to TapValue failed, table schema is empty, table name: " + tableName);
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-		if (MapUtils.isEmpty(nameFieldMap))
+		if (nameFieldMap == null)
 			throw new IllegalArgumentException("Transform to TapValue failed, field map is empty, table name: " + tableName);
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 
