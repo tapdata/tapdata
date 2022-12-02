@@ -33,14 +33,7 @@ public class InadConnector extends ConnectorBase {
 
 	@Override
 	public void onStop(TapConnectionContext connectionContext) throws Throwable {
-		synchronized (this) {
-			this.notify();
-		}
 
-		try {
-			//Optional.ofNullable(this.writeRecord).ifPresent(WriteRecord::onDestroy);
-		} catch (Exception ignored) {
-		}
 	}
 
 	@Override
