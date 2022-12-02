@@ -11,11 +11,11 @@ public class TDDTDengineMain {
         args = new String[]{
                 "test", "-c", "plugin-kit/tapdata-pdk-cli/src/main/resources/config/tdengine.json",
                 "-t", "io.tapdata.pdk.tdd.tests.basic.BasicTest",
-//                "-t", "io.tapdata.pdk.tdd.tests.source.StreamReadTest",
-//                "-t", "io.tapdata.pdk.tdd.tests.source.BatchReadTest",
-//                "-t", "io.tapdata.pdk.tdd.tests.target.CreateTableTest",
-//                "-t", "io.tapdata.pdk.tdd.tests.target.benchmark.ReadWriteBenchmarkTest",
-//                "-t", "io.tapdata.pdk.tdd.tests.target.DMLTest",
+                "-t", "io.tapdata.pdk.tdd.tests.source.StreamReadTest",
+                "-t", "io.tapdata.pdk.tdd.tests.source.BatchReadTest",
+                "-t", "io.tapdata.pdk.tdd.tests.target.CreateTableTest",
+                "-t", "io.tapdata.pdk.tdd.tests.target.benchmark.ReadWriteBenchmarkTest",
+                "-t", "io.tapdata.pdk.tdd.tests.target.DMLTest",
                 "connectors/tdengine-connector",};
 
         Main.registerCommands().execute(args);
