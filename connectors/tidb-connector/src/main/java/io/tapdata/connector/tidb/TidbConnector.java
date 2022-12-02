@@ -59,7 +59,9 @@ public class TidbConnector extends ConnectorBase {
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
-        tidbConfig = (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
+        this.tidbConfig = (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
+        this.tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {},null);
+
         if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
             tidbContext = (TidbContext) DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, tapConnectionContext.getId());
         }
@@ -333,14 +335,6 @@ public class TidbConnector extends ConnectorBase {
         consumer.accept(testConnection);
     }
 
-    private static String toHHmmss(long time) {
-        String timeTemp;
-        int hours = (int) (time % (1000 * 60 * 60 * 24) / (1000 * 60 * 60));
-        int minutes = (int) (time % (1000 * 60 * 60) / (1000 * 60));
-        int seconds = (int) (time % (1000 * 60) / 1000);
-        timeTemp = (hours < 10 ? ("0" + hours) : hours) + ":" + (minutes < 10 ? ("0" + minutes) : minutes) + ":" + (seconds < 10 ? ("0" + seconds) : seconds);
-        return timeTemp;
-    }
 
 }
 
