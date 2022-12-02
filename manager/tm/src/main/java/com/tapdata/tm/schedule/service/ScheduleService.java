@@ -65,7 +65,7 @@ public class ScheduleService{
             log.info("taskId {},status:{}  不用在进行全量任务", taskDto.getId(), status);
             return;
         }
-        if (scheduleDate == null || scheduleDate < new Date().getTime()) {
+        if (scheduleDate < new Date().getTime()) {
             log.info("taskId {},status:{}  定时在全量任务", taskDto.getId(), status);
             TaskEntity taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
