@@ -9,6 +9,8 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -190,7 +192,12 @@ public class TaskSampleHandler extends AbstractHandler {
             if (null == currentSnapshotTable) return null;
             return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
         });
-        collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> currentSnapshotTableInsertRowTotal);
+        collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
+            if (ObjectUtils.allNotNull(currentSnapshotTable, snapshotDoneAt)) {
+                return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+            }
+            return currentSnapshotTableInsertRowTotal;
+        });
     }
 
     public void close() {
