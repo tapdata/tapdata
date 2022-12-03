@@ -20,6 +20,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -118,7 +119,12 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 			if (null == currentSnapshotTable) return null;
 			return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
 		});
-		collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> currentSnapshotTableInsertRowTotal);
+		collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
+			if (ObjectUtils.allNotNull(currentSnapshotTable, snapshotDoneAt)) {
+				currentSnapshotTableInsertRowTotal = currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+			}
+			return currentSnapshotTableInsertRowTotal;
+		});
 	}
 
 	public void addTable(String... tables) {
