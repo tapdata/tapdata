@@ -148,7 +148,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			job.cancel();
 		}
 
-		if (job.getStatus() == JobStatus.SUSPENDED || job.getStatus() == JobStatus.FAILED || job.getStatus() == JobStatus.COMPLETED) {
+		if (job.getStatus().isTerminal()) {
 			ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 			CommonUtils.handleAnyError(
 					() -> {
@@ -177,8 +177,9 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 					error -> obsLogger.warn("Remove snapshot order controller failed, error: %s\n %s", error.getMessage(), Log4jUtil.getStackString(error))
 			);
 			CommonUtils.ignoreAnyError(() -> TaskGlobalVariable.INSTANCE.removeTask(taskDto.getId().toHexString()), TAG);
+			return true;
 		}
-		return job.getStatus().isTerminal();
+		return false;
 	}
 
 	@Override
