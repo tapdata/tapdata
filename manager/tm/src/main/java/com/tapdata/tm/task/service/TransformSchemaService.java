@@ -158,6 +158,7 @@ public class TransformSchemaService {
             }
         }
 
+        final List<String> fileSource = Lists.newArrayList("xml", "json", "excel", "csv");
         if (!allParam) {
             List<String> qualifiedNames = new ArrayList<>();
             for (Node node : nodes) {
@@ -166,12 +167,24 @@ public class TransformSchemaService {
                     DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
                     DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
                     String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto, taskDto.getId().toHexString());
+
+                    if (fileSource.contains(dataSourceDefinitionDto.getPdkId())) {
+                        int i = qualifiedName.lastIndexOf("_");
+                        qualifiedName = qualifiedName.substring(0, i);
+                    }
                     qualifiedNames.add(qualifiedName);
                 } else if (node instanceof DatabaseNode) {
                     String connectionId = ((DatabaseNode) node).getConnectionId();
                     DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
                     DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
+
                     List<String> metas = metadataInstancesService.findDatabaseNodeQualifiedName(node.getId(), user, taskDto, dataSourceConnectionDto, dataSourceDefinitionDto);
+                    if (fileSource.contains(dataSourceDefinitionDto.getPdkId())) {
+                        metas = metas.stream().map(q -> {
+                            int i = q.lastIndexOf("_");
+                            return q.substring(0, i);
+                        }).collect(Collectors.toList());
+                    }
                     qualifiedNames.addAll(metas);
                 }
             }
