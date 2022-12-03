@@ -1,6 +1,8 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.executor.ExecutorsManager;
@@ -20,6 +22,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -72,6 +75,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	private Long snapshotStartAt = null;
 	@Getter
 	private Long snapshotDoneAt = null;
+	private final Map<String, Long> tableSnapshotDoneAtMap = new HashMap<>();
 
 	@Override
 	List<String> samples() {
@@ -110,8 +114,30 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Number retrieveSnapshotDoneAt = values.getOrDefault(SNAPSHOT_DONE_AT, null);
 		if (retrieveSnapshotDoneAt != null) {
 			snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
+		} else if (tableSnapshotDoneAtMap.containsKey(currentSnapshotTable)){
+			snapshotDoneAt = tableSnapshotDoneAtMap.get(currentSnapshotTable);
 		}
-		collector.addSampler(SNAPSHOT_DONE_AT, () -> snapshotDoneAt);
+		collector.addSampler(SNAPSHOT_DONE_AT, () -> {
+			Collection<Long> timeList = tableSnapshotDoneAtMap.values();
+			timeList.removeAll(Collections.singleton(null));
+
+			int tableSize = 0;
+			if (node instanceof DatabaseNode) {
+				DatabaseNode databaseNode= (DatabaseNode) node;
+				if (CollectionUtils.isNotEmpty(databaseNode.getSyncObjects())) {
+					tableSize = databaseNode.getSyncObjects().get(0).getObjectNames().size();
+				} else if (CollectionUtils.isNotEmpty(databaseNode.getTableNames())) {
+					tableSize = databaseNode.getTableNames().size();
+				}
+			} else if (node instanceof TableNode) {
+				tableSize = 1;
+			}
+
+			if (CollectionUtils.isNotEmpty(timeList) && timeList.size() == tableSize) {
+				snapshotDoneAt = Collections.max(timeList);
+			}
+			return snapshotDoneAt;
+		});
 
 		// TODO(dexter): find a way to record the current table name
 		collector.addSampler(CURR_SNAPSHOT_TABLE, () -> -1);
@@ -179,9 +205,9 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
 	public void handleBatchReadFuncEnd(long endAt) {
 		Optional.ofNullable(snapshotTableCounter).ifPresent(CounterSampler::inc);
-		currentSnapshotTable = null;
+		tableSnapshotDoneAtMap.put(currentSnapshotTable, endAt);
+//		currentSnapshotTable = null;
 		currentSnapshotTableInsertRowTotal = null;
-		snapshotDoneAt = endAt;
 	}
 
 

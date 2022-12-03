@@ -255,7 +255,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public void handleBatchReadFuncEnd() {
         snapshotTableTotal.inc();
-        currentSnapshotTable = null;
+//        currentSnapshotTable = null;
         currentSnapshotTableInsertRowTotal = 0L;
     }
 
