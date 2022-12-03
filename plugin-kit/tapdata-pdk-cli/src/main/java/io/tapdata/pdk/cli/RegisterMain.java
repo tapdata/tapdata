@@ -43,7 +43,7 @@ public class RegisterMain {
         Xml(BASE_PATH + "connectors/dist/xml-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
         Excel(BASE_PATH + "connectors/dist/excel-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
         BigQuery(BASE_PATH + "connectors/dist/bigquery-connector-v1.0-SNAPSHOT.jar", false, "all", "bigquery"),
-        Vika(BASE_PATH + "connectors/dist/vika-connector-v1.0-SNAPSHOT.jar", false, "all", "vika")
+        Vika(BASE_PATH + "connectors/dist/vika-connector-v1.0-SNAPSHOT.jar", false, "all", "vika"),
         ;
 
         private final String path;
