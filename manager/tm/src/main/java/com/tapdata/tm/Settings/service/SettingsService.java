@@ -6,11 +6,14 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
+import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
+import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.repository.SettingsRepository;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.utils.EncrptAndDencryUtil;
 
 import java.util.*;
@@ -240,4 +243,39 @@ public class SettingsService {
         return mongoTemplate.find(new Query(), Settings.class);
     }
 
+    public void testSendMail(TestMailDto testMailDto) {
+        MailAccountDto mailAccount = getMailAccount(testMailDto);
+
+        if ("*****".equals(mailAccount.getPass())) {
+            String value = SettingsEnum.SMTP_PASSWORD.getValue();
+            mailAccount.setPass(value);
+        }
+
+        MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), testMailDto.getTitle(), testMailDto.getText());
+
+    }
+
+    private MailAccountDto getMailAccount(TestMailDto testMailDto) {
+
+        String[] split = testMailDto.getEmail_Receivers().split(",");
+        return MailAccountDto.builder().host(testMailDto.getSMTP_Server_Host()).port(Integer.valueOf(testMailDto.getSMTP_Server_Port()))
+                .from(testMailDto.getEmail_Send_Address()).user(testMailDto.getSMTP_Server_User()).pass(testMailDto.getSMTP_Server_password())
+                .receivers(Arrays.asList(split)).build();
+    }
+
+    private MailAccountDto getMailAccount(List<SettingsDto> settingsDto) {
+        Map<String, Object> collect = settingsDto.stream().collect(Collectors.toMap(SettingsDto::getKey, SettingsDto::getValue, (e1, e2) -> e1));
+
+        String host = (String) collect.get("smtp.server.host");
+        String port = (String) collect.getOrDefault("smtp.server.port", "465");
+        String from = (String) collect.get("email.send.address");
+        String user = (String) collect.get("smtp.server.user");
+        Object pwd = collect.get("smtp.server.password");
+        String password = Objects.nonNull(pwd) ? pwd.toString() : null;
+        String receivers = (String) collect.get("email.receivers");
+        String[] split = receivers.split(",");
+
+        return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
+                .receivers(Arrays.asList(split)).build();
+    }
 }

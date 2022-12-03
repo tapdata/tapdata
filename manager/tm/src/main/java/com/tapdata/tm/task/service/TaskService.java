@@ -873,7 +873,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("copy task success, task name = {}", copyName);
 
         taskDto.setName(copyName);
-        //taskDto.setStatus(TaskDto.STATUS_EDIT);
+        taskDto.setStatus(TaskDto.STATUS_EDIT);
         taskDto.setStatuses(new ArrayList<>());
         taskDto.setStartTime(null);
         taskDto.setStopTime(null);
@@ -889,11 +889,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TaskService taskService = SpringContextHelper.getBean(TaskService.class);
 
         log.info("create new task, task = {}", taskDto);
-        taskDto = taskService.confirmById(taskDto, user, true, true);
+        taskDto = taskService.confirmById(taskDto, user, true);
         //taskService.flushStatus(taskDto, user);
 
         // after copy could deduce model
-        transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
+        //transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
 
         return taskDto;
     }
