@@ -52,6 +52,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
@@ -141,6 +142,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private StateMachineService stateMachineService;
     private TaskScheduleService taskScheduleService;
+
+    private ScheduleService scheduleService;
+
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
 
@@ -3070,6 +3074,23 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
+    public void startPlanCronTask() {
+        Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
+                .and("crontabExpression").exists(true)
+                .and("is_deleted").is(false)
+                .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
+                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING));
+        Query taskQuery = new Query(migrateCriteria);
+        List<TaskDto> taskList = findAll(taskQuery);
+        if (CollectionUtils.isNotEmpty(taskList)) {
+            taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
+                    .collect(Collectors.toList());
+            for (TaskDto taskDto : taskList) {
+                scheduleService.executeTask(taskDto);
+            }
+        }
+    }
+
     public TaskDto findByCacheName(String cacheName, UserDetail user) {
         Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where("catalog").is("memCache").and("cacheName").is(cacheName));
         Query query = new Query(taskCriteria);
@@ -3212,17 +3233,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    int inputInsertTotal = (int) vs.get("inputInsertTotal");
-                    int inputOthersTotal = (int) vs.get("inputOthersTotal");
-                    int inputDdlTotal = (int) vs.get("inputDdlTotal");
-                    int inputUpdateTotal = (int) vs.get("inputUpdateTotal");
-                    int inputDeleteTotal = (int) vs.get("inputDeleteTotal");
+                    long inputInsertTotal = Long.parseLong(String.valueOf(vs.get("inputInsertTotal")));
+                    long inputOthersTotal = Long.parseLong(String.valueOf(vs.get("inputOthersTotal")));
+                    long inputDdlTotal = Long.parseLong(String.valueOf(vs.get("inputDdlTotal")));
+                    long inputUpdateTotal = Long.parseLong(String.valueOf(vs.get("inputUpdateTotal")));
+                    long inputDeleteTotal = Long.parseLong(String.valueOf(vs.get("inputDeleteTotal")));
 
-                    int outputInsertTotal = (int) vs.get("outputInsertTotal");
-                    int outputOthersTotal = (int) vs.get("outputOthersTotal");
-                    int outputDdlTotal = (int) vs.get("outputDdlTotal");
-                    int outputUpdateTotal = (int) vs.get("outputUpdateTotal");
-                    int outputDeleteTotal = (int) vs.get("outputDeleteTotal");
+                    long outputInsertTotal = Long.parseLong(String.valueOf(vs.get("outputInsertTotal")));
+                    long outputOthersTotal = Long.parseLong(String.valueOf(vs.get("outputOthersTotal")));
+                    long outputDdlTotal = Long.parseLong(String.valueOf(vs.get("outputDdlTotal")));
+                    long outputUpdateTotal = Long.parseLong(String.valueOf(vs.get("outputUpdateTotal")));
+                    long outputDeleteTotal = Long.parseLong(String.valueOf(vs.get("outputDeleteTotal")));
                     output += outputInsertTotal;
                     output += outputOthersTotal;
                     output += outputDdlTotal;
@@ -3250,27 +3271,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         chart6Map.put("updatedTotal", update);
         chart6Map.put("deletedTotal", delete);
         return chart6Map;
-    }
-
-    public void addScheduleTask(TaskDto taskDto) {
-        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
-                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.isPlanStartDateFlag()) {
-            CronUtil.addJob(taskDto);
-        }
-    }
-
-    public void deleteScheduleTask(TaskDto taskDto) {
-        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
-                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.isPlanStartDateFlag()) {
-            CronUtil.removeJob(String.valueOf(taskDto.getId()));
-        }
-
-    }
-
-    public void startScheduleTask(TaskDto taskDto, UserDetail user, String startFlag) {
-        start(taskDto, user, startFlag);
     }
 
 
