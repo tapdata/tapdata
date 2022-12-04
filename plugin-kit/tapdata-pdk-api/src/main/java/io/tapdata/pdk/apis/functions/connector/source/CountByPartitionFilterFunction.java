@@ -9,5 +9,5 @@ import io.tapdata.pdk.apis.partition.TapPartitionFilter;
  * filter里只用关心里面的operators， 作为条件count数据
  */
 public interface CountByPartitionFilterFunction {
-    long countByAdvanceFilter(TapConnectorContext connectorContext, TapTable table, TapPartitionFilter filter);
+    long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapPartitionFilter filter);
 }

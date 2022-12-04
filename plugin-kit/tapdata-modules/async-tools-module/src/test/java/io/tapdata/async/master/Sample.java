@@ -7,6 +7,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * @author aplomb
@@ -16,8 +17,11 @@ public class Sample {
 		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
 
 
-		AsyncParallelWorker parallelWorker = asyncMaster.createAsyncParallelWorker("", 1);
-		parallelWorker.start("", JobContext.create(""), null);
+		AsyncParallelWorker parallelWorker = asyncMaster.createAsyncParallelWorker("test", 2);
+		parallelWorker.start("1", JobContext.create(""), asyncQueueWorker -> asyncQueueWorker.job("", jobContext -> null));
+		parallelWorker.start("2", JobContext.create(""), asyncQueueWorker -> asyncQueueWorker.job("", jobContext -> null));
+		parallelWorker.start("3", JobContext.create(""), asyncQueueWorker -> asyncQueueWorker.job("", jobContext -> null));
+		parallelWorker.start("4", JobContext.create(""), asyncQueueWorker -> asyncQueueWorker.job("", jobContext -> null));
 		parallelWorker.start("", JobContext.create(""), null);
 		parallelWorker.start("", JobContext.create(""), null);
 		parallelWorker.start("", JobContext.create(""), null);

@@ -10,7 +10,6 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.ConnectorErrors;
 import io.tapdata.partition.splitter.*;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryFieldMinMaxValueFunction;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
@@ -24,7 +23,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * @author aplomb
@@ -96,7 +94,7 @@ public class DatabaseReadPartitionSplitter {
 		TapLogger.info(TAG, "Start splitting for table {}, maxRecordInPartition {}", table.getId(), maxRecordInPartition);
 		TapPartitionFilter partitionFilter = TapPartitionFilter.create();
 		long time = System.currentTimeMillis();
-		long count = countByPartitionFilter.countByAdvanceFilter(context, table, partitionFilter);
+		long count = countByPartitionFilter.countByPartitionFilter(context, table, partitionFilter);
 		TapLogger.info(TAG, "Initial count {}, takes {}", count, (System.currentTimeMillis() - time));
 
 		TapIndexEx partitionIndex = table.partitionIndex();
@@ -133,7 +131,7 @@ public class DatabaseReadPartitionSplitter {
 		List<TapPartitionFilter> partitionFilters = typeSplitter.split(fieldMinMaxValue, (int) times);
 		Map<TapPartitionFilter, Long> partitionCountMap = new LinkedHashMap<>();
 		jobContext.foreach(partitionFilters, partitionFilter -> {
-			partitionCountMap.put(partitionFilter, countByPartitionFilter.countByAdvanceFilter(context, table, partitionFilter));
+			partitionCountMap.put(partitionFilter, countByPartitionFilter.countByPartitionFilter(context, table, partitionFilter));
 			return true;
 		});
 //		TapPartitionFilter partitionFilter = null;

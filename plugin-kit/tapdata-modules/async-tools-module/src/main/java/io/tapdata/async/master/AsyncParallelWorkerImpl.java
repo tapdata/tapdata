@@ -78,15 +78,18 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	}
 	private void startAsyncQueueWorker(JobContext jobContext, AsyncQueueWorker asyncQueueWorker) {
 		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
-			if(toState == QueueWorkerStateListener.STATE_STOPPED) {
-				executePendingWorker(id);
+			if(fromState == QueueWorkerStateListener.STATE_RUNNING && toState == QueueWorkerStateListener.STATE_IDLE) {
+//				asyncQueueWorker.stop();
+				removeRunningToExecutePendingWorker(id);
 			}
 		});
 		asyncQueueWorker.start(jobContext);
 	}
 
-	private synchronized void executePendingWorker(String id) {
+	private synchronized void removeRunningToExecutePendingWorker(String id) {
 		AsyncQueueWorker worker = runningQueueWorkers.remove(id); //this worker is already in stopped state.
+		if(worker != null)
+			CommonUtils.ignoreAnyError(worker::stop, TAG);
 		if(worker != null && !pendingQueueWorkers.isEmpty() && !stopped.get()) {
 			Container<JobContext, AsyncQueueWorker> container = pendingQueueWorkers.remove(0);
 			if(container != null) {
