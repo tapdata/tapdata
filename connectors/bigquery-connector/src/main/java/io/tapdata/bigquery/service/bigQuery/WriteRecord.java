@@ -459,7 +459,7 @@ public class WriteRecord extends BigQueryStart{
         switch(tapType.getClass().getSimpleName()){
             case "TapString" : return FieldChecker.simpleStringValue(value);
             case "TapArray": return FieldChecker.toJsonValue(value);
-            case "TapBinary": return " FROM_BASE64('"+ Base64.encode(String.valueOf(value)) +"') ";
+            case "TapBinary": return null == value ? "NULL":" FROM_BASE64('"+ Base64.encode(String.valueOf(value)) +"') ";
             case "TapBoolean": return FieldChecker.simpleValue(value);
             case "TapDateTime": return FieldChecker.simpleDateValue(value,DATE_TIME_FORMAT);
             case "TapDate": return FieldChecker.simpleDateValue(value,DATE_FORMAT);
