@@ -444,7 +444,7 @@ public class WriteRecord extends BigQueryStart{
      * */
     public final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss.SSSSSS";
     final static String DATE_FORMAT = "yyyy-MM-dd";
-    final static String TIME_FORMAT = "HH:mm:ss.SSSSSS";
+    final static String TIME_FORMAT = "HH:mm:ss";
     final static String YEAR_FORMAT = "yyyy-MM-dd";
     public String sqlValue(Object value,TapField field){
         TapType tapType = field.getTapType();
