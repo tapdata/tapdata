@@ -94,17 +94,18 @@ public class FieldChecker {
                 ;
     }
     public static String simpleDateValue(Object value,String format){
-        try {
-            if (value instanceof Time){
-                return "'"+DateUtil.format(new Date(((Time)value).getTime()),format)+"'";
-            }
+        if (null == value) return "NULL";
+        if (value instanceof DateTime){
             DateTime date = (DateTime) value;
             Date valDate = new Date();
             valDate.setTime(date.getSeconds()*1000);
             return "'"+DateUtil.format(valDate,format)+"'";
-        }catch (Exception e){
-            TapLogger.debug("FORMAT-DATE","Can not format the time : {}",value);
-            return "NULL";
+        }else if(value instanceof Time || value instanceof Long){
+            return "'"+DateUtil.format(new Date(value instanceof Time ? ((Time)value).getTime() : (Long)value ),format)+"'";
+        }else if (value instanceof String){
+            return (String) value;
+        }else {
+            return String.valueOf(value);
         }
     }
     public static String simpleYearValue(Object value){
