@@ -103,7 +103,7 @@ public class FieldChecker {
         }else if(value instanceof Time || value instanceof Long){
             return "'"+DateUtil.format(new Date(value instanceof Time ? ((Time)value).getTime() : (Long)value ),format)+"'";
         }else if (value instanceof String){
-            return (String) value;
+            return "'"+ value +"'";
         }else {
             return String.valueOf(value);
         }
