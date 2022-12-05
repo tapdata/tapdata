@@ -8,10 +8,9 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StartResultUtil;
-import com.tapdata.tm.sdk.util.EnvUtil;
 import io.tapdata.aspect.ApplicationStartAspect;
-import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.core.runtime.TapRuntime;
@@ -26,6 +25,7 @@ import org.apache.logging.log4j.core.appender.rolling.CompositeTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
 import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
+import org.apache.logging.log4j.core.config.AppenderRef;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.core.util.IOUtils;
@@ -77,7 +77,6 @@ public class Application {
 
 	public static void main(String[] args) {
 		CommonUtils.setProperty("tap_verbose", "true");
-		EnvUtil.decodeToken(System.getenv("CLOUD_TOKEN"));
 		try {
 			System.setProperty(LoggingSystem.class.getName(), "none");
 			tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
