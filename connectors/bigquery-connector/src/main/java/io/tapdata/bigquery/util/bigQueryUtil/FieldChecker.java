@@ -105,7 +105,7 @@ public class FieldChecker {
         }else if (value instanceof String){
             return "'"+ value +"'";
         }else {
-            return String.valueOf(value);
+            return "'"+String.valueOf(value) + "'";
         }
     }
     public static String simpleYearValue(Object value){
