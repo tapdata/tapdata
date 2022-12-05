@@ -469,9 +469,10 @@ public class AlarmServiceImpl implements AlarmService {
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
         String receivers = (String) collect.get("email.receivers");
         String[] split = receivers.split(",");
+        String protocol = (String) collect.get("email.server.tls");
 
         return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
-                .receivers(Arrays.asList(split)).build();
+                .receivers(Arrays.asList(split)).protocol(protocol).build();
     }
 
     private void connectPassAlarm(String nodeName, String connectId, String response_body, List<TaskDto> taskEntityList) {
