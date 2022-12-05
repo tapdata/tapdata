@@ -54,7 +54,7 @@ public abstract class LogMiner implements ILogMiner {
     protected String connectorId;
     protected KVReadOnlyMap<TapTable> tableMap; //pdk tableMap in streamRead
     protected List<String> tableList; //tableName list
-    protected Map<String, TapTable> lobTables = new HashMap<>(); //table those have lob type
+    protected Map<String, TapTable> lobTables; //table those have lob type
     protected int recordSize;
     protected StreamReadConsumer consumer;
 
@@ -79,8 +79,7 @@ public abstract class LogMiner implements ILogMiner {
                 lobTables.add(tapTable);
             }
         });
-        this.lobTables.clear();
-        this.lobTables.putAll(lobTables.stream().collect(Collectors.toMap(TapTable::getId, Function.identity())));
+        this.lobTables = lobTables.stream().collect(Collectors.toMap(TapTable::getId, Function.identity()));
     }
 
     protected void enqueueRedoLogContent(RedoLogContent redoLogContent) {
