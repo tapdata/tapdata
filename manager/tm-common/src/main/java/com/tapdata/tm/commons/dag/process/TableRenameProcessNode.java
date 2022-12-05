@@ -72,6 +72,7 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
                 String currentTableName = originalMap().get(originalName).getCurrentTableName();
                 schema.setName(currentTableName);
                 schema.setOriginalName(currentTableName);
+                schema.setAncestorsName(originalName);
                 //schema.setDatabaseId(null);
                 //schema.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), getId()));
             }

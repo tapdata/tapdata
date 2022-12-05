@@ -83,4 +83,16 @@ public class MonitorManager implements Closeable {
 			return clazz;
 		}
 	}
+
+	@Override
+	public String toString() {
+		if (CollectionUtils.isEmpty(monitors)) {
+			return "No monitor";
+		}
+		List<String> list = new ArrayList<>();
+		for (Monitor<?> monitor : monitors) {
+			list.add(monitor.describe());
+		}
+		return "Monitors: \n  - " + String.join("\n  - ", list);
+	}
 }

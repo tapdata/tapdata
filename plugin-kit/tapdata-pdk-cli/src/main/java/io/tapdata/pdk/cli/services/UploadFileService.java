@@ -10,6 +10,7 @@ import com.tapdata.tm.sdk.util.IOUtil;
 import com.tapdata.tm.sdk.util.SignUtil;
 import io.tapdata.pdk.cli.utils.HttpRequest;
 import io.tapdata.pdk.cli.utils.OkHttpUtils;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import okhttp3.internal.Util;
 import okio.BufferedSink;
@@ -33,6 +34,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * @Date: 2022/2/22
  * @Description:
  */
+@Slf4j
 public class UploadFileService {
 
   public static void upload(Map<String, InputStream> inputStreamMap, File file, List<String> jsons, boolean latest, String hostAndPort, String accessCode, String ak, String sk) {
@@ -50,6 +52,12 @@ public class UploadFileService {
       String s = OkHttpUtils.postJsonParams(tokenUrl, jsonString);
 
       System.out.println("generate token " + s);
+
+      if (StringUtils.isBlank(s)) {
+        log.error("tm sever not found or generate token failed");
+        return;
+      }
+
       Map map = JSON.parseObject(s, Map.class);
       Object data = map.get("data");
       JSONObject data1 = (JSONObject) data;

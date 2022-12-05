@@ -43,6 +43,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 
 @Service
@@ -61,25 +62,30 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user) {
 
+        AtomicBoolean needCalculateAgent = new AtomicBoolean(true);
         String agentId = taskDto.getAgentId();
         Optional.ofNullable(agentId).ifPresent(id -> {
             List<Worker> workerList = workerService.findAvailableAgentByAccessNode(user, Lists.newArrayList(agentId));
-            Optional.ofNullable(workerList).ifPresent(list -> {
+            if (CollectionUtils.isNotEmpty(workerList)) {
                 Worker workerDto = workerList.get(0);
 
                 Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
-                long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48 ) * 1000 : 108000;
+                long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48) * 1000 : 108000;
 
-                if (workerDto.getPingTime() > heartExpire) {
-                    if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
-                            && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-                        taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
-                    } else {
-                        taskDto.setAgentId(null);
-                    }
+                if (workerDto.getPingTime() < heartExpire) {
+                    needCalculateAgent.set(false);
                 }
-            });
+            }
         });
+
+        if (needCalculateAgent.get()) {
+            if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
+                    && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
+                taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
+            } else {
+                taskDto.setAgentId(null);
+            }
+        }
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
         if (StringUtils.isBlank(taskDto.getAgentId())) {

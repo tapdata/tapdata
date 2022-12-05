@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> {
+    protected ExecuteQueryStringFunction executeQueryStringFunction;
     protected ReleaseExternalFunction releaseExternalFunction;
     protected BatchReadFunction batchReadFunction;
     protected StreamReadFunction streamReadFunction;
@@ -50,27 +51,11 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
     protected NewFieldFunction newFieldFunction;
     protected RawDataCallbackFilterFunction rawDataCallbackFilterFunction;
     protected RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2;
-    protected CountByPartitionFilterFunction countByPartitionFilterFunction;
-    protected GetReadPartitionsFunction getReadPartitionsFunction;
-    protected PartitionReadFunction partitionReadFunction;
-    protected QueryFieldMinMaxValueFunction queryFieldMinMaxValueFunction;
+    public ConnectorFunctions supportExecuteQueryStringFunction(ExecuteQueryStringFunction function) {
+        executeQueryStringFunction = function;
+        return this;
+    }
 
-    public ConnectorFunctions supportCountByPartitionFilterFunction(CountByPartitionFilterFunction function) {
-        countByPartitionFilterFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportGetReadPartitionsFunction(GetReadPartitionsFunction function) {
-        getReadPartitionsFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportPartitionReadFunction(PartitionReadFunction function) {
-        this.partitionReadFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportQueryFieldMinMaxValueFunction(QueryFieldMinMaxValueFunction function) {
-        this.queryFieldMinMaxValueFunction = function;
-        return this;
-    }
     public ConnectorFunctions supportRawDataCallbackFilterFunction(RawDataCallbackFilterFunction function) {
         rawDataCallbackFilterFunction = function;
         return this;
@@ -364,19 +349,7 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
         return rawDataCallbackFilterFunctionV2;
     }
 
-    public CountByPartitionFilterFunction getCountByPartitionFilterFunction() {
-        return countByPartitionFilterFunction;
-    }
-
-    public GetReadPartitionsFunction getGetReadPartitionsFunction() {
-        return getReadPartitionsFunction;
-    }
-
-    public PartitionReadFunction getPartitionReadFunction() {
-        return partitionReadFunction;
-    }
-
-    public QueryFieldMinMaxValueFunction getQueryFieldMinMaxValueFunction() {
-        return queryFieldMinMaxValueFunction;
+    public ExecuteQueryStringFunction getExecuteQueryStringFunction() {
+        return executeQueryStringFunction;
     }
 }

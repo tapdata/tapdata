@@ -10,7 +10,9 @@ import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,8 +52,8 @@ public class FtpFileStorage implements TapFileStorage {
     @Override
     public void destroy() throws IOException {
         if (EmptyKit.isNotNull(ftpClient)) {
-            ftpClient.logout();
             if (ftpClient.isConnected()) {
+                ftpClient.logout();
                 ftpClient.disconnect();
             }
         }
@@ -92,10 +94,17 @@ public class FtpFileStorage implements TapFileStorage {
     }
 
     @Override
-    public InputStream readFile(String path) throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        ftpClient.retrieveFile(encodeISO(path), outputStream);
-        return new ByteArrayInputStream(outputStream.toByteArray());
+    public void readFile(String path, Consumer<InputStream> consumer) throws IOException {
+        if (!isFileExist(path)) {
+            return;
+        }
+        try (
+                InputStream is = ftpClient.retrieveFileStream(encodeISO(path))
+        ) {
+            consumer.accept(is);
+        } finally {
+            ftpClient.completePendingCommand();
+        }
     }
 
     @Override

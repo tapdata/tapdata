@@ -65,6 +65,9 @@ public class CsvConnector extends FileConnector {
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         //as file-connector: nodeConfig is supported, so initConnection can be used
         initConnection(connectionContext);
+        if (EmptyKit.isBlank(fileConfig.getModelName())) {
+            return;
+        }
         TapTable tapTable = table(fileConfig.getModelName());
         ConcurrentMap<String, TapFile> csvFileMap = getFilteredFiles();
         CsvSchema csvSchema = new CsvSchema((CsvConfig) fileConfig, storage);
@@ -90,48 +93,62 @@ public class CsvConnector extends FileConnector {
                                BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer,
                                AtomicReference<List<TapEvent>> tapEvents) throws Exception {
         Map<String, String> dataTypeMap = tapTable.getNameFieldMap().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getDataType()));
-        try (
-                Reader reader = new InputStreamReader(storage.readFile(fileOffset.getPath()), fileConfig.getFileEncoding());
-                CSVReader csvReader = new CSVReaderBuilder(reader).build()
-        ) {
-            String[] headers;
-            if (EmptyKit.isNotBlank(fileConfig.getHeader())) {
-                headers = fileConfig.getHeader().split(",");
-            } else {
-                if (fileConfig.getHeaderLine() > 0) {
-                    csvReader.skip(fileConfig.getHeaderLine() - 1);
-                    headers = csvReader.readNext();
+        long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
+        storage.readFile(fileOffset.getPath(), is -> {
+            try (
+                    Reader reader = new InputStreamReader(is, fileConfig.getFileEncoding());
+                    CSVReader csvReader = new CSVReaderBuilder(reader).build()
+            ) {
+                String[] headers;
+                if (EmptyKit.isNotBlank(fileConfig.getHeader())) {
+                    headers = fileConfig.getHeader().split(",");
                 } else {
-                    csvReader.skip(fileConfig.getDataStartLine() - 1);
-                    String[] data = csvReader.readNext();
-                    headers = new String[data.length];
-                    for (int j = 0; j < headers.length; j++) {
-                        headers[j] = "column" + (j + 1);
+                    if (fileConfig.getHeaderLine() > 0) {
+                        csvReader.skip(fileConfig.getHeaderLine() - 1);
+                        headers = csvReader.readNext();
+                    } else {
+                        csvReader.skip(fileConfig.getDataStartLine() - 1);
+                        String[] data = csvReader.readNext();
+                        headers = new String[data.length];
+                        for (int j = 0; j < headers.length; j++) {
+                            headers[j] = "column" + (j + 1);
+                        }
                     }
                 }
-            }
-            if (EmptyKit.isNotEmpty(headers)) {
-                csvReader.skip(fileOffset.getDataLine() - 2 - csvReader.getSkipLines());
-                String[] data;
-                long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
-                while (isAlive() && (data = csvReader.readNext()) != null) {
-                    Map<String, Object> after = new HashMap<>();
-                    putIntoMap(after, headers, data, dataTypeMap);
-                    tapEvents.get().add(insertRecordEvent(after, tapTable.getId()).referenceTime(lastModified));
-                    if (tapEvents.get().size() == eventBatchSize) {
-                        fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize);
-                        fileOffset.setPath(fileOffset.getPath());
-                        eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
-                        tapEvents.set(list());
+                if (EmptyKit.isNotEmpty(headers)) {
+                    csvReader.skip(fileOffset.getDataLine() - 2 - csvReader.getSkipLines());
+                    String[] data;
+                    int blankSkip = 0;
+                    while (isAlive() && (data = csvReader.readNext()) != null) {
+                        Map<String, Object> after = new HashMap<>();
+                        putIntoMap(after, headers, data, dataTypeMap);
+                        if (after.entrySet().stream().allMatch(v -> EmptyKit.isNull(v.getValue()))) {
+                            blankSkip++;
+                            continue;
+                        }
+                        tapEvents.get().add(insertRecordEvent(after, tapTable.getId()).referenceTime(lastModified));
+                        if (tapEvents.get().size() == eventBatchSize) {
+                            fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize + blankSkip);
+                            blankSkip = 0;
+                            fileOffset.setPath(fileOffset.getPath());
+                            eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
+                            tapEvents.set(list());
+                        }
                     }
                 }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
-        }
+        });
     }
 
     private void putIntoMap(Map<String, Object> after, String[] headers, String[] data, Map<String, String> dataTypeMap) {
         for (int i = 0; i < headers.length && i < data.length; i++) {
-            after.put(headers[i], MatchUtil.parse(data[i], dataTypeMap.get(headers[i])));
+            try {
+                after.put(headers[i], MatchUtil.parse(data[i], dataTypeMap.get(headers[i])));
+            } catch (Exception e) {
+                throw new RuntimeException(String.format("%s field has invalid value", headers[i]), e);
+            }
         }
         for (int i = 0; i < headers.length - data.length; i++) {
             switch (dataTypeMap.get(headers[i + data.length])) {

@@ -50,44 +50,52 @@ public class JsonConnector extends FileConnector {
     }
 
     private void readJsonObjectFile(FileOffset fileOffset, TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer, AtomicReference<List<TapEvent>> tapEvents) throws Exception {
-        try (
-                Reader reader = new InputStreamReader(storage.readFile(fileOffset.getPath()), fileConfig.getFileEncoding());
-                JsonReader jsonReader = new JsonReader(reader)
-        ) {
-            long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
-            jsonReader.beginObject();
-            while (isAlive() && jsonReader.hasNext()) {
-                String __key = jsonReader.nextName();
-                Map<String, Object> dataMap = JsonReaderUtil.traverseMap(jsonReader);
-                dataMap.put("__key", __key);
-                tapEvents.get().add(insertRecordEvent(dataMap, tapTable.getId()).referenceTime(lastModified));
-                if (tapEvents.get().size() == eventBatchSize) {
-                    fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize);
-                    fileOffset.setPath(fileOffset.getPath());
-                    eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
-                    tapEvents.set(list());
+        long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
+        storage.readFile(fileOffset.getPath(), is -> {
+            try (
+                    Reader reader = new InputStreamReader(is, fileConfig.getFileEncoding());
+                    JsonReader jsonReader = new JsonReader(reader)
+            ) {
+                jsonReader.beginObject();
+                while (isAlive() && jsonReader.hasNext()) {
+                    String __key = jsonReader.nextName();
+                    Map<String, Object> dataMap = JsonReaderUtil.traverseMap(jsonReader);
+                    dataMap.put("__key", __key);
+                    tapEvents.get().add(insertRecordEvent(dataMap, tapTable.getId()).referenceTime(lastModified));
+                    if (tapEvents.get().size() == eventBatchSize) {
+                        fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize);
+                        fileOffset.setPath(fileOffset.getPath());
+                        eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
+                        tapEvents.set(list());
+                    }
                 }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
-        }
+        });
     }
 
     private void readJsonArrayFile(FileOffset fileOffset, TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer, AtomicReference<List<TapEvent>> tapEvents) throws Exception {
-        try (
-                Reader reader = new InputStreamReader(storage.readFile(fileOffset.getPath()), fileConfig.getFileEncoding());
-                JsonReader jsonReader = new JsonReader(reader)
-        ) {
-            long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
-            jsonReader.beginArray();
-            while (isAlive() && jsonReader.hasNext()) {
-                tapEvents.get().add(insertRecordEvent(JsonReaderUtil.traverseMap(jsonReader), tapTable.getId()).referenceTime(lastModified));
-                if (tapEvents.get().size() == eventBatchSize) {
-                    fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize);
-                    fileOffset.setPath(fileOffset.getPath());
-                    eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
-                    tapEvents.set(list());
+        long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
+        storage.readFile(fileOffset.getPath(), is -> {
+            try (
+                    Reader reader = new InputStreamReader(is, fileConfig.getFileEncoding());
+                    JsonReader jsonReader = new JsonReader(reader)
+            ) {
+                jsonReader.beginArray();
+                while (isAlive() && jsonReader.hasNext()) {
+                    tapEvents.get().add(insertRecordEvent(JsonReaderUtil.traverseMap(jsonReader), tapTable.getId()).referenceTime(lastModified));
+                    if (tapEvents.get().size() == eventBatchSize) {
+                        fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize);
+                        fileOffset.setPath(fileOffset.getPath());
+                        eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
+                        tapEvents.set(list());
+                    }
                 }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
-        }
+        });
     }
 
     @Override
@@ -109,6 +117,9 @@ public class JsonConnector extends FileConnector {
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         initConnection(connectionContext);
+        if (EmptyKit.isBlank(fileConfig.getModelName())) {
+            return;
+        }
         TapTable tapTable = table(fileConfig.getModelName());
         ConcurrentMap<String, TapFile> jsonFileMap = getFilteredFiles();
         JsonSchema jsonSchema = new JsonSchema((JsonConfig) fileConfig, storage);
