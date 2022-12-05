@@ -195,6 +195,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
                     addIndexMap.entrySet().removeIf(e -> existIndexNameSet.contains(e.getKey()));
                     indexList.addAll(addIndexMap.values());
                 }
+                tapTable.setIndexList(indexList);
 
                 Schema jsSchema = PdkSchemaConvert.fromPdkSchema(tapTable);
                 jsSchema.setDatabaseId(schema.getDatabaseId());
