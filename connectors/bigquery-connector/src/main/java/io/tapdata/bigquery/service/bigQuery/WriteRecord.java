@@ -282,6 +282,7 @@ public class WriteRecord extends BigQueryStart{
             sql.append(whereSql.toString());
             if (filterSize>1) sql.append(" ) ");
         });
+        sql.append("; ");
         return sql.toString();//.replaceAll("1=2  OR",this.empty);
     }
 
