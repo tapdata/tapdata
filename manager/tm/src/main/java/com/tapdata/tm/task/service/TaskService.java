@@ -46,6 +46,8 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
@@ -144,6 +146,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private TaskScheduleService taskScheduleService;
 
     private ScheduleService scheduleService;
+
+    private MetadataDefinitionService metadataDefinitionService;
 
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
@@ -2022,6 +2026,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 taskDto.setLastUpdBy(null);
                 taskDto.setUserId(null);
                 taskDto.setAgentId(null);
+                taskDto.setListtags(null);
+                taskDto.setAccessNodeProcessId(null);
+                taskDto.setAccessNodeProcessIdList(new ArrayList<>());
+                taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
                 Map<String, Object> attrs = taskDto.getAttrs();
@@ -2078,7 +2087,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Tag> tags) {
+    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags) {
         byte[] bytes;
         List<TaskUpAndLoadDto> taskUpAndLoadDtos;
 
@@ -2143,11 +2152,30 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Tag> tags) {
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags) {
+
+        List<Tag> tagList = new ArrayList<>();
+
+        if (CollectionUtils.isNotEmpty(tags)) {
+            Criteria criteriaTags = Criteria.where("_id").in(tags);
+            Query query = new Query(criteriaTags);
+            query.fields().include("_id", "value");
+            List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAllDto(query, user);
+            if (CollectionUtils.isNotEmpty(allDto)) {
+                tagList = allDto.stream().map(m -> new Tag(m.getId().toHexString(), m.getValue())).collect(Collectors.toList());
+            }
+        }
+
         for (TaskDto taskDto : taskDtos) {
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
             query.fields().include("id");
             TaskDto one = findOne(query);
+
+            taskDto.setListtags(null);
+            taskDto.setStatus(TaskDto.STATUS_EDIT);
+            taskDto.setAccessNodeProcessId(null);
+            taskDto.setAccessNodeProcessIdList(new ArrayList<>());
+            taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 
             Map<String, Object> attrs = taskDto.getAttrs();
             if (attrs != null) {
@@ -2165,7 +2193,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     taskDto.setName(taskDto.getName() + "_import");
                 }
 
-                taskDto.setListtags(tags);
+                if (CollectionUtils.isNotEmpty(tagList)) {
+                    taskDto.setListtags(tagList);
+                }
                 if (one == null) {
                     //taskDto.setId(null);
                     TaskEntity taskEntity = repository.importEntity(convertToEntity(TaskEntity.class, taskDto), user);
@@ -2624,8 +2654,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     /**
      * @see DataFlowEvent#SCHEDULE_SUCCESS
-     * @param taskDto
-     * @param user
+     * @param dto
+     * @param status
+     * @param userDetail
      */
     public void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
         dto.setStatus(status);
