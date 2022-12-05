@@ -9,6 +9,7 @@ import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapTimeValue;
 
 import java.sql.Time;
+import java.util.Date;
 
 @Implementation(value = ToTapValueCodec.class, type = TapDefaultCodecs.TAP_TIME_VALUE, buildNumber = 0)
 public class ToTapTimeCodec implements ToTapValueCodec<TapTimeValue> {
@@ -20,8 +21,8 @@ public class ToTapTimeCodec implements ToTapValueCodec<TapTimeValue> {
 
         if(value instanceof DateTime) {
             return new TapTimeValue((DateTime) value);
-        } else if (value instanceof Time || value instanceof Long) {
-            long val = value instanceof Time ? ((Time)value).getTime() : (Long) value;
+        } else if (value instanceof Long) {
+            long val = (Long) value;
             DateTime dateTime = new DateTime();
             dateTime.setNano((int) ((val % 1000000) * 1000));
             dateTime.setSeconds(val = val/1000000);
