@@ -33,7 +33,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.exception.SourceException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
@@ -60,7 +59,6 @@ import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -170,7 +168,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (needDynamicTable(null)) {
 				this.newTables = new CopyOnWriteArrayList<>();
 				this.removeTables = new CopyOnWriteArrayList<>();
-				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(), associateId, dataProcessorContext.getTaskDto());
+				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(),
+						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn());
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
@@ -221,7 +220,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					String connectionId = NodeUtil.getConnectionId(dataProcessorContext.getNode());
 					TaskDto.SyncPoint syncPoint = null;
 					if (null != syncPoints) {
-						//todo: need to use syncPoint on node, now fix the syncPoint does not take effect first
+						//todo: need to use syncPoint on node, fix the sync point does not take effect first
 //						syncPoint = syncPoints.stream().filter(sp -> connectionId.equals(sp.getConnectionId())).findFirst().orElse(null);
 						syncPoint = syncPoints.stream().findFirst().orElse(null);
 					}
@@ -324,7 +323,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
 			TapdataEvent dataEvent = null;
 			if (!isRunning()) {
-				return true;
+				return null == error;
 			}
 			if (pendingEvent != null) {
 				dataEvent = pendingEvent;
@@ -349,25 +348,31 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					return false;
 				}
 			}
-			if (error != null) {
-				throw new NodeException(error).context(getProcessorBaseContext());
-			}
 
 			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()
 					&& null == pendingEvent && eventQueue.isEmpty()) {
 				if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())) {
-					Object completedInitial = getGlobalMap(getCompletedInitialKey());
-					if (completedInitial instanceof Boolean && (Boolean) completedInitial) {
-						this.running.set(false);
+					Object residueSnapshot = getGlobalMap(getCompletedInitialKey());
+					if (residueSnapshot instanceof Integer) {
+						int residueSnapshotInt = (int) residueSnapshot;
+						if (residueSnapshotInt <= 0) {
+							this.running.set(false);
+						}
 					}
 				} else {
 					this.running.set(false);
 				}
 			}
+			/*if (1 == 1) {
+				Thread.sleep(5000L);
+				throw new RuntimeException("test");
+			}*/
 		} catch (Exception e) {
-			logger.error("Source sync failed {}.", e.getMessage(), e);
-			obsLogger.error(MessageFormat.format("Source sync failed {0}.", e.getMessage()), e);
-			throw new SourceException(e, true);
+			String errorMsg = String.format("Source sync failed: %s", e.getMessage());
+			logger.error(errorMsg, e);
+			obsLogger.error(errorMsg, e);
+//			throw new RuntimeException(errorMsg, e);
+			errorHandle(e, errorMsg);
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -756,4 +761,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		NORMAL,
 		SHARE_CDC,
 	}
+
+
 }

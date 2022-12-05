@@ -248,11 +248,20 @@ public class MongodbMergeOperate {
 		final MergeBundle.EventOperation operation = mergeBundle.getOperation();
 		final List<String> arrayKeys = currentProperty.getArrayKeys();
 		if (array) {
-			final List<Document> arrayFilter = arrayFilter(
-					MapUtils.isNotEmpty(mergeBundle.getBefore()) ? mergeBundle.getBefore() : mergeBundle.getAfter(),
-					currentProperty.getJoinKeys(),
-					arrayKeys
-			);
+			final List<Document> arrayFilter;
+			if (operation == MergeBundle.EventOperation.UPDATE) {
+				arrayFilter = arrayFilter(
+						MapUtils.isNotEmpty(mergeBundle.getBefore()) ? mergeBundle.getBefore() : mergeBundle.getAfter(),
+						currentProperty.getJoinKeys(),
+						arrayKeys
+				);
+			} else {
+				arrayFilter = arrayFilter(
+						MapUtils.isNotEmpty(mergeBundle.getBefore()) ? mergeBundle.getBefore() : mergeBundle.getAfter(),
+						currentProperty.getJoinKeys(),
+						currentProperty.getTargetPath()
+				);
+			}
 			mergeResult.getUpdateOptions().arrayFilters(arrayFilter);
 		} else {
 			final Document filter = filter(
@@ -280,9 +289,23 @@ public class MongodbMergeOperate {
 		switch (operation) {
 			case INSERT:
 				for (String arrayKey : arrayKeys) {
+					if (array && targetPath.split("\\.").length > 1) {
+						for (Map<String, String> joinKey : currentProperty.getJoinKeys()) {
+							mergeResult.getFilter().append(joinKey.get("target"), after.get(joinKey.get("source")));
+						}
+					}
 					mergeResult.getFilter().append(targetPath + "." + arrayKey, new Document("$ne", after.get(arrayKey)));
 				}
-				updateOpDoc.append(targetPath, after);
+				if (array) {
+					String[] paths = targetPath.split("\\.");
+					if (paths.length > 1) {
+						updateOpDoc.append(paths[0] + ".$[element1]." + paths[1], after);
+					} else {
+						updateOpDoc.append(paths[0] + ".$[element1]", after);
+					}
+				} else {
+					updateOpDoc.append(targetPath, after);
+				}
 				if (mergeResult.getUpdate().containsKey("$addToSet")) {
 					mergeResult.getUpdate().get("$addToSet", Document.class).putAll(updateOpDoc);
 				} else {
@@ -292,7 +315,12 @@ public class MongodbMergeOperate {
 			case UPDATE:
 				for (Map.Entry<String, Object> entry : after.entrySet()) {
 					if (array) {
-						updateOpDoc.append(targetPath + ".$[element1]." + entry.getKey(), entry.getValue());
+						String[] paths = targetPath.split("\\.");
+						if (paths.length > 1) {
+							updateOpDoc.append(paths[0] + ".$[element1]." + paths[1] + ".$[element2]." + entry.getKey(), entry.getValue());
+						} else {
+							updateOpDoc.append(targetPath + ".$[element1]." + entry.getKey(), entry.getValue());
+						}
 					} else {
 						updateOpDoc.append(targetPath + ".$[element1]." + entry.getKey(), entry.getValue());
 					}
@@ -348,8 +376,8 @@ public class MongodbMergeOperate {
 		List<Document> arrayFilter = new ArrayList<>();
 		for (Map<String, String> joinKey : joinKeys) {
 			Document filter = new Document();
-			final String embeddedField = joinKey.get("target").substring(joinKey.get("target").lastIndexOf(".") + 1);
-			filter.put("element1." + embeddedField, MapUtil.getValueByKey(data, joinKey.get("source")));
+			String[] paths = joinKey.get("target").split("\\.");
+			filter.put("element1." + paths[paths.length - 1], MapUtil.getValueByKey(data, joinKey.get("source")));
 			arrayFilter.add(filter);
 		}
 		return arrayFilter;
@@ -359,13 +387,15 @@ public class MongodbMergeOperate {
 		List<Document> arrayFilter = new ArrayList<>();
 		for (Map<String, String> joinKey : joinKeys) {
 			Document filter = new Document();
-			filter.put("element1." + joinKey.get("target"), MapUtil.getValueByKey(data, joinKey.get("source")));
+			String[] paths = joinKey.get("target").split("\\.");
+			filter.put("element1." + paths[paths.length - 1], MapUtil.getValueByKey(data, joinKey.get("source")));
 			arrayFilter.add(filter);
 		}
 
 		for (String arrayKey : arrayKeys) {
 			Document filter = new Document();
-			filter.put("element2." + arrayKey, MapUtil.getValueByKey(data, arrayKey));
+			String[] paths = arrayKey.split("\\.");
+			filter.put("element2." + paths[paths.length-1], MapUtil.getValueByKey(data, arrayKey));
 			arrayFilter.add(filter);
 		}
 		return arrayFilter;

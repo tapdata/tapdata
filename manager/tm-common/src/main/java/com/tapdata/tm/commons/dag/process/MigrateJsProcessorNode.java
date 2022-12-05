@@ -2,7 +2,7 @@ package com.tapdata.tm.commons.dag.process;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Lists;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
@@ -185,7 +185,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
                     });
                 }
 
-                List<TapIndex> indexList = tapTable.getIndexList();
+                List<TapIndex> indexList = Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>());
                 if (!removeIndexMap.isEmpty()) {
                     indexList.removeIf(i -> removeIndexMap.containsKey(i.getName()));
                 }
@@ -195,6 +195,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
                     addIndexMap.entrySet().removeIf(e -> existIndexNameSet.contains(e.getKey()));
                     indexList.addAll(addIndexMap.values());
                 }
+                tapTable.setIndexList(indexList);
 
                 Schema jsSchema = PdkSchemaConvert.fromPdkSchema(tapTable);
                 jsSchema.setDatabaseId(schema.getDatabaseId());

@@ -55,14 +55,13 @@ public class TidbConnector extends ConnectorBase {
     private TidbConnectionTest tidbConnectionTest;
 
 
-
-
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
-        tidbConfig= (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
-        tidbConnectionTest = new TidbConnectionTest(tidbConfig);
+        this.tidbConfig = (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
+        this.tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {},null);
+
         if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
             tidbContext = (TidbContext) DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, tapConnectionContext.getId());
         }
@@ -230,7 +229,7 @@ public class TidbConnector extends ConnectorBase {
                 tidbContext.clearTable(tapClearTableEvent.getTableId());
             }
         } catch (Throwable e) {
-            TapLogger.error(TAG,e.getMessage());
+            TapLogger.error(TAG, e.getMessage());
             throw new RuntimeException("TRUNCATE Table " + tapClearTableEvent.getTableId() + " Failed! \n ");
         }
     }
@@ -240,7 +239,7 @@ public class TidbConnector extends ConnectorBase {
             tidbContext.dropTable(tapDropTableEvent.getTableId());
 
         } catch (Throwable e) {
-            TapLogger.error(TAG,e.getMessage());
+            TapLogger.error(TAG, e.getMessage());
             throw new RuntimeException("Drop Table " + tapDropTableEvent.getTableId() + " Failed! \n ");
         }
     }
@@ -252,14 +251,14 @@ public class TidbConnector extends ConnectorBase {
             if (tidbContext.queryAllTables(Collections.singletonList(tapTable.getId())).size() > 0) {
                 createTableOptions.setTableExists(true);
                 return createTableOptions;
-            }else {
+            } else {
                 String createTableSqls = tidbSqlMaker.createTable(tapConnectorContext, tapCreateTableEvent);
-                    try {
-                        tidbContext.execute(createTableSqls);
-                    } catch (Throwable e) {
-                        throw new Exception("Execute create table failed, sql: " + createTableSqls + ", message: " + e.getMessage(), e);
-                    }
+                try {
+                    tidbContext.execute(createTableSqls);
+                } catch (Throwable e) {
+                    throw new Exception("Execute create table failed, sql: " + createTableSqls + ", message: " + e.getMessage(), e);
                 }
+            }
         } catch (Throwable t) {
             throw new Exception("Create table failed, message: " + t.getMessage(), t);
         }
@@ -268,7 +267,7 @@ public class TidbConnector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
-        new TidbRecordWrite(tidbContext,tapTable).write(tapRecordEvents, consumer);
+        new TidbRecordWrite(tidbContext, tapTable).write(tapRecordEvents, consumer);
     }
 
 
@@ -313,30 +312,15 @@ public class TidbConnector extends ConnectorBase {
     }
 
 
-
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
         tidbConfig = (TidbConfig) new TidbConfig().load(databaseContext.getConnectionConfig());
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(tidbConfig.getConnectionString());
         try (
-                TidbConnectionTest connectionTest = new TidbConnectionTest(tidbConfig)
+                TidbConnectionTest connectionTest = new TidbConnectionTest(tidbConfig, consumer,connectionOptions)
         ) {
-            TestItem testHostPort = connectionTest.testHostPort();
-            consumer.accept(testHostPort);
-            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-                return connectionOptions;
-            }
-            TestItem testPbServerHostPort = connectionTest.testPbserver();
-            consumer.accept(testPbServerHostPort);
-            if (testPbServerHostPort.getResult() == TestItem.RESULT_FAILED) {
-                return connectionOptions;
-            }
-            TestItem testConnect = connectionTest.testConnect();
-            consumer.accept(testConnect);
-            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-                return connectionOptions;
-            }
+            connectionTest.testOneByOne();
         }
         return connectionOptions;
     }
@@ -351,13 +335,6 @@ public class TidbConnector extends ConnectorBase {
         consumer.accept(testConnection);
     }
 
-    private static String toHHmmss(long time) {
-        String timeTemp;
-        int hours = (int) (time % (1000 * 60 * 60 * 24) / (1000 * 60 * 60));
-        int minutes = (int) (time % (1000 * 60 * 60) / (1000 * 60));
-        int seconds = (int) (time % (1000 * 60) / 1000);
-        timeTemp = (hours < 10 ? ("0" + hours) : hours) + ":" + (minutes < 10 ? ("0" + minutes) : minutes) + ":" + (seconds < 10 ? ("0" + seconds) : seconds);
-        return timeTemp;
-    }
+
 }
 

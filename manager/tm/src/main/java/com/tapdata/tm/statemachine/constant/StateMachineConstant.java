@@ -50,6 +50,14 @@ public class StateMachineConstant {
 	public static final String DATAFLOW_STATUS_DONE = "complete";
 
 
+
+	/**
+	 * 编辑任务
+	 **/
+	public static final String DATAFLOW_EVENT_EDIT = "edit";
+
+	/** 确认保存 */
+	public static final String DATAFLOW_EVENT_CONFIRM = "confirm";
 	/**
 	 * 启动任务
 	 **/
@@ -63,17 +71,14 @@ public class StateMachineConstant {
 	 **/
 	public static final String DATAFLOW_EVENT_FORCE_STOP = "force_stop";
 	/**
-	 * 调度失败
+	 * 调度失败  （找不到可用的引擎）
 	 **/
 	public static final String DATAFLOW_EVENT_SCHEDULE_FAILED = "schedule_failed";
 	/**
 	 * 调度成功
 	 **/
 	public static final String DATAFLOW_EVENT_SCHEDULE_SUCCESS = "schedule_success";
-	/**
-	 * 编辑任务
-	 **/
-	public static final String DATAFLOW_EVENT_EDIT = "edit";
+
 	/**
 	 * 重启任务
 	 **/
@@ -102,4 +107,12 @@ public class StateMachineConstant {
 	 * 任务执行错误
 	 **/
 	public static final String DATAFLOW_EVENT_ERROR = "error";
+	/** 重置 */
+	public static final String DATAFLOW_EVENT_RENEW = "renew";
+	/** 删除 */
+	public static final String DATAFLOW_EVENT_DELETE = "delete";
+	/** 重置删除失败 */
+	public static final String DATAFLOW_EVENT_RENEW_DEL_FAILED = "renew_delete_failed";
+	/** 重置删除成功 */
+	public static final String DATAFLOW_EVENT_RENEW_DEL_SUCCESS = "renew_delete_success";
 }

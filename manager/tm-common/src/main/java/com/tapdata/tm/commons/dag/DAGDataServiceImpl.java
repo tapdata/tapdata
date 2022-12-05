@@ -1,6 +1,5 @@
 package com.tapdata.tm.commons.dag;
 
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.*;
@@ -9,6 +8,7 @@ import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
@@ -391,6 +391,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
             /*MetadataInstancesDto result = metadataInstancesService.upsertByWhere(
                     Where.where("qualified_name", metadataInstancesDto.getQualifiedName()), metadataInstancesDto, userDetail);*/
+
+            options.processRule(metadataInstancesDto);
             return metadataInstancesDto;
         }).collect(Collectors.toList());
 

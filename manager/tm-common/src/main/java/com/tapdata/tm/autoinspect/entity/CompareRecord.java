@@ -144,19 +144,16 @@ public class CompareRecord {
         if (null == v) return null;
 
         if (v instanceof DateTime) {
-            if (field.getTapType() instanceof TapDateTime) {
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-                return sdf.format(((DateTime) v).toDate());
-            } else if (field.getTapType() instanceof TapDate) {
+            if (field.getTapType() instanceof TapDate) {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+                sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
                 return sdf.format(((DateTime) v).toDate());
             } else if (field.getTapType() instanceof TapTime) {
                 return ((DateTime) v).toTime();
             } else if (field.getTapType() instanceof TapYear) {
                 return String.valueOf(((DateTime) v).toSqlDate().toLocalDate().getYear());
             }
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-            return sdf.format(((DateTime) v).toDate());
+            return ((DateTime)v).toInstant().toString();
         } else if (v instanceof byte[]) {
             byte[] tmp = (byte[]) v;
             if (tmp.length == 0) {

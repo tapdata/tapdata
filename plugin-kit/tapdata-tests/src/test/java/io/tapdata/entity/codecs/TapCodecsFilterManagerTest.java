@@ -5,6 +5,7 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.codec.detector.impl.NewFieldDetector;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.codec.filter.ToTapValueCheck;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.conversion.TargetTypesGenerator;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
@@ -23,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -115,7 +117,46 @@ public class TapCodecsFilterManagerTest {
 
         assertEquals("v", ((Map)((List)((Map)((List)map.get("tapArrayMap")).get(1)).get("n")).get(2)).get("k"));
     }
+    @Test
+    public void testNewFieldWithoutDetector() {
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+        Map<String, Object> map = map(
+                entry("string1", "string"),
+                entry("int1", 5555),
+                entry("long1", 34324L),
+                entry("double1", 343.324d)
+        );
 
+        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+        sourceNameFieldMap.put("string1", field("string", "varchar").tapType(tapString().bytes(50L)));
+        sourceNameFieldMap.put("int1", field("int", "number(32)").tapType(tapNumber().bit(32).maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))));
+        sourceNameFieldMap.put("long1", field("long", "number(64)").tapType(tapNumber().bit(64).minValue(BigDecimal.valueOf(Long.MIN_VALUE)).maxValue(BigDecimal.valueOf(Long.MAX_VALUE))));
+        sourceNameFieldMap.put("double1", field("double", "double").tapType(tapNumber().scale(3).bit(64).minValue(BigDecimal.valueOf(Double.MIN_VALUE)).maxValue(BigDecimal.valueOf(Double.MAX_VALUE))));
+
+        //Add fields outside of fields in Table.
+        map.put("dateTime", new Date());
+        map.put("double", 11.3d);
+        map.put("bigDecimal", BigDecimal.ONE);
+        map.put("string", "hello");
+        map.put("map", map(entry("1", 1)));
+        map.put("array", list("1"));
+        map.put("boolean", true);
+        map.put("bytes", new byte[]{'1'});
+        map.put("arrayMap", list(map(entry("1", 1))));
+
+        //read from source, transform to TapValue out from source connector.
+        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+
+        //before enter a processor, transform to value from TapValue.
+        Map<String, TapField> nameFieldMap = new ConcurrentHashMap<>();
+        codecsFilterManager.transformFromTapValueMap(map ,nameFieldMap);
+
+        assertEquals("hello", map.get("string"));
+        assertEquals(true, map.get("boolean"));
+        assertEquals(11.3d, map.get("double"));
+
+        assertEquals(13, map.size());
+    }
     @Test
     public void testNewFieldDetector() {
         TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
@@ -465,5 +506,74 @@ public class TapCodecsFilterManagerTest {
         assertTrue(map.get("list1") instanceof List);
         assertTrue(map.get("map") instanceof Map);
         assertTrue(((Map<?, ?>)((Map<?, ?>) map.get("map")).get("map")).get("a") instanceof DateTime);
+    }
+
+    @Test
+    public void testToTapValueCheck() {
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+        Map<String, Object> map = map(
+                entry("string1", "string"),
+                entry("int1", 5555),
+                entry("long1", 34324L),
+                entry("double1", 343.324d)
+        );
+        map.put("dateTime", new Date());
+        map.put("double", 11.3d);
+        map.put("bigDecimal", BigDecimal.ONE);
+        map.put("string", "hello");
+        map.put("map", map(entry("1", 1)));
+        map.put("array", list("1"));
+        map.put("boolean", true);
+        map.put("bytes", new byte[]{'1'});
+        map.put("arrayMap", list(map(entry("1", 1))));
+
+        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+        sourceNameFieldMap.put("string1", field("string", "varchar").tapType(tapString().bytes(50L)));
+        sourceNameFieldMap.put("int1", field("int", "number(32)").tapType(tapNumber().bit(32).maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))));
+        sourceNameFieldMap.put("long1", field("long", "number(64)").tapType(tapNumber().bit(64).minValue(BigDecimal.valueOf(Long.MIN_VALUE)).maxValue(BigDecimal.valueOf(Long.MAX_VALUE))));
+        sourceNameFieldMap.put("double1", field("double", "double").tapType(tapNumber().scale(3).bit(64).minValue(BigDecimal.valueOf(Double.MIN_VALUE)).maxValue(BigDecimal.valueOf(Double.MAX_VALUE))));
+
+
+        //read from source, transform to TapValue out from source connector.
+        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap, (ToTapValueCheck) (key, value) -> {
+            if(key.equals("dateTime")) {
+                assertEquals(value.getClass(), DateTime.class);
+            }
+            return true;
+        });
+
+        assertEquals(map.get("arrayMap").getClass(), ArrayList.class);
+        assertEquals(map.get("dateTime").getClass(), Date.class);
+    }
+
+    @Test
+    public void testToTapValueCheckStopFilter() {
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+        Map<String, Object> map = map(
+                entry("string1", "string"),
+                entry("int1", 5555),
+                entry("long1", 34324L),
+                entry("double1", 343.324d)
+        );
+
+        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+        sourceNameFieldMap.put("string1", field("string", "varchar").tapType(tapString().bytes(50L)));
+        sourceNameFieldMap.put("int1", field("int", "number(32)").tapType(tapNumber().bit(32).maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))));
+        sourceNameFieldMap.put("long1", field("long", "number(64)").tapType(tapNumber().bit(64).minValue(BigDecimal.valueOf(Long.MIN_VALUE)).maxValue(BigDecimal.valueOf(Long.MAX_VALUE))));
+        sourceNameFieldMap.put("double1", field("double", "double").tapType(tapNumber().scale(3).bit(64).minValue(BigDecimal.valueOf(Double.MIN_VALUE)).maxValue(BigDecimal.valueOf(Double.MAX_VALUE))));
+
+
+        AtomicInteger counter = new AtomicInteger(0);
+        //read from source, transform to TapValue out from source connector.
+        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap, (ToTapValueCheck) (key, value) -> {
+            counter.incrementAndGet();
+            if(key.equals("int1") && (int)value == 5555) {
+                return false;
+            }
+            assertFalse(key.equals("long1") || key.equals("double1"));
+            return true;
+        });
+
+        assertEquals(2, counter.get());
     }
 }

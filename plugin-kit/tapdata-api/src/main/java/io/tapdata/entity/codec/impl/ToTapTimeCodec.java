@@ -14,6 +14,10 @@ import java.sql.Time;
 public class ToTapTimeCodec implements ToTapValueCodec<TapTimeValue> {
     @Override
     public TapTimeValue toTapValue(Object value, TapType typeFromSchema) {
+        if(value instanceof Date) {
+            value = ((Date) value).getTime();
+        }
+
         if(value instanceof DateTime) {
             return new TapTimeValue((DateTime) value);
         } else if (value instanceof Time || value instanceof Long) {
@@ -28,7 +32,7 @@ public class ToTapTimeCodec implements ToTapValueCodec<TapTimeValue> {
             String timeStr = String.format("%02d", val % 60);
             timeStr = String.format("%02d", (val / 60) % 60) + ":" + timeStr;
             timeStr = (negative ? "-" : "") + String.format("%02d", val / 60) + ":" + timeStr;
-
+            //TODO Don't understand this, Long should be the originValue, is it necessary to use time string?
             dateTimeValue.setOriginValue(timeStr);
             return dateTimeValue;
         } else if (value instanceof String) {
@@ -37,7 +41,12 @@ public class ToTapTimeCodec implements ToTapValueCodec<TapTimeValue> {
             dateTimeValue.setOriginValue((String)value);
             return dateTimeValue;
         } else {
+            DateTime dateTime = AnyTimeToDateTime.toDateTime(value);
+            if (dateTime != null)
+                return new TapTimeValue(dateTime);
+        } /*else {
             throw new IllegalArgumentException("DateTime constructor time not support with " + value.getClass().getName());
-        }
+        }*/
+        return null;
     }
 }

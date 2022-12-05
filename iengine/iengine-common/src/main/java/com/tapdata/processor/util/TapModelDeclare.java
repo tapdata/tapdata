@@ -96,7 +96,7 @@ public class TapModelDeclare {
     Optional<TapField> optionalTapField = tapTable.getNameFieldMap().entrySet().stream().filter(t -> StringUtils.equals(fieldName, t.getKey())).map(Map.Entry::getValue)
             .peek(f -> {
               f.setPrimaryKey(true);
-              f.setPrimaryKeyPos(tapTable.getMaxPKPos());
+              f.setPrimaryKeyPos(tapTable.getMaxPKPos() + 1);
             }).findFirst();
 
     optionalTapField.ifPresent(f-> tapTable.getNameFieldMap().put(fieldName, f));
@@ -138,6 +138,10 @@ public class TapModelDeclare {
     }
     TapIndex tapIndex = getTapIndex(indexName, unique, primary, cluster, descMap);
     tapTable.add(tapIndex);
+  }
+
+  public static void addIndex(List<SchemaApplyResult> schemaApplyResultList, String indexName, List<Map<String, Object>> descMap) {
+    addIndex(schemaApplyResultList, indexName, false, false, null, descMap);
   }
 
   public static void addIndex(List<SchemaApplyResult> schemaApplyResultList, String indexName, Boolean unique, Boolean primary, Boolean cluster, List<Map<String, Object>> descMap) {

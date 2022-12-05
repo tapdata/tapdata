@@ -8,12 +8,15 @@ import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -23,9 +26,7 @@ import java.util.function.BiConsumer;
  * @create 2022-07-12 17:10
  **/
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
-	private Logger logger = LogManager.getLogger(HazelcastProcessorBaseNode.class);
-
-	private TapdataEvent pendingEvent;
+	private final Logger logger = LogManager.getLogger(HazelcastProcessorBaseNode.class);
 
 	/**
 	 * Ignore process
@@ -43,15 +44,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			if (!isJetJobRunning()) {
 				return true;
 			}
-			if (null != pendingEvent) {
-				if (offer(pendingEvent)) {
-					pendingEvent = null;
-				} else {
-					return false;
-				}
-			}
 			TapdataEvent tapdataEvent = (TapdataEvent) item;
-			AtomicReference<TapdataEvent> processedEvent = new AtomicReference<>();
+			List<TapdataEvent> processedEventList = new ArrayList<>();
 			try {
 				AspectUtils.executeProcessorFuncAspect(ProcessorNodeProcessAspect.class, () -> new ProcessorNodeProcessAspect()
 						.processorBaseContext(getProcessorBaseContext())
@@ -59,7 +53,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						.start(), (processorNodeProcessAspect) -> {
 					if (null == tapdataEvent.getTapEvent() || ignore) {
 						// control tapdata event, skip the process consider process is done
-						processedEvent.set(tapdataEvent);
+						processedEventList.add(tapdataEvent);
 						if (null != processorNodeProcessAspect) {
 							AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), tapdataEvent);
 						}
@@ -84,7 +78,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						}
 
 						// consider process is done
-						processedEvent.set(event);
+						processedEventList.add(event);
 						if (null != processorNodeProcessAspect) {
 							AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), event);
 						}
@@ -92,19 +86,22 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					});
 				});
 			} catch (Throwable throwable) {
-				NodeException nodeException = new NodeException("Error occurred when process events in processor", throwable)
+				throw new NodeException("Error occurred when process events in processor", throwable)
 						.context(getProcessorBaseContext())
 						.event(tapdataEvent.getTapEvent());
-				logger.error(nodeException.getMessage(), nodeException);
-				obsLogger.error(nodeException);
-				throw nodeException;
 			}
 
-			if (processedEvent.get() != null) {
-				if (!offer(processedEvent.get())) {
-					pendingEvent = processedEvent.get();
+			if (CollectionUtils.isNotEmpty(processedEventList)) {
+				for (TapdataEvent event : processedEventList) {
+					while (isRunning()) {
+						if (offer(event)) {
+							break;
+						}
+					}
 				}
 			}
+		} catch (Throwable throwable) {
+			errorHandle(throwable, throwable.getMessage());
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -115,6 +112,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		if (!multipleTables && !StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			tableName = processorBaseContext.getNode().getId();
+		}
+		if (StringUtils.isEmpty(tableName)) {
+			tableName = null;
 		}
 		return ProcessResult.create().tableId(tableName);
 	}

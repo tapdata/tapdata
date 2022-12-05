@@ -62,13 +62,16 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 
 		private KVMap<Object> globalStateMap;
 
+		private ConnectionString connectionString;
+
 		@Override
 		public void onStart(MongodbConfig mongodbConfig) {
 				this.mongodbConfig = mongodbConfig;
 				mongoClient = MongodbUtil.createMongoClient(mongodbConfig);
+
 				nodesURI = MongodbUtil.nodesURI(mongoClient, mongodbConfig.getUri());
 				running.compareAndSet(false, true);
-
+				connectionString = new ConnectionString(mongodbConfig.getUri());
 				replicaSetReadThreadPool = new ThreadPoolExecutor(nodesURI.size(), nodesURI.size(), 60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
 		}
 
@@ -181,8 +184,6 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 				final Bson fromMigrateFilter = Filters.exists("fromMigrate", false);
 
 				try (MongoClient mongoclient = MongoClients.create(mongodbURI)) {
-
-						ConnectionString connectionString = new ConnectionString(mongodbURI);
 						final MongoCollection<Document> oplogCollection = mongoclient.getDatabase(LOCAL_DATABASE).getCollection(OPLOG_COLLECTION);
 //						List<TapEvent> tapEvents = new ArrayList<>(eventBatchSize);
 						// todo exception retry
@@ -198,7 +199,7 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 										while (running.get()) {
 												if (mongoCursor.hasNext()) {
 														final Document event = mongoCursor.next();
-														final TapBaseEvent tapBaseEvent = handleOplogEvent(event, connectionString);
+														final TapBaseEvent tapBaseEvent = handleOplogEvent(event);
 														if (tapBaseEvent == null) {
 																continue;
 														}
@@ -244,7 +245,7 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 				}
 		}
 
-		protected TapBaseEvent handleOplogEvent(Document event, ConnectionString connectionString) {
+		protected TapBaseEvent handleOplogEvent(Document event) {
 				TapLogger.debug(TAG, "Found event: {}", event);
 				String ns = event.getString("ns");
 				Document object = event.get("o", Document.class);
@@ -320,7 +321,7 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 										tapBaseEvent = insertRecordEvent(o, collectionName);
 								} else if ("d".equalsIgnoreCase(event.getString("op"))) {
 										final Map lookupData = MongodbLookupUtil.findDeleteCacheByOid(connectionString, collectionName, o.get("_id"), globalStateMap);
-										tapBaseEvent = deleteDMLEvent(lookupData != null ? lookupData : o, collectionName);
+										tapBaseEvent = deleteDMLEvent(lookupData != null ? (Map)lookupData.get("data") : o, collectionName);
 								}
 //								try {
 //										factory.recordEvent(event, clock.currentTimeInMillis(), true);

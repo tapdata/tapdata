@@ -5,7 +5,7 @@ import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.mongodb.client.result.DeleteResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -144,7 +144,25 @@ public class MeasurementServiceV2 {
     }
 
     private Sample supplyKeyData(Sample requestSample, Map<String, Number> data, Map<String, Number> requestMap) {
-        List<String> list = Lists.newArrayList("currentSnapshotTableInsertRowTotal", "timeCostAvg", "targetWriteTimeCostAvg", "replicateLag");
+        List<String> list = Lists.newArrayList("currentSnapshotTableInsertRowTotal", "timeCostAvg", "targetWriteTimeCostAvg", "replicateLag",
+                "inputDdlTotal",
+                "inputDeleteTotal",
+                "inputInsertTotal",
+                "inputOthersTotal",
+                "inputUpdateTotal",
+                "outputDdlTotal",
+                "outputDeleteTotal",
+                "outputInsertTotal",
+                "outputOthersTotal",
+                "outputUpdateTotal",
+                "snapshotDoneAt",
+                "snapshotInsertRowTotal",
+                "snapshotRowTotal",
+                "snapshotSourceReadTimeCostAvg",
+                "snapshotStartAt",
+                "snapshotTableTotal",
+                "tableTotal"
+        );
 
         for (String key : list) {
             Number value = data.get(key);
@@ -332,7 +350,7 @@ public class MeasurementServiceV2 {
                 .first(MeasurementEntity.FIELD_TAGS).as(MeasurementEntity.FIELD_TAGS)
                 .first(MeasurementEntity.FIELD_SAMPLES).as(MeasurementEntity.FIELD_SAMPLES);
         // match should be at the first param, sort should be the second while group be the last
-        Aggregation aggregation = Aggregation.newAggregation( match, sort, group);
+        Aggregation aggregation = Aggregation.newAggregation( match, sort, group).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
         List<MeasurementEntity> entities = results.getMappedResults();
 
@@ -395,12 +413,12 @@ public class MeasurementServiceV2 {
                     values.put("snapshotDoneAt", null);
                 }
 
-                Optional.ofNullable(snapshotDoneAt).ifPresent(snapshot -> {
-                            if (snapshot.longValue() > 0L) {
-                                values.put("currentSnapshotTableInsertRowTotal", values.get("currentSnapshotTableRowTotal"));
-                            }
-                        }
-                );
+//                Optional.ofNullable(snapshotDoneAt).ifPresent(snapshot -> {
+//                            if (snapshot.longValue() > 0L) {
+//                                values.put("currentSnapshotTableInsertRowTotal", values.get("currentSnapshotTableRowTotal"));
+//                            }
+//                        }
+//                );
 
             }
             sample.setVs(values);

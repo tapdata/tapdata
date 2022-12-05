@@ -8,10 +8,14 @@ import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * @author Dexter
@@ -52,17 +56,15 @@ public class TaskSampleHandler extends AbstractHandler {
     private CounterSampler snapshotTableTotal;
     private CounterSampler snapshotRowTotal;
     private CounterSampler snapshotInsertRowTotal;
-
     private Long snapshotStartAt = null;
     private Long snapshotDoneAt = null;
-
     private String currentSnapshotTable = null;
     private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
     private Long currentSnapshotTableInsertRowTotal = 0L;
-
     private final Set<String> taskTables = new HashSet<>();
 
-
+    private final HashMap<String, DataNodeSampleHandler> targetNodeHandlers = new HashMap<>();
+    private final HashMap<String, DataNodeSampleHandler> sourceNodeHandlers = new HashMap<>();
 
     public TaskSampleHandler(TaskDto task) {
         super(task);
@@ -173,7 +175,16 @@ public class TaskSampleHandler extends AbstractHandler {
         if (retrieveSnapshotDoneAt != null) {
             snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
         }
-        collector.addSampler(SNAPSHOT_DONE_AT, () -> snapshotDoneAt);
+        collector.addSampler(SNAPSHOT_DONE_AT, () -> {
+            List<Long> collect = sourceNodeHandlers.values().stream()
+                    .map(DataNodeSampleHandler::getSnapshotDoneAt)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            if (CollectionUtils.isNotEmpty(collect) && collect.size() == sourceNodeHandlers.size()) {
+                snapshotDoneAt = Collections.max(collect);
+            }
+            return snapshotDoneAt;
+        });
 
         // TODO(dexter): find a way to record the current table name
         collector.addSampler(CURR_SNAPSHOT_TABLE, () -> -1);
@@ -181,7 +192,12 @@ public class TaskSampleHandler extends AbstractHandler {
             if (null == currentSnapshotTable) return null;
             return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
         });
-        collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> currentSnapshotTableInsertRowTotal);
+        collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
+            if (ObjectUtils.allNotNull(currentSnapshotTable, snapshotDoneAt)) {
+                return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+            }
+            return currentSnapshotTableInsertRowTotal;
+        });
     }
 
     public void close() {
@@ -239,7 +255,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public void handleBatchReadFuncEnd() {
         snapshotTableTotal.inc();
-        currentSnapshotTable = null;
+//        currentSnapshotTable = null;
         currentSnapshotTableInsertRowTotal = 0L;
     }
 
@@ -259,9 +275,12 @@ public class TaskSampleHandler extends AbstractHandler {
         inputSpeed.add(recorder.getTotal());
     }
 
-    private final HashMap<String, DataNodeSampleHandler> targetNodeHandlers = new HashMap<>();
     public void addTargetNodeHandler(String nodeId, DataNodeSampleHandler handler) {
         targetNodeHandlers.putIfAbsent(nodeId, handler);
+    }
+
+    public void addSourceNodeHandler(String nodeId, DataNodeSampleHandler handler) {
+        sourceNodeHandlers.putIfAbsent(nodeId, handler);
     }
 
     public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events) {

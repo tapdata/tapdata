@@ -5,7 +5,7 @@ import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -35,6 +35,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
@@ -47,6 +48,7 @@ import com.tapdata.tm.utils.*;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapType;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -65,12 +67,12 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.*;
-import static com.tapdata.tm.utils.MongoUtils.applySort;
 
 /**
  * @Author: Zed
@@ -1335,7 +1337,11 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
     public List<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto) {
+        Page<MetadataInstancesDto> page = findByNodeId(nodeId, fields, user, taskDto, null, 1, 0);
+        return page.getItems();
+    }
 
+    public Page<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto, String tableFilter, int page, int pageSize) {
         if (taskDto == null || taskDto.getDag() == null) {
             Criteria criteria = Criteria.where("dag.nodes.id").is(nodeId);
             Query query = new Query(criteria);
@@ -1349,6 +1355,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         String taskId = taskDto.getId().toHexString();
 
+        long totals = 0;
         List<MetadataInstancesDto> metadatas = new ArrayList<>();
         DAG dag = taskDto.getDag();
         if (taskDto.getDag() != null) {
@@ -1357,6 +1364,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 Criteria criteriaTable = Criteria.where("meta_type").in("table", "collection", "view");
                 Criteria criteriaNode = Criteria.where("meta_type").is(MetaType.processor_node.name());
                 Query queryMetadata = new Query();
+                if (pageSize > 0) {
+                    queryMetadata.skip((long) (Math.max(1, page) - 1) * pageSize);
+                    queryMetadata.limit(pageSize);
+                }
                 if (CollectionUtils.isNotEmpty(fields)) {
                     String[] fieldArrays = fields.toArray(new String[0]);
                     queryMetadata.fields().include(fieldArrays);
@@ -1402,7 +1413,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     queryMetadata.addCriteria(criteriaTable);
                     TableNode tableNode = (TableNode) node;
                     if (StringUtils.isBlank(tableNode.getTableName())) {
-                        return metadatas;
+                        return new Page<>(0, new ArrayList<>());
                     }
                     criteriaTable.and("source._id").is(tableNode.getConnectionId())
                             .and("original_name").is(tableNode.getTableName()).and("taskId").is(taskId).and("is_deleted").ne(true);
@@ -1422,6 +1433,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         throw new BizException("table node is error nodeId:" + tableNode.getId());
                     }
 
+                    if (StringUtils.isNotBlank(tableFilter)) {
+                        tableNames = tableNames.stream().filter(s -> s.contains(tableFilter)).collect(Collectors.toList());
+                    }
+
                     FunctionUtils.isTure(CollectionUtils.isEmpty(tableNames)).throwMessage("SystemError", "dag node tableNames is null");
 
                     criteriaTable.and("source._id").is(tableNode.getConnectionId())
@@ -1429,6 +1444,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                             .and("taskId").is(taskId)
                             .and("is_deleted").ne(true);
                     metadatas = findAllDto(queryMetadata, user);
+                    totals = tableNames.size();
                 } else if (node instanceof LogCollectorNode) {
                     LogCollectorNode logNode = (LogCollectorNode) node;
                     List<String> connectionIds = logNode.getConnectionIds();
@@ -1438,13 +1454,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         criteriaTable.and("source._id").is(connectionId)
                                 .and("originalName").in(logNode.getTableNames()).and("is_deleted").ne(true);
                         metadatas = findAllDto(queryMetadata, user);
+                        totals = count(queryMetadata, user);
                     }
                 }
             }
 
         }
         metadatas = metadatas.stream().filter(Objects::nonNull).collect(Collectors.toList());
-        return metadatas;
+        return new Page<>(Math.max(totals, metadatas.size()), metadatas);
     }
 
     public static void main(String[] args) {
@@ -1624,6 +1641,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
     public void batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, boolean cover) {
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+            metadataInstancesDto.setListtags(null);
             long count = count(new Query(new Criteria().orOperator(Criteria.where("_id").is(metadataInstancesDto.getId()),
                     Criteria.where("qualified_name").is(metadataInstancesDto.getQualifiedName()))));
             if (count == 0) {
@@ -1859,5 +1877,29 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         Query query = new Query(criteria);
         deleteAll(query, user);
+    }
+
+    public Map<String, TapType> dataType2TapType(DataType2TapTypeDto dto, UserDetail user) {
+        Assert.notNull(dto.getDatabaseType(), "databaseType can not be null");
+        Assert.notEmpty(dto.getDataTypes(), "dataTypes can not be null");
+        DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(dto.getDatabaseType(), user);
+        Assert.notNull(definitionDto, "not found DataSourceDefinition of databaseType: " + dto.getDatabaseType());
+
+        String expression = definitionDto.getExpression();
+        DefaultExpressionMatchingMap expressionMatchingMap = DefaultExpressionMatchingMap.map(expression);
+
+        LinkedHashMap<String, TapField> fields = new LinkedHashMap<>();
+        int i = 1;
+        for (String dataType : dto.getDataTypes()) {
+            fields.put(dataType, new TapField(String.format("f%03d", i++), dataType));
+        }
+
+        PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(fields, expressionMatchingMap);
+
+        Map<String, TapType> types = new HashMap<>();
+        for (TapField f : fields.values()) {
+            types.put(f.getDataType(), f.getTapType());
+        }
+        return types;
     }
 }

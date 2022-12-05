@@ -64,9 +64,9 @@ public class TaskEntity extends BaseEntity {
     /** 全量一批读取条数 */
     private Integer readBatchSize;
     /** 写入批量条数 */
-    private int writeBatchSize;
+    private Integer writeBatchSize;
     /** 写入每批最大等待时间 */
-    private long writeBatchWaitMs;
+    private Long writeBatchWaitMs;
 
     /** 增量同步间隔*/
     private Integer increaseSyncInterval;
@@ -222,6 +222,10 @@ public class TaskEntity extends BaseEntity {
 
     private Long currentEventTimestamp;
     private Long snapshotDoneAt;
+
+    private boolean needCreateRecord;
+
+    private boolean crontabExpressionFlag;
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

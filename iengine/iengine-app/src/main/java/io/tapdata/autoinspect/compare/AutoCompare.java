@@ -60,15 +60,15 @@ public class AutoCompare implements IAutoCompare {
 
                         switch (queryCompare.queryCompare(dto)) {
                             case Deleted:
-                                logger.info("Fix record not exists in source and target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
+                                logger.debug("Fix record not exists in source and target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
                                 fix(dto);
                                 break;
                             case FixTarget:
-                                logger.info("Fix in query target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
+                                logger.debug("Fix in query target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
                                 fix(dto);
                                 break;
                             case FixSource:
-                                logger.info("Fix in query source and target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
+                                logger.debug("Fix in query source and target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
                                 fix(dto);
                                 break;
                             case Diff:
@@ -142,7 +142,7 @@ public class AutoCompare implements IAutoCompare {
         if (tableItem.getDiffCounts() >= diffMaxSize) {
             throw AutoInspectException.diffMaxSize(diffMaxSize, tableItem);
         }
-        logger.info("Store AutoInspectResult '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
+        logger.debug("Store AutoInspectResult '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
         //bug: upsert api can not save most properties
         clientMongoOperator.insertOne(dto, AutoInspectConstants.AUTO_INSPECT_RESULTS_COLLECTION_NAME);
         tableItem.addDiff(dto.getOriginalKeymap());

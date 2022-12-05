@@ -1623,4 +1623,82 @@ class TargetTypesGeneratorTest {
         TapField upperVarchar50 = nameFieldMap.get("YEAR");
         assertEquals("DATE", upperVarchar50.getDataType());
     }
+
+    @Test
+    public void tddBinaryToTDEngineTest() {
+        String targetTypeExpression = "{\n" +
+//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
+                "\"binary($byte)\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"byte\": 255,\n" +
+                "      \"defaultByte\": 1,\n" +
+                "      \"preferByte\": 2000,\n" +
+                "      \"fixed\": true\n" +
+                "    }" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("binary", "binary").tapType(tapBinary().bytes(100L)));
+
+        TapCodecsRegistry targetRegistry = TapCodecsRegistry.create();
+        TapCodecsFilterManager targetCodecFilterManager = TapCodecsFilterManager.create(targetRegistry);
+
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+        TapField upperVarchar50 = nameFieldMap.get("binary");
+        assertEquals("binary(100)", upperVarchar50.getDataType());
+    }
+
+    @Test
+    public void oracleChar10ToESTest() {
+
+        String sourceTypeExpression = "{" +
+                "\"CHAR[($byte)]\": {\n" +
+                "        \"byte\": 2000,\n" +
+                "                \"priority\": 1,\n" +
+                "                \"defaultByte\": 1,\n" +
+                "                \"fixed\": true,\n" +
+                "                \"to\": \"TapString\"\n" +
+                "    }" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+                    "\"string\": {\n" +
+                "      \"queryOnly\": true,\n" +
+                "      \"to\": \"TapString\"\n" +
+                "    },\n" +
+                "    \"text\": {\n" +
+                "      \"byte\": \"4g\",\n" +
+                "      \"to\": \"TapString\"\n" +
+                "    },\n" +
+                "    \"keyword\": {\n" +
+                "      \"byte\": 32766,\n" +
+                "      \"to\": \"TapString\"\n" +
+                "    },\n" +
+                "\"object\": {\n" +
+                "      \"to\": \"TapString\"\n" +
+                "    }" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("char10", "char(10)"));
+
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+
+        TapCodecsRegistry targetRegistry = TapCodecsRegistry.create();
+        TapCodecsFilterManager targetCodecFilterManager = TapCodecsFilterManager.create(targetRegistry);
+
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField upperVarchar50 = nameFieldMap.get("char10");
+        assertEquals("keyword", upperVarchar50.getDataType());
+    }
+
 }

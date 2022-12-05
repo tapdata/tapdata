@@ -70,7 +70,7 @@ public class TablestoreConfig {
     }
 
     public String getClientType() {
-        return clientType;
+        return "NORMAL";
     }
 
     public void setClientType(String clientType) {

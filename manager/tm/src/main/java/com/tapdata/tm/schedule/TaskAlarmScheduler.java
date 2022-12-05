@@ -159,13 +159,8 @@ public class TaskAlarmScheduler {
             return;
         }
 
-        long heartExpire;
-        Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.JOB_HEART_TIMEOUT);
-        if (Objects.nonNull(heartTime)) {
-            heartExpire = (Long.parseLong(heartTime.toString()) + 48 ) * 1000;
-        } else {
-            heartExpire = 108000;
-        }
+        Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
+        long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48 ) * 1000 : 108000;
 
         Map<String, WorkerDto> stopEgineMap = workers.stream().filter(w -> (Objects.nonNull(w.getIsDeleted()) && w.getIsDeleted()) ||
                         (Objects.nonNull(w.getStopping()) && w.getStopping()) ||
@@ -178,7 +173,6 @@ public class TaskAlarmScheduler {
         Set<String> agentIds = stopEgineMap.keySet();
 
         // 云版需要修改这里
-        List<Worker> availableWorkers = workerService.findAvailableAgentBySystem();
         List<TaskDto> taskList = taskDtos.stream().filter(t -> agentIds.contains(t.getAgentId())).collect(Collectors.toList());
 
         List<String> userIds = taskList.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
@@ -186,10 +180,10 @@ public class TaskAlarmScheduler {
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
         for (TaskDto data : taskList) {
-            List<Worker> workerList = availableWorkers;
+            List<Worker> workerList = workerService.findAvailableAgentBySystem(userDetailMap.get(data.getUserId()));;
             if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.getName().equals(data.getAccessNodeType())) {
                 List<String> processIdList = data.getAccessNodeProcessIdList();
-                workerList = availableWorkers.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
+                workerList = workerList.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
             }
 
             if (CollectionUtils.isEmpty(workerList)) {

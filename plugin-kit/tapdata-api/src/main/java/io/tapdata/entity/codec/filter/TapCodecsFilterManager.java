@@ -42,6 +42,7 @@ public class TapCodecsFilterManager {
     public static TapCodecsFilterManager create(TapCodecsRegistry codecsRegistry) {
         return new TapCodecsFilterManager(codecsRegistry);
     }
+
     public void transformToTapValueMap(Map<String, Object> value, Map<String, TapField> nameFieldMap, TapDetector... detectors) {
         transformToTapValueMap(value, nameFieldMap, null, detectors);
     }
@@ -49,14 +50,18 @@ public class TapCodecsFilterManager {
         if(value == null)
             return;
         NewFieldDetector newFieldDetector = null;
+        ToTapValueCheck toTapValueCheck = null;
         if(detectors != null) {
             for(TapDetector detector : detectors) {
                 if(newFieldDetector == null && detector instanceof NewFieldDetector) {
                     newFieldDetector = (NewFieldDetector) detector;
+                } else if(toTapValueCheck == null && detector instanceof ToTapValueCheck) {
+                    toTapValueCheck = (ToTapValueCheck) detector;
                 }
             }
         }
         AtomicReference<NewFieldDetector> newFieldDetectorRef = new AtomicReference<>(newFieldDetector);
+        AtomicReference<ToTapValueCheck> toTapValueCheckRef = new AtomicReference<>(toTapValueCheck);
         mapIteratorToTapValue.iterate(value, (name, entry, recursive) -> {
             Object theValue = entry;
             String fieldName = name;
@@ -139,7 +144,12 @@ public class TapCodecsFilterManager {
                             }
                         }
                     }
-                    return tapValue;
+                    if(toTapValueCheckRef.get() == null)
+                        return tapValue;
+                    else
+                        if(!toTapValueCheckRef.get().check(name, tapValue.getValue()))
+                            throw new StopFilterException();
+                    return null;
                 }
                 //Means new field.
                 if(newField && !recursive && newFieldDetectorRef.get() != null && typeFromSchema != null) {
@@ -147,9 +157,20 @@ public class TapCodecsFilterManager {
                 }
             }
             if(originTapValue != null && originTapValue.getValue().equals(entry)) {
-                return originTapValue;
+                if(toTapValueCheckRef.get() == null)
+                    return originTapValue;
+                else
+                    if(!toTapValueCheckRef.get().check(name, originTapValue.getValue()))
+                        throw new StopFilterException();
+                return null;
             }
-            return entry;
+            if(toTapValueCheckRef.get() == null)
+                return entry;
+            else
+                if(!toTapValueCheckRef.get().check(name, entry))
+                    throw new StopFilterException();
+
+            return null;
         });
     }
 

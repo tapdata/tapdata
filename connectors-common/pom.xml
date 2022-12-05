@@ -10,10 +10,11 @@
     <modules>
 		<module>connector-core</module>
 		<module>sql-core</module>
-		<module>mysql-core</module>
+		<module>mysql-core-build-parent</module>
 		<module>postgres-core</module>
         <module>mq-core</module>
         <module>logminer-core</module>
+        <module>file-connector-core</module>
     </modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>

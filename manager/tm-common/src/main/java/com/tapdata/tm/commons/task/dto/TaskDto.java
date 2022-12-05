@@ -38,6 +38,8 @@ public class TaskDto extends ParentTaskDto {
 
     public static final String LASTTASKRECORDID = "taskRecordId";
 
+    public static final String PING_TIME_FIELD = "pingTime";
+
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)
@@ -125,6 +127,8 @@ public class TaskDto extends ParentTaskDto {
 
     private Long scheduleDate;
     private Date monitorStartDate;
+
+    private boolean needCreateRecord;
 
     public DAG getDag() {
         if (dag != null) {

@@ -1,6 +1,7 @@
 package com.tapdata.tm.Settings.controller;
 
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.Settings.dto.TestMailDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -105,6 +106,14 @@ public class SettingsController extends BaseController {
     public ResponseMessage<Void> updateAlarm(@RequestBody UpdateRuleDto ruleDto) {
         alarmSettingService.updateSystemNotify(ruleDto);
 
+        return success();
+    }
+
+
+    @Operation(summary = "test send mail")
+    @PostMapping("testEmail")
+    public ResponseMessage<Void> testSendMail(@RequestBody TestMailDto testMailDto) {
+        settingsService.testSendMail(testMailDto);
         return success();
     }
 }

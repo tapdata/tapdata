@@ -3,7 +3,7 @@ package com.tapdata.tm.ds.service.impl;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -212,7 +212,9 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
             Object o = messages.get(language);
             LinkedHashMap<String, Object> msgJson = JSON.parseObject(JSON.toJSONString(o), new TypeReference<LinkedHashMap<String, Object>>(){});
 
-            msgJson.forEach((key, value) -> content[0] = content[0].replaceAll(new StringJoiner(key).add("\\$\\{").add("}").toString(), value.toString()));
+            if (msgJson != null && content.length > 0 && content[0] != null) {
+                msgJson.forEach((key, value) -> content[0] = content[0].replaceAll(new StringJoiner(key).add("\\$\\{").add("}").toString(), value.toString()));
+            }
             LinkedHashMap<String, Object> temp = JSON.parseObject(content[0], new TypeReference<LinkedHashMap<String, Object>>(){});
 
             dataSourceDefinition.setProperties(temp);
