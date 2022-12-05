@@ -6,6 +6,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.value.DateTime;
 
+import java.sql.Time;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
@@ -94,6 +95,9 @@ public class FieldChecker {
     }
     public static String simpleDateValue(Object value,String format){
         try {
+            if (value instanceof Time){
+                return "'"+DateUtil.format(new Date(((Time)value).getTime()),format)+"'";
+            }
             DateTime date = (DateTime) value;
             Date valDate = new Date();
             valDate.setTime(date.getSeconds()*1000);
