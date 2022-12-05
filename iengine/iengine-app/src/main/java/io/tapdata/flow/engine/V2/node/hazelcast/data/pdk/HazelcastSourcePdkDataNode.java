@@ -228,7 +228,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 												};
 												TableNode tableNode =  (TableNode)dataProcessorContext.getNode();
 												if(tableNode.getIsFilter() && CollectionUtils.isNotEmpty(tableNode.getConditions())){
-													TapAdvanceFilter tapAdvanceFilter = btachFilterRead();
+													TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
 													queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(),tapAdvanceFilter,tapTable,filterResults->{
 														List<TapEvent> tempList = new ArrayList<>();
 														if(filterResults !=null && CollectionUtils.isNotEmpty(filterResults.getResults())){
@@ -626,21 +626,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
-	private TapAdvanceFilter btachFilterRead() {
+	private TapAdvanceFilter batchFilterRead() {
 		TapAdvanceFilter tapAdvanceFilter = new TapAdvanceFilter();
 		DataMap match = new DataMap();
 		TableNode tableNode =  (TableNode)dataProcessorContext.getNode();
-		List<QueryOperator> operators = tableNode.getConditions();
-		Iterator<QueryOperator> iterator = operators.listIterator();
-		while (iterator.hasNext()){
-			QueryOperator queryOperator = iterator.next();
+		List <QueryOperator> queryOperators= new ArrayList<>();
+		for (QueryOperator queryOperator:tableNode.getConditions()){
 			if (EQUAL_VALUE == queryOperator.getOperator()) {
 				match.put(queryOperator.getKey(), queryOperator.getValue());
-				iterator.remove();
+			}else {
+				queryOperators.add(queryOperator);
 			}
 		}
 		tapAdvanceFilter.setMatch(match);
-		tapAdvanceFilter.setOperators(operators);
+		tapAdvanceFilter.setOperators(queryOperators);
 		tapAdvanceFilter.setLimit(tableNode.getLimit());
 		return tapAdvanceFilter;
 	}
