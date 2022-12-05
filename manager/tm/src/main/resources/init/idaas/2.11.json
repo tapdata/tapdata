@@ -1,0 +1,18 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "email.server.tls"
+        },
+        "u": {
+          "$set": {
+            "enums": ["SSL", "TLS", "NO_PROTOCOL"]
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]
