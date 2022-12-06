@@ -45,6 +45,7 @@ import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import lombok.Setter;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
@@ -57,6 +58,7 @@ import org.springframework.stereotype.Service;
 import com.tapdata.tm.task.service.TaskNodeService;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -74,6 +76,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private DataSourceDefinitionService dataSourceDefinitionService;
     private TaskRecordService taskRecordService;
 
+    @SneakyThrows
     @Override
     public Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String taskRecordId, String nodeId,
                                                              String searchTableName,
@@ -87,14 +90,51 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         );
 
         DAG dag = taskDto.get().getDag();
-        if (CollectionUtils.isEmpty(dag.getEdges()) || Objects.isNull(dag.getPreNodes(nodeId))) {
+        if (CollectionUtils.isEmpty(dag.getEdges()) ||
+                Objects.isNull(dag.getPreNodes(nodeId))) {
             return result;
         }
 
-        if (CollectionUtils.isEmpty(dag.getSourceNode())) {
+        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.get().getSyncType())) {
+            if (CollectionUtils.isEmpty(dag.getSourceNode())) {
+                return result;
+            }
+
+            return getNodeInfoByMigrate(taskId, nodeId, searchTableName, page, pageSize, userDetail, result, dag);
+        } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.get().getSyncType())) {
+
+            List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(nodeId, userDetail);
+            if (CollectionUtils.isEmpty(metadataInstancesDtos)) {
+                AtomicInteger times = new AtomicInteger();
+                while (times.get() < 11) {
+                    metadataInstancesDtos = metadataInstancesService.findByNodeId(nodeId, userDetail);
+                    Thread.sleep(1000);
+                    times.incrementAndGet();
+                }
+            }
+
+            if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
+                List<MetadataTransformerItemDto> data = Lists.newArrayList();
+                for (MetadataInstancesDto instance : metadataInstancesDtos) {
+                    MetadataTransformerItemDto item = new MetadataTransformerItemDto();
+                    item.setSourceObjectName(instance.getOriginalName());
+                    item.setPreviousTableName(instance.getOriginalName());
+                    item.setSinkObjectName(instance.getName());
+                    item.setSinkQulifiedName(instance.getQualifiedName());
+
+                    data.add(item);
+                }
+                result.setItems(data);
+            }
+
+            result.setTotal(1);
+            return result;
+        } else {
             return result;
         }
+    }
 
+    private Page<MetadataTransformerItemDto> getNodeInfoByMigrate(String taskId, String nodeId, String searchTableName, Integer page, Integer pageSize, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag) {
         DatabaseNode sourceNode = dag.getSourceNode(nodeId);
         if (Objects.isNull(sourceNode)) {
             return result;
@@ -383,42 +423,82 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
         DAG dtoDag = taskDto.getDag();
-        DatabaseNode first = dtoDag.getSourceNode().getFirst();
-        first.setTableNames(Lists.of(tableName));
-        first.setRows(rows);
 
-        Dag build = dtoDag.toDag();
-        build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
-        List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
-        MigrateJsProcessorNode jsNode = (MigrateJsProcessorNode) dtoDag.getNode(nodeId);
-        if (StringUtils.isNotBlank(script)) {
-            jsNode.setScript(script);
-        }
-        nodes.add(jsNode);
-
-        Node<?> target = new VirtualTargetNode();
-        target.setId(UUID.randomUUID().toString());
-        target.setName(target.getId());
-        if (CollectionUtils.isNotEmpty(nodes)) {
-            nodes.add(target);
-        }
-
-        List<Edge> edges = dtoDag.edgeMap().get(nodeId);
-        if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(edges)) {
-            Edge edge = new Edge(nodeId, target.getId());
-            edges.add(edge);
-        }
-
-        Objects.requireNonNull(build).setNodes(new LinkedList<Node>(){{addAll(nodes);}});
-        build.setEdges(edges);
-
-        DAG temp = DAG.build(build);
         TaskDto taskDtoCopy = new TaskDto();
         BeanUtils.copyProperties(taskDto, taskDtoCopy);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
-        taskDtoCopy.setDag(temp);
-//        taskDtoCopy.setId(new ObjectId());
+        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+            DatabaseNode first = dtoDag.getSourceNode().getFirst();
+            first.setTableNames(Lists.of(tableName));
+            first.setRows(rows);
+
+            Dag build = dtoDag.toDag();
+            build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
+            List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
+            MigrateJsProcessorNode jsNode = (MigrateJsProcessorNode) dtoDag.getNode(nodeId);
+            if (StringUtils.isNotBlank(script)) {
+                jsNode.setScript(script);
+            }
+            nodes.add(jsNode);
+
+            Node<?> target = new VirtualTargetNode();
+            target.setId(UUID.randomUUID().toString());
+            target.setName(target.getId());
+            if (CollectionUtils.isNotEmpty(nodes)) {
+                nodes.add(target);
+            }
+
+            List<Edge> edges = dtoDag.edgeMap().get(nodeId);
+            if (CollectionUtils.isNotEmpty(edges)) {
+                Edge edge = new Edge(nodeId, target.getId());
+                edges.add(edge);
+            }
+
+            Objects.requireNonNull(build).setNodes(new LinkedList<Node>(){{addAll(nodes);}});
+            build.setEdges(edges);
+
+            DAG temp = DAG.build(build);
+            taskDtoCopy.setDag(temp);
+        } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
+            final List<String> predIds = new ArrayList<>();
+            getPrePre(dtoDag.getNode(nodeId), predIds);
+            predIds.add(nodeId);
+            Dag dag = dtoDag.toDag();
+            List<Node> oldNodes = dag.getNodes();
+            dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
+            List<Node> nodes = dag.getNodes();
+
+            Node target = new VirtualTargetNode();
+            target.setId(UUID.randomUUID().toString());
+            target.setName(target.getId());
+            if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(nodes)) {
+                for (Node node : nodes) {
+                    Optional<Node> optionalNode = oldNodes.stream().filter(o -> o.getId().equals(node.getId())).findFirst();
+                    if (optionalNode.isPresent()) {
+                        node.setSchema(optionalNode.get().getSchema());
+                        node.setOutputSchema(optionalNode.get().getOutputSchema());
+                    }
+                }
+                nodes = nodes.stream().filter(n -> predIds.contains(n.getId())).collect(Collectors.toList());
+                nodes.add(target);
+            }
+
+            List<Edge> edges = dag.getEdges();
+            if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(edges)) {
+                edges = edges.stream().filter(e -> (predIds.contains(e.getTarget()) || predIds.contains(e.getSource())) && !e.getSource().equals(nodeId)).collect(Collectors.toList());
+                Edge edge = new Edge(nodeId, target.getId());
+                edges.add(edge);
+            }
+
+
+            dag.setNodes(nodes);
+            dag.setEdges(edges);
+
+            DAG build = DAG.build(dag);
+            taskDtoCopy.setDag(build);
+        }
+
         taskDtoCopy.setName(taskDto.getName() + "(100)");
         taskDtoCopy.setVersion(version);
 
@@ -432,6 +512,16 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         queueDto.setData(taskDtoCopy);
         queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
         messageQueueService.sendMessage(queueDto);
+    }
+
+    private void getPrePre(Node node, List<String> preIds) {
+        List<Node> predecessors = node.predecessors();
+        if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(predecessors)) {
+            for (Node predecessor : predecessors) {
+                preIds.add(predecessor.getId());
+                getPrePre(predecessor, preIds);
+            }
+        }
     }
 
     @Override
