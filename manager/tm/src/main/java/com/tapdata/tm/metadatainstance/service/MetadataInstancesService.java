@@ -1714,6 +1714,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
     public void batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, boolean cover) {
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+            metadataInstancesDto.setListtags(null);
             long count = count(new Query(new Criteria().orOperator(Criteria.where("_id").is(metadataInstancesDto.getId()),
                     Criteria.where("qualified_name").is(metadataInstancesDto.getQualifiedName()))));
             if (count == 0) {

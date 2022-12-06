@@ -472,6 +472,7 @@ public class AlarmServiceImpl implements AlarmService {
         String user = (String) collect.get("smtp.server.user");
         Object pwd = collect.get("smtp.server.password");
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
+        String protocol = (String) collect.get("email.server.tls");
 
         AtomicReference<List<String>> receiverList = new AtomicReference<>();
 
@@ -492,7 +493,7 @@ public class AlarmServiceImpl implements AlarmService {
         }
 
         return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
-                .receivers(receiverList.get()).build();
+                .receivers(receiverList.get()).protocol(protocol).build();
     }
 
     private void connectPassAlarm(String nodeName, String connectId, String response_body, List<TaskDto> taskEntityList) {

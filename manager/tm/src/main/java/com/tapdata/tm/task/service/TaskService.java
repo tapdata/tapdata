@@ -47,6 +47,8 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
@@ -164,6 +166,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private TaskScheduleService taskScheduleService;
 
     private ScheduleService scheduleService;
+
+    private MetadataDefinitionService metadataDefinitionService;
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
 
@@ -425,6 +429,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setTransformed(null);
         taskDto.setTransformUuid(null);
         taskDto.setTransformDagHash(dagHash);
+
+        taskDto.setWriteBatchSize(null);
+        taskDto.setWriteBatchWaitMs(null);
 
         return save(taskDto, user);
 
@@ -893,7 +900,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("copy task success, task name = {}", copyName);
 
         taskDto.setName(copyName);
-        //taskDto.setStatus(TaskDto.STATUS_EDIT);
+        taskDto.setStatus(TaskDto.STATUS_EDIT);
         taskDto.setStatuses(new ArrayList<>());
         taskDto.setStartTime(null);
         taskDto.setStopTime(null);
@@ -909,7 +916,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TaskService taskService = SpringContextHelper.getBean(TaskService.class);
 
         log.info("create new task, task = {}", taskDto);
-        taskDto = taskService.confirmById(taskDto, user, true, true);
+        taskDto = taskService.confirmById(taskDto, user, true);
         //taskService.flushStatus(taskDto, user);
 
         try {
@@ -920,7 +927,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
         // after copy could deduce model
-        transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
+        //transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
 
         return taskDto;
     }
@@ -2188,6 +2195,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 taskDto.setLastUpdBy(null);
                 taskDto.setUserId(null);
                 taskDto.setAgentId(null);
+                taskDto.setListtags(null);
+                taskDto.setAccessNodeProcessId(null);
+                taskDto.setAccessNodeProcessIdList(new ArrayList<>());
+                taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
                 Map<String, Object> attrs = taskDto.getAttrs();
@@ -2244,7 +2256,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Tag> tags) {
+    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags) {
         byte[] bytes;
         List<TaskUpAndLoadDto> taskUpAndLoadDtos;
 
@@ -2309,11 +2321,30 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Tag> tags) {
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags) {
+
+        List<Tag> tagList = new ArrayList<>();
+
+        if (CollectionUtils.isNotEmpty(tags)) {
+            Criteria criteriaTags = Criteria.where("_id").in(tags);
+            Query query = new Query(criteriaTags);
+            query.fields().include("_id", "value");
+            List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAllDto(query, user);
+            if (CollectionUtils.isNotEmpty(allDto)) {
+                tagList = allDto.stream().map(m -> new Tag(m.getId().toHexString(), m.getValue())).collect(Collectors.toList());
+            }
+        }
+
         for (TaskDto taskDto : taskDtos) {
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
             query.fields().include("id");
             TaskDto one = findOne(query);
+
+            taskDto.setListtags(null);
+            taskDto.setStatus(TaskDto.STATUS_EDIT);
+            taskDto.setAccessNodeProcessId(null);
+            taskDto.setAccessNodeProcessIdList(new ArrayList<>());
+            taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 
             Map<String, Object> attrs = taskDto.getAttrs();
             if (attrs != null) {
@@ -2331,7 +2362,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     taskDto.setName(taskDto.getName() + "_import");
                 }
 
-                taskDto.setListtags(tags);
+                if (CollectionUtils.isNotEmpty(tagList)) {
+                    taskDto.setListtags(tagList);
+                }
                 if (one == null) {
                     //taskDto.setId(null);
                     TaskEntity taskEntity = repository.importEntity(convertToEntity(TaskEntity.class, taskDto), user);
@@ -2604,7 +2637,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
             messageQueueService.sendMessage(queueDto);
 
-            Update update = new Update().unset("startTime").unset("lastStartDate").unset("stopTime").set("needCreateRecord", taskDto.isNeedCreateRecord());
+            Update update = new Update()
+                    .unset("startTime")
+                    .unset("lastStartDate")
+                    .unset("stopTime")
+                    .unset("currentEventTimestamp")
+                    .set("needCreateRecord", taskDto.isNeedCreateRecord());
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
@@ -2785,6 +2823,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     /**
      * @see DataFlowEvent#SCHEDULE_SUCCESS
+     * @param dto
+     * @param status
+     * @param userDetail
      */
     public void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
         dto.setStatus(status);
@@ -3392,17 +3433,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    int inputInsertTotal = (int) vs.get("inputInsertTotal");
-                    int inputOthersTotal = (int) vs.get("inputOthersTotal");
-                    int inputDdlTotal = (int) vs.get("inputDdlTotal");
-                    int inputUpdateTotal = (int) vs.get("inputUpdateTotal");
-                    int inputDeleteTotal = (int) vs.get("inputDeleteTotal");
+                    long inputInsertTotal = Long.parseLong(String.valueOf(vs.get("inputInsertTotal")));
+                    long inputOthersTotal = Long.parseLong(String.valueOf(vs.get("inputOthersTotal")));
+                    long inputDdlTotal = Long.parseLong(String.valueOf(vs.get("inputDdlTotal")));
+                    long inputUpdateTotal = Long.parseLong(String.valueOf(vs.get("inputUpdateTotal")));
+                    long inputDeleteTotal = Long.parseLong(String.valueOf(vs.get("inputDeleteTotal")));
 
-                    int outputInsertTotal = (int) vs.get("outputInsertTotal");
-                    int outputOthersTotal = (int) vs.get("outputOthersTotal");
-                    int outputDdlTotal = (int) vs.get("outputDdlTotal");
-                    int outputUpdateTotal = (int) vs.get("outputUpdateTotal");
-                    int outputDeleteTotal = (int) vs.get("outputDeleteTotal");
+                    long outputInsertTotal = Long.parseLong(String.valueOf(vs.get("outputInsertTotal")));
+                    long outputOthersTotal = Long.parseLong(String.valueOf(vs.get("outputOthersTotal")));
+                    long outputDdlTotal = Long.parseLong(String.valueOf(vs.get("outputDdlTotal")));
+                    long outputUpdateTotal = Long.parseLong(String.valueOf(vs.get("outputUpdateTotal")));
+                    long outputDeleteTotal = Long.parseLong(String.valueOf(vs.get("outputDeleteTotal")));
                     output += outputInsertTotal;
                     output += outputOthersTotal;
                     output += outputDdlTotal;

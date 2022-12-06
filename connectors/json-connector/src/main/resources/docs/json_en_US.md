@@ -30,7 +30,7 @@ If there is Chinese in the json file, you need to pay attention to the encoding 
 - JSON Object
 ```
 {
-  "A1":{"id":1, "name":"Jarad"}
+  "A1":{"id":1, "name":"Jarad"},
   "A2":{"id":2, "name":"James"}
 }
 ```
@@ -38,7 +38,7 @@ The above json object will be converted to A model of three fields, __key, id, a
 - JSON Array
 ```
 [
-  {"id":1, "name":"Jarad"}
+  {"id":1, "name":"Jarad"},
   {"id":2, "name":"James"}
 ]
 ```

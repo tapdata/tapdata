@@ -113,6 +113,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			tableName = processorBaseContext.getNode().getId();
 		}
+		if (StringUtils.isEmpty(tableName)) {
+			tableName = null;
+		}
 		return ProcessResult.create().tableId(tableName);
 	}
 

@@ -212,7 +212,9 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
             Object o = messages.get(language);
             LinkedHashMap<String, Object> msgJson = JSON.parseObject(JSON.toJSONString(o), new TypeReference<LinkedHashMap<String, Object>>(){});
 
-            msgJson.forEach((key, value) -> content[0] = content[0].replaceAll(new StringJoiner(key).add("\\$\\{").add("}").toString(), value.toString()));
+            if (msgJson != null && content.length > 0 && content[0] != null) {
+                msgJson.forEach((key, value) -> content[0] = content[0].replaceAll(new StringJoiner(key).add("\\$\\{").add("}").toString(), value.toString()));
+            }
             LinkedHashMap<String, Object> temp = JSON.parseObject(content[0], new TypeReference<LinkedHashMap<String, Object>>(){});
 
             dataSourceDefinition.setProperties(temp);

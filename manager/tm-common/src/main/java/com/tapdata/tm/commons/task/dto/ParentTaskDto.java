@@ -77,11 +77,11 @@ public class ParentTaskDto extends SchedulableDto {
 
     /** 写入批量条数 */
     @EqField
-    private int writeBatchSize;
+    private Integer writeBatchSize;
 
     /** 写入每批最大等待时间 */
     @EqField
-    private long writeBatchWaitMs;
+    private Long writeBatchWaitMs;
 
     /** 增量同步间隔*/
     @EqField
@@ -249,6 +249,15 @@ public class ParentTaskDto extends SchedulableDto {
 
     // 1分钟内不能强制停止（不存库，根据 stoppingTime 来判断）
     private Boolean canForceStopping;
+
+    public Integer getWriteBatchSize() {
+        return Objects.isNull(writeBatchSize) ? 0 : writeBatchSize;
+    }
+
+    public Long getWriteBatchWaitMs() {
+        return Objects.isNull(writeBatchWaitMs) ? 0L : writeBatchWaitMs;
+    }
+
     public Boolean getCanForceStopping() {
         if (null == stoppingTime) {
             return null;

@@ -185,7 +185,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
                     });
                 }
 
-                List<TapIndex> indexList = tapTable.getIndexList();
+                List<TapIndex> indexList = Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>());
                 if (!removeIndexMap.isEmpty()) {
                     indexList.removeIf(i -> removeIndexMap.containsKey(i.getName()));
                 }
@@ -195,6 +195,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
                     addIndexMap.entrySet().removeIf(e -> existIndexNameSet.contains(e.getKey()));
                     indexList.addAll(addIndexMap.values());
                 }
+                tapTable.setIndexList(indexList);
 
                 Schema jsSchema = PdkSchemaConvert.fromPdkSchema(tapTable);
                 jsSchema.setDatabaseId(schema.getDatabaseId());

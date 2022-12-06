@@ -237,7 +237,7 @@ public class TablestoreConnector extends ConnectorBase {
         return 0;
     }
 
-    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable, Exception {
         String tableId = tapTable.getId();
         if ("NORMAL".equals(tablestoreConfig.getClientType())) {
             DescribeTableRequest request = new DescribeTableRequest(tableId);
@@ -289,7 +289,7 @@ public class TablestoreConnector extends ConnectorBase {
                             client.putRow(new PutRowRequest(putChange));
                             insertCount++;
                         } catch (Exception e) {
-                            throw new RuntimeException(e);
+                            listResult.addError(recordEvent, e);
                         }
 
                     } else if (recordEvent instanceof TapUpdateRecordEvent) {
@@ -330,7 +330,7 @@ public class TablestoreConnector extends ConnectorBase {
                             client.updateRow(new UpdateRowRequest(updateChange));
                             updateCount++;
                         }  catch (Exception e) {
-                            throw new RuntimeException(e);
+                            listResult.addError(recordEvent, e);
                         }
                     } else if (recordEvent instanceof TapDeleteRecordEvent) {
                         try {
@@ -345,8 +345,7 @@ public class TablestoreConnector extends ConnectorBase {
                                             Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
                                                     .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
                                                     .name());
-                                    Object value = before.get(k);
-                                    transferValueType(columnType, value);
+                                    Object value = transferValueType(columnType, before.get(k));
                                     pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                                 }
                                 deleteChange = new RowDeleteChange(tableId, pkBuilder.build());
@@ -357,7 +356,7 @@ public class TablestoreConnector extends ConnectorBase {
                             client.deleteRow(new DeleteRowRequest(deleteChange));
                             deleteCount++;
                         }  catch (Exception e) {
-                            throw new RuntimeException(e);
+                            listResult.addError(recordEvent, e);
                         }
                     }
                 }
