@@ -360,19 +360,18 @@ public class TapdataTaskScheduler {
 		final boolean stop = taskClient.stop();
 		if (stop) {
 			final String taskId = taskClient.getTask().getId().toHexString();
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
-			removeTask(taskId, false);
+			try {
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+			} catch (Exception e) {
+				logger.warn(e.getMessage(), e);
+			}
+			removeTask(taskId);
 			destroyCache(taskClient);
 		}
 	}
 
-	private void removeTask(String taskId, boolean stopAspect) {
-		TaskClient<TaskDto> taskClient;
-		if ((taskClient = taskClientMap.remove(taskId)) != null) {
-			if (stopAspect && taskClient.getTask() != null) {
-				AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
-			}
-		}
+	private void removeTask(String taskId) {
+		taskClientMap.remove(taskId);
 		TmStatusService.removeTask(taskId);
 	}
 
@@ -422,8 +421,12 @@ public class TapdataTaskScheduler {
 		final boolean stop = taskClient.stop();
 		if (stop) {
 			final String taskId = taskClient.getTask().getId().toHexString();
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
-			removeTask(taskId, true);
+			try {
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+			} catch (Exception e) {
+				logger.warn(e.getMessage(), e);
+			}
+			removeTask(taskId);
 			destroyCache(taskClient);
 		}
 	}
@@ -435,8 +438,12 @@ public class TapdataTaskScheduler {
 		boolean stop = taskClient.stop();
 		if (stop) {
 			final String taskId = taskClient.getTask().getId().toHexString();
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/complete", taskId, TaskDto.class);
-			removeTask(taskId, true);
+			try {
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/complete", taskId, TaskDto.class);
+			} catch (Exception e) {
+				logger.warn(e.getMessage(), e);
+			}
+			removeTask(taskId);
 			destroyCache(taskClient);
 		}
 	}
@@ -455,5 +462,9 @@ public class TapdataTaskScheduler {
 			return;
 		}
 		stopTask(taskDtoTaskClient);
+	}
+
+	public Map<String, TaskClient<TaskDto>> getTaskClientMap() {
+		return taskClientMap;
 	}
 }

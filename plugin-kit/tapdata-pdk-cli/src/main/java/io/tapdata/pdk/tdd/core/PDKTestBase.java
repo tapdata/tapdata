@@ -871,6 +871,7 @@ public class PDKTestBase {
                 .withDagId(dagId)
                 .withAssociateId(UUID.randomUUID().toString())
                 .withConnectionConfig(connectionOptions)
+                .withNodeConfig(nodeOptions)
                 .withGroup(spec.getGroup())
                 .withVersion(spec.getVersion())
                 .withTableMap(kvMap)
@@ -879,8 +880,6 @@ public class PDKTestBase {
                 .withStateMap(stateMap)
                 .withTable(testTableId)
                 .build();
-        TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap());
-        connectorNode.getConnectorContext().setNodeConfig(new DataMap());
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this);
         return new TestNode( connectorNode, recordEventExecute);
     }

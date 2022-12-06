@@ -60,7 +60,7 @@ public abstract class FileConnector extends ConnectorBase {
     }
 
     @Override
-    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         try (
                 FileTest fileTest = new FileTest(connectionContext.getConnectionConfig())
@@ -107,6 +107,8 @@ public abstract class FileConnector extends ConnectorBase {
         while (isAlive() && iterator.hasNext()) {
             fileOffset.setPath(iterator.next().getValue().getPath());
             makeFileOffset(fileOffset);
+            eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
+            tapEvents.set(new ArrayList<>());
             readOneFile(fileOffset, tapTable, eventBatchSize, eventsOffsetConsumer, tapEvents);
         }
         if (EmptyKit.isNotEmpty(tapEvents.get())) {
@@ -118,28 +120,34 @@ public abstract class FileConnector extends ConnectorBase {
     protected void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         TapTable tapTable = nodeContext.getTableMap().get(tableList.get(0));
         FileOffset fileOffset = (FileOffset) offsetState;
-        Map<String, Long> allLastModified = fileOffset.getAllLastModified();
+        Map<String, TapFile> allFiles = fileOffset.getAllFiles();
+        Map<String, TapFile> tempFiles = allFiles.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, TapFile> needReadFiles = new HashMap<>();
         while (isAlive()) {
-            Map<String, Long> newLastModified = getFilteredFiles().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getLastModified()));
+            Map<String, TapFile> newFiles = getFilteredFiles();
             AtomicReference<List<TapEvent>> tapEvents = new AtomicReference<>(new ArrayList<>());
-            String stopPath = fileOffset.getPath();
-            if (EmptyKit.isNotBlank(stopPath) && newLastModified.get(stopPath) > allLastModified.get(stopPath)) {
-                readOneFile(fileOffset, tapTable, recordSize, consumer, tapEvents);
-                fileOffset.getAllLastModified().put(stopPath, newLastModified.get(stopPath));
-                consumer.accept(Collections.emptyList(), fileOffset);
-            }
-            Iterator<Map.Entry<String, Long>> iterator = newLastModified.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator();
+            Map<String, TapFile> changedFiles = newFiles.entrySet().stream().filter(v -> !tempFiles.containsKey(v.getKey())
+                            || v.getValue().getLastModified() > tempFiles.get(v.getKey()).getLastModified()
+                            || !Objects.equals(v.getValue().getLength(), tempFiles.get(v.getKey()).getLength()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            Iterator<Map.Entry<String, TapFile>> iterator = needReadFiles.entrySet().stream()
+                    .filter(v -> !changedFiles.containsKey(v.getKey())).sorted(Map.Entry.comparingByKey()).iterator();
             while (isAlive() && iterator.hasNext()) {
-                Map.Entry<String, Long> entry = iterator.next();
-                //new file or lastModified has changed
-                if (!allLastModified.containsKey(entry.getKey()) || allLastModified.get(entry.getKey()) < entry.getValue()) {
-                    fileOffset.setPath(entry.getKey());
-                    makeFileOffset(fileOffset);
-                    readOneFile(fileOffset, tapTable, recordSize, consumer, tapEvents);
-                    fileOffset.getAllLastModified().put(entry.getKey(), entry.getValue());
-                    consumer.accept(Collections.emptyList(), fileOffset);
-                }
+                Map.Entry<String, TapFile> entry = iterator.next();
+                fileOffset.setPath(entry.getKey());
+                makeFileOffset(fileOffset);
+                consumer.accept(tapEvents.get(), fileOffset);
+                tapEvents.set(new ArrayList<>());
+                readOneFile(fileOffset, tapTable, recordSize, consumer, tapEvents);
+                allFiles.put(entry.getKey(), entry.getValue());
             }
+            if (EmptyKit.isNotEmpty(tapEvents.get())) {
+                fileOffset.setDataLine(fileOffset.getDataLine() + tapEvents.get().size());
+                consumer.accept(tapEvents.get(), fileOffset);
+            }
+            needReadFiles.clear();
+            needReadFiles.putAll(changedFiles);
+            tempFiles.putAll(newFiles);
             int sleep = 60;
             try {
                 while (isAlive() && (sleep-- > 0)) {
@@ -161,9 +169,8 @@ public abstract class FileConnector extends ConnectorBase {
                                         AtomicReference<List<TapEvent>> tapEvents) throws Exception;
 
     protected Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) throws Exception {
-        Map<String, TapFile> fileMap = getFilteredFiles();
         FileOffset fileOffset = new FileOffset();
-        fileOffset.setAllLastModified(fileMap.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getLastModified())));
+        fileOffset.setAllFiles(getFilteredFiles());
         return fileOffset;
     }
 

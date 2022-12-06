@@ -18,6 +18,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.SampleMockUtil;
 import io.tapdata.schema.TapTableMap;
@@ -163,6 +164,11 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 	@Override
 	public boolean complete() {
 		return !isRunning();
+	}
+
+	@Override
+	protected PDKMethodInvoker createPdkMethodInvoker() {
+		return super.createPdkMethodInvoker().maxRetryTimeMinute(0);
 	}
 
 	private List<TapdataEvent> wrapTapdataEvent(List<TapEvent> tapEvents) {

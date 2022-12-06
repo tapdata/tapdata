@@ -30,7 +30,7 @@ json文件中如有中文，需要关注该文件内容的编码方式。例如L
 - JSON Object
 ```
 {
-    "A1":{"id":1, "name":"Jarad"}
+    "A1":{"id":1, "name":"Jarad"},
     "A2":{"id":2, "name":"James"}
 }
 ```
@@ -38,7 +38,7 @@ json文件中如有中文，需要关注该文件内容的编码方式。例如L
 - JSON Array
 ```
 [
-    {"id":1, "name":"Jarad"}
+    {"id":1, "name":"Jarad"},
     {"id":2, "name":"James"}
 ]
 ```

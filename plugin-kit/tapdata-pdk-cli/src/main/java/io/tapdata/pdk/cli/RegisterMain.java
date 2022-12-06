@@ -17,7 +17,7 @@ public class RegisterMain {
     private static final String BASE_PATH = basePath();
 
     private enum ConnectorEnums {
-//        Empty(BASE_PATH + "connectors/dist/empty-connector-v1.1-SNAPSHOT.jar", false, "all", "empty"),
+        Empty(BASE_PATH + "connectors/dist/empty-connector-v1.1-SNAPSHOT.jar", false, "all", "empty"),
         Dummy(BASE_PATH + "connectors/dist/dummy-connector-v1.0-SNAPSHOT.jar", false, "all", "dummy", "basic"),
         Mysql(BASE_PATH + "connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar", false, "all", "mysql", "basic", "jdbc"),
         Postgres(BASE_PATH + "connectors/dist/postgres-connector-v1.0-SNAPSHOT.jar", false, "all", "postgres", "basic", "jdbc"),
@@ -42,7 +42,8 @@ public class RegisterMain {
         Json(BASE_PATH + "connectors/dist/json-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
         Xml(BASE_PATH + "connectors/dist/xml-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
         Excel(BASE_PATH + "connectors/dist/excel-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
-        BigQuery(BASE_PATH + "connectors/dist/bigquery-connector-v1.0-SNAPSHOT.jar", false, "all", "bigquery")
+        BigQuery(BASE_PATH + "connectors/dist/bigquery-connector-v1.0-SNAPSHOT.jar", false, "all", "bigquery"),
+        Vika(BASE_PATH + "connectors/dist/vika-connector-v1.0-SNAPSHOT.jar", false, "all", "vika"),
         ;
 
         private final String path;

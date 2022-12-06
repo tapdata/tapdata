@@ -139,16 +139,30 @@ public class TaskRestartSchedule {
     @SchedulerLock(name ="schedulingTask_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void orverTimeTask() {
         Thread.currentThread().setName("taskSchedule-schedulingTask");
-        stoppingTask();
-        schedulingTask();
-        waitRunTask();
+        try {
+            stoppingTask();
+        } catch (Exception e) {
+            log.warn("stopping overtime task retry failed");
+        }
+
+        try {
+            schedulingTask();
+        } catch (Exception e) {
+            log.warn("scheduling overtime task retry failed");
+        }
+
+        try {
+            waitRunTask();
+        } catch (Exception e) {
+            log.warn("wait run overtime task retry failed");
+        }
     }
 
     public void stoppingTask() {
         long heartExpire = getHeartExpire();
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_STOPPING)
-                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
+                .and("scheduledTime").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -204,7 +218,7 @@ public class TaskRestartSchedule {
         long heartExpire = getHeartExpire();
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN)
-                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
+                .and("scheduledTime").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {

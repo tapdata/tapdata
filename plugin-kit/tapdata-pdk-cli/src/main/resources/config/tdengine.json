@@ -1,11 +1,11 @@
 {
   "connection": {
-    "host": "127.0.0.1",
+    "host": "192.168.1.183",
     "port": 6041,
     "user": "root",
     "password": "taosdata",
-    "database": "tdd",
-    "schema": "tdd",
+    "database": "tapdata",
+    "schema": "tapdata",
     "timezone": "",
     "addtionalString": ""
   },

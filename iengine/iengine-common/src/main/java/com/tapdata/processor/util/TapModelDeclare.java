@@ -140,6 +140,10 @@ public class TapModelDeclare {
     tapTable.add(tapIndex);
   }
 
+  public static void addIndex(List<SchemaApplyResult> schemaApplyResultList, String indexName, List<Map<String, Object>> descMap) {
+    addIndex(schemaApplyResultList, indexName, false, false, null, descMap);
+  }
+
   public static void addIndex(List<SchemaApplyResult> schemaApplyResultList, String indexName, Boolean unique, Boolean primary, Boolean cluster, List<Map<String, Object>> descMap) {
     if (StringUtils.isEmpty(indexName) || CollectionUtils.isEmpty(descMap)) {
       throw new IllegalArgumentException("The index name and the description of the index are illegal");

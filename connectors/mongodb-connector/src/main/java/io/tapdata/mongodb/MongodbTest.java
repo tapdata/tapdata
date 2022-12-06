@@ -67,7 +67,7 @@ public class MongodbTest extends CommonDbTest {
 
     @Override
     protected List<String> supportVersions() {
-        return Arrays.asList("3.2.*", "3.4.*", "3.6.*", "4.0.*", "4.2.*");
+        return Arrays.asList("3.2.*", "3.4.*", "3.6.*", "4.0.*", "4.2.*","4.4.*","5.0.*");
     }
 
     @Override
@@ -317,7 +317,7 @@ public class MongodbTest extends CommonDbTest {
     public Boolean testStreamRead() {
         Map<String, String> nodeConnURIs = MongodbUtil.nodesURI(mongoClient, mongodbConfig.getUri());
         if (nodeConnURIs.size() == 0 || nodeConnURIs.get("single") != null) {
-            consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_FAILED, "mongodb standalone mode not support cdc."));
+            consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "mongodb standalone mode not support cdc."));
             return false;
         }
         consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
