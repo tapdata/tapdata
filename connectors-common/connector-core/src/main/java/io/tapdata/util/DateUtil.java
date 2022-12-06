@@ -348,6 +348,15 @@ public class DateUtil {
         return calendar;
     }
 
+    public static Object parseInstant(String dateString) {
+        String dateFormat = determineDateFormat(dateString);
+        if (EmptyKit.isNull(dateFormat)) {
+            return dateString;
+        }
+        DateTimeFormatter DT_FORMATTER = DateTimeFormatter.ofPattern(dateFormat);
+        return LocalDateTime.parse(dateString, DT_FORMATTER).atZone(TimeZone.getDefault().toZoneId()).toInstant();
+    }
+
     /**
      * Parse the given date string to date object and return a date instance based on the given
      * date string. This makes use of the {@link DateUtil#determineDateFormat(String)} to determine
