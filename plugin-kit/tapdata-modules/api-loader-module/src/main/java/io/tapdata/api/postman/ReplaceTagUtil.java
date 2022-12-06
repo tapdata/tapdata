@@ -4,7 +4,7 @@ import java.util.StringJoiner;
 
 public class ReplaceTagUtil {
     enum Tag{
-        BASE_URL("{{base_url}}",""),
+        BASE_URL("\\{\\{base_url}}",""),
         ;
         String tag;
         String to;
