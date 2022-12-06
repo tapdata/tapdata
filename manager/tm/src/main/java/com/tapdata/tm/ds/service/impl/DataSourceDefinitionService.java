@@ -3,7 +3,7 @@ package com.tapdata.tm.ds.service.impl;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -171,7 +171,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         try {
             updateConfigPropertiesTitle(dataSourceDefinition);
         } catch (Exception e) {
-            log.error("findByPdkHash updateConfigPropertiesTitle", e);
+            log.error("findByPdkHash updateConfigPropertiesTitle", e.getMessage());
         }
 
         return dataSourceDefinition;
@@ -212,7 +212,9 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
             Object o = messages.get(language);
             LinkedHashMap<String, Object> msgJson = JSON.parseObject(JSON.toJSONString(o), new TypeReference<LinkedHashMap<String, Object>>(){});
 
-            msgJson.forEach((key, value) -> content[0] = content[0].replaceAll(new StringJoiner(key).add("\\$\\{").add("}").toString(), value.toString()));
+            if (msgJson != null && content.length > 0 && content[0] != null) {
+                msgJson.forEach((key, value) -> content[0] = content[0].replaceAll(new StringJoiner(key).add("\\$\\{").add("}").toString(), value.toString()));
+            }
             LinkedHashMap<String, Object> temp = JSON.parseObject(content[0], new TypeReference<LinkedHashMap<String, Object>>(){});
 
             dataSourceDefinition.setProperties(temp);
@@ -301,9 +303,9 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         Criteria userCriteria = Criteria.where("user_id").is(user.getUserId());
         Criteria supplierCriteria = Criteria.where("pdkType").ne(DataSourceDefinitionDto.PDK_TYPE);
         Criteria scopeCriteria = Criteria.where("scope").is("public");
-        Criteria criteria = Criteria.where("type").in(dataSourceType);
+        Criteria criteria = Criteria.where("type").in(dataSourceType).and("pdkHash").exists(true);;
         criteria.orOperator(customCriteria, userCriteria, supplierCriteria, scopeCriteria);
-        return findAllDto(Query.query(criteria), user);
+        return findAll(Query.query(criteria));
     }
 
 
@@ -373,7 +375,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
 
             return target;
         } catch (Exception e) {
-            log.error("Convert dto " + dtoClass + " failed.", e);
+            log.error("Convert dto " + dtoClass + " failed. {}", e.getMessage());
         }
         return null;
     }
@@ -401,7 +403,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
 
             return entity;
         } catch (Exception e) {
-            log.error("Convert entity " + entityClass + " failed.", e);
+            log.error("Convert entity " + entityClass + " failed. {}", e.getMessage());
         }
         return null;
     }

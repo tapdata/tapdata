@@ -1,7 +1,7 @@
 package com.tapdata.tm.ws.cs;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.task.entity.TaskEntity;
@@ -77,7 +77,7 @@ public class EditFlushListener implements MessageListener<ChangeStreamDocument<D
 			}
 		}catch (Exception e){
 			log.error("ChangeStream handle message error, body: {},message: {}",
-					JsonUtil.toJsonUseJackson(message.getBody()), e.getMessage(), e);
+					JsonUtil.toJsonUseJackson(message.getBody()), e.getMessage());
 		}
 	}
 }

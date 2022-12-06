@@ -6,41 +6,54 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.enums.Constants;
-import io.tapdata.coding.enums.CustomFieldType;
-import io.tapdata.coding.service.CodingStarter;
-import io.tapdata.coding.service.IssueLoader;
+import io.tapdata.coding.service.loader.CodingStarter;
+import io.tapdata.coding.service.loader.IssuesLoader;
+import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.simplify.TapSimplify.field;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
+/**
+ * {
+ *   "label": "${csv}",
+ *   "value": "CSVMode"
+ * }
+ * */
 public class CSVMode implements ConnectionMode {
     TapConnectionContext connectionContext;
-    IssueLoader loader;
+    IssuesLoader loader;
     ContextConfig contextConfig;
     @Override
     public ConnectionMode config(TapConnectionContext connectionContext) {
         this.connectionContext = connectionContext;
-        this.loader = IssueLoader.create(connectionContext);
+        this.loader = IssuesLoader.create(connectionContext);
         this.contextConfig = loader.veryContextConfigAndNodeConfig();
         return this;
     }
 
     @Override
     public List<TapTable> discoverSchema(List<String> tables, int tableSize) {
-        ContextConfig contextConfig = IssueLoader.create(connectionContext).veryContextConfigAndNodeConfig();
-
+        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext);
+        if (tables == null || tables.isEmpty()){
+            List<TapTable> tapTables = list();
+            schemaStart.forEach(schema -> {
+                TapTable csvTable = schema.csv(connectionContext);
+                if (Checker.isNotEmpty(csvTable)) {
+                    tapTables.add(csvTable);
+                }
+            });
+            return tapTables;
+        }
+        /**
+         * ContextConfig contextConfig = IssueLoader.create(connectionContext).veryContextConfigAndNodeConfig();
         if(tables == null || tables.isEmpty()) {
             //ID,事项类型,
             //标题,描述,状态,创建时间,创建人,更新时间,所属迭代,处理人,
@@ -85,36 +98,6 @@ public class CSVMode implements ConnectionMode {
                 }
             }
             customFields.forEach((fieldId,obj)->{
-                /***
-                 *  {
-                 *      "Id": 63054716,
-                 *      "IssueFieldId": 36719601,
-                 *      "NeedDefault": false,
-                 *      "ValueString": "",
-                 *      "IssueType": "REQUIREMENT",
-                 *      "Required": false,
-                 *      "IssueField": {
-                 *          "Id": 36719601,
-                 *          "Name": "处理人",
-                 *          "IconUrl": "",
-                 *          "Type": "ASSIGNEE",
-                 *          "ComponentType": "SELECT_MEMBER_SINGLE",
-                 *          "Description": "",
-                 *          "Options": [],
-                 *          "Unit": "",
-                 *          "Selectable": false,
-                 *          "Required": false,
-                 *          "Editable": false,
-                 *          "Deletable": false,
-                 *          "Sortable": true,
-                 *          "CreatedBy": 0,
-                 *          "CreatedAt": 1661745452000,
-                 *          "UpdatedAt": 1661745452000
-                 *      },
-                 *      "CreatedAt": 1663063209000,
-                 *      "UpdatedAt": 1663063209000
-                 *  }
-                 */
                 Object issueFieldObj = obj.get("IssueField");
                 if (null != issueFieldObj && issueFieldObj instanceof JSONObject) {
                     Map<String, Object> issueField = (Map<String, Object>) obj.get("IssueField");
@@ -130,6 +113,8 @@ public class CSVMode implements ConnectionMode {
             });
             return list(tapTable);
         }
+        */
+
         return null;
     }
 
@@ -326,205 +311,4 @@ public class CSVMode implements ConnectionMode {
         }
         return map(entry(finalKey,value));
     }
-    /**
-     "Issue": {
-     "Epic": {
-     "Code": 0,
-     "Type": "",
-     "Name": "",
-     "IssueStatusId": 0,
-     "IssueStatusName": "",
-     "Priority": "",
-     "Assignee": {
-     "Id": 0,
-     "Status": 0,
-     "Avatar": "",
-     "Name": "",
-     "Email": "",
-     "TeamId": 0,
-     "Phone": "",
-     "GlobalKey": "",
-     "TeamGlobalKey": ""
-     }
-     },
-     "ParentType": "REQUIREMENT",
-     "Code": 66,
-     "Type": "REQUIREMENT",
-     "Name": "计算",
-     "Description": "\n计算\n",
-     "IterationId": 0,
-     "IssueStatusId": 43900887,
-     "IssueStatusName": "未开始",
-     "IssueStatusType": "TODO",
-     "Priority": "1",
-     "Assignee": {
-     "Id": 0,
-     "Status": 0,
-     "Avatar": "",
-     "Name": "",
-     "Email": "",
-     "TeamId": 0,
-     "Phone": "",
-     "GlobalKey": "",
-     "TeamGlobalKey": ""
-     },
-     "StartDate": 0,
-     "DueDate": 0,
-     "WorkingHours": 0,
-     "Creator": {
-     "Id": 8613060,
-     "Status": 1,
-     "Avatar": "https://coding-net-production-static-ci.codehub.cn/3b111f6b-f929-4f16-838c-f29ff2c97eb6.jpg?imageView2/1/w/0/h/0",
-     "Name": "TestHookGavin",
-     "Email": "",
-     "TeamId": 0,
-     "Phone": "",
-     "GlobalKey": "",
-     "TeamGlobalKey": ""
-     },
-     "StoryPoint": "",
-     "CreatedAt": 1663128089000,
-     "UpdatedAt": 1663131435000,
-     "CompletedAt": 0,
-     "ProjectModule": {
-     "Id": 0,
-     "Name": ""
-     },
-     "Watchers": [
-     {
-     "Id": 8613060,
-     "Status": 1,
-     "Avatar": "https://coding-net-production-static-ci.codehub.cn/3b111f6b-f929-4f16-838c-f29ff2c97eb6.jpg?imageView2/1/w/0/h/0",
-     "Name": "TestHookGavin",
-     "Email": "",
-     "TeamId": 0,
-     "Phone": "",
-     "GlobalKey": "",
-     "TeamGlobalKey": ""
-     }
-     ],
-     "Labels": [],
-     "Files": [],
-     "RequirementType": {
-     "Id": 0,
-     "Name": ""
-     },
-     "DefectType": {
-     "Id": 0,
-     "Name": "",
-     "IconUrl": ""
-     },
-     "CustomFields": [
-     {
-     "Id": 36756582,
-     "ValueString": "100"
-     }
-     ],
-     "ThirdLinks": [],
-     "SubTasks": [],
-     "Parent": {
-     "Code": 0,
-     "Type": "",
-     "Name": "",
-     "IssueStatusId": 0,
-     "IssueStatusName": "",
-     "Priority": "",
-     "Assignee": {
-     "Id": 0,
-     "Status": 0,
-     "Avatar": "",
-     "Name": "",
-     "Email": "",
-     "TeamId": 0,
-     "Phone": "",
-     "GlobalKey": "",
-     "TeamGlobalKey": ""
-     },
-     "IssueStatusType": "",
-     "IssueTypeDetail": {
-     "Id": 0,
-     "Name": "",
-     "IssueType": "",
-     "Description": "",
-     "IsSystem": false
-     }
-     },
-     "Iteration": {
-     "Code": 0,
-     "Name": "",
-     "Status": "",
-     "Id": 0
-     },
-     "IssueTypeDetail": {
-     "Id": 8085488,
-     "Name": "需求",
-     "IssueType": "REQUIREMENT",
-     "Description": "需求是指用户解决某一个问题或达到某一目标所需的软件功能。",
-     "IsSystem": true
-     },
-     "IssueTypeId": 8085488
-     }
-     * */
-
-/**
-//                    .add(field("Code", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
-//                    .add(field("ProjectName", "StringMinor").isPrimaryKey(true).primaryKeyPos(2))   //项目名称
-//                    .add(field("TeamName", "StringMinor").isPrimaryKey(true).primaryKeyPos(1))      //团队名称
-//                    .add(field("ParentType", "StringMinor"))                                       //父事项类型
-//                    .add(field("Type", "StringMinor"))                                         //事项类型：DEFECT - 缺陷;REQUIREMENT - 需求;MISSION - 任务;EPIC - 史诗;SUB_TASK - 子工作项
-//
-//                    .add(field("Name", "StringMinor"))                                              //名称
-//                    .add(field("Description", "StringLonger"))                                       //描述
-//
-//                    .add(field("IssueStatusId", JAVA_Integer))                                   //事项状态 Id
-//                    .add(field("IssueStatusName", "StringMinor"))                                   //事项状态名称
-//                    .add(field("IssueStatusType", "StringMinor"))                                   //事项状态类型
-//                    .add(field("CreatorId", JAVA_Integer))                                       //创建人Id
-//                    .add(field("Creator", JAVA_Map))                                                 //创建人
-//                    .add(field("CreatedAt", JAVA_Long))                                             //创建时间
-//                    .add(field("UpdatedAt", JAVA_Long))                                             //修改时间
-//                    .add(field("CompletedAt", JAVA_Long))                                           //完成时间
-//                    .add(field("IssueTypeDetailId", JAVA_Integer))                               //事项类型ID
-//                    .add(field("IssueTypeDetail", JAVA_Map))                                         //事项类型具体信息
-//                    .add(field("IterationId", JAVA_Integer))                                     //迭代 Id
-//                    .add(field("Priority", "StringBit"))                                          //优先级:"0" - 低;"1" - 中;"2" - 高;"3" - 紧急;"" - 未指定
-//                    .add(field("IterationCode", JAVA_Integer))                                   //所属迭代Code
-//                    .add(field("Iteration", JAVA_Map))                                               //所属迭代
-//
-//                    .add(field("AssigneeId", JAVA_Integer))                                      //Assignee.Id 等于 0 时表示未指定
-//                    .add(field("Assignee", JAVA_Map))                                                //处理人
-//
-//                    .add(field("StartDate", JAVA_Long))                                             //开始日期时间戳
-//                    .add(field("DueDate", JAVA_Long))                                               //截止日期时间戳
-//                    .add(field("WorkingHours", "WorkingHours"))                                      //工时（小时）
-//
-//                    .add(field("StoryPoint", "StringMinor"))                                        //故事点
-//
-//
-//                    .add(field("ProjectModuleId", JAVA_Integer))                                 //ProjectModule.Id 等于 0 时表示未指定
-//                    .add(field("ProjectModule", JAVA_Map))                                           //项目模块
-//
-//                    .add(field("WatcherIdArr", JAVA_Array))                                        //关注人Id列表
-//                    .add(field("Watchers", JAVA_Array))                                            //关注人
-//
-////                            .add(field("LabelIdArr", JAVA_Array))                                          //标签Id列表
-////                            .add(field("Labels", JAVA_Array))                                              //标签列表
-//
-////                            .add(field("FileIdArr", JAVA_Array))                                           //附件Id列表
-////                            .add(field("Files", JAVA_Array))                                               //附件列表
-//                    .add(field("RequirementType", "StringSmaller"))                                   //需求类型
-//
-//                    .add(field("DefectType", JAVA_Map))                                              //缺陷类型
-//                    .add(field("CustomFields", JAVA_Array))                                        //自定义字段列表
-//                    .add(field("ThirdLinks", JAVA_Array))                                          //第三方链接列表
-//
-////                            .add(field("SubTaskCodeArr", JAVA_Array))                                      //子工作项Code列表
-////                            .add(field("SubTasks", JAVA_Array))                                            //子工作项列表
-//
-//                    .add(field("ParentCode", JAVA_Integer))                                      //父事项Code
-//                    .add(field("Parent", JAVA_Map))                                                  //父事项
-//
-//                    .add(field("EpicCode", JAVA_Integer))                                        //所属史诗Code
-//                    .add(field("Epic", JAVA_Map))
- */
 }

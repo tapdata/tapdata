@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataTaskErrorEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
@@ -30,6 +31,8 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 	protected SyncTypeEnum syncType;
 
 	protected DataProcessorContext dataProcessorContext;
+
+	protected Throwable offsetFromTimeError;
 
 	public HazelcastDataBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -103,7 +106,6 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 						}
 					}
 				}
-				logger.info("Init sync progress result: " + syncProgress);
 			} else {
 				if (null == syncProgressObj) {
 					logger.info("Sync progress not exists, will run task as first time");

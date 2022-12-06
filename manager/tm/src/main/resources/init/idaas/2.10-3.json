@@ -1,0 +1,16 @@
+[
+  {
+	"createIndexes": "HazelcastPersistence",
+	"indexes":[
+	  {
+		"name" : "imap_1_key_1",
+		"key" : {
+		  "imap": 1,
+		  "key": 1
+		},
+		"background": true,
+		"unique": true
+	  }
+	]
+  }
+]

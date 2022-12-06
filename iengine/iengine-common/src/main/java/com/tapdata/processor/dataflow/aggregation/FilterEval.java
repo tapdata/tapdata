@@ -27,7 +27,7 @@ public class FilterEval {
 		String scripts = new StringBuilder(String.format(FILTER_SCRIPT_FUNCTION, filterPredicate)).append(System.lineSeparator()).append(buildInMethod).toString();
 
 		scriptEngine.eval(scripts);
-		Thread.currentThread().setContextClassLoader(ClassLoader.getSystemClassLoader());
+//		Thread.currentThread().setContextClassLoader(ClassLoader.getSystemClassLoader());
 		this.engine = (Invocable) scriptEngine;
 		this.filterPredicate = filterPredicate;
 	}

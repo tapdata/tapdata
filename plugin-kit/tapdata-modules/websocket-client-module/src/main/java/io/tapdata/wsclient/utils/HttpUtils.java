@@ -15,10 +15,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class HttpUtils {
-    public static JSONObject post(String url, JSONObject data, Map<String, String> headers) throws IOException {
+    public static JSONObject post(String url, String data, Map<String, String> headers) throws IOException {
         HttpURLConnection connection = getUrlConnection(url, "POST", headers);
         try {
-            output(connection, data);
+//            output(connection, data);
+            if(data != null) {
+                connection.setDoOutput(true);
+                connection.setRequestProperty( "Content-Type", "application/json");
+                try(OutputStream outputStream = connection.getOutputStream()) {
+                    outputStream.write(data.getBytes(StandardCharsets.UTF_8));
+                }
+            }
             connection.connect();
             int code = connection.getResponseCode();
             if(code >= 200 && code < 300) {
@@ -27,8 +34,11 @@ public class HttpUtils {
                 throw new IOException("Url(post) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
             }
         } finally {
-          connection.disconnect();
+            connection.disconnect();
         }
+    }
+    public static JSONObject post(String url, JSONObject data, Map<String, String> headers) throws IOException {
+        return post(url, JSON.toJSONString(data), headers);
     }
 
     private static void output(HttpURLConnection connection, JSONObject data) throws IOException {

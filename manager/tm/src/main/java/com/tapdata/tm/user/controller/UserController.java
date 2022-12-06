@@ -346,7 +346,7 @@ public class UserController extends BaseController {
         try {
             userLogService.addUserLog(Modular.SYSTEM, com.tapdata.tm.userLog.constant.Operation.LOGIN, user.getId().toHexString(), "", "");
         } catch (Exception e) {
-            log.error("登录添加操作日志异常", e);
+            log.error("登录添加操作日志异常 {}", e.getMessage());
         }
         return success(accessTokenDto);
 

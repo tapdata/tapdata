@@ -6,17 +6,21 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
+import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
+import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.repository.SettingsRepository;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.utils.EncrptAndDencryUtil;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 import com.tapdata.tm.utils.MailUtils;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -35,15 +39,9 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
+@Setter(onMethod_ = {@Autowired})
 public class SettingsService {
-
-    @Autowired
-    SettingsRepository settingsRepository;
-
-    @Autowired
-    MailUtils mailUtils;
-
-    @Autowired
+    private SettingsRepository settingsRepository;
     private MongoTemplate mongoTemplate;
 
     /**
@@ -142,13 +140,13 @@ public class SettingsService {
 
         if ("1".equals(decode)) {
             //todo 解密方法
-            settingsList.stream().filter(settings -> {
-                if ("smtp.server.password".equals(settings.getKey())) {
-                    settings.setValue(EncrptAndDencryUtil.Decrypt(String.valueOf(settings.getValue())));
-                    return true;
-                }
-                return false;
-            }).collect(Collectors.toList());
+            //settingsList.stream().filter(settings -> {
+            //    if ("smtp.server.password".equals(settings.getKey())) {
+            //        settings.setValue(EncrptAndDencryUtil.Decrypt(String.valueOf(settings.getValue())));
+            //        return true;
+            //    }
+            //    return false;
+            //}).collect(Collectors.toList());
         } else {
             settingsList.stream().filter(settings -> {
                 if ("smtp.server.password".equals(settings.getKey()))
@@ -241,13 +239,27 @@ public class SettingsService {
         mongoTemplate.updateFirst(query, update, Settings.class);
     }
 
-    public void testEmail() {
-        String receiver = (String) getValueByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_RECEIVER);
-        String titlePrefix = (String) getValueByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
-        // 读取html模板
-        String html = MailUtils.readHtmlToString("mailTemplate.html");
-        org.jsoup.nodes.Document doc = Jsoup.parse(html);
-        mailUtils.sendMail(receiver, doc, titlePrefix+"test");
+    public List<Settings> findAll() {
+        return mongoTemplate.find(new Query(), Settings.class);
     }
 
+    public void testSendMail(TestMailDto testMailDto) {
+        MailAccountDto mailAccount = getMailAccount(testMailDto);
+
+        if ("*****".equals(mailAccount.getPass())) {
+            String value = SettingsEnum.SMTP_PASSWORD.getValue();
+            mailAccount.setPass(value);
+        }
+
+        MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), testMailDto.getTitle(), testMailDto.getText());
+
+    }
+
+    private MailAccountDto getMailAccount(TestMailDto testMailDto) {
+
+        String[] split = testMailDto.getEmail_Receivers().split(",");
+        return MailAccountDto.builder().host(testMailDto.getSMTP_Server_Host()).port(Integer.valueOf(testMailDto.getSMTP_Server_Port()))
+                .from(testMailDto.getEmail_Send_Address()).user(testMailDto.getSMTP_Server_User()).pass(testMailDto.getSMTP_Server_password())
+                .receivers(Arrays.asList(split)).protocol(testMailDto.getEmail_Communication_Protocol()).build();
+    }
 }

@@ -4,16 +4,16 @@ import cn.hutool.core.lang.Assert;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Splitter;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
@@ -50,6 +50,9 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.proxy.dto.SubscribeDto;
+import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
+import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
@@ -61,17 +64,15 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -79,7 +80,9 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URL;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -92,25 +95,43 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
  */
 @Service
 @Slf4j
-@Setter(onMethod_ = {@Autowired})
+//@Setter(onMethod_ = {@Autowired})
 public class DataSourceService extends BaseService<DataSourceConnectionDto, DataSourceEntity, ObjectId, DataSourceRepository> {
 
 	private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])([a-zA-Z0-9_\\s-]|[\u4e00-\u9fa5])*$";
-
-	private ClassificationService classificationService;
-	private MetadataInstancesService metadataInstancesService;
-	private WorkerService workerService;
-	private MetadataUtil metadataUtil;
-	private JobService jobService;
-	private DataFlowService dataFlowService;
-	private TaskService taskService;
-	private MessageQueueService messageQueueService;
-	private ModulesService modulesService;
-	private LibSupportedsRepository libSupportedsRepository;
+	@Value("${gateway.secret:}")
+	private String gatewaySecret;
+	@Value("#{'${spring.profiles.include:idaas}'.split(',')}")
+	private List<String> productList;
+	@Autowired
 	private SettingsService settingsService;
+	private final Object checkCloudLock = new Object();
+	@Autowired
+	private ClassificationService classificationService;
+	@Autowired
+	private MetadataInstancesService metadataInstancesService;
+	@Autowired
+	private WorkerService workerService;
+	@Autowired
+	private MetadataUtil metadataUtil;
+	@Autowired
+	private JobService jobService;
+	@Autowired
+	private DataFlowService dataFlowService;
+	@Autowired
+	private TaskService taskService;
+	@Autowired
+	private MessageQueueService messageQueueService;
+	@Autowired
+	private ModulesService modulesService;
+	@Autowired
+	private LibSupportedsRepository libSupportedsRepository;
+	@Autowired
 	private DataSourceDefinitionService dataSourceDefinitionService;
-
+	@Autowired
 	private DefaultDataDirectoryService defaultDataDirectoryService;
+	@Autowired
+	private AlarmService alarmService;
 
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
@@ -171,10 +192,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Boolean submit = updateDto.getSubmit();
 		String oldName = updateCheck(user, updateDto);
 
-		if (updateDto.getLoadAllTables() != null && updateDto.getLoadAllTables()) {
-			updateDto.setTable_filter("");
-		}
-
 		Assert.isFalse(StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), updateDto.getAccessNodeType())
 				&& CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
 
@@ -191,9 +208,23 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		}
 
 		DataSourceEntity entity = convertToEntity(DataSourceEntity.class, updateDto);
+		entity.setAccessNodeProcessIdList(updateDto.getTrueAccessNodeProcessIdList());
 
-		entity = repository.save(entity, user);
-		BeanUtils.copyProperties(entity, updateDto);
+		Update update = repository.buildUpdateSet(entity, user);
+
+		if (StringUtils.equals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), updateDto.getAccessNodeType())) {
+			update.set("accessNodeProcessId", null);
+			update.set("accessNodeProcessIdList", Lists.of());
+		}
+
+		if (updateDto.getLoadAllTables() != null && updateDto.getLoadAllTables()) {
+			update.set("table_filter", null);
+		}
+
+		updateById(updateDto.getId(), update, user);
+
+		updateDto = findById(updateDto.getId(), user);
+
 		updateAfter(user, updateDto, oldName, submit);
 
 		hiddenMqPasswd(updateDto);
@@ -491,7 +522,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				try {
 					connectionString = new ConnectionString(uri);
 				} catch (Exception e) {
-					log.error("Parse connection string failed ({})", uri, e);
+					log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
 				}
 
 				if (connectionString != null) {
@@ -499,7 +530,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 					if (password != null) {
 						String password1 = new String(password);
-						uri = uri.replace(password1, "******");
+						uri = uri.replace(":"+password1, ":******");
 						item.getConfig().put("uri", uri);
 					}
 
@@ -508,6 +539,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 		}
 	}
+
 
 	/**
 	 * 给数据源连接修改资源分类
@@ -549,7 +581,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	private void checkTagList(UserDetail user, List<Tag> tags) {
 		log.debug("check classification, tags = {}, user = {}", tags, user == null ? null : user.getUserId());
 		for (Tag tag : tags) {
-			ClassificationDto classificationDto = classificationService.findById(tag.getId(), user);
+			ClassificationDto classificationDto = classificationService.findById(MongoUtils.toObjectId(tag.getId()), user);
 			if (classificationDto == null) {
 				throw new BizException("Tag.NotFound", "resource tag not found");
 			}
@@ -639,9 +671,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	 *
 	 * @param user
 	 * @param id
+	 * @param requestURI
 	 * @return
 	 */
-	public DataSourceConnectionDto copy(UserDetail user, String id) {
+	public DataSourceConnectionDto copy(UserDetail user, String id, String requestURI) {
 		boolean boolValue = SettingsEnum.CONNECTIONS_CREAT_DUPLICATE_SOURCE.getBoolValue(true);
 		log.debug("system duplicateCreate param = {}", boolValue);
 		if (!boolValue) {
@@ -655,12 +688,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			log.warn("Data source connection not found");
 			throw new BizException("Datasource.NotFound", "data source connection not found");
 		}
-
+		//json schemal
 		DataSourceEntity entity = optional.get();
 		entity.setId(null);
 		//将数据源连接的名称修改成为名称后面+_copy
 		String connectionName = entity.getName() + " - Copy";
 		entity.setLastUpdAt(new Date());
+
 		while (true) {
 			try {
 				//插入复制的数据源
@@ -677,6 +711,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 			}
 		}
+		this.resetWebHookOnCopy(entity,user, requestURI);//重置WebHook URL
 
 		log.debug("copy datasource success, datasource name = {}", connectionName);
 
@@ -687,7 +722,90 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		return connectionDto;
 	}
 
+	/**
+	 * 复制数据源时，重置WebHook连接（For SaaS）
+	 * 在数据源JSONSchema中对connection配置了actionOnCopy属性
+	 *
+	 * @param entity
+	 * @param user
+	 * @param requestURI
+	 * @Author Gavin
+	 * @Date 2022-10-17
+	 */
+	private void resetWebHookOnCopy(DataSourceEntity entity, UserDetail user, String requestURI){
+			ObjectId copyId = entity.getId();
+			if (null == copyId) entity.setId(copyId = new ObjectId());
+			//获取并校验pdkHash,用于获取jsonSchema
+			String pdkHash = entity.getPdkHash();
+			if (null == pdkHash || "".equals(pdkHash)) {
+				log.debug("Reset WebHook URL error, datasource name = {}, message : PdkHash must be not null or not empty.", entity.getName());
+				return;
+			}
+			DataSourceDefinitionDto dataSource = dataSourceDefinitionService.findByPdkHash(pdkHash, user);
+			LinkedHashMap<String, Object> properties = dataSource.getProperties();
+			//获取connection配置
+			if (null == properties || properties.isEmpty()) {
+				log.debug("Reset WebHook URL error, datasource name = {}, message : Connector's jsonSchema must be not null or not empty.", entity.getName());
+				return;
+			}
+			Object connection = properties.get("connection");
+			if (null == connection || !(connection instanceof Map) || ((Map<String, Object>) connection).isEmpty()) {
+				log.debug("Reset WebHook URL error, datasource name = {}, message : Connector's connection must be not null or not empty.",entity.getName());
+				return;
+			}
+			//获取properties配置信息
+			Object connectionPropertiesObj = ((Map<String, Object>) connection).get("properties");
+			if (null == connectionPropertiesObj || !(connectionPropertiesObj instanceof Map)) {
+				log.debug("Reset WebHook URL error, datasource name = {}, message : Connector's properties must be not null or not empty.",entity.getName());
+				return;
+			}
+			Map<String, Object> connectionProperties = (Map<String, Object>) connectionPropertiesObj;
+			String entityId = copyId.toHexString();
+			//遍历properties属性，对含有actionOnCopy属性的字段进行重置WebHook操作
+			for (Map.Entry<String, Object> entry : connectionProperties.entrySet()) {
+				String key = entry.getKey();
+				Object propertiesObj = entry.getValue();
+				if (null == propertiesObj || !(propertiesObj instanceof Map) || ((Map) propertiesObj).isEmpty()) continue;
+				Object actionOnCopyObj = ((Map<String, Object>) propertiesObj).get("actionOnCopy");
+				if (null == actionOnCopyObj) continue;
+				//对actionOnCopy值为NEW_WEB_HOOK_URL的属性进行WebHook重置操作，使用connection Id生成特有的WebHook url
+				if ("NEW_WEB_HOOK_URL".equals(String.valueOf(actionOnCopyObj))) {
+					Map<String, Object> config = entity.getConfig();
+					Object keyObjOfCopyConnectionConfig = config.get(key);
+					if (null == keyObjOfCopyConnectionConfig) continue;
+					String keyValue = String.valueOf(keyObjOfCopyConnectionConfig);
+					URL url = null;
+					try {
+						url = new URL(keyValue);
+					} catch (Throwable ignored) {
+					}
+					if (null == keyValue || !keyValue.contains("/api/proxy/callback/") || url == null) {
+						config.put(key, "");
+					} else {
+//						int lastCharIndex = keyValue.lastIndexOf('/') + 1;
+//						int lenOfToken = keyValue.length();
+						SubscribeDto subscribeDto = new SubscribeDto();
+						subscribeDto.setExpireSeconds(Integer.MAX_VALUE);
+						subscribeDto.setSubscribeId("source#" + entityId);
 
+						ProxyService proxyService = InstanceFactory.bean(ProxyService.class);
+
+						String token = null;
+						if(productList != null && productList.contains("dfs")) {
+							if(!StringUtils.isBlank(gatewaySecret))
+								token = proxyService.generateStaticToken(user.getUserId(), gatewaySecret);
+							else
+								throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
+						}
+						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, user, token, requestURI);
+						String webHookUrl = url.getProtocol() + "://" + url.getHost() + (url.getPort() > 0 ? (":" + url.getPort()) : "") + subscribeResponseDto.getToken();
+						config.put(key, webHookUrl);
+
+						repository.update(new Query(Criteria.where("_id").is(entityId)),entity);
+					}
+				}
+			}
+	}
 	/**
 	 * mongodb这种类型数据源类型的，存在库里面的就是一个uri,需要解析成为一个标准模式的返回
 	 *
@@ -786,7 +904,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			try {
 				connectionString = new ConnectionString(databaseUri);
 			} catch (Exception e) {
-				log.error("Parse connection string failed ({})", databaseUri, e);
+				log.error("Parse connection string failed ({}) {}", databaseUri, e.getMessage());
 			}
 
 			if (connectionString != null) {
@@ -935,7 +1053,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			boolean matches = name.matches(connectNameReg);
 			if (!matches) {
 				log.warn("Illegal name, name = {}", name);
-				throw new BizException("Datasource.IllegalName", "Illegal name");
+				throw new BizException("Datasource.IllegalName");
 			}
 		}
 	}
@@ -947,8 +1065,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if ("finished".equals(loadFieldsStatus) && schemaVersion != null) {
 			log.debug("loadFieldsStatus is finished, update model delete flag");
 			// handle delete model, not match schemaVersion will update is_deleted to true
-			Criteria criteria = Criteria.where("is_deleted").ne(true).and("databaseId").is(datasourceId)
-					.and("lastUpdate").ne(schemaVersion).and("taskId").exists(false);;
+			Criteria criteria = Criteria.where("is_deleted").ne(true).and("source._id").is(datasourceId)
+					.and("lastUpdate").ne(schemaVersion).and("taskId").exists(false).and("meta_type").ne("database");
 			log.info("Delete metadata update filter: {}", criteria);
 			Query query = new Query(criteria);
 			Update update = Update.update("is_deleted", true);
@@ -958,18 +1076,16 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 
 	public void sendTestConnection(DataSourceConnectionDto connectionDto, boolean updateSchema, Boolean submit, UserDetail user) {
-		log.info("send test connection, connection = {}, updateSchema = {}， submit = {}", connectionDto, updateSchema, submit);
+		log.info("send test connection, connection = {}, updateSchema = {}， submit = {}", connectionDto.getName(), updateSchema, submit);
 
 		submit = submit != null && submit;
-		if (connectionDto == null || !submit) {
+		if (!submit) {
 			return;
 		}
 
 		if (StringUtils.isBlank(connectionDto.getPlain_password())) {
 			connectionDto.setPlain_password(null);
 		}
-		Update update = Update.update("status", "testing").set("testTime", System.currentTimeMillis());
-		update(new Query(Criteria.where("_id").is(connectionDto.getId())), update, user);
 
 		List<Worker> availableAgent;
 		if (StringUtils.isBlank(connectionDto.getAccessNodeType())
@@ -987,7 +1103,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 		}
 
-		// todo jacques 这里应该要采用 调度策略 后续补充上
 		String processId = availableAgent.get(0).getProcessId();
 		ObjectMapper objectMapper = new ObjectMapper();
 		String json;
@@ -1007,9 +1122,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		queueDto.setData(data);
 		queueDto.setType("pipe");
 
-		log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
+		log.info("build send test connection websocket context, processId = {}, userId = {}", processId, user.getUserId());
 		messageQueueService.sendMessage(queueDto);
 
+		Update update = Update.update("status", "testing").set("testTime", System.currentTimeMillis());
+		update(new Query(Criteria.where("_id").is(connectionDto.getId())), update, user);
 	}
 
 	public void checkConn(DataSourceConnectionDto connectionDto, UserDetail user) {
@@ -1077,16 +1194,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			boolean rename = false;
 			String oldName = null;
 			Document set = null;
+			Object status = null;
 			if (update != null && update.get("$set") != null) {
 				set = setToDocumentByJsonParser(update);
-
 				if (set != null && (set.get("schema.tables") != null
 						|| DataSourceConnectionDto.STATUS_INVALID.equals(set.get("status"))
 						|| DataSourceConnectionDto.STATUS_READY.equals(set.get("status")))) {
+					status = set.get("status");
 					if (set.get("schema.tables") != null) {
 						String tablesJson = JsonUtil.toJsonUseJackson(set.get("schema.tables"));
 						tables = InstanceFactory.instance(JsonParser.class).fromJson(tablesJson, new TypeHolder<List<TapTable>>() {
-						}, TapConstants.abstractClassDetectors);
+						});
 						set.put("schema.tables", null);
 					}
 					hasSchema = true;
@@ -1142,6 +1260,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 
 				databaseModel.setSourceType(SourceTypeEnum.SOURCE.name());
+				databaseModel.setDeleted(false);
 
 				databaseModel = metadataInstancesService.upsertByWhere(Where.where("qualified_name", databaseModel.getQualifiedName()), databaseModel, user);
 				String databaseId = databaseModel.getId().toHexString();
@@ -1169,7 +1288,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 //						}
 						for (TapTable table : tables) {
 							String expression = definitionDto.getExpression();
-							PdkSchemaConvert.tableFieldTypesGenerator.autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+							PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
 						}
 
 						List<MetadataInstancesDto> newModels = tables.stream().map(tapTable -> {
@@ -1204,12 +1323,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
 							log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
 									, newModelList.size(), name, pair.getLeft(), pair.getRight());
-							deleteModels(loadFieldsStatus, databaseId, schemaVersion, user);
+							deleteModels(loadFieldsStatus, connectionId, schemaVersion, user);
+							update.put("loadSchemaTime", new Date());
+
 						}
 					}
 				} else {
 					if (set != null && set.get("lastUpdate") != null) {
-						deleteModels("finished", databaseId, (Long) set.get("lastUpdate"), user);
+						deleteModels("finished", connectionId, (Long) set.get("lastUpdate"), user);
 					}
 				}
 			}
@@ -1229,9 +1350,19 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				filter.setLimit(0);
 				filter.setSkip(0);
 				Query query = repository.filterToQuery(filter);
-				Update update1 = Update.fromDocument(update);
-				UpdateResult update2 = repository.update(query, update1, user);
-				return update2.getModifiedCount();
+				Update datasourceUpdate = Update.fromDocument(update);
+
+				if (Objects.nonNull(status)) {
+					datasourceUpdate.set("testTime", System.currentTimeMillis());
+					if (DataSourceEntity.STATUS_READY.equals(status.toString())) {
+						datasourceUpdate.set("testCount", 0);
+						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), true));
+					} else {
+						datasourceUpdate.inc("testCount", 1);
+						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), false));
+					}
+				}
+				return repository.update(query, datasourceUpdate, user).getModifiedCount();
 			}
 		}
 
@@ -1399,12 +1530,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 						connectionDto.setName(connectionDto.getName() + "_import");
 					}
 
-					if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), connection.getAccessNodeType())
-							&& CollectionUtils.isEmpty(connection.getAccessNodeProcessIdList())) {
-						connection.setAccessNodeProcessIdList(com.google.common.collect.Lists.newArrayList(connection.getAccessNodeProcessId()));
-					} else if (StringUtils.equals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), connection.getAccessNodeType())) {
-						connection.setAccessNodeProcessIdList(com.google.common.collect.Lists.newArrayList());
-					}
+					connectionDto.setListtags(null);
+					connectionDto.setAccessNodeProcessId(null);
+					connectionDto.setAccessNodeProcessIdList(new ArrayList<>());
+					connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+
 
 					save(connectionDto, user);
 				}
@@ -1553,4 +1683,5 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		query.with(Sort.by(Sort.Direction.ASC, "_id"));
 		return taskService.findAllDto(query, userDetail);
 	}
+
 }

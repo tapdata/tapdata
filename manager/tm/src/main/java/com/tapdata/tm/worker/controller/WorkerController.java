@@ -1,10 +1,12 @@
 package com.tapdata.tm.worker.controller;
 
 import com.google.gson.reflect.TypeToken;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.dto.CheckTaskUsedAgentDto;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -40,8 +42,11 @@ public class WorkerController extends BaseController {
     }
 
     private WorkerService workerService;
-    public WorkerController(WorkerService workerService) {
+
+    private SettingsService settingsService;
+    public WorkerController(WorkerService workerService, SettingsService settingsService) {
         this.workerService = workerService;
+        this.settingsService = settingsService;
     }
 
     /**
@@ -64,7 +69,6 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping("/health")
     public ResponseMessage<WorkerDto> health(@RequestBody WorkerDto worker) {
-        worker.setPingTime(new Date().getTime());
         return success(workerService.health(worker, getLoginUser()));
     }
 
@@ -342,6 +346,25 @@ public class WorkerController extends BaseController {
     public ResponseMessage<Map<String, List>> availableAgent() {
 	    List<WorkerDto> workerDtos = workerService.convertToDto(workerService.findAvailableAgent(getLoginUser()), WorkerDto.class);
 	    return success(new HashMap<String, List>(){{put("result", workerDtos);}});
+    }
+
+    /**
+     * 校验任务所使用的agent是否可以强制停止, agent如果离线状态，则提醒用户会存在问题，入agent在线，或者已删除，则可以使用。
+     * @param taskId
+     * @return key:status  value: online在线 offline离线 deleted已删除
+     */
+    @Operation(summary = "校验任务所使用的agent是否可以强制停止")
+    @GetMapping("/available/taskUsedAgent")
+    public ResponseMessage<CheckTaskUsedAgentDto> checkTaskUsedAgent(@RequestParam("taskId") String taskId) {
+        String status = workerService.checkTaskUsedAgent(taskId, getLoginUser());
+
+        CheckTaskUsedAgentDto dto = new CheckTaskUsedAgentDto();
+        dto.setStatus(status);
+        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+        final boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+
+        dto.setCloudVersion(isCloud);
+        return success(dto);
     }
 
 }

@@ -28,11 +28,11 @@ public class LoggingOutputStream extends OutputStream {
   private int byteCount = 0;
   private boolean haveLeader = false;
 
-  public LoggingOutputStream(Logger logger, Level level) {
+  public LoggingOutputStream(ScriptLogger logger, Level level) {
     try {
       this.handle = ((MethodHandle)LOG_METHODS.computeIfAbsent(level, LoggingOutputStream::getHandle)).bindTo(logger);
     } catch (AssertionError var4) {
-      LOGGER.error("Failed to create " + LoggingOutputStream.class.getSimpleName() + " instance for Logger \"" + logger.getName() + "[" + level + "]\"", var4);
+      LOGGER.error("Failed to create " + LoggingOutputStream.class.getSimpleName() + " instance for Logger \"" + logger.getClass().getName() + "[" + level + "]\"", var4);
       throw var4;
     }
 
@@ -123,7 +123,7 @@ public class LoggingOutputStream extends OutputStream {
     String methodName = level.name().toLowerCase(Locale.ROOT);
 
     try {
-      return MethodHandles.publicLookup().findVirtual(Logger.class, methodName, MethodType.methodType(Void.TYPE, String.class));
+      return MethodHandles.publicLookup().findVirtual(ScriptLogger.class, methodName, MethodType.methodType(Void.TYPE, String.class));
     } catch (IllegalAccessException | NoSuchMethodException var3) {
       throw new AssertionError(var3);
     }

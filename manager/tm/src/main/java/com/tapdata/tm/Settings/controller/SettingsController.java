@@ -1,38 +1,35 @@
 package com.tapdata.tm.Settings.controller;
 
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.Settings.dto.TestMailDto;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.param.EnterpriseUpdateParam;
+import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.alarmrule.dto.UpdateRuleDto;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import io.swagger.v3.oas.annotations.Operation;
+import lombok.Setter;
+import org.bson.Document;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.bson.Document;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
 
 @RestController
 @RequestMapping("/api/Settings")
+@Setter(onMethod_ = {@Autowired})
 public class SettingsController extends BaseController {
-
-    @Autowired
-    SettingsService settingsService;
+    private SettingsService settingsService;
+    private AlarmSettingService alarmSettingService;
 
     /**
      * flowEgine启动时候调用
@@ -86,16 +83,37 @@ public class SettingsController extends BaseController {
 
     @Operation(summary = "Settings save")
     @PatchMapping("/save")
-    public ResponseMessage<Settings> save(@RequestBody List<SettingsDto> settingsDto) {
+    public ResponseMessage<Void> save(@RequestBody List<SettingsDto> settingsDto) {
         settingsService.save(settingsDto);
         return success();
     }
 
+    @Operation(summary = "alarm save")
+    @PostMapping("/alarm_save")
+    public ResponseMessage<Void> alarmSave(@RequestBody List<AlarmSettingDto> alarms) {
+        alarmSettingService.save(alarms);
+        return success();
+    }
 
-    @Operation(summary = "测试邮件发送")
-    @PostMapping("/testEmail")
-    public ResponseMessage testEmail() {
-        settingsService.testEmail();
+    @Operation(summary = "find all alarms")
+    @GetMapping("/alarm_find")
+    public ResponseMessage<List<AlarmSettingDto>> findAllAlarmList() {
+        return success(alarmSettingService.findAll());
+    }
+
+    @Operation(summary = "update rule by key")
+    @PostMapping("/alarm_update")
+    public ResponseMessage<Void> updateAlarm(@RequestBody UpdateRuleDto ruleDto) {
+        alarmSettingService.updateSystemNotify(ruleDto);
+
+        return success();
+    }
+
+
+    @Operation(summary = "test send mail")
+    @PostMapping("testEmail")
+    public ResponseMessage<Void> testSendMail(@RequestBody TestMailDto testMailDto) {
+        settingsService.testSendMail(testMailDto);
         return success();
     }
 }

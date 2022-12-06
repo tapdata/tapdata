@@ -2,35 +2,41 @@ package io.tapdata.coding.service.connectionMode;
 
 import cn.hutool.http.HttpRequest;
 import io.tapdata.coding.entity.ContextConfig;
-import io.tapdata.coding.service.CodingStarter;
-import io.tapdata.coding.service.IssueLoader;
+import io.tapdata.coding.service.loader.CodingStarter;
+import io.tapdata.coding.service.loader.IssuesLoader;
+import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
+import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.List;
 import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Map;
 
+/**
+ * {
+ *   "label": "${document}",
+ *   "value": "DocumentMode"
+ * }
+ * */
 public class DocumentMode implements ConnectionMode {
     TapConnectionContext connectionContext;
-    IssueLoader loader;
+    IssuesLoader loader;
     ContextConfig contextConfig;
 
     @Override
     public ConnectionMode config(TapConnectionContext connectionContext) {
         this.connectionContext = connectionContext;
-        this.loader = IssueLoader.create(connectionContext);
+        this.loader = IssuesLoader.create(connectionContext);
         this.contextConfig = loader.veryContextConfigAndNodeConfig();
         return this;
     }
     @Override
     public List<TapTable> discoverSchema(List<String> tables, int tableSize ) {
+        /**
         if(tables == null || tables.isEmpty()) {
             return list(
                     table("Issues")
@@ -80,6 +86,18 @@ public class DocumentMode implements ConnectionMode {
                             .add(field("IterationCode", JAVA_Integer))                                   //所属迭代Code
                             .add(field("Iteration", JAVA_Map))                                               //所属迭代
             );
+        }
+        */
+        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext);
+        if (tables == null || tables.isEmpty()){
+            List<TapTable> tapTables = list();
+            schemaStart.forEach(schema -> {
+                TapTable documentTable = schema.document(connectionContext);
+                if (Checker.isNotEmpty(documentTable)) {
+                    tapTables.add(documentTable);
+                }
+            });
+            return tapTables;
         }
         return null;
     }

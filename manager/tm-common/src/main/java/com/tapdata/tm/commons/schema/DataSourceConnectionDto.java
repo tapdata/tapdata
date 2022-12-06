@@ -13,10 +13,7 @@ import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.mapping.Field;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TimeZone;
+import java.util.*;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -93,6 +90,8 @@ public class DataSourceConnectionDto extends BaseDto {
         private Boolean loadAllTables;
         /** 自定义的加载表的表名列表  都号隔开*/
         private String table_filter;
+        private String tableExcludeFilter;
+        private Boolean openTableExcludeFilter;
         private String auth_db;
         private String project;
 
@@ -276,6 +275,8 @@ public class DataSourceConnectionDto extends BaseDto {
 
         private Map<String, Object> extParam;
 
+        private Date loadSchemaTime;
+
         /**
          * 后续 开放可以多选 flow engine 的话，这里一定要删除
          *
@@ -286,6 +287,14 @@ public class DataSourceConnectionDto extends BaseDto {
                         return Lists.newArrayList(accessNodeProcessId);
                 } else {
                         return Lists.newArrayList();
+                }
+        }
+        public List<String> getTrueAccessNodeProcessIdList() {
+                if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeType)
+                        &&StringUtils.isNotBlank(accessNodeProcessId)) {
+                        return Lists.newArrayList(accessNodeProcessId);
+                } else {
+                        return null;
                 }
         }
 

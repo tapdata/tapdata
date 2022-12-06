@@ -41,6 +41,13 @@ public class TMApplication {
 
 	private static final String TAG = TMApplication.class.getSimpleName();
 
+
+	/**
+	 * 切记：在这个面里面加东西，一定要在企业版的启动类里面一起加，不然，企业版的启动类缺少这里的执行步骤，会让你怀疑人生
+	 * 切记：在这个面里面加东西，一定要在企业版的启动类里面一起加，不然，企业版的启动类缺少这里的执行步骤，会让你怀疑人生
+	 * 切记：在这个面里面加东西，一定要在企业版的启动类里面一起加，不然，企业版的启动类缺少这里的执行步骤，会让你怀疑人生
+	 * @param args
+	 */
 	public static void main(String[] args) {
 		CommonUtils.setProperty("tap_verbose", "true");
 
@@ -63,7 +70,7 @@ public class TMApplication {
 			}
 			@Override
 			public void debug(String msg) {
-				log.info(format(msg));
+				log.debug(format(msg));
 //				System.out.println(msg);
 			}
 
@@ -102,14 +109,16 @@ public class TMApplication {
 		TapRuntime.getInstance();
 		TapLogger.debug(TAG, "TapRuntime initialized");
 
-		new Thread(() -> {
-			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
-			UserDetail userDetail = userService.loadUserByUsername("admin@admin.com");
-
-			bean.deleteDefault(userDetail);
-			bean.addPdkIds(userDetail);
-			bean.addConnections(userDetail);
-		}).start();
+//		new Thread(() -> {
+//			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
+//			UserDetail userDetail = userService.loadUserByUsername("admin@admin.com");
+//
+//			bean.deleteDefault(userDetail);
+//			bean.addPdkIds(userDetail);
+//			bean.addConnections(userDetail);
+//			bean.addJobs(userDetail);
+//			bean.addApi(userDetail);
+//		}).start();
 
 	}
 }

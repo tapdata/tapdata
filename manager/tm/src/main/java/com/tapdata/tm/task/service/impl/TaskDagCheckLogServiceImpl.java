@@ -6,7 +6,6 @@ import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
@@ -35,8 +34,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.text.MessageFormat;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
@@ -87,8 +88,6 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         String nodeId = dto.getNodeId();
         String grade = dto.getGrade();
         String keyword = dto.getKeyword();
-//        int offset = dto.getOffset();
-//        int limit = dto.getLimit();
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
         LinkedHashMap<String, String> nodeMap = taskDto.getDag().getNodes().stream()
@@ -129,8 +128,22 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         Query modelQuery = new Query(modelCriteria.and("checkType").in(delayList));
         modelQuery.with(Sort.by("_id"));
         List<TaskDagCheckLog> modelLogs = find(modelQuery);
+        LinkedList<TaskLogInfoVo> data = packCheckLogs(taskDto, taskDagCheckLogs);
+        TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, false);
 
-        LinkedList<TaskLogInfoVo> data = taskDagCheckLogs.stream()
+        if (CollectionUtils.isNotEmpty(modelLogs)) {
+
+            LinkedList<TaskLogInfoVo> collect = packCheckLogs(taskDto, modelLogs);
+            result.setModelList(collect);
+            boolean present = taskDto.getTransformed();
+            result.setOver(present);
+        }
+
+        return result;
+    }
+
+    private LinkedList<TaskLogInfoVo> packCheckLogs(TaskDto taskDto, List<TaskDagCheckLog> taskDagCheckLogs) {
+        return taskDagCheckLogs.stream()
                 .map(g -> {
                     String log = g.getLog();
                     log = StringUtils.replace(log, "$taskName", taskDto.getName());
@@ -139,34 +152,6 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                     return new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), log);
                 })
                 .collect(Collectors.toCollection(LinkedList::new));
-
-        TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, false);
-
-        if (CollectionUtils.isNotEmpty(modelLogs)) {
-
-            LinkedList<TaskLogInfoVo> collect = modelLogs.stream()
-                    .map(g -> {
-                        String log = g.getLog();
-                        log = StringUtils.replace(log, "$taskName", taskDto.getName());
-                        log = StringUtils.replace(log, "$date", DateUtil.toLocalDateTime(g.getCreateAt()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
-
-                        return new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), log);
-                    })
-                    .collect(Collectors.toCollection(LinkedList::new));
-
-            result.setModelList(collect);
-
-            boolean present = taskDto.getTransformed();
-
-            result.setOver(present);
-
-            // over=true => To prevent the front-end parallel request from getting old data
-            if (present) {
-                CompletableFuture.runAsync(() -> removeAllByTaskId(taskId));
-            }
-        }
-
-        return result;
     }
 
     @Override
@@ -179,7 +164,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     }
 
     @Override
-    public void createLog(String taskId, String userId, String grade, DagOutputTemplateEnum templateEnum,
+    public void createLog(String taskId, String userId, Level grade, DagOutputTemplateEnum templateEnum,
                           boolean delOther, boolean needSave, Object ... param) {
         Date now = new Date();
         if (delOther) {
@@ -196,9 +181,9 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         log.setGrade(grade);
 
         String template;
-        if (StringUtils.equals(Level.INFO.getValue(), grade)) {
+        if (Level.INFO.equals(grade)) {
             template = templateEnum.getInfoTemplate();
-        } else if (StringUtils.equals(Level.ERROR.getValue(), grade)){
+        } else if (Level.ERROR.equals(grade)){
             template = templateEnum.getErrorTemplate();
         } else {
             template = templateEnum.getInfoTemplate();

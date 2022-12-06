@@ -14,6 +14,10 @@ public abstract class Node {
     TapNodeInfo tapNodeInfo;
     List<Map<String, Object>> tasks;
 
+    public String id() {
+        return this.getClass().getSimpleName() + "_" + tapNodeInfo.getTapNodeSpecification().idAndGroup();
+    }
+
     public void applyClassLoaderContext(Runnable runnable) {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         if(tapNodeInfo != null && tapNodeInfo.getNodeClass() != null) {

@@ -6,11 +6,8 @@
  */
 package com.tapdata.tm.ws.handler;
 
-import cn.hutool.core.lang.Assert;
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.google.common.collect.Maps;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
@@ -27,8 +24,6 @@ import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MapUtils;
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
-
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
@@ -36,16 +31,17 @@ import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.bson.types.ObjectId;
+
 import java.net.URLEncoder;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.bson.json.JsonObject;
-import org.bson.types.ObjectId;
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 @WebSocketMessageHandler(type = MessageType.TEST_CONNECTION)
 @Slf4j
@@ -139,41 +135,42 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 		AtomicReference<String> receiver = new AtomicReference<>("");
 		try {
-
 			boolean accessNodeTypeEmpty = (Boolean) data.getOrDefault("accessNodeTypeEmpty", false);
 			Object accessNodeType = data.get("accessNodeType");
-			FunctionUtils.isTureOrFalse(accessNodeTypeEmpty || AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(accessNodeType))
+			FunctionUtils.isTureOrFalse(accessNodeTypeEmpty ||
+							AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(accessNodeType))
 					.trueOrFalseHandle(() -> {
-				SchedulableDto schedulableDto = new SchedulableDto();
-				schedulableDto.setAgentTags(tags);
-				schedulableDto.setUserId(userDetail.getUserId());
-				workerService.scheduleTaskToEngine(schedulableDto, userDetail, "testConnection", "testConnection");
-				receiver.set(schedulableDto.getAgentId());
-			}, () -> {
-				Object accessNodeProcessId = data.get("accessNodeProcessId");
-				FunctionUtils.isTureOrFalse(Objects.nonNull(accessNodeProcessId)).trueOrFalseHandle(() -> {
-					receiver.set(accessNodeProcessId.toString());
-				}, () -> {
-					data.put("status", "error");
-					data.put("msg", "Worker set error, receiver is blank");
-				});
-			});
+						SchedulableDto schedulableDto = new SchedulableDto();
+						schedulableDto.setAgentTags(tags);
+						schedulableDto.setUserId(userDetail.getUserId());
+						workerService.scheduleTaskToEngine(schedulableDto, userDetail, "testConnection", "testConnection");
+						receiver.set(schedulableDto.getAgentId());
+					}, () -> {
+						Object accessNodeProcessId = data.get("accessNodeProcessId");
+						FunctionUtils.isTureOrFalse(Objects.nonNull(accessNodeProcessId)).trueOrFalseHandle(() -> {
+							String processId = accessNodeProcessId.toString();
+							receiver.set(processId);
+
+							List<Worker> availableAgents = workerService.findAvailableAgentByAccessNode(userDetail, Lists.newArrayList(processId));
+							if (CollectionUtils.isEmpty(availableAgents)) {
+								data.put("status", "error");
+								data.put("msg", "Worker " + processId + " not available, receiver is blank");
+							}
+						}, () -> {
+							data.put("status", "error");
+							data.put("msg", "Worker set error, receiver is blank");
+						});
+					});
 		} catch (Exception e) {
-			log.error("error ", e);
+			log.error("error {}", e.getMessage());
 		}
 
 		String agentId = receiver.get();
-		FunctionUtils.isTureOrFalse(StringUtils.isBlank(agentId)).trueOrFalseHandle(() -> {
+		if(StringUtils.isBlank(agentId)){
 			log.warn("Receiver is blank,context: {}", JsonUtil.toJson(context));
 			data.put("status", "error");
 			data.put("msg", "Worker not found, receiver is blank");
-		}, () -> {
-			List<Worker> availableAgents = workerService.findAvailableAgentByAccessNode(userDetail, Lists.newArrayList(agentId));
-			if (CollectionUtils.isEmpty(availableAgents)) {
-				data.put("status", "error");
-				data.put("msg", "Worker " +agentId + " not available, receiver is blank");
-			}
-		});
+		}
 
 		if (Objects.nonNull(data.get("msg"))){
 			Map<String, Object> msg = testConnectErrorData(data.get("id").toString(), data.get("msg").toString());
@@ -272,7 +269,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 				try {
 					plain_password = AES256Util.Aes256Decode(database_password);
 				} catch (Exception e) {
-					log.error("Decode failed,message: {}", e.getMessage(), e);
+					log.error("Decode failed,message: {}", e.getMessage());
 					plain_password = database_password;
 				}
 				uri += ":" + specialCharHandle(plain_password) + "@";
@@ -291,7 +288,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 			try {
 				return URLEncoder.encode(str, "UTF-8");
 			} catch (Exception e) {
-				log.error("Url encode error,message: {}", e.getMessage(), e);
+				log.error("Url encode error,message: {}", e.getMessage());
 			}
 		}
 		return str;

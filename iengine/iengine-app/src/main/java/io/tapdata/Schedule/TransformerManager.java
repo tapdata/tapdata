@@ -499,7 +499,7 @@ public class TransformerManager {
 //    }
 //  }
 //
-	@Scheduled(fixedDelay = 5000L)
+//	@Scheduled(fixedDelay = 5000L)
 	public void perSecondflushJobStats() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.STATS_JOB_THREAD, TRANSFORMER, instanceNo.substring(instanceNo.length() - 6)));
 		try {
@@ -749,45 +749,18 @@ public class TransformerManager {
 					threshold = Integer.valueOf(thresholdSetting.getValue());
 				}
 			}
-
-			long currentTimeMillis = System.currentTimeMillis();
-
-			List<String> jobIds = new ArrayList<>();
-//      for (Map.Entry<String, Transformer> entry : JOB_MAP.entrySet()) {
-//        Transformer transformer = entry.getValue();
-//        String dataFlowId = transformer.getContext().getJob().getDataFlowId();
-//        if (StringUtils.isNotEmpty(dataFlowId) && !jobIds.contains(dataFlowId)) {
-//          jobIds.add(dataFlowId);
-//        }
-//      }
-			int runningThread = jobIds.size();
 			Map<String, Object> params = new HashMap<>();
 			params.put("process_id", instanceNo);
 			params.put("worker_type", ConnectorConstant.WORKER_TYPE_TRANSFORMER);
 
-//      pingClientMongoOperator.insertOne(params, ConnectorConstant.WORKER_COLLECTION + "/health");
-//      if (CollectionUtils.isEmpty(workers)) {
-//
-//        Worker worker = new Worker(instanceNo, currentTimeMillis, ConnectorConstant.WORKER_TYPE_TRANSFORMER, threshold, runningThread, userId, version, hostname, processCpuLoad, usedMemory);
-//        worker.setJob_ids(jobIds);
-//        if (StringUtils.isNoneBlank(region, zone)) {
-//          worker.setPlatformInfo(new HashMap<>());
-//          worker.getPlatformInfo().put("region", region);
-//          worker.getPlatformInfo().put("zone", zone);
-//        }
-//        pingClientMongoOperator.insertOne(worker, ConnectorConstant.WORKER_COLLECTION);
-//      } else {
 			Map<String, Object> value = new HashMap<>();
 			value.put("total_thread", threshold);
-			value.put("running_thread", runningThread);
-			value.put("job_ids", jobIds);
 			value.put("process_id", instanceNo);
 			value.put("user_id", userId);
 			value.put("version", version);
 			value.put("hostname", hostname);
 			value.put("cpuLoad", processCpuLoad);
 			value.put("usedMemory", usedMemory);
-			value.put("process_id", instanceNo);
 			value.put("worker_type", ConnectorConstant.WORKER_TYPE_TRANSFORMER);
 
 			if (StringUtils.isNoneBlank(region, zone)) {
@@ -799,10 +772,9 @@ public class TransformerManager {
 				}
 			}
 
-			pingClientMongoOperator.insertOne(value, ConnectorConstant.WORKER_COLLECTION + "/health");
-
-//        pingClientMongoOperator.updateAndParam(params, value, ConnectorConstant.WORKER_COLLECTION);
-//      }
+			ConnectorManager.sendWorkerHeartbeat(
+					value,
+					v -> pingClientMongoOperator.insertOne(v, ConnectorConstant.WORKER_COLLECTION + "/health"));
 		} catch (Exception e) {
 			logger.error("Transformer heartbeat failed {}", e.getMessage(), e);
 		}

@@ -7,7 +7,7 @@
 package com.tapdata.tm.ws.cs;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.ws.handler.NotificationHandler;
@@ -48,7 +48,7 @@ public class NotificationListener implements MessageListener<ChangeStreamDocumen
                 }
             }
         } catch (Exception e) {
-            log.error("ChangeStream handle message error,message: {}", e.getMessage(), e);
+            log.error("ChangeStream handle message error,message: {}", e.getMessage());
         }
     }
 }

@@ -1,5 +1,6 @@
 package io.tapdata.connector.postgres;
 
+import com.google.common.collect.Lists;
 import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.postgres.config.PostgresConfig;
@@ -7,76 +8,65 @@ import io.tapdata.constant.DbTestItem;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.entity.TestItem;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
-// TODO: 2022/6/9 need to improve test items 
 public class PostgresTest extends CommonDbTest {
 
     public PostgresTest() {
         super();
     }
 
-    public PostgresTest(PostgresConfig postgresConfig) {
-        super(postgresConfig);
-        jdbcContext = DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, uuid);
+    public PostgresTest(PostgresConfig postgresConfig, Consumer<TestItem> consumer) {
+        super(postgresConfig, consumer);
+    }
+
+    public PostgresTest initContext() {
+        jdbcContext = DataSourcePool.getJdbcContext(commonDbConfig, PostgresJdbcContext.class, uuid);
+        return this;
+    }
+
+    @Override
+    protected List<String> supportVersions() {
+        return Lists.newArrayList("9.4", "9.5", "9.6", "10.*", "11.*", "12.*");
     }
 
     //Test number of tables and privileges
-    public TestItem testPrivilege() {
-        try (
-                Connection conn = jdbcContext.getConnection();
-                PreparedStatement ps = conn.prepareStatement(
-                        "SELECT count(*) FROM information_schema.table_privileges " +
-                                "WHERE grantee=? AND table_catalog=? AND table_schema=? ")
-        ) {
-            AtomicInteger tablePrivileges = new AtomicInteger();
-            ps.setObject(1, commonDbConfig.getUser());
-            ps.setObject(2, commonDbConfig.getDatabase());
-            ps.setObject(3, commonDbConfig.getSchema());
-            jdbcContext.query(ps, resultSet -> tablePrivileges.set(resultSet.getInt(1)));
-            if (tablePrivileges.get() >= 7 * tableCount()) {
-                return testItem(DbTestItem.CHECK_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY);
-            } else {
-                return testItem(DbTestItem.CHECK_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                        "Current user may have no all privileges for some tables, Check it!");
-            }
-        } catch (Throwable e) {
-            return testItem(DbTestItem.CHECK_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_FAILED, e.getMessage());
-        }
-    }
-
-    public TestItem testReplication() {
+    public Boolean testReadPrivilege() {
         try {
-            AtomicBoolean rolReplication = new AtomicBoolean();
-            jdbcContext.queryWithNext(String.format(PG_ROLE_INFO, commonDbConfig.getUser()),
-                    resultSet -> rolReplication.set(resultSet.getBoolean("rolreplication")));
-            if (rolReplication.get()) {
-                return testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY);
+            AtomicInteger tableSelectPrivileges = new AtomicInteger();
+            jdbcContext.queryWithNext(String.format(PG_TABLE_SELECT_NUM, commonDbConfig.getUser(),
+                    commonDbConfig.getDatabase(), commonDbConfig.getSchema()), resultSet -> tableSelectPrivileges.set(resultSet.getInt(1)));
+            if (tableSelectPrivileges.get() >= tableCount()) {
+                consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY, "All tables can be selected"));
             } else {
-                return testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                        "Current user have no privileges to create Replication Slot!");
+                consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                        "Current user may have no read privilege for some tables, Check it"));
             }
+            return true;
         } catch (Throwable e) {
-            return testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_FAILED, e.getMessage());
+            consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_FAILED, e.getMessage()));
+            return false;
         }
     }
 
-    public TestItem testLogPlugin() {
+    public Boolean testStreamRead() {
         try {
             List<String> testSqls = TapSimplify.list();
-            testSqls.add(String.format(PG_LOG_PLUGIN_CREATE_TEST, ((PostgresConfig) commonDbConfig).getLogPluginName()));
-            testSqls.add(PG_LOG_PLUGIN_DROP_TEST);
+            String testSlotName = "test_" + UUID.randomUUID().toString().replaceAll("-", "_");
+            testSqls.add(String.format(PG_LOG_PLUGIN_CREATE_TEST, testSlotName, ((PostgresConfig) commonDbConfig).getLogPluginName()));
+            testSqls.add(String.format(PG_LOG_PLUGIN_DROP_TEST, testSlotName));
             jdbcContext.batchExecute(testSqls);
-            return testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY);
+            consumer.accept(testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY, "Cdc can work normally"));
+            return true;
         } catch (Throwable e) {
-            return testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                    "Invalid log plugin, Maybe cdc events cannot work!");
+            consumer.accept(testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                    String.format("Test log plugin failed: {%s}, Maybe cdc events cannot work", e.getCause().getMessage())));
+            return null;
         }
     }
 
@@ -94,8 +84,9 @@ public class PostgresTest extends CommonDbTest {
         }
     }
 
-    private final static String PG_ROLE_INFO = "SELECT * FROM pg_roles WHERE rolname='%s'";
     private final static String PG_TABLE_NUM = "SELECT COUNT(*) FROM pg_tables WHERE schemaname='%s'";
-    private final static String PG_LOG_PLUGIN_CREATE_TEST = "SELECT pg_create_logical_replication_slot('pg_slot_test','%s')";
-    private final static String PG_LOG_PLUGIN_DROP_TEST = "SELECT pg_drop_replication_slot('pg_slot_test')";
+    private final static String PG_TABLE_SELECT_NUM = "SELECT count(*) FROM information_schema.table_privileges " +
+            "WHERE grantee='%s' AND table_catalog='%s' AND table_schema='%s' AND privilege_type='SELECT'";
+    private final static String PG_LOG_PLUGIN_CREATE_TEST = "SELECT pg_create_logical_replication_slot('%s','%s')";
+    private final static String PG_LOG_PLUGIN_DROP_TEST = "SELECT pg_drop_replication_slot('%s')";
 }

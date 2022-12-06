@@ -1,5 +1,6 @@
 package io.tapdata.modules.api.net.data;
 
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.modules.api.net.message.TapEntity;
@@ -52,6 +53,8 @@ public abstract class ContentData<T extends ContentData> extends Data {
         contentEncode = dis.readByte();
         if(contentEncode != null) {
             content = dis.readBytes();
+            //TODO debug
+//            TapLogger.info(TAG, "readBytes {} length {}", content, content != null ? content.length : "null");
             message = toTapMessage(content, contentType, contentEncode);
             content = null;
         }

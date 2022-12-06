@@ -1,0 +1,547 @@
+{
+  "properties": {
+    "name": "EXCEL",
+    "icon": "icons/excel.png",
+    "doc": "${doc}",
+    "id": "excel"
+  },
+  "configOptions": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "title": "${protocol}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 10,
+          "default": "local",
+          "enum": [
+            {
+              "label": "LOCAL",
+              "value": "local"
+            },
+            {
+              "label": "FTP",
+              "value": "ftp"
+            },
+            {
+              "label": "SFTP",
+              "value": "sftp"
+            },
+            {
+              "label": "SMB",
+              "value": "smb"
+            },
+            {
+              "label": "S3FS",
+              "value": "s3fs"
+            }
+          ],
+          "x-reactions": [
+            {
+              "target": "encoding",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='ftp' || $self.value==='sftp'}}"
+                }
+              }
+            },
+            {
+              "target": "*(ftpHost,ftpPort,ftpUsername,ftpPassword,ftpPassiveMode,ftpConnectTimeout,ftpDataTimeout)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='ftp'}}"
+                }
+              }
+            },
+            {
+              "target": "*(sftpHost,sftpPort,sftpUsername,sftpPassword)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='sftp'}}"
+                }
+              }
+            },
+            {
+              "target": "*(smbHost,smbUsername,smbPassword,smbShareDir)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='smb'}}"
+                }
+              }
+            },
+            {
+              "target": "*(accessKey,secretKey,endpoint,region,bucket)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='s3fs'}}"
+                }
+              }
+            }
+          ]
+        },
+        "encoding": {
+          "type": "string",
+          "title": "${encoding}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 20,
+          "default": "UTF-8",
+          "enum": [
+            {
+              "label": "UTF-8",
+              "value": "UTF-8"
+            },
+            {
+              "label": "UTF-16",
+              "value": "UTF-16"
+            },
+            {
+              "label": "GBK",
+              "value": "GBK"
+            },
+            {
+              "label": "ASCII",
+              "value": "ASCII"
+            }
+          ]
+        },
+        "ftpHost": {
+          "required": true,
+          "type": "string",
+          "title": "${ftpHost}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "ftpHost",
+          "x-index": 30
+        },
+        "ftpPort": {
+          "required": true,
+          "type": "string",
+          "title": "${ftpPort}",
+          "default": 21,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "ftpPort",
+          "x-index": 40
+        },
+        "ftpUsername": {
+          "type": "string",
+          "title": "${ftpUsername}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "ftpUsername",
+          "x-index": 50
+        },
+        "ftpPassword": {
+          "type": "string",
+          "title": "${ftpPassword}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "ftpPassword",
+          "x-index": 60
+        },
+        "ftpPassiveMode": {
+          "type": "boolean",
+          "title": "${ftpPassiveMode}",
+          "default": true,
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-index": 70
+        },
+        "ftpConnectTimeout": {
+          "required": true,
+          "type": "string",
+          "title": "${ftpConnectTimeout}",
+          "default": 60,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "ftpConnectTimeout",
+          "x-index": 72
+        },
+        "ftpDataTimeout": {
+          "required": true,
+          "type": "string",
+          "title": "${ftpDataTimeout}",
+          "default": 0,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "ftpDataTimeout",
+          "x-index": 75
+        },
+        "sftpHost": {
+          "required": true,
+          "type": "string",
+          "title": "${sftpHost}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "sftpHost",
+          "x-index": 80
+        },
+        "sftpPort": {
+          "required": true,
+          "type": "string",
+          "title": "${sftpPort}",
+          "default": 22,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "sftpPort",
+          "x-index": 90
+        },
+        "sftpUsername": {
+          "required": true,
+          "type": "string",
+          "title": "${sftpUsername}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "sftpUsername",
+          "x-index": 100
+        },
+        "sftpPassword": {
+          "required": true,
+          "type": "string",
+          "title": "${sftpPassword}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "sftpPassword",
+          "x-index": 110
+        },
+        "smbHost": {
+          "required": true,
+          "type": "string",
+          "title": "${smbHost}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "smbHost",
+          "x-index": 120
+        },
+        "smbUsername": {
+          "type": "string",
+          "title": "${smbUsername}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "smbUsername",
+          "x-index": 130
+        },
+        "smbPassword": {
+          "type": "string",
+          "title": "${smbPassword}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "smbPassword",
+          "x-index": 140
+        },
+        "smbShareDir": {
+          "type": "string",
+          "title": "${smbShareDir}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "smbShareDir",
+          "x-index": 145
+        },
+        "accessKey": {
+          "required": true,
+          "type": "string",
+          "title": "${accessKey}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "accessKey",
+          "x-index": 150
+        },
+        "secretKey": {
+          "required": true,
+          "type": "string",
+          "title": "${secretKey}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "secretKey",
+          "x-index": 160
+        },
+        "endpoint": {
+          "required": true,
+          "type": "string",
+          "title": "${endpoint}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "endpoint",
+          "x-index": 170
+        },
+        "region": {
+          "type": "string",
+          "title": "${region}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "region",
+          "x-index": 180
+        },
+        "bucket": {
+          "required": true,
+          "type": "string",
+          "title": "${bucket}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "bucket",
+          "x-index": 190
+        },
+        "filePathString": {
+          "required": true,
+          "type": "string",
+          "title": "${filePathString}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "filePathString",
+          "x-index": 200
+        },
+        "loadSchema": {
+          "type": "boolean",
+          "default": false,
+          "x-display": "hidden"
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "modelName": {
+          "required": true,
+          "type": "string",
+          "title": "${modelName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "modelName",
+          "x-index": 1
+        },
+        "includeRegString": {
+          "type": "string",
+          "title": "${includeRegString}",
+          "default": "*.xls,*.xlsx",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "includeRegString",
+          "x-index": 2
+        },
+        "excludeRegString": {
+          "type": "string",
+          "title": "${excludeRegString}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "excludeRegString",
+          "x-index": 3
+        },
+        "recursive": {
+          "type": "boolean",
+          "title": "${recursive}",
+          "default": true,
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-index": 4
+        },
+        "excelPassword": {
+          "type": "string",
+          "title": "${excelPassword}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "excelPassword",
+          "x-index": 5
+        },
+        "sheetLocation": {
+          "type": "string",
+          "title": "${sheetLocation}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "sheetLocation",
+          "x-index": 6
+        },
+        "colLocation": {
+          "required": true,
+          "type": "string",
+          "title": "${colLocation}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "colLocation",
+          "x-index": 7
+        },
+        "header": {
+          "type": "string",
+          "title": "${header}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "header",
+          "x-index": 8
+        },
+        "headerLine": {
+          "type": "string",
+          "title": "${headerLine}",
+          "default": 1,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "x-index": 9
+        },
+        "dataStartLine": {
+          "required": true,
+          "type": "string",
+          "title": "${dataStartLine}",
+          "default": 2,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "dataStartLine",
+          "x-index": 10
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/excel_en_US.md",
+      "protocol": "File Protocol",
+      "encoding": "Charset",
+      "ftpHost": "Host",
+      "ftpPort": "Port",
+      "ftpUsername": "Username",
+      "ftpPassword": "Password",
+      "ftpPassiveMode": "Passive Mode",
+      "ftpConnectTimeout": "Connect Timeout(second)",
+      "ftpDataTimeout": "Data Timeout(second)",
+      "sftpHost": "Host",
+      "sftpPort": "Port",
+      "sftpUsername": "Username",
+      "sftpPassword": "Password",
+      "smbHost": "Host",
+      "smbUsername": "Username",
+      "smbPassword": "Password",
+      "smbShareDir": "Shared Dir",
+      "accessKey": "Access-Key",
+      "secretKey": "Secret-Key",
+      "endpoint": "Endpoint",
+      "region": "Region",
+      "bucket": "Bucket",
+      "filePathString": "File Path",
+      "includeRegString": "Include Reg",
+      "excludeRegString": "Exclude Reg",
+      "recursive": "Recursive",
+      "excelPassword": "Excel Password",
+      "sheetLocation": "Sheet Location",
+      "colLocation": "Column Location",
+      "delimiter": "Delimiter",
+      "header": "File Header",
+      "dataStartLine": "Data Line",
+      "modelName": "Model Name",
+      "headerLine": "Header Line"
+    },
+    "zh_CN": {
+      "doc": "docs/excel_zh_CN.md",
+      "protocol": "文件协议",
+      "encoding": "字符编码",
+      "ftpHost": "地址",
+      "ftpPort": "端口",
+      "ftpUsername": "用户名",
+      "ftpPassword": "口令",
+      "ftpPassiveMode": "被动连接模式",
+      "ftpConnectTimeout": "连接超时（秒）",
+      "ftpDataTimeout": "传输超时（秒）",
+      "sftpHost": "地址",
+      "sftpPort": "端口",
+      "sftpUsername": "用户名",
+      "sftpPassword": "口令",
+      "smbHost": "地址",
+      "smbUsername": "用户名",
+      "smbPassword": "口令",
+      "smbShareDir": "共享目录",
+      "accessKey": "Access-Key",
+      "secretKey": "Secret-Key",
+      "endpoint": "终端",
+      "region": "域",
+      "bucket": "桶",
+      "filePathString": "文件路径",
+      "includeRegString": "包含通配",
+      "excludeRegString": "排除通配",
+      "recursive": "目录递归",
+      "excelPassword": "Excel文件密码",
+      "sheetLocation": "Sheet页范围",
+      "colLocation": "数据列范围",
+      "header": "表头",
+      "dataStartLine": "正文起始行",
+      "modelName": "模型名",
+      "headerLine": "表头行"
+    },
+    "zh_TW": {
+      "doc": "docs/excel_zh_TW.md",
+      "protocol": "檔案協定",
+      "encoding": "字元編碼",
+      "ftpHost": "地址",
+      "ftpPort": "端口",
+      "ftpUsername": "用戶名",
+      "ftpPassword": "口令",
+      "ftpPassiveMode": "被動連接模式",
+      "ftpConnectTimeout": "連接超時（秒）",
+      "ftpDataTimeout": "傳輸超時（秒）",
+      "sftpHost": "地址",
+      "sftpPort": "端口",
+      "sftpUsername": "用戶名",
+      "sftpPassword": "口令",
+      "smbHost": "地址",
+      "smbUsername": "用戶名",
+      "smbPassword": "口令",
+      "smbShareDir": "共享目錄",
+      "accessKey": "Access-Key",
+      "secretKey": "Secret-Key",
+      "endpoint": "終端",
+      "region": "域",
+      "bucket": "桶",
+      "filePathString": "文件路徑",
+      "includeRegString": "包含通配",
+      "excludeRegString": "排除通配",
+      "recursive": "目錄遞歸",
+      "excelPassword": "Excel文件密碼",
+      "sheetLocation": "Sheet頁範圍",
+      "colLocation": "數據列範圍",
+      "header": "表頭",
+      "dataStartLine": "正文起始行",
+      "modelName": "模型名",
+      "headerLine": "表頭行"
+    }
+  },
+  "dataTypes": {
+    "DOUBLE": {
+      "precision": [
+        1,
+        1000
+      ],
+      "scale": [
+        0,
+        1000
+      ],
+      "fixed": true,
+      "preferPrecision": 20,
+      "preferScale": 8,
+      "priority": 1,
+      "to": "TapNumber"
+    },
+    "DATE": {
+      "range": [
+        "1000-01-01 00:00:00.000",
+        "9999-12-31 23:59:59.999"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSS",
+      "defaultFraction": 3,
+      "withTimeZone": false,
+      "priority": 2,
+      "to": "TapDateTime"
+    },
+    "BOOLEAN": {
+      "to": "TapBoolean"
+    },
+    "STRING": {
+      "byte": 200,
+      "priority": 1,
+      "defaultByte": 200,
+      "preferByte": 200,
+      "to": "TapString"
+    },
+    "TEXT": {
+      "to": "TapString"
+    }
+  }
+}

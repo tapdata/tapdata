@@ -16,22 +16,30 @@ jobs:
       issue-code: ${{ steps.check-style.outputs.issue-code }}
       commit-id: ${{ steps.check-style.outputs.commit-id }}
     steps:
-      - name: Checkout Enterprise Branch
+      - name: Checkout Enterprise Branch if PUSH
+        if: ${{ github.event_name == 'push' }}
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Commit Message End With \#$number
+      - name: Checkout Enterprise Branch if PULL_REQUEST
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Commit Message With \#$number
         id: check-style
         run: |
           message=`git log -1 --pretty=%B`
-          echo "::set-output name=commit-message::$message"
+          echo "commit-message=$message" >>$GITHUB_OUTPUT
           commit_id=`git rev-parse HEAD`
-          echo "::set-output name=commit-id::$commit_id"
-          echo $message | egrep "#[0-9]+" -o | egrep "[0-9]+" -o > /tmp/commit_msg | cat /tmp/commit_msg
-          echo "::set-output name=issue-code::`cat /tmp/commit_msg`"
+          echo "commit-id=$commit_id" >>$GITHUB_OUTPUT
+          echo $message | egrep "#[0-9]+" -o | egrep "[0-9]+" -o > /tmp/commit_msg | ls
+          issue_code=`cat /tmp/commit_msg`
+          echo "issue-code=$issue_code" >>$GITHUB_OUTPUT
           flag=`cat /tmp/commit_msg`
           if [[ "X${flag}" != "X" ]]; then isPost='true'; else isPost='false'; fi
-          echo "::set-output name=error::$isPost"
+          echo "error=$isPost" >>$GITHUB_OUTPUT
 
   Post-Commit-Message:
     runs-on: ubuntu-latest

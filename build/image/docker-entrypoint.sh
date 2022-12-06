@@ -2,7 +2,7 @@
 
 start_mongo() {
     mkdir -p /tapdata/data/logs
-    mongod --dbpath=/tapdata/data/db/ --replSet=rs0 --bind_ip_all --logpath=/tapdata/data/logs/mongod.log --fork
+    mongod --dbpath=/tapdata/data/db/ --replSet=rs0 --wiredTigerCacheSizeGB=1 --bind_ip_all --logpath=/tapdata/data/logs/mongod.log --fork
     while [[ 1 ]]; do
         mongo --quiet --eval "db" &> /dev/null
         if [[ $? -eq 0 ]]; then
@@ -43,26 +43,30 @@ start_server() {
         fi
 
         if [[ "x"$mode == "xtest" ]]; then
-            cd /tapdata-source
-            cd manager/dist && bash bin/start.sh && cd -
-            cd iengine/dist && bash bin/start.sh && cd -
+            cd /tapdata/apps
+            cd manager && bash bin/start.sh && cd -
+            cd iengine && bash bin/start.sh && cd -
         fi
     fi
 
     if [[ "x"$mode == "xuse" ]]; then
         cd /tapdata/apps/tapshell
         bash register-all-connectors.sh
+        echo "register_connector_complete !"
     fi
 
     if [[ "x"$mode == "xtest" ]]; then
         cd /tapdata-source/tapshell
         bash register-all-connectors.sh
+        echo "register_connector_complete !"
         cp ../build/test.sh ./
-        mv ../build/test ./
+        cp -r ../build/test ./
         chmod u+x test.sh
-        bash test.sh
+        bash ./test.sh
         if [[ $? -ne 0 ]]; then
-          exit 127
+            exit 127
+        else
+            exit 0
         fi
     fi
 }
@@ -70,13 +74,9 @@ start_server() {
 _main() {
     start_mongo
     start_server
-    sleep infinity
+    if [[ $mode != "test" ]]; then
+        sleep infinity
+    fi
 }
 
-if ! _is_sourced; then
-	_main "$@"
-fi
-
-while [[ 1 ]]; do
-    sleep 10
-done
+_main "$@"

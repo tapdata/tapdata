@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.base.dto.UpdateDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.MapUtils;
+import com.tapdata.tm.utils.ThrowableUtils;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -149,8 +150,9 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
         return dtoList;
     }
 
-
-
+    public List<Entity> findAllEntity(Query query) {
+        return repository.findAll(query);
+    }
 
     public List<Entity> findAll(Query query, UserDetail userDetail) {
         return repository.findAll(query, userDetail);
@@ -380,7 +382,7 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
 
             return target;
         } catch (Exception e) {
-            log.error("Convert dto " + dtoClass + " failed.", e);
+            log.error("Convert dto " + dtoClass + " failed. {}", ThrowableUtils.getStackTraceByPn(e));
         }
         return null;
     }
@@ -421,7 +423,7 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
 
             return entity;
         } catch (Exception e) {
-            log.error("Convert entity " + entityClass + " failed.", e);
+            log.error("Convert entity " + entityClass + " failed. {}", ThrowableUtils.getStackTraceByPn(e));
         }
         return null;
     }

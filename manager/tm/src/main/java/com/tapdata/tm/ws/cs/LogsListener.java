@@ -7,7 +7,7 @@
 package com.tapdata.tm.ws.cs;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.ws.dto.LogsCache;
@@ -64,7 +64,7 @@ public class LogsListener implements MessageListener<ChangeStreamDocument<Docume
 			}
 		}catch (Exception e){
 			log.error("ChangeStream handle message error, body: {},message: {}",
-					message == null?null:JsonUtil.toJson(message.getBody()), e.getMessage(), e);
+					JsonUtil.toJson(message.getBody()), e.getMessage());
 		}
 	}
 }

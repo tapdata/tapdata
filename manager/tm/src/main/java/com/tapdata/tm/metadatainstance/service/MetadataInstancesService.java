@@ -5,7 +5,7 @@ import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -35,6 +35,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
@@ -47,6 +48,7 @@ import com.tapdata.tm.utils.*;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapType;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -59,17 +61,18 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.*;
-import static com.tapdata.tm.utils.MongoUtils.applySort;
 
 /**
  * @Author: Zed
@@ -84,11 +87,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     private DataSourceDefinitionService dataSourceDefinitionService;
     private UserService userService;
     private TaskService taskService;
-
     private DAGService dagService;
-
-
     private MetaDataHistoryService metaDataHistoryService;
+    private MongoTemplate mongoTemplate;
 
     public MetadataInstancesDto add(MetadataInstancesDto record, UserDetail user) {
         return save(record, user);
@@ -374,7 +375,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     if (updateFieldMap.size() != 0) {
                         DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(connectionDto.getDatabase_type(), user);
                         if (definitionDto != null) {
-                            PdkSchemaConvert.tableFieldTypesGenerator.autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(definitionDto.getExpression()));
+                            PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(definitionDto.getExpression()));
 
                             updateFieldMap.forEach((k, v) -> {
                                 tapTable.getNameFieldMap().replace(k, v);
@@ -996,7 +997,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             }
 
             if (saveHistory) {
-                qualifiedNameLinkLogic(qualifiedNames, userDetail);
+                qualifiedNameLinkLogic(qualifiedNames, userDetail, taskId);
             }
 
             if (StringUtils.isNotBlank(uuid) && !saveHistory) {
@@ -1053,8 +1054,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
         query.fields().include("original_name");
-        List<MetadataInstancesDto> metadataInstancesDtos = findAll(query);
-        return metadataInstancesDtos.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
+        List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
+        return list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
     }
 
     public TableSupportInspectVo tableSupportInspect(String connectId, String tableName) {
@@ -1336,7 +1337,11 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
     public List<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto) {
+        Page<MetadataInstancesDto> page = findByNodeId(nodeId, fields, user, taskDto, null, 1, 0);
+        return page.getItems();
+    }
 
+    public Page<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto, String tableFilter, int page, int pageSize) {
         if (taskDto == null || taskDto.getDag() == null) {
             Criteria criteria = Criteria.where("dag.nodes.id").is(nodeId);
             Query query = new Query(criteria);
@@ -1350,6 +1355,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         String taskId = taskDto.getId().toHexString();
 
+        long totals = 0;
         List<MetadataInstancesDto> metadatas = new ArrayList<>();
         DAG dag = taskDto.getDag();
         if (taskDto.getDag() != null) {
@@ -1358,6 +1364,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 Criteria criteriaTable = Criteria.where("meta_type").in("table", "collection", "view");
                 Criteria criteriaNode = Criteria.where("meta_type").is(MetaType.processor_node.name());
                 Query queryMetadata = new Query();
+                if (pageSize > 0) {
+                    queryMetadata.skip((long) (Math.max(1, page) - 1) * pageSize);
+                    queryMetadata.limit(pageSize);
+                }
                 if (CollectionUtils.isNotEmpty(fields)) {
                     String[] fieldArrays = fields.toArray(new String[0]);
                     queryMetadata.fields().include(fieldArrays);
@@ -1403,7 +1413,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     queryMetadata.addCriteria(criteriaTable);
                     TableNode tableNode = (TableNode) node;
                     if (StringUtils.isBlank(tableNode.getTableName())) {
-                        return metadatas;
+                        return new Page<>(0, new ArrayList<>());
                     }
                     criteriaTable.and("source._id").is(tableNode.getConnectionId())
                             .and("original_name").is(tableNode.getTableName()).and("taskId").is(taskId).and("is_deleted").ne(true);
@@ -1423,6 +1433,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         throw new BizException("table node is error nodeId:" + tableNode.getId());
                     }
 
+                    if (StringUtils.isNotBlank(tableFilter)) {
+                        tableNames = tableNames.stream().filter(s -> s.contains(tableFilter)).collect(Collectors.toList());
+                    }
+
                     FunctionUtils.isTure(CollectionUtils.isEmpty(tableNames)).throwMessage("SystemError", "dag node tableNames is null");
 
                     criteriaTable.and("source._id").is(tableNode.getConnectionId())
@@ -1430,6 +1444,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                             .and("taskId").is(taskId)
                             .and("is_deleted").ne(true);
                     metadatas = findAllDto(queryMetadata, user);
+                    totals = tableNames.size();
                 } else if (node instanceof LogCollectorNode) {
                     LogCollectorNode logNode = (LogCollectorNode) node;
                     List<String> connectionIds = logNode.getConnectionIds();
@@ -1439,13 +1454,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         criteriaTable.and("source._id").is(connectionId)
                                 .and("originalName").in(logNode.getTableNames()).and("is_deleted").ne(true);
                         metadatas = findAllDto(queryMetadata, user);
+                        totals = count(queryMetadata, user);
                     }
                 }
             }
 
         }
         metadatas = metadatas.stream().filter(Objects::nonNull).collect(Collectors.toList());
-        return metadatas;
+        return new Page<>(Math.max(totals, metadatas.size()), metadatas);
     }
 
     public static void main(String[] args) {
@@ -1625,6 +1641,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
     public void batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, boolean cover) {
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+            metadataInstancesDto.setListtags(null);
             long count = count(new Query(new Criteria().orOperator(Criteria.where("_id").is(metadataInstancesDto.getId()),
                     Criteria.where("qualified_name").is(metadataInstancesDto.getQualifiedName()))));
             if (count == 0) {
@@ -1730,8 +1747,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 for (String parentNode : parentNodes) {
                     String qualifiedName = node.getQualifiedNameByNodeId(dag, parentNode);
                     MetadataInstancesDto metadataInstancesDto = findByQualifiedNameNotDelete(qualifiedName, user);
-                    List<Field> fields = metadataInstancesDto.getFields();
-                    parentFields.add(fields);
+                    if (metadataInstancesDto != null) {
+                        List<Field> fields = metadataInstancesDto.getFields();
+                        parentFields.add(fields);
+                    }
                 }
             }
 
@@ -1772,18 +1791,19 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
 
-    public void qualifiedNameLinkLogic(String qualifiedName, UserDetail user){
-        qualifiedNameLinkLogic(Lists.of(qualifiedName), user);
-    }
     public void qualifiedNameLinkLogic(List<String> qualifiedNames, UserDetail user){
         List<MetadataInstancesDto> metadataInstancesDto = findByQualifiedNameNotDelete(qualifiedNames, user);
-        linkLogic(metadataInstancesDto, user);
-    }
-    public void linkLogic(MetadataInstancesDto metadataInstancesDto, UserDetail user){
-        linkLogic(Lists.of(metadataInstancesDto), user);
+        linkLogic(metadataInstancesDto, user, null);
     }
 
-    public void linkLogic(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user){
+
+    public void qualifiedNameLinkLogic(List<String> qualifiedNames, UserDetail user, String taskId){
+        List<MetadataInstancesDto> metadataInstancesDto = findByQualifiedNameNotDelete(qualifiedNames, user);
+        linkLogic(metadataInstancesDto, user, taskId);
+    }
+
+    //带有taskId的为ddl任务传过来的。所以不需要过滤一些运行状态的任务模型。
+    public void linkLogic(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, String taskId){
         try {
             List<MetadataInstancesDto> updateMetadatas = new ArrayList<>();
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
@@ -1791,28 +1811,59 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 Criteria criteria = Criteria.where("meta_type").is(metadataInstancesDto.getMetaType()).and("original_name").is(metadataInstancesDto.getOriginalName())
                         .and("source._id").is(metadataInstancesDto.getSource().get_id())
                         .and("is_deleted").ne(true).and("sourceType").is(SourceTypeEnum.VIRTUAL.name());
+
+                if (StringUtils.isNotBlank(taskId)) {
+                    criteria.and("taskId").is(taskId);
+                }
                 Query query = new Query(criteria);
                 List<MetadataInstancesDto> taskMetadatas = findAllDto(query, user);
-                com.tapdata.tm.commons.schema.Schema originalSchema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstancesDto), com.tapdata.tm.commons.schema.Schema.class);
-
 
                 if (CollectionUtils.isNotEmpty(taskMetadatas)) {
-                    //如果逻辑模型没有为空，则遍历合并物理模型跟逻辑模型，得到新的逻辑模型保存到库里面。
-                    for (MetadataInstancesDto taskMetadata : taskMetadatas) {
-                        com.tapdata.tm.commons.schema.Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(taskMetadata), com.tapdata.tm.commons.schema.Schema.class);
-                        schema = SchemaUtils.mergeSchema(Lists.of(SchemaUtils.cloneSchema(originalSchema)), schema, false);
-                        MetadataInstancesDto metadataInstancesDto1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
-                        if (metadataInstancesDto1 != null) {
-                            metadataInstancesDto1.setQualifiedName(taskMetadata.getQualifiedName());
-                            updateMetadatas.add(metadataInstancesDto1);
+
+                    List<ObjectId> taskIds = StringUtils.isNotBlank(taskId) ? Lists.of(MongoUtils.toObjectId(taskId)) :
+                            taskMetadatas.stream().map(MetadataInstancesDto::getTaskId).filter(StringUtils::isNotBlank).map(MongoUtils::toObjectId).collect(Collectors.toList());
+
+                    //对于正在运行中的任务的模型，不需要做下面的合并物理表的操作。
+                    //下面这个过滤的逻辑，可能存在任务刚好点启动的时候，会被漏掉
+                    Criteria criteriaTask = Criteria.where("_id").in(taskIds).and("is_deleted").ne(true);
+                    if (StringUtils.isBlank(taskId)) {
+                        criteriaTask.and("status").in(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
+                    }
+                    Query queryTask = new Query(criteriaTask);
+                    queryTask.fields().include("_id");
+                    List<TaskDto> allDto = taskService.findAllDto(queryTask, user);
+                    final Set<String> editTaskIds;
+
+                    if (CollectionUtils.isNotEmpty(allDto)) {
+                        editTaskIds = allDto.stream().map(t -> t.getId().toHexString()).collect(Collectors.toSet());
+                        taskMetadatas = taskMetadatas.stream().filter(t -> editTaskIds.contains(t.getTaskId()) || StringUtils.isBlank(t.getTaskId())).collect(Collectors.toList());
+                    } else {
+                        continue;
+                    }
+
+                    com.tapdata.tm.commons.schema.Schema originalSchema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstancesDto), com.tapdata.tm.commons.schema.Schema.class);
+
+
+                    if (CollectionUtils.isNotEmpty(taskMetadatas)) {
+                        //如果逻辑模型没有为空，则遍历合并物理模型跟逻辑模型，得到新的逻辑模型保存到库里面。
+                        for (MetadataInstancesDto taskMetadata : taskMetadatas) {
+                            com.tapdata.tm.commons.schema.Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(taskMetadata), com.tapdata.tm.commons.schema.Schema.class);
+                            schema = SchemaUtils.mergeSchema(Lists.of(SchemaUtils.cloneSchema(originalSchema)), schema, false);
+                            MetadataInstancesDto metadataInstancesDto1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
+                            if (metadataInstancesDto1 != null) {
+                                metadataInstancesDto1.setQualifiedName(taskMetadata.getQualifiedName());
+                                updateMetadatas.add(metadataInstancesDto1);
+                            }
                         }
                     }
+
                 }
 
+                if (CollectionUtils.isNotEmpty(updateMetadatas)) {
+                    //批量入库
+                    bulkUpsetByWhere(updateMetadatas, user);
+                }
             }
-
-            //批量入库
-            bulkUpsetByWhere(updateMetadatas, user);
         } catch (Exception e) {
             log.warn("update logic metadata failed");
         }
@@ -1826,5 +1877,29 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         Query query = new Query(criteria);
         deleteAll(query, user);
+    }
+
+    public Map<String, TapType> dataType2TapType(DataType2TapTypeDto dto, UserDetail user) {
+        Assert.notNull(dto.getDatabaseType(), "databaseType can not be null");
+        Assert.notEmpty(dto.getDataTypes(), "dataTypes can not be null");
+        DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(dto.getDatabaseType(), user);
+        Assert.notNull(definitionDto, "not found DataSourceDefinition of databaseType: " + dto.getDatabaseType());
+
+        String expression = definitionDto.getExpression();
+        DefaultExpressionMatchingMap expressionMatchingMap = DefaultExpressionMatchingMap.map(expression);
+
+        LinkedHashMap<String, TapField> fields = new LinkedHashMap<>();
+        int i = 1;
+        for (String dataType : dto.getDataTypes()) {
+            fields.put(dataType, new TapField(String.format("f%03d", i++), dataType));
+        }
+
+        PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(fields, expressionMatchingMap);
+
+        Map<String, TapType> types = new HashMap<>();
+        for (TapField f : fields.values()) {
+            types.put(f.getDataType(), f.getTapType());
+        }
+        return types;
     }
 }

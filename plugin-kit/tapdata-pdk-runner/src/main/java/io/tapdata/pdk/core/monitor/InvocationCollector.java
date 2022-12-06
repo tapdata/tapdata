@@ -6,10 +6,12 @@ import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.Date;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
+
+import static io.tapdata.entity.simplify.TapSimplify.entry;
+import static io.tapdata.entity.simplify.TapSimplify.map;
 
 public class InvocationCollector implements MemoryFetcher {
     private PDKMethod pdkMethod;
@@ -54,8 +56,8 @@ public class InvocationCollector implements MemoryFetcher {
     }
 
     @Override
-    public DataMap memory(List<String> mapKeys, String memoryLevel) {
-        DataMap dataMap = DataMap.create()
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("counter", counter.longValue())
                 .kv("totalTakes", totalTakes.longValue())
                 ;
@@ -65,11 +67,14 @@ public class InvocationCollector implements MemoryFetcher {
             detailed = false;
         }
         if(detailed) {
+            DataMap invokerMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
+            dataMap.kv("invokeIdTimeMap", invokerMap);
             for(Map.Entry<String, Long> entry : invokeIdTimeMap.entrySet()) {
                 if(entry.getValue() != null)
-                    dataMap.kv("invokeId", entry.getKey())
-                            .kv("runningAt", CommonUtils.dateString(new Date(entry.getValue())))
-                            .kv("usedMilliseconds", System.currentTimeMillis() - entry.getValue());
+                    invokerMap.kv(entry.getKey(), map(
+                                    entry("runningAt", CommonUtils.dateString(new Date(entry.getValue()))),
+                                    entry("usedMilliseconds", System.currentTimeMillis() - entry.getValue())
+                            ));
             }
         } else {
             dataMap.kv("totalInvocation", invokeIdTimeMap.size());

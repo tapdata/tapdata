@@ -11,12 +11,8 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
-import io.tapdata.oceanbase.OceanbaseMaker;
-import io.tapdata.oceanbase.OceanbaseSchemaLoader;
-import io.tapdata.oceanbase.OceanbaseTest;
+import io.tapdata.oceanbase.*;
 import io.tapdata.oceanbase.bean.OceanbaseConfig;
-import io.tapdata.oceanbase.OceanbaseWriter;
-import io.tapdata.oceanbase.TapTableWriter;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -77,27 +73,14 @@ public class OceanbaseConnector extends ConnectorBase {
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
         //Assume below tests are successfully, below tests are recommended, but not required.
         //Connection test
-        onStart(connectionContext);
+        oceanbaseConfig = new OceanbaseConfig().load(connectionContext.getConnectionConfig());
         ConnectionOptions connectionOptions = ConnectionOptions.create();
-
-        OceanbaseTest oceanbaseTest = new OceanbaseTest(oceanbaseConfig);
-        TestItem testHostPort = oceanbaseTest.testHostPort();
-        consumer.accept(testHostPort);
-        if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-            return null;
+        try (
+                OceanbaseTest oceanbaseTest = new OceanbaseTest(oceanbaseConfig, consumer)
+        ) {
+            oceanbaseTest.testOneByOne();
+            return connectionOptions;
         }
-        TestItem testConnect = oceanbaseTest.testConnect();
-        consumer.accept(testConnect);
-        if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-            return null;
-        }
-        oceanbaseTest.close();
-        return connectionOptions;
-
-        //When test failed
-//        consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Connection refused"));
-        //When test successfully, but some warn is reported.
-//        consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "CDC not enabled, please check your database settings"));
     }
 
     @Override

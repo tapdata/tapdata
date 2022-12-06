@@ -7,7 +7,7 @@
 package com.tapdata.tm.ws.handler;
 
 import com.mongodb.client.model.changestream.FullDocument;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.changestream.config.ChangeStreamManager;
 import com.tapdata.tm.dataflow.entity.DataFlow;
@@ -59,7 +59,7 @@ public class WatchHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), "Message data cannot be null");
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -68,7 +68,7 @@ public class WatchHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), "CollectionName is empty");
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -82,7 +82,7 @@ public class WatchHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), "Where is empty");
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -150,7 +150,7 @@ public class WatchHandler implements WebSocketHandler {
 					collectionWatchCache.getContainer().stop();
 					watchCacheMap.remove(collectionName);
 				}catch (Exception e){
-					log.error("Disable changestream failed,message: {}", e.getMessage() ,e);
+					log.error("Disable changestream failed,message: {}", e.getMessage());
 				}
 			}
 		}
@@ -173,7 +173,7 @@ public class WatchHandler implements WebSocketHandler {
 			map.put("data", data);
 			WebSocketManager.sendMessage(receiver, JsonUtil.toJson(map));
 		} catch (Exception e) {
-			log.error("WebSocket send watch message failed,message: {}", e.getMessage(), e);
+			log.error("WebSocket send watch message failed,message: {}", e.getMessage());
 		}
 	}
 }

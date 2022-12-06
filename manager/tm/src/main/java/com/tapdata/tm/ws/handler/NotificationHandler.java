@@ -8,7 +8,7 @@ package com.tapdata.tm.ws.handler;
 
 import com.mongodb.client.model.changestream.FullDocument;
 import com.tapdata.manager.common.utils.DateUtil;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.changestream.config.ChangeStreamManager;
 import com.tapdata.tm.ws.cs.NotificationListener;
@@ -24,8 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.messaging.MessageListenerContainer;
-
-import javax.print.Doc;
 
 @WebSocketMessageHandler(type = MessageType.NOTIFICATION)
 @Slf4j
@@ -51,7 +49,7 @@ public class NotificationHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), "UserId is blank");
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -80,7 +78,7 @@ public class NotificationHandler implements WebSocketHandler {
 			try {
 				container.stop();
 			}catch (Exception e){
-				log.error("Disable changestream failed,message: {}", e.getMessage() ,e);
+				log.error("Disable changestream failed,message: {}", e.getMessage());
 			}
 
 		}
@@ -144,7 +142,7 @@ public class NotificationHandler implements WebSocketHandler {
 			map.put("data", dataMap);
 			WebSocketManager.sendMessage(receiver, JsonUtil.toJsonUseJackson(map));
 		} catch (Exception e) {
-			log.error("WebSocket send notification failed,message: {}", e.getMessage(), e);
+			log.error("WebSocket send notification failed,message: {}", e.getMessage());
 		}
 	}
 }

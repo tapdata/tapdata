@@ -83,9 +83,11 @@
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <filters>
                                 <filter>
-                                    <artifact>io.debezium:debezium-core</artifact>
+                                    <artifact>**:**</artifact>
                                     <excludes>
-                                        <exclude>io/debezium/jdbc/JdbcValueConverters</exclude>
+                                        <exclude>**/org/apache/log4j/**</exclude>
+                                        <exclude>**/org/apache/logging/log4j/**</exclude>
+                                        <exclude>**/org/slf4j/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
