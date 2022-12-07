@@ -192,8 +192,6 @@ public class AlarmServiceImpl implements AlarmService {
             if (info.getLastNotifyTime() == null) {
                 CompletableFuture.runAsync(() -> {
                     sendMail(info, taskDto);
-                    info.setLastNotifyTime(DateUtil.date());
-                    SpringUtil.getBean(AlarmService.class).save(info);
                 });
             }
 
@@ -239,16 +237,18 @@ public class AlarmServiceImpl implements AlarmService {
             String title = null;
             String content = null;
             MailAccountDto mailAccount = getMailAccount(taskDto.getUserId());
+            String dateTime = DateUtil.formatDateTime(info.getLastOccurrenceTime());
             switch (info.getMetric()) {
                 case TASK_STATUS_STOP:
                     boolean manual = info.getSummary().contains("已被用户");
                     title = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName())
                             : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
-                    content = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), info.getLastOccurrenceTime(), info.getParam().get("updatorName"))
+                    content = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), dateTime, info.getParam().get("updatorName"))
                             : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), info.getLastOccurrenceTime());
                     break;
                 case TASK_STATUS_ERROR:
-
+                    title = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
+                    content = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), dateTime);
                     break;
                 case TASK_FULL_COMPLETE:
                     title = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE_TITLE, info.getName());
@@ -264,16 +264,16 @@ public class AlarmServiceImpl implements AlarmService {
                     break;
                 case DATANODE_CANNOT_CONNECT:
                     title = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT_TITLE, info.getName());
-                    content = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT, info.getName(), info.getNode(), info.getLastOccurrenceTime());
+                    content = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT, info.getName(), info.getNode(), dateTime);
                     break;
                 case DATANODE_AVERAGE_HANDLE_CONSUME:
                     title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
-                    content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), info.getLastOccurrenceTime());
+                    content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), dateTime);
                     break;
                 case PROCESSNODE_AVERAGE_HANDLE_CONSUME:
                     title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
                     content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(),
-                            info.getParam().get("interval"), info.getParam().get("current"), info.getLastOccurrenceTime());
+                            info.getParam().get("interval"), info.getParam().get("current"), dateTime);
                     break;
                 default:
 
@@ -459,7 +459,8 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void closeWhenTaskRunning(String taskId) {
-        mongoTemplate.updateMulti(Query.query(Criteria.where("taskId").is(taskId).and("status").ne(AlarmStatusEnum.CLOESE)), Update.update("status", AlarmStatusEnum.CLOESE), AlarmInfo.class);
+        Update update = Update.update("status", AlarmStatusEnum.CLOESE).unset("lastNotifyTime");
+        mongoTemplate.updateMulti(Query.query(Criteria.where("taskId").is(taskId)), update, AlarmInfo.class);
     }
 
     private MailAccountDto getMailAccount(String userId) {
