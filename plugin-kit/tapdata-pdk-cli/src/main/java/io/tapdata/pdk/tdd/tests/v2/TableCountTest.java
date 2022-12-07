@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.UUID;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
@@ -25,7 +24,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_String;
 @TapGo(sort = 5)
 public class TableCountTest extends PDKTestBase {
     private void setTable(){
-        this.targetTable = table(UUID.randomUUID().toString())
+        this.targetTable = table(tableNameCreator.tableName())
                 .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
                 .add(field("name", JAVA_String).tapType(tapString().bytes(50L)))
                 .add(field("text", JAVA_String).tapType(tapString().bytes(50L)));
