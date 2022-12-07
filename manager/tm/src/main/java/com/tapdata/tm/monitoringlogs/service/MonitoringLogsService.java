@@ -98,7 +98,15 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             return null;
         }
 
-        TaskDto taskDto = taskService.findById(objectId);
+        TaskDto taskDto;
+        String type = param.getType();
+        if ("monitor".equals(type)) {
+            taskDto = taskService.findById(objectId);
+        } else if ("testRun".equals(type)) {
+            taskDto = taskService.findOne(Query.query(Criteria.where("testTaskId").is(taskId)));
+        } else {
+            return null;
+        }
 
         Criteria criteria = Criteria.where("taskId").is(taskId);
         if (StringUtils.isNotBlank(param.getTaskRecordId())) {
@@ -289,7 +297,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         save(builder.build(), user);
     }
 
-    public void delLogsWhenTaskReset(String taskId) {
+    public void deleteLogs(String taskId) {
         mongoOperations.remove(new Query(Criteria.where("taskId").is(taskId)), MonitoringLogsEntity.class);
     }
 
