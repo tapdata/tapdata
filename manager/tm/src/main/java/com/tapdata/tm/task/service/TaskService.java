@@ -3407,17 +3407,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    int inputInsertTotal = (int) vs.get("inputInsertTotal");
-                    int inputOthersTotal = (int) vs.get("inputOthersTotal");
-                    int inputDdlTotal = (int) vs.get("inputDdlTotal");
-                    int inputUpdateTotal = (int) vs.get("inputUpdateTotal");
-                    int inputDeleteTotal = (int) vs.get("inputDeleteTotal");
+                    long inputInsertTotal = Long.parseLong(String.valueOf(vs.get("inputInsertTotal")));
+                    long inputOthersTotal = Long.parseLong(String.valueOf(vs.get("inputOthersTotal")));
+                    long inputDdlTotal = Long.parseLong(String.valueOf(vs.get("inputDdlTotal")));
+                    long inputUpdateTotal = Long.parseLong(String.valueOf(vs.get("inputUpdateTotal")));
+                    long inputDeleteTotal = Long.parseLong(String.valueOf(vs.get("inputDeleteTotal")));
 
-                    int outputInsertTotal = (int) vs.get("outputInsertTotal");
-                    int outputOthersTotal = (int) vs.get("outputOthersTotal");
-                    int outputDdlTotal = (int) vs.get("outputDdlTotal");
-                    int outputUpdateTotal = (int) vs.get("outputUpdateTotal");
-                    int outputDeleteTotal = (int) vs.get("outputDeleteTotal");
+                    long outputInsertTotal = Long.parseLong(String.valueOf(vs.get("outputInsertTotal")));
+                    long outputOthersTotal = Long.parseLong(String.valueOf(vs.get("outputOthersTotal")));
+                    long outputDdlTotal = Long.parseLong(String.valueOf(vs.get("outputDdlTotal")));
+                    long outputUpdateTotal = Long.parseLong(String.valueOf(vs.get("outputUpdateTotal")));
+                    long outputDeleteTotal = Long.parseLong(String.valueOf(vs.get("outputDeleteTotal")));
                     output += outputInsertTotal;
                     output += outputOthersTotal;
                     output += outputDdlTotal;
