@@ -43,7 +43,7 @@ public class WriteRecordTest extends PDKTestBase {
     protected TapNodeInfo tapNodeInfo;
     protected String testTableId;
     private void targetTable(){
-        this.targetTable = table(UUID.randomUUID().toString())
+        this.targetTable = table(tableNameCreator.tableName())
                 .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
                 .add(field("name", JAVA_String).tapType(tapString().bytes(100L)))
                 .add(field("text", JAVA_String).tapType(tapString().bytes(100L)));

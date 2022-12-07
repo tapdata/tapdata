@@ -48,6 +48,7 @@ import io.tapdata.pdk.core.workflow.engine.TapDAG;
 import io.tapdata.pdk.tdd.tests.support.DateUtil;
 import io.tapdata.pdk.tdd.tests.support.Record;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
+import io.tapdata.pdk.tdd.tests.support.connector.TableNameSupport;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
@@ -65,6 +66,7 @@ import java.text.SimpleDateFormat;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -88,6 +90,9 @@ public class PDKTestBase {
     protected File testConfigFile;
     protected File jarFile;
 
+    protected String testNodeId ;
+    protected TableNameSupport tableNameCreator;
+
     protected DataMap connectionOptions;
     protected DataMap nodeOptions;
     protected DataMap testOptions;
@@ -100,11 +105,24 @@ public class PDKTestBase {
 
     protected String lang;
 
+    private void tableNameCreator(Collection<TapNodeInfo> tapNodeInfoCollection){
+        if (tapNodeInfoCollection.isEmpty()) {
+            tableNameCreator = TableNameSupport.support(null);
+            return;
+        }
+        tapNodeInfoCollection.stream().filter(Objects::nonNull).forEach((nodeInfo)->{
+                testNodeId = nodeInfo.getTapNodeSpecification().getId();
+                tableNameCreator = TableNameSupport.support(testNodeId);
+                return;
+        });
+        if (null == tableNameCreator ) tableNameCreator = TableNameSupport.support(null);
+    }
+
     protected void connectorOnStart(TestNode prepare){
         PDKInvocationMonitor.invoke(prepare.connectorNode(),
                 PDKMethod.INIT,
                 prepare.connectorNode()::connectorInit,
-                "Init PDK","TEST connector"
+                "Init PDK",testNodeId +" connector"
         );
     }
     protected void connectorOnStop(TestNode prepare){
@@ -113,7 +131,7 @@ public class PDKTestBase {
                     PDKMethod.STOP,
                     prepare.connectorNode()::connectorStop,
                     "Stop PDK",
-                    "TEST connector"
+                    testNodeId +"  connector"
             );
             PDKIntegration.releaseAssociateId("releaseAssociateId");
         }
@@ -154,6 +172,8 @@ public class PDKTestBase {
         }
 
         tddConnector = TapConnectorManager.getInstance().getTapConnectorByJarName(tddJarFile.getName());
+        this.tableNameCreator(tapNodeInfoCollection);
+
         PDKInvocationMonitor.getInstance().setErrorListener(errorMessage -> {
             if(enterWaitCompletedStage.get()) {
                 $(() -> {
@@ -825,7 +845,7 @@ public class PDKTestBase {
     protected TestNode prepare(TapNodeInfo nodeInfo){
         tapNodeInfo = nodeInfo;
         originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
-        testTableId = UUID.randomUUID().toString();
+        testTableId = tableNameCreator.tableName();
         targetTable.setId(testTableId);
         KVMap<Object> stateMap = new KVMap<Object>() {
             @Override
@@ -902,7 +922,7 @@ public class PDKTestBase {
             TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
             TapAssert asserts = TapAssert.asserts(() -> { });
 
-            targetTable.setId(UUID.randomUUID().toString().replaceAll("-","_"));
+            targetTable.setId(tableNameCreator.tableName());
             targetTable.setName(this.targetTable.getId());
             LinkedHashMap<String, TapField> modelDeduction = this.modelDeduction(prepare.connectorNode);
             TapTable tabled = new TapTable();

@@ -164,7 +164,7 @@ public class CreateTableTest extends PDKTestBase {
     }
 
     TapTable getTableForAllTapType(){
-        return table(UUID.randomUUID().toString())
+        return table(tableNameCreator.tableName())
                 .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
                 .add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
                 .add(field("TYPE_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
