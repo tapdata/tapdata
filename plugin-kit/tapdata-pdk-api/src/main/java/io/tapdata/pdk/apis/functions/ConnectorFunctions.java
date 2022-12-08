@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> {
-    protected ExecuteQueryStringFunction executeQueryStringFunction;
+    protected ExecuteCommandFunction executeCommandFunction;
     protected ReleaseExternalFunction releaseExternalFunction;
     protected BatchReadFunction batchReadFunction;
     protected StreamReadFunction streamReadFunction;
@@ -51,8 +51,30 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
     protected NewFieldFunction newFieldFunction;
     protected RawDataCallbackFilterFunction rawDataCallbackFilterFunction;
     protected RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2;
-    public ConnectorFunctions supportExecuteQueryStringFunction(ExecuteQueryStringFunction function) {
-        executeQueryStringFunction = function;
+
+    protected CountByPartitionFilterFunction countByPartitionFilterFunction;
+    protected GetReadPartitionsFunction getReadPartitionsFunction;
+    protected PartitionReadFunction partitionReadFunction;
+    protected QueryFieldMinMaxValueFunction queryFieldMinMaxValueFunction;
+
+    public ConnectorFunctions supportCountByPartitionFilterFunction(CountByPartitionFilterFunction function) {
+        countByPartitionFilterFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportGetReadPartitionsFunction(GetReadPartitionsFunction function) {
+        getReadPartitionsFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportPartitionReadFunction(PartitionReadFunction function) {
+        this.partitionReadFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportQueryFieldMinMaxValueFunction(QueryFieldMinMaxValueFunction function) {
+        this.queryFieldMinMaxValueFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportExecuteCommandFunction(ExecuteCommandFunction function) {
+        executeCommandFunction = function;
         return this;
     }
 
@@ -349,7 +371,23 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
         return rawDataCallbackFilterFunctionV2;
     }
 
-    public ExecuteQueryStringFunction getExecuteQueryStringFunction() {
-        return executeQueryStringFunction;
+    public ExecuteCommandFunction getExecuteQueryStringFunction() {
+        return executeCommandFunction;
+    }
+
+    public CountByPartitionFilterFunction getCountByPartitionFilterFunction() {
+        return countByPartitionFilterFunction;
+    }
+
+    public GetReadPartitionsFunction getGetReadPartitionsFunction() {
+        return getReadPartitionsFunction;
+    }
+
+    public PartitionReadFunction getPartitionReadFunction() {
+        return partitionReadFunction;
+    }
+
+    public QueryFieldMinMaxValueFunction getQueryFieldMinMaxValueFunction() {
+        return queryFieldMinMaxValueFunction;
     }
 }
