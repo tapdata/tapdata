@@ -1,5 +1,6 @@
 package com.tapdata.tm.monitoringlogs.service;
 
+import cn.hutool.core.date.DatePattern;
 import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.IOUtils;
@@ -7,9 +8,9 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitoringlogs.entity.MonitoringLogsEntity;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogCountParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogExportParam;
@@ -18,14 +19,15 @@ import com.tapdata.tm.monitoringlogs.repository.MonitoringLogsRepository;
 import com.tapdata.tm.monitoringlogs.vo.MonitoringLogCountVo;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
+import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
+import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.QuartzCronDateUtils;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,10 +44,10 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.text.MessageFormat;
-import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.zip.ZipOutputStream;
 
 /**
@@ -339,4 +341,24 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         mongoOperations.remove(new Query(Criteria.where("taskId").is(taskId)), MonitoringLogsEntity.class);
     }
 
+    public List<TaskDagCheckLog> getJsNodeLog(String testRunTaskId, String taskName) {
+        List<MonitoringLogsEntity> list = mongoOperations.find(Query.query(Criteria.where("taskId").is(testRunTaskId)), MonitoringLogsEntity.class);
+        if (CollectionUtils.isNotEmpty(list)) {
+            return list.stream().map(log -> {
+                TaskDagCheckLog info = new TaskDagCheckLog();
+                info.setTaskId(log.getTaskId());
+                info.setCheckType(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name());
+                // 2022-12-08 18:56:44【新任务@14:19:54】【模型推演检测】：
+                String date = DateUtil.toLocalDateTime(log.getDate()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN));
+                String message = "{0}【{1}】【JS处理节点】{2}：";
+                info.setLog(MessageFormat.format(message, date, taskName, log.getMessage()));
+                info.setGrade(Level.valueOf(log.getLevel()));
+                info.setCreateAt(log.getDate());
+                info.setId(log.getId());
+                return info;
+            }).collect(Collectors.toList());
+        }
+
+        return null;
+    }
 }
