@@ -1088,13 +1088,13 @@ public class PDKTestBase {
             String type = field.getDataType();
             if (null == type || "".equals(type)){
                 //类型为空，推演失败
-                TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.source.fieldDataType.null",name,tableId))).error(testCase);
+                TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.source.fieldDataType.null",name,tableId))).warn(testCase);
                 return;
             }
 
             TapField targetField = targetFields.get(name);
             if (null == targetField){
-                TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.target.fieldDataType.null",tableId))).error(testCase);
+                TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.target.fieldDataType.null",tableId,name))).warn(testCase);
                 return;
             }
             String targetType = targetField.getDataType();
