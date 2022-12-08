@@ -1,31 +1,19 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
-import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
-import io.tapdata.entity.conversion.TableFieldTypesGenerator;
-import io.tapdata.entity.conversion.TargetTypesGenerator;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
-import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.FilterResult;
-import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
@@ -45,7 +33,6 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.simplify.TapSimplify.field;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Date;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("createTableTest.test")//CreateTableFunction/CreateTableV2Function建表
 @TapGo(sort = 9,goTest = true)
@@ -67,11 +54,7 @@ public class CreateTableTest extends PDKTestBase {
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreateTable = false;
             try {
-                PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                        PDKMethod.INIT,
-                        prepare.connectorNode()::connectorInit,
-                        "Init PDK","TEST mongodb"
-                );
+                super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("createTableV2");
                 execute.testCase(testCase);
 
@@ -102,22 +85,19 @@ public class CreateTableTest extends PDKTestBase {
                     return;
                 }
                 targetTable.setId(tableId);
-                TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
                 targetTable.setName(this.targetTable.getId());
-                LinkedHashMap<String, TapField> modelDeduction = this.modelDeduction(prepare.connectorNode());
-                TapTable tabled = new TapTable();
-                modelDeduction.forEach((name,field)->tabled.add(field));
-                tabled.setName(targetTable.getName());
-                tabled.setId(targetTable.getId());
-                createTableEvent.table(tabled);
-                createTableEvent.setReferenceTime(System.currentTimeMillis());
-                createTableEvent.setTableId(targetTable.getId());
+                TapCreateTableEvent createTableEvent = super.modelDeductionForCreateTableEvent(prepare.connectorNode());
+                //LinkedHashMap<String, TapField> modelDeduction = this.modelDeduction(prepare.connectorNode());
+                //TapTable tabled = new TapTable();
+                //modelDeduction.forEach((name,field)->tabled.add(field));
+                //tabled.setName(targetTable.getName());
+                //tabled.setId(targetTable.getId());
+                //createTableEvent.table(tabled);
+                //createTableEvent.setReferenceTime(System.currentTimeMillis());
+                //createTableEvent.setTableId(targetTable.getId());
                 //如果同时实现了两个方法只需要测试CreateTableV2Function。(V2优先)
                 if (isV2){
-                    CreateTableOptions table = createTableV2.createTable(
-                            connectorContext,
-                            createTableEvent
-                    );
+                    CreateTableOptions table = createTableV2.createTable(connectorContext, createTableEvent);
                     hasCreateTable = this.verifyTableIsCreated("CreateTableV2Function", prepare);
                     return;
                 }
@@ -132,13 +112,7 @@ public class CreateTableTest extends PDKTestBase {
                     prepare.recordEventExecute().dropTable();
                 }
                 if (null != prepare.connectorNode()){
-                    PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                            PDKMethod.STOP,
-                            prepare.connectorNode()::connectorStop,
-                            "Stop PDK",
-                            "TEST mongodb"
-                    );
-                    PDKIntegration.releaseAssociateId("releaseAssociateId");
+                    super.connectorOnStop(prepare);
                 }
             }
         });
@@ -443,7 +417,7 @@ public class CreateTableTest extends PDKTestBase {
                     ).warn(testCase);
                     return;
                 }
-                TapCreateTableEvent event = new TapCreateTableEvent();
+                TapCreateTableEvent event = super.modelDeductionForCreateTableEvent(prepare.connectorNode());
                 String tableId = targetTable.getId();
                 event.table(targetTable);
                 event.setReferenceTime(System.currentTimeMillis());
@@ -472,7 +446,7 @@ public class CreateTableTest extends PDKTestBase {
     public static List<SupportFunction> testFunctions() {
         return list(
 //            support(DropTableFunction.class,TapSummary.format(inNeedFunFormat,"DropTableFunction")),
-            support(CreateIndexFunction.class,TapSummary.format(inNeedFunFormat,"CreateIndexFunction")),
+            //support(CreateIndexFunction.class,TapSummary.format(inNeedFunFormat,"CreateIndexFunction")),
             supportAny(
                     list(WriteRecordFunction.class,CreateTableFunction.class,CreateTableV2Function.class),
                     TapSummary.format(anyOneFunFormat,"WriteRecordFunction,CreateTableFunction,CreateTableV2Function"))

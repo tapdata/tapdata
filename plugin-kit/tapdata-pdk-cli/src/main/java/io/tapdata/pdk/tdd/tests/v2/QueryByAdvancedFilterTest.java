@@ -59,10 +59,10 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 Record[] records = Record.testRecordWithTapTable(targetTable,recordCount);
                 WriteListResult<TapRecordEvent> insert = execute.builderRecord(records).insert();
                 TapAssert.asserts(()->
-                        Assertions.assertTrue(
-                                null!=insert && insert.getInsertedCount() == recordCount,
-                                TapSummary.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
-                        )
+                    Assertions.assertTrue(
+                        null!=insert && insert.getInsertedCount() == recordCount,
+                        TapSummary.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
+                    )
                 ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
                 hasCreateTable = null!=insert && insert.getInsertedCount() == recordCount;
                 if (!hasCreateTable) return;
@@ -75,50 +75,48 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 QueryByAdvanceFilterFunction query = functions.getQueryByAdvanceFilterFunction();
                 TapAdvanceFilter queryFilter = new TapAdvanceFilter();
                 List<Map<String,Object>> consumer = filter(connectorNode,query,queryFilter);
+                //数据条目数需要等于1， 查询出这1条数据，只要能查出来数据就算是正确。
+                TapAssert.asserts(()->
+                        Assertions.assertTrue(
+                                null!=consumer&&consumer.size()==recordCount,
+                                TapSummary.format("byAdvance.query.error",recordCount,null==consumer?0:consumer.size())
+                        )
+                ).acceptAsError(testCase,TapSummary.format("byAdvance.query.succeed",recordCount,null==consumer?0:consumer.size()));
+                if (null != consumer && consumer.size() == 1){
+                    Record record = records[0];
+                    Map<String,Object> tapEvent = consumer.get(0);
+                    DataMap filterMap = new DataMap();
+                    filterMap.putAll(tapEvent);
+                    TapFilter filter = new TapFilter();
+                    filter.setMatch(filterMap);
+                    TapTable targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
 
-                {
-                    //数据条目数需要等于1， 查询出这1条数据，只要能查出来数据就算是正确。
-                    TapAssert.asserts(()->
-                            Assertions.assertTrue(
-                                    null!=consumer&&consumer.size()==recordCount,
-                                    TapSummary.format("byAdvance.query.error",recordCount,null==consumer?0:consumer.size())
+                    FilterResult filterResult = filterResults(connectorNode, filter, targetTable);
+                    TapAssert.asserts(() ->
+                            assertNotNull(
+                                    filterResult,
+                                    TapSummary.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
                             )
-                    ).acceptAsError(testCase,TapSummary.format("byAdvance.query.succeed",recordCount,null==consumer?0:consumer.size()));
-                    if (null != consumer && consumer.size() == 1){
-                        Record record = records[0];
-                        Map<String,Object> tapEvent = consumer.get(0);
-                        DataMap filterMap = new DataMap();
-                        filterMap.putAll(tapEvent);
-                        TapFilter filter = new TapFilter();
-                        filter.setMatch(filterMap);
-                        TapTable targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
-
-                        FilterResult filterResult = filterResults(connectorNode, filter, targetTable);
-                        TapAssert.asserts(() ->
-                                assertNotNull(
-                                        filterResult,
-                                        TapSummary.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
-                                )
-                        ).error(testCase);
-                        if (null!=filterResult){
-                            TapAssert.asserts(() -> Assertions.assertNull(
-                                    filterResult.getError(),
-                                    TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
+                    ).error(testCase);
+                    if (null!=filterResult){
+                        TapAssert.asserts(() -> Assertions.assertNull(
+                                filterResult.getError(),
+                                TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
+                        )).error(testCase);
+                        if (null==filterResult.getError()){
+                            TapAssert.asserts(() -> assertNotNull(
+                                    filterResult.getResult(),
+                                    TapSummary.format("exact.match.filter.result.null")
                             )).error(testCase);
-                            if (null==filterResult.getError()){
-                                TapAssert.asserts(() -> assertNotNull(
-                                        filterResult.getResult(),
-                                        TapSummary.format("exact.match.filter.result.null")
-                                )).error(testCase);
-                                if (null!=filterResult.getResult()){
-                                    Map<String, Object> result = filterResult.getResult();
-                                    connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
-                                    connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
-                                    StringBuilder builder = new StringBuilder();
-                                    TapAssert.asserts(()->assertTrue(
-                                            mapEquals(record, result, builder),
-                                            TapSummary.format("exact.equals.failed",recordCount,builder.toString())
-                                    )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
+                            if (null!=filterResult.getResult()){
+                                Map<String, Object> result = filterResult.getResult();
+                                connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
+                                connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
+                                StringBuilder builder = new StringBuilder();
+                                TapAssert.asserts(()->assertTrue(
+                                        mapEquals(record, result, builder),
+                                        TapSummary.format("exact.equals.failed",recordCount,builder.toString())
+                                )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
 //                                    boolean isEquals = mapEquals(record, result, builder);//精确匹配
 //                                    if (isEquals){
 //                                        TapAssert.succeed(testCase,TapSummary.format("exact.equals.succeed",recordCount));
@@ -134,11 +132,11 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
 //                                    TapAssert.asserts(()->assertTrue(
 //                                            mapEquals(record, result, builder),TapSummary.format("exact.equals.failed",recordCount,builder.toString())
 //                                    )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount));
-                                }
                             }
                         }
                     }
                 }
+
 //                BatchReadFunction batchReadFun = functions.getBatchReadFunction();
                 //使用BatchReadFunction， batchSize为10读出所有数据，
                 final int batchSize = 10;
