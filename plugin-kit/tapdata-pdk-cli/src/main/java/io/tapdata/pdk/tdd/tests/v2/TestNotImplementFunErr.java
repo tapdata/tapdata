@@ -47,7 +47,7 @@ public class TestNotImplementFunErr extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             tapNodeInfo = nodeInfo;
             originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
-            testTableId = UUID.randomUUID().toString();
+            testTableId = tableNameCreator.tableName();
             targetTable.setId(testTableId);
             KVMap<Object> stateMap = new KVMap<Object>() {
                 @Override
