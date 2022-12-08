@@ -131,6 +131,7 @@ public class WriteRecordTest extends PDKTestBase {
                 super.connectorOnStart(prepare);
                 execute.testCase(this.getMethod("sourceTest2"));
                 isCreatedTable = super.createTable(prepare);
+
                 sourceTest2Fun(execute, prepare.connectorNode());
             } catch (Throwable e) {
                 throw new RuntimeException(e);
