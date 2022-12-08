@@ -41,6 +41,7 @@ public class BatchCountTest extends PDKTestBase {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("batchCountAfterInsert");
                 execute.testCase(testCase);
+
                 //使用WriteRecordFunction写入2条数据
                 Record[] records = Record.testRecordWithTapTable(targetTable,2);
                 execute.builderRecord(records);

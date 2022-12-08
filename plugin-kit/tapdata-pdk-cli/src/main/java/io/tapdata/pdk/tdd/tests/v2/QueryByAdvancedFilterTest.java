@@ -54,6 +54,9 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 super.connectorOnStart(prepare);
                 execute.testCase(testCase);
 
+                if( !(hasCreateTable = super.createTable(prepare)) ){
+                    return;
+                }
                 //使用WriteRecordFunction插入1条全类型（覆盖TapType的11中类型数据）数据，
                 final int recordCount = 1;
                 Record[] records = Record.testRecordWithTapTable(targetTable,recordCount);
@@ -64,10 +67,8 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                         TapSummary.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
                     )
                 ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
-                hasCreateTable = null!=insert && insert.getInsertedCount() == recordCount;
-                if (!hasCreateTable) return;
+
                 ConnectorNode connectorNode = prepare.connectorNode();
-                TapConnectorContext context = connectorNode.getConnectorContext();
                 ConnectorFunctions functions = connectorNode.getConnectorFunctions();
                 if (super.verifyFunctions(functions,testCase)){
                     return;
@@ -77,49 +78,55 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 List<Map<String,Object>> consumer = filter(connectorNode,query,queryFilter);
                 //数据条目数需要等于1， 查询出这1条数据，只要能查出来数据就算是正确。
                 TapAssert.asserts(()->
-                    Assertions.assertTrue(
-                        null!=consumer&&consumer.size()==recordCount,
-                        TapSummary.format("byAdvance.query.error",recordCount,null==consumer?0:consumer.size())
+                    Assertions.assertEquals(
+                         consumer.size(), recordCount,
+                        TapSummary.format("byAdvance.query.error",recordCount,null==consumer ? 0 : consumer.size())
                     )
                 ).acceptAsError(testCase,TapSummary.format("byAdvance.query.succeed",recordCount,null==consumer?0:consumer.size()));
-                if (null != consumer && consumer.size() == 1){
+                if ( consumer.size() == 1){
                     Record record = records[0];
                     Map<String,Object> tapEvent = consumer.get(0);
-                    DataMap filterMap = new DataMap();
-                    filterMap.putAll(tapEvent);
-                    TapFilter filter = new TapFilter();
-                    filter.setMatch(filterMap);
-                    TapTable targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
 
-                    FilterResult filterResult = filterResults(connectorNode, filter, targetTable);
-                    TapAssert.asserts(() ->
-                        assertNotNull(
-                            filterResult,
-                            TapSummary.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
-                        )
-                    ).error(testCase);
-                    if (null!=filterResult){
-                        TapAssert.asserts(() -> Assertions.assertNull(
-                            filterResult.getError(),
-                            TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
-                        )).error(testCase);
-                        if (null==filterResult.getError()){
-                            TapAssert.asserts(() -> assertNotNull(
-                                filterResult.getResult(),
-                                TapSummary.format("exact.match.filter.result.null")
-                            )).error(testCase);
-                            if (null!=filterResult.getResult()){
-                                Map<String, Object> result = filterResult.getResult();
-                                connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
-                                connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
-                                StringBuilder builder = new StringBuilder();
-                                TapAssert.asserts(()->assertTrue(
-                                    mapEquals(record, result, builder),
-                                    TapSummary.format("exact.equals.failed",recordCount,builder.toString())
-                                )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
-                            }
-                        }
-                    }
+
+                    Map<String, Object> result = tapEvent;//filterResult.getResult();
+                    connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
+                    connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
+                    StringBuilder builder = new StringBuilder();
+                    TapAssert.asserts(()->assertTrue(
+                            mapEquals(record, result, builder),
+                            TapSummary.format("exact.equals.failed",recordCount,builder.toString())
+                    )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
+
+
+
+
+//                    DataMap filterMap = new DataMap();
+//                    filterMap.putAll(tapEvent);
+//                    TapFilter filter = new TapFilter();
+//                    filter.setMatch(filterMap);
+//                    TapTable targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
+//
+//                    FilterResult filterResult = filterResults(connectorNode, filter, targetTable);
+//                    TapAssert.asserts(() ->
+//                        assertNotNull(
+//                            filterResult,
+//                            TapSummary.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
+//                        )
+//                    ).error(testCase);
+//                    if (null != filterResult){
+//                        TapAssert.asserts(() -> Assertions.assertNull(
+//                            filterResult.getError(),
+//                            TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
+//                        )).error(testCase);
+//                        if (null==filterResult.getError()){
+//                            TapAssert.asserts(() -> assertNotNull(
+//                                filterResult.getResult(),
+//                                TapSummary.format("exact.match.filter.result.null",recordCount)
+//                            )).error(testCase);
+//                            if (null!=filterResult.getResult()){
+//                                }
+//                        }
+//                    }
                 }
             } catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -149,6 +156,10 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 Method testCase = this.getMethod("sourceTest2");
                 execute.testCase(testCase);
                 super.connectorOnStart(prepare);
+
+                if( !(hasCreateTable = super.createTable(prepare)) ){
+                    return;
+                }
                 final int insertCount = 2;
                 Record[] records = Record.testRecordWithTapTable(targetTable,insertCount);
                 execute.builderRecord(records);
@@ -159,8 +170,6 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                         TapSummary.format("batchRead.insert.error",insertCount,null==insert?0:insert.getInsertedCount())
                     )
                 ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",insertCount,null==insert?0:insert.getInsertedCount()));
-                hasCreateTable = null!=insert && insert.getInsertedCount() == insertCount;
-                if (!hasCreateTable) return;
                 ConnectorNode connectorNode = prepare.connectorNode();
                 ConnectorFunctions functions = connectorNode.getConnectorFunctions();
                 if (super.verifyFunctions(functions,testCase)){
@@ -238,7 +247,7 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
         query.query(
                 connectorNode.getConnectorContext(),
                 operatorFilter,targetTable,con->{
-                    if (null!=con&&null!=con.getResults()&&!con.getResults().isEmpty()){
+                    if (null!=con && null!=con.getResults() && !con.getResults().isEmpty()){
                         events.addAll(con.getResults());
                     }
                 }
