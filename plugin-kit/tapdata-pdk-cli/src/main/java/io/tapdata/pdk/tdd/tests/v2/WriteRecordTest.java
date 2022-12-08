@@ -42,12 +42,12 @@ public class WriteRecordTest extends PDKTestBase {
     protected String originToSourceId;
     protected TapNodeInfo tapNodeInfo;
     protected String testTableId;
-    private void targetTable(){
-        this.targetTable = table(tableNameCreator.tableName())
-                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-                .add(field("name", JAVA_String).tapType(tapString().bytes(100L)))
-                .add(field("text", JAVA_String).tapType(tapString().bytes(100L)));
-    }
+//    private void targetTable(){
+//        this.targetTable = table(tableNameCreator.tableName())
+//                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+//                .add(field("name", JAVA_String).tapType(tapString().bytes(100L)))
+//                .add(field("text", JAVA_String).tapType(tapString().bytes(100L)));
+//    }
     @Test
     @DisplayName("test.writeRecordTest.case.sourceTest1")//增删改数量返回正确
     @TapTestCase(sort = 1)
@@ -58,7 +58,6 @@ public class WriteRecordTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
-            targetTable();
             boolean isCreatedTable = false;
             try {
                 super.connectorOnStart(prepare);
@@ -126,7 +125,7 @@ public class WriteRecordTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
-            targetTable();
+            //targetTable();
             boolean isCreatedTable = false;
             try {
                 super.connectorOnStart(prepare);
@@ -279,7 +278,7 @@ public class WriteRecordTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
-            targetTable();
+            //targetTable();
             boolean isCreatedTable = false;
             try {
                 super.connectorOnStart(prepare);
@@ -338,7 +337,7 @@ public class WriteRecordTest extends PDKTestBase {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             boolean tableIsCreated = false;
-            targetTable();
+            //targetTable();
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 super.connectorOnStart(prepare);
