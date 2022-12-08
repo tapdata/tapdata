@@ -77,10 +77,10 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 List<Map<String,Object>> consumer = filter(connectorNode,query,queryFilter);
                 //数据条目数需要等于1， 查询出这1条数据，只要能查出来数据就算是正确。
                 TapAssert.asserts(()->
-                        Assertions.assertTrue(
-                                null!=consumer&&consumer.size()==recordCount,
-                                TapSummary.format("byAdvance.query.error",recordCount,null==consumer?0:consumer.size())
-                        )
+                    Assertions.assertTrue(
+                        null!=consumer&&consumer.size()==recordCount,
+                        TapSummary.format("byAdvance.query.error",recordCount,null==consumer?0:consumer.size())
+                    )
                 ).acceptAsError(testCase,TapSummary.format("byAdvance.query.succeed",recordCount,null==consumer?0:consumer.size()));
                 if (null != consumer && consumer.size() == 1){
                     Record record = records[0];
@@ -93,20 +93,20 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
 
                     FilterResult filterResult = filterResults(connectorNode, filter, targetTable);
                     TapAssert.asserts(() ->
-                            assertNotNull(
-                                    filterResult,
-                                    TapSummary.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
-                            )
+                        assertNotNull(
+                            filterResult,
+                            TapSummary.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
+                        )
                     ).error(testCase);
                     if (null!=filterResult){
                         TapAssert.asserts(() -> Assertions.assertNull(
-                                filterResult.getError(),
-                                TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
+                            filterResult.getError(),
+                            TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
                         )).error(testCase);
                         if (null==filterResult.getError()){
                             TapAssert.asserts(() -> assertNotNull(
-                                    filterResult.getResult(),
-                                    TapSummary.format("exact.match.filter.result.null")
+                                filterResult.getResult(),
+                                TapSummary.format("exact.match.filter.result.null")
                             )).error(testCase);
                             if (null!=filterResult.getResult()){
                                 Map<String, Object> result = filterResult.getResult();
@@ -114,33 +114,13 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                                 connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
                                 StringBuilder builder = new StringBuilder();
                                 TapAssert.asserts(()->assertTrue(
-                                        mapEquals(record, result, builder),
-                                        TapSummary.format("exact.equals.failed",recordCount,builder.toString())
+                                    mapEquals(record, result, builder),
+                                    TapSummary.format("exact.equals.failed",recordCount,builder.toString())
                                 )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
-//                                    boolean isEquals = mapEquals(record, result, builder);//精确匹配
-//                                    if (isEquals){
-//                                        TapAssert.succeed(testCase,TapSummary.format("exact.equals.succeed",recordCount));
-//                                    }else {
-//                                        //模糊匹配
-//                                        boolean isMatch = objectIsEqual(record, result);
-//                                        TapAssert.asserts(()->assertTrue(
-//                                                isMatch,TapSummary.format("exact.match.failed",recordCount,builder.toString())
-//                                        )).acceptAsWarn(testCase,TapSummary.format("exact.match.succeed",recordCount,builder.toString()));
-//                                    }
-
-//                                    StringBuilder builder = new StringBuilder();
-//                                    TapAssert.asserts(()->assertTrue(
-//                                            mapEquals(record, result, builder),TapSummary.format("exact.equals.failed",recordCount,builder.toString())
-//                                    )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount));
                             }
                         }
                     }
                 }
-
-//                BatchReadFunction batchReadFun = functions.getBatchReadFunction();
-                //使用BatchReadFunction， batchSize为10读出所有数据，
-                final int batchSize = 10;
-//                batchReadFun.batchRead(context,targetTable,null,batchSize,(list,consumer)->);
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
@@ -150,7 +130,6 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 super.connectorOnStop(prepare);
             }
         });
-        //waitCompleted(5000000);
     }
 
     @Test
@@ -214,7 +193,6 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 super.connectorOnStop(prepare);
             }
         });
-        //waitCompleted(5000000);
     }
     private void operatorEq(String key, Object value,Method testCase,ConnectorNode connectorNode,QueryByAdvanceFilterFunction query) throws Throwable {
         TapAdvanceFilter operatorFilter = new TapAdvanceFilter();
@@ -270,10 +248,8 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-                support(QueryByAdvanceFilterFunction.class, TapSummary.format(inNeedFunFormat,"QueryByAdvanceFilterFunction"))
-//                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
-//                support(DropTableFunction.class,TapSummary.format(inNeedFunFormat,"DropTableFunction"))
+            support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
+            support(QueryByAdvanceFilterFunction.class, TapSummary.format(inNeedFunFormat,"QueryByAdvanceFilterFunction"))
         );
     }
 }

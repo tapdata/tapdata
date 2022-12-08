@@ -12,14 +12,10 @@ import io.tapdata.pdk.apis.entity.FilterResult;
 import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.Record;
@@ -34,8 +30,6 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -121,15 +115,11 @@ public class BatchReadTest extends PDKTestBase {
                                 Assertions.assertNotNull(after,TapSummary.format("batchRead.after.null"));
                             }).acceptAsError(testCase, TapSummary.format("batchRead.after.notNull"));
                         }
-
-
                         Map<String, Object> info = tapEvent.getInfo();
-
                         DataMap filterMap = (DataMap) info;
                         TapFilter filter = new TapFilter();
                         filter.setMatch(filterMap);
                         TapTable targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
-
                         FilterResult filterResult = filterResults(connectorNode, filter, targetTable);
                         TapAssert.asserts(() ->
                             assertNotNull(
@@ -152,20 +142,10 @@ public class BatchReadTest extends PDKTestBase {
                                     connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
                                     connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
                                     StringBuilder builder = new StringBuilder();
-                                    //boolean isEquals = mapEquals(record, result, builder);//精确匹配
                                     TapAssert.asserts(()->assertTrue(
                                         mapEquals(record, result, builder),
                                         TapSummary.format("exact.equals.failed",recordCount,builder.toString())
                                     )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
-//                                    if (isEquals){
-//                                        TapAssert.succeed(testCase,TapSummary.format("exact.equals.succeed",recordCount));
-//                                    }else {
-//                                        //模糊匹配
-//                                        boolean isMatch = objectIsEqual(record, result);
-//                                        TapAssert.asserts(()->assertTrue(
-//                                            isMatch,TapSummary.format("exact.match.failed",recordCount,builder.toString())
-//                                        )).acceptAsWarn(testCase,TapSummary.format("exact.match.succeed",recordCount,builder.toString()));
-//                                    }
                                 }
                             }
                         }
@@ -211,7 +191,6 @@ public class BatchReadTest extends PDKTestBase {
                         TapSummary.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
                     )
                 ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
-
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnectorContext context = connectorNode.getConnectorContext();
                 ConnectorFunctions functions = connectorNode.getConnectorFunctions();
@@ -252,7 +231,6 @@ public class BatchReadTest extends PDKTestBase {
                             TapAssert.succeed(testCase,TapSummary.format("batchRead.batchCount.succeed",recordCount,batchSize,indexFinal+1,batchSize,tapEventSize));
                         }
                     }
-
                     for (int i = 0; i < tapEvents.size(); i++) {
                         if (isTrue){
                             TapEvent event = tapEvents.get(i);
@@ -278,7 +256,6 @@ public class BatchReadTest extends PDKTestBase {
                         Assertions.assertTrue(finalIsTrue,TapSummary.format("batchRead.final.error",recordCount,recordCount))
                     ).acceptAsError(testCase,TapSummary.format("batchRead.final.succeed",recordCount,recordCount));
                 }
-
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {
@@ -292,8 +269,6 @@ public class BatchReadTest extends PDKTestBase {
         return list(
                 support(WriteRecordFunction.class, TapSummary.format("WriteRecordFunctionNeed")),
                 support(BatchReadFunction.class,TapSummary.format("BatchReadFunctionNeed"))
-//                support(DropTableFunction.class, TapSummary.format("DropTableFunctionNeed"))
-                //support(QueryByAdvanceFilterFunction.class, TapSummary.format("query_by_advance_filter_function_need"))
         );
     }
 }

@@ -1,16 +1,16 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
-import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.Record;
@@ -23,10 +23,12 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("test.queryByFilterTest")//QueryByFilterFunction基于匹配字段查询（依赖WriteRecordFunction）
 @TapGo(sort = 2)
@@ -47,7 +49,8 @@ public class QueryByFilterTest extends PDKTestBase {
             TestNode prepare = this.prepare(nodeInfo);
             try {
                 super.connectorOnStart(prepare);
-                Record[] records = Record.testRecordWithTapTable(targetTable, 1);
+                final int recordCount = 1;
+                Record[] records = Record.testRecordWithTapTable(targetTable, recordCount);
                 RecordEventExecute recordEventExecute = prepare.recordEventExecute();
                 Method testCase = super.getMethod("insertWithQuery");
                 recordEventExecute.testCase(testCase);
@@ -60,7 +63,7 @@ public class QueryByFilterTest extends PDKTestBase {
                     WriteListResult<TapRecordEvent> finalInsert = insert;
                     TapAssert.asserts(()->
                         Assertions.assertTrue(null != finalInsert && finalInsert.getInsertedCount() == records.length,
-                                TapSummary.format("queryByFilter.insert.error",null==finalInsert?0:finalInsert.getInsertedCount(),tableId))
+                            TapSummary.format("queryByFilter.insert.error",null==finalInsert?0:finalInsert.getInsertedCount(),tableId))
                     ).acceptAsError(
                         testCase,
                         TapSummary.format("batchRead.insert.succeed",null==finalInsert?0:finalInsert.getInsertedCount(),tableId)
@@ -86,33 +89,63 @@ public class QueryByFilterTest extends PDKTestBase {
                     );
                     if (!results.isEmpty()){
                         TapAssert.asserts(()->{
-                            Assertions.assertTrue(1!=results.size(),TapSummary.format(""));
-                        }).acceptAsError(
-                            testCase,
-                            TapSummary.format("")
-                        );
+                            Assertions.assertTrue(1!=results.size(),TapSummary.format("insertWithQuery.queryById.error",recordCount,key,key,value,recordCount));
+                        }).acceptAsWarn(testCase, TapSummary.format("insertWithQuery.queryById.succeed",recordCount,key,key,value));
                     }else {
-                        TapAssert.asserts(()-> Assertions.fail(TapSummary.format(""))).error(testCase);
+                        TapAssert.asserts(()-> Assertions.fail(TapSummary.format("insertWithQuery.queryById.noData",recordCount,key,key,value,recordCount))).error(testCase);
+                    }
+
+                    if (null != results && results.size() == 1){
+                        Record record = records[0];
+                        Map<String,Object> tapEvent = results.get(0).getResult();
+                        DataMap filterMap = new DataMap();
+                        filterMap.putAll(tapEvent);
+                        TapFilter filter = new TapFilter();
+                        filter.setMatch(filterMap);
+                        ConnectorNode connectorNode = prepare.connectorNode();
+                        TapTable targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
+
+                        FilterResult filterResult = filterResults(connectorNode, filter, targetTable);
+                        TapAssert.asserts(() ->
+                                assertNotNull(
+                                        filterResult,
+                                        TapSummary.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
+                                )
+                        ).error(testCase);
+                        if (null!=filterResult){
+                            TapAssert.asserts(() -> Assertions.assertNull(
+                                    filterResult.getError(),
+                                    TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
+                            )).error(testCase);
+                            if (null==filterResult.getError()){
+                                TapAssert.asserts(() -> assertNotNull(
+                                        filterResult.getResult(),
+                                        TapSummary.format("exact.match.filter.result.null")
+                                )).error(testCase);
+                                if (null!=filterResult.getResult()){
+                                    Map<String, Object> result = filterResult.getResult();
+                                    connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
+                                    connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
+                                    StringBuilder builder = new StringBuilder();
+                                    TapAssert.asserts(()->assertTrue(
+                                            mapEquals(record, result, builder),
+                                            TapSummary.format("exact.equals.failed",recordCount,builder.toString())
+                                    )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
+                                }
+                            }
+                        }
                     }
 
                     //再进行模糊值匹配，只要能查出来数据就算是正确。如果值只能通过模糊匹配成功，报警告指出是靠模糊匹配成功的，
                     //如果连模糊匹配也匹配不上，也报警告（值对与不对很多时候不好判定）。
                     filters = new ArrayList<>();
                     TapAdvanceFilter advanceFilter = TapAdvanceFilter.create();
-                    //advanceFilter.match(new DataMap().kv("",""));
                     filters.add(advanceFilter);
                     queryByFilterFunction.query(
                         prepare.connectorNode().getConnectorContext(),
                         filters,
                         targetTable,
-                        filterResults -> $(() ->
-                            TapAssert.asserts(()->{
-
-                            }).acceptAsError(
-                                testCase,
-                                TapSummary.format("")
-                            )
-                        )
+                        filterResults -> TapAssert.asserts(()->{ }).acceptAsError(testCase, TapSummary.format(""))
                     );
 
                     //再进行精确，只要能查出来数据就算是正确。
@@ -121,19 +154,10 @@ public class QueryByFilterTest extends PDKTestBase {
                         prepare.connectorNode().getConnectorContext(),
                         filters,
                         targetTable,
-                        filterResults -> $(() -> {
-                            TapAssert.asserts(()->{
-
-                            }).acceptAsError(
-                                testCase,
-                                TapSummary.format("")
-                            );
-                        })
+                        filterResults -> TapAssert.asserts(()->{ }).acceptAsError(testCase, TapSummary.format(""))
                     );
                 }catch (Throwable e){
-                    TapAssert.asserts(()->
-                        Assertions.fail(TapSummary.format(""))
-                    ).acceptAsError(
+                    TapAssert.asserts(()-> Assertions.fail(TapSummary.format(""))).acceptAsError(
                         testCase,
                         TapSummary.format("")
                     );
@@ -176,7 +200,7 @@ public class QueryByFilterTest extends PDKTestBase {
                 WriteListResult<TapRecordEvent> finalInsert = insert;
                 TapAssert.asserts(()->
                     Assertions.assertTrue(null != finalInsert && finalInsert.getInsertedCount() == records.length,
-                            TapSummary.format("queryByFilter.insert.error",null==finalInsert?0:finalInsert.getInsertedCount(),tableId))
+                        TapSummary.format("queryByFilter.insert.error",null==finalInsert?0:finalInsert.getInsertedCount(),tableId))
                 ).acceptAsError(
                     testCase,
                     TapSummary.format("queryByFilter.insert.error",null==finalInsert?0:finalInsert.getInsertedCount(),tableId)
@@ -224,7 +248,6 @@ public class QueryByFilterTest extends PDKTestBase {
                 }else {
                     TapAssert.asserts(()-> Assertions.fail(TapSummary.format("lotFilter.notEquals.numError",filters.size(),key,value,key1,value1,filters.size(),results.size()))).error(testCase);
                 }
-
             }catch (Throwable e){
                 throw new RuntimeException(e);
             }finally {
@@ -237,9 +260,8 @@ public class QueryByFilterTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-                support(QueryByFilterFunction.class,TapSummary.format(inNeedFunFormat,"QueryByFilterFunction"))
-//                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
+            support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
+            support(QueryByFilterFunction.class,TapSummary.format(inNeedFunFormat,"QueryByFilterFunction"))
         );
     }
 }

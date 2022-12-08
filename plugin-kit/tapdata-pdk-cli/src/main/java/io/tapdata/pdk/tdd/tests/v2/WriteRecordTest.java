@@ -341,9 +341,9 @@ public class WriteRecordTest extends PDKTestBase {
             targetTable();
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
+                super.connectorOnStart(prepare);
                 Method testCase = this.getMethod("sourceTest4");
                 execute.testCase(testCase);
-                super.connectorOnStart(prepare);
                 tableIsCreated = super.createTable(prepare);
                 sourceTest4Fun(execute, prepare.connectorNode());
             } catch (Throwable e) {
@@ -417,10 +417,7 @@ public class WriteRecordTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction"))
-//                support(CreateTableFunction.class,"Create table is must to verify ,please implement CreateTableFunction in registerCapabilities method."),
-                //support(QueryByAdvanceFilterFunction.class, "QueryByAdvanceFilterFunction is a must for database which is schema free to sample some record to generate the field data types.")
-//                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
+            support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction"))
         );
     }
 }
