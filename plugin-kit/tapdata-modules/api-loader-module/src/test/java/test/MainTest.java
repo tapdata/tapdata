@@ -85,8 +85,8 @@ public class MainTest {
         ScriptEngine scriptEngine = engineManager.getEngineByName("nashorn");
 
         scriptEngine.eval(
-                "load('src/main/java/io/tapdata/api/apiJs/test.js');" +
-                "load('src/main/java/io/tapdata/api/apiJs/batchRead.js');"
+                "load('io/tapdata/api/apiJs/connector.js');"
+//                "load('src/main/java/io/tapdata/api/apiJs/batchRead.js');"
         );
 //        scriptEngine.eval("load('src/main/resources/apiJs/batchRead.js');");
         scriptEngine.put("core", scriptCore);
@@ -96,8 +96,8 @@ public class MainTest {
             Invocable invocable = (Invocable) scriptEngine;
             try {
                 while (isAlive()) {
-                    invocable.invokeFunction("requestData", contextMap.get());
-                    invocable.invokeFunction("batchRead", null,null,null,"Issues");
+                    invocable.invokeFunction("test", contextMap.get());
+//                    invocable.invokeFunction("batchRead", null,null,null,"Issues");
                     Thread.sleep(1000);
                 }
             } catch (InterruptedException ignored) {
