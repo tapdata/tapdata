@@ -1,17 +1,11 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.Record;
@@ -23,7 +17,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.List;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
@@ -48,6 +41,7 @@ public class BatchCountTest extends PDKTestBase {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("batchCountAfterInsert");
                 execute.testCase(testCase);
+
                 //使用WriteRecordFunction写入2条数据
                 Record[] records = Record.testRecordWithTapTable(targetTable,2);
                 execute.builderRecord(records);
@@ -58,7 +52,6 @@ public class BatchCountTest extends PDKTestBase {
                             TapSummary.format("batchCountTest.insert.error",records.length,null==insert?0:insert.getInsertedCount())
                     );
                 }).acceptAsError(testCase, TapSummary.format("batchCountTest.insert",records.length,insert.getInsertedCount()));
-
                 //使用BatchCountFunction查询记录数， 返回2为正确
                 if(createTable = (null!=insert && insert.getInsertedCount() == records.length) ){
                     ConnectorNode connectorNode = prepare.connectorNode();
@@ -82,10 +75,6 @@ public class BatchCountTest extends PDKTestBase {
     }
 
     public static List<SupportFunction> testFunctions() {
-        return list(
-//                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction")),
-//                support(WriteRecordFunction.class,TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-//                support(BatchCountFunction.class,TapSummary.format(inNeedFunFormat,"BatchCountFunction"))
-        );
+        return list();
     }
 }
