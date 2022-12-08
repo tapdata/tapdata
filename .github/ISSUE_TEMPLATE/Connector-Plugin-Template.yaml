@@ -40,7 +40,7 @@ body:
         - label: 删除表 target-feature-drop-table
         - label: 创建索引 target-feature-create-index
         - label: 删除索引 target-feature-drop-index
-        - label: DDL读取 source-feature-ddl
+        - label: DDL写入 target-feature-ddl
 #   - type: textarea
 #     id: config-for-source
 #     attributes:
