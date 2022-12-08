@@ -7,6 +7,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitoringlogs.entity.MonitoringLogsEntity;
@@ -15,7 +16,10 @@ import com.tapdata.tm.monitoringlogs.param.MonitoringLogExportParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.repository.MonitoringLogsRepository;
 import com.tapdata.tm.monitoringlogs.vo.MonitoringLogCountVo;
+import com.tapdata.tm.statemachine.enums.DataFlowEvent;
+import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.QuartzCronDateUtils;
 import lombok.NonNull;
@@ -37,6 +41,7 @@ import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.text.MessageFormat;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -260,7 +265,22 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         }
     }
 
-    //
+    public void taskStateMachineLog(TaskDto taskDto, UserDetail user, DataFlowEvent event,
+                                    StateMachineResult stateMachineResult, long cost) {
+        MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
+        builder.taskId(taskDto.getId().toHexString())
+                .taskName(taskDto.getName())
+                .taskRecordId(taskDto.getTaskRecordId())
+                .date(DateUtil.date())
+                .timestamp(System.currentTimeMillis())
+                .level("INFO")
+        ;
+        //在什么时间(时间戳), 操作人(admin), 对任务执行了什么操作(启动任务), 任务从 待启动 变为 调度中 / 启动中, 时间花费多少(100ms)
+        String template = "{0} operator[{1}] task result[{2}] change status {3} to {4}, cost {5}ms";
+        String message = MessageFormat.format(template, user.getUsername(), event.getName(), stateMachineResult.getCode(),
+                stateMachineResult.getBefore(), stateMachineResult.getAfter(), cost);
+        save(builder.message(message).build(), user);
+    }
 
     public void startTaskMonitoringLog(TaskDto taskDto, UserDetail user, Date date) {
         MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
@@ -275,6 +295,27 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
 
         save(builder.build(), user);
+    }
+
+    public void startTaskErrorLog(TaskDto taskDto, UserDetail user, Exception e) {
+        MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
+        builder.taskId(taskDto.getId().toHexString())
+                .taskName(taskDto.getName())
+                .taskRecordId(taskDto.getTaskRecordId())
+                .date(DateUtil.date())
+                .timestamp(System.currentTimeMillis())
+                .level("ERROR")
+        ;
+        String msg;
+        if (e instanceof BizException) {
+            msg = MessageUtil.getMessage(((BizException) e).getErrorCode());
+        } else {
+            msg = e.getMessage();
+        }
+
+        String message = "task start error :"  + msg;
+
+        save(builder.message(message).build(), user);
     }
 
     public void agentAssignMonitoringLog(TaskDto taskDto, String assigned, Integer available, UserDetail user, Date now) {
