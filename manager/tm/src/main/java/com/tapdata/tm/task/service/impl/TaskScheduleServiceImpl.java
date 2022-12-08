@@ -96,9 +96,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getAvailable(), user, now);
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        Update waitRunUpdate = Update.update("agentId", taskDto.getAgentId())
-                .set("monitorStartDate", now)
-                .set("last_updated", now);
+        Update waitRunUpdate = Update.update("agentId", taskDto.getAgentId()).set("last_updated", now);
         boolean needCreateRecord = false;
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             taskDto.setTaskRecordId(new ObjectId().toHexString());

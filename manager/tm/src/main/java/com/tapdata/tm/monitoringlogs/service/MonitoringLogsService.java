@@ -124,9 +124,6 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         }
 
         Long start = param.getStart();
-        if (ObjectUtils.allNotNull(taskDto.getStartTime(), taskDto.getMonitorStartDate()) && start == taskDto.getStartTime().getTime()) {
-            start = taskDto.getMonitorStartDate().getTime();
-        }
 
         // monitor log save will after task stopTime 5s, so add 10s;
         Long end = param.getEnd();

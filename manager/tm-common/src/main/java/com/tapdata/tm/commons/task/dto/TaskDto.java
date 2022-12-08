@@ -127,7 +127,6 @@ public class TaskDto extends ParentTaskDto {
     private Long snapshotDoneAt;
 
     private Long scheduleDate;
-    private Date monitorStartDate;
 
     private boolean needCreateRecord;
 
