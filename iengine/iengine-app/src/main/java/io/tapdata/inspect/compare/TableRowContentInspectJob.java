@@ -112,7 +112,11 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 		otherFieldLimit = uniqueFieldLimit;
 
 		if (fullMatch) {
-			compareFn = new DefaultCompare();
+			if (null != inspectTask.getSource().getColumns() && null != inspectTask.getTarget().getColumns()) {
+				compareFn = new DefaultCompare(inspectTask.getSource().getColumns(), inspectTask.getTarget().getColumns());
+			} else {
+				compareFn = new DefaultCompare();
+			}
 		}
 
 		if (inspectTask.getBatchSize() > 0) {
@@ -353,6 +357,7 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 				getSortColumns(inspectDataSource.getSortColumn()),
 				connections,
 				inspectDataSource.getTable(),
+				inspectDataSource.getColumns(),
 				connectorNode,
 				fullMatch
 		);

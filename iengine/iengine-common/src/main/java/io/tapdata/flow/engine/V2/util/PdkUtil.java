@@ -3,15 +3,16 @@ package io.tapdata.flow.engine.V2.util;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.pdk.apis.context.ConfigContext;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.schema.PdkTableMap;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.*;
@@ -102,7 +103,7 @@ public class PdkUtil {
 										   ClientMongoOperator clientMongoOperator,
 										   String associateId,
 										   Map<String, Object> connectionConfig,
-										   PdkTableMap pdkTableMap,
+										   KVReadOnlyMap<TapTable> pdkTableMap,
 										   PdkStateMap pdkStateMap,
 										   PdkStateMap globalStateMap) {
 		return createNode(dagId, databaseType, clientMongoOperator, associateId, connectionConfig, pdkTableMap, pdkStateMap, globalStateMap, null);
@@ -112,7 +113,7 @@ public class PdkUtil {
 										   ClientMongoOperator clientMongoOperator,
 										   String associateId,
 										   Map<String, Object> connectionConfig,
-										   PdkTableMap pdkTableMap,
+										   KVReadOnlyMap<TapTable> pdkTableMap,
 										   PdkStateMap pdkStateMap,
 										   PdkStateMap globalStateMap,
 										   ConfigContext configContext) {
@@ -138,7 +139,7 @@ public class PdkUtil {
 			String associateId,
 			Map<String, Object> connectionConfig,
 			Map<String, Object> nodeConfig,
-			PdkTableMap pdkTableMap,
+			KVReadOnlyMap<TapTable> pdkTableMap,
 			PdkStateMap pdkStateMap,
 			PdkStateMap globalStateMap,
 			ConnectorCapabilities connectorCapabilities,
