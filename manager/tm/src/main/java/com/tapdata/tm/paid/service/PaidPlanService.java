@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -45,8 +46,9 @@ public class PaidPlanService {
             pipelineLimit = 3;
         }
 
-        long count = taskService.count(Query.query(Criteria.where("is_deleted").ne(true)), loginUser);
-
+        long count = taskService.count(Query.query(
+                Criteria.where("is_deleted").ne(true)
+                        .and("status").nin(Arrays.asList("deleting", "delete_failed"))), loginUser);
 
         CheckPaidPlanRes result = new CheckPaidPlanRes();
 
