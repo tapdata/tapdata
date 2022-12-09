@@ -60,8 +60,6 @@ public class DorisStreamLoader {
     private int size;
     private AtomicInteger lastEventFlag;
 
-    private boolean before_is_null = false;
-
     public DorisStreamLoader(DorisContext dorisContext, CloseableHttpClient httpClient) {
         this.dorisContext = dorisContext;
         this.httpClient = httpClient;
@@ -82,10 +80,11 @@ public class DorisStreamLoader {
         int index =0;
         boolean before_is_null =false;
         for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
-            if (needFlush(tapRecordEvent)) {
+            byte[] bytes = MessageSerializer.serialize(table, tapRecordEvent);
+            if (needFlush(tapRecordEvent, bytes.length)) {
                 int lastFlag = this.lastEventFlag.get();
                 RespContent flushResult = flush();
-                incrementFlushResult(flushResult, listResult, lastFlag,before_is_null);
+                incrementFlushResult(flushResult, listResult, lastFlag, before_is_null);
             }
 
             if(tapRecordEvent instanceof  TapUpdateRecordEvent && index <1){
@@ -99,7 +98,7 @@ public class DorisStreamLoader {
             if (lastEventFlag.get() == 0) {
                 startLoad(table, this.dorisContext.getDorisConfig(), tapRecordEvent);
             }
-            writeRecord(MessageSerializer.serialize(table, tapRecordEvent));
+            writeRecord(bytes);
         }
         int lastFlag = this.lastEventFlag.get();
         RespContent lastFlushResult = flush();
@@ -176,14 +175,14 @@ public class DorisStreamLoader {
     public RespContent handlePreCommitResponse(CloseableHttpResponse response) throws Exception {
         final int statusCode = response.getStatusLine().getStatusCode();
         if (statusCode != 200 || response.getEntity() == null) {
-            throw new StreamLoadException("stream load error: " + response.getStatusLine().toString());
+            throw new StreamLoadException("Stream load error: " + response.getStatusLine().toString());
         }
         String loadResult = EntityUtils.toString(response.getEntity());
 
-        TapLogger.info(TAG, "load Result {}", loadResult);
+        TapLogger.debug(TAG, "load Result {}", loadResult);
         RespContent respContent = OBJECT_MAPPER.readValue(loadResult, RespContent.class);
         if (!respContent.isSuccess()) {
-            TapLogger.warn(TAG, "stream load failed: " + respContent.getMessage());
+            throw new StreamLoadException("Stream load failed | Error: " + loadResult);
         }
         return respContent;
     }
@@ -195,7 +194,7 @@ public class DorisStreamLoader {
         }
         try {
             recordStream.endInput();
-            TapLogger.info(TAG, "stream load stopped.");
+            TapLogger.info(TAG, "stream load stopped");
             Assert.notNull(pendingLoadFuture, "pendingLoadFuture of DorisStreamLoad should never be null");
             lastEventFlag.set(0);
             size = 0;
@@ -203,6 +202,7 @@ public class DorisStreamLoader {
             pendingLoadFuture = null;
             return respContent;
         } catch (Exception e) {
+            recordStream.init();
             throw new DorisRuntimeException(e);
         }
     }
@@ -219,10 +219,11 @@ public class DorisStreamLoader {
         return String.format(LABEL_PREFIX_PATTERN, Thread.currentThread().getId(), tableName);
     }
 
-    private boolean needFlush(TapRecordEvent recordEvent) {
+    private boolean needFlush(TapRecordEvent recordEvent, int length) {
         int lastEventType = lastEventFlag.get();
         return lastEventType > 0 && lastEventType != OperationType.getOperationFlag(recordEvent)
-                || this.size > 0 && this.size >= MAX_FLUSH_BATCH_SIZE;
+                || this.size >= MAX_FLUSH_BATCH_SIZE
+                || !recordStream.canWrite(length);
     }
 
     private void stopLoad() {
