@@ -105,33 +105,26 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             return null;
         }
 
-        TaskDto taskDto;
-        String type = param.getType();
-        if ("monitor".equals(type)) {
-            taskDto = taskService.findById(objectId);
-        } else if ("testRun".equals(type)) {
-            taskDto = taskService.findOne(Query.query(Criteria.where("testTaskId").is(taskId)));
-        } else {
-            return null;
-        }
-
         Criteria criteria = Criteria.where("taskId").is(taskId);
         if (StringUtils.isNotBlank(param.getTaskRecordId())) {
             criteria.and("taskRecordId").is(param.getTaskRecordId());
         }
 
-        if (!param.isStartEndValid()) {
-            log.error("Invalid value for start or end param:{}", JSON.toJSONString(param));
-            return new Page<>(0, new ArrayList<>());
-        }
-
         Long start = param.getStart();
 
-        // monitor log save will after task stopTime 5s, so add 10s;
-        Long end = param.getEnd();
-        end += 10000L;
-
-        criteria.and("timestamp").gte(start).lt(end);
+        String type = param.getType();
+        if ("monitor".equals(type)) {
+            if (!param.isStartEndValid()) {
+                log.error("Invalid value for start or end param:{}", JSON.toJSONString(param));
+                return new Page<>(0, new ArrayList<>());
+            }
+            // monitor log save will after task stopTime 5s, so add 10s;
+            Long end = param.getEnd();
+            end += 10000L;
+            criteria.and("timestamp").gte(start).lt(end);
+        } else if ("testRun".equals(type)) {
+            criteria.and("timestamp").gte(start);
+        }
 
         if (StringUtils.isNotEmpty(param.getNodeId())) {
             criteria.and("nodeId").is(param.getNodeId());
@@ -149,7 +142,6 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                     new Criteria("logTags").elemMatch(new Criteria("$regex").is(search))
             );
         }
-
 
         // log level filter
         List<String> levels = param.getLevels();

@@ -415,6 +415,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setWriteBatchSize(null);
         taskDto.setWriteBatchWaitMs(null);
 
+        if (StringUtils.isEmpty(taskDto.getTestTaskId())) {
+            taskDto.setTestTaskId(new ObjectId().toHexString());
+        }
+
         return save(taskDto, user);
 
     }

@@ -505,11 +505,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
 
         String testTaskId = taskDto.getTestTaskId();
-        if (StringUtils.isEmpty(testTaskId)) {
-            testTaskId = new ObjectId().toHexString();
-            String finalTestTaskId = testTaskId;
-            CompletableFuture.runAsync(() -> taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), Update.update("testTaskId", finalTestTaskId)));
-        }
 
         taskDtoCopy.setName(taskDto.getName() + "(100)");
         taskDtoCopy.setVersion(version);
