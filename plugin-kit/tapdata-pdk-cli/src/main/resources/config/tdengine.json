@@ -1,0 +1,18 @@
+{
+  "connection": {
+    "host": "192.168.1.183",
+    "port": 6041,
+    "user": "root",
+    "password": "taosdata",
+    "database": "tapdata",
+    "schema": "tapdata",
+    "timezone": "",
+    "addtionalString": ""
+  },
+  "node": {
+    "timestamp": "tap_date_time"
+  },
+  "test": {
+    "pdkId" : "tdengine"
+  }
+}

@@ -10,8 +10,9 @@ import java.io.IOException;
 
 public class Main {
     public static void main(String[] args) throws IOException {
-        Workbook wb = WorkbookFactory.create(new File("/Users/jarad/Desktop/22.xlsx"), "gj");
+        Workbook wb = WorkbookFactory.create(new File("/Users/jarad/Desktop/11.xlsx"), null);
         Sheet sheet = wb.getSheetAt(0);
+        sheet.getMergedRegions();
         System.out.println(sheet.getFirstRowNum());
         System.out.println(sheet.getLastRowNum());
         Row row = sheet.getRow(20);

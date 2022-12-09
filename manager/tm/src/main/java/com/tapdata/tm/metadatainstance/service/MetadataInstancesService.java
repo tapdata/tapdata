@@ -1437,14 +1437,17 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         tableNames = tableNames.stream().filter(s -> s.contains(tableFilter)).collect(Collectors.toList());
                     }
 
-                    FunctionUtils.isTure(CollectionUtils.isEmpty(tableNames)).throwMessage("SystemError", "dag node tableNames is null");
+                    if (CollectionUtils.isEmpty(tableNames)) {
+                        metadatas = Lists.newArrayList();
+                    } else{
+                        criteriaTable.and("source._id").is(tableNode.getConnectionId())
+                                .and("originalName").in(tableNames)
+                                .and("taskId").is(taskId)
+                                .and("is_deleted").ne(true);
+                        metadatas = findAllDto(queryMetadata, user);
+                        totals = tableNames.size();
+                    }
 
-                    criteriaTable.and("source._id").is(tableNode.getConnectionId())
-                            .and("originalName").in(tableNames)
-                            .and("taskId").is(taskId)
-                            .and("is_deleted").ne(true);
-                    metadatas = findAllDto(queryMetadata, user);
-                    totals = tableNames.size();
                 } else if (node instanceof LogCollectorNode) {
                     LogCollectorNode logNode = (LogCollectorNode) node;
                     List<String> connectionIds = logNode.getConnectionIds();
@@ -1641,6 +1644,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
     public void batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, boolean cover) {
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+            metadataInstancesDto.setListtags(null);
             long count = count(new Query(new Criteria().orOperator(Criteria.where("_id").is(metadataInstancesDto.getId()),
                     Criteria.where("qualified_name").is(metadataInstancesDto.getQualifiedName()))));
             if (count == 0) {

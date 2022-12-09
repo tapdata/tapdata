@@ -9,16 +9,20 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.IOException;
 import java.util.Optional;
 
 /**
@@ -27,6 +31,7 @@ import java.util.Optional;
  **/
 public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
+	public static final String TAG = HazelcastTaskClient.class.getSimpleName();
 	private Logger logger = LogManager.getLogger(HazelcastTaskClient.class);
 
 	private Job job;
@@ -40,6 +45,8 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private MonitorManager monitorManager;
 	private SnapshotProgressManager snapshotProgressManager;
 	private String cacheName;
+
+	private Throwable error;
 
 	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		this.job = job;
@@ -88,11 +95,30 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			job.cancel();
 		}
 
-		if (job.getStatus() == JobStatus.SUSPENDED || job.getStatus() == JobStatus.FAILED) {
-			try {
-				monitorManager.close();
-			} catch (IOException ignore) {
-			}
+		if (job.getStatus() == JobStatus.SUSPENDED || job.getStatus() == JobStatus.FAILED || job.getStatus() == JobStatus.COMPLETED) {
+			ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
+			CommonUtils.handleAnyError(
+					() -> {
+						monitorManager.close();
+						logger.info("Closed task monitor(s)\n{}", monitorManager);
+						obsLogger.info(String.format("Closed task monitor(s)\n%s", monitorManager));
+					},
+					err -> {
+						logger.warn("Close task monitor(s) failed, error: {}", err.getMessage(), err);
+						obsLogger.warn(String.format("Close task monitor(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
+					}
+			);
+			CommonUtils.handleAnyError(
+					() -> {
+						AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(error));
+						logger.info("Stopped task aspect(s)");
+						obsLogger.info("Stopped task aspect(s)");
+					},
+					err -> {
+						logger.warn("Stop task aspect(s) failed, error: {}", err.getMessage(), err);
+						obsLogger.warn(String.format("Stop task aspect(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
+					}
+			);
 		}
 		return job.getStatus().isTerminal();
 	}
@@ -100,5 +126,17 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	@Override
 	public void join() {
 		this.job.join();
+	}
+
+	@Override
+	public synchronized void error(Throwable throwable) {
+		if (null == error) {
+			this.error = throwable;
+		}
+	}
+
+	@Override
+	public Throwable getError() {
+		return error;
 	}
 }

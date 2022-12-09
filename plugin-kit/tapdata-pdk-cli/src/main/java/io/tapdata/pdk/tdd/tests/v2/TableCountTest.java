@@ -1,7 +1,6 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
@@ -13,23 +12,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.math.BigDecimal;
 import java.util.List;
-import java.util.UUID;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_String;
 
 @DisplayName("tableCount.test")//tableCount表数量， 必测方法
 @TapGo(sort = 5)
 public class TableCountTest extends PDKTestBase {
-    private void setTable(){
-        this.targetTable = table(UUID.randomUUID().toString())
-                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-                .add(field("name", JAVA_String).tapType(tapString().bytes(50L)))
-                .add(field("text", JAVA_String).tapType(tapString().bytes(50L)));
-    }
+
     @DisplayName("tableCount.findTableCount")//用例1， 查询表数量
     @Test
     @TapTestCase(sort = 1)
@@ -85,7 +75,6 @@ public class TableCountTest extends PDKTestBase {
     void findTableCountAfterNewTable(){
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
-            setTable();
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreatedTable = false;
             try {

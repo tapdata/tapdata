@@ -30,6 +30,7 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
+import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
@@ -153,7 +154,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		String type = taskDto.getType();
 		if (TaskDto.TYPE_INITIAL_SYNC.equals(type)) {
-			putInGlobalMap(getCompletedInitialKey(), false);
+			List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
+			putInGlobalMap(getCompletedInitialKey(), predecessors.size());
 		}
 		initTapEventFilter();
 		obsLogger.info("Init target queue consumer complete");
@@ -194,7 +196,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			}
 		} catch (Throwable e) {
-			throw new RuntimeException(String.format("Drain from inbox failed: %s", e.getMessage()), e);
+			RuntimeException runtimeException = new RuntimeException(String.format("Drain from inbox failed: %s", e.getMessage()), e);
+			errorHandle(runtimeException, runtimeException.getMessage());
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -394,7 +397,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected void handleTapdataCompleteSnapshotEvent() {
 		if (TaskDto.TYPE_INITIAL_SYNC.equals(dataProcessorContext.getTaskDto().getType())) {
-			putInGlobalMap(getCompletedInitialKey(), true);
+			Object globalMap = getGlobalMap(getCompletedInitialKey());
+			if (globalMap instanceof Integer) {
+				int sourceSnapshotNum = (int) globalMap;
+				sourceSnapshotNum--;
+				putInGlobalMap(getCompletedInitialKey(), sourceSnapshotNum);
+			}
 		}
 		// MILESTONE-WRITE_SNAPSHOT-FINISH
 		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.FINISH);
@@ -503,6 +511,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				// 设置逻辑主键
 				tapTable.setLogicPrimaries(updateConditionFields);
+				//
+				Collection<String> pks = tapTable.primaryKeys();
+				if (!usePkAsUpdateConditions(updateConditionFields, pks)) {
+					ignorePksAndIndices(tapTable);
+				}
 			} else {
 				Collection<String> logicUniqueKey = tapTable.primaryKeys(true);
 				if (CollectionUtils.isEmpty(logicUniqueKey)) {
@@ -511,9 +524,17 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} else if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {
 			// 没有关联条件，清空主键信息
-			tapTable.getNameFieldMap().values().forEach(v -> v.setPrimaryKeyPos(0));
-			tapTable.setLogicPrimaries(null);
+			ignorePksAndIndices(tapTable);
 		}
+	}
+
+	private static void ignorePksAndIndices(TapTable tapTable) {
+		tapTable.getNameFieldMap().values().forEach(v -> {
+			v.setPrimaryKeyPos(0);
+			v.setPrimaryKey(false);
+		});
+		tapTable.setLogicPrimaries(null);
+		tapTable.setIndexList(null);
 	}
 
 	@Override
@@ -568,6 +589,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 				uploadDagService.compareAndSet(true, false);
 			}
+		} catch (Throwable throwable) {
+			errorHandle(throwable, throwable.getMessage());
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -670,5 +693,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		} finally {
 			super.doClose();
 		}
+	}
+
+	protected boolean usePkAsUpdateConditions(Collection<String> updateConditions, Collection<String> pks) {
+		for (String updateCondition : updateConditions) {
+			if (!pks.contains(updateCondition)) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

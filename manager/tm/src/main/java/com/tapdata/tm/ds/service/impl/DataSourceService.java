@@ -1053,7 +1053,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			boolean matches = name.matches(connectNameReg);
 			if (!matches) {
 				log.warn("Illegal name, name = {}", name);
-				throw new BizException("Datasource.IllegalName", "Illegal name");
+				throw new BizException("Datasource.IllegalName");
 			}
 		}
 	}
@@ -1530,12 +1530,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 						connectionDto.setName(connectionDto.getName() + "_import");
 					}
 
-					if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), connection.getAccessNodeType())
-							&& CollectionUtils.isEmpty(connection.getAccessNodeProcessIdList())) {
-						connection.setAccessNodeProcessIdList(com.google.common.collect.Lists.newArrayList(connection.getAccessNodeProcessId()));
-					} else if (StringUtils.equals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), connection.getAccessNodeType())) {
-						connection.setAccessNodeProcessIdList(com.google.common.collect.Lists.newArrayList());
-					}
+					connectionDto.setListtags(null);
+					connectionDto.setAccessNodeProcessId(null);
+					connectionDto.setAccessNodeProcessIdList(new ArrayList<>());
+					connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+
 
 					save(connectionDto, user);
 				}

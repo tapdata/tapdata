@@ -16,8 +16,10 @@ import org.graalvm.polyglot.Value;
 
 import javax.script.*;
 import java.io.Reader;
+import java.net.URLClassLoader;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.Consumer;
 
 public class TapJavaScriptEngine implements ScriptEngine, Invocable {
 
@@ -25,10 +27,11 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
     private final Invocable invocable;
     private final String buildInScript;
 
+    private URLClassLoader externalJarClassLoader;
     public TapJavaScriptEngine(ScriptOptions scriptOptions) {
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
         List<JavaScriptFunctions> javaScriptFunctions = JobUtil.getJavaScriptFunctions(clientMongoOperator);
-        this.buildInScript = ScriptUtil.initBuildInMethod(javaScriptFunctions, clientMongoOperator);
+        this.buildInScript = ScriptUtil.initBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalJarClassLoader = urlClassLoader);
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
         invocable = (Invocable) scriptEngine;
     }
@@ -36,11 +39,11 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
     private ScriptEngine initScriptEngine(String jsEngineName) {
         JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
         ScriptEngine scriptEngine;
-        if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        try {
             //need to change as engine classLoader
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
-            try {
+            if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
                 scriptEngine = GraalJSScriptEngine
                         .create(null,
                                 Context.newBuilder("js")
@@ -52,13 +55,12 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
                                                 ).build()
                                         )
                         );
-            } finally {
-                //return pdk classLoader
-                Thread.currentThread().setContextClassLoader(classLoader);
+            } else {
+                scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
             }
-
-        } else {
-            scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
+        } finally {
+            //return pdk classLoader
+            Thread.currentThread().setContextClassLoader(classLoader);
         }
         return scriptEngine;
     }
@@ -75,7 +77,10 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
 
     public Object applyClassLoaderContext(Callable<?> callable) {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
+        ClassLoader theClassLoader = externalJarClassLoader;
+        if(theClassLoader == null)
+            theClassLoader = Application.class.getClassLoader();
+        Thread.currentThread().setContextClassLoader(theClassLoader);
         try {
             return callable.call();
         } catch (Exception e) {

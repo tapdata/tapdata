@@ -144,7 +144,25 @@ public class MeasurementServiceV2 {
     }
 
     private Sample supplyKeyData(Sample requestSample, Map<String, Number> data, Map<String, Number> requestMap) {
-        List<String> list = Lists.newArrayList("currentSnapshotTableInsertRowTotal", "timeCostAvg", "targetWriteTimeCostAvg", "replicateLag");
+        List<String> list = Lists.newArrayList("currentSnapshotTableInsertRowTotal", "timeCostAvg", "targetWriteTimeCostAvg", "replicateLag",
+                "inputDdlTotal",
+                "inputDeleteTotal",
+                "inputInsertTotal",
+                "inputOthersTotal",
+                "inputUpdateTotal",
+                "outputDdlTotal",
+                "outputDeleteTotal",
+                "outputInsertTotal",
+                "outputOthersTotal",
+                "outputUpdateTotal",
+                "snapshotDoneAt",
+                "snapshotInsertRowTotal",
+                "snapshotRowTotal",
+                "snapshotSourceReadTimeCostAvg",
+                "snapshotStartAt",
+                "snapshotTableTotal",
+                "tableTotal"
+        );
 
         for (String key : list) {
             Number value = data.get(key);
@@ -395,12 +413,12 @@ public class MeasurementServiceV2 {
                     values.put("snapshotDoneAt", null);
                 }
 
-                Optional.ofNullable(snapshotDoneAt).ifPresent(snapshot -> {
-                            if (snapshot.longValue() > 0L) {
-                                values.put("currentSnapshotTableInsertRowTotal", values.get("currentSnapshotTableRowTotal"));
-                            }
-                        }
-                );
+//                Optional.ofNullable(snapshotDoneAt).ifPresent(snapshot -> {
+//                            if (snapshot.longValue() > 0L) {
+//                                values.put("currentSnapshotTableInsertRowTotal", values.get("currentSnapshotTableRowTotal"));
+//                            }
+//                        }
+//                );
 
             }
             sample.setVs(values);

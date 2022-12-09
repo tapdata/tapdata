@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
@@ -96,15 +97,16 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     }
 
     private Criteria getAvailableAgentCriteria() {
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
         Criteria criteria = Criteria.where("worker_type").is("connector")
-                .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
+                .and("ping_time").gte(System.currentTimeMillis() - (overTime * 1000L))
                 .and("isDeleted").ne(true).and("stopping").ne(true);
         return criteria;
     }
 
-    public List<Worker> findAvailableAgentBySystem() {
+    public List<Worker> findAvailableAgentBySystem(UserDetail user) {
         Query query = getAvailableAgentQuery();
-        return repository.findAll(query);
+        return repository.findAll(query, user);
     }
 
     public List<Worker> findAvailableAgentBySystem(List<String> processIdList) {
@@ -123,7 +125,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (CollectionUtils.isNotEmpty(processIdList)) {
             query.addCriteria(Criteria.where("process_id").in(processIdList));
         }
-        return repository.findAll(query);
+        return repository.findAll(query, userDetail);
     }
 
     @Override

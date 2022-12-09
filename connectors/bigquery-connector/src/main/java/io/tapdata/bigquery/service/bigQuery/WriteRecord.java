@@ -282,6 +282,7 @@ public class WriteRecord extends BigQueryStart{
             sql.append(whereSql.toString());
             if (filterSize>1) sql.append(" ) ");
         });
+        sql.append("; ");
         return sql.toString();//.replaceAll("1=2  OR",this.empty);
     }
 
@@ -444,7 +445,7 @@ public class WriteRecord extends BigQueryStart{
      * */
     public final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss.SSSSSS";
     final static String DATE_FORMAT = "yyyy-MM-dd";
-    final static String TIME_FORMAT = "HH:mm:ss.SSSSSS";
+    final static String TIME_FORMAT = "HH:mm:ss";
     final static String YEAR_FORMAT = "yyyy-MM-dd";
     public String sqlValue(Object value,TapField field){
         TapType tapType = field.getTapType();
@@ -458,7 +459,7 @@ public class WriteRecord extends BigQueryStart{
         switch(tapType.getClass().getSimpleName()){
             case "TapString" : return FieldChecker.simpleStringValue(value);
             case "TapArray": return FieldChecker.toJsonValue(value);
-            case "TapBinary": return " FROM_BASE64('"+ Base64.encode(String.valueOf(value)) +"') ";
+            case "TapBinary": return null == value ? "NULL":" FROM_BASE64('"+ Base64.encode(String.valueOf(value)) +"') ";
             case "TapBoolean": return FieldChecker.simpleValue(value);
             case "TapDateTime": return FieldChecker.simpleDateValue(value,DATE_TIME_FORMAT);
             case "TapDate": return FieldChecker.simpleDateValue(value,DATE_FORMAT);

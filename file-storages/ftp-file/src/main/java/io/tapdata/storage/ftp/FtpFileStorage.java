@@ -1,6 +1,5 @@
 package io.tapdata.storage.ftp;
 
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
 import io.tapdata.pdk.apis.error.NotSupportedException;
@@ -11,7 +10,9 @@ import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,6 +28,8 @@ public class FtpFileStorage implements TapFileStorage {
     public void init(Map<String, Object> params) throws IOException {
         ftpConfig = new FtpConfig().load(params);
         ftpClient = new FTPClient();
+        ftpClient.setConnectTimeout(ftpConfig.getFtpConnectTimeout());
+        ftpClient.setDataTimeout(ftpConfig.getFtpDataTimeout());
         ftpClient.connect(ftpConfig.getFtpHost(), ftpConfig.getFtpPort());
         if (ftpConfig.getFtpSsl() && EmptyKit.isNotBlank(ftpConfig.getFtpAccount())) {
             ftpClient.login(ftpConfig.getFtpUsername(), ftpConfig.getFtpPassword(), ftpConfig.getFtpAccount());
@@ -40,16 +43,17 @@ public class FtpFileStorage implements TapFileStorage {
             }
             ftpClient.setFileType(FTP.BINARY_FILE_TYPE);
         } else {
-            TapLogger.error(TAG, "connect to ftp server failed! message:{}", ftpClient.getReplyString());
             ftpClient.disconnect();
+            throw new IOException(String.format("connect to ftp server failed! code:%s", ftpClient.getReplyCode()));
         }
+
     }
 
     @Override
     public void destroy() throws IOException {
         if (EmptyKit.isNotNull(ftpClient)) {
-            ftpClient.logout();
             if (ftpClient.isConnected()) {
+                ftpClient.logout();
                 ftpClient.disconnect();
             }
         }
@@ -90,10 +94,17 @@ public class FtpFileStorage implements TapFileStorage {
     }
 
     @Override
-    public InputStream readFile(String path) throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        ftpClient.retrieveFile(encodeISO(path), outputStream);
-        return new ByteArrayInputStream(outputStream.toByteArray());
+    public void readFile(String path, Consumer<InputStream> consumer) throws IOException {
+        if (!isFileExist(path)) {
+            return;
+        }
+        try (
+                InputStream is = ftpClient.retrieveFileStream(encodeISO(path))
+        ) {
+            consumer.accept(is);
+        } finally {
+            ftpClient.completePendingCommand();
+        }
     }
 
     @Override

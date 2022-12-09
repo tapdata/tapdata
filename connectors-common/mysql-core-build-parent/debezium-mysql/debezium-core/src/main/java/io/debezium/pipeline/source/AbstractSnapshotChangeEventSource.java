@@ -157,9 +157,12 @@ public abstract class AbstractSnapshotChangeEventSource implements SnapshotChang
      */
     protected abstract SnapshotContext prepare(ChangeEventSourceContext changeEventSourceContext) throws Exception;
 
-    protected abstract boolean shouldCompleteMissingSchemaTable();
+    protected boolean shouldCompleteMissingSchemaTable() {
+        return false;
+    }
 
-    protected abstract void completeMissingSchemaTable(ChangeEventSourceContext context, SnapshotContext snapshotContext, OffsetContext previousOffset) throws Exception;
+    protected void completeMissingSchemaTable(ChangeEventSourceContext context, SnapshotContext snapshotContext, OffsetContext previousOffset) throws Exception {
+    }
 
     /**
      * Completes the snapshot, doing any required clean-up (resource disposal etc.).

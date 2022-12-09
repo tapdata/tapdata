@@ -280,17 +280,19 @@ public class TDDCli extends CommonCli {
         TapCodecsRegistry codecRegistry = new TapCodecsRegistry();
         connector.registerCapabilities(connectorFunctions, codecRegistry);
 
-        List<Class<? extends PDKTestBase>> tests = allTest();
 
 //        builder.append("\n-------------PDK connector idAndGroupAndVersion " + tapNodeInfo.getTapNodeSpecification().idAndGroup() + "-------------").append("\n");
 //        builder.append("             Node class " + tapNodeInfo.getNodeClass() + " run ");
         List<DiscoverySelector> selectors = new ArrayList<>();
         if(testClass != null) {
             for(String clazz : testClass) {
-                Class<?> theClass = Class.forName(clazz);
-                selectorsAddClass(selectors, theClass, testResultSummary);
+                try {
+                    Class<? extends PDKTestBase> theClass = (Class<? extends PDKTestBase>) Class.forName(clazz);
+                    selectorsAddClass(selectors, theClass, testResultSummary);
+                }catch (Exception e){}
             }
         } else {
+            List<Class<? extends PDKTestBase>> tests = this.allTest();//
             selectorsAddClass(selectors, BasicTest.class, testResultSummary);
             List<Class<? extends PDKTestBase>> supportTest = new ArrayList<>();
             for (int i = 0; i < tests.size(); i++) {
@@ -407,5 +409,20 @@ public class TDDCli extends CommonCli {
                 return null;
             }
         }).filter(Objects::nonNull).collect(Collectors.toList());
+    }
+    private List<Class<? extends PDKTestBase>> testClass(){
+        if (null == this.testClass || this.testClass.length<=0){
+            return allTest();
+        }
+        List<Class<? extends PDKTestBase>> test = new ArrayList<>();
+        for (String aClass : this.testClass) {
+            if (null != aClass ) {
+                try {
+                    Class<? extends PDKTestBase> cls = (Class<? extends PDKTestBase>) Class.forName(aClass);
+                    test.add(cls);
+                }catch (Exception e){}
+            }
+        }
+        return test;
     }
 }

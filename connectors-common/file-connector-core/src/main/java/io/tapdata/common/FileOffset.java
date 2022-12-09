@@ -1,5 +1,7 @@
 package io.tapdata.common;
 
+import io.tapdata.file.TapFile;
+
 import java.util.Map;
 
 public class FileOffset {
@@ -7,7 +9,7 @@ public class FileOffset {
     private String path;
     private int sheetNum;
     private int dataLine;
-    private Map<String, Long> allLastModified;
+    private Map<String, TapFile> allFiles;
 
     public FileOffset() {
 
@@ -42,11 +44,11 @@ public class FileOffset {
         this.dataLine = dataLine;
     }
 
-    public Map<String, Long> getAllLastModified() {
-        return allLastModified;
+    public Map<String, TapFile> getAllFiles() {
+        return allFiles;
     }
 
-    public void setAllLastModified(Map<String, Long> allLastModified) {
-        this.allLastModified = allLastModified;
+    public void setAllFiles(Map<String, TapFile> allFiles) {
+        this.allFiles = allFiles;
     }
 }

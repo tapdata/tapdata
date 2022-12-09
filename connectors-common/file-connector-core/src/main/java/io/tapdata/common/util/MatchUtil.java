@@ -1,5 +1,6 @@
 package io.tapdata.common.util;
 
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.util.DateUtil;
 
 import java.math.BigDecimal;
@@ -26,11 +27,14 @@ public class MatchUtil {
     }
 
     public static boolean matchDateTime(String value) {
-        Object res = DateUtil.parse(value);
+        Object res = DateUtil.parseInstant(value);
         return !(res instanceof String) || !value.equals(res);
     }
 
     public static Object parse(String str, String dataType) {
+        if (EmptyKit.isEmpty(str)) {
+            return null;
+        }
         switch (dataType) {
             case "BOOLEAN":
                 return "true".equalsIgnoreCase(str);
@@ -39,7 +43,7 @@ public class MatchUtil {
             case "NUMBER":
                 return new BigDecimal(str);
             case "DATETIME":
-                return DateUtil.parse(str);
+                return DateUtil.parseInstant(str);
             default:
                 return str;
         }
