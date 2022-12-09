@@ -2040,7 +2040,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private Map<String, Long> typeTaskStats(UserDetail userDetail) {
         org.springframework.data.mongodb.core.aggregation.Aggregation aggregation =
                 org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation(
-                        match(Criteria.where("user_id").is(userDetail.getUserId()).and("customId").is(userDetail.getCustomerId()).and("is_deleted").ne(true)),
+                        match(Criteria.where("user_id").is(userDetail.getUserId())
+                                .and("customId").is(userDetail.getCustomerId())
+                                .and("is_deleted").ne(true)
+                                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)),
                         group("type").count().as("count")
                 );
 
