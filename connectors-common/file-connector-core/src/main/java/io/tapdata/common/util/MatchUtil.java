@@ -27,7 +27,7 @@ public class MatchUtil {
     }
 
     public static boolean matchDateTime(String value) {
-        Object res = DateUtil.parse(value);
+        Object res = DateUtil.parseInstant(value);
         return !(res instanceof String) || !value.equals(res);
     }
 
@@ -43,7 +43,7 @@ public class MatchUtil {
             case "NUMBER":
                 return new BigDecimal(str);
             case "DATETIME":
-                return DateUtil.parse(str);
+                return DateUtil.parseInstant(str);
             default:
                 return str;
         }

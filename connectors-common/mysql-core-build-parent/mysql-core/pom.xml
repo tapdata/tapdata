@@ -40,11 +40,6 @@
                 <artifactId>mysql-connector-java</artifactId>
                 <version>${mysql.driver.version}</version>
             </dependency>
-            <dependency>
-                <groupId>io.tapdata</groupId>
-                <artifactId>mysql-core</artifactId>
-                <version>1.0-SNAPSHOT</version>
-            </dependency>
             <!-- Debezium -->
             <dependency>
                 <groupId>io.debezium</groupId>
