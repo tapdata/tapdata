@@ -7,26 +7,28 @@ import com.tapdata.constant.UUIDGenerator;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.util.JsonUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.observable.logging.ObsLogger;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.ExecuteResult;
+import io.tapdata.pdk.apis.entity.TapExecuteCommand;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
-import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.data.mongodb.core.query.Query;
 import org.voovan.tools.collection.CacheMap;
 
@@ -97,6 +99,7 @@ public class ScriptExecutorsManager {
     private final String associateId;
 
     private final TapCodecsFilterManager codecsFilterManager;
+    private final ExecuteCommandFunction executeCommandFunction;
 
 
     public ScriptExecutor(Connections connections, HazelcastInstance hazelcastInstance, String TAG) {
@@ -126,6 +129,9 @@ public class ScriptExecutorsManager {
         throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
       }
 
+      ConnectorFunctions connectorFunctions = this.connectorNode.getConnectorFunctions();
+      this.executeCommandFunction = connectorFunctions.getExecuteCommandFunction();
+
       this.codecsFilterManager = connectorNode.getCodecsFilterManager();
     }
 
@@ -150,40 +156,54 @@ public class ScriptExecutorsManager {
      */
     public long execute(Map<String, Object> executeObj) throws Throwable {
 
-      //generate TapRecordEvent
-      List<TapRecordEvent> recordEvents = getTapRecordEventList(executeObj);
+      ExecuteResult executeResult = getExecuteResult(executeObj);
+      assert executeResult != null;
+      return executeResult.getModifiedCount();
+    }
 
-      ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-      QueryByFilterFunction queryByFilterFunction = connectorFunctions.getQueryByFilterFunction();
-      WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
-
-      AtomicReference<WriteListResult<TapRecordEvent>> consumerBack = new AtomicReference<>();
-      writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), recordEvents, null,
-              consumer -> {
-                if (consumer != null) {
-                  consumerBack.set(consumer);
-                }
-              });
-
-      Map<TapRecordEvent, Throwable> errorMap = consumerBack.get().getErrorMap();
-      if (MapUtils.isNotEmpty(errorMap)) {
-        TapRecordEvent lastErrorTapRecord = null;
-        Throwable lastErrorThrowable = null;
-        for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-          lastErrorTapRecord = tapRecordEventThrowableEntry.getKey();
-          lastErrorThrowable = tapRecordEventThrowableEntry.getValue();
-        }
-        throw new RuntimeException(String.format("Write record %s failed", lastErrorTapRecord), lastErrorThrowable);
+    @Nullable
+    private ExecuteResult getExecuteResult(Map<String, Object> executeObj) throws Throwable {
+      if (this.executeCommandFunction == null) {
+        throw new RuntimeException("not support...");
       }
-      return consumerBack.get().getModifiedCount();
+
+      AtomicReference<ExecuteResult> consumerBack = new AtomicReference<>();
+
+      TapExecuteCommand executeCommand = getTapExecuteCommand(executeObj);
+      executeCommandFunction.execute(this.connectorNode.getConnectorContext(), executeCommand, consumerBack::set);
+
+      ExecuteResult executeResult = consumerBack.get();
+      if (executeResult != null && executeResult.getError() != null) {
+        throw new RuntimeException("", executeResult.getError());
+      }
+      return executeResult;
     }
 
-    private List<TapRecordEvent> getTapRecordEventList(Map<String, Object> executeObj) {
-      return null;
+    @NotNull
+    private TapExecuteCommand getTapExecuteCommand(Map<String, Object> executeObj) {
+      TapExecuteCommand executeCommand = TapExecuteCommand.create();
+      if (executeObj.containsKey("sql")) {
+        executeCommand.command((String) executeObj.get("sql"));
+      } else {
+        //mongo
+        executeCommand.command(JsonUtil.toJson(executeObj));
+      }
+      return executeCommand;
     }
 
-    public List<Map<String, Object>> executeQuery(Map<String, Object> executeObj) {
-      return null;
+
+    public List<Map<String, Object>> executeQuery(Map<String, Object> executeObj) throws Throwable {
+      ExecuteResult executeResult = getExecuteResult(executeObj);
+      assert executeResult != null;
+      List<Map<String, Object>> results = executeResult.getResults();
+
+      if (CollectionUtils.isNotEmpty(results)) {
+        for (Map<String, Object> map : results) {
+//          codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
+          codecsFilterManager.transformFromTapValueMap(map);
+        }
+      }
+      return results;
     }
 
     void close() {
