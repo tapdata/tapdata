@@ -171,7 +171,7 @@ public class WebSocketServer extends TextWebSocketHandler {
 					log.warn("Not found message handler for type {}, ignore handler message", messageInfo.getType());
 				}
 			}catch (Exception e){
-				log.error("Handle message error,sessionMsg: {} message: {}",JsonUtil.toJson(message), e.getMessage());
+				log.error("Handle message error,sessionMsg: {} message: {}, stack = {}", JsonUtil.toJson(message), e.getMessage(), e.getStackTrace());
 //				try {
 //					WebSocketManager.sendMessageBySessionId(session.getId(), String.format("Handle message error,message: %s", e.getMessage()));
 //					session.sendMessage(new TextMessage(String.format("Handle message error,message: %s", e.getMessage())));

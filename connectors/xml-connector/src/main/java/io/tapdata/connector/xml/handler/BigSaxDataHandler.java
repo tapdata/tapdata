@@ -6,6 +6,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.StopException;
+import io.tapdata.kit.EmptyKit;
 import org.dom4j.Element;
 import org.dom4j.ElementHandler;
 import org.dom4j.ElementPath;
@@ -36,6 +37,7 @@ public class BigSaxDataHandler implements ElementHandler {
     private Supplier<Boolean> isAlive;
     private Map<String, String> dataTypeMap;
     private long lastModified;
+    private int blankSkip = 0;
 
     public BigSaxDataHandler() {
 
@@ -86,9 +88,14 @@ public class BigSaxDataHandler implements ElementHandler {
             } else {
                 dataMap.put(element.getName(), res);
             }
+            if (dataMap.entrySet().stream().allMatch(v -> EmptyKit.isNull(v.getValue()))) {
+                blankSkip++;
+                return;
+            }
             tapEvents.get().add(insertRecordEvent(dataMap, tapTable.getId()).referenceTime(lastModified));
             if (tapEvents.get().size() == eventBatchSize) {
-                fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize);
+                fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize + blankSkip);
+                blankSkip = 0;
                 fileOffset.setPath(fileOffset.getPath());
                 eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
                 tapEvents.set(list());
@@ -105,7 +112,11 @@ public class BigSaxDataHandler implements ElementHandler {
     private Object analyzeElement(Element element) {
         List<Node> nodes = element.content();
         if (nodes.size() == 1 && nodes.get(0) instanceof DefaultText) {
-            return MatchUtil.parse(nodes.get(0).getText(), dataTypeMap.get(element.getName()));
+            try {
+                return MatchUtil.parse(nodes.get(0).getText(), dataTypeMap.get(element.getName()));
+            } catch (Exception e) {
+                throw new RuntimeException(String.format("%s field has invalid value", element.getName()), e);
+            }
         } else {
             List<Node> newNodes = nodes.stream().filter(v -> v instanceof DefaultElement).collect(Collectors.toList());
             if (newNodes.stream().map(Node::getPath).distinct().count() > 1) {

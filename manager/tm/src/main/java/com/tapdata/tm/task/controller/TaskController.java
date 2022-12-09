@@ -897,11 +897,10 @@ public class TaskController extends BaseController {
     @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
-                                        @RequestParam String listtags) {
-        List<com.tapdata.tm.commons.schema.Tag> tags = Lists.newArrayList();
+                                        @RequestParam(value = "listtags", required = false) String listtags) {
+        List<String> tags = Lists.newArrayList();
         if (StringUtils.isNoneBlank(listtags)) {
-            List<String> array = JSON.parseArray(listtags, String.class);
-            tags = array.stream().map(s -> new com.tapdata.tm.commons.schema.Tag(s, s)).collect(Collectors.toList());
+            tags = JSON.parseArray(listtags, String.class);
         }
         taskService.batchUpTask(file, getLoginUser(), cover, tags);
         return success();

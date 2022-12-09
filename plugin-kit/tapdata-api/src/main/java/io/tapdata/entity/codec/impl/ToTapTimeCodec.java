@@ -8,6 +8,7 @@ import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapTimeValue;
 
+import java.sql.Time;
 import java.util.Date;
 
 @Implementation(value = ToTapValueCodec.class, type = TapDefaultCodecs.TAP_TIME_VALUE, buildNumber = 0)

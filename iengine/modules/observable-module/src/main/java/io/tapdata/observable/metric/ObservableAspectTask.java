@@ -1,10 +1,12 @@
 package io.tapdata.observable.metric;
 
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
@@ -93,7 +95,7 @@ public class ObservableAspectTask extends AspectTask {
 	public Void handleDataNodeClose(DataNodeCloseAspect aspect) {
 		String nodeId = aspect.getDataProcessorContext().getNode().getId();
 		Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(DataNodeSampleHandler::close);
-		DataNodeSampleHandler.HealthCheckRunner.getInstance().stopHealthCheck(nodeId);
+//		DataNodeSampleHandler.HealthCheckRunner.getInstance().stopHealthCheck(nodeId);
 
 		return null;
 	}
@@ -101,10 +103,10 @@ public class ObservableAspectTask extends AspectTask {
 	public Void handlePDKNodeInit(PDKNodeInitAspect aspect) {
 		Node<?> node = aspect.getDataProcessorContext().getNode();
 		DataNodeSampleHandler handler = dataNodeSampleHandlers.get(node.getId());
-		if (null != handler) {
-			DataNodeSampleHandler.HealthCheckRunner.getInstance().runHealthCheck(
-					handler.getCollector(), node,  aspect.getDataProcessorContext().getPdkAssociateId());
-		}
+//		if (null != handler) {
+//			DataNodeSampleHandler.HealthCheckRunner.getInstance().runHealthCheck(
+//					handler.getCollector(), node,  aspect.getDataProcessorContext().getPdkAssociateId());
+//		}
 
 		return null;
 	}
@@ -248,15 +250,20 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	public Void handleSourceState(SourceStateAspect aspect) {
+		Node<?> node = aspect.getDataProcessorContext().getNode();
 		switch (aspect.getState()) {
 			case SourceStateAspect.STATE_INITIAL_SYNC_START:
 				taskSampleHandler.handleSnapshotStart(aspect.getInitialSyncStartTime());
 				for(String table : aspect.getDataProcessorContext().getTapTableMap().keySet()) {
 					taskSampleHandler.addTable(table);
 				}
+
+				Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
+						handler -> taskSampleHandler.addSourceNodeHandler(node.getId(), handler)
+				);
 				break;
 			case SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED:
-				taskSampleHandler.handleSnapshotDone(aspect.getInitialSyncCompletedTime());
+//				taskSampleHandler.handleSnapshotDone(aspect.getInitialSyncCompletedTime());
 				break;
 			default:
 				break;

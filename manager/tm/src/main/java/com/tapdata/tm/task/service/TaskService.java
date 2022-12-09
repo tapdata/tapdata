@@ -46,12 +46,15 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
@@ -141,6 +144,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private StateMachineService stateMachineService;
     private TaskScheduleService taskScheduleService;
+
+    private ScheduleService scheduleService;
+
+    private MetadataDefinitionService metadataDefinitionService;
+
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
 
@@ -869,7 +877,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("copy task success, task name = {}", copyName);
 
         taskDto.setName(copyName);
-        //taskDto.setStatus(TaskDto.STATUS_EDIT);
+        taskDto.setStatus(TaskDto.STATUS_EDIT);
         taskDto.setStatuses(new ArrayList<>());
         taskDto.setStartTime(null);
         taskDto.setStopTime(null);
@@ -885,11 +893,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TaskService taskService = SpringContextHelper.getBean(TaskService.class);
 
         log.info("create new task, task = {}", taskDto);
-        taskDto = taskService.confirmById(taskDto, user, true, true);
+        taskDto = taskService.confirmById(taskDto, user, true);
         //taskService.flushStatus(taskDto, user);
 
         // after copy could deduce model
-        transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
+        //transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
 
         return taskDto;
     }
@@ -2018,6 +2026,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 taskDto.setLastUpdBy(null);
                 taskDto.setUserId(null);
                 taskDto.setAgentId(null);
+                taskDto.setListtags(null);
+                taskDto.setAccessNodeProcessId(null);
+                taskDto.setAccessNodeProcessIdList(new ArrayList<>());
+                taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
                 Map<String, Object> attrs = taskDto.getAttrs();
@@ -2074,7 +2087,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Tag> tags) {
+    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags) {
         byte[] bytes;
         List<TaskUpAndLoadDto> taskUpAndLoadDtos;
 
@@ -2139,11 +2152,30 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Tag> tags) {
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags) {
+
+        List<Tag> tagList = new ArrayList<>();
+
+        if (CollectionUtils.isNotEmpty(tags)) {
+            Criteria criteriaTags = Criteria.where("_id").in(tags);
+            Query query = new Query(criteriaTags);
+            query.fields().include("_id", "value");
+            List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAllDto(query, user);
+            if (CollectionUtils.isNotEmpty(allDto)) {
+                tagList = allDto.stream().map(m -> new Tag(m.getId().toHexString(), m.getValue())).collect(Collectors.toList());
+            }
+        }
+
         for (TaskDto taskDto : taskDtos) {
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
             query.fields().include("id");
             TaskDto one = findOne(query);
+
+            taskDto.setListtags(null);
+            taskDto.setStatus(TaskDto.STATUS_EDIT);
+            taskDto.setAccessNodeProcessId(null);
+            taskDto.setAccessNodeProcessIdList(new ArrayList<>());
+            taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 
             Map<String, Object> attrs = taskDto.getAttrs();
             if (attrs != null) {
@@ -2161,7 +2193,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     taskDto.setName(taskDto.getName() + "_import");
                 }
 
-                taskDto.setListtags(tags);
+                if (CollectionUtils.isNotEmpty(tagList)) {
+                    taskDto.setListtags(tagList);
+                }
                 if (one == null) {
                     //taskDto.setId(null);
                     TaskEntity taskEntity = repository.importEntity(convertToEntity(TaskEntity.class, taskDto), user);
@@ -2620,8 +2654,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     /**
      * @see DataFlowEvent#SCHEDULE_SUCCESS
-     * @param taskDto
-     * @param user
+     * @param dto
+     * @param status
+     * @param userDetail
      */
     public void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
         dto.setStatus(status);
@@ -3070,6 +3105,23 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
+    public void startPlanCronTask() {
+        Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
+                .and("crontabExpression").exists(true)
+                .and("is_deleted").is(false)
+                .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
+                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING));
+        Query taskQuery = new Query(migrateCriteria);
+        List<TaskDto> taskList = findAll(taskQuery);
+        if (CollectionUtils.isNotEmpty(taskList)) {
+            taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
+                    .collect(Collectors.toList());
+            for (TaskDto taskDto : taskList) {
+                scheduleService.executeTask(taskDto);
+            }
+        }
+    }
+
     public TaskDto findByCacheName(String cacheName, UserDetail user) {
         Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where("catalog").is("memCache").and("cacheName").is(cacheName));
         Query query = new Query(taskCriteria);
@@ -3212,17 +3264,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    int inputInsertTotal = (int) vs.get("inputInsertTotal");
-                    int inputOthersTotal = (int) vs.get("inputOthersTotal");
-                    int inputDdlTotal = (int) vs.get("inputDdlTotal");
-                    int inputUpdateTotal = (int) vs.get("inputUpdateTotal");
-                    int inputDeleteTotal = (int) vs.get("inputDeleteTotal");
+                    long inputInsertTotal = Long.parseLong(String.valueOf(vs.get("inputInsertTotal")));
+                    long inputOthersTotal = Long.parseLong(String.valueOf(vs.get("inputOthersTotal")));
+                    long inputDdlTotal = Long.parseLong(String.valueOf(vs.get("inputDdlTotal")));
+                    long inputUpdateTotal = Long.parseLong(String.valueOf(vs.get("inputUpdateTotal")));
+                    long inputDeleteTotal = Long.parseLong(String.valueOf(vs.get("inputDeleteTotal")));
 
-                    int outputInsertTotal = (int) vs.get("outputInsertTotal");
-                    int outputOthersTotal = (int) vs.get("outputOthersTotal");
-                    int outputDdlTotal = (int) vs.get("outputDdlTotal");
-                    int outputUpdateTotal = (int) vs.get("outputUpdateTotal");
-                    int outputDeleteTotal = (int) vs.get("outputDeleteTotal");
+                    long outputInsertTotal = Long.parseLong(String.valueOf(vs.get("outputInsertTotal")));
+                    long outputOthersTotal = Long.parseLong(String.valueOf(vs.get("outputOthersTotal")));
+                    long outputDdlTotal = Long.parseLong(String.valueOf(vs.get("outputDdlTotal")));
+                    long outputUpdateTotal = Long.parseLong(String.valueOf(vs.get("outputUpdateTotal")));
+                    long outputDeleteTotal = Long.parseLong(String.valueOf(vs.get("outputDeleteTotal")));
                     output += outputInsertTotal;
                     output += outputOthersTotal;
                     output += outputDdlTotal;
@@ -3250,27 +3302,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         chart6Map.put("updatedTotal", update);
         chart6Map.put("deletedTotal", delete);
         return chart6Map;
-    }
-
-    public void addScheduleTask(TaskDto taskDto) {
-        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
-                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.isPlanStartDateFlag()) {
-            CronUtil.addJob(taskDto);
-        }
-    }
-
-    public void deleteScheduleTask(TaskDto taskDto) {
-        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())
-                && StringUtils.isNotBlank(taskDto.getCrontabExpression())
-                && taskDto.isPlanStartDateFlag()) {
-            CronUtil.removeJob(String.valueOf(taskDto.getId()));
-        }
-
-    }
-
-    public void startScheduleTask(TaskDto taskDto, UserDetail user, String startFlag) {
-        start(taskDto, user, startFlag);
     }
 
 

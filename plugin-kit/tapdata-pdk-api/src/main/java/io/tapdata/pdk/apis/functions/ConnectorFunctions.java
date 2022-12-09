@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> {
+    protected ExecuteQueryStringFunction executeQueryStringFunction;
     protected ReleaseExternalFunction releaseExternalFunction;
     protected BatchReadFunction batchReadFunction;
     protected StreamReadFunction streamReadFunction;
@@ -50,6 +51,13 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
     protected NewFieldFunction newFieldFunction;
     protected RawDataCallbackFilterFunction rawDataCallbackFilterFunction;
     protected RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2;
+    public ConnectorFunctions supportExecuteQueryStringFunction(ExecuteQueryStringFunction function) {
+        executeQueryStringFunction = function;
+        return this;
+    }
+
+
+    protected ExecuteCommandFunction executeCommandFunction;
     public ConnectorFunctions supportRawDataCallbackFilterFunction(RawDataCallbackFilterFunction function) {
         rawDataCallbackFilterFunction = function;
         return this;
@@ -81,6 +89,11 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
     }
     public ConnectorFunctions supportNewFieldFunction(NewFieldFunction function) {
         newFieldFunction = function;
+        return this;
+    }
+
+    public ConnectorFunctions supportExecuteCommandFunction(ExecuteCommandFunction function) {
+        executeCommandFunction = function;
         return this;
     }
 
@@ -341,5 +354,13 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
 
     public RawDataCallbackFilterFunctionV2 getRawDataCallbackFilterFunctionV2() {
         return rawDataCallbackFilterFunctionV2;
+    }
+
+    public ExecuteCommandFunction getExecuteCommandFunction() {
+        return executeCommandFunction;
+    }
+
+    public ExecuteQueryStringFunction getExecuteQueryStringFunction() {
+        return executeQueryStringFunction;
     }
 }

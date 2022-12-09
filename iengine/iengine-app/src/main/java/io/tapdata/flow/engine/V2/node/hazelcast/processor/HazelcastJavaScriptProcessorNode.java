@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
+import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
@@ -33,6 +34,7 @@ import javax.script.ScriptEngine;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -43,6 +45,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
   public static final String TAG = HazelcastJavaScriptProcessorNode.class.getSimpleName();
 
   private final Invocable engine;
+
+  private final ScriptExecutorsManager scriptExecutorsManager;
 
   private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
 
@@ -65,16 +69,20 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
             new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
             ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
 
-      this.engine = ScriptUtil.getScriptEngine(
-              JSEngineEnum.GRAALVM_JS.getEngineName(),
-              script, javaScriptFunctions,
-              clientMongoOperator,
-              null,
-              null,
-              ((DataProcessorContext) processorBaseContext).getCacheService(),
-              new ObsScriptLogger(obsLogger)
-      );
+    this.engine = ScriptUtil.getScriptEngine(
+            JSEngineEnum.GRAALVM_JS.getEngineName(),
+            script, javaScriptFunctions,
+            clientMongoOperator,
+            null,
+            null,
+            ((DataProcessorContext) processorBaseContext).getCacheService(),
+            new ObsScriptLogger(obsLogger)
+    );
 
+    this.scriptExecutorsManager = new ScriptExecutorsManager(obsLogger, clientMongoOperator, jetContext.hazelcastInstance(),
+            node.getTaskId(), node.getId());
+
+    ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
     this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
   }
 
@@ -82,22 +90,19 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
   @Override
   protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
     TapEvent tapEvent = tapdataEvent.getTapEvent();
+    String tableName = TapEventUtil.getTableId(tapEvent);
+    ProcessResult processResult = getProcessResult(tableName);
+
     if (!(tapEvent instanceof TapRecordEvent)) {
-      consumer.accept(tapdataEvent, null);
+      consumer.accept(tapdataEvent, processResult);
       return;
     }
 
     Map<String, Object> record = TapEventUtil.getAfter(tapEvent);
-    if (MapUtils.isEmpty(record)) {
+    if (MapUtils.isEmpty(record) && MapUtils.isNotEmpty(TapEventUtil.getBefore(tapEvent))) {
       record = TapEventUtil.getBefore(tapEvent);
     }
-    if (MapUtils.isEmpty(record)) {
-      consumer.accept(tapdataEvent, null);
-      return;
-    }
 
-    String tableName = TapEventUtil.getTableId(tapEvent);
-    ProcessResult processResult = getProcessResult(tableName);
     String op = TapEventUtil.getOp(tapEvent);
     ProcessContext processContext = new ProcessContext(op, tableName, null, null, null, tapdataEvent.getOffset());
 
@@ -157,6 +162,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
   @Override
   protected void doClose() throws Exception {
     try {
+      CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.scriptExecutorsManager).ifPresent(ScriptExecutorsManager::close), TAG);
       CommonUtils.ignoreAnyError(() -> {
         if (this.engine instanceof GraalJSScriptEngine) {
           ((GraalJSScriptEngine) this.engine).close();

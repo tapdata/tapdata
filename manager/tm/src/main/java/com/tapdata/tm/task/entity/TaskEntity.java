@@ -224,6 +224,8 @@ public class TaskEntity extends BaseEntity {
     private Long snapshotDoneAt;
 
     private boolean needCreateRecord;
+
+    private boolean crontabExpressionFlag;
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }
