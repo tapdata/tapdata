@@ -1,2 +1,2 @@
-mvn clean install
+mvn clean install -DskipTests
 #mvn archetype:generate

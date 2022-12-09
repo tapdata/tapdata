@@ -1,10 +1,12 @@
 package io.tapdata.connector.kafka;
 
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.CommonDbConfig;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapDateValue;
@@ -27,6 +29,7 @@ import java.util.function.Consumer;
 
 @TapConnectorClass("spec_kafka.json")
 public class KafkaConnector extends ConnectorBase {
+    public static final String TAG = KafkaConnector.class.getSimpleName();
 
     private KafkaService kafkaService;
     private KafkaConfig kafkaConfig;
@@ -75,19 +78,17 @@ public class KafkaConnector extends ConnectorBase {
         kafkaConfig = (KafkaConfig) new KafkaConfig().load(connectionContext.getConnectionConfig());
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(kafkaConfig.getConnectionString());
-        try (
-                KafkaService kafkaService = new KafkaService(kafkaConfig)
-        ) {
-            TestItem testHostAndPort = kafkaService.testHostAndPort();
-            consumer.accept(testHostAndPort);
-            if (testHostAndPort.getResult() == TestItem.RESULT_FAILED) {
-                return connectionOptions;
-            }
-            TestItem testConnect = kafkaService.testConnect();
-            consumer.accept(testConnect);
-            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-                return connectionOptions;
-            }
+        try {
+            onStart(connectionContext);
+            CommonDbConfig config = new CommonDbConfig();
+            config.set__connectionType(kafkaConfig.get__connectionType());
+            KafkaTest kafkaTest = new KafkaTest(kafkaConfig, consumer, kafkaService,config);
+            kafkaTest.testOneByOne();
+        } catch (Throwable throwable) {
+            TapLogger.error(TAG,throwable.getMessage());
+            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
+        }finally {
+            onStop(connectionContext);
         }
         return connectionOptions;
     }
@@ -98,7 +99,7 @@ public class KafkaConnector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer);
+        kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {

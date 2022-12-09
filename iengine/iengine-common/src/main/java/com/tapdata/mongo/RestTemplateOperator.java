@@ -8,13 +8,17 @@ import com.tapdata.entity.BaseEntity;
 import com.tapdata.entity.ResponseBody;
 import com.tapdata.entity.TapLog;
 import com.tapdata.interceptor.LoggingInterceptor;
-import com.tapdata.interceptor.VersionHeaderInterceptor;
+import com.tapdata.tm.sdk.interceptor.VersionHeaderInterceptor;
+import com.tapdata.tm.sdk.available.CloudRestTemplate;
+import com.tapdata.tm.sdk.available.TmStatusService;
+import com.tapdata.tm.sdk.util.CloudSignUtil;
 import io.tapdata.exception.ManagementException;
 import io.tapdata.exception.RestAuthException;
 import io.tapdata.exception.RestDoNotRetryException;
 import io.tapdata.exception.RestException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpRequestInterceptor;
@@ -32,23 +36,23 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.ResourceHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
-import org.springframework.util.StreamUtils;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -71,6 +75,8 @@ public class RestTemplateOperator {
 	private Supplier<Long> getRetryTimeout;
 
 	private long retryInterval = 500;
+
+	private final AtomicLong logCount = new AtomicLong(0);
 
 	private RestTemplateOperator() {
 	}
@@ -214,6 +220,12 @@ public class RestTemplateOperator {
 	}
 
 	public Exception retryExceptionHandle(Exception e, String uri, String method, Object param, ResponseBody responseBody) {
+		if (e instanceof HttpClientErrorException) {
+			// If the parameter is incorrect, no retry will be performed
+			if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {
+				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), e.getMessage()), e);
+			}
+		}
 		logger.warn(
 				"Request {} server failed {}, uri {}, method {}, param {}, response body {}, stack {}, will retry after {}.", baseURL, e.getMessage(), uri, param, responseBody, method, Log4jUtil.getStackString(e), retryInterval
 		);
@@ -772,8 +784,20 @@ public class RestTemplateOperator {
 
 					ResponseEntity<Resource> responseEntity = restTemplate.exchange(queryString, HttpMethod.GET, httpEntity, Resource.class);
 					if (MediaType.APPLICATION_OCTET_STREAM.includes(responseEntity.getHeaders().getContentType())) {
-						File file = new File(path);
-						StreamUtils.copy(responseEntity.getBody().getInputStream(), new FileOutputStream(file));
+						File file = new File(path + ".bak");
+						if(file.exists()) {
+							FileUtils.deleteQuietly(file);
+						}
+						if(responseEntity.getBody() == null) {
+							return null;
+						}
+						FileUtils.copyInputStreamToFile(responseEntity.getBody().getInputStream(), file);
+						File realFile = new File(path);
+						if(realFile.exists()) {
+							FileUtils.deleteQuietly(realFile);
+						}
+						FileUtils.moveFile(file, realFile);
+//						StreamUtils.copy(responseEntity.getBody().getInputStream(), new FileOutputStream(file));
 						return file;
 					} else {
 						final Object body = responseEntity.getBody();
@@ -784,7 +808,9 @@ public class RestTemplateOperator {
 					}
 				} catch (RestDoNotRetryException e) {
 					throw e;
-				} catch (Exception e) {
+				} catch (HttpMessageConversionException e){
+				    throw e;
+                } catch (Exception e) {
 					retry++;
 					exception = retryExceptionHandle(e, url, HttpMethod.GET.name(), params, responseBody);
 				}
@@ -853,6 +879,12 @@ public class RestTemplateOperator {
 	}
 
 	private void handleRequestFailed(String uri, String method, Object param, ResponseBody responseBody) throws JsonProcessingException {
+		if (TmStatusService.isNotAvailable()) {
+			if (logCount.incrementAndGet() % 1000 == 0) {
+				logger.warn("tm unavailable...");
+			}
+			return;
+		}
 		if (responseBody == null) {
 			throw new ManagementException("Request management failed, response body is empty.");
 		} else if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument")) {

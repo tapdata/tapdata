@@ -7,6 +7,8 @@ import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -67,6 +69,9 @@ public abstract class Node<S> extends Element{
 
     //本次已经推演过
     private boolean isTransformed;
+
+    private List<AlarmSettingDto> alarmSettings;
+    private List<AlarmRuleDto> alarmRules;
 
     protected transient DAGDataService service;
 
@@ -217,14 +222,18 @@ public abstract class Node<S> extends Element{
                     //需要保存的地方就可以存储异步推演的内容
                     log.info("save transform schema");
                     outputSchema = saveSchema(predecessors, nodeId, changedSchema, options);
-                    List<String> sourceQualifiedNames;
+                    List<String> sourceQualifiedNames = new ArrayList<>();
                     if (outputSchema instanceof List) {
                         List<Schema> outTemp = (List<Schema>) outputSchema;
-                        sourceQualifiedNames = outTemp.stream().map(Schema::getQualifiedName).collect(Collectors.toList());
+                        if (CollectionUtils.isNotEmpty(outTemp)) {
+                            sourceQualifiedNames = outTemp.stream().map(Schema::getQualifiedName).collect(Collectors.toList());
+                        }
                     } else {
                         Schema outputSchema = (Schema) this.outputSchema;
                         sourceQualifiedNames = new ArrayList<>();
-                        sourceQualifiedNames.add(outputSchema.getQualifiedName());
+                        if (outputSchema != null) {
+                            sourceQualifiedNames.add(outputSchema.getQualifiedName());
+                        }
                     }
                     service.upsertTransformTemp(this.listener.getSchemaTransformResult(nodeId), taskId, nodeId, tableSize(), sourceQualifiedNames, version);
                 } catch (Exception e) {

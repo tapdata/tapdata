@@ -4,7 +4,6 @@ package com.tapdata.tm.commons.dag.process;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
@@ -14,7 +13,6 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.types.ObjectId;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -40,6 +38,7 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
      * 源表名-新表名
      */
     private LinkedHashSet<TableRenameTableInfo> tableNames;
+
 
     public Map<String, TableRenameTableInfo> originalMap () {
         if (Objects.isNull(tableNames) || tableNames.isEmpty()) {
@@ -73,6 +72,7 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
                 String currentTableName = originalMap().get(originalName).getCurrentTableName();
                 schema.setName(currentTableName);
                 schema.setOriginalName(currentTableName);
+                schema.setAncestorsName(originalName);
                 //schema.setDatabaseId(null);
                 //schema.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), getId()));
             }

@@ -5,7 +5,7 @@ package com.tapdata.tm.task.service.impl;/**
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
@@ -94,7 +94,7 @@ public class TaskDagServiceImpl implements TaskDagService {
             JsonNode jsonNode = mapper.readTree(factory.createParser(jsonString));
             hash = jsonNode.hashCode();
         } catch (IOException e) {
-            log.error("Error generating hash for jsonString: {}", jsonString, e);
+            log.error("Error generating hash for jsonString: {} {}", jsonString, e.getMessage());
         }
 
         return hash;

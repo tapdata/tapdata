@@ -1,34 +1,30 @@
 package io.tapdata.pdk.core.utils;
 
-import io.tapdata.entity.error.TapAPIErrorCodes;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.ConnectionFunctions;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
-import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.Node;
-import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.error.QuiteException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import org.apache.commons.io.output.AppendableOutputStream;
 
-import javax.naming.CommunicationException;
-import java.nio.charset.StandardCharsets;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.zip.CRC32;
 
 public class CommonUtils {
     static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -73,7 +69,9 @@ public class CommonUtils {
         void run() throws Throwable;
     }
 
-
+    public interface AnyErrorConsumer<T>{
+        void accept(T t) throws Throwable;
+    }
 
     public static void awakenRetryObj(Object syncWaitObj) {
         if(syncWaitObj != null) {
@@ -83,93 +81,33 @@ public class CommonUtils {
         }
     }
 
-    public static void autoRetry(Node node,PDKMethod method,PDKMethodInvoker invoker) {
-        CommonUtils.AnyError runable = invoker.getR();
-        String message = invoker.getMessage();
-        final String logTag = invoker.getLogTag();
-        boolean async = invoker.isAsync();
-        long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
-        if(retryPeriodSeconds <= 0) {
-            throw new IllegalArgumentException("PeriodSeconds can not be zero or less than zero");
-        }
-        try {
-            runable.run();
-        }catch(Throwable errThrowable) {
-            ErrorHandleFunction function = null;
-            TapConnectionContext tapConnectionContext = null;
-            ConnectionFunctions<?> connectionFunctions = null;
-            if(node instanceof ConnectionNode) {
-                ConnectionNode connectionNode = (ConnectionNode) node;
-                connectionFunctions = connectionNode.getConnectionFunctions();
-                if (null != connectionFunctions) {
-                    function = connectionFunctions.getErrorHandleFunction();
-                }else {
-                    throw new CoreException("ConnectionFunctions must be not null,connectionNode does not contain ConnectionFunctions");
-                }
-                tapConnectionContext = connectionNode.getConnectionContext();
-            } else if(node instanceof ConnectorNode) {
-                ConnectorNode connectorNode = (ConnectorNode) node;
-                connectionFunctions = connectorNode.getConnectorFunctions();
-                if (null != connectionFunctions) {
-                    function = connectionFunctions.getErrorHandleFunction();
-                }else {
-                    throw new CoreException("ConnectionFunctions must be not null,connectionNode does not contain connectionFunctions");
-                }
-                tapConnectionContext = connectorNode.getConnectorContext();
-            }
-            if (null == tapConnectionContext){
-                throw new IllegalArgumentException("NeedTry filed ,cause tapConnectionContext:[ConnectionContext or ConnectorContext] is Null,the param must not be null!");
-            }
-
-            if(null == function){
-                TapLogger.debug(logTag,"This PDK data source not support retry. ");
-                if(errThrowable instanceof CoreException) {
-                    throw (CoreException) errThrowable;
-                }
-                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + errThrowable.getMessage(),errThrowable);
-            }
-
-            ErrorHandleFunction finalFunction = function;
-            TapConnectionContext finalTapConnectionContext = tapConnectionContext;
-            try {
-                RetryOptions retryOptions = finalFunction.needRetry(finalTapConnectionContext, method,errThrowable);
-                if(retryOptions == null || !retryOptions.isNeedRetry()) {
-                    throw errThrowable;
-                }
-                if(retryOptions.getBeforeRetryMethod() != null) {
-                    CommonUtils.ignoreAnyError(() -> retryOptions.getBeforeRetryMethod().run(), logTag);
-                }
-            } catch (Throwable e) {
-                TapLogger.info(logTag,TapAPIErrorCodes.NEED_RETRY_FAILED+" Error retry failed: Not need retry." + logTag);
-                if(errThrowable instanceof CoreException) {
-                    throw (CoreException) errThrowable;
-                }
-                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + errThrowable.getMessage(),errThrowable);
-            }
-
-            long retryTimes = invoker.getRetryTimes();
-            if(retryTimes > 0) {
-                TapLogger.warn(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({}s) | error [{}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds,errThrowable.getMessage());//, message
-                invoker.setRetryTimes(retryTimes-1);
-                if(async) {
-                    ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node,method,invoker), retryPeriodSeconds, TimeUnit.SECONDS);
-                } else {
-                    synchronized (invoker) {
-                        try {
-                            invoker.wait(retryPeriodSeconds * 1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                    autoRetry(node, method, invoker);
-                }
+    protected static void prepareFunctionAndContextForNode(Node node,FunctionAndContext functionAndContext){
+        ErrorHandleFunction function = null;
+        TapConnectionContext tapConnectionContext = null;
+        ConnectionFunctions<?> connectionFunctions;
+        if (node instanceof ConnectionNode) {
+            ConnectionNode connectionNode = (ConnectionNode) node;
+            connectionFunctions = connectionNode.getConnectionFunctions();
+            if (null != connectionFunctions) {
+                function = connectionFunctions.getErrorHandleFunction();
             } else {
-                if(errThrowable instanceof CoreException) {
-                    throw (CoreException) errThrowable;
-                }
-                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + errThrowable.getMessage(),errThrowable);
+                throw new CoreException("ConnectionFunctions must be not null,connectionNode does not contain ConnectionFunctions");
             }
+            tapConnectionContext = connectionNode.getConnectionContext();
+        } else if (node instanceof ConnectorNode) {
+            ConnectorNode connectorNode = (ConnectorNode) node;
+            connectionFunctions = connectorNode.getConnectorFunctions();
+            if (null != connectionFunctions) {
+                function = connectionFunctions.getErrorHandleFunction();
+            } else {
+                throw new CoreException("ConnectionFunctions must be not null,connectionNode does not contain connectionFunctions");
+            }
+            tapConnectionContext = connectorNode.getConnectorContext();
         }
+        if (null == tapConnectionContext) {
+            throw new IllegalArgumentException("Auto retry failed, cause tapConnectionContext:[ConnectionContext or ConnectorContext] is null,the param must not be null");
+        }
+        functionAndContext.errorHandleFunction(function).tapConnectionContext(tapConnectionContext);
     }
 
     public static void autoRetryAsync(AnyError runnable, String tag, String message, long times, long periodSeconds) {
@@ -198,7 +136,6 @@ public class CommonUtils {
             TapLogger.warn(tag, "Error code {} message {} will be ignored. ", coreException.getCode(), ExceptionUtils.getStackTrace(coreException));
         } catch(Throwable throwable) {
             if(!(throwable instanceof QuiteException)) {
-                throwable.printStackTrace();
                 TapLogger.warn(tag, "Unknown error message {} will be ignored. ", ExceptionUtils.getStackTrace(throwable));
             }
         }
@@ -336,6 +273,31 @@ public class CommonUtils {
     public static void setProperty(String key, String value) {
         System.setProperty(key, value);
     }
+    public static byte[] encryptWithRC4(byte[] content, String key) throws Exception {
+        SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        secureRandom.setSeed(key.getBytes());
+        KeyGenerator keyGenerator = KeyGenerator.getInstance("RC4");
+        keyGenerator.init(secureRandom);
+        SecretKey secretKey = keyGenerator.generateKey();
+
+        Cipher cipher = Cipher.getInstance("RC4");
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+
+        return cipher.doFinal(content);
+    }
+
+    public static byte[] decryptWithRC4(byte[] cipherText, String key) throws Exception {
+        SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        secureRandom.setSeed(key.getBytes());
+        KeyGenerator keyGenerator = KeyGenerator.getInstance("RC4");
+        keyGenerator.init(secureRandom);
+        SecretKey secretKey = keyGenerator.generateKey();
+
+        Cipher cipher = Cipher.getInstance("RC4");
+        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+
+        return cipher.doFinal(cipherText);
+    }
 
     public static void main(String[] args) {
 //        AtomicLong counter = new AtomicLong();
@@ -359,16 +321,28 @@ public class CommonUtils {
 //            r.run();
 //        }
 //        System.out.println("2takes " + (System.currentTimeMillis() - time));
-        fun(10,100);
     }
 
-    public static void fun(int j,int k){
-        final int i = k;
-        System.out.println(i+"---"+k);
-        if (j-->0){
-            fun(j,k);
-        }else {
-            return;
+    static class FunctionAndContext{
+        ErrorHandleFunction errorHandleFunction = null;
+        TapConnectionContext tapConnectionContext = null;
+        public static FunctionAndContext create(){ return new FunctionAndContext();}
+        public ErrorHandleFunction errorHandleFunction() {
+            return errorHandleFunction;
+        }
+
+        public FunctionAndContext errorHandleFunction(ErrorHandleFunction function) {
+            this.errorHandleFunction = function;
+            return this;
+        }
+
+        public TapConnectionContext tapConnectionContext() {
+            return tapConnectionContext;
+        }
+
+        public FunctionAndContext tapConnectionContext(TapConnectionContext tapConnectionContext) {
+            this.tapConnectionContext = tapConnectionContext;
+            return this;
         }
     }
 }

@@ -9,10 +9,10 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Enumeration;
+import java.util.*;
+import java.util.jar.Attributes;
 import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 
 /*
 优先检查子，再检查父
@@ -98,12 +98,27 @@ public class DependencyURLClassLoader extends ClassLoader {
      */
     private static class ChildURLClassLoader extends URLClassLoader {
         private FindClassClassLoader realParent;
-
+        private Map<String, String> manifest;
         ChildURLClassLoader(URL[] urls, FindClassClassLoader realParent) {
             super(urls, null);
 
             this.realParent = realParent;
 //            TapLogger.debug(TAG, "ChildURLClassLoader created with urls {} parent class loader {}", Arrays.toString(urls), realParent);
+
+            try {
+                this.manifest = new HashMap<>();
+                Enumeration<URL> enumeration = this.getResources("META-INF/MANIFEST.MF");
+                while(enumeration.hasMoreElements()) {
+                    Manifest manifest = new Manifest(enumeration.nextElement().openStream());
+                    Attributes attributes = manifest.getMainAttributes();
+                    Set<Object> keys = attributes.keySet();
+                    for(Object key : keys) {
+                        this.manifest.put(key.toString(), attributes.get(key).toString());
+                    }
+                }
+            } catch (Throwable throwable) {
+                TapLogger.debug(TAG, "Read manifest for jar {} failed, {}", this.getURLs(), throwable.getMessage());
+            }
         }
 
         @Override
@@ -129,6 +144,10 @@ public class DependencyURLClassLoader extends ClassLoader {
                 TapLogger.debug(TAG, "Occurred linkage error for name {}, {}", name, linkageError.getMessage());
                 throw linkageError;
             }
+        }
+
+        public Map<String, String> manifest() {
+            return manifest;
         }
     }
 
@@ -175,4 +194,9 @@ public class DependencyURLClassLoader extends ClassLoader {
     public ClassLoader getActualClassLoader() {
       return childClassLoader;
     }
+
+    public Map<String, String> manifest() {
+        return childClassLoader != null ? childClassLoader.manifest : null;
+    }
+
 }

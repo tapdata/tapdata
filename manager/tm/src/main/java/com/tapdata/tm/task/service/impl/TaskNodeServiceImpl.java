@@ -2,7 +2,7 @@ package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Maps;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
@@ -28,7 +28,6 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
@@ -486,7 +485,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             if (node instanceof MigrateFieldRenameProcessorNode) {
                 LinkedList<TableFieldInfo> fieldsMapping = ((MigrateFieldRenameProcessorNode) node).getFieldsMapping();
 
-                return fieldsMapping.stream().anyMatch(table -> !table.getQualifiedName().endsWith(taskId));
+                return fieldsMapping != null && fieldsMapping.stream().anyMatch(table -> !table.getQualifiedName().endsWith(taskId));
             }
             return false;
         }).map(Node::getId)
@@ -548,7 +547,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             });
 
             if (updateFieldMap.size() != 0) {
-                PdkSchemaConvert.tableFieldTypesGenerator.autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(expression));
+                PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(expression));
 
                 updateFieldMap.forEach((k, v) -> {
                     tapTable.getNameFieldMap().replace(k, v);
@@ -559,7 +558,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 
         TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
-        TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.targetTypesGenerator.convert(nameFieldMap
+        TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap
                 , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
         LinkedHashMap<String, TapField> data = convert.getData();
 

@@ -6,6 +6,9 @@
  */
 package com.tapdata.tm.statemachine.model;
 
+import javax.print.DocFlavor;
+import java.util.Objects;
+
 public class StateMachineResult {
 
 	private static final String OK = "ok";
@@ -57,5 +60,14 @@ public class StateMachineResult {
 
 	public static StateMachineResult fail(String message){
 		return new StateMachineResult(FAIL, 0, message);
+	}
+
+
+	public boolean isOk() {
+		return Objects.equals(this.code, OK);
+	}
+
+	public boolean isFail() {
+		return Objects.equals(this.code, FAIL);
 	}
 }

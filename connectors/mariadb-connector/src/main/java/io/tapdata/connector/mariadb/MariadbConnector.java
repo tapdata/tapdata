@@ -1,12 +1,14 @@
 package io.tapdata.connector.mariadb;
 
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.CommonDbConfig;
+import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
-import io.tapdata.connector.mariadb.ddl.DDLSqlMaker;
-import io.tapdata.connector.mariadb.ddl.sqlmaker.MariadbDDLSqlMaker;
 import io.tapdata.connector.mysql.*;
+import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
+import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
+import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -19,7 +21,6 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -54,7 +55,7 @@ public class MariadbConnector extends ConnectorBase {
         tapConnectionContext.getSpecification().setId("mysql");
         this.mysqlJdbcContext = new MysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
-            this.mysqlWriter = new MysqlJdbcOneByOneWriter(mysqlJdbcContext);
+            this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
             this.version = mysqlJdbcContext.getMysqlVersion();
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -62,7 +63,7 @@ public class MariadbConnector extends ConnectorBase {
                 this.connectionTimezone = mysqlJdbcContext.timezone();
             }
         }
-        ddlSqlMaker = new MariadbDDLSqlMaker(version);
+        ddlSqlMaker = new MysqlDDLSqlMaker(version);
         fieldDDLHandlers = new BiClassHandlers<>();
         fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
         fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
@@ -74,7 +75,7 @@ public class MariadbConnector extends ConnectorBase {
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         codecRegistry.registerFromTapValue(TapMapValue.class, "json", tapValue -> toJson(tapValue.getValue()));
         codecRegistry.registerFromTapValue(TapArrayValue.class, "json", tapValue -> toJson(tapValue.getValue()));
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SSSSSS"));
+
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
                 tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
@@ -87,6 +88,13 @@ public class MariadbConnector extends ConnectorBase {
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
         connectorFunctions.supportCreateTable(this::createTable);
@@ -98,24 +106,12 @@ public class MariadbConnector extends ConnectorBase {
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         connectorFunctions.supportQueryByAdvanceFilter(this::query);
         connectorFunctions.supportWriteRecord(this::writeRecord);
-        connectorFunctions.supportCreateIndex(this::createIndex);
+//        connectorFunctions.supportCreateIndex(this::createIndex);
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportReleaseExternalFunction(this::releaseExternal);
-    }
-
-    private void releaseExternal(TapConnectorContext tapConnectorContext) {
-        try {
-            KVMap<Object> stateMap = tapConnectorContext.getStateMap();
-            if (null != stateMap) {
-                stateMap.clear();
-            }
-        } catch (Throwable throwable) {
-            TapLogger.warn(TAG, "Release mysql state map failed, error: " + throwable.getMessage());
-        }
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
@@ -159,7 +155,7 @@ public class MariadbConnector extends ConnectorBase {
             return null;
         }
         TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
-        return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent,mysqlJdbcContext);
+        return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
     }
 
     private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
@@ -170,9 +166,9 @@ public class MariadbConnector extends ConnectorBase {
         return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
     }
 
-    private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) throws Throwable {
+    private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) {
         List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
-        SqlMaker sqlMaker =  new MysqlMaker();
+        SqlMaker sqlMaker = new MysqlMaker();
         for (TapIndex tapIndex : indexList) {
             String createIndexSql;
             try {
@@ -202,7 +198,7 @@ public class MariadbConnector extends ConnectorBase {
     }
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
+    public void onStop(TapConnectionContext connectionContext) {
         try {
             this.mysqlJdbcContext.close();
         } catch (Exception e) {
@@ -269,7 +265,7 @@ public class MariadbConnector extends ConnectorBase {
         }
         List<TapEvent> tempList = new ArrayList<>();
         this.mysqlReader.readWithOffset(tapConnectorContext, tapTable, mysqlSnapshotOffset, n -> !isAlive(), (data, snapshotOffset) -> {
-            TapRecordEvent tapRecordEvent = tapRecordWrapper(tapConnectorContext, null, data, tapTable, "i");
+            TapRecordEvent tapRecordEvent = tapRecordWrapper(tapConnectorContext, data, tapTable);
             tempList.add(tapRecordEvent);
             if (tempList.size() == batchSize) {
                 consumer.accept(tempList, mysqlSnapshotOffset);
@@ -282,7 +278,7 @@ public class MariadbConnector extends ConnectorBase {
         }
     }
 
-    private void query(TapConnectorContext tapConnectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable tapTable, Consumer<FilterResults> consumer) throws Throwable {
+    private void query(TapConnectorContext tapConnectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable tapTable, Consumer<FilterResults> consumer) {
         FilterResults filterResults = new FilterResults();
         filterResults.setFilter(tapAdvanceFilter);
         try {
@@ -317,21 +313,9 @@ public class MariadbConnector extends ConnectorBase {
         return count;
     }
 
-    private TapRecordEvent tapRecordWrapper(TapConnectorContext tapConnectorContext, Map<String, Object> before, Map<String, Object> after, TapTable tapTable, String op) {
+    private TapRecordEvent tapRecordWrapper(TapConnectorContext tapConnectorContext, Map<String, Object> after, TapTable tapTable) {
         TapRecordEvent tapRecordEvent;
-        switch (op) {
-            case "i":
-                tapRecordEvent = TapSimplify.insertRecordEvent(after, tapTable.getId());
-                break;
-            case "u":
-                tapRecordEvent = TapSimplify.updateDMLEvent(before, after, tapTable.getId());
-                break;
-            case "d":
-                tapRecordEvent = TapSimplify.deleteDMLEvent(before, tapTable.getId());
-                break;
-            default:
-                throw new IllegalArgumentException("Operation " + op + " not support");
-        }
+        tapRecordEvent = TapSimplify.insertRecordEvent(after, tapTable.getId());
         tapRecordEvent.setConnector(tapConnectorContext.getSpecification().getId());
         tapRecordEvent.setConnectorVersion(version);
         return tapRecordEvent;
@@ -345,36 +329,17 @@ public class MariadbConnector extends ConnectorBase {
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
-        onStart(databaseContext);
         ConnectionOptions connectionOptions = ConnectionOptions.create();
-        MariadbConnectionTest mariadbConnectionTest = new MariadbConnectionTest(mysqlJdbcContext);
-        TestItem testHostPort = mariadbConnectionTest.testHostPort(databaseContext);
-        consumer.accept(testHostPort);
-        if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-            return null;
+        databaseContext.getSpecification().setId("mysql");
+        CommonDbConfig commonDbConfig = new CommonDbConfig();
+        commonDbConfig.set__connectionType(databaseContext.getConnectionConfig().getString("__connectionType"));
+        try (
+                MariadbConnectionTest mariadbConnectionTest = new MariadbConnectionTest(new MysqlJdbcContext(databaseContext),
+                        databaseContext, consumer, commonDbConfig, connectionOptions);
+        ) {
+            mariadbConnectionTest.testOneByOne();
+            return connectionOptions;
         }
-        TestItem testConnect = mariadbConnectionTest.testConnect();
-        consumer.accept(testConnect);
-        if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-            return null;
-        }
-        TestItem testDatabaseVersion = mariadbConnectionTest.testDatabaseVersion();
-        consumer.accept(testDatabaseVersion);
-        if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
-            return null;
-        }
-        TestItem binlogMode = mariadbConnectionTest.testBinlogMode();
-        TestItem binlogRowImage = mariadbConnectionTest.testBinlogRowImage();
-        TestItem cdcPrivileges = mariadbConnectionTest.testCDCPrivileges();
-        consumer.accept(binlogMode);
-        consumer.accept(binlogRowImage);
-        consumer.accept(cdcPrivileges);
-        consumer.accept(mariadbConnectionTest.testCreateTablePrivilege(databaseContext));
-        if (binlogMode.isSuccess() && binlogRowImage.isSuccess() && cdcPrivileges.isSuccess()) {
-            List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDL_PARSER_TYPE);
-            ddlCapabilities.forEach(connectionOptions::capability);
-        }
-        return connectionOptions;
     }
 
     private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {

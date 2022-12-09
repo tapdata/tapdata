@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.cache.EhcacheService;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.cache.EhcacheKVMap;
 import org.apache.commons.collections4.MapUtils;
@@ -49,13 +50,11 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	public static TapTableMap<String, TapTable> create(String nodeId) {
-		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
-		tapTableMap
-						.nodeId(nodeId)
-						.time(null)
-						.tableNameAndQualifiedNameMap(new HashMap<>())
-						.init(null);
-		return tapTableMap;
+		return create(null, nodeId);
+	}
+
+	public static TapTableMap<String, TapTable> create(String prefix, String nodeId) {
+		return create(prefix, nodeId, new HashMap<>(), null);
 	}
 
 	public static TapTableMap<String, TapTable> create(String nodeId, Map<String, String> tableNameAndQualifiedNameMap) {
@@ -80,18 +79,17 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	public static TapTableMap<String, TapTable> create(String nodeId, TapTable tapTable) {
 		return create(nodeId, Collections.singletonList(tapTable), null);
 	}
-	public static TapTableMap<String, TapTable> create(String nodeId, List<TapTable> tapTableList, Long time) {
-		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
 
+	public static TapTableMap<String, TapTable> create(String nodeId, List<TapTable> tapTableList, Long time) {
+		return create(null, nodeId, tapTableList, time);
+	}
+
+	public static TapTableMap<String, TapTable> create(String prefix, String nodeId, List<TapTable> tapTableList, Long time) {
 		HashMap<String, String> tableNameAndQualifiedNameMap = new HashMap<>();
 		for (TapTable tapTable : tapTableList) {
 			tableNameAndQualifiedNameMap.put(tapTable.getName(), tapTable.getId());
 		}
-		tapTableMap
-						.nodeId(nodeId)
-						.time(time)
-						.tableNameAndQualifiedNameMap(tableNameAndQualifiedNameMap)
-						.init(null);
+		TapTableMap<String, TapTable> tapTableMap = create(prefix, nodeId, tableNameAndQualifiedNameMap, time);
 		for (TapTable tapTable : tapTableList) {
 			tapTableMap.put(tapTable.getId(), tapTable);
 		}
@@ -109,14 +107,22 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		if (StringUtils.isNotEmpty(prefix)) {
 			this.mapKey = prefix + "_" + this.mapKey;
 		}
-		EhcacheKVMap<TapTable> tapTableMap = EhcacheKVMap.create(mapKey, TapTable.class)
-				.cachePath(DIST_CACHE_PATH)
-				.maxHeapEntries(MAX_HEAP_ENTRIES)
-//				.maxOffHeapMB(CommonUtils.getPropertyInt(TAP_TABLE_OFF_HEAP_MB_KEY, DEFAULT_OFF_HEAP_MB))
-				.maxDiskMB(CommonUtils.getPropertyInt(TAP_TABLE_DISK_MB_KEY, DEFAULT_DISK_MB))
-				.init();
-		EhcacheService.getInstance().putEhcacheKVMap(mapKey, tapTableMap);
+		createEhcacheMap();
 		return this;
+	}
+
+	private void createEhcacheMap() {
+		try {
+			EhcacheKVMap<TapTable> tapTableMap = EhcacheKVMap.create(this.mapKey, TapTable.class)
+					.cachePath(DIST_CACHE_PATH)
+					.maxHeapEntries(MAX_HEAP_ENTRIES)
+					//				.maxOffHeapMB(CommonUtils.getPropertyInt(TAP_TABLE_OFF_HEAP_MB_KEY, DEFAULT_OFF_HEAP_MB))
+					.maxDiskMB(CommonUtils.getPropertyInt(TAP_TABLE_DISK_MB_KEY, DEFAULT_DISK_MB))
+					.init();
+			EhcacheService.getInstance().putEhcacheKVMap(mapKey, tapTableMap);
+		} catch (Throwable e) {
+			throw new RuntimeException(String.format("Failed to create Ehcache TapTableMap, node id: %s, map name: %s, error: %s", nodeId, mapKey, e.getMessage()));
+		}
 	}
 
 	public String getQualifiedName(String tableName) {
@@ -276,18 +282,35 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	private TapTable getTapTable(K key) {
-		EhcacheKVMap<TapTable> tapTableMap = EhcacheService.getInstance().getEhcacheKVMap(this.mapKey);
-		AtomicReference<TapTable> tapTable = new AtomicReference<>(tapTableMap.get(key));
+		AtomicReference<EhcacheKVMap<TapTable>> tapTableMap = new AtomicReference<>();
+		tapTableMap.set(EhcacheService.getInstance().getEhcacheKVMap(this.mapKey));
+		if (null == tapTableMap.get()) {
+			try {
+				handleWithLock(() -> {
+					tapTableMap.set(EhcacheService.getInstance().getEhcacheKVMap(this.mapKey));
+					if (null == tapTableMap.get()) {
+						createEhcacheMap();
+						tapTableMap.set(EhcacheService.getInstance().getEhcacheKVMap(this.mapKey));
+					}
+				});
+			} catch (Throwable e) {
+				throw new RuntimeException(String.format("Create TapTableMap failed, node id: %s, map name: %s, error: %s", nodeId, mapKey, e.getMessage()), e);
+			}
+		}
+		if (null == tapTableMap.get()) {
+			throw new IllegalArgumentException(String.format("Cannot create TapTableMap, node id: %s, map name: %s", nodeId, mapKey));
+		}
+		AtomicReference<TapTable> tapTable = new AtomicReference<>();
 		if (null == tapTable.get()) {
 			try {
 				handleWithLock(() -> {
-					tapTable.set(tapTableMap.get(key));
+					tapTable.set(tapTableMap.get().get(key));
 					if (null == tapTable.get()) {
 						tapTable.set(findSchema(key));
-						tapTableMap.put(key, tapTable.get());
+						tapTableMap.get().put(key, tapTable.get());
 					}
 				});
-			} catch (Exception e) {
+			} catch (Throwable e) {
 				throw new RuntimeException("Find schema failed, message: " + e.getMessage(), e);
 			}
 		}
@@ -380,5 +403,34 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 			ehcacheService.removeEhcacheKVMap(mapKey);
 		}
 		this.tableNameAndQualifiedNameMap.clear();
+	}
+
+	public Iterator<io.tapdata.entity.utils.cache.Entry<TapTable>> iterator() {
+		java.util.Iterator<K> iterator = tableNameAndQualifiedNameMap.keySet().iterator();
+		return new Iterator<io.tapdata.entity.utils.cache.Entry<TapTable>>() {
+
+			@Override
+			public boolean hasNext() {
+				return iterator.hasNext();
+			}
+
+			@Override
+			public io.tapdata.entity.utils.cache.Entry<TapTable> next() {
+				String tableName = iterator.next();
+				//noinspection unchecked
+				TapTable tapTable = getTapTable((K) tableName);
+				return new io.tapdata.entity.utils.cache.Entry<TapTable>() {
+					@Override
+					public String getKey() {
+						return tableName;
+					}
+
+					@Override
+					public TapTable getValue() {
+						return tapTable;
+					}
+				};
+			}
+		};
 	}
 }

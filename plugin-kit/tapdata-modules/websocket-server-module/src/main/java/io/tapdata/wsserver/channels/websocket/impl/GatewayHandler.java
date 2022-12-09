@@ -15,6 +15,7 @@ import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.websocket.event.*;
 import io.tapdata.wsserver.channels.websocket.utils.NetUtils;
 import io.tapdata.wsserver.eventbus.EventBusHolder;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 
 public class GatewayHandler extends AbstractWebSocketServerHandler {
     private final static String TAG = GatewayHandler.class.getSimpleName();
@@ -54,34 +55,34 @@ public class GatewayHandler extends AbstractWebSocketServerHandler {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        TapLogger.info(TAG, "exceptionCaught $ctx $cause");
+        TapLogger.debug(TAG, "exceptionCaught {} {}", ctx, ExceptionUtils.getStackTrace(cause));
 
-        Channel channel = ctx.channel();
-        if(channel != null && channel.isActive()) {
-            String forId = null;
-            Integer code = null;
-            if(cause instanceof WSCoreException) {
-                WSCoreException wsCoreException = (WSCoreException) cause;
-                forId = wsCoreException.getForId();
-                code = wsCoreException.getCode();
-            } else if(cause instanceof CoreException) {
-                CoreException coreException = (CoreException) cause;
-                code = coreException.getCode();
-            } else {
-                code = WSErrors.ERROR_UNKNOWN;
-            }
-
-            try {
-                sendResult(ctx, Result.create().forId(forId).code(code).time(System.currentTimeMillis()));
-            } catch(Throwable ignored) {} finally {
-                try { channel.close(); } catch(Throwable ignored) {}
-            }
-        }
+//        Channel channel = ctx.channel();
+//        if(channel != null && channel.isActive()) {
+//            String forId = null;
+//            Integer code = null;
+//            if(cause instanceof WSCoreException) {
+//                WSCoreException wsCoreException = (WSCoreException) cause;
+//                forId = wsCoreException.getForId();
+//                code = wsCoreException.getCode();
+//            } else if(cause instanceof CoreException) {
+//                CoreException coreException = (CoreException) cause;
+//                code = coreException.getCode();
+//            } else {
+//                code = WSErrors.ERROR_UNKNOWN;
+//            }
+//
+//            try {
+//                sendResult(ctx, Result.create().forId(forId).code(code).description(cause.getMessage()).time(System.currentTimeMillis()));
+//            } catch(Throwable ignored) {} finally {
+//                try { channel.close(); } catch(Throwable ignored) {}
+//            }
+//        }
     }
 
     @Override
     protected void messageReceived(ChannelHandlerContext ctx, BinaryWebSocketFrame webSocketFrame) {
-//        TapLogger.info(TAG, "messageReceived $ctx $webSocketFrame");
+//        TapLogger.debug(TAG, "messageReceived $ctx $webSocketFrame");
         byte[] body = null;
 
         ByteBuf byteBuf = webSocketFrame.content();

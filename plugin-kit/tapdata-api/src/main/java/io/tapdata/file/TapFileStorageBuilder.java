@@ -2,6 +2,7 @@ package io.tapdata.file;
 
 import io.tapdata.entity.error.CoreException;
 
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
 
@@ -22,7 +23,7 @@ public class TapFileStorageBuilder {
 		return this;
 	}
 
-	public TapFileStorage build() {
+	public TapFileStorage build() throws Exception {
 		if(storageClassName == null)
 			throw new CoreException(FileErrors.MISSING_STORAGE_CLASS_NAME, "Missing storage class name");
 

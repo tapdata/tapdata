@@ -54,11 +54,12 @@ public class TapEventPartitionKeySelector implements PartitionKeySelector<TapEve
 		if (CollectionUtils.isEmpty(values)) {
 			return values;
 		}
-		Object firstElem = values.get(0);
-		if (firstElem instanceof TapValue) {
-			return values.stream().filter(Objects::nonNull).map(v -> ((TapValue)v).getOriginValue()).collect(Collectors.toList());
-		} else {
-			return values;
-		}
+		return values.stream().filter(Objects::nonNull).map(v->{
+			if (v instanceof TapValue) {
+				return ((TapValue<?, ?>) v).getValue();
+			} else {
+				return v;
+			}
+		}).collect(Collectors.toList());
 	}
 }

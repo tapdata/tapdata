@@ -4,7 +4,7 @@ import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.task.config.TaskConfig;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.compare.IAutoCompare;
 import com.tapdata.tm.autoinspect.connector.IPdkConnector;
@@ -36,9 +36,9 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
     private final @NonNull ClientMongoOperator clientMongoOperator;
     private final @NonNull AutoInspectNode node;
     private final @NonNull Map<String, Connections> connectionMap;
-    private final @NonNull TaskConfig taskConfig;
+    private final @NonNull DataProcessorContext dataProcessorContext;
 
-    public PdkAutoInspectRunner(@NonNull ObsLogger userLogger, @NonNull String taskId, @NonNull TaskType taskType, AutoInspectProgress progress, @NonNull AutoInspectNode node, @NonNull ClientMongoOperator clientMongoOperator, @NonNull TaskConfig taskConfig) {
+    public PdkAutoInspectRunner(@NonNull ObsLogger userLogger, @NonNull String taskId, @NonNull TaskType taskType, AutoInspectProgress progress, @NonNull AutoInspectNode node, @NonNull ClientMongoOperator clientMongoOperator, @NonNull DataProcessorContext dataProcessorContext) {
         super(userLogger, taskId, taskType, progress);
         this.clientMongoOperator = clientMongoOperator;
         this.node = node;
@@ -46,7 +46,7 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
                 node.getFromNode().getConnectionId(),
                 node.getToNode().getConnectionId()
         )));
-        this.taskConfig = taskConfig;
+        this.dataProcessorContext = dataProcessorContext;
     }
 
     @Override
@@ -55,7 +55,7 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
             throw new RuntimeException("create node failed because source connection not found: " + s);
         });
         DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, conn.getPdkHash());
-        return new PdkConnector(clientMongoOperator, taskId, node.getFromNode().getId(), getClass().getSimpleName() + "-" + node.getFromNode().getId(), conn, databaseType, this::isRunning, taskConfig.getTaskRetryConfig());
+        return new PdkConnector(clientMongoOperator, taskId, node.getFromNode().getId(), PdkAutoInspectRunner.class.getSimpleName() + "-" + node.getFromNode().getId(), conn, databaseType, this::isRunning, dataProcessorContext.getTaskConfig().getTaskRetryConfig());
     }
 
     @Override
@@ -64,7 +64,7 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
             throw new RuntimeException("create node failed because target connection not found: " + s);
         });
         DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, conn.getPdkHash());
-        return new PdkConnector(clientMongoOperator, taskId, node.getToNode().getId(), getClass().getSimpleName() + "-" + node.getToNode().getId(), conn, databaseType, this::isRunning, taskConfig.getTaskRetryConfig());
+        return new PdkConnector(clientMongoOperator, taskId, node.getToNode().getId(), PdkAutoInspectRunner.class.getSimpleName() + "-" + node.getToNode().getId(), conn, databaseType, this::isRunning, dataProcessorContext.getTaskConfig().getTaskRetryConfig());
     }
 
     @Override

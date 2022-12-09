@@ -10,18 +10,18 @@ import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 
+import java.util.Map;
+
 
 public class TapConnectorContext extends TapConnectionContext {
     protected ConnectorCapabilities connectorCapabilities;
-    protected DataMap nodeConfig;
     protected KVReadOnlyMap<TapTable> tableMap;
     protected KVMap<Object> stateMap;
     protected KVMap<Object> globalStateMap;
     protected ConfigContext configContext;
 
     public TapConnectorContext(TapNodeSpecification specification, DataMap connectionConfig, DataMap nodeConfig) {
-        super(specification, connectionConfig);
-        this.nodeConfig = nodeConfig;
+        super(specification, connectionConfig, nodeConfig);
     }
 
     /**

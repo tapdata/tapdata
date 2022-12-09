@@ -445,12 +445,10 @@ public class ReflectionUtil {
     public static long getCrc(String className, String methodName) {
         if (methodName == null || className == null)
             return -1;
-        String name = methodName;
         CRC32 crc = new CRC32();
-        String str = name + "#" + className;
+        String str = methodName + "#" + className;
         crc.update(str.getBytes());
-        long value = crc.getValue();
-        return value;
+        return crc.getValue();
     }
 
     public static long getCrc(Method method, String service) {

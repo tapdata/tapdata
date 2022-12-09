@@ -10,7 +10,6 @@ import uuid
 import re
 from logging import *
 from platform import python_version
-from types import FunctionType
 from typing import Iterable, Tuple, Sequence
 
 import asyncio
@@ -28,18 +27,16 @@ os.environ['PYTHONSTARTUP'] = '>>>'
 os.environ["PROJECT_PATH"] = os.sep.join([os.path.dirname(os.path.abspath(__file__)), ".."])
 
 from tapdata_cli.graph import Node, Graph
-from tapdata_cli.rules import job_config
 from tapdata_cli.check import ConfigCheck
-from tapdata_cli.request import RequestSession
 from tapdata_cli.log import logger, get_log_level
-from tapdata_cli.config_parse import Config
+from tapdata_cli.config_parse import config
+from tapdata_cli.request import DataSourceApi, InspectApi, TaskApi, set_req
+from tapdata_cli.params.datasource import pdk_config, DATASOURCE_CONFIG
+from tapdata_cli.params.job import job_config, node_config, node_config_sync
 
-
-config: Config = Config()
 server = config["backend.server"]
+req = set_req(server)
 access_code = config["backend.access_code"]
-
-req: RequestSession = RequestSession(server)
 
 
 # Helper class, used to provide operation tips
@@ -309,6 +306,9 @@ client_cache = {
     "apis": {
         "name_index": {}
     },
+    "apiserver": {
+        "name_index": {}
+    },
     "connectors": {}
 }
 
@@ -384,7 +384,7 @@ def get_table_fields(t, whole=False, source=None, cache=True):
         index_type = "id_index"
     if index_type == "id_index":
         table_id = t
-    if client_cache["tables"].get(source) is None:
+    if client_cache["tables"].get(t) is None:
         show_tables(quiet=True, source=source)
 
     table = client_cache["tables"][source][index_type].get(t, None)
@@ -423,49 +423,12 @@ def get_table_fields(t, whole=False, source=None, cache=True):
 # generate dag stage, used by dag object, stage is used to describe a dag in server
 def gen_dag_stage(obj):
     objType = type(obj)
-    pdkHash = ""
-    if objType == Source or objType == Sink:
-        if obj.databaseType.lower() in client_cache["connectors"]:
-            pdkHash = client_cache["connectors"][obj.databaseType.lower()]["pdkHash"]
 
     if objType == Source:
-        return {
-            "attrs": {
-                "accessNodeProcessId": "",
-                "connectionType": "source_and_target",
-                "position": [0, 0],
-                "pdkType": "pdk",
-                "pdkHash": pdkHash
-            },
-            "connectionId": obj.connectionId,
-            "databaseType": obj.databaseType,
-            "database_type": obj.databaseType,
-            "id": str(obj.id),
-            "tableName": obj.tableName,
-            "name": obj.tableName,
-            "type": "table",
-            "totalReadMethod": "fullRead",
-            "increasePoll": "fullRead",
-            "increaseReadSize": 100,
+        return obj.to_dict()
 
-        }
     if objType == Sink:
-        return {
-            "attrs": {
-                "accessNodeProcessId": "",
-                "connectionType": "source_and_target",
-                "position": [0, 0],
-                "pdkHash": pdkHash,
-                "pdkType": "pdk"
-            },
-            "connectionId": obj.connectionId,
-            "databaseType": obj.databaseType,
-            "id": str(obj.id),
-            "tableId": obj.tableId,
-            "tableName": obj.tableName,
-            "name": obj.tableName,
-            "type": "table"
-        }
+        return obj.to_dict()
 
     if objType == Merge:
         return obj.to_dict()
@@ -560,10 +523,37 @@ def show_jobs(quiet=False):
     client_cache["jobs"] = jobs
 
 
+def show_apiserver(quite=False):
+    global client_cache
+    items = ApiServer.list()
+    if not quite:
+        logger.log(
+            "{} {} {}",
+            pad("id", 20),
+            pad("name", 20),
+            pad("uri", 40),
+            "debug", "debug", "debug"
+        )
+    for i, v in enumerate(items):
+        client_cache["apiserver"]["name_index"][v["clientName"]] = {
+            "id": v["id"],
+            "name": v["clientName"],
+            "uri": v["clientURI"],
+        }
+        if not quite:
+            logger.log(
+                "{} {} {}",
+                pad(v["id"][:6], 20),
+                pad(v["clientName"], 20),
+                pad(v["clientURI"], 40),
+                "notice", "info", "notice"
+            )
+
+
 # show all apis
 def show_apis(quiet=False):
     global client_cache
-    res = req.get("/Modules")
+    res = req.get("/Modules", params={"order":"createAt DESC","limit":20,"skip":0,"where":{}})
     data = res.json()["data"]["items"]
     client_cache["apis"]["name_index"] = {}
     if not quiet:
@@ -576,16 +566,19 @@ def show_apis(quiet=False):
             "test url", "debug", "debug", "debug", "debug", "debug"
         )
     for i in range(len(data)):
-        client_cache["apis"]["name_index"][data[i]["basePath"]] = {
+        client_cache["connections"]["id_index"][data[i]["datasource"]]["name"]
+        client_cache["apis"]["name_index"][data[i]["name"]] = {
             "id": data[i]["id"],
-            "table": data[i]["tablename"],
-            "name": data[i]["name"]
+            "table": data[i]["tableName"],
+            "name": data[i]["name"],
+            "tableName": data[i]["tableName"],
+            "database": client_cache["connections"]["id_index"][data[i]["datasource"]]["name"],
         }
         if not quiet:
             logger.log(
                 "{} {} {} {} {}",
                 pad(data[i]["name"], 20),
-                pad(data[i]["tablename"], 20),
+                pad(data[i]["tableName"], 20),
                 pad(data[i]["basePath"], 20),
                 pad(data[i]["status"], 10),
                 "http://" + server + "#/apiDocAndTest?id=" + data[i]["basePath"] + "_v1",
@@ -1037,6 +1030,7 @@ class show_command(Magics):
         try:
             eval("show_" + line + "()")
         except Exception as e:
+            print(traceback.format_exc())
             eval("show_db('" + line + "')")
 
     @line_magic
@@ -1212,8 +1206,8 @@ def desc_table(line):
 
 def login_with_access_code(server, access_code):
     global system_server_conf, req
+    req = set_req(server)
     api = "http://" + server + "/api"
-    req = RequestSession(server)
     res = req.post("/users/generatetoken", json={"accesscode": access_code})
     if res.status_code != 200:
         logger.warn("init get token request fail, err is: {}", res.json())
@@ -1300,14 +1294,6 @@ class system_command(Magics):
         _l = i18n[_lang]
 
 
-ip = TerminalInteractiveShell.instance()
-ip.register_magics(global_help)
-ip.register_magics(system_command)
-ip.register_magics(show_command)
-ip.register_magics(op_object_command)
-ip.register_magics(ApiCommand)
-
-
 @help_decorate("Enum, used to describe a job status")
 class JobStatus():
     edit = "edit"
@@ -1318,6 +1304,7 @@ class JobStatus():
     stopping = 'stopping'
     complete = "complete"
     wait_run = "wait_run"
+    error = "error"
 
 
 @help_decorate("Enum, used to describe a connection readable or writeable")
@@ -1328,10 +1315,9 @@ class ConnectionType:
 
 
 @help_decorate("Enum, used to describe write mode for a row")
-class WriteMode():
-    upsert = "updateOrInsert"
-    update = "updateWrite"
-    upsert_array = "merge_embed"
+class WriteMode:
+    updateOrInsert = "updateOrInsert"
+    appendWrite = "appendWrite"
 
 
 upsert = "updateOrInsert"
@@ -1347,31 +1333,14 @@ class SyncType:
 
 @help_decorate("Enum, used to config action before sync data")
 class DropType:
-    no_drop = "no_drop"
-    data = "drop_data"
-    all = "drop_schema"
+    drop_table = "dropTable"
+    remove_data = "removeData"
+    keep_data = "keepData"
 
 
 no_drop = "no_drop"
 drop_data = "drop_data"
 drop_schema = "drop_schema"
-
-
-@help_decorate("Single Table Relation, used to config how a row from source infect it's sink")
-class SingleTableRelation:
-    def __init__(self, writeMode, association, path="", array_key=""):
-        self.writeMode = writeMode
-        self.association = association
-        self.path = path
-        self.array_key = array_key
-
-
-@help_decorate("Multi Table Relation used to add prefix/suffix when migrate multi tables")
-class MultiTableRelation:
-    def __init__(self, prefix="", suffix="", drop_type=DropType.no_drop):
-        self.prefix = prefix
-        self.suffix = suffix
-        self.drop_type = drop_type
 
 
 class BaseObj:
@@ -1387,7 +1356,7 @@ class MergeNode(BaseObj):
                  node_id: str,
                  table_name: str,
                  association: Iterable[Sequence[Tuple[str, str]]],
-                 mergeType=WriteMode.update,
+                 mergeType=WriteMode.updateOrInsert,
                  targetPath=""
                  ):
         self.node_id = node_id
@@ -1424,7 +1393,7 @@ class Merge(MergeNode):
                  node_id: str,
                  table_name: str,
                  association: Iterable[Sequence[Tuple[str, str]]],
-                 mergeType=WriteMode.update,
+                 mergeType=WriteMode.updateOrInsert,
                  targetPath=""
                  ):
         super(Merge, self).__init__(
@@ -1599,12 +1568,15 @@ class JobType:
 
 
 class JobStats:
-    input = 0
-    output = 0
-    insert = 0
-    update = 0
-    delete = 0
-    delay = 0
+    qps = 0
+    total = 0
+    input_insert = 0
+    input_update = 0
+    input_delete = 0
+    output_insert = 0
+    output_update = 0
+    output_Delete = 0
+    snapshot_done_at = 0
 
 
 class LogMinerMode:
@@ -1615,10 +1587,12 @@ class LogMinerMode:
 @help_decorate("use to define a stream pipeline", "p = new Pipeline($name).readFrom($source).writeTo($sink)")
 class Pipeline:
     @help_decorate("__init__ method", args="p = Pipeline($name)")
-    def __init__(self, name=None):
+    def __init__(self, name=None, mode="migrate"):
         if name is None:
             name = str(uuid.uuid4())
         self.dag = Dag(name="name")
+        self.dag.config({})
+        self.dag.jobType = mode
         self.stage = None
         self.job = None
         self.check_job = None
@@ -1630,67 +1604,47 @@ class Pipeline:
         self.get()
         self.cache_sinks = {}
 
+    def mode(self, value):
+        self.dag.jobType = value
+
     @help_decorate("read data from source", args="p.readFrom($source)")
     def readFrom(self, source):
-        if type(source) == type(QuickDataSourceMigrateJob()):
+        if isinstance(source, QuickDataSourceMigrateJob):
             source = source.__db__
-        if type(source) == type(""):
+            source = Source(source)
+        elif isinstance(source, str):
             if "." in source:
-                db = source.split(".")[0]
-                table = source.split(".")[1]
-                source = Source(db, table)
+                db, table = source.split(".")
+                source = Source(db, table, mode=self.dag.jobType)
             else:
-                db = source
-                source = Source(db)
-        if source.type == "database":
-            self.dag.jobType = JobType.migrate
-        else:
-            self.dag.jobType = JobType.sync
+                source = Source(source, mode=self.dag.jobType)
         self.sources.append(source)
         return self._clone(source)
 
     @help_decorate("write data to sink", args="p.writeTo($sink, $relation)")
-    def writeTo(self, sink, relation=MultiTableRelation(), writeMode=WriteMode.upsert, ttl="", prefix="", suffix="",
-                path="", array_key="", association=[], drop_type=""):
-        if type(sink) == type(QuickDataSourceMigrateJob()):
+    def writeTo(self, sink):
+        if isinstance(sink, QuickDataSourceMigrateJob):
             sink = sink.__db__
-        if type(sink) == type(""):
-            if sink in self.cache_sinks:
-                sink = self.cache_sinks[sink]
+            sink = Sink(sink)
+        elif isinstance(sink, str):
+            if "." in sink:
+                db, table = sink.split(".")
+                sink = Sink(db, table, mode=self.dag.jobType)
             else:
-                if "." in sink:
-                    db = sink.split(".")[0]
-                    table = sink.split(".")[1]
-                    self.cache_sinks[sink] = Sink(db, table)
-                else:
-                    db = sink.split(".")[0]
-                    self.cache_sinks[sink] = Sink(db)
-                sink = self.cache_sinks[sink]
-        if self.dag.jobType == JobType.sync and type(relation) == type(MultiTableRelation()):
-            auto_association = []
-            for pk in self.sources[len(self.sources) - 1].primary_key:
-                auto_association.append((pk, pk))
-            relation = SingleTableRelation(writeMode=writeMode, association=auto_association)
-        if self.dag.jobType == JobType.migrate:
-            if relation.prefix == "" and prefix != "":
-                relation.prefix = prefix
-            if relation.suffix == "" and suffix != "":
-                relation.suffix = suffix
-            if drop_type != "":
-                relation.drop_type = drop_type
+                sink = Sink(sink, mode=self.dag.jobType)
+
         if self.dag.jobType == JobType.sync:
-            if relation.array_key == "" and array_key != "":
-                relation.array_key = array_key
-            if relation.path == "" and path != "":
-                relation.path = path
-            if len(relation.association) == 0 and len(association) != 0:
-                relation.association = association
-        self.dag.edge(self.stage, sink, relation, ttl)
-        self.sinks.append({"sink": sink, "relation": relation})
+            primary_key = self.sources[-1].primary_key
+            sink.config({
+                "updateConditionFields": primary_key,
+            })
+
+        self.dag.edge(self.stage, sink)
+        self.sinks.append({"sink": sink})
         return self._clone(sink)
 
     def _common_stage(self, f):
-        self.dag.edge(self.stage, f, None, "")
+        self.dag.edge(self.stage, f)
         return self._clone(f)
 
     def _common_stage2(self, p, f):
@@ -1704,10 +1658,10 @@ class Pipeline:
             for i in self.dag.dag["edges"]:
                 if i["target"] == p.stage.id:
                     i["target"] = f.id
-            self.dag.edge(self.stage, f, None, "")
+            self.dag.edge(self.stage, f)
         else:
-            self.dag.edge(self.stage, f, None, "")
-            self.dag.edge(p.stage, f, None, "")
+            self.dag.edge(self.stage, f)
+            self.dag.edge(p.stage, f)
         return self._clone(f)
 
     @help_decorate("using simple query filter data", args='p.filter("id > 2 and sex=male")')
@@ -1750,7 +1704,9 @@ class Pipeline:
         if type(script) == types.FunctionType:
             from metapensiero.pj.api import translates
             import inspect
-            js_script = translates(inspect.getsource(script))[0]
+            source_code = inspect.getsource(script)
+            source_code = "def process(" + source_code.split("(", 2)[1]
+            js_script = translates(source_code)[0]
             f = Js(js_script, False)
         else:
             if script.endswith(".js"):
@@ -1861,14 +1817,25 @@ class Pipeline:
         return self.config({"accurate_delay": True})
 
     @help_decorate("config pipeline", args="config map, please h pipeline_config get all config key and it's meaning")
-    def config(self, config: dict = None):
+    def config(self, config: dict = None, keep_extra=True):
 
         if not isinstance(config, dict):
             logger.warn("type {} must be {}", config, "dict", "notice", "notice")
             return
         mode = self.dag.jobType
-        resp = ConfigCheck(config, job_config[mode], keep_extra=True).checked_config
+        self.dag.config(config)
+        resp = ConfigCheck(self.dag.setting, job_config[mode], keep_extra=keep_extra).checked_config
         self.dag.config(resp)
+        return self
+
+    def include_cdc(self):
+        self.config({"type": "initial_sync+cdc"})
+        return self
+
+    def only_cdc(self, start_time=None):
+        self.config({"type": "cdc"})
+        if start_time is not None:
+            self.config_cdc_start_time(start_time)
         return self
 
     def readLogFrom(self, logMiner):
@@ -1920,16 +1887,7 @@ class Pipeline:
         job = Job(name=self.name, pipeline=self)
         job.validateConfig = self.validateConfig
         self.job = job
-        job.config(self.dag.setting)
-        job.config({
-            "sync_type": SyncType.both,
-            "stopOnError": True,
-            "needToCreateIndex": True,
-            "readBatchSize": 100,
-            "transformModelVersion": "v1",
-            "readShareLogMode": "STREAMING",
-            "processorConcurrency": 1
-        })
+        self.config({})
         job.config(self.dag.setting)
         if job.start():
             logger.info("job {} start running ...", self.name)
@@ -1958,19 +1916,78 @@ class Pipeline:
         if self.job is None:
             logger.warn("pipeline not start, no status can show")
             return self
-        logger.info("job {} status is: {}", self.name, self.job.status())
-        return self.job.status()
+        status = self.job.status()
+        logger.info("job {} status is: {}", self.name, status)
+        return status
 
-    def wait_status(self, status, t=30):
+    def wait_status(self, status, t=30, quiet=True):
+        if self.job is None:
+            logger.warn("pipeline not start, no status can show")
+            return self
+        s = time.time()
+        if type(status) == type(""):
+            status == [status]
+        while True:
+            if self.job.status() in status:
+                return True
+            if self.job.status() == JobStatus.error and JobStatus.error not in status:
+                return False
+            time.sleep(1)
+            if time.time() - s > t:
+                break
+        return False
+
+    def wait_stats(self, stats, t=30, quiet=True):
         if self.job is None:
             logger.warn("pipeline not start, no status can show")
             return self
         s = time.time()
         while True:
-            if self.job.status() == status:
-                time.sleep(10)
+            job_stats = self.job.stats().__dict__
+            ok = True
+            for k, v in stats.items():
+                if k not in job_stats:
+                    ok = False
+                    continue
+                if job_stats[k] != v:
+                    ok = False
+            if ok:
                 return True
             time.sleep(1)
+            if time.time() - s > t:
+                break
+        return False
+
+    def wait_initial_sync(self, t=30, quiet=True):
+        if self.job is None:
+            logger.warn("pipeline not start, no status can show")
+            return self
+        s = time.time()
+        while True:
+            stats = self.job.stats()
+            if stats.snapshot_done_at > 0:
+                if not quiet:
+                    logger.info("job {} initial sync finish, wait time is: {} seconds", self.job.name, int(time.time() - s))
+                return True
+            time.sleep(1)
+            if time.time() - s > t:
+                break
+        return False
+
+    # BUG:
+    # TODO:
+    def wait_cdc_delay(self, t=30, quiet=True):
+        if self.job is None:
+            logger.warn("pipeline not start, no status can show")
+            return self
+        s = time.time()
+        last_stats = self.job.stats()
+        while True:
+            time.sleep(6)
+            now_stats = self.job.stats()
+            if last_stats.input_insert == now_stats.input_insert and last_stats.input_update == now_stats.input_update and last_stats.input_delete == now_stats.input_delete:
+                return self
+            last_stats = now_stats
             if time.time() - s > t:
                 break
         return False
@@ -1988,34 +2005,33 @@ class Pipeline:
         self.job.monitor(t)
         return self
 
-    def check(self):
+    def check(self, count=10):
         if self.status() not in [JobStatus.running, JobStatus.stop, JobStatus.complete]:
             logger.warn(
                 "{}", "The status of this task is not in [running, stop, complete], unable to check data."
             )
             return
-        if self.check_job is None:
-            self.check_job = DataCheck(self.sources[0], self.sinks[0]["sink"], self.sinks[0]["relation"],
-                                       name=self.name)
-            self.check_job.start()
-        while True:
+        if not self.dag.setting.get("isAutoInspect"):
+            logger.warn("please set {} to enable auto inspect", "$pipeline.config({'isAutoInspect': True})", "info")
+            return
+        for _ in range(count):
             time.sleep(1)
-            if self.check_job.status() == "scheduling":
-                logger.info("prepareing for data check, please wait for a while ...", wrap=False, logger_header=True)
-                continue
-            stats = self.check_job.stats()
-            if self.check_job.status() == "running":
-                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False, logger_header=True)
-                continue
-            if self.check_job.status() == "done":
-                logger.log(
-                    "data check finished, check result is: {}, same row is number is: {}, diff row number is: {}",
-                    stats["result"],
-                    stats["row_passed"],
-                    stats["row_failed"],
-                    "info" if stats["result"] != "failed" else "error", "info",
-                    "warn"
-                )
+
+            data = InspectApi().post({"id": self.job.id})
+            if not data:
+                pass
+            data = data["data"]
+            diff_record = data.get("diffRecords", 0)
+            diff_tables = data.get("diffTables", 0)
+            totals = data.get("totals", 0)
+            ignore = data.get("ignore", 0)
+
+            logger.log(
+                "data check start, total is {}, ignore row number is {}, diff row number is {}, diff table number is {}",
+                totals, ignore, diff_record, diff_tables,
+                "info", "info", "warn", "warn",
+            )
+            if self.status() in [JobStatus.stop, JobStatus.complete, JobStatus.error]:
                 break
 
 
@@ -2030,20 +2046,45 @@ class Agg(BaseObj):
         self.ttl = ttl
 
 
-@help_decorate("source is start of a pipeline", "source = Source($Datasource, $table)")
-class Source:
-    def __getattr__(self, key):
-        return None
+class BaseNode:
 
     @help_decorate("__init__ method", args="connection, table, sql")
-    def __init__(self, connection, table=["_"], table_re=None, sql=""):
+    def __init__(self, connection, table=None, table_re=None, mode=JobType.migrate):
+        self.mode = mode
+        self.id = str(uuid.uuid4())
+        self.connection, self.table = self._get_connection_and_table(connection, table, table_re)
+        self.tableName = self.table
+        self.connectionId = str(self.connection.c["id"])
+        self.databaseType = self.connection.c["database_type"]
+        self.config_type = node_config if mode == JobType.migrate else node_config_sync
+        client_cache["connection"] = self.connectionId
+
+        self.source = None
+        self.setting = {
+            "connectionId": self.connectionId,
+            "databaseType": self.databaseType,
+            "id": self.id,
+            "name": self.connection.c["name"],
+            "attrs": {
+                "connectionType": self.connection.c["connection_type"],
+                "position": [0, 0],
+                "pdkType": "pdk",
+                "pdkHash": self.connection.c["pdkHash"],
+                "capabilities": self.connection.c["capabilities"],
+                "connectionName": self.connection.c["name"]
+            },
+            "type": "database" if self.mode == "migrate" else "table"
+        }
+
+    def _get_connection_and_table(self, connection, table, table_re):
         global client_cache
-        self.ori_connection = connection
-        if type(connection) == type(QuickDataSourceMigrateJob()):
+        if isinstance(connection, QuickDataSourceMigrateJob):
             connection = connection.__db__
         if client_cache.get("connections") is None:
             show_connections(quiet=True)
-        if type(connection) != type(Connection()):
+
+        # get connection
+        if not isinstance(connection, Connection):
             index_type = get_index_type(connection)
             if index_type == "short_id_index":
                 connection = match_line(client_cache["connections"]["id_index"], connection)
@@ -2054,11 +2095,24 @@ class Source:
                 table = connection_and_table[1]
             c = client_cache["connections"][index_type][connection]
             connection = Connection(id=c["id"])
-        if table == ["_"]:
+
+        # select all tables default if table not provide (only migrate mode)
+        if table is None and self.mode == JobType.migrate:
             if c["id"] not in client_cache["tables"]:
                 show_tables(source=connection.id, quiet=True)
             table = list(client_cache["tables"][c["id"]]["name_index"].keys())
-        if table_re is not None:
+        # select first table if table not provide (only sync mode)
+        if table is None and self.mode == JobType.sync:
+            if c["id"] not in client_cache["tables"]:
+                show_tables(source=connection.id, quiet=True)
+            try:
+                table = list(client_cache["tables"][c["id"]]["name_index"].keys())[0]
+            except IndexError:
+                logger.error("Source {} no table", c["name"])
+                return None, None
+
+        # filter table_re if table_re provide
+        if table_re is not None and self.mode == JobType.migrate:
             tables = []
             all_tables = show_tables(source=connection.id, quiet=True)
             import re
@@ -2067,40 +2121,22 @@ class Source:
                     continue
                 if re.match(table_re, t["original_name"]):
                     tables.append(t["original_name"])
-                table = tables
+            table = tables
+        return connection, table
 
-        if type(table) == type([]):
-            connection.c["type"] = "database"
-        else:
-            if c["database_type"] == "mongodb":
-                connection.c["type"] = "collection"
-            else:
-                connection.c["type"] = "table"
-        self.connection = connection
+    def to_dict(self):
+        self.config({})
+        return self.setting
 
-        self.id = str(uuid.uuid4())
-        self.connectionId = str(connection["id"])
-        self.databaseType = connection["database_type"]
-        self.type = connection["type"]
-        self.sql = sql
-
-        client_cache["connection"] = self.connectionId
-
-        if type(table) == type([]):
-            if len(table) > 0:
-                self.tableName = table[0]
-                self.table = table
-            else:
-                self.tableName = ""
-                self.table = []
-        else:
-            self.tableName = table
-            self.table = [table]
-
-        self.tableId = self._getTableId(self.tableName)
-        if self.tableId is None:
-            self.tableId = str(uuid.uuid4())
-        self.source = None
+    def config(self, config: dict = None, keep_extra=True):
+        if not isinstance(config, dict):
+            logger.warn("type {} must be {}", config, "dict", "notice", "notice")
+            return False
+        self.setting.update(config)
+        resp = ConfigCheck(self.setting, self.config_type[type(self).__name__.lower()],
+                           keep_extra=keep_extra).checked_config
+        self.setting.update(resp)
+        return True
 
     def test(self):
         self.connection.test()
@@ -2135,10 +2171,34 @@ class Source:
         self.cache_p.status()
 
 
+@help_decorate("source is start of a pipeline", "source = Source($Datasource, $table)")
+class Source(BaseNode):
+
+    def __init__(self, connection, table=None, mode="migrate"):
+        super().__init__(connection, table, mode=mode)
+        if self.mode == "migrate":
+            self.config_type = node_config
+            self.setting.update({
+                "tableNames": self.table
+            })
+        else:
+            self.config_type = node_config_sync
+            _ = self._getTableId(table)  # to set self.primary_key, don't delete this line
+            self.setting.update({
+                "tableName": table,
+            })
+
+
 @help_decorate("sink is end of a pipeline", "sink = Sink($Datasource, $table)")
 class Sink(Source):
-    def __init__(self, connection, table=["_"]):
-        super().__init__(connection, table)
+    def __init__(self, connection, table=None, mode="migrate"):
+        super().__init__(connection, table, mode=mode)
+        if self.mode == JobType.sync:
+            self.config_type = node_config_sync
+            _ = self._getTableId(table)  # to set self.primary_key, don't delete this line
+            self.setting.update({
+                "tableName": table,
+            })
 
 
 class Api:
@@ -2151,7 +2211,8 @@ class Api:
         if name is None:
             return
         else:
-            self.get(name)
+            if self.get(name):
+                table = f"{self.db}.{self.tablename}"
 
         if table is None:
             return
@@ -2170,133 +2231,90 @@ class Api:
         if db not in client_cache["connections"]["name_index"]:
             logger.warn("no Datasource {} found in system", db)
             return
-        db = client_cache["connections"]["name_index"][db]["id"]
+        db = client_cache["connections"]["name_index"][db]
 
-        fields = get_table_fields(table2, whole=True, source=db)
+        fields = get_table_fields(table2, whole=True, source=db["id"])
+        for index, field in enumerate(fields):
+            field["comment"] = ""
+            fields[index] = field
         self.base_path = base_path
         self.tablename = table2
         self.payload = {
             "apiType": "defaultApi",
-            "apiVersion": "v1",
+            "apiVersion": "",
             "basePath": base_path,
-            "createType": "",
-            "datasource": db,
-            "describtion": "",
-            "name": base_path,
-            "path": "/api/v1/" + base_path,
-            "readConcern": "majority",
-            "readPreference": "primary",
-            "status": "active",
-            "tablename": self.tablename,
+            "connectionId": db["id"],
+            "connectionName": db["name"],
+            "connectionType": db["database_type"],
+            "datasource": db["id"],
             "fields": fields,
-            "paths": [
-                {
-                    "acl": [
-                        "admin"
-                    ],
-                    "description": "Create a new record",
-                    "method": "POST",
-                    "name": "create",
-                    "path": "/api/v1/" + base_path,
-                    "result": "Document",
-                    "type": "preset"
-                },
-                {
-                    "acl": [
-                        "admin"
-                    ],
-                    "description": "Get records based on id",
-                    "method": "GET",
-                    "name": "findById",
-                    "params": [
-                        {
-                            "defaultvalue": 1,
-                            "description": "document id",
-                            "name": "id",
-                            "type": "string"
-                        }
-                    ],
-                    "path": "/api/v1/" + base_path + "/{id}",
-                    "result": "Document",
-                    "type": "preset"
-                },
-                {
-                    "acl": [
-                        "admin"
-                    ],
-                    "description": "Update record according to id",
-                    "method": "PATCH",
-                    "name": "updateById",
-                    "params": [
-                        {
-                            "defaultvalue": 1,
-                            "description": "document id",
-                            "name": "id",
-                            "type": "string"
-                        }
-                    ],
-                    "path": "/api/v1/" + base_path + "{id}",
-                    "result": "Document",
-                    "type": "preset"
-                },
-                {
-                    "acl": [
-                        "admin"
-                    ],
-                    "description": "Delete records based on id",
-                    "method": "DELETE",
-                    "name": "deleteById",
-                    "params": [
-                        {
-                            "description": "document id",
-                            "name": "id",
-                            "type": "string"
-                        }
-                    ],
-                    "path": "/api/v1/" + base_path + "{id}",
-                    "type": "preset"
-                },
-                {
-                    "acl": [
-                        "admin"
-                    ],
-                    "description": "Get records by page",
-                    "method": "GET",
-                    "name": "findPage",
-                    "params": [
-                        {
-                            "defaultvalue": 1,
-                            "description": "page number",
-                            "name": "page",
-                            "type": "int"
-                        },
-                        {
-                            "defaultvalue": 20,
-                            "description": "max records per page",
-                            "name": "limit",
-                            "type": "int"
-                        },
-                        {
-                            "description": "sort setting,Array ,format like [{'propertyName':'ASC'}]",
-                            "name": "sort",
-                            "type": "object"
-                        },
-                        {
-                            "description": "search filter object,Array",
-                            "name": "filter",
-                            "type": "object"
-                        }
-                    ],
-                    "path": "/api/v1/" + base_path,
-                    "result": "Page<Document>",
-                    "type": "preset"
-                }
-            ]
+            "listtags": [],
+            "name": name,
+            "operationType": "GET",
+            "prefix": "",
+            "readConcern": "",
+            "readPreference": "",
+            "readPreferenceTag": "",
+            "tableName": table2,
+            "tablename": table2,
+            "status": "generating",
+            "paths": [{
+                "acl": [
+                    "admin"
+                ],
+                "fields": fields,
+                "description": "Get records by page",
+                "method": "POST",
+                "name": "findPage",
+                "params": [
+                    {
+                        "defaultvalue": 1,
+                        "description": "page number",
+                        "name": "page",
+                        "type": "number",
+                        "require": True,
+                    },
+                    {
+                        "defaultvalue": 20,
+                        "description": "max records per page",
+                        "name": "limit",
+                        "type": "number",
+                        "require": True,
+                    },
+                    {
+                        "description": "sort setting,Array ,format like [{'propertyName':'ASC'}]",
+                        "name": "sort",
+                        "type": "object"
+                    },
+                    {
+                        "description": "search filter object,Array",
+                        "name": "filter",
+                        "type": "object"
+                    }
+                ],
+                "path": f"/api/{base_path}",
+                "result": "Page<Document>",
+                "type": "preset",
+                "sort": [],
+                "where": [],
+            }]
         }
 
     def publish(self):
         if self.id is None:
-            res = req.post("/Modules", json=self.payload).json()
+            res = req.post("/Modules", json=self.payload).json()  # save
+            id = res["data"]["id"]
+            payload = copy.deepcopy(self.payload)
+            payload.update({
+                "id": res["data"]["id"],
+                "status": "pending"
+            })
+            res = req.patch("/Modules", json=payload).json()["data"]
+            res = req.patch("/Modules", json={
+                "id": res["id"],
+                "status": "active",
+                "tableName": res["tableName"],
+            }).json()  # publish
             if res["code"] == "ok":
                 logger.info("publish api {} success, you can test it by: {}", self.base_path,
                             "http://" + server + "#/apiDocAndTest?id=" + self.base_path + "_v1")
@@ -2306,7 +2324,8 @@ class Api:
         else:
             payload = {
                 "id": self.id,
-                "status": "active"
+                "status": "active",
+                "tableName": self.tablename,
             }
             res = req.patch("/Modules", json=payload)
             res = res.json()
@@ -2321,18 +2340,30 @@ class Api:
             show_apis(quiet=True)
         api = client_cache["apis"]["name_index"].get(name)
         if api is None:
-            return None
+            return False
         api_id = api["id"]
         self.id = api_id
+        self.db = api["database"]
+        self.tablename = api["tableName"]
+        return True
+
+    def status(self, name):
+        res = req.get("/Modules")
+        data = res.json()["data"]["items"]
+        for i in data:
+            if i["name"] == name:
+                return i["status"]
+        return None
 
     def unpublish(self):
         if self.id is None:
             return
         payload = {
             "id": self.id,
-            "status": "pending"
+            "status": "pending",
+            "tableName": self.tablename,
         }
-        res = requests.patch("/Modules", json=payload)
+        res = req.patch("/Modules", json=payload)
         res = res.json()
         if res["code"] == "ok":
             logger.info("unpublish {} success", self.id)
@@ -2349,6 +2380,76 @@ class Api:
             logger.info("delete api {} success", self.name)
         else:
             logger.warn("delete api {} fail, err is: {}", self.name, res["message"])
+
+
+class ApiServer:
+    def __init__(self, id=None, name=None, uri=None):
+        logger.warn("This feature is expected to be abandoned in the future")
+        self.id = id
+        self.name = name
+        self.uri = uri
+        self.processId = str(uuid.uuid4())
+
+    def save(self):
+        url = "/ApiServers"
+        # update
+        item = False
+        if self.id:
+            item = self.get()
+        if self.id and item:
+            if item.get("createTime"):
+                del item["createTime"]
+            if self.name is not None:
+                item.update({"clientName": self.name})
+            if self.uri is not None:
+                item.update({"clientURI": self.uri})
+            res = req.patch(url, json=item)
+            if res.json()["code"] == "ok":
+                return res.json()["data"]
+            else:
+                return False
+        # create
+        else:
+            if not self.processId or not self.name or not self.uri:
+                logger.error("no attribute: {} not found", 'processId or name or uri')
+                return False
+            payload = {
+                "processId": self.processId,
+                "clientName": self.name,
+                "clientURI": self.uri,
+            }
+            res = req.post(url, json=payload)
+            if res.json()["code"] == "ok":
+                return res.json()["data"]
+            else:
+                return False
+
+    def delete(self):
+        if not isinstance(self.id, str) and not self.id:
+            logger.error("id must be set")
+            return False
+        url = "/ApiServers/" + self.id
+        res = req.delete(url)
+        if res.json()["code"] == "ok":
+            return True
+        else:
+            return False
+
+    def get(self):
+        items = self.list()
+        for item in items:
+            if item["id"] == self.id:
+                return item
+        return False
+
+    @classmethod
+    def list(cls):
+        url = "/ApiServers"
+        res = req.get(url, params={"filter": '{"order":"clientName DESC","skip":0,"where":{}}'})
+        if res.json()["code"] == "ok":
+            return res.json()["data"]["items"]
+        else:
+            return False
 
 
 class Job:
@@ -2383,20 +2484,22 @@ class Job:
     @staticmethod
     def list():
         res = req.get(
-            "/DataFlows",
+            "/Task",
             params={"filter": '{"fields":{"id":true,"name":true,"status":true,"agentId":true,"stats":true}}'}
         )
         if res.status_code != 200:
             return None
         res = res.json()
         jobs = []
-        for i in res["data"]:
+        for i in res["data"]['items']:
             jobs.append(Job(id=i["id"]))
         return jobs
 
     def reset(self):
-        res = req.post("/DataFlows/" + self.id + "/reset").json()
-        return True
+        res = req.patch("/Task/batchRenew", params={"taskIds": self.id}).json()
+        if res["code"] == "ok":
+            return True
+        return False
 
     def _get_by_name(self):
         param = '{"where":{"name":{"like":"%s"}}}' % (self.name)
@@ -2426,6 +2529,8 @@ class Job:
             self._get_by_name()
 
     def stop(self, t=30):
+        if self.status() != JobStatus.running:
+            return False
         if self.id is None:
             return False
         res = req.put('/Task/batchStop', params={'taskIds': self.id})
@@ -2435,7 +2540,6 @@ class Job:
                 return False
             time.sleep(1)
             status = self.status()
-            print(status)
             if status == JobStatus.stop or status == JobStatus.stopping:
                 return True
         return False
@@ -2446,26 +2550,19 @@ class Job:
         if self.status() in [JobStatus.running, JobStatus.scheduled]:
             logger.warn("job status is {}, please stop it first before delete it", self.status())
             return
-        res = req.post("/DataFlows/removeAll", params={"where": '{"_id":{"inq":["' + self.id + '"]}}'})
+        res = req.delete("/Task/batchDelete", params={"taskIds": self.id})
         if res.status_code != 200:
             return False
         res = res.json()
         if res["code"] != "ok":
-            return False
-        if len(res["data"]["success"]) != 1:
             return False
         return True
 
     def save(self):
         if self.id is None:
             self.job = {
-                "accessNodeProcessId": "",
-                "accessNodeProcessIdList": [],
-                "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
-                "deduplicWriteMode": "intelligent",
                 "editVersion": int(time.time() * 1000),
                 "syncType": self.dag.jobType,
-                "type": "initial_sync+cdc",
                 "mappingTemplate": self.dag.jobType,
                 "name": self.name,
                 "status": JobStatus.edit,
@@ -2480,12 +2577,15 @@ class Job:
         res = req.patch("/Task", json=self.job)
         res = res.json()
         if res["code"] != "ok":
+            logger.warn("save failed {}", res)
             return False
         self.id = res["data"]["id"]
         job = res["data"]
+        job.update(self.setting)
         res = req.patch("/Task/confirm/" + self.id, json=job)
         res = res.json()
         if res["code"] != "ok":
+            logger.warn("start failed {}", res)
             return False
         self.job = res["data"]
         self.setting = res["data"]
@@ -2495,10 +2595,9 @@ class Job:
         try:
             status = self.status()
         except (KeyError, TypeError) as e:
-            logger.info("job {} is not save, error is {}, job will be save soon", self.id, e)
             resp = self.save()
             if not resp:
-                logger.info("job {} save failed.")
+                logger.warn("job {} save failed.", self.name)
                 return False
             status = self.status()
         if status in [JobStatus.running, JobStatus.scheduled, JobStatus.wait_run]:
@@ -2535,29 +2634,41 @@ class Job:
         return sub_task_ids
 
     def stats(self, res=None):
-        res = req.get("/Task/" + self.id).json()
-        statuses = res["data"]["statuses"]
-        jobStats = JobStats()
-        for subTask in statuses:
-            payload = {
-                "statistics": [
-                    {
-                        "tags": {
-                            "subTaskId": subTask["id"],
-                            "type": "subTask"
-                        }
-                    }
-                ]
+        data = TaskApi().get(self.id)["data"]
+        payload = {
+            "startAt": int(time.time() * 1000),
+            "endAt": int(time.time() * 1000),
+            "samples": {
+                "totalData": {
+                    "endAt": int(time.time() * 1000),
+                    "fields": [
+                        "inputInsertTotal", "inputUpdateTotal", "inputDeleteTotal",
+                        "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal",
+                        "tableTotal", "outputQps", "snapshotDoneAt", "createTableTotal", "snapshotTableTotal"
+                    ],
+                    "tags": {
+                        "taskId": self.id,
+                        "taskRecordId": data["taskRecordId"],
+                        "type": "task"
+                    },
+                    "type": "instant",
+                }
             }
-            res = req.post("/measurement/query", json=payload).json()
-            for statistic in res["data"]["statistics"]:
-                jobStats.delay = statistic["replicateLag"]
-                jobStats.output = statistic["outputTotal"]
-                jobStats.input = statistic["inputTotal"]
-                jobStats.insert = statistic["insertedTotal"]
-                jobStats.update = statistic["updatedTotal"]
-                jobStats.delete = statistic["deletedTotal"]
-        return jobStats
+        }
+        res = req.post("/measurement/query/v2", json=payload).json()
+        job_stats = JobStats()
+        if len(res["data"]["samples"]["totalData"]) > 0:
+            stats = res["data"]["samples"]["totalData"][0]
+            job_stats.qps = stats["outputQps"]
+            job_stats.total = stats["tableTotal"]
+            job_stats.input_insert = stats["inputInsertTotal"]
+            job_stats.input_update = stats["inputUpdateTotal"]
+            job_stats.input_delete = stats["inputDeleteTotal"]
+            job_stats.output_insert = stats["outputInsertTotal"]
+            job_stats.output_update = stats["outputUpdateTotal"]
+            job_stats.output_Delete = stats["outputDeleteTotal"]
+            job_stats.snapshot_done_at = stats.get("snapshotDoneAt", 0)
+        return job_stats
 
     def logs(self, res=None, limit=100, level="info", t=30, tail=False, quiet=True):
         logs = []
@@ -2621,16 +2732,21 @@ class Job:
             status = self.status()
             if print_log:
                 logger.info(
-                    "job {} status: {}, delay: {}, stats: input {}, output {}, insert {}, update {}, delete {}",
-                    self.name, status, stats.delay, stats.input, stats.output, stats.insert, stats.update, stats.delete,
-                    "info", "info", "notice", "info", "info", "info", "info", "info", wrap=False, logger_header=True
+                    "job {} status: {}, qps: {}, total: {} input_stats: insert: {}, update: {}, delete: {} output_stats: insert: {}, update: {}, delete: {}",
+                    self.name, status, stats.qps, stats.total, stats.input_insert, stats.input_update, stats.input_delete,
+                    stats.output_insert, stats.output_update, stats.output_Delete,
+                    "info", "info", "notice", "info", "info", "info", "info", "info", "info", "info", wrap=False, logger_header=True
                 )
             if status in [JobStatus.running, JobStatus.edit, JobStatus.scheduled]:
                 continue
             logger.info(
-                "job {} status: {}, delay: {}, stats: input {}, output {}, insert {}, update {}, delete {}",
-                self.name, status, stats.delay, stats.input, stats.output, stats.insert, stats.update, stats.delete,
-                "info", "info", "notice", "info", "info", "info", "info", "info", wrap=False, logger_header=True
+                "job {} status: {}, qps: {}, total: {}\n" + \
+                "input_stats: insert: {}, update: {}, delete: {}" + \
+                "output_stats: insert: {}, update: {}, delete: {}",
+                self.name, status, stats["outputQps"], stats["tableTotal"],
+                stats["inputInsertTotal"], stats["inputUpdateTotal"], stats["inputDeleteTotal"],
+                stats["outputInsertTotal"], stats["outputUpdateTotal"], stats["outputDeleteTotal"],
+                "info", "info", "notice", "info", "info", "info", "info", "info", "info", "info", wrap=False, logger_header=True
             )
             break
 
@@ -2705,58 +2821,74 @@ class Job:
 
 @help_decorate("Data Source, you can see it as database",
                'ds = DataSource("mysql", "mysql-datasource").host("127.0.0.1").port(3306).username().password().db()')
-class DataSource():
+class DataSource:
+
     def __init__(self, connector="", name=None, type="source_and_target", id=None):
+        """
+        @param connector: pdkType name
+        @param name: datasource name
+        @param type: datasource can be used as source and target at the same time
+        @param id: datasource id, it will get datasource config from backend by api if id provide
+        """
+        self.pdk_setting = {}
+        self.setting = {}
+        # get datasource config
         if id is not None:
             self.id = id
-            self.c = self.get(id=id)
+            self.setting = self.get(connector_id=id)
             return
-        if connector != "" and name is None:
-            name = connector
+        # name is not provide
+        name = connector if connector != "" and name is None else name
+        # if name is already exists
+        obj = get_obj("datasource", name)
+        if obj is not None:
+            self.id = obj.id
+            self.setting = obj.setting
+            return
+        self.id = id
+        self.connection_type = type
+        self.setting = {
+            "name": name,
+            "database_type": client_cache["connectors"][connector]["name"],
+            "connection_type": self.connection_type
+        }
 
-        if name != "":
-            obj = get_obj("datasource", name)
-            if obj is not None:
-                self.id = obj.id
-                self.c = obj.c
-                return
+    def _set_pdk_setting(self, key):
+        """closure function to update value into pdk_setting, only be called by __getattribute__
+        """
 
-        self.custom_options = {}
-        self.is_url = False
-        self.user_id = system_server_conf["user_id"]
-        self._name = name
-        self._options = ""
-        self._type = "source_and_target"
-        self._host = ""
-        self._port = ""
-        self._username = ""
-        self._password = ""
-        self._db = ""
-        self._manual_options = []
-        self._connector = ""
-        self._schema = ""
-        self.c = None
-        if connector != "":
-            self._connector = connector
-        self._type = type
-
-    def __getattr__(self, key):
-        def set_custom_options(*args, **kwargs):
-            self.custom_options["_" + key] = args[0]
+        def _config_pdk_setting(value):
+            if key == "uri" and value:
+                self.pdk_setting.update({"isUri": True, key: value})
+            else:
+                self.pdk_setting.update({key: value})
             return self
 
-        if key in dir(self):
-            return getattr(self, key)
-        return set_custom_options
+        return _config_pdk_setting
+
+    def set(self, config):
+        self.setting.update(config)
+        return self
+
+    def __getattribute__(self, item):
+        """
+        1. if item is attribute of self, return
+        2. if not, return _config_pdk_setting to set pdk_setting
+        """
+
+        try:
+            return object.__getattribute__(self, item)
+        except AttributeError:
+            return self._set_pdk_setting(item)
 
     @staticmethod
     @help_decorate("static method, used to list all datasources", res="datasource list, list")
     def list():
-        return req.get("/Connections").json()["data"]
+        return DataSourceApi().list()["data"]
 
     @help_decorate("desc a datasource, display readable struct", res="datasource struct")
     def desc(self, quiet=True):
-        c = self.c
+        c = copy.deepcopy(self.setting)
         remove_keys = [
             "response_body",
             "user_id",
@@ -2784,7 +2916,7 @@ class DataSource():
 
     @help_decorate("get a datasource status", "")
     def status(self, quiet=True):
-        if self.id is None or isinstance(self.id, FunctionType):
+        if self.id is None:
             logger.warn("datasource is not save, please save first")
             return
         info = self.get(self.id)
@@ -2798,165 +2930,103 @@ class DataSource():
                         info.get("name"), status, tableCount, loadCount, loadSchemaDate)
         return status
 
-    def host(self, host):
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        self._host = host
-        if ":" in host:
-            self._port = int(host.split(":")[1])
-        if self._connector == "mysql" or self._connector == "oracle":
-            self._manual_options.append("port")
-            if ":" in host:
-                self._host = host.split(":")[0]
-                self._port = int(host.split(":")[1])
-            else:
-                self._host = host
-                self._port = 3306
-        return self
+    def to_dict(self):
+        """
+        1. get datasource config by connector
+        2. check the settings by ConfigCheck
+        3. add pdk_setting
+        """
+        # get database_type check rules
+        self.setting.update({"pdkHash": self._get_pdkHash()})
+        res = ConfigCheck(self.setting, DATASOURCE_CONFIG, keep_extra=True).checked_config
+        self.setting.update(res)
+        self.setting.update({"config": self.to_pdk_dict()})
+        return self.setting
 
-    def schema(self, schema):
-        self._schema = schema
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        return self
-
-    def uri(self, uri):
-        self._uri = uri
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        return self
-
-    def port(self, port):
-        self._port = port
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        return self
-
-    def username(self, username):
-        self._username = username
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        return self
-
-    def password(self, password):
-        self._password = password
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        return self
-
-    def db(self, db):
-        self._database = db
-        self._manual_options.append("database")
-        return self
-
-    def connector(self, connector):
-        self._connector = connector
-        return self
-
-    def type(self, connection_type):
-        self._type = connection_type
-        return self
-
-    def props(self, options):
-        self._options = options
-        return self
+    def _get_pdkHash(self):
+        connector = client_cache["connectors"][self.setting["database_type"].lower()]
+        return connector["pdkHash"]
 
     def to_pdk_dict(self):
-        d = {}
-        for i in self._manual_options:
-            d[i] = getattr(self, "_" + i)
-        return d
-
-    def to_dict(self):
-        if self.c is not None:
-            return self.c
-        if type(self._uri) == type(""):
-            uri = self._uri
-        else:
-            uri = ""
-        d = {
-            "additionalString": self._options,
-            "connection_type": self._type,
-            "database_host": self._host,
-            "database_port": self._port,
-            "database_name": self._db,
-            "database_type": self._connector,
-            "database_uri": uri,
-            "database_owner": self._schema,
-            "database_username": self._username,
-            "plain_password": self._password,
-            "isUrl": True if self._uri != "" else False,
-            "name": self._name,
-            "user_id": self.user_id,
-            "response_body": {}
-        }
-        for k, v in self.custom_options.items():
-            d[k[1:]] = v
-
-        d["database_password"] = d.get("plain_password")
-        database_type = d.get("database_type", "")
-        if database_type.lower() not in client_cache["connectors"]:
-            logger.warn("connector {} not support, support list is: {}", database_type, client_cache["connectors"])
-            return
-        connector = client_cache["connectors"][database_type.lower()]
-        d["pdkType"] = "pdk"
-        d["pdkHash"] = connector["pdkHash"]
-        d["database_type"] = connector["name"]
-        d["config"] = self.to_pdk_dict()
-        return d
+        """
+        1. get datasource config by connector
+        2. check the settings by ConfigCheck
+        """
+        mode = "uri" if self.pdk_setting.get("isUri") else "form"
+        # get database_config
+        database_type = self.setting["database_type"].lower()
+        if pdk_config.get(database_type):
+            param_config = pdk_config.get(database_type)[mode]
+            res = ConfigCheck(self.pdk_setting, param_config, keep_extra=True).checked_config
+            self.pdk_setting.update(res)
+        return self.pdk_setting
 
     @staticmethod
     @help_decorate("get a datasource by it's id or name", args="id or name, using kargs", res="a DataSource Object")
-    def get(id=None, name=None):
-        if id is not None:
+    def get(connector_id=None, connector_name=None):
+        if connector_id is not None:
             f = {
                 "where": {
-                    "id": id,
+                    "id": connector_id,
                 }
             }
         else:
             f = {
                 "where": {
-                    "name": name,
+                    "name": connector_name,
                 }
             }
-        data = req.get("/Connections", params={'filter': json.dumps(f)}).json()["data"]
-        if len(data["items"]) == 0:
+        params = {
+            "filter": json.dumps(f)
+        }
+        data = DataSourceApi().list(params=params)
+        if not data:
             return None
-        return data["items"][0]
+        if len(data["data"]["items"]) == 0:
+            return None
+        return data["data"]["items"][0]
 
-    @help_decorate("save a connection in idaas system")
     def save(self):
         data = self.to_dict()
-        if data is None:
-            return
-        res = req.post("/Connections", json=data)
+        data = DataSourceApi().post(data)
         show_connections(quiet=True)
-        if res.status_code == 200 and res.json()["code"] == "ok":
-            self.id = res.json()["data"]["id"]
-            self.c = DataSource.get(self.id)
+        if data["code"] == "ok":
+            self.id = data["data"]["id"]
+            self.setting = DataSource.get(self.id)
             self.validate(quiet=False)
             return True
         else:
-            logger.warn("save Connection fail, err is: {}", res.json()["message"])
+            self.validate(quiet=False, load_schema=True)
+            logger.warn("save Connection fail, err is: {}", data["message"])
         return False
 
     def delete(self):
-        if self.id is None or isinstance(self.id, FunctionType):
+        if self.id is None:
             return
-        res = req.delete("/Connections/" + self.id, json=self.c)
-        if res.status_code == 200 and res.json()["code"] == "ok":
+        data = DataSourceApi().delete(self.id, self.setting)
+        if data["code"] == "ok":
             logger.info("delete {} Connection success", self.id)
             return True
         else:
-            logger.warn("delete Connection fail, err is: {}", res.json())
+            logger.warn("delete Connection fail, err is: {}", data)
         return False
 
     @help_decorate("validate this datasource")
-    def validate(self, quiet=False):
+    def validate(self, quiet=False, load_schema=False):
         res = True
 
         async def l():
             async with websockets.connect(system_server_conf["ws_uri"]) as websocket:
                 data = self.to_dict()
                 data["updateSchema"] = True
+                if isinstance(self.id, str):
+                    data.update({
+                        "id": self.id,
+                    })
                 payload = {
                     "type": "testConnection",
-                    "data": data
+                    "data": data,
+                    "updateSchema": load_schema,
                 }
                 logger.info("start validate datasource config, please wait for a while ...")
                 await websocket.send(json.dumps(payload))
@@ -2968,7 +3038,7 @@ class DataSource():
                         continue
                     if loadResult["data"]["type"] != "testConnectionResult":
                         continue
-                    if loadResult["data"]["result"]["status"] == None:
+                    if loadResult["data"]["result"]["status"] is None:
                         continue
 
                     if loadResult["data"]["result"]["status"] != "ready":
@@ -2977,7 +3047,7 @@ class DataSource():
                         res = True
 
                     if not quiet:
-                        if loadResult["data"]["result"] == None:
+                        if loadResult["data"]["result"] is None:
                             continue
                         for detail in loadResult["data"]["result"]["response_body"]["validate_details"]:
                             if detail["fail_message"] is not None:
@@ -2990,22 +3060,24 @@ class DataSource():
                     return res
 
         try:
-            asyncio.get_event_loop().run_until_complete(l())
+            asyncio.run(l())
         except Exception as e:
             logger.warn("load schema exception, err is: {}", e)
-
         logger.info("datasource valid finished, will check table schema now, please wait for a while ...")
         start_time = time.time()
-        while True:
+
+        for _ in range(24):
             try:
                 time.sleep(5)
-                res = req.get("/Connections/" + self.id).json()
-                if res["data"] == None:
+                res = DataSourceApi().get(self.id)
+                if res["data"] is None:
+                    break
+                if res["data"]["loadFieldsStatus"] == "invalid":
+                    break
+                if res["data"]["loadFieldsStatus"] == "finished":
                     break
                 if "loadFieldsStatus" not in res["data"]:
                     continue
-                if res["data"]["loadFieldsStatus"] == "finished":
-                    break
                 loadCount = res["data"].get("loadCount", 0)
                 tableCount = res["data"].get("tableCount", 1)
                 logger.info("table schema check percent is: {}%", int(loadCount / tableCount * 100), wrap=False)
@@ -3013,46 +3085,6 @@ class DataSource():
                 break
         logger.info("datasource table schema check finished, cost time: {} seconds", int(time.time() - start_time))
         return res
-
-
-class MongoDB(DataSource):
-    def __init__(self, name):
-        self.connector = "mongodb"
-        super().__init__(name=name, connector="mongodb")
-
-    def uri(self, url):
-        self.url = url
-        self.is_url = True
-        return self
-
-
-class Mysql(DataSource):
-    def __init__(self, name):
-        self.connector = "mysql"
-        super().__init__(name=name, connector="mysql")
-
-
-class Postgres(DataSource):
-    def __init__(self, name):
-        self.connector = "postgresql"
-        self._log_decorder_plugin = ""
-        super().__init__(connector="postgresql", name=name)
-
-    def schema(self, schema):
-        self._schema = schema
-        return self
-
-    def set_log_decorder_plugin(self, plugin):
-        self._log_decorder_plugin = plugin
-        return self
-
-    def to_dict(self):
-        base_dict = super().to_dict()
-        base_dict["database_owner"] = self._schema
-        base_dict["pgsql_log_decorder_plugin_name"] = "wal2json_streaming"
-        if self._log_decorder_plugin is not None:
-            base_dict["pgsql_log_decorder_plugin_name"] = self._log_decorder_plugin
-        return base_dict
 
 
 class Connection:
@@ -3209,111 +3241,6 @@ class Connection:
         return res
 
 
-class DataCheck:
-    @help_decorate("__init__ method", args="source, sink, relation, name, check_mode",
-                   res="DataCheck Object, DataCheck")
-    def __init__(self, source, sink, relation, name=None, check_mode="field"):
-        if name is None:
-            name = uuid.uuid4()
-        self.check_job = DataCheck.get(name)
-        association = relation.association
-        source_sort_column = ""
-        sink_sort_column = ""
-        for c in association:
-            source_sort_column = source_sort_column + "," + c[0]
-        source_sort_column = source_sort_column[0:len(source_sort_column) - 1]
-        for c in association:
-            sink_sort_column = sink_sort_column + "," + c[1]
-        sink_sort_column = sink_sort_column[0:len(sink_sort_column) - 1]
-        if self.check_job is not None:
-            self.id = self.check_job["id"]
-            return
-        self.check_job = {
-            "mode": "manual",
-            "inspectMethod": check_mode,
-            "name": name,
-            "status": "scheduling",
-            "limit": {"keep": 100},
-            "tasks": [
-                {
-                    "fullMatch": True,
-                    "source": {
-                        "connectionId": source.connectionId,
-                        "databaseType": source.databaseType,
-                        "table": source.tableName,
-                        "sortColumn": source_sort_column,
-                    },
-                    "target": {
-                        "connectionId": sink.connectionId,
-                        "databaseType": sink.databaseType,
-                        "table": sink.tableName,
-                        "sortColumn": sink_sort_column,
-                    }
-                }
-            ]
-        }
-        self.name = name
-
-    @staticmethod
-    @help_decorate("get a data check job by it's name", args="data check name",
-                   res="DataCheck or None if not exists, DataCheck")
-    def get(name):
-        data = req.get("/Inspects", params={"filter": json.dumps({"where": {"name": name}})}).json()["data"]
-        if data["total"] == 0:
-            return None
-        return data[0]
-
-    @help_decorate("save a data check job, and start it")
-    def save(self):
-        res = req.post("/Inspects", json=self.check_job)
-        data = res.json()["data"]
-        self.id = data["id"]
-
-    @help_decorate("start data check job")
-    def start(self):
-        self.save()
-
-    @help_decorate("get data check job status", res="job status")
-    def status(self):
-        res = req.get("/Inspects", params={"filter": json.dumps({"where": {"id": self.id}})})
-        return res.json()["data"][0]["status"]
-
-    @help_decorate("get data check job stats", res="job stats")
-    def stats(self, quiet=False):
-        res = req.get("/Inspects", params={"filter": json.dumps({"where": {"id": self.id}})})
-        stats = res.json()["data"][0]["InspectResult"]["stats"][0]
-        if not quiet:
-            logger.log(
-                "data check finished, check result is: {}, same row is number is: {}, diff row number is: {}",
-                stats["result"], stats["row_passed"], stats["row_failed"],
-                "info" if stats["result"] != "failed" else "error", "info", "warn"
-            )
-        return stats
-
-    @help_decorate("monitor this job until it finished", args="timeout seconds")
-    def monitor(self, t=30, quiet=False):
-        if self.id is None:
-            logger.warn("data check job not start, no monitor can show")
-            return
-        start_time = time.time()
-        while True:
-            if time.time() - start_time > t:
-                break
-            time.sleep(1)
-            status = self.status()
-            stats = self.stats()
-            if status == "running":
-                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False, logger_header=True)
-            if status == "done":
-                logger.log(
-                    "data check finished, check result is: {}, same row is number is: {}, diff row number is: {}",
-                    stats["result"], stats["row_passed"], stats["row_failed"],
-                    "info" if stats["result"] != "failed" else "error", "info", "warn",
-                    logger_header=True
-                )
-                break
-
-
 # used to describe a pipeline job
 class Dag:
     def __init__(self, name=""):
@@ -3331,10 +3258,9 @@ class Dag:
     def config(self, config=None):
         if config is None:
             return self.setting
-        for k, v in config.items():
-            self.setting[k] = v
+        self.setting.update(config)
 
-    def edge(self, source, sink, relation, ttl):
+    def edge(self, source, sink):
         _source = None
         _sink = None
 
@@ -3357,35 +3283,17 @@ class Dag:
             _sink = gen_dag_stage(sink)
             self.dag["nodes"].append(_sink)
 
+        if isinstance(source, Filter) or isinstance(sink, Filter):
+            nodes = []
+            for node in self.dag["nodes"]:
+                if node["type"] == "table":
+                    node["isFilter"] = True
+                nodes.append(node)
+
         self.dag["edges"].append({
             "source": source.id,
             "target": sink.id
         })
-
-        if relation is None:
-            return
-
-        if type(source) == Source:
-            lastSource = source
-        else:
-            lastSource = sink.source
-
-        if type(relation) == SingleTableRelation:
-            _sink["existDataProcessMode"] = "keepData"
-            _sink["writeStrategy"] = relation.writeMode
-            updateConditionFields = []
-            for i in relation.association:
-                updateConditionFields.append(i[0])
-            _sink["updateConditionFields"] = updateConditionFields
-        if type(relation) == MultiTableRelation:
-            del (_source["tableName"])
-            _source["tableNames"] = lastSource.table
-            _source["type"] = "database"
-            _sink["syncObjects"] = [{
-                "type": "table",
-                "objectNames": lastSource.table
-            }]
-            _sink["type"] = "database"
 
 
 # object that can be operate by command
@@ -3421,9 +3329,29 @@ op_object_command_class = {
 
 
 def main():
+    # ipython settings
+    ip = TerminalInteractiveShell.instance()
+    ip.register_magics(global_help)
+    ip.register_magics(system_command)
+    ip.register_magics(show_command)
+    ip.register_magics(op_object_command)
+    ip.register_magics(ApiCommand)
     login_with_access_code(server, access_code)
     show_connections(quiet=True)
     show_connectors(quiet=True)
 
 
-main()
+def init(custom_server, custom_access_code):
+    """
+    provide for python sdk to init env
+    """
+    global server, access_code
+    server = custom_server
+    access_code = custom_access_code
+    login_with_access_code(server, access_code)
+    show_connections(quiet=True)
+    show_connectors(quiet=True)
+
+
+if __name__ == "__main__":
+    main()

@@ -30,6 +30,10 @@ public class ParentTaskDto extends SchedulableDto {
     @EqField
     private String crontabExpression;
 
+    /** crontab表达式开关 */
+    @EqField
+    private boolean crontabExpressionFlag;
+
     /**去重写入机制   intelligent 智能去重， force 强制去重 */
     @EqField
     private String deduplicWriteMode;
@@ -70,6 +74,14 @@ public class ParentTaskDto extends SchedulableDto {
     /** 全量一批读取条数 */
     @EqField
     private Integer readBatchSize;
+
+    /** 写入批量条数 */
+    @EqField
+    private Integer writeBatchSize;
+
+    /** 写入每批最大等待时间 */
+    @EqField
+    private Long writeBatchWaitMs;
 
     /** 增量同步间隔*/
     @EqField
@@ -164,7 +176,7 @@ public class ParentTaskDto extends SchedulableDto {
 
     private double transformProcess;
     private String transformStatus;
-    private List<Map<String, String>> listtags;
+    private List<Tag> listtags;
 
     /**
      * 计划开始事件开关
@@ -179,6 +191,7 @@ public class ParentTaskDto extends SchedulableDto {
      * 界面展示的任务开始时间
      */
     private Date startTime;
+    private Long lastStartDate;
     private Date stopTime;
 
     /**
@@ -214,7 +227,7 @@ public class ParentTaskDto extends SchedulableDto {
     private Date errorTime;
     private Date pausedTime;
     private Date finishTime;
-    private Date pingTime;
+    private Long pingTime;
 
     //需要重启标识
     private Boolean restartFlag;
@@ -233,6 +246,24 @@ public class ParentTaskDto extends SchedulableDto {
     private Boolean transformed;
 
     private int transformDagHash;
+
+    // 1分钟内不能强制停止（不存库，根据 stoppingTime 来判断）
+    private Boolean canForceStopping;
+
+    public Integer getWriteBatchSize() {
+        return Objects.isNull(writeBatchSize) ? 0 : writeBatchSize;
+    }
+
+    public Long getWriteBatchWaitMs() {
+        return Objects.isNull(writeBatchWaitMs) ? 0L : writeBatchWaitMs;
+    }
+
+    public Boolean getCanForceStopping() {
+        if (null == stoppingTime) {
+            return null;
+        }
+        return System.currentTimeMillis() - stoppingTime.getTime() > 60 * 1000L;
+    }
 
     public List<String> getAccessNodeProcessIdList() {
         accessNodeProcessIdList = new ArrayList<>();

@@ -8,6 +8,7 @@ import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.*;
@@ -21,6 +22,7 @@ import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
+import com.tapdata.tm.worker.dto.TcmInfo;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.NonNull;
@@ -55,6 +57,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     private WorkerService workerService;
     private ClusterOperationService clusterOperationService;
     private MessageService messageService;
+    private SettingsService settingsService;
     private MongoTemplate mongoTemplate;
 
     public ClusterStateService(@NonNull ClusterStateRepository repository) {
@@ -310,8 +313,21 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             return result;
         }
 
+        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+        if (Objects.isNull(buildProfile)) {
+            buildProfile = "DAAS";
+        }
+        boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+
         availableAgent.forEach(dto -> {
-            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(dto.getProcessId(), dto.getHostname(), dto.getProcessId());
+            String hostname = dto.getHostname();
+            if (isCloud) {
+                TcmInfo tcmInfo = dto.getTcmInfo();
+                if (tcmInfo != null) {
+                    hostname = dto.getTcmInfo().getAgentName();
+                }
+            }
+            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(dto.getProcessId(), hostname, dto.getProcessId());
             result.add(accessNodeInfo);
         });
 

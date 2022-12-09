@@ -1,6 +1,7 @@
 package com.tapdata.tm.monitoringlogs.service;
 
 import cn.hutool.core.date.DateUtil;
+import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.IOUtils;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -14,10 +15,13 @@ import com.tapdata.tm.monitoringlogs.param.MonitoringLogExportParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.repository.MonitoringLogsRepository;
 import com.tapdata.tm.monitoringlogs.vo.MonitoringLogCountVo;
+import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.QuartzCronDateUtils;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,10 +37,8 @@ import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.zip.ZipOutputStream;
@@ -53,6 +55,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
     private static final int MAX_DATA_SIZE = 100;
     private static final int MAX_MESSAGE_CHAR_LENGTH = 2000;
     private MongoTemplate mongoOperations;
+    private TaskService taskService;
 
     public MonitoringLogsService(@NonNull MonitoringLogsRepository repository) {
         super(repository, MonitoringLogsDto.class, MonitoringLogsEntity.class);
@@ -72,7 +75,11 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         List<MonitoringLogsEntity> monitoringLogsEntities = convertToEntity(MonitoringLogsEntity.class, monitoringLoges);
 
         for (MonitoringLogsEntity monitoringLogsEntity : monitoringLogsEntities) {
+            monitoringLogsEntity.setTimestamp(System.currentTimeMillis());
             repository.applyUserDetail(monitoringLogsEntity, user);
+            if (Objects.nonNull(monitoringLogsEntity.getData())) {
+                monitoringLogsEntity.setDataJson(JSON.toJSONString(monitoringLogsEntity.getData()));
+            }
             bulkOperations.insert(monitoringLogsEntity);
         }
 
@@ -80,18 +87,39 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
     }
 
     public Page<MonitoringLogsDto> query(MonitoringLogQueryParam param) {
-        if (null == param.getTaskId()) {
+        String taskId = param.getTaskId();
+        if (null == taskId) {
             return null;
         }
 
-        Criteria criteria = Criteria.where("taskId").is(param.getTaskId());
+        ObjectId objectId = MongoUtils.toObjectId(taskId);
+
+        if (objectId == null) {
+            return null;
+        }
+
+        TaskDto taskDto = taskService.findById(objectId);
+
+        Criteria criteria = Criteria.where("taskId").is(taskId);
         if (StringUtils.isNotBlank(param.getTaskRecordId())) {
             criteria.and("taskRecordId").is(param.getTaskRecordId());
         }
 
-        Date startDate = DateUtil.offsetMinute(DateUtil.date(param.getStart()), -1);
-        Date endDate = DateUtil.offsetMinute(DateUtil.date(param.getEnd()), 10);
-        criteria.and("date").gte(startDate).lt(endDate);
+        if (!param.isStartEndValid()) {
+            log.error("Invalid value for start or end param:{}", JSON.toJSONString(param));
+            return new Page<>(0, new ArrayList<>());
+        }
+
+        Long start = param.getStart();
+        if (ObjectUtils.allNotNull(taskDto.getStartTime(), taskDto.getMonitorStartDate()) && start == taskDto.getStartTime().getTime()) {
+            start = taskDto.getMonitorStartDate().getTime();
+        }
+
+        // monitor log save will after task stopTime 5s, so add 10s;
+        Long end = param.getEnd();
+        end += 10000L;
+
+        criteria.and("timestamp").gte(start).lt(end);
 
         if (StringUtils.isNotEmpty(param.getNodeId())) {
             criteria.and("nodeId").is(param.getNodeId());
@@ -99,11 +127,12 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
         // keyword search filter
         if (StringUtils.isNotEmpty(param.getSearch())) {
-            String search = Pattern.quote(param.getSearch());
+            String search = param.getSearch();
             criteria.orOperator(
-                    new Criteria("taskName").regex(search),
+//                    new Criteria("taskName").regex(search),
                     new Criteria("nodeName").regex(search),
                     new Criteria("message").regex(search),
+                    new Criteria("dataJson").regex(search),
                     new Criteria("errorStack").regex(search),
                     new Criteria("logTags").elemMatch(new Criteria("$regex").is(search))
             );
@@ -192,10 +221,14 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             criteria.and("taskRecordId").is(param.getTaskRecordId());
         }
 
-        criteria.and("date").gte(new Date(param.getStart())).lt(new Date(param.getEnd()));
+        if (!param.isStartEndValid()) {
+            throw new BizException("Invalid value for start or end");
+        }
+
+        criteria.and("timestamp").gte(param.getStart()).lt(param.getEnd());
 
         Query query = new Query(criteria);
-        query.with(Sort.by("date").ascending());
+        query.with(Sort.by("timestamp").ascending());
 
         CloseableIterator<MonitoringLogsEntity> iter = mongoOperations.stream(query, MonitoringLogsEntity.class);
         AtomicLong count = new AtomicLong();
@@ -236,14 +269,14 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         save(builder.build(), user);
     }
 
-    public void agentAssignMonitoringLog(TaskDto taskDto, String assigned, Integer available, UserDetail user) {
+    public void agentAssignMonitoringLog(TaskDto taskDto, String assigned, Integer available, UserDetail user, Date now) {
         MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
-        long now = System.currentTimeMillis();
+        long time = now.getTime();
         builder.taskId(taskDto.getId().toHexString())
                 .taskName(taskDto.getName())
                 .taskRecordId(taskDto.getTaskRecordId())
-                .date(new Date(now))
-                .timestamp(now)
+                .date(now)
+                .timestamp(time)
                 .logTag("Agent Available Check")
                 .level("INFO")
         ;
@@ -254,6 +287,10 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         }
 
         save(builder.build(), user);
+    }
+
+    public void delLogsWhenTaskReset(String taskId) {
+        mongoOperations.remove(new Query(Criteria.where("taskId").is(taskId)), MonitoringLogsEntity.class);
     }
 
 }

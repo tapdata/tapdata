@@ -7,9 +7,13 @@ import com.tapdata.tm.commons.base.convert.DagSerialize;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 
@@ -18,7 +22,7 @@ import java.util.Map;
  */
 @Data
 public class TaskDto extends ParentTaskDto {
-    /** migrate迁移  logCollector 挖掘任务*/
+    /** migrate迁移  logColleshareCachector 挖掘任务*/
     public static final String SYNC_TYPE_SYNC = "sync";
     public static final String SYNC_TYPE_MIGRATE = "migrate";
     public static final String SYNC_TYPE_LOG_COLLECTOR = "logCollector";
@@ -33,6 +37,8 @@ public class TaskDto extends ParentTaskDto {
     public static final String SYNC_TYPE_DEDUCE_SCHEMA = "deduceSchema";
 
     public static final String LASTTASKRECORDID = "taskRecordId";
+
+    public static final String PING_TIME_FIELD = "pingTime";
 
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
@@ -94,6 +100,12 @@ public class TaskDto extends ParentTaskDto {
     /** 编辑中 待启动 */
     public static final String STATUS_WAIT_START = "wait_start";
 
+    public static final String STATUS_RENEWING = "renewing";
+    public static final String STATUS_DELETING = "deleting";
+    public static final String STATUS_RENEW_FAILED = "renew_failed";
+    public static final String STATUS_DELETE_FAILED = "delete_failed";
+
+
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)
     private DAG tempDag;
@@ -104,6 +116,19 @@ public class TaskDto extends ParentTaskDto {
     private Long version;
 
     private String taskRecordId;
+
+    private List<AlarmSettingDto> alarmSettings;
+    private List<AlarmRuleDto> alarmRules;
+
+    private Integer resetTimes;
+
+    private Long currentEventTimestamp;
+    private Long snapshotDoneAt;
+
+    private Long scheduleDate;
+    private Date monitorStartDate;
+
+    private boolean needCreateRecord;
 
     public DAG getDag() {
         if (dag != null) {

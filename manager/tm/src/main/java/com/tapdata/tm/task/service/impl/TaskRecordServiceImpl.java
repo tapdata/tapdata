@@ -17,6 +17,7 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections4.ListUtils;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -28,6 +29,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -55,16 +57,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         } else {
             update.set("taskSnapshot.last_updated", now);
         }
-        if (StringUtils.equalsAny(taskStatus, TaskDto.STATUS_COMPLETE, TaskDto.STATUS_STOP, TaskDto.STATUS_ERROR)) {
-            Long[] values = measurementServiceV2.countEventByTaskRecord(dto.getTaskId(), dto.getTaskRecordId());
-            if (null != values) {
-                update.set("inputTotal", values[0]);
-                update.set("outputTotal", values[1]);
-            }
-        }
         update.push("statusStack", new TaskRecord.TaskStatusUpdate(taskStatus, now));
-
-
         mongoTemplate.updateFirst(query, update, TaskRecord.class);
     }
 
@@ -89,7 +82,6 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         }
 
         List<TaskRecord> taskRecords = partition.get(page - 1);
-
         List<String> userIds = taskRecords.stream().map(TaskRecord::getUserId).distinct().collect(Collectors.toList());
         List<UserDetail> users = userService.getUserByIdList(userIds);
         Map<String, String> userMap = users.stream().collect(Collectors.toMap(UserDetail::getUserId, u -> {
@@ -120,15 +112,17 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
             Long inputTotal = r.getInputTotal();
             Long outputTotal = r.getOutputTotal();
-            if (first.get()) {
-                if (StringUtils.equalsAny(vo.getStatus(), TaskDto.STATUS_RUNNING, TaskDto.STATUS_STOPPING)) {
-                    Long[] values = measurementServiceV2.countEventByTaskRecord(taskId, taskRecordId);
-                    if (null != values && values.length == 2) {
-                        inputTotal = values[0];
-                        outputTotal = values[1];
-                    }
+
+            if (ObjectUtils.anyNull(inputTotal, outputTotal) || TaskDto.STATUS_RUNNING.equals(vo.getStatus())) {
+                Long[] values = measurementServiceV2.countEventByTaskRecord(taskId, taskRecordId);
+                if (null != values && values.length == 2) {
+                    inputTotal = values[0];
+                    outputTotal = values[1];
+
+                    Query id = Query.query(Criteria.where("_id").is(taskRecordId));
+                    Update set = Update.update("inputTotal", inputTotal).set("outputTotal", outputTotal);
+                    CompletableFuture.runAsync(() -> mongoTemplate.updateFirst(id, set, TaskRecord.class));
                 }
-                first.set(false);
             }
             vo.setInputTotal(inputTotal);
             vo.setOutputTotal(outputTotal);

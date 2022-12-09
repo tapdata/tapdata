@@ -16,6 +16,7 @@ import io.tapdata.pdk.apis.context.TapProcessorContext;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.ProcessorFunctions;
+import io.tapdata.pdk.apis.functions.common.MemoryFetcherFunctionV2;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.dag.TapDAGNode;
@@ -40,6 +41,7 @@ public class PDKIntegration {
     public abstract static class ConnectionBuilder<T extends Node> {
         protected String associateId;
         protected DataMap connectionConfig;
+        protected DataMap nodeConfig;
         protected String pdkId;
         protected String group;
         protected String version;
@@ -83,6 +85,11 @@ public class PDKIntegration {
 
         public ConnectionBuilder<T> withConnectionConfig(DataMap connectionConfig) {
             this.connectionConfig = connectionConfig;
+            return this;
+        }
+
+        public ConnectionBuilder<T> withNodeConfig(DataMap nodeConfig) {
+            this.nodeConfig = nodeConfig;
             return this;
         }
 
@@ -343,11 +350,12 @@ public class PDKIntegration {
             connectionNode.init((TapConnector) nodeInstance.getTapNode());
             connectionNode.associateId = associateId;
             connectionNode.tapNodeInfo = nodeInstance.getTapNodeInfo();
-            connectionNode.connectionContext = new TapConnectionContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig);
+            connectionNode.connectionContext = new TapConnectionContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig, nodeConfig);
 
             PDKInvocationMonitor.getInstance().invokePDKMethod(connectionNode, PDKMethod.REGISTER_CAPABILITIES,
                     connectionNode::registerCapabilities,
                     MessageFormat.format("call connection functions {0} associateId {1}", TapNodeSpecification.idAndGroup(pdkId, group, version), associateId), TAG);
+            connectionNode.registerMemoryFetcher();
             return connectionNode;
         }
     }
@@ -378,6 +386,7 @@ public class PDKIntegration {
             PDKInvocationMonitor.getInstance().invokePDKMethod(connectorNode, PDKMethod.REGISTER_CAPABILITIES,
                     connectorNode::registerCapabilities,
                     MessageFormat.format("call source functions {0} associateId {1}", TapNodeSpecification.idAndGroup(pdkId, group, version), associateId), TAG);
+            connectorNode.registerMemoryFetcher();
             return connectorNode;
         }
     }
@@ -453,9 +462,12 @@ public class PDKIntegration {
         memoryManager.unregister(key);
     }
 
-    public static String outputMemoryFetchers(List<String> mapKeys, String mapType) {
+    public static String outputMemoryFetchers(List<String> keys, String keyRegex, String memoryLevel) {
         init();
-        return memoryManager.output(mapKeys, mapType);
+        return memoryManager.output(keys, keyRegex, memoryLevel);
     }
-
+    public static DataMap outputMemoryFetchersInDataMap(List<String> keys, String keyRegex, String memoryLevel) {
+        init();
+        return memoryManager.outputDataMap(keys, keyRegex, memoryLevel);
+    }
 }

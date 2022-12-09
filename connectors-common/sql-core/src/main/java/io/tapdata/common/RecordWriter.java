@@ -30,51 +30,57 @@ public class RecordWriter {
     }
 
     public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
-        insertRecorder.setVersion(version);
-        insertRecorder.setInsertPolicy(insertPolicy);
-        updateRecorder.setVersion(version);
-        updateRecorder.setUpdatePolicy(updatePolicy);
-        deleteRecorder.setVersion(version);
         //result of these events
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
-        //insert,update,delete events must consecutive, so execute the other two first
-        for (TapRecordEvent recordEvent : tapRecordEvents) {
-            if (recordEvent instanceof TapInsertRecordEvent) {
-                updateRecorder.executeBatch(listResult);
-                deleteRecorder.executeBatch(listResult);
-                TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) recordEvent;
-                insertRecorder.addInsertBatch(insertRecordEvent.getAfter());
-                insertRecorder.addAndCheckCommit(recordEvent, listResult);
-            } else if (recordEvent instanceof TapUpdateRecordEvent) {
-                insertRecorder.executeBatch(listResult);
-                deleteRecorder.executeBatch(listResult);
-                TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
-                updateRecorder.addUpdateBatch(updateRecordEvent.getAfter());
-                updateRecorder.addAndCheckCommit(recordEvent, listResult);
-            } else if (recordEvent instanceof TapDeleteRecordEvent) {
-                insertRecorder.executeBatch(listResult);
-                updateRecorder.executeBatch(listResult);
-                TapDeleteRecordEvent deleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
-                deleteRecorder.addDeleteBatch(deleteRecordEvent.getBefore());
-                deleteRecorder.addAndCheckCommit(recordEvent, listResult);
+        try {
+            insertRecorder.setVersion(version);
+            insertRecorder.setInsertPolicy(insertPolicy);
+            updateRecorder.setVersion(version);
+            updateRecorder.setUpdatePolicy(updatePolicy);
+            deleteRecorder.setVersion(version);
+            //insert,update,delete events must consecutive, so execute the other two first
+            for (TapRecordEvent recordEvent : tapRecordEvents) {
+                if (recordEvent instanceof TapInsertRecordEvent) {
+                    updateRecorder.executeBatch(listResult);
+                    deleteRecorder.executeBatch(listResult);
+                    TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) recordEvent;
+                    insertRecorder.addInsertBatch(insertRecordEvent.getAfter());
+                    insertRecorder.addAndCheckCommit(recordEvent, listResult);
+                } else if (recordEvent instanceof TapUpdateRecordEvent) {
+                    insertRecorder.executeBatch(listResult);
+                    deleteRecorder.executeBatch(listResult);
+                    TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
+                    updateRecorder.addUpdateBatch(updateRecordEvent.getAfter());
+                    updateRecorder.addAndCheckCommit(recordEvent, listResult);
+                } else if (recordEvent instanceof TapDeleteRecordEvent) {
+                    insertRecorder.executeBatch(listResult);
+                    updateRecorder.executeBatch(listResult);
+                    TapDeleteRecordEvent deleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
+                    deleteRecorder.addDeleteBatch(deleteRecordEvent.getBefore());
+                    deleteRecorder.addAndCheckCommit(recordEvent, listResult);
+                }
             }
+            insertRecorder.executeBatch(listResult);
+            updateRecorder.executeBatch(listResult);
+            deleteRecorder.executeBatch(listResult);
+            //some datasource must be auto commit, error will occur when commit
+            if (!connection.getAutoCommit()) {
+                connection.commit();
+            }
+            //release resource
+
+        } catch (Exception e) {
+            throw new RuntimeException(String.format("Write record(s) failed: %s | Table: %s", e.getMessage(), tapTable.getId()), e);
+        } finally {
+            insertRecorder.releaseResource();
+            updateRecorder.releaseResource();
+            deleteRecorder.releaseResource();
+            connection.close();
+            writeListResultConsumer.accept(listResult
+                    .insertedCount(insertRecorder.getAtomicLong().get())
+                    .modifiedCount(updateRecorder.getAtomicLong().get())
+                    .removedCount(deleteRecorder.getAtomicLong().get()));
         }
-        insertRecorder.executeBatch(listResult);
-        updateRecorder.executeBatch(listResult);
-        deleteRecorder.executeBatch(listResult);
-        //some datasource must be auto commit, error will occur when commit
-        if (!connection.getAutoCommit()) {
-            connection.commit();
-        }
-        //release resource
-        insertRecorder.releaseResource();
-        updateRecorder.releaseResource();
-        deleteRecorder.releaseResource();
-        connection.close();
-        writeListResultConsumer.accept(listResult
-                .insertedCount(insertRecorder.getAtomicLong().get())
-                .modifiedCount(updateRecorder.getAtomicLong().get())
-                .removedCount(deleteRecorder.getAtomicLong().get()));
     }
 
     public RecordWriter setVersion(String version) {

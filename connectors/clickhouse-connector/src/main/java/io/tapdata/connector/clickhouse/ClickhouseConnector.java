@@ -7,7 +7,9 @@ import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
-import io.tapdata.connector.clickhouse.dml.ClickhouseWriter;
+import io.tapdata.connector.clickhouse.dml.ClickhouseBatchWriter;
+import io.tapdata.connector.clickhouse.dml.TapTableWriter;
+import io.tapdata.connector.clickhouse.util.JdbcUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -34,7 +36,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.sql.*;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -60,18 +62,25 @@ public class ClickhouseConnector extends ConnectorBase {
 
     private DDLSqlMaker ddlSqlMaker;
 
-    private ClickhouseWriter clickhouseWriter;
+    private final ClickhouseBatchWriter clickhouseWriter = new ClickhouseBatchWriter(TAG);
 
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
         initConnection(connectionContext);
         ddlSqlMaker = new ClickhouseDDLSqlMaker();
+        if (connectionContext instanceof TapConnectorContext) {
+            TapConnectorContext tapConnectorContext = (TapConnectorContext) connectionContext;
+            Optional.ofNullable(tapConnectorContext.getConnectorCapabilities()).ifPresent(connectorCapabilities -> {
+                Optional.ofNullable(connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY)).ifPresent(clickhouseWriter::setInsertPolicy);
+                Optional.ofNullable(connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY)).ifPresent(clickhouseWriter::setUpdatePolicy);
+            });
+        }
 
     }
 
     private void initConnection(TapConnectionContext connectionContext) throws Throwable {
-        clickhouseConfig= (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
+        clickhouseConfig = (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
         if (EmptyKit.isNull(clickhouseJdbcContext) || clickhouseJdbcContext.isFinish()) {
             clickhouseJdbcContext = (ClickhouseJdbcContext) DataSourcePool.getJdbcContext(clickhouseConfig, ClickhouseJdbcContext.class, connectionContext.getId());
         }
@@ -80,7 +89,6 @@ public class ClickhouseConnector extends ConnectorBase {
         if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
             this.connectionTimezone = clickhouseJdbcContext.timezone();
         }
-        this.clickhouseWriter = new ClickhouseWriter(clickhouseJdbcContext);
     }
 
     @Override
@@ -88,20 +96,20 @@ public class ClickhouseConnector extends ConnectorBase {
         List<DataMap> tableList = clickhouseJdbcContext.queryAllTables(tables);
         List<List<DataMap>> tableLists = Lists.partition(tableList, tableSize);
         try {
-            tableLists.forEach(subList->{
+            tableLists.forEach(subList -> {
                 List<TapTable> tapTableList = TapSimplify.list();
                 List<String> subTableNames = subList.stream().map(v -> v.getString("name")).collect(Collectors.toList());
                 List<DataMap> columnList = clickhouseJdbcContext.queryAllColumns(subTableNames);
 
                 AtomicInteger primaryPos = new AtomicInteger(1);
-                subList.forEach(subTable->{
+                subList.forEach(subTable -> {
                     //1.table name/comment
                     String table = subTable.getString("name");
                     TapTable tapTable = table(table);
                     tapTable.setComment(subTable.getString("comment"));
                     List<String> primaryKey = TapSimplify.list();
-                    columnList.stream().filter(col->table.equals(col.getString("table")))
-                            .forEach(col->{
+                    columnList.stream().filter(col -> table.equals(col.getString("table")))
+                            .forEach(col -> {
                                 String columnName = col.getString("name");
                                 String columnType = col.getString("type");
                                 Boolean nullable = false;
@@ -115,7 +123,7 @@ public class ClickhouseConnector extends ConnectorBase {
                                 int ordinalPosition = Integer.parseInt(col.getString("position"));
                                 field.pos(ordinalPosition);
 
-    //                            String is_in_sorting_key = col.getString("is_in_sorting_key");
+                                //                            String is_in_sorting_key = col.getString("is_in_sorting_key");
                                 String is_in_primary_key = col.getString("is_in_primary_key");
                                 if (Integer.parseInt(is_in_primary_key) == 1) {
                                     field.setPrimaryKey(true);
@@ -142,7 +150,7 @@ public class ClickhouseConnector extends ConnectorBase {
         if (EmptyKit.isNotNull(clickhouseJdbcContext)) {
             clickhouseJdbcContext.finish(connectionContext.getId());
         }
-        Optional.ofNullable(this.clickhouseWriter).ifPresent(ClickhouseWriter::onDestroy);
+        JdbcUtil.closeQuietly(clickhouseWriter);
     }
 
     @Override
@@ -161,13 +169,14 @@ public class ClickhouseConnector extends ConnectorBase {
             return "null";
         });
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "UInt8", tapValue -> {
-            if(tapValue.getValue()) return 1;
+            if (tapValue.getValue()) return 1;
             else return 0;
         });
 
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SS"));
         codecRegistry.registerFromTapValue(TapBinaryValue.class, "String", tapValue -> {
-            if(tapValue != null && tapValue.getValue() != null) return new String(Base64.encodeBase64(tapValue.getValue()));
+            if (tapValue != null && tapValue.getValue() != null)
+                return new String(Base64.encodeBase64(tapValue.getValue()));
             return null;
         });
 
@@ -175,13 +184,14 @@ public class ClickhouseConnector extends ConnectorBase {
 //        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             DateTime datetime = tapDateTimeValue.getValue();
-            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+//            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
             return datetime.toTimestamp();
         });
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
             DateTime datetime = tapDateValue.getValue();
-            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-            return datetime.toSqlDate();});
+//            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            return datetime.toSqlDate();
+        });
 
         //target
         connectorFunctions.supportCreateTable(this::createTable);
@@ -191,10 +201,9 @@ public class ClickhouseConnector extends ConnectorBase {
         connectorFunctions.supportWriteRecord(this::writeRecord);
 
 
-
         //source 暂未找到 增量方案，1.x 不支持源
-        connectorFunctions.supportBatchCount(this::batchCount);
-        connectorFunctions.supportBatchRead(this::batchRead);
+//        connectorFunctions.supportBatchCount(this::batchCount);
+//        connectorFunctions.supportBatchRead(this::batchRead);
 //        connectorFunctions.supportStreamRead(this::streamRead);
 //        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         //query
@@ -202,31 +211,41 @@ public class ClickhouseConnector extends ConnectorBase {
 //        connectorFunctions.supportQueryByFilter(this::queryByFilter);
 
         // ddl
-        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
-        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
-        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
-        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
     }
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
-
         TapTable tapTable = tapCreateTableEvent.getTable();
+        StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ");
+        sql.append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId()));
+        sql.append("(").append(ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true));
+        sql.setLength(sql.length() - 1);
+        sql.append(") ENGINE = ReplacingMergeTree");
+
+        // 主键
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
-        String sql = "CREATE TABLE IF NOT EXISTS \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId() + "\"(" + ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true);
-        sql = sql.substring(0, sql.length() - 1) + ") ENGINE = MergeTree ";
         if (EmptyKit.isNotEmpty(primaryKeys)) {
-            sql += " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\")";
-        } else {
-            sql += " order by tuple()";
+            sql.append(" PRIMARY KEY (").append(TapTableWriter.sqlQuota(",", primaryKeys)).append(")");
         }
+
+        // 关联键排序
+        primaryKeys = tapTable.primaryKeys(false);
+        if (EmptyKit.isNotEmpty(primaryKeys)) {
+            sql.append(" ORDER BY (").append(TapTableWriter.sqlQuota(",", primaryKeys)).append(")");
+        } else {
+            sql.append(" ORDER BY tuple()");
+        }
+
         try {
             List<String> sqls = TapSimplify.list();
-            sqls.add(sql);
-            TapLogger.info("table 为:","table->{}",tapTable.getId());
+            sqls.add(sql.toString());
+            TapLogger.info("table 为:", "table->{}", tapTable.getId());
             clickhouseJdbcContext.batchExecute(sqls);
         } catch (Throwable e) {
-            e.printStackTrace();
-            throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage());
+            throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage(), e);
         }
     }
 
@@ -246,7 +265,15 @@ public class ClickhouseConnector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
-        WriteListResult<TapRecordEvent> writeListResult = this.clickhouseWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
+        WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>();
+        TapTableWriter instance = clickhouseWriter.partition(clickhouseJdbcContext, this::isAlive);
+        for (TapRecordEvent event : tapRecordEvents) {
+            if (!isAlive()) {
+                throw new InterruptedException("node not alive");
+            }
+            instance.addBath(tapTable, event, writeListResult);
+        }
+        instance.summit(writeListResult);
         consumer.accept(writeListResult);
     }
 
@@ -257,8 +284,8 @@ public class ClickhouseConnector extends ConnectorBase {
             if (EmptyKit.isNotEmpty(createIndexEvent.getIndexList())) {
                 createIndexEvent.getIndexList().stream().filter(i -> !i.isPrimary()).forEach(i ->
                         sqls.add("CREATE " + (i.isUnique() ? "UNIQUE " : " ") + "INDEX " +
-                                (EmptyKit.isNotNull(i.getName()) ? "IF NOT EXISTS \"" + i.getName() + "\"" : "") + " ON \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId() + "\"(" +
-                                i.getIndexFields().stream().map(f -> "\"" + f.getName() + "\" " + (f.getFieldAsc() ? "ASC" : "DESC"))
+                                (EmptyKit.isNotNull(i.getName()) ? "IF NOT EXISTS " + TapTableWriter.sqlQuota(i.getName()) : "") + " ON " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId()) + "(" +
+                                i.getIndexFields().stream().map(f -> TapTableWriter.sqlQuota(f.getName()) + " " + (f.getFieldAsc() ? "ASC" : "DESC"))
                                         .collect(Collectors.joining(",")) + ')'));
             }
             clickhouseJdbcContext.batchExecute(sqls);
@@ -270,10 +297,10 @@ public class ClickhouseConnector extends ConnectorBase {
     }
 
     private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
-        String sql = "SELECT * FROM \"" + clickhouseConfig.getDatabase() + "\".\"" + table.getId() + "\" " + CommonSqlMaker.buildSqlByAdvanceFilter(filter);
+        String sql = "SELECT * FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), table.getId()) + " " + CommonSqlMaker.buildSqlByAdvanceFilter(filter);
         clickhouseJdbcContext.query(sql, resultSet -> {
             FilterResults filterResults = new FilterResults();
-            while (resultSet!=null && resultSet.next()) {
+            while (resultSet != null && resultSet.next()) {
                 filterResults.add(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)));
                 if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
                     consumer.accept(filterResults);
@@ -281,7 +308,7 @@ public class ClickhouseConnector extends ConnectorBase {
                 }
             }
             if (EmptyKit.isNotEmpty(filterResults.getResults())) {
-                filterResults.getResults().stream().forEach(l->l.entrySet().forEach(v->{
+                filterResults.getResults().stream().forEach(l -> l.entrySet().forEach(v -> {
                     if (v.getValue() instanceof String) {
                         v.setValue(((String) v.getValue()).trim());
                     }
@@ -294,7 +321,7 @@ public class ClickhouseConnector extends ConnectorBase {
 
     // 不支持偏移量
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
-        String sql = "SELECT * FROM \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId()+"\"";
+        String sql = "SELECT * FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId());
         clickhouseJdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
             //get all column names
@@ -320,7 +347,7 @@ public class ClickhouseConnector extends ConnectorBase {
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         AtomicLong count = new AtomicLong(0);
-        String sql = "SELECT COUNT(1) FROM \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId() + "\"";
+        String sql = "SELECT COUNT(1) FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId());
         clickhouseJdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
         return count.get();
     }
@@ -328,7 +355,7 @@ public class ClickhouseConnector extends ConnectorBase {
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
             if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
-                clickhouseJdbcContext.execute("TRUNCATE TABLE \"" + clickhouseConfig.getDatabase() + "\".\"" + tapClearTableEvent.getTableId() + "\"");
+                clickhouseJdbcContext.execute("TRUNCATE TABLE " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapClearTableEvent.getTableId()));
             }
         } catch (Throwable e) {
             e.printStackTrace();
@@ -339,7 +366,7 @@ public class ClickhouseConnector extends ConnectorBase {
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
             if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() == 1) {
-                clickhouseJdbcContext.execute("DROP TABLE IF EXISTS \"" + clickhouseConfig.getDatabase() + "\".\"" + tapDropTableEvent.getTableId() + "\"");
+                clickhouseJdbcContext.execute("DROP TABLE IF EXISTS " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapDropTableEvent.getTableId()));
             }
         } catch (Throwable e) {
             e.printStackTrace();
@@ -348,30 +375,16 @@ public class ClickhouseConnector extends ConnectorBase {
     }
 
 
-
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         clickhouseConfig = (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
-        ClickhouseTest clickhouseTest = new ClickhouseTest(clickhouseConfig);
-        TestItem testHostPort = clickhouseTest.testHostPort();
-        consumer.accept(testHostPort);
-        if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-            return null;
+        try (
+                ClickhouseTest clickhouseTest = new ClickhouseTest(clickhouseConfig, consumer)
+        ) {
+            clickhouseTest.testOneByOne();
+            return connectionOptions;
         }
-        TestItem testConnect = clickhouseTest.testConnect();
-        consumer.accept(testConnect);
-        if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-            return null;
-        }
-        //Read test
-        //TODO execute read test by checking role permission
-        consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY));
-        //Write test
-        //TODO execute write test by checking role permission
-        consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
-        clickhouseTest.close();
-        return connectionOptions;
     }
 
     @Override

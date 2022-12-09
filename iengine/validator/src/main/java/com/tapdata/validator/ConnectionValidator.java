@@ -10,10 +10,10 @@ import io.tapdata.entity.BaseConnectionValidateResultDetail;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -185,14 +185,12 @@ public class ConnectionValidator {
 
 		ConnectionValidateResult connectionValidateResult = new ConnectionValidateResult();
 		if ("pdk".equals(connections.getPdkType())) {
-			ConnectionNode connectionNode;
+			ConnectionNode connectionNode = null;
 			long ts = System.currentTimeMillis();
 			try {
 				// Create connection node
 				connectionNode = PDKIntegration.createConnectionConnectorBuilder()
-						.withConnectionConfig(new DataMap() {{
-							putAll(connections.getConfig());
-						}})
+						.withConnectionConfig(DataMap.create(connections.getConfig()))
 						.withGroup(databaseType.getGroup())
 						.withPdkId(databaseType.getPdkId())
 						.withAssociateId(connections.getName() + "_" + ts)
@@ -211,7 +209,7 @@ public class ConnectionValidator {
 
 							ConnectionValidateResultDetail resultDetail = new ConnectionValidateResultDetail();
 							resultDetail.setStatus(
-									result == TestItem.RESULT_FAILED ?
+									result != TestItem.RESULT_SUCCESSFULLY ?
 											ValidatorConstant.VALIDATE_DETAIL_RESULT_FAIL :
 											ValidatorConstant.VALIDATE_DETAIL_RESULT_PASSED
 							);
@@ -270,6 +268,8 @@ public class ConnectionValidator {
 					connectionValidateResult.setSchema(new Schema(false, schemaCount.get()));
 				}
 			} finally {
+				if(connectionNode != null)
+					connectionNode.unregisterMemoryFetcher();
 				PDKIntegration.releaseAssociateId(connections.getName() + "_" + ts);
 			}
 		}

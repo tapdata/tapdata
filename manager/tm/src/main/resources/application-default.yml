@@ -51,34 +51,6 @@ spring:
       encoding: UTF-8
       cache-seconds: 1
       basename: messages
-  quartz:
-    scheduler-name: tm-scheduler
-    job-store-type: jdbc
-    auto-startup: false
-    wait-for-jobs-to-complete-on-shutdown: false
-    overwrite-existing-jobs: false
-    jdbc:
-      #druid的wall filter会影响这里的自动建表
-      initialize-schema: always
-    properties:
-      org:
-        quartz:
-          scheduler:
-            instanceId: AUTO
-            wrapJobExecutionInUserTransaction: false
-            rmi:
-              export: false
-              proxy: false
-          threadPool:
-            class: org.quartz.simpl.SimpleThreadPool
-            threadCount: 10
-            threadPriority: 5
-            threadsInheritContextClassLoaderOfInitializingThread: true
-          jobStore:
-            class: com.novemberain.quartz.mongodb.MongoDBJobStore
-            mongoUri: ${spring.data.mongodb.uri}
-            collectionPrefix: QRTZ_
-            misfireThreshold: 60000
 # https://springdoc.org/springdoc-properties.html
 springdoc:
   enabled: true
@@ -138,3 +110,9 @@ access:
     ttl: 1209600
 
 mongodb_uri: ${TAPDATA_MONGO_URI}
+
+task:
+  reset:
+    times: 2  #任务重置重试次数
+    interval: 30000 #任务重置重试间隔，单位毫秒
+    timeoutInterval: 50 #任务重置引擎没有返回时的超时时间，单位秒

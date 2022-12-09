@@ -33,4 +33,12 @@ public interface TaskClient<T> {
 	boolean stop();
 
 	void join();
+
+	default void error(Throwable throwable) {
+
+	}
+
+	default Throwable getError() {
+		return null;
+	}
 }

@@ -6,7 +6,6 @@
  */
 package com.tapdata.tm.messagequeue.repository;
 
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.messagequeue.entity.MessageQueue;
 import org.bson.types.ObjectId;
@@ -15,8 +14,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.Assert;
-
-import java.util.HashMap;
 
 @Repository
 public class MessageQueueRepository extends BaseRepository<MessageQueue, ObjectId> {

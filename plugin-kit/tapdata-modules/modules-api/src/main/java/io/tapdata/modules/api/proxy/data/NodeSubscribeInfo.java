@@ -4,6 +4,7 @@ import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.modules.api.net.message.TapEntityEx;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,7 +13,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Implementation(value = TapEntity.class, type = "NodeSubscribeInfo")
-public class NodeSubscribeInfo implements TapEntity {
+public class NodeSubscribeInfo extends TapEntityEx {
 	private Set<String> subscribeIds;
 	public NodeSubscribeInfo subscribeIds(Set<String> subscribeIds) {
 		this.subscribeIds = subscribeIds;
