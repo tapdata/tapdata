@@ -25,13 +25,17 @@ public class RecordBuffer {
         TapLogger.info(TAG, "init RecordBuffer capacity {}, count {}", capacity, queueSize);
         assert capacity > 0;
         assert queueSize > 1;
-        this.writeQueue = new ArrayBlockingQueue<>(queueSize);
-        for (int index = 0; index < queueSize; index++) {
-            this.writeQueue.add(ByteBuffer.allocate(capacity));
-        }
-        readQueue = new LinkedBlockingDeque<>();
         this.bufferCapacity = capacity;
         this.queueSize = queueSize;
+        init();
+    }
+
+    public void init() {
+        this.writeQueue = new ArrayBlockingQueue<>(queueSize);
+        for (int index = 0; index < queueSize; index++) {
+            this.writeQueue.add(ByteBuffer.allocate(bufferCapacity));
+        }
+        readQueue = new LinkedBlockingDeque<>();
     }
 
     public void startBufferData() {
@@ -107,6 +111,10 @@ public class RecordBuffer {
     private void recycleBuffer(ByteBuffer buffer) throws InterruptedException {
         buffer.clear();
         writeQueue.put(buffer);
+    }
+
+    public int currentBufferRemaining() {
+        return null == currentWriteBuffer ? Constants.CACHE_BUFFER_SIZE : currentWriteBuffer.remaining();
     }
 
     public int getWriteQueueSize() {
