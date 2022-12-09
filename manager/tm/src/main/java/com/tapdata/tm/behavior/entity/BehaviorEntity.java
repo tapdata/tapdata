@@ -17,10 +17,13 @@ import java.util.Map;
 @Setter
 @Getter
 @CompoundIndex(def = "{'dataFlowId': 1, 'code': 1, 'period': 1}")
+@CompoundIndex(def = "{'taskId': 1, 'code': 1, 'period': 1}")
 public class BehaviorEntity extends BaseEntity {
 
     @Indexed
     private String dataFlowId;
+    @Indexed
+    private String taskId;
     private String agentId;
     private String externalUserId;
 

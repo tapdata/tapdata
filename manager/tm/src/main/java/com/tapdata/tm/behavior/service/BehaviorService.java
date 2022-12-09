@@ -94,11 +94,30 @@ public class BehaviorService extends BaseService<BehaviorDto, BehaviorEntity, Ob
     }
 
     /**
+     * Record user behavior
+     * @param behaviorDto
+     * @param userDetail
+     */
+    public void trace(BehaviorEntity behaviorDto, UserDetail userDetail) {
+        Assert.notNull(userDetail, "Parameter userDetail can't be empty");
+        Assert.notNull(behaviorDto, "Parameter behaviorEntity can't be empty");
+
+        try {
+            behaviorDto.setUserId(userDetail.getUserId());
+            behaviorDto.setExternalUserId(userDetail.getExternalUserId());
+            repository.save(behaviorDto, userDetail);
+        } catch (Exception e) {
+            log.error("trace task behavior failed", e);
+        }
+    }
+
+    /**
      * 记录任务统计
      *  FlowEngine 调用统计接口非常频繁，这里采用内存缓存 + 批量写入数据库
      * @param dataFlowInsightDto
      * @param userDetail
      */
+    @Deprecated
     public void trace(DataFlowInsightDto dataFlowInsightDto, UserDetail userDetail) {
         Assert.notNull(userDetail, "Parameter userDetail can't be empty");
         Assert.notNull(dataFlowInsightDto, "Parameter dataFlowInsightDto can't be empty");
@@ -141,6 +160,7 @@ public class BehaviorService extends BaseService<BehaviorDto, BehaviorEntity, Ob
      * @param userDetail
      * @param behaviorCode
      */
+    @Deprecated
     public void trace(String dataFlowId, UserDetail userDetail, BehaviorCode behaviorCode) {
 
         Assert.notNull(dataFlowId, "Parameter dataFlowId can't be empty");
@@ -170,6 +190,7 @@ public class BehaviorService extends BaseService<BehaviorDto, BehaviorEntity, Ob
      * @param userDetail
      * @param behaviorCode
      */
+    @Deprecated
     public void trace(DataFlowDto dataFlowDto, UserDetail userDetail, BehaviorCode behaviorCode) {
 
         Assert.notNull(dataFlowDto, "Parameter dataFlowDto can't be empty");

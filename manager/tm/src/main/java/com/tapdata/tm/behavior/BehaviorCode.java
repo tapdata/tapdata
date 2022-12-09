@@ -6,6 +6,18 @@ package com.tapdata.tm.behavior;
  */
 public enum BehaviorCode {
 
+    createConnection,
+    editConnection,
+    testConnection,
+    connectionReady,
+    connectionError,
+
+    createTask,
+    editTask,
+    deleteTask,
+
+    taskStatusChange,
+
     createDataFlow,
     editDataFlow,
     resetDataFlow,
