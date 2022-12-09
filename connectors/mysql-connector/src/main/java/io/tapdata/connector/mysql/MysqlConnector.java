@@ -2,6 +2,7 @@ package io.tapdata.connector.mysql;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConfig;
+import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
@@ -20,7 +21,6 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.kit.DbKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -30,9 +30,6 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -118,28 +115,7 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportExecuteCommandFunction(this::executeCommand);
-    }
-
-    private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
-
-        ExecuteResult executeResult = new ExecuteResult();
-        try (Connection connection = mysqlJdbcContext.getConnection();
-             Statement sqlStatement = connection.createStatement()) {
-            boolean isQuery = sqlStatement.execute(tapExecuteCommand.getCommand());
-            if (isQuery) {
-                try (ResultSet resultSet = sqlStatement.getResultSet()) {
-                    List<DataMap> dataMaps = DbKit.getDataFromResultSet(resultSet);
-                    executeResult.setResults(dataMaps);
-                }
-            } else {
-                executeResult.setModifiedCount(sqlStatement.getUpdateCount());
-            }
-
-        } catch (Throwable e) {
-            executeResult.setError(e);
-        }
-        executeResultConsumer.accept(executeResult);
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
     }
 
 
