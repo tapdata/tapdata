@@ -1,18 +1,12 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.pdk.apis.TapConnector;
-import io.tapdata.pdk.apis.entity.WriteListResult;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.Record;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
@@ -21,7 +15,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.List;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
@@ -64,12 +57,11 @@ public class DropTableFunctionTest extends PDKTestBase {
                         //我们以后会希望最简化PDK API的时候， 可能会让用户手动建表， 所以不做报错处理
                         TapAssert.asserts(()->
                             Assertions.assertTrue(
-                                    null==consumer||consumer.isEmpty(),
-                                    TapSummary.format("dropTable.error",tableId)
+                                null==consumer||consumer.isEmpty(),
+                                TapSummary.format("dropTable.error",tableId)
                             )
                         ).acceptAsWarn(testCase,TapSummary.format("dropTable.succeed",tableId));
                     });
-
                 }
             } catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -81,8 +73,8 @@ public class DropTableFunctionTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
+            support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
+            support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
         );
     }
 }

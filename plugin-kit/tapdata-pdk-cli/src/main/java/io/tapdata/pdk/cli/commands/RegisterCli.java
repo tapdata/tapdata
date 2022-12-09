@@ -46,9 +46,6 @@ public class RegisterCli extends CommonCli {
     @CommandLine.Option(names = {"-sk", "--secretKey"}, required = false, description = "Provide auth secretKey")
     private String sk;
 
-    @CommandLine.Option(names = {"-b", "--beta"}, required = false, defaultValue = "false", description = "Beta")
-    private boolean beta;
-
     @CommandLine.Option(names = {"-t", "--tm"}, required = true, description = "Tapdata TM url")
     private String tmUrl;
 
@@ -104,7 +101,7 @@ public class RegisterCli extends CommonCli {
                     }
 
                     JSONObject o = (JSONObject) JSON.toJSON(specification);
-                    o.put("beta", beta);
+                    o.put("beta", "beta".equals(specification.getManifest().get("Authentication")));
                     String nodeType = null;
                     switch (nodeInfo.getNodeType()) {
                         case TapNodeInfo.NODE_TYPE_SOURCE:
