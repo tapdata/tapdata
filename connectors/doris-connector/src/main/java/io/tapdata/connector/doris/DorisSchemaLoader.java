@@ -254,7 +254,7 @@ public class DorisSchemaLoader {
             dorisContext.execute(sql);
         } catch (Exception e) {
             e.printStackTrace();
-            throw new RuntimeException("Create Table " + tableName + " Failed! " + e.getMessage());
+            TapLogger.warn(TAG, "Create Table " + tableName + " Failed, Task Will Continue, Error is: " + e.getMessage());
         }
     }
 
