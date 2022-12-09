@@ -26,6 +26,7 @@ import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -46,7 +47,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
   private final Invocable engine;
 
-  private final ScriptExecutorsManager scriptExecutorsManager;
+  private ScriptExecutorsManager scriptExecutorsManager;
 
   private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
 
@@ -79,11 +80,16 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
             new ObsScriptLogger(obsLogger)
     );
 
+    this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
+  }
+
+  @Override
+  protected void doInit(@NotNull Context context) throws Exception {
+    super.doInit(context);
+    Node node = getNode();
     this.scriptExecutorsManager = new ScriptExecutorsManager(obsLogger, clientMongoOperator, jetContext.hazelcastInstance(),
             node.getTaskId(), node.getId());
-
     ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
-    this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
   }
 
   @SneakyThrows
