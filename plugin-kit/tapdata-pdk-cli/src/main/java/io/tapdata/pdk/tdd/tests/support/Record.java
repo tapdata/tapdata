@@ -91,7 +91,12 @@ public class Record extends HashMap {
                         record.builder(keyName,Double.parseDouble(""+(Math.random()*10+50)));
                     }break;
                     case "Date_Time":{
-                        record.builder(keyName,DateUtil.dateTimeToStr());
+//                        try {
+//                            Thread.sleep(50);
+//                            record.builder(keyName,DateUtil.dateTimeToStr());
+//                        } catch (InterruptedException e) {
+                            record.builder(keyName,DateUtil.dateTimeToStr(new Date((long) (1293861599+new Random().nextDouble()*60*60*24*365))));
+//                        }
                     }break;
                     case "STRING(100)":{
                         record.builder(keyName,UUID.randomUUID().toString());
