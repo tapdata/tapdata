@@ -270,22 +270,23 @@
     "varchar($byte)": {
       "name": "varchar",
       "to": "TapString",
-      "byte": 16358,
+      "byte": 16374,
       "defaultByte": 1,
       "byteRatio": 4
     },
     "nchar($byte)": {
       "name": "nchar",
       "to": "TapString",
-      "byte": "64k",
+      "byte": 4000,
       "defaultByte": 1,
-      "byteRatio": 4
+      "byteRatio": 4,
+      "queryOnly": true
     },
     "binary($byte)": {
       "to": "TapBinary",
-      "byte": 255,
+      "byte": 16374,
       "defaultByte": 1,
-      "fixed": true
+      "preferByte": 1000
     },
     "tinyint": {
       "to": "TapNumber",
