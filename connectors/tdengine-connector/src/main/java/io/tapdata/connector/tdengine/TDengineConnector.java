@@ -81,6 +81,8 @@ public class TDengineConnector extends ConnectorBase {
         fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
         fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
         fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
+
+        Class.forName("com.taosdata.jdbc.TSDBDriver");
     }
 
     @Override
