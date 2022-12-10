@@ -506,26 +506,26 @@ public class MongodbConnector extends ConnectorBase {
 
 	private Bson queryForPartitionFilter(TapPartitionFilter partitionFilter, TapIndexEx partitionKeys) {
 		List<Bson> bsonList = new ArrayList<>();
-		List<QueryOperator> ops = partitionFilter.getOperators();
-		if (ops != null) {
-			for (QueryOperator op : ops) {
-				if(!partitionKeys.getIndexMap().containsKey(op.getKey())) {
-					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in operators", op.getKey(), partitionKeys);
-				}
-				switch (op.getOperator()) {
-					case QueryOperator.GT:
-						bsonList.add(gt(op.getKey(), op.getValue()));
-						break;
-					case QueryOperator.GTE:
-						bsonList.add(gte(op.getKey(), op.getValue()));
-						break;
-					case QueryOperator.LT:
-						bsonList.add(lt(op.getKey(), op.getValue()));
-						break;
-					case QueryOperator.LTE:
-						bsonList.add(lte(op.getKey(), op.getValue()));
-						break;
-				}
+		List<QueryOperator> ops = list(partitionFilter.getLeftBoundary(), partitionFilter.getRightBoundary());
+		for (QueryOperator op : ops) {
+			if(op == null)
+				continue;
+			if(!partitionKeys.getIndexMap().containsKey(op.getKey())) {
+				throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in operators", op.getKey(), partitionKeys);
+			}
+			switch (op.getOperator()) {
+				case QueryOperator.GT:
+					bsonList.add(gt(op.getKey(), op.getValue()));
+					break;
+				case QueryOperator.GTE:
+					bsonList.add(gte(op.getKey(), op.getValue()));
+					break;
+				case QueryOperator.LT:
+					bsonList.add(lt(op.getKey(), op.getValue()));
+					break;
+				case QueryOperator.LTE:
+					bsonList.add(lte(op.getKey(), op.getValue()));
+					break;
 			}
 		}
 		DataMap match = partitionFilter.getMatch();
@@ -553,7 +553,7 @@ public class MongodbConnector extends ConnectorBase {
 				.startSplitting();
 	}
 
-	private List<TapPartitionFilter> objectIdSplitter(FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces) {
+	private List<TapPartitionFilter> objectIdSplitter(TapPartitionFilter boundaryPartitionFilter, FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces) {
 		ObjectId min = (ObjectId) fieldMinMaxValue.getMin();
 		ObjectId max = (ObjectId) fieldMinMaxValue.getMax();
 		int minSeconds = min.getTimestamp();
@@ -563,17 +563,21 @@ public class MongodbConnector extends ConnectorBase {
 
 		List<TapPartitionFilter> partitionFilters = new ArrayList<>();
 		if(min.equals(max)) {
-			partitionFilters.add(TapPartitionFilter.create().match(fieldMinMaxValue.getFieldName(), min));
+			partitionFilters.addAll(TapPartitionFilter.filtersWhenMinMaxEquals(boundaryPartitionFilter, fieldMinMaxValue, min));
 		} else {
 			for(int i = 0; i < maxSplitPieces; i++) {
 				if(i == 0) {
-					partitionFilters.add(TapPartitionFilter.create().op(QueryOperator.lt(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize, 0))));
+					partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
+							.leftBoundary(boundaryPartitionFilter.getLeftBoundary())
+							.rightBoundary(QueryOperator.lt(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize, 0))));
 				} else if(i == maxSplitPieces - 1) {
-					partitionFilters.add(TapPartitionFilter.create().op(QueryOperator.gte(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize * i, 0))));
+					partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
+							.leftBoundary(QueryOperator.gte(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize * i, 0)))
+							.rightBoundary(boundaryPartitionFilter.getRightBoundary()));
 				} else {
-					partitionFilters.add(TapPartitionFilter.create()
-							.op(QueryOperator.gte(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize * i, 0)))
-							.op(QueryOperator.lt(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize * (i + 1), 0)))
+					partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
+							.leftBoundary(QueryOperator.gte(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize * i, 0)))
+							.rightBoundary(QueryOperator.lt(fieldMinMaxValue.getFieldName(), new ObjectId(minSeconds + pieceSize * (i + 1), 0)))
 					);
 				}
 			}
@@ -853,15 +857,6 @@ public class MongodbConnector extends ConnectorBase {
 	 * @param tapReadOffsetConsumer
 	 */
 	private void batchRead(TapConnectorContext connectorContext, TapTable table, Object offset, int eventBatchSize, BiConsumer<List<TapEvent>, Object> tapReadOffsetConsumer) throws Throwable {
-		if(true) {
-			getReadPartitions(connectorContext, table, 500000L, null, new Consumer<ReadPartition>() {
-				@Override
-				public void accept(ReadPartition readPartition) {
-					TapLogger.info(TAG, "readPartition {}", readPartition);
-				}
-			});
-			return;
-		}
 		List<TapEvent> tapEvents = list();
 		MongoCursor<Document> mongoCursor;
 		MongoCollection<Document> collection = getMongoCollection(table.getId());

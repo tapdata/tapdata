@@ -13,17 +13,24 @@ import java.util.Map;
  * @author aplomb
  */
 public class TapPartitionFilter extends TapFilter {
-	private List<QueryOperator> operators;
+	private QueryOperator leftBoundary;
+	public TapPartitionFilter leftBoundary(QueryOperator operator) {
+		leftBoundary = operator;
+		return this;
+	}
+	private QueryOperator rightBoundary;
+	public TapPartitionFilter rightBoundary(QueryOperator operator) {
+		rightBoundary = operator;
+		return this;
+	}
 
 	public static TapPartitionFilter create() {
 		return new TapPartitionFilter();
 	}
 
-	public TapPartitionFilter op(QueryOperator operator) {
-		if(operators == null) {
-			operators = new ArrayList<>();
-		}
-		operators.add(operator);
+
+	public TapPartitionFilter resetMatch(DataMap match) {
+		this.match = match;
 		return this;
 	}
 
@@ -34,24 +41,32 @@ public class TapPartitionFilter extends TapFilter {
 		return this;
 	}
 
-	public List<QueryOperator> getOperators() {
-		return operators;
+	public QueryOperator getLeftBoundary() {
+		return leftBoundary;
 	}
 
-	public void setOperators(List<QueryOperator> operators) {
-		this.operators = operators;
+	public void setLeftBoundary(QueryOperator leftBoundary) {
+		this.leftBoundary = leftBoundary;
+	}
+
+	public QueryOperator getRightBoundary() {
+		return rightBoundary;
+	}
+
+	public void setRightBoundary(QueryOperator rightBoundary) {
+		this.rightBoundary = rightBoundary;
 	}
 
 	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder("TapPartitionFilter ");
-		if(operators != null) {
-			builder.append("operators [");
-			for(QueryOperator queryOperator : operators) {
-				builder.append(queryOperator).append(", ");
-			}
-			builder.append("] ");
+		if(leftBoundary != null) {
+			builder.append("leftBoundary ").append(leftBoundary).append("; ");
 		}
+		if(rightBoundary != null) {
+			builder.append("rightBoundary ").append(rightBoundary).append("; ");
+		}
+
 		if(match != null) {
 			builder.append("match {");
 			for(Map.Entry<String, Object> entry : match.entrySet()) {
@@ -60,5 +75,19 @@ public class TapPartitionFilter extends TapFilter {
 			builder.append("}");
 		}
 		return builder.toString();
+	}
+
+	public static List<TapPartitionFilter> filtersWhenMinMaxEquals(TapPartitionFilter boundaryPartitionFilter, FieldMinMaxValue fieldMinMaxValue, Object min) {
+		List<TapPartitionFilter> partitionFilters = new ArrayList<>();
+		partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
+				.leftBoundary(boundaryPartitionFilter.getLeftBoundary())
+				.rightBoundary(QueryOperator.lt(fieldMinMaxValue.getFieldName(), min)));
+
+		partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch()).match(fieldMinMaxValue.getFieldName(), min));
+
+		partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
+				.leftBoundary(QueryOperator.gt(fieldMinMaxValue.getFieldName(), min))
+				.rightBoundary(boundaryPartitionFilter.getRightBoundary()));
+		return partitionFilters;
 	}
 }

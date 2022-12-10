@@ -9,5 +9,5 @@ import java.util.List;
  * @author aplomb
  */
 public interface TypeSplitter {
-	List<TapPartitionFilter> split(FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces);
+	List<TapPartitionFilter> split(TapPartitionFilter partitionFilter, FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces);
 }

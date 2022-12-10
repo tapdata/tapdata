@@ -12,7 +12,8 @@ import java.util.function.Consumer;
 public interface AsyncParallelWorker extends AsyncWorker {
 	String getId();
 	AsyncQueueWorker start(String queueWorkerId, JobContext jobContext, Consumer<AsyncQueueWorker> consumer);
-
+	AsyncQueueWorker start(JobContext jobContext, Consumer<AsyncQueueWorker> consumer);
+	void setParallelWorkerStateListener(ParallelWorkerStateListener listener);
 	void stop();
 
 	Collection<AsyncQueueWorker> runningQueueWorkers();

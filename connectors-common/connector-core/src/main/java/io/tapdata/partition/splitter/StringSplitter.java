@@ -109,7 +109,7 @@ public class StringSplitter implements TypeSplitter {
 	public static StringSplitter INSTANCE = new StringSplitter();
 
 	@Override
-	public List<TapPartitionFilter> split(FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces) {
+	public List<TapPartitionFilter> split(TapPartitionFilter boundaryPartitionFilter, FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces) {
 		String min = (String) fieldMinMaxValue.getMin();
 		String max = (String) fieldMinMaxValue.getMax();
 		char[] minChars = min.toCharArray();
@@ -147,19 +147,23 @@ public class StringSplitter implements TypeSplitter {
 			List<TapPartitionFilter> partitionFilters = new ArrayList<>();
 			for(int i = 0; i < maxSplitPieces; i++) {
 				if(i == 0) {
-					partitionFilters.add(TapPartitionFilter.create().op(QueryOperator.lt(fieldMinMaxValue.getFieldName(), min.substring(0, pos) + (char)(minChar + pieceSize))));
+					partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
+							.leftBoundary(boundaryPartitionFilter.getLeftBoundary())
+							.rightBoundary(QueryOperator.lt(fieldMinMaxValue.getFieldName(), min.substring(0, pos) + (char)(minChar + pieceSize))));
 				} else if(i == maxSplitPieces - 1) {
-					partitionFilters.add(TapPartitionFilter.create().op(QueryOperator.lt(fieldMinMaxValue.getFieldName(), min.substring(0, pos) + (char)(minChar + pieceSize * i))));
+					partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
+							.leftBoundary(QueryOperator.gte(fieldMinMaxValue.getFieldName(), min.substring(0, pos) + (char)(minChar + pieceSize * i)))
+							.rightBoundary(boundaryPartitionFilter.getRightBoundary()));
 				} else {
-					partitionFilters.add(TapPartitionFilter.create()
-							.op(QueryOperator.gte(fieldMinMaxValue.getFieldName(), min + pieceSize * i))
-							.op(QueryOperator.lt(fieldMinMaxValue.getFieldName(), min + pieceSize * (i + 1)))
+					partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
+							.leftBoundary(QueryOperator.gte(fieldMinMaxValue.getFieldName(), min + pieceSize * i))
+							.rightBoundary(QueryOperator.lt(fieldMinMaxValue.getFieldName(), min + pieceSize * (i + 1)))
 					);
 				}
 			}
 			return partitionFilters;
 		} else {
-			return list(TapPartitionFilter.create().match(fieldMinMaxValue.getFieldName(), min));
+			return new ArrayList<>(TapPartitionFilter.filtersWhenMinMaxEquals(boundaryPartitionFilter, fieldMinMaxValue, min));
 		}
 	}
 }

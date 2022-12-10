@@ -26,6 +26,11 @@ public class AsyncJobChainImpl implements AsyncJobChain {
 	}
 
 	@Override
+	public AsyncJobChain job(AsyncJob asyncJob) {
+		return job(UUID.randomUUID().toString(), asyncJob);
+	}
+
+	@Override
 	public AsyncJobChain job(String id, AsyncJob asyncJob) {
 		return job(id, asyncJob, false);
 	}

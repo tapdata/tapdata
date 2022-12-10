@@ -6,6 +6,7 @@ public interface AsyncQueueWorker extends AsyncWorker {
 	String getId();
 	int getState();
 	AsyncQueueWorker job(AsyncJobChain asyncJobChain);
+	AsyncQueueWorker job(AsyncJob asyncJob);
 	AsyncQueueWorker job(String id, AsyncJob asyncJob);
 
 	AsyncQueueWorker job(String id, AsyncJob asyncJob, boolean pending);

@@ -8,8 +8,8 @@ import java.util.List;
  * @author aplomb
  */
 public class SplitContext {
-	private long total;
-	public SplitContext total(long total) {
+	private Long total;
+	public SplitContext total(Long total) {
 		this.total = total;
 		return this;
 	}
@@ -18,11 +18,7 @@ public class SplitContext {
 		this.indexFields = indexFields;
 		return this;
 	}
-	private int currentFieldPos;
-	public SplitContext currentFieldPos(int currentFieldPos) {
-		this.currentFieldPos = currentFieldPos;
-		return this;
-	}
+
 	public static SplitContext create() {
 		return new SplitContext();
 	}
@@ -35,19 +31,11 @@ public class SplitContext {
 		this.indexFields = indexFields;
 	}
 
-	public int getCurrentFieldPos() {
-		return currentFieldPos;
-	}
-
-	public void setCurrentFieldPos(int currentFieldPos) {
-		this.currentFieldPos = currentFieldPos;
-	}
-
-	public long getTotal() {
+	public Long getTotal() {
 		return total;
 	}
 
-	public void setTotal(long total) {
+	public void setTotal(Long total) {
 		this.total = total;
 	}
 

@@ -75,6 +75,11 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	}
 
 	@Override
+	public AsyncQueueWorker job(AsyncJob asyncJob) {
+		return job(UUID.randomUUID().toString(), asyncJob);
+	}
+
+	@Override
 	public AsyncQueueWorker job(String id, AsyncJob asyncJob) {
 		return job(id, asyncJob, false);
 	}
@@ -274,7 +279,7 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 						continue;
 					}
 					if(currentJobContext == null) {
-						currentJobContext = new JobContextImpl();
+						currentJobContext = new JobContextImpl().asyncQueueWorker(this);
 					}
 					currentJobContext.resetStop();
 					currentJobContext.asyncJob(asyncJob);
@@ -288,7 +293,7 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 					lastJobContext = currentJobContext;
 					JobContext theJobContext = asyncJob.run(currentJobContext);
 					if(theJobContext == null) {
-						theJobContext = new JobContextImpl().context(currentJobContext.getContext());
+						theJobContext = new JobContextImpl().asyncQueueWorker(this).context(currentJobContext.getContext());
 					} else  {
 						if(theJobContext.getContext() == null || (currentJobContext.getContext() != null && !theJobContext.getContext().equals(currentJobContext.getContext()))) {
 							theJobContext.setContext(currentJobContext.getContext());

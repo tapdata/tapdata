@@ -93,4 +93,19 @@ public class TapIndex implements Serializable {
     public void setCluster(Boolean cluster) {
         this.cluster = cluster;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder(TapIndex.class.getSimpleName()).append(" ");
+        if(name != null)
+            builder.append("name ").append(name).append(" ");
+        if(indexFields != null) {
+            builder.append("indexFields: [");
+            for(TapIndexField indexField : indexFields) {
+                builder.append(indexField).append("; ");
+            }
+            builder.append("]");
+        }
+        return builder.toString();
+    }
 }

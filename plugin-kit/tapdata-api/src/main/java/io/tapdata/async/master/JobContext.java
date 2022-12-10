@@ -18,6 +18,11 @@ public abstract class JobContext {
 	public abstract <K, V> void foreach(Map<K, V> map, Function<Map.Entry<K, V>, Boolean> entryFunction);
 	public abstract void runOnce(Runnable runnable);
 
+	private AsyncQueueWorker asyncQueueWorker;
+	public JobContext asyncQueueWorker(AsyncQueueWorker asyncQueueWorker) {
+		this.asyncQueueWorker = asyncQueueWorker;
+		return this;
+	}
 	protected final AtomicBoolean alive = new AtomicBoolean(false);
 	public JobContext alive() {
 		alive.compareAndSet(false, true);
@@ -141,5 +146,9 @@ public abstract class JobContext {
 
 	public void setStopReason(String stopReason) {
 		this.stopReason = stopReason;
+	}
+
+	public AsyncQueueWorker getAsyncQueueWorker() {
+		return asyncQueueWorker;
 	}
 }

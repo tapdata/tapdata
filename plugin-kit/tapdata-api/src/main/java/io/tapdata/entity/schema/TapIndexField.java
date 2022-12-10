@@ -36,4 +36,9 @@ public class TapIndexField implements Serializable {
     public void setName(String name) {
         this.name = name;
     }
+
+    @Override
+    public String toString() {
+        return "TapIndexField name " + name + " fieldAsc " + fieldAsc;
+    }
 }

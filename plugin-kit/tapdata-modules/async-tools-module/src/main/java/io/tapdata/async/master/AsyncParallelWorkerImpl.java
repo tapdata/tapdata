@@ -3,18 +3,32 @@ package io.tapdata.async.master;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.Container;
+import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+
+import static io.tapdata.async.master.ParallelWorkerStateListener.*;
+import static io.tapdata.async.master.QueueWorkerStateListener.STATE_IDLE;
+import static io.tapdata.async.master.QueueWorkerStateListener.STATE_LONG_IDLE;
+import static io.tapdata.async.master.QueueWorkerStateListener.STATE_NONE;
+import static io.tapdata.async.master.QueueWorkerStateListener.STATE_STOPPED;
+import static io.tapdata.entity.simplify.TapSimplify.list;
 
 /**
  * @author aplomb
  */
 public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	private static final String TAG = AsyncParallelWorkerImpl.class.getSimpleName();
+	private final ExecutorsManager executorsManager;
+	private ParallelWorkerStateListener parallelWorkerStateListener;
+	private ScheduledFuture<?> longIdleScheduleFuture;
+	private final AtomicInteger state = new AtomicInteger(STATE_NONE);
+
 	private String id;
 	private int parallelCount;
 	@Bean
@@ -26,6 +40,8 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	public AsyncParallelWorkerImpl(String id, int parallelCount) {
 		this.id = id;
 		this.parallelCount = parallelCount;
+		executorsManager = ExecutorsManager.getInstance();
+		changeState(STATE_NONE, STATE_IDLE, null, false);
 	}
 
 	@Override
@@ -56,11 +72,57 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	}
 
 	@Override
+	public AsyncQueueWorker start(JobContext jobContext, Consumer<AsyncQueueWorker> consumer) {
+		return start(UUID.randomUUID().toString(), jobContext, consumer);
+	}
+
+	@Override
+	public void setParallelWorkerStateListener(ParallelWorkerStateListener listener) {
+		parallelWorkerStateListener = listener;
+	}
+
+	private synchronized boolean changeState(int fromState, int toState, List<Integer> ignoreFromComparePossibleStates, boolean scheduleForLongIdle) {
+		boolean result = false;
+		if(ignoreFromComparePossibleStates == null) {
+			result = state.compareAndSet(fromState, toState);
+			if(result && parallelWorkerStateListener != null) {
+				CommonUtils.ignoreAnyError(() -> parallelWorkerStateListener.stateChanged(id, fromState, toState), TAG);
+			}
+		} else {
+			if(ignoreFromComparePossibleStates.isEmpty() || ignoreFromComparePossibleStates.contains(state.get())) {
+				result = true;
+				state.set(toState);
+				if(parallelWorkerStateListener != null) {
+					CommonUtils.ignoreAnyError(() -> parallelWorkerStateListener.stateChanged(id, fromState, toState), TAG);
+				}
+			}
+		}
+		if(result) {
+			if(toState != STATE_IDLE) {
+				if(longIdleScheduleFuture != null) {
+					longIdleScheduleFuture.cancel(true);
+					longIdleScheduleFuture = null;
+				}
+			} else if(scheduleForLongIdle) { //result && toState == STATE_IDLE
+				if(longIdleScheduleFuture != null) {
+					longIdleScheduleFuture.cancel(true);
+					longIdleScheduleFuture = null;
+				}
+				longIdleScheduleFuture = executorsManager.getScheduledExecutorService().schedule(() -> {
+					changeState(STATE_IDLE, STATE_LONG_IDLE, null, false);
+				}, 1, TimeUnit.SECONDS);
+			}
+		}
+		return result;
+	}
+
+	@Override
 	public void stop() {
 		Map<String, AsyncQueueWorker> theRunningQueueWorkers = null;
 		List<Container<JobContext, AsyncQueueWorker>> thePendingQueueWorkers = null;
 		synchronized (this) {
 			if(stopped.compareAndSet(false, true)) {
+				changeState(state.get(), STATE_STOPPED, Collections.EMPTY_LIST, false);
 				theRunningQueueWorkers = runningQueueWorkers;
 				thePendingQueueWorkers = pendingQueueWorkers;
 			}
@@ -83,6 +145,7 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 				removeRunningToExecutePendingWorker(id);
 			}
 		});
+		changeState(state.get(), STATE_RUNNING, list(STATE_NONE, STATE_IDLE, STATE_LONG_IDLE), false);
 		asyncQueueWorker.start(jobContext);
 	}
 
@@ -105,6 +168,8 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 					pendingQueueWorkers.add(container);
 				}
 			}
+		} else if(pendingQueueWorkers.isEmpty() && runningQueueWorkers.isEmpty()) {
+			changeState(STATE_RUNNING, STATE_IDLE, null, true);
 		}
 	}
 
@@ -134,4 +199,5 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	public void setParallelCount(int parallelCount) {
 		this.parallelCount = parallelCount;
 	}
+
 }

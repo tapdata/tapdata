@@ -34,4 +34,9 @@ public class ReadPartition {
 	public void setPartitionFilter(TapPartitionFilter partitionFilter) {
 		this.partitionFilter = partitionFilter;
 	}
+
+	@Override
+	public String toString() {
+		return "ReadPartition id " + id + " " + partitionFilter;
+	}
 }

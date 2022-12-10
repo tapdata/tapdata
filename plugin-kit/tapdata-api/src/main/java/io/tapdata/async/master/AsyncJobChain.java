@@ -8,6 +8,7 @@ import java.util.function.Function;
  * @author aplomb
  */
 public interface AsyncJobChain {
+	AsyncJobChain job(AsyncJob asyncJob);
 	AsyncJobChain job(String id, AsyncJob asyncJob);
 
 	AsyncJobChain job(String id, AsyncJob asyncJob, boolean pending);

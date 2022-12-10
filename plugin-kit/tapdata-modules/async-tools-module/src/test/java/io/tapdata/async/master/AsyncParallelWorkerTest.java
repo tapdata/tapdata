@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -24,7 +25,9 @@ public class AsyncParallelWorkerTest extends AsyncTestBase {
 	public void testAsyncParallelWorker() throws Throwable {
 		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
 		AsyncParallelWorker asyncParallelWorker = asyncMaster.createAsyncParallelWorker("Test", 1);
-
+		asyncParallelWorker.setParallelWorkerStateListener((id, fromState, toState) -> {
+			System.out.println("id " + id + " from " + fromState + " to " + toState);
+		});
 		List<String> ids = new ArrayList<>();
 		asyncParallelWorker.start("1", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
 			ids.add(asyncQueueWorker.getId());
@@ -49,6 +52,39 @@ public class AsyncParallelWorkerTest extends AsyncTestBase {
 				throw new RuntimeException(e);
 			}
 			$(() -> Assertions.assertArrayEquals(new String[]{"1", "2", "3", "4"}, ids.toArray()));
+			completed();
+		}).start();
+		waitCompleted(3);
+	}
+
+	@Test
+	public void testAsyncParallelWorkerStatusLongIdle() throws Throwable {
+		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
+		AsyncParallelWorker asyncParallelWorker = asyncMaster.createAsyncParallelWorker("Test", 1);
+		AtomicInteger lastState = new AtomicInteger();
+		asyncParallelWorker.setParallelWorkerStateListener((id, fromState, toState) -> {
+			System.out.println("id " + id + " from " + fromState + " to " + toState);
+			lastState.set(toState);
+		});
+		List<String> ids = new ArrayList<>();
+		asyncParallelWorker.start("1", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
+			ids.add(asyncQueueWorker.getId());
+			return null;
+		}));
+
+		new Thread(() -> {
+			try {
+				Thread.sleep(200L);
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+			$(() -> Assertions.assertEquals(ParallelWorkerStateListener.STATE_IDLE, lastState.get()));
+			try {
+				Thread.sleep(1200L);
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+			$(() -> Assertions.assertEquals(ParallelWorkerStateListener.STATE_LONG_IDLE, lastState.get()));
 			completed();
 		}).start();
 		waitCompleted(3);

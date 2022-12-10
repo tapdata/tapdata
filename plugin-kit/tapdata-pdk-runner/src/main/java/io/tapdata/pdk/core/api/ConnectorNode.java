@@ -19,6 +19,7 @@ public class ConnectorNode extends Node {
     TapCodecsFilterManager codecsFilterManager;
     String table;
     List<String> tables;
+
 //    Queue<TapEvent> externalEvents;
 
 
