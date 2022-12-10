@@ -1,50 +1,40 @@
 package io.tapdata.pdk.apis.entity;
 
-import io.tapdata.entity.event.TapEvent;
-
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * @author aplomb
  */
-public class ExecuteResult<T extends TapEvent> {
-	private List<T> events;
-	public ExecuteResult<T> events(List<T> events) {
-		this.events = events;
+public class ExecuteResult {
+	private List<? extends Map<String, Object>> results;
+	public ExecuteResult results(List<? extends Map<String, Object>> results) {
+		this.results = results;
 		return this;
 	}
 	private long insertedCount;
 
-	public ExecuteResult<T> insertedCount(long insertedCount) {
+	public ExecuteResult insertedCount(long insertedCount) {
 		this.insertedCount = insertedCount;
 		return this;
 	}
 
 	private long removedCount;
 
-	public ExecuteResult<T> removedCount(long removedCount) {
+	public ExecuteResult removedCount(long removedCount) {
 		this.removedCount = removedCount;
 		return this;
 	}
 
 	private long modifiedCount;
 
-	public ExecuteResult<T> modifiedCount(long modifiedCount) {
+	public ExecuteResult modifiedCount(long modifiedCount) {
 		this.modifiedCount = modifiedCount;
 		return this;
 	}
 
-	private Map<T, Throwable> errorMap;
+	private Throwable error;
 
-	public ExecuteResult<T> addError(T key, Throwable value) {
-		if (errorMap == null) {
-			errorMap = new HashMap<>();
-		}
-		errorMap.put(key, value);
-		return this;
-	}
 
 	public ExecuteResult() {
 	}
@@ -53,11 +43,11 @@ public class ExecuteResult<T extends TapEvent> {
 		this(insertedCount, modifiedCount, removedCount, null);
 	}
 
-	public ExecuteResult(long insertedCount, long modifiedCount, long removedCount, Map<T, Throwable> errorMap) {
+	public ExecuteResult(long insertedCount, long modifiedCount, long removedCount, Throwable throwable) {
 		this.insertedCount = insertedCount;
 		this.modifiedCount = modifiedCount;
 		this.removedCount = removedCount;
-		this.errorMap = errorMap;
+		this.error = throwable;
 	}
 
 	public long getInsertedCount() {
@@ -84,12 +74,12 @@ public class ExecuteResult<T extends TapEvent> {
 		this.modifiedCount = modifiedCount;
 	}
 
-	public Map<T, Throwable> getErrorMap() {
-		return errorMap;
+	public Throwable getError() {
+		return error;
 	}
 
-	public void setErrorMap(Map<T, Throwable> errorMap) {
-		this.errorMap = errorMap;
+	public void setError(Throwable error) {
+		this.error = error;
 	}
 
 	public void incrementInserted(long value) {
@@ -104,18 +94,11 @@ public class ExecuteResult<T extends TapEvent> {
 		this.removedCount = this.removedCount + value;
 	}
 
-	public void addErrors(Map<T, Throwable> map) {
-		if (errorMap == null) {
-			errorMap = new HashMap<>();
-		}
-		errorMap.putAll(map);
+	public List<? extends Map<String, Object>> getResults() {
+		return results;
 	}
 
-	public List<T> getEvents() {
-		return events;
-	}
-
-	public void setEvents(List<T> events) {
-		this.events = events;
+	public void setResults(List<? extends Map<String, Object>> results) {
+		this.results = results;
 	}
 }

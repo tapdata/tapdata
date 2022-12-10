@@ -112,6 +112,11 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
         return this;
     }
 
+    public ConnectorFunctions supportExecuteCommandFunction(ExecuteCommandFunction function) {
+        executeCommandFunction = function;
+        return this;
+    }
+
     public List<Capability> getCapabilities() {
         Field[] connectorFields = ConnectorFunctions.class.getDeclaredFields();
         Field[] connectionFields = ConnectionFunctions.class.getDeclaredFields();
@@ -371,7 +376,7 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
         return rawDataCallbackFilterFunctionV2;
     }
 
-    public ExecuteCommandFunction getExecuteQueryStringFunction() {
+    public ExecuteCommandFunction getExecuteCommandFunction() {
         return executeCommandFunction;
     }
 
@@ -390,4 +395,5 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
     public QueryFieldMinMaxValueFunction getQueryFieldMinMaxValueFunction() {
         return queryFieldMinMaxValueFunction;
     }
+
 }

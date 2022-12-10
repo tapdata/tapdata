@@ -6,7 +6,6 @@
  */
 package com.tapdata.tm.statemachine.model;
 
-import javax.print.DocFlavor;
 import java.util.Objects;
 
 public class StateMachineResult {
@@ -17,6 +16,10 @@ public class StateMachineResult {
 	private String code;
 
 	private long modifiedCount;
+
+	private String before;
+
+	private String after;
 
 	private String message;
 
@@ -69,5 +72,21 @@ public class StateMachineResult {
 
 	public boolean isFail() {
 		return Objects.equals(this.code, FAIL);
+	}
+
+	public String getBefore() {
+		return before;
+	}
+
+	public void setBefore(String before) {
+		this.before = before;
+	}
+
+	public String getAfter() {
+		return after;
+	}
+
+	public void setAfter(String after) {
+		this.after = after;
 	}
 }

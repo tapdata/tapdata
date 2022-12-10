@@ -99,6 +99,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -523,9 +524,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @return
      */
     public TaskDto confirmStart(TaskDto taskDto, UserDetail user, boolean confirm) {
-        checkDagAgentConflict(taskDto, true);
         taskDto = confirmById(taskDto, user, confirm);
-        start(taskDto, user);
+        try {
+            start(taskDto, user, "11");
+        } catch (Exception e) {
+            monitoringLogsService.startTaskErrorLog(taskDto, user, e);
+            throw e;
+        }
         return findById(taskDto.getId(), user);
     }
 
@@ -1057,10 +1062,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             mutiResponseMessage.setId(task.getId().toHexString());
 
             try {
-                checkDagAgentConflict(task, false);
-                start(task, user);
+                start(task, user, "11");
             } catch (Exception e) {
                 log.warn("start task exception, task id = {}, e = {}", task.getId(), ThrowableUtils.getStackTraceByPn(e));
+                monitoringLogsService.startTaskErrorLog(task, user, e);
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
                     mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
@@ -2560,9 +2565,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param id
      */
     public void start(ObjectId id, UserDetail user) {
-        String startFlag = "11";
         TaskDto taskDto = checkExistById(id, user);
-        start(taskDto, user, startFlag);
+        try {
+            start(taskDto, user, "11");
+        } catch (Exception e) {
+            monitoringLogsService.startTaskErrorLog(taskDto, user, e);
+            throw e;
+        }
     }
 
     /**
@@ -2573,11 +2582,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第一位 是否需要共享挖掘处理， 1 是   0 否
      *                  第二位 是否开启打点任务      1 是   0 否
      */
-    private void start(TaskDto taskDto, UserDetail user) {
-        start(taskDto, user, "11");
-    }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
-
         checkDagAgentConflict(taskDto, false);
         if (!taskDto.getShareCache()) {
                 Map<String, List<Message>> validateMessage = taskDto.getDag().validate();
@@ -2793,12 +2798,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         Date now = DateUtil.date();
         Update update = Update.update("scheduleDate", null);
-        if (taskDto.getStartTime() == null) {
-            update.set("startTime", now);
-        }
-        if (taskDto.getLastStartDate() == null) {
-            update.set("lastStartDate", now.getTime());
-        }
 
         monitoringLogsService.startTaskMonitoringLog(taskDto, user, now);
 
