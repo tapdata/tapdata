@@ -1,7 +1,5 @@
 package io.tapdata.pdk.apis.entity;
 
-import io.tapdata.entity.event.TapEvent;
-
 import java.util.List;
 import java.util.Map;
 
@@ -9,9 +7,9 @@ import java.util.Map;
  * @author aplomb
  */
 public class ExecuteResult {
-	private List<Map<String, Object>> results;
-	public ExecuteResult events(List<Map<String, Object>> events) {
-		this.results = events;
+	private List<? extends Map<String, Object>> results;
+	public ExecuteResult results(List<? extends Map<String, Object>> results) {
+		this.results = results;
 		return this;
 	}
 	private long insertedCount;
@@ -96,11 +94,11 @@ public class ExecuteResult {
 		this.removedCount = this.removedCount + value;
 	}
 
-	public List<Map<String, Object>> getResults() {
+	public List<? extends Map<String, Object>> getResults() {
 		return results;
 	}
 
-	public void setResults(List<Map<String, Object>> results) {
+	public void setResults(List<? extends Map<String, Object>> results) {
 		this.results = results;
 	}
 }
