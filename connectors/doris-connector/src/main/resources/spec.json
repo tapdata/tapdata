@@ -337,7 +337,7 @@
     "varchar[($byte)]": {
       "byte": "65535",
       "to": "TapString",
-      "byteRatio": 3
+      "defaultByte": 1
     },
     "string": {
       "byte": "2147483643",
