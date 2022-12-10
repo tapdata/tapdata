@@ -1,5 +1,6 @@
 package io.tapdata.entity.conversion;
 
+import io.tapdata.entity.codec.FromTapValueCodec;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
@@ -10,6 +11,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.schema.value.TapYearValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
@@ -1587,5 +1589,173 @@ class TargetTypesGeneratorTest {
 
         TapField number20m3 = nameFieldMap.get("tapNumber(20, -3)");
         assertEquals("numeric(20,-3)", number20m3.getDataType());
+    }
+
+
+    @Test
+    public void customYearCodecTest() {
+
+        String sourceTypeExpression = "{" +
+                "\"YEAR\": {\"to\": \"TapYear\"}" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
+                "\"CLOB\": {\"byte\": \"4g\",\"pkEnablement\": false,\"priority\": 2,\"to\": \"TapString\"}," +
+                "\"VARCHAR2[($byte)]\": {\"byte\": 4000,\"priority\": 1,\"preferByte\": 2000,\"to\": \"TapString\"}" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("YEAR", "YEAR"));
+
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+
+        TapCodecsRegistry targetRegistry = TapCodecsRegistry.create();
+        targetRegistry.registerFromTapValue(TapYearValue.class, "DATE", tapValue -> tapValue.getValue() + "_YYYY");
+        TapCodecsFilterManager targetCodecFilterManager = TapCodecsFilterManager.create(targetRegistry);
+
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField upperVarchar50 = nameFieldMap.get("YEAR");
+        assertEquals("DATE", upperVarchar50.getDataType());
+    }
+
+    @Test
+    public void tddBinaryToTDEngineTest() {
+        String targetTypeExpression = "{\n" +
+//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
+                "\"binary($byte)\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"byte\": 255,\n" +
+                "      \"defaultByte\": 1,\n" +
+                "      \"preferByte\": 2000,\n" +
+                "      \"fixed\": true\n" +
+                "    }" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("binary", "binary").tapType(tapBinary().bytes(100L)));
+
+        TapCodecsRegistry targetRegistry = TapCodecsRegistry.create();
+        TapCodecsFilterManager targetCodecFilterManager = TapCodecsFilterManager.create(targetRegistry);
+
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+        TapField upperVarchar50 = nameFieldMap.get("binary");
+        assertEquals("binary(100)", upperVarchar50.getDataType());
+    }
+
+    @Test
+    public void oracleChar10ToESTest() {
+
+        String sourceTypeExpression = "{" +
+                "\"CHAR[($byte)]\": {\n" +
+                "        \"byte\": 2000,\n" +
+                "                \"priority\": 1,\n" +
+                "                \"defaultByte\": 1,\n" +
+                "                \"fixed\": true,\n" +
+                "                \"to\": \"TapString\"\n" +
+                "    }" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+                    "\"string\": {\n" +
+                "      \"queryOnly\": true,\n" +
+                "      \"to\": \"TapString\"\n" +
+                "    },\n" +
+                "    \"text\": {\n" +
+                "      \"byte\": \"4g\",\n" +
+                "      \"to\": \"TapString\"\n" +
+                "    },\n" +
+                "    \"keyword\": {\n" +
+                "      \"byte\": 32766,\n" +
+                "      \"to\": \"TapString\"\n" +
+                "    },\n" +
+                "\"object\": {\n" +
+                "      \"to\": \"TapString\"\n" +
+                "    }" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("char10", "char(10)"));
+
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+
+        TapCodecsRegistry targetRegistry = TapCodecsRegistry.create();
+        TapCodecsFilterManager targetCodecFilterManager = TapCodecsFilterManager.create(targetRegistry);
+
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField upperVarchar50 = nameFieldMap.get("char10");
+        assertEquals("keyword", upperVarchar50.getDataType());
+    }
+    @Test
+    public void mysqlVarcharToDorisCharTest() {
+        String sourceTypeExpression = "{" +
+                "\"char[($byte)]\": {\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"byte\": 255,\n" +
+                "      \"defaultByte\": 1,\n" +
+                "      \"byteRatio\": 3,\n" +
+                "      \"fixed\": true\n" +
+                "    },\n" +
+                "    \"varchar($byte)\": {\n" +
+                "      \"name\": \"varchar\",\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"byte\": 16358,\n" +
+                "      \"defaultByte\": 1,\n" +
+                "      \"byteRatio\": 3\n" +
+                "    }" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+                " \"char[($byte)]\": {\n" +
+                "      \"byte\": 255,\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"defaultByte\": 1\n" +
+                "    },\n" +
+                "    \"varchar[($byte)]\": {\n" +
+                "      \"byte\": \"65535\",\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"defaultByte\": 1\n" +
+                "    }" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("char10", "char(10)"))
+                .add(field("char100", "char(100)"))
+                .add(field("varchar10", "varchar(10)"))
+                .add(field("varchar100", "varchar(100)"));
+
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+
+        TapCodecsRegistry targetRegistry = TapCodecsRegistry.create();
+        TapCodecsFilterManager targetCodecFilterManager = TapCodecsFilterManager.create(targetRegistry);
+
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField char10 = nameFieldMap.get("char10");
+        assertEquals("char(30)", char10.getDataType());
+        TapField char100 = nameFieldMap.get("char100");
+        assertEquals("varchar(300)", char100.getDataType());
+        TapField varchar10 = nameFieldMap.get("varchar10");
+        assertEquals("char(30)", varchar10.getDataType());
+        TapField varchar100 = nameFieldMap.get("varchar100");
+        assertEquals("varchar(300)", varchar100.getDataType());
     }
 }
