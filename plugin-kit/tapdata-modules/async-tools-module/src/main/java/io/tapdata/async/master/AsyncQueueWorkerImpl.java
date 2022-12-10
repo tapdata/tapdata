@@ -202,9 +202,7 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 				this.run();
 			} else {
 				if(delayMilliSeconds != null && periodMilliSeconds != null && periodScheduleFuture == null) {
-					periodScheduleFuture = executorsManager.getScheduledExecutorService().scheduleWithFixedDelay(() -> {
-						threadPoolExecutor.execute(this);
-					}, delayMilliSeconds, periodMilliSeconds, TimeUnit.MILLISECONDS);
+					periodScheduleFuture = executorsManager.getScheduledExecutorService().scheduleWithFixedDelay(this::run, delayMilliSeconds, periodMilliSeconds, TimeUnit.MILLISECONDS);
 				}
 				if(periodScheduleFuture == null) {
 					threadPoolExecutor.execute(this);

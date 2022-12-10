@@ -73,11 +73,6 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
         this.queryFieldMinMaxValueFunction = function;
         return this;
     }
-    public ConnectorFunctions supportExecuteCommandFunction(ExecuteCommandFunction function) {
-        executeCommandFunction = function;
-        return this;
-    }
-
     public ConnectorFunctions supportRawDataCallbackFilterFunction(RawDataCallbackFilterFunction function) {
         rawDataCallbackFilterFunction = function;
         return this;

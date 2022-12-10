@@ -79,9 +79,11 @@ public class TapPartitionFilter extends TapFilter {
 
 	public static List<TapPartitionFilter> filtersWhenMinMaxEquals(TapPartitionFilter boundaryPartitionFilter, FieldMinMaxValue fieldMinMaxValue, Object min) {
 		List<TapPartitionFilter> partitionFilters = new ArrayList<>();
-		partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
-				.leftBoundary(boundaryPartitionFilter.getLeftBoundary())
-				.rightBoundary(QueryOperator.lt(fieldMinMaxValue.getFieldName(), min)));
+		if(min != boundaryPartitionFilter.getLeftBoundary().getValue()) {
+			partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
+					.leftBoundary(boundaryPartitionFilter.getLeftBoundary())
+					.rightBoundary(QueryOperator.lt(fieldMinMaxValue.getFieldName(), min)));
+		}
 
 		partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch()).match(fieldMinMaxValue.getFieldName(), min));
 

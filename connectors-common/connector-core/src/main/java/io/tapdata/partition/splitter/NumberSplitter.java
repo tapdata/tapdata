@@ -47,6 +47,11 @@ public class NumberSplitter implements TypeSplitter {
 					);
 				}
 			}
+			if(maxSplitPieces == 1) {
+				partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
+						.leftBoundary(QueryOperator.gte(fieldMinMaxValue.getFieldName(), NumberUtils.add(min, pieceSize)))
+						.rightBoundary(boundaryPartitionFilter.getRightBoundary()));
+			}
 		}
 		return partitionFilters;
 	}
