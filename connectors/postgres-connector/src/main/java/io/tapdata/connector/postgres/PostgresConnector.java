@@ -311,7 +311,8 @@ public class PostgresConnector extends ConnectorBase {
     //initialize jdbc context, slot name, version
     private void initConnection(TapConnectionContext connectorContext) {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
-        postgresTest = new PostgresTest(postgresConfig, testItem -> {}).initContext();
+        postgresTest = new PostgresTest(postgresConfig, testItem -> {
+        }).initContext();
         if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
             postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
         }
@@ -344,8 +345,22 @@ public class PostgresConnector extends ConnectorBase {
     }
 
     private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
-        String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + table.getId() + "\" " + CommonSqlMaker.buildSqlByAdvanceFilter(filter);
-        postgresJdbcContext.query(sql, resultSet -> {
+        StringBuilder builder = new StringBuilder("SELECT ");
+        Projection projection = filter.getProjection();
+        if (EmptyKit.isNull(projection) || (EmptyKit.isEmpty(projection.getIncludeFields()) && EmptyKit.isEmpty(projection.getExcludeFields()))) {
+            builder.append("*");
+        } else {
+            builder.append("\"");
+            if (EmptyKit.isNotEmpty(filter.getProjection().getIncludeFields())) {
+                builder.append(String.join("\",\"", filter.getProjection().getIncludeFields()));
+            } else {
+                builder.append(table.getNameFieldMap().keySet().stream()
+                        .filter(tapField -> !filter.getProjection().getExcludeFields().contains(tapField)).collect(Collectors.joining("\",\"")));
+            }
+            builder.append("\"");
+        }
+        builder.append(" FROM \"").append(postgresConfig.getSchema()).append("\".\"").append(table.getId()).append("\" ").append(CommonSqlMaker.buildSqlByAdvanceFilter(filter));
+        postgresJdbcContext.query(builder.toString(), resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet.next()) {
                 filterResults.add(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)));
