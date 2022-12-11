@@ -4,15 +4,14 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
+import sun.security.provider.MD5;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -151,6 +150,10 @@ public class DbKit {
         }
         return exists.getIndexFields().stream().map(TapIndexField::getName).collect(Collectors.toList())
                 .equals(created.getIndexFields().stream().map(TapIndexField::getName).collect(Collectors.toList()));
+    }
+
+    public static String buildIndexName(String table) {
+        return "TAPIDX_" + table.substring(Math.max(table.length() - 10, 0)) + UUID.randomUUID().toString().replaceAll("-", "").substring(20);
     }
 
 }
