@@ -1,5 +1,7 @@
 package io.tapdata.kit;
 
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 
@@ -11,6 +13,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * tools for ResultSet
@@ -77,7 +80,7 @@ public class DbKit {
             ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
             for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
                 String[] columnNameArr = resultSetMetaData.getColumnName(i).split("\\.");
-                String substring = columnNameArr[columnNameArr.length-1];
+                String substring = columnNameArr[columnNameArr.length - 1];
                 columnNames.add(substring);
             }
         } catch (SQLException e) {
@@ -140,6 +143,14 @@ public class DbKit {
             e.printStackTrace();
         }
         return re;
+    }
+
+    public static boolean ignoreCreateIndex(TapIndex exists, TapIndex created) {
+        if (!exists.isUnique() && created.isUnique()) {
+            return false;
+        }
+        return exists.getIndexFields().stream().map(TapIndexField::getName).collect(Collectors.toList())
+                .equals(created.getIndexFields().stream().map(TapIndexField::getName).collect(Collectors.toList()));
     }
 
 }
