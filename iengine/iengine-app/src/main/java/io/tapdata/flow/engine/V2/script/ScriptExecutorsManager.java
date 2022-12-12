@@ -154,6 +154,23 @@ public class ScriptExecutorsManager {
      */
     public long execute(Map<String, Object> executeObj) throws Throwable {
 
+      executeObj.put("command", "execute");
+      ExecuteResult executeResult = getExecuteResult(executeObj);
+      assert executeResult != null;
+      return executeResult.getModifiedCount();
+    }
+
+    public List<? extends Map<String, Object>> executeQuery(Map<String, Object> executeObj) throws Throwable {
+
+      executeObj.put("command", "executeQuery");
+      ExecuteResult executeResult = getExecuteResult(executeObj);
+      assert executeResult != null;
+      return executeResult.getResults();
+    }
+
+    public long count(Map<String, Object> executeObj) throws Throwable {
+
+      executeObj.put("command", "count");
       ExecuteResult executeResult = getExecuteResult(executeObj);
       assert executeResult != null;
       return executeResult.getModifiedCount();
@@ -191,12 +208,6 @@ public class ScriptExecutorsManager {
       return executeCommand;
     }
 
-
-    public List<? extends Map<String, Object>> executeQuery(Map<String, Object> executeObj) throws Throwable {
-      ExecuteResult executeResult = getExecuteResult(executeObj);
-      assert executeResult != null;
-      return executeResult.getResults();
-    }
 
     void close() {
 
