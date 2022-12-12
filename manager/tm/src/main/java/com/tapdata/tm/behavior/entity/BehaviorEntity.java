@@ -13,7 +13,7 @@ import java.util.Map;
  * @author lg&lt;lirufei0808@gmail.com&gt;
  * create at 2022/6/21 下午2:46
  */
-@Document("behavior")
+@Document("Behavior")
 @Setter
 @Getter
 @CompoundIndex(def = "{'dataFlowId': 1, 'code': 1, 'period': 1}")

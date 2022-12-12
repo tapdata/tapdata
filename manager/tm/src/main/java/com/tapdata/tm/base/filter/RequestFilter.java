@@ -62,25 +62,35 @@ public class RequestFilter implements Filter {
 		ThreadLocalUtils.set(ThreadLocalUtils.REQUEST_ID, reqId);
 		Thread.currentThread().setName(ip + "-" + Thread.currentThread().getId() + "-" + reqId);
 
+		if (log.isTraceEnabled()) {
+			logReq(httpServletRequest);
+		}
+
 		try {
 			filterChain.doFilter(httpServletRequest, httpServletResponse);
 		} catch (Throwable e){
-			log.error("Process request error", ThrowableUtils.getStackTraceByPn(e));
+			log.error("Process request error {}", ThrowableUtils.getStackTraceByPn(e));
+		} finally {
+			log.debug("{} {} {} {}ms ", Thread.currentThread().getName(), httpServletRequest.getMethod(), requestURI, System.currentTimeMillis() - startTime);
+		}
+
+		if (log.isTraceEnabled()) {
+			logRes(httpServletResponse);
 		}
 	}
 
 	private void logReq(ServletRequest servletRequest) {
 		HttpServletRequest httpServletRequest = (HttpServletRequest) servletRequest;
-		log.debug(" > {} {} {}", httpServletRequest.getMethod(), httpServletRequest.getRequestURI(), httpServletRequest.getProtocol());
+		log.trace(" > {} {} {}", httpServletRequest.getMethod(), httpServletRequest.getRequestURI(), httpServletRequest.getProtocol());
 		Enumeration<String> headerNames = httpServletRequest.getHeaderNames();
 		while (headerNames.hasMoreElements()) {
 			String headerName = headerNames.nextElement();
 			String headerValue = httpServletRequest.getHeader(headerName);
-			log.debug(" > {}: {}", headerName, headerValue);
+			log.trace(" > {}: {}", headerName, headerValue);
 		}
 		try {
 			if (httpServletRequest.getQueryString() != null)
-				log.debug(" > query: {}", URLDecoder.decode(httpServletRequest.getQueryString(), "UTF-8"));
+				log.trace(" > query: {}", URLDecoder.decode(httpServletRequest.getQueryString(), "UTF-8"));
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
 		}
@@ -95,8 +105,8 @@ public class RequestFilter implements Filter {
 					requestBody = ((HttpServletRequestWrapper) servletRequest).getContentAsString();
 				}
 
-				log.debug(" > {}", requestBody);
-				log.debug(" > ");
+				log.trace(" > {}", requestBody);
+				log.trace(" > ");
 			} catch (UnsupportedEncodingException e) {
 				e.printStackTrace();
 			}
@@ -104,16 +114,16 @@ public class RequestFilter implements Filter {
 	}
 	private void logRes(ServletResponse servletResponse) {
 		HttpServletResponse httpServletResponse = (HttpServletResponse) servletResponse;
-		log.debug(" < {}", httpServletResponse.getStatus());
+		log.trace(" < {}", httpServletResponse.getStatus());
 		httpServletResponse.getHeaderNames().forEach(headerName -> {
-			log.debug(" < {}: {}", headerName, httpServletResponse.getHeader(headerName));
+			log.trace(" < {}: {}", headerName, httpServletResponse.getHeader(headerName));
 		});
 		String contentType = httpServletResponse.getHeader("Content-Type");
 		if (!"application/zip".equals(contentType) && servletResponse instanceof HttpServletResponseWrapper) {
 			try {
 				String content = ((HttpServletResponseWrapper) servletResponse).getContentAsString();
-				log.debug(" < {}", content);
-				log.debug(" <");
+				log.trace(" < {}", content);
+				log.trace(" <");
 			} catch (UnsupportedEncodingException e) {
 				e.printStackTrace();
 			}

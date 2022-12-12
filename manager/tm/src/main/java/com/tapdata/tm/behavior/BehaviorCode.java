@@ -9,8 +9,6 @@ public enum BehaviorCode {
     createConnection,
     editConnection,
     testConnection,
-    connectionReady,
-    connectionError,
 
     createTask,
     editTask,

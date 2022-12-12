@@ -138,28 +138,22 @@ public class BehaviorAop {
 
                 String status = null;
                 Object responseBody = null;
-                String id = null;
+                ObjectId id = null;
                 if (where.containsKey("_id")) {
-                    id = (String) where.get("_id");
+                    id = (ObjectId) where.get("_id");
                 }
                 if( update.get("$set") instanceof Map) {
                     Map<String, Object> set = (Map<String, Object>) update.get("$set");
                     if(set.containsKey("status")) {
                         status = (String) set.get("status");
                     }
-                    if (set.containsKey("response_body")) {
-                        responseBody = set.get("response_body");
+                    if (set.containsKey("response_body.validate_details")) {
+                        responseBody = set.get("response_body.validate_details");
                     }
                 }
                 if (id != null && status != null && responseBody != null) {
                     BehaviorEntity behavior = new BehaviorEntity();
-                    if (DataSourceConnectionDto.STATUS_READY.equals(status)) {
-                        // test connection
-                        behavior.setCode(BehaviorCode.connectionReady.name());
-                    } else if (DataSourceConnectionDto.STATUS_INVALID.equals(status)){
-                        // edit connection
-                        behavior.setCode(BehaviorCode.connectionError.name());
-                    }
+                    behavior.setCode(BehaviorCode.testConnection.name());
                     behavior.setAttrs(new HashMap<>());
                     behavior.getAttrs().put("id", id);
                     behavior.getAttrs().put("status", status);
