@@ -235,16 +235,20 @@ public class PostgresWriteRecorder extends WriteRecorder {
     }
 
     @Override
-    public void addUpdateBatch(Map<String, Object> after) throws SQLException {
+    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before) throws SQLException {
         if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
             return;
         }
-        Map<String, Object> before = new HashMap<>();
-        uniqueCondition.forEach(k -> before.put(k, after.get(k)));
-        if (updatePolicy.equals(ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS)) {
-            insertUpdate(after, before);
+        Map<String, Object> lastBefore = new HashMap<>();
+        if (EmptyKit.isNotEmpty(before)) {
+            lastBefore.putAll(before);
         } else {
-            justUpdate(after, before);
+            uniqueCondition.forEach(k -> lastBefore.put(k, after.get(k)));
+        }
+        if (updatePolicy.equals(ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS)) {
+            insertUpdate(after, lastBefore);
+        } else {
+            justUpdate(after, lastBefore);
         }
         preparedStatement.addBatch();
     }
