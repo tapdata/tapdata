@@ -16,6 +16,10 @@ public abstract class InspectContext {
 	protected Connections source;
 	protected Connections target;
 	protected String inspectResultParentId;
+	/**
+	 * 差异结果模式：All,OnSourceExists
+	 */
+	private String inspectDifferenceMode;
 	protected ProgressUpdate progressUpdateCallback;
 	protected ConnectorNode sourceConnectorNode;
 	protected ConnectorNode targetConnectorNode;
@@ -27,6 +31,7 @@ public abstract class InspectContext {
 			Connections source,
 			Connections target,
 			String inspectResultParentId,
+			String inspectDifferenceMode,
 			ProgressUpdate progressUpdateCallback,
 			ConnectorNode sourceConnectorNode,
 			ConnectorNode targetConnectorNode,
@@ -37,6 +42,7 @@ public abstract class InspectContext {
 		this.source = source;
 		this.target = target;
 		this.inspectResultParentId = inspectResultParentId;
+		this.inspectDifferenceMode = inspectDifferenceMode;
 		this.progressUpdateCallback = progressUpdateCallback;
 		this.sourceConnectorNode = sourceConnectorNode;
 		this.targetConnectorNode = targetConnectorNode;
@@ -61,6 +67,10 @@ public abstract class InspectContext {
 
 	public String getInspectResultParentId() {
 		return inspectResultParentId;
+	}
+
+	public String getInspectDifferenceMode() {
+		return inspectDifferenceMode;
 	}
 
 	public ProgressUpdate getProgressUpdateCallback() {

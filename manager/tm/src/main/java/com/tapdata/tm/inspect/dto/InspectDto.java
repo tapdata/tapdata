@@ -37,6 +37,7 @@ public class InspectDto extends SchedulableDto {
      *
      */
     private String inspectMethod;
+    private String inspectDifferenceMode;
 
     /**
      *

@@ -226,6 +226,7 @@ public abstract class InspectTask implements Runnable {
 						source,
 						target,
 						inspectResult.getParentId(),
+						inspect.getInspectDifferenceMode(),
 						(inspectTask, inspectResultStats, inspectDetails) -> {
 
 							logger.info(inspectTask.getTaskId() + " inspect done, status " + inspectResultStats.getStatus() + ", result " + inspectResultStats.getResult());

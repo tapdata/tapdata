@@ -51,14 +51,15 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			return "Target record is null";
 		}
 
+		boolean isSetColumns = null != sourceColumns && null != targetColumns;
 		Set<String> differentFields;
-		if (null != sourceColumns && null != targetColumns) {
+		if (isSetColumns) {
 			differentFields = new LinkedHashSet<>();
 			for (int i = 0, len = sourceColumns.size(); i < len; i ++) {
 				Object val1 = t1.get(sourceColumns.get(i));
 				Object val2 = t2.get(targetColumns.get(i));
 				if (compare(val1, val2)) {
-					differentFields.add(sourceColumns.get(i));
+					differentFields.add(String.valueOf(i));
 				}
 			}
 		} else {
@@ -90,7 +91,11 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 		if (differentFields.isEmpty()) {
 			return null;
 		} else {
-			return "Different fields:" + String.join(",", differentFields);
+			if (isSetColumns) {
+				return "Different index:" + String.join(",", differentFields);
+			} else {
+				return "Different fields:" + String.join(",", differentFields);
+			}
 		}
 	}
 

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,7 +48,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	private TapCodecsFilterManager defaultCodecsFilterManager;
 	private Projection projection;
 
-	public PdkResult(List<String> sortColumns, Connections connections, String tableName, List<String> columns, ConnectorNode connectorNode, boolean fullMatch) {
+	public PdkResult(List<String> sortColumns, Connections connections, String tableName, Set<String> columns, ConnectorNode connectorNode, boolean fullMatch) {
 		super(sortColumns, connections, tableName);
 		this.connectorNode = connectorNode;
 		for (String sortColumn : sortColumns) {
