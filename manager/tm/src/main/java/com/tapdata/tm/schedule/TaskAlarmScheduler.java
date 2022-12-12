@@ -351,6 +351,7 @@ public class TaskAlarmScheduler {
                     AlarmInfo data = first.get();
                     alarmInfo.setId(data.getId());
                     alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
+                    alarmInfo.setLastOccurrenceTime(null);
 
                     long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
                     summary = MessageFormat.format(template[3], nodeName, alarmRuleDto.getMs(), continued, current, DateUtil.now(), flag);
@@ -450,6 +451,7 @@ public class TaskAlarmScheduler {
                     alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
                     alarmInfo.setSummary(summary);
                     alarmInfo.setRecoveryTime(DateUtil.date());
+                    alarmInfo.setLastOccurrenceTime(null);
                     alarmService.save(alarmInfo);
                 }
             }

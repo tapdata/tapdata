@@ -14,10 +14,7 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class TDengineWriteRecorder extends WriteRecorder {
@@ -63,8 +60,8 @@ public class TDengineWriteRecorder extends WriteRecorder {
         if (EmptyKit.isEmpty(before)) {
             return;
         }
-        if (EmptyKit.isNotEmpty(uniqueCondition)) {
-            before.keySet().removeIf(k -> !uniqueCondition.contains(k));
+        if (EmptyKit.isBlank(timestampField) || Objects.isNull(before.get(timestampField))) {
+            return;
         }
         if (EmptyKit.isNull(preparedStatement)) {
             if (EmptyKit.isNotBlank(timestampField)) {

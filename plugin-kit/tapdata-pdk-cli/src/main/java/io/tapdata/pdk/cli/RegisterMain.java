@@ -48,16 +48,13 @@ public class RegisterMain {
         ;
 
         private final String path;
-
-        private boolean beta;
         private final Set<String> tags = new HashSet<>();
 
-        ConnectorEnums(String path, boolean beta, String... tags) {
+        ConnectorEnums(String path, String... tags) {
             this.path = path;
             if (null != tags) {
                 this.tags.addAll(Arrays.asList(tags));
             }
-            this.beta = beta;
         }
 
         public boolean contains(String... tags) {
@@ -67,28 +64,12 @@ public class RegisterMain {
             return false;
         }
 
-        public static boolean addByTags(List<String> postList, String... tags) {
-            boolean run = false;
+        public static void addByTags(List<String> postList, String... tags) {
             for (ConnectorEnums c : ConnectorEnums.values()) {
-                if (c.contains(tags) && !c.beta) {
+                if (c.contains(tags)) {
                     postList.add(c.path);
-                    run = true;
                 }
             }
-            return run;
-        }
-
-        public static boolean addBetaByTags(List<String> postList, String... tags) {
-
-            postList.add("-b");
-            boolean run = false;
-            for (ConnectorEnums c : ConnectorEnums.values()) {
-                if (c.contains(tags) && c.beta) {
-                    postList.add(c.path);
-                    run = true;
-                }
-            }
-            return run;
         }
     }
 
@@ -102,23 +83,15 @@ public class RegisterMain {
         // -Dbeta=true
 
         List<String> postList = new ArrayList<>();
-        List<String> postBetaList;
         //String server = System.getProperty("server", "https://v3.test.cloud.tapdata.net/tm");
         String server = System.getProperty("server", "http://localhost:3000");
         //String server = System.getProperty("server", "http://192.168.1.189:30205");
         Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "", "-t", server);
 
-        postBetaList = new ArrayList<>(postList);
         String[] tags = System.getProperty("tags", "all").split(",");
-        String beta = System.getProperty("beta", "false");
-        boolean run = ConnectorEnums.addByTags(postList, tags);
-        ConnectorEnums.addBetaByTags(postBetaList, tags);
+        ConnectorEnums.addByTags(postList, tags);
 
-        if (beta.equals("false") && run) {
-            Main.registerCommands().execute(postList.toArray(new String[0]));
-        } else {
-            Main.registerCommands().execute(postBetaList.toArray(new String[0]));
-        }
+        Main.registerCommands().execute(postList.toArray(new String[0]));
     }
 
     private static String basePath() {

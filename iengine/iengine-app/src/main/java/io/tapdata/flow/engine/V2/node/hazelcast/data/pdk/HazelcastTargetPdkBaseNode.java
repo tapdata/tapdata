@@ -511,6 +511,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				// 设置逻辑主键
 				tapTable.setLogicPrimaries(updateConditionFields);
+				//
+				Collection<String> pks = tapTable.primaryKeys();
+				if (!usePkAsUpdateConditions(updateConditionFields, pks)) {
+					ignorePksAndIndices(tapTable);
+				}
 			} else {
 				Collection<String> logicUniqueKey = tapTable.primaryKeys(true);
 				if (CollectionUtils.isEmpty(logicUniqueKey)) {
@@ -519,9 +524,17 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} else if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {
 			// 没有关联条件，清空主键信息
-			tapTable.getNameFieldMap().values().forEach(v -> v.setPrimaryKeyPos(0));
-			tapTable.setLogicPrimaries(null);
+			ignorePksAndIndices(tapTable);
 		}
+	}
+
+	private static void ignorePksAndIndices(TapTable tapTable) {
+		tapTable.getNameFieldMap().values().forEach(v -> {
+			v.setPrimaryKeyPos(0);
+			v.setPrimaryKey(false);
+		});
+		tapTable.setLogicPrimaries(null);
+		tapTable.setIndexList(null);
 	}
 
 	@Override
@@ -680,5 +693,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		} finally {
 			super.doClose();
 		}
+	}
+
+	protected boolean usePkAsUpdateConditions(Collection<String> updateConditions, Collection<String> pks) {
+		for (String updateCondition : updateConditions) {
+			if (!pks.contains(updateCondition)) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

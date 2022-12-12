@@ -138,7 +138,9 @@ public class ScriptUtil {
 							new LoggingOutputStream(logger, Level.ERROR));
 			final ClassLoader[] externalClassLoader = new ClassLoader[1];
 			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalClassLoader[0] = urlClassLoader);
-			Thread.currentThread().setContextClassLoader(externalClassLoader[0]);
+			if (externalClassLoader[0] != null) {
+				Thread.currentThread().setContextClassLoader(externalClassLoader[0]);
+			}
 			String scripts = script + System.lineSeparator() + buildInMethod;
 
 			try {

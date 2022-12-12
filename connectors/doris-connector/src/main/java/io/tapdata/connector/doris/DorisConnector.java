@@ -1,6 +1,7 @@
 package io.tapdata.connector.doris;
 
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -123,6 +124,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportQueryByFilter(this::queryByFilter);
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> dorisContext.getConnection(), c));
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null)

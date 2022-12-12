@@ -919,21 +919,22 @@ public class PDKTestBase {
             CreateTableFunction createTableFunction = connectorFunctions.getCreateTableFunction();
             CreateTableV2Function createTableV2Function = connectorFunctions.getCreateTableV2Function();
             WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
-            TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
             TapAssert asserts = TapAssert.asserts(() -> { });
 
             targetTable.setId(tableNameCreator.tableName());
             targetTable.setName(this.targetTable.getId());
-            LinkedHashMap<String, TapField> modelDeduction = this.modelDeduction(prepare.connectorNode);
-            TapTable tabled = new TapTable();
-            modelDeduction.forEach((name,field)->{
-                tabled.add(field);
-            });
-            tabled.setName(targetTable.getName());
-            tabled.setId(targetTable.getId());
-            createTableEvent.table(tabled);
-            createTableEvent.setReferenceTime(System.currentTimeMillis());
-            createTableEvent.setTableId(targetTable.getId());
+            TapCreateTableEvent createTableEvent = this.modelDeductionForCreateTableEvent(prepare.connectorNode());
+
+            //LinkedHashMap<String, TapField> modelDeduction = this.modelDeduction(prepare.connectorNode);
+            //TapTable tabled = new TapTable();
+            //modelDeduction.forEach((name,field)->{
+            //    tabled.add(field);
+            //});
+            //tabled.setName(targetTable.getName());
+            //tabled.setId(targetTable.getId());
+            //createTableEvent.table(tabled);
+            //createTableEvent.setReferenceTime(System.currentTimeMillis());
+            //createTableEvent.setTableId(targetTable.getId());
             if (null != createTableV2Function) {
                 try {
                     CreateTableOptions table = createTableV2Function.createTable(connectorContext, createTableEvent);
@@ -1087,13 +1088,13 @@ public class PDKTestBase {
             String type = field.getDataType();
             if (null == type || "".equals(type)){
                 //类型为空，推演失败
-                TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.source.fieldDataType.null",name,tableId))).error(testCase);
+                TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.source.fieldDataType.null",name,tableId))).warn(testCase);
                 return;
             }
 
             TapField targetField = targetFields.get(name);
             if (null == targetField){
-                TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.target.fieldDataType.null",tableId))).error(testCase);
+                TapAssert.asserts(()-> Assertions.fail(TapSummary.format("base.target.fieldDataType.null",tableId,name))).warn(testCase);
                 return;
             }
             String targetType = targetField.getDataType();
@@ -1135,6 +1136,21 @@ public class PDKTestBase {
         );
         //经过模型推演生成TapTable
         return tapResult.getData();
+    }
+    protected TapTable modelDeductionForTapTable(ConnectorNode connectorNode){
+        LinkedHashMap<String, TapField> modelDeduction = this.modelDeduction(connectorNode);
+        TapTable tabled = new TapTable();
+        modelDeduction.forEach((name,field)->tabled.add(field));
+        tabled.setName(targetTable.getName());
+        tabled.setId(targetTable.getId());
+        return tabled;
+    }
+    protected TapCreateTableEvent modelDeductionForCreateTableEvent(ConnectorNode connectorNode){
+        TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
+        createTableEvent.table(this.modelDeductionForTapTable(connectorNode));
+        createTableEvent.setReferenceTime(System.currentTimeMillis());
+        createTableEvent.setTableId(targetTable.getId());
+        return createTableEvent;
     }
     public TapTable getTargetTable(){
         return this.targetTable;

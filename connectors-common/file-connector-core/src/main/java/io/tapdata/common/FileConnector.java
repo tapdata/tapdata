@@ -4,6 +4,7 @@ import com.amazonaws.transform.MapEntry;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.util.MatchUtil;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -29,6 +30,7 @@ public abstract class FileConnector extends ConnectorBase {
 
     protected FileConfig fileConfig;
     protected TapFileStorage storage;
+    private static final String TAG = FileConnector.class.getSimpleName();
 
     protected void initConnection(TapConnectionContext connectorContext) throws Exception {
         fileConfig.load(connectorContext.getConnectionConfig());
@@ -126,6 +128,9 @@ public abstract class FileConnector extends ConnectorBase {
         while (isAlive()) {
             Map<String, TapFile> newFiles = getFilteredFiles();
             AtomicReference<List<TapEvent>> tapEvents = new AtomicReference<>(new ArrayList<>());
+            if (tempFiles.entrySet().stream().anyMatch(v -> !newFiles.containsKey(v.getKey()))) {
+                TapLogger.warn(TAG, "Some files have been deleted, but this can change nothing");
+            }
             Map<String, TapFile> changedFiles = newFiles.entrySet().stream().filter(v -> !tempFiles.containsKey(v.getKey())
                             || v.getValue().getLastModified() > tempFiles.get(v.getKey()).getLastModified()
                             || !Objects.equals(v.getValue().getLength(), tempFiles.get(v.getKey()).getLength()))

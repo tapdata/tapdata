@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
+import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlGenerator;
 import io.tapdata.connector.postgres.bean.PostgresColumn;
 import io.tapdata.connector.postgres.cdc.PostgresCdcRunner;
@@ -166,6 +167,7 @@ public class PostgresConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> postgresJdbcContext.getConnection(), c));
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null) return toJson(tapRawValue.getValue());
