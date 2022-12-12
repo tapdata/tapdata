@@ -1,7 +1,7 @@
 package io.tapdata.connector.selectdb;
 
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.CommonDbConfig;
+import io.tapdata.connector.selectdb.config.SelectDbConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
@@ -23,10 +23,12 @@ import java.util.function.Consumer;
  **/
 
 @TapConnectorClass("spec_selectdb.json")
-public class SelectDbConnector extends ConnectorBase{
+public class SelectDbConnector extends ConnectorBase {
 
+    private SelectDbConfig selectDbConfig;
     private SelectDbJdbcContext selectDbjdbcContext;
     private SelectDbRecordWriter recordWriter;
+
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
 
@@ -61,14 +63,13 @@ public class SelectDbConnector extends ConnectorBase{
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
+        selectDbConfig = (SelectDbConfig) new SelectDbConfig().load(databaseContext.getConnectionConfig());
         ConnectionOptions connectionOptions = ConnectionOptions.create();
-        CommonDbConfig commonDbConfig = new CommonDbConfig();
-        commonDbConfig.set__connectionType(databaseContext.getConnectionConfig().getString("__connectionType"));
-        try (
-                SelectDbConnectionTest selectDbConnectionTest = new SelectDbConnectionTest(databaseContext,
-                        new SelectDbJdbcContext(databaseContext), consumer, commonDbConfig, connectionOptions);
+        connectionOptions.connectionString(selectDbConfig.getConnectionString());
+
+        try (SelectDbTest selectDbTest = new SelectDbTest(selectDbConfig, consumer).initContext()
         ) {
-            selectDbConnectionTest.testOneByOne();
+            selectDbTest.testOneByOne();
             return connectionOptions;
         }
     }
