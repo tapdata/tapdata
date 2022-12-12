@@ -359,6 +359,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (taskDto.getId() != null) {
             oldTaskDto = findById(taskDto.getId(), user);
             taskDto.setSyncType(oldTaskDto.getSyncType());
+            taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
 
             if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
                 taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
@@ -1778,7 +1779,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     /**
      * 统计的是Task中的statuses
      *
-     * @param syncTypeToTaskList
+     * @param synList
      * @return
      */
     private Map<String, Object> getDataDevChart(List<TaskDto> synList) {

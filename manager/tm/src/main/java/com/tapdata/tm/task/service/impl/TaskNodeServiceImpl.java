@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -470,6 +471,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             taskDtoCopy.setDag(temp);
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             final List<String> predIds = new ArrayList<>();
+
             getPrePre(dtoDag.getNode(nodeId), predIds);
             predIds.add(nodeId);
             Dag dag = dtoDag.toDag();
@@ -481,6 +483,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             target.setName(target.getId());
             if (CollectionUtils.isNotEmpty(nodes)) {
                 nodes = nodes.stream()
+                        .peek(n -> {
+                            if (n instanceof JsProcessorNode) ((JsProcessorNode)n).setScript(script);
+                        })
                         .filter(n -> predIds.contains(n.getId()))
                         .peek(n -> {
                             if (n instanceof TableNode) ((TableNode) n).setRows(rows);
@@ -538,7 +543,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     @Override
     public void saveResult(JsResultDto jsResultDto) {
         if (Objects.nonNull(jsResultDto)) {
-            StringJoiner joiner = new StringJoiner(":", jsResultDto.getTaskId(), jsResultDto.getVersion().toString());
+            StringJoiner joiner = new StringJoiner(":");
+            joiner.add(jsResultDto.getTaskId());
+            joiner.add(jsResultDto.getVersion().toString());
             CacheUtils.put(joiner.toString(),  jsResultDto);
         }
     }
@@ -550,7 +557,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId), "testTaskId");
 
-        StringJoiner joiner = new StringJoiner(":", taskDto.getTestTaskId(), version.toString());
+        StringJoiner joiner = new StringJoiner(":");
+        joiner.add(taskDto.getTestTaskId());
+        joiner.add(version.toString());
         if (CacheUtils.isExist(joiner.toString())) {
             result.setOver(true);
             JsResultDto dto = new JsResultDto();
