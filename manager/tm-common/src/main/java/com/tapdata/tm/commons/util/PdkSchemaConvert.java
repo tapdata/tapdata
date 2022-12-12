@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
@@ -182,6 +183,8 @@ public class PdkSchemaConvert {
                 return tapIndex;
             }).collect(Collectors.toList());
             tapTable.setIndexList(tapIndexList);
+        } else if (schema.getIndices() != null) {
+            tapTable.setIndexList(Lists.newArrayList());
         }
 
         List<Field> fields = schema.getFields();
@@ -433,6 +436,8 @@ public class PdkSchemaConvert {
                 return tableIndex;
             }).collect(Collectors.toList());
             schema.setIndices(tableIndexList);
+        } else if (indexList != null) {
+            schema.setIndices(Lists.newArrayList());
         }
 
         return schema;

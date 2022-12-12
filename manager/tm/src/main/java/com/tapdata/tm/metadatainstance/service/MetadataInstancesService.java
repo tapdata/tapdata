@@ -954,6 +954,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     if (metadataInstancesDto != null) {
                         metadataInstancesDto.setFields(value.getFields());
                         metadataInstancesDto.setIndexes(value.getIndexes());
+                        metadataInstancesDto.setIndices(value.getIndices());
                         metadataInstancesDto.setDeleted(false);
                         metadataInstancesDto.setCreateSource(value.getCreateSource());
                         metadataInstancesDto.setVersion(value.getVersion());
