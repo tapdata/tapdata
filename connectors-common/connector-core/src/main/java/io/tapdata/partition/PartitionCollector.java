@@ -3,7 +3,6 @@ package io.tapdata.partition;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * @author aplomb
@@ -20,13 +19,23 @@ public class PartitionCollector {
 		return this;
 	}
 
+	private PartitionCollector nextSplit;
+	public PartitionCollector nextSplit(PartitionCollector nextSplit) {
+		this.nextSplit = nextSplit;
+		return this;
+	}
+	private PartitionCollector nextIndex;
+	public PartitionCollector nextIndex(PartitionCollector nextIndex) {
+		this.nextIndex = nextIndex;
+		return this;
+	}
 //	private List<PartitionCollector> siblings;
-	private PartitionCollector next;
-	public PartitionCollector next(PartitionCollector next) {
+	private PartitionCollector sibling;
+	public PartitionCollector sibling(PartitionCollector sibling) {
 //		if(siblings == null)
 //			siblings = new CopyOnWriteArrayList<>();
 //		siblings.add(sibling);
-		this.next = next;
+		this.sibling = sibling;
 		return this;
 	}
 
@@ -40,12 +49,12 @@ public class PartitionCollector {
 		return partitionCountMap;
 	}
 
-	public PartitionCollector getNext() {
-		return next;
+	public PartitionCollector getSibling() {
+		return sibling;
 	}
 
-	public void setNext(PartitionCollector next) {
-		this.next = next;
+	public void setSibling(PartitionCollector sibling) {
+		this.sibling = sibling;
 	}
 
 	public int getState() {
@@ -54,5 +63,21 @@ public class PartitionCollector {
 
 	public void setState(int state) {
 		this.state = state;
+	}
+
+	public PartitionCollector getNextSplit() {
+		return nextSplit;
+	}
+
+	public void setNextSplit(PartitionCollector nextSplit) {
+		this.nextSplit = nextSplit;
+	}
+
+	public PartitionCollector getNextIndex() {
+		return nextIndex;
+	}
+
+	public void setNextIndex(PartitionCollector nextIndex) {
+		this.nextIndex = nextIndex;
 	}
 }

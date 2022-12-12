@@ -167,39 +167,54 @@ public class DatabaseReadPartitionSplitter {
 	}
 
 	private synchronized JobContext handleReadPartitions(JobContext jobContext) {
-		ReadPartition readPartition;
-		List<TapPartitionFilter> gatherFilters = new ArrayList<>();
-		long total = 0;
+		handleReadPartitionPrivate(currentPartitionCollector, null, null);
+		return null;
+	}
+
+	private void handleReadPartitionPrivate(PartitionCollector currentPartitionCollector, List<TapPartitionFilter> gatherFilters, Long total) {
+		if(gatherFilters == null)
+			gatherFilters = new ArrayList<>();
+		if(total == null)
+			total = 0L;
 		while (currentPartitionCollector != null && currentPartitionCollector.getState() == PartitionCollector.STATE_DONE) {
 			Map<TapPartitionFilter, Long> partitionFilterLongMap = currentPartitionCollector.getPartitionCountMap();
-			if(partitionFilterLongMap != null) {
-				for(Map.Entry<TapPartitionFilter, Long> entry : partitionFilterLongMap.entrySet()) {
-					if(entry.getValue() < 0) { //countIsSlow = true
-						//unknown count for this partition
-						ReadPartition readPartition1 = ReadPartition.create().id(entry.getKey().toString()).partitionFilter(entry.getKey());
-						TapLogger.info(TAG, id + ": ReadPartition is ready to start reading for no count process, {}", readPartition1);
+			for(Map.Entry<TapPartitionFilter, Long> entry : partitionFilterLongMap.entrySet()) {
+				if(entry.getValue() < 0) { //countIsSlow = true
+					//unknown count for this partition
+					ReadPartition readPartition1 = ReadPartition.create().id(entry.getKey().toString()).partitionFilter(entry.getKey());
+					TapLogger.info(TAG, id + ": ReadPartition is ready to start reading for no count process, {}", readPartition1);
+					consumer.accept(readPartition1);
+				} else {//countIsSlow = false
+					gatherFilters.add(entry.getKey());
+					total += entry.getValue();
+
+					if(total >= maxRecordInPartition) {
+						ReadPartition readPartition1 = getReadPartition(gatherFilters, total);
 						consumer.accept(readPartition1);
-					} else {//countIsSlow = false
-						gatherFilters.add(entry.getKey());
-						total += entry.getValue();
 
-						if(total >= maxRecordInPartition) {
-							ReadPartition readPartition1 = getReadPartition(gatherFilters, total);
-							consumer.accept(readPartition1);
-
-							gatherFilters.clear();
-							total = 0;
-						}
+						gatherFilters.clear();
+						total = 0L;
 					}
 				}
-				currentPartitionCollector = currentPartitionCollector.getNext();
 			}
+			PartitionCollector nextSplit = currentPartitionCollector.getNextSplit();
+			if(nextSplit != null) {
+				handleReadPartitionPrivate(nextSplit, gatherFilters, total);
+			}
+			PartitionCollector nextIndex = currentPartitionCollector.getNextIndex();
+			if(nextIndex != null) {
+				handleReadPartitionPrivate(nextIndex, null, null);
+			}
+			currentPartitionCollector = currentPartitionCollector.getSibling();
+			this.currentPartitionCollector = currentPartitionCollector;
 		}
 		if(!gatherFilters.isEmpty()) {
 			ReadPartition readPartition1 = getReadPartition(gatherFilters, total);
 			consumer.accept(readPartition1);
+
+			gatherFilters.clear();
+			total = 0L;
 		}
-		return null;
 	}
 
 	private ReadPartition getReadPartition(List<TapPartitionFilter> gatherFilters, long total) {
@@ -253,28 +268,30 @@ public class DatabaseReadPartitionSplitter {
 			boolean noBoundary = eachPartitionFilter.getRightBoundary() == null && eachPartitionFilter.getLeftBoundary() == null && eachPartitionFilter.getMatch() != null;
 			partitionCollectorRef.get().setState(PartitionCollector.STATE_COUNT);
 			if(noBoundary || (partitionCount >= 0 && partitionCount > maxRecordWithRatioInPartition)) {
-				PartitionCollector newPartitionCollector = new PartitionCollector();
-				partitionCollectorRef.get().next(newPartitionCollector);
+				PartitionCollector newPartitionCollector = new PartitionCollector().state(PartitionCollector.STATE_COUNT);
+				partitionCollectorRef.get().sibling(newPartitionCollector);
 				partitionCollectorRef.get().state(PartitionCollector.STATE_DONE);
 
-				if(noBoundary) {
+				if(noBoundary) { // which means min == max case.
 					int pos = splitProgress.getCurrentFieldPos() + 1;
-					if(indexFields.size() > pos) {
-						SplitProgress newSplitProgress = SplitProgress.create().partitionCollector(newPartitionCollector).partitionFilter(eachPartitionFilter).currentFieldPos(splitProgress.getCurrentFieldPos() + 1).count(partitionCount);
+					if(indexFields.size() > pos) { // split into next index position.
+						newPartitionCollector.nextIndex(new PartitionCollector()).state(PartitionCollector.STATE_DONE);
+						SplitProgress newSplitProgress = SplitProgress.create().partitionCollector(newPartitionCollector.getNextIndex()).partitionFilter(eachPartitionFilter).currentFieldPos(splitProgress.getCurrentFieldPos() + 1).count(partitionCount);
 						parallelWorker.start(JobContext.create(newSplitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob));
-					} else {
+					} else { // no more next index, make it a partition.
 						newPartitionCollector.addPartition(eachPartitionFilter, partitionCount);
 						newPartitionCollector.state(PartitionCollector.STATE_DONE);
 					}
-				} else {
-					SplitProgress newSplitProgress = SplitProgress.create().partitionCollector(newPartitionCollector).partitionFilter(eachPartitionFilter).currentFieldPos(splitProgress.getCurrentFieldPos()).count(partitionCount);
+				} else { // still can be split in current index position. min != max case.
+					newPartitionCollector.nextSplit(new PartitionCollector()).state(PartitionCollector.STATE_DONE);
+					SplitProgress newSplitProgress = SplitProgress.create().partitionCollector(newPartitionCollector.getNextSplit()).partitionFilter(eachPartitionFilter).currentFieldPos(splitProgress.getCurrentFieldPos()).count(partitionCount);
 					parallelWorker.start(JobContext.create(newSplitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob));
 				}
 
 				PartitionCollector siblingCollector = new PartitionCollector().state(PartitionCollector.STATE_COUNT);
-				newPartitionCollector.next(siblingCollector);
+				newPartitionCollector.sibling(siblingCollector);
 				partitionCollectorRef.set(siblingCollector);
-			} else {
+			} else { // no need for split
 				partitionCollectorRef.get().addPartition(eachPartitionFilter, partitionCount);
 			}
 			return true;
