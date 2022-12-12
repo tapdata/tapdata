@@ -83,6 +83,9 @@ public class TapStringMapping extends TapBytesBase {
             if(theBytes != null && byteRatio != null)
                 theBytes = theBytes * byteRatio;
             Long width = tapString.getBytes();
+            if(byteRatio == null && comingByteRatio != null) {
+                width = width * comingByteRatio;
+            }
             if(width == null && theBytes != null) {
                 return score.add(BigDecimal.valueOf(theBytes));
             } else if(theBytes != null) {
