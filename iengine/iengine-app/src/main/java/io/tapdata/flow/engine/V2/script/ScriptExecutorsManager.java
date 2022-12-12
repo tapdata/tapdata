@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -99,7 +100,7 @@ public class ScriptExecutorsManager {
     private final String TAG;
 
     private final String associateId;
-    private final ExecuteCommandFunction executeCommandFunction;
+    private final Supplier<ExecuteCommandFunction> executeCommandFunctionSupplier;
 
 
     public ScriptExecutor(Connections connections, HazelcastInstance hazelcastInstance, String TAG) {
@@ -129,7 +130,7 @@ public class ScriptExecutorsManager {
       }
 
       ConnectorFunctions connectorFunctions = this.connectorNode.getConnectorFunctions();
-      this.executeCommandFunction = connectorFunctions.getExecuteCommandFunction();
+      this.executeCommandFunctionSupplier = connectorFunctions::getExecuteCommandFunction;
 
     }
 
@@ -154,6 +155,23 @@ public class ScriptExecutorsManager {
      */
     public long execute(Map<String, Object> executeObj) throws Throwable {
 
+      executeObj.put("command", "execute");
+      ExecuteResult executeResult = getExecuteResult(executeObj);
+      assert executeResult != null;
+      return executeResult.getModifiedCount();
+    }
+
+    public List<? extends Map<String, Object>> executeQuery(Map<String, Object> executeObj) throws Throwable {
+
+      executeObj.put("command", "executeQuery");
+      ExecuteResult executeResult = getExecuteResult(executeObj);
+      assert executeResult != null;
+      return executeResult.getResults();
+    }
+
+    public long count(Map<String, Object> executeObj) throws Throwable {
+
+      executeObj.put("command", "count");
       ExecuteResult executeResult = getExecuteResult(executeObj);
       assert executeResult != null;
       return executeResult.getModifiedCount();
@@ -161,7 +179,8 @@ public class ScriptExecutorsManager {
 
     @Nullable
     private ExecuteResult getExecuteResult(Map<String, Object> executeObj) throws Throwable {
-      if (this.executeCommandFunction == null) {
+      ExecuteCommandFunction executeCommandFunction = this.executeCommandFunctionSupplier.get();
+      if (executeCommandFunction == null) {
         TapNodeSpecification specification = this.connectorNode.getConnectorContext().getSpecification();
         String tag = specification.getName() + "-" + specification.getVersion();
         throw new RuntimeException("pdk [" + tag + "] not support execute command");
@@ -191,12 +210,6 @@ public class ScriptExecutorsManager {
       return executeCommand;
     }
 
-
-    public List<? extends Map<String, Object>> executeQuery(Map<String, Object> executeObj) throws Throwable {
-      ExecuteResult executeResult = getExecuteResult(executeObj);
-      assert executeResult != null;
-      return executeResult.getResults();
-    }
 
     void close() {
 
