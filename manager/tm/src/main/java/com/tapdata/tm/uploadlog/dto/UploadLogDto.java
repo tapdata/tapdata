@@ -12,6 +12,7 @@ public class UploadLogDto extends BaseDto {
     private String logBucket;
     private String accessKeySecret;
     private String accessKeyId;
+    private String securityToken;
     private String ossRegion;
     private String tmInfoEngineId;
 
