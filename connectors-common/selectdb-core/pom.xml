@@ -9,90 +9,45 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>postgres-core</artifactId>
+    <artifactId>selectdb-core</artifactId>
 
-    <name>postgres-core</name>
+    <name>selectDb-core</name>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <properties>
         <java.version>8</java.version>
-        <postgres.driver.version>42.3.4</postgres.driver.version>
-        <sql.core.version>1.0-SNAPSHOT</sql.core.version>
-        <debezium.version>1.5.4.Final</debezium.version>
-        <postgres.core.version>1.0-SNAPSHOT</postgres.core.version>
+        <mysql.driver.version>8.0.21</mysql.driver.version>
     </properties>
+
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>io.tapdata</groupId>
-                <artifactId>postgres-core</artifactId>
-                <version>${postgres.core.version}</version>
-            </dependency>
             <dependency>
                 <groupId>mysql</groupId>
                 <artifactId>mysql-connector-java</artifactId>
                 <version>${mysql.driver.version}</version>
             </dependency>
             <dependency>
-                <groupId>mysql</groupId>
-                <artifactId>mysql-connector-java</artifactId>
-            </dependency>
-            <dependency>
-                <groupId>org.postgresql</groupId>
-                <artifactId>postgresql</artifactId>
-                <version>${postgres.driver.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>io.tapdata</groupId>
                 <artifactId>sql-core</artifactId>
-                <version>${sql.core.version}</version>
+                <version>1.0-SNAPSHOT</version>
             </dependency>
+
             <dependency>
-                <groupId>io.debezium</groupId>
-                <artifactId>debezium-embedded</artifactId>
-                <version>${debezium.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.debezium</groupId>
-                <artifactId>debezium-connector-postgres</artifactId>
-                <version>${debezium.version}</version>
+                <groupId>io.tapdata</groupId>
+                <artifactId>tapdata-pdk-api</artifactId>
+                <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
-                <version>${commons.lang3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-collections4</artifactId>
             </dependency>
         </dependencies>
     </dependencyManagement>
-
-    <dependencies>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>tapdata-pdk-api</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>sql-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.debezium</groupId>
-            <artifactId>debezium-embedded</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.debezium</groupId>
-            <artifactId>debezium-connector-postgres</artifactId>
-        </dependency>
-    </dependencies>
     <build>
         <plugins>
             <plugin>

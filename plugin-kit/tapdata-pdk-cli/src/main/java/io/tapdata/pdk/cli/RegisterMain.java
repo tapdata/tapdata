@@ -44,6 +44,7 @@ public class RegisterMain {
         Excel(BASE_PATH + "connectors/dist/excel-connector-v1.0-SNAPSHOT.jar", false, "all", "file"),
         BigQuery(BASE_PATH + "connectors/dist/bigquery-connector-v1.0-SNAPSHOT.jar", false, "all", "bigquery"),
         Vika(BASE_PATH + "connectors/dist/vika-connector-v1.0-SNAPSHOT.jar", false, "all", "vika"),
+        SelectDB(BASE_PATH + "connectors/dist/selectdb-connector-v1.0-SNAPSHOT.jar", false, "all", "selectdb"),
         ;
 
         private final String path;
