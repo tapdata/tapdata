@@ -1,12 +1,9 @@
 package com.tapdata.tm.uploadlog.dto;
 
-import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 
 @Data
-@EqualsAndHashCode(callSuper = true)
-public class UploadLogDto extends BaseDto {
+public class UploadLogDto {
     private String agentId;
     private String uploadAddr;
     private String logBucket;
@@ -15,5 +12,6 @@ public class UploadLogDto extends BaseDto {
     private String securityToken;
     private String ossRegion;
     private String tmInfoEngineId;
-
+    private String userId;
+    private String id;
 }
