@@ -432,9 +432,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Map<String, DataSourceConnectionDto> connectMap = new HashMap<>();
 		Map<ObjectId, DataSourceConnectionDto> newResultObj = new HashMap<>();
 
-		Set<String> pdkHashList = items.stream().map(DataSourceConnectionDto::getPdkHash).collect(Collectors.toSet());
-		List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.findByPdkHashList(pdkHashList, user);
-		//Map<String, DataSourceDefinitionDto> definitionMap = definitionDtoList.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, Function.identity(), (f1, f2) -> f1));
+		Set<String> databaseTypes = items.stream().map(DataSourceConnectionDto::getDatabase_type).collect(Collectors.toSet());
+		List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.getByDataSourceType(new ArrayList<>(databaseTypes), user);
+		Map<String, DataSourceDefinitionDto> definitionMap = definitionDtoList.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, Function.identity(), (f1, f2) -> f1));
 
 		for (DataSourceConnectionDto item : items) {
 			if (!isAgentReq()) {
@@ -445,9 +445,18 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 
 			//不需要这个操作了。引擎会更新这个东西，另外每次更新databasetypes的时候，需要更新这个  参考： updateCapabilities方法
-//            if (definitionMap.containsKey(item.getPdkHash())) {
-//                item.setCapabilities(definitionMap.get(item.getPdkHash()).getCapabilities());
-//            }
+            if (definitionMap.containsKey(item.getDatabase_type())) {
+				DataSourceDefinitionDto definitionDto = definitionMap.get(item.getPdkHash());
+				item.setCapabilities(definitionDto.getCapabilities());
+				item.setDefinitionPdkId(definitionDto.getPdkId());
+				item.setPdkType(definitionDto.getPdkType());
+				item.setPdkHash(definitionDto.getPdkHash());
+				item.setDefinitionPdkId(definitionDto.getPdkId());
+				item.setDefinitionGroup(definitionDto.getGroup());
+				item.setDefinitionVersion(definitionDto.getVersion());
+				item.setDefinitionScope(definitionDto.getScope());
+				item.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
+            }
 
 			desensitizeMongoConnection(item);
 
