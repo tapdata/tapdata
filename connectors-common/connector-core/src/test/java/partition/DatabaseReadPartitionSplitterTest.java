@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -240,6 +241,100 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 	}
 
 	@Test
+	public void testThreeRecordForDateTime() throws Throwable {
+		TapNodeSpecification nodeSpecification = new TapNodeSpecification();
+		nodeSpecification.setId("test");
+		nodeSpecification.setGroup("group");
+		nodeSpecification.setVersion("1.1");
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
+
+		List<Map<String, Object>> records = new ArrayList<>();
+		records.add(map(entry("a", new Date(1670861303123L))));
+		records.add(map(entry("a", new Date(1670861305123L))));
+		records.add(map(entry("a", new Date(1670861306123L))));
+
+		TestConnector testConnector = new TestConnector();
+		List<ReadPartition> readPartitionList = new ArrayList<>();
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
+					readPartitionList.add(readPartition);
+				})
+				.splitCompleteListener((id) -> {
+					$(() -> Assertions.assertEquals(2, readPartitionList.size()));
+					ReadPartition readPartition = readPartitionList.get(0);
+					Assertions.assertNotNull(readPartition);
+					Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator());
+					Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey());
+					Assertions.assertEquals("Tue Dec 13 00:08:24 CST 2022", readPartition.getPartitionFilter().getRightBoundary().getValue().toString());
+					ReadPartition readPartition1 = readPartitionList.get(1);
+					Assertions.assertEquals(QueryOperator.GTE, readPartition1.getPartitionFilter().getLeftBoundary().getOperator());
+					Assertions.assertEquals("a", readPartition1.getPartitionFilter().getLeftBoundary().getKey());
+					Assertions.assertEquals("Tue Dec 13 00:08:24 CST 2022", readPartition1.getPartitionFilter().getLeftBoundary().getValue().toString());
+					completed();
+				})
+				.queryFieldMinMaxValue(new DateTimeFieldMinMaxHandler(records))
+				.countByPartitionFilter(new DateTimeFieldMinMaxHandler(records))
+				.maxRecordRatio(2)
+				.startSplitting();
+
+		waitCompleted(43333333);
+	}
+
+	@Test
+	public void testThreeRecordForString() throws Throwable {
+		TapNodeSpecification nodeSpecification = new TapNodeSpecification();
+		nodeSpecification.setId("test");
+		nodeSpecification.setGroup("group");
+		nodeSpecification.setVersion("1.1");
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
+
+		List<Map<String, Object>> records = new ArrayList<>();
+		records.add(map(entry("a", "aaaFd")));
+		records.add(map(entry("a", "aaabc")));
+		records.add(map(entry("a", "aaacd")));
+		records.add(map(entry("a", "aaaed")));
+		records.add(map(entry("a", "bbbbb")));
+		records.add(map(entry("a", "bbbbb1")));
+		records.add(map(entry("a", "bbbbb11")));
+
+		TestConnector testConnector = new TestConnector();
+		List<ReadPartition> readPartitionList = new ArrayList<>();
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
+					readPartitionList.add(readPartition);
+				})
+				.splitCompleteListener((id) -> {
+					$(() -> Assertions.assertEquals(6, readPartitionList.size()));
+					ReadPartition readPartition = readPartitionList.get(0);
+					Assertions.assertNotNull(readPartition);
+					Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator());
+					Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey());
+					Assertions.assertEquals("aaaM", readPartition.getPartitionFilter().getRightBoundary().getValue());
+
+					ReadPartition readPartition3 = readPartitionList.get(3);
+					Assertions.assertNotNull(readPartition);
+					Assertions.assertEquals(QueryOperator.LT, readPartition3.getPartitionFilter().getRightBoundary().getOperator());
+					Assertions.assertEquals("a", readPartition3.getPartitionFilter().getRightBoundary().getKey());
+					Assertions.assertEquals("b", readPartition3.getPartitionFilter().getRightBoundary().getValue());
+					Assertions.assertEquals(QueryOperator.GTE, readPartition3.getPartitionFilter().getLeftBoundary().getOperator());
+					Assertions.assertEquals("a", readPartition3.getPartitionFilter().getLeftBoundary().getKey());
+					Assertions.assertEquals("aaad", readPartition3.getPartitionFilter().getLeftBoundary().getValue());
+
+					ReadPartition readPartition5 = readPartitionList.get(5);
+					Assertions.assertEquals(QueryOperator.GTE, readPartition5.getPartitionFilter().getLeftBoundary().getOperator());
+					Assertions.assertEquals("a", readPartition5.getPartitionFilter().getLeftBoundary().getKey());
+					Assertions.assertEquals("bbbbb%", readPartition5.getPartitionFilter().getLeftBoundary().getValue());
+					completed();
+				})
+				.queryFieldMinMaxValue(new StringFieldMinMaxHandler(records))
+				.countByPartitionFilter(new StringFieldMinMaxHandler(records))
+				.maxRecordRatio(2)
+				.startSplitting();
+
+		waitCompleted(455555555);
+	}
+
+	@Test
 	public void testThreeRecordForBoolean() throws Throwable {
 		TapNodeSpecification nodeSpecification = new TapNodeSpecification();
 		nodeSpecification.setId("test");
@@ -272,7 +367,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.maxRecordRatio(2)
 				.startSplitting();
 
-		waitCompleted(48888888);
+		waitCompleted(4);
 	}
 
 	@Test
@@ -354,7 +449,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.maxRecordRatio(2)
 				.startSplitting();
 
-		waitCompleted(41111111);
+		waitCompleted(4);
 	}
 
 	@Test

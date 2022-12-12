@@ -1,5 +1,10 @@
 package io.tapdata.entity.schema.value;
 
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.error.TapAPIErrorCodes;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -11,6 +16,25 @@ import java.util.Objects;
 import java.util.TimeZone;
 
 public class DateTime {
+    public static final int ORIGIN_TYPE_NONE = 1;
+    private static final int ORIGIN_TYPE_ZONED_DATE_TIME = 10;
+    private static final int ORIGIN_TYPE_INSTANT = 20;
+    private static final int ORIGIN_TYPE_DATE = 30;
+    private static final int ORIGIN_TYPE_SQL_DATE = 40;
+    private static final int ORIGIN_TYPE_TIME = 50;
+    private static final int ORIGIN_TYPE_TIMESTAMP = 60;
+    private static final int ORIGIN_TYPE_BIG_DECIMAL_FRACTION = 70;
+    private static final int ORIGIN_TYPE_LONG_FRACTION = 80;
+    private static final int ORIGIN_TYPE_LONG = 90;
+    private static final int ORIGIN_TYPE_LOCAL_DATETIME = 100;
+    private int originType;
+    public int getOriginType() {
+        return originType;
+    }
+    private int fraction = 3;
+    public int getFraction() {
+        return fraction;
+    }
     /**
      * 秒数
      */
@@ -28,11 +52,13 @@ public class DateTime {
     private TimeZone timeZone;
 
     public DateTime() {
+        originType = ORIGIN_TYPE_NONE;
     }
 
     public DateTime(ZonedDateTime zonedDateTime) {
         this(zonedDateTime.toInstant());
         timeZone = TimeZone.getTimeZone(zonedDateTime.getZone());
+        originType = ORIGIN_TYPE_ZONED_DATE_TIME;
     }
 
     public DateTime(Instant instant) {
@@ -40,6 +66,7 @@ public class DateTime {
             throw new IllegalArgumentException("DateTime constructor instant is null");
         seconds = instant.getEpochSecond();
         nano = instant.getNano();
+        originType = ORIGIN_TYPE_INSTANT;
     }
 
     public DateTime(Date date) {
@@ -48,6 +75,7 @@ public class DateTime {
         long time = date.getTime();
         seconds = time / 1000;
         nano = (int) ((time % 1000) * 1000000);
+        originType = ORIGIN_TYPE_DATE;
     }
 
     public DateTime(java.sql.Date date) {
@@ -56,6 +84,7 @@ public class DateTime {
         long time = date.getTime();
         seconds = time / 1000;
         nano = (int) ((time % 1000) * 1000000);
+        originType = ORIGIN_TYPE_SQL_DATE;
     }
 
     public DateTime(java.sql.Time time) {
@@ -64,6 +93,7 @@ public class DateTime {
         long sqlTime = time.getTime();
         seconds = sqlTime / 1000;
         nano = (int) ((sqlTime % 1000) * 1000000);
+        originType = ORIGIN_TYPE_TIME;
     }
 
     public DateTime(Timestamp timestamp) {
@@ -72,6 +102,23 @@ public class DateTime {
         long time = timestamp.getTime();
         seconds = time / 1000;
         nano = timestamp.getNanos();
+        originType = ORIGIN_TYPE_TIMESTAMP;
+    }
+
+    public DateTime(BigDecimal time) {
+        this(time, 9);
+    }
+    public DateTime(BigDecimal time, int fraction) {
+        if (time == null)
+            throw new IllegalArgumentException("DateTime constructor time is null");
+        if (fraction > 9 || fraction < 0) {
+            throw new IllegalArgumentException("Fraction must be 0~9");
+        }
+        
+        seconds = time.divide(BigDecimal.valueOf(((Double) Math.pow(10, fraction)).longValue()), RoundingMode.HALF_UP).longValue();
+        nano = time.divideAndRemainder(BigDecimal.valueOf(((Double) Math.pow(10, fraction)).longValue()))[1].multiply(BigDecimal.valueOf(((Double) Math.pow(10, 9 - fraction)).longValue())).intValue();
+        originType = ORIGIN_TYPE_BIG_DECIMAL_FRACTION;
+        this.fraction = fraction;
     }
 
     public DateTime(Long time, int fraction) {
@@ -82,6 +129,8 @@ public class DateTime {
         }
         seconds = time / ((Double) Math.pow(10, fraction)).longValue();
         nano = (int) ((time % ((Double) Math.pow(10, fraction)).longValue()) * ((Double) Math.pow(10, 9 - fraction)).longValue());
+        originType = ORIGIN_TYPE_LONG_FRACTION;
+        this.fraction = fraction;
 //        switch (fraction) {
 //            case 0:
 //                seconds = time;
@@ -115,6 +164,7 @@ public class DateTime {
 
         seconds = time / 1000;
         nano = (int) ((time % 1000) * 1000000);
+        originType = ORIGIN_TYPE_LONG;
     }
 
     public DateTime(LocalDateTime localDateTime) {
@@ -123,6 +173,31 @@ public class DateTime {
         Instant instant = localDateTime.toInstant(ZoneOffset.UTC);
         seconds = instant.getEpochSecond();
         nano = instant.getNano();
+        originType = ORIGIN_TYPE_LOCAL_DATETIME;
+    }
+
+    public Object toOriginObject(int originType) {
+        switch (originType) {
+            case ORIGIN_TYPE_DATE:
+                return toDate();
+            case ORIGIN_TYPE_INSTANT:
+                return toInstant();
+            case ORIGIN_TYPE_LOCAL_DATETIME:
+                return toZonedDateTime().toLocalDateTime();
+            case ORIGIN_TYPE_SQL_DATE:
+                return toSqlDate();
+            case ORIGIN_TYPE_TIME:
+                return toTime();
+            case ORIGIN_TYPE_TIMESTAMP:
+                return toTimestamp();
+            case ORIGIN_TYPE_ZONED_DATE_TIME:
+                return toZonedDateTime();
+            case ORIGIN_TYPE_LONG:
+            case ORIGIN_TYPE_LONG_FRACTION:
+                return toLong();
+            default:
+                throw new CoreException(TapAPIErrorCodes.ERROR_ILLEGAL_DATETIME_ORIGIN_TYPE, "Illegal originType {} for DateTime", originType);
+        }
     }
 
     public static DateTime withTimeStr(String timeStr) {
@@ -203,6 +278,29 @@ public class DateTime {
             return null;
         }
         return new java.sql.Date(milliseconds);
+    }
+
+    public Long toLong() {
+        if (fraction > 9 || fraction < 0) {
+            throw new IllegalArgumentException("Fraction must be 0~9");
+        }
+        long time;
+        time = seconds * ((Double) Math.pow(10, fraction)).longValue();
+        time = time + nano / ((Double) Math.pow(10, 9 - fraction)).longValue();
+        return time;
+    }
+
+    public BigDecimal toNanoSeconds() {
+        BigDecimal nanoSeconds;
+        if (seconds != null) {
+            nanoSeconds = BigDecimal.valueOf(seconds).multiply(BigDecimal.valueOf(1000_000_000));
+            if (nano != null) {
+                nanoSeconds = nanoSeconds.add(BigDecimal.valueOf(nano));
+            }
+        } else {
+            return null;
+        }
+        return nanoSeconds;
     }
 
     public java.sql.Time toTime() {

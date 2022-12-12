@@ -144,6 +144,10 @@ public class StringSplitter implements TypeSplitter {
 			String maxStr = max.substring(0, pos) + maxChar;
 			int value = maxChar - minChar;
 			int pieceSize = value / maxSplitPieces;
+			if(pieceSize == 0) {
+				pieceSize = 1;
+				maxSplitPieces = value / pieceSize;
+			}
 			List<TapPartitionFilter> partitionFilters = new ArrayList<>();
 			for(int i = 0; i < maxSplitPieces; i++) {
 				if(i == 0) {
@@ -156,10 +160,15 @@ public class StringSplitter implements TypeSplitter {
 							.rightBoundary(boundaryPartitionFilter.getRightBoundary()));
 				} else {
 					partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
-							.leftBoundary(QueryOperator.gte(fieldMinMaxValue.getFieldName(), min + pieceSize * i))
-							.rightBoundary(QueryOperator.lt(fieldMinMaxValue.getFieldName(), min + pieceSize * (i + 1)))
+							.leftBoundary(QueryOperator.gte(fieldMinMaxValue.getFieldName(), min.substring(0, pos) + (char)(minChar + pieceSize * i)))
+							.rightBoundary(QueryOperator.lt(fieldMinMaxValue.getFieldName(), min.substring(0, pos) + (char)(minChar + pieceSize * (i + 1))))
 					);
 				}
+			}
+			if(maxSplitPieces == 1) {
+				partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
+						.leftBoundary(QueryOperator.gte(fieldMinMaxValue.getFieldName(), min.substring(0, pos) + (char)(minChar + pieceSize)))
+						.rightBoundary(boundaryPartitionFilter.getRightBoundary()));
 			}
 			return partitionFilters;
 		} else {
