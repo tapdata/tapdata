@@ -8,7 +8,6 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.util.JsonUtil;
-import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -18,13 +17,12 @@ import io.tapdata.pdk.apis.entity.TapExecuteCommand;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
-import io.tapdata.schema.TapTableUtil;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -36,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -82,6 +81,10 @@ public class ScriptExecutorsManager {
     Connections connections = clientMongoOperator.findOne(new Query(where("name").is(connectionName)),
             ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 
+    if (connections == null) {
+      throw new RuntimeException("The specified connection source [" + connectionName + "] does not exist, please check");
+    }
+
     return new ScriptExecutor(connections, hazelcastInstance, this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId);
   }
 
@@ -90,16 +93,14 @@ public class ScriptExecutorsManager {
     this.cacheMap.clear();
   }
 
-  private class ScriptExecutor {
+  public class ScriptExecutor {
 
     private final ConnectorNode connectorNode;
 
     private final String TAG;
 
     private final String associateId;
-
-    private final TapCodecsFilterManager codecsFilterManager;
-    private final ExecuteCommandFunction executeCommandFunction;
+    private final Supplier<ExecuteCommandFunction> executeCommandFunctionSupplier;
 
 
     public ScriptExecutor(Connections connections, HazelcastInstance hazelcastInstance, String TAG) {
@@ -107,11 +108,10 @@ public class ScriptExecutorsManager {
 
       Map<String, Object> connectionConfig = connections.getConfig();
       DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-      //todo 根据connections查询TapTableMap
-      TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId("");
-      PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
       PdkStateMap pdkStateMap = new PdkStateMap(TAG, hazelcastInstance, PdkStateMap.StateMapMode.HTTP_TM);
       PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
+      TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("ScriptExecutor", TAG);
+      PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
       this.associateId = this.getClass().getSimpleName() + "-" + connections.getName() + "-" + UUIDGenerator.uuid();
       this.connectorNode = PdkUtil.createNode(TAG,
               databaseType,
@@ -130,9 +130,8 @@ public class ScriptExecutorsManager {
       }
 
       ConnectorFunctions connectorFunctions = this.connectorNode.getConnectorFunctions();
-      this.executeCommandFunction = connectorFunctions.getExecuteCommandFunction();
+      this.executeCommandFunctionSupplier = connectorFunctions::getExecuteCommandFunction;
 
-      this.codecsFilterManager = connectorNode.getCodecsFilterManager();
     }
 
     /**
@@ -156,6 +155,23 @@ public class ScriptExecutorsManager {
      */
     public long execute(Map<String, Object> executeObj) throws Throwable {
 
+      executeObj.put("command", "execute");
+      ExecuteResult executeResult = getExecuteResult(executeObj);
+      assert executeResult != null;
+      return executeResult.getModifiedCount();
+    }
+
+    public List<? extends Map<String, Object>> executeQuery(Map<String, Object> executeObj) throws Throwable {
+
+      executeObj.put("command", "executeQuery");
+      ExecuteResult executeResult = getExecuteResult(executeObj);
+      assert executeResult != null;
+      return executeResult.getResults();
+    }
+
+    public long count(Map<String, Object> executeObj) throws Throwable {
+
+      executeObj.put("command", "count");
       ExecuteResult executeResult = getExecuteResult(executeObj);
       assert executeResult != null;
       return executeResult.getModifiedCount();
@@ -163,8 +179,11 @@ public class ScriptExecutorsManager {
 
     @Nullable
     private ExecuteResult getExecuteResult(Map<String, Object> executeObj) throws Throwable {
-      if (this.executeCommandFunction == null) {
-        throw new RuntimeException("not support...");
+      ExecuteCommandFunction executeCommandFunction = this.executeCommandFunctionSupplier.get();
+      if (executeCommandFunction == null) {
+        TapNodeSpecification specification = this.connectorNode.getConnectorContext().getSpecification();
+        String tag = specification.getName() + "-" + specification.getVersion();
+        throw new RuntimeException("pdk [" + tag + "] not support execute command");
       }
 
       AtomicReference<ExecuteResult> consumerBack = new AtomicReference<>();
@@ -174,7 +193,7 @@ public class ScriptExecutorsManager {
 
       ExecuteResult executeResult = consumerBack.get();
       if (executeResult != null && executeResult.getError() != null) {
-        throw new RuntimeException("", executeResult.getError());
+        throw new RuntimeException("script execute error", executeResult.getError());
       }
       return executeResult;
     }
@@ -191,20 +210,6 @@ public class ScriptExecutorsManager {
       return executeCommand;
     }
 
-
-    public List<Map<String, Object>> executeQuery(Map<String, Object> executeObj) throws Throwable {
-      ExecuteResult executeResult = getExecuteResult(executeObj);
-      assert executeResult != null;
-      List<Map<String, Object>> results = executeResult.getResults();
-
-      if (CollectionUtils.isNotEmpty(results)) {
-        for (Map<String, Object> map : results) {
-//          codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
-          codecsFilterManager.transformFromTapValueMap(map);
-        }
-      }
-      return results;
-    }
 
     void close() {
 
