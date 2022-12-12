@@ -1,5 +1,6 @@
 package com.tapdata.tm.uploadlog.service;
 
+import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -32,12 +33,17 @@ public class UploadLogService {
      */
     public String upload(UploadLogDto uploadLogDto) {
         try {
+            log.info("uploadLogDto  data{}", JSONObject.toJSONString(uploadLogDto));
             ClusterStateDto  clusterStateDto= clusterStateService.findOne(Query.query(Criteria.where("systemInfo.process_id").is(uploadLogDto.getTmInfoEngineId())));
             if (clusterStateDto == null){
+                log.info("AgentId don't exist");
                 return "AgentId don't exist";
             }
+            log.info("send message....");
             WebSocketClusterServer.sendMessage(clusterStateDto.getSystemInfo().getUuid(), getSendObj(uploadLogDto));
+            log.info("send message end....");
         } catch (Exception e) {
+            log.info("send message fail....",e.getMessage());
             return e.getMessage();
         }
         return "success";
