@@ -559,7 +559,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					removePdkMethodInvoker(pdkMethodInvoker);
 				}
 			} catch (Exception e) {
-				throw new NodeException(e).context(getDataProcessorContext()).events(events);
+				String msg = String.format(" tableName: %s, %s", tgtTableName, e.getMessage());
+				throw new NodeException(msg, e).context(getDataProcessorContext()).events(events);
 			}
 		} else {
 			throw new NodeException("PDK connector " + getConnectorNode().getConnectorContext().getSpecification().getId() + " does not support write record function")

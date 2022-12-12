@@ -215,29 +215,38 @@ public class PartitionConcurrentProcessor {
 					break;
 				}
 				if (tapdataEvent.isDML()) {
-					Map<String, Object> row = null;
-					final TapEvent tapEvent = tapdataEvent.getTapEvent();
-					if (tapEvent instanceof TapInsertRecordEvent) {
-						row = ((TapInsertRecordEvent) tapEvent).getAfter();
-					} else if (tapEvent instanceof TapDeleteRecordEvent) {
-						row = ((TapDeleteRecordEvent) tapEvent).getBefore();
-					} else if (tapEvent instanceof TapUpdateRecordEvent) {
-						// if update partition value, will generate barrier event
-						if (updatePartitionValueEvent(tapEvent)) {
-							generateBarrierEvent();
-							row = ((TapUpdateRecordEvent) tapEvent).getBefore();
-						} else {
-							row = ((TapUpdateRecordEvent) tapEvent).getAfter();
+					String tableName = "";
+					try {
+						Map<String, Object> row = null;
+						final TapEvent tapEvent = tapdataEvent.getTapEvent();
+						if (tapEvent instanceof TapInsertRecordEvent) {
+							row = ((TapInsertRecordEvent) tapEvent).getAfter();
+							tableName = ((TapInsertRecordEvent) tapEvent).getTableId();
+						} else if (tapEvent instanceof TapDeleteRecordEvent) {
+							row = ((TapDeleteRecordEvent) tapEvent).getBefore();
+							tableName = ((TapDeleteRecordEvent) tapEvent).getTableId();
+						} else if (tapEvent instanceof TapUpdateRecordEvent) {
+							tableName = ((TapUpdateRecordEvent) tapEvent).getTableId();
+							// if update partition value, will generate barrier event
+							if (updatePartitionValueEvent(tapEvent)) {
+								generateBarrierEvent();
+								row = ((TapUpdateRecordEvent) tapEvent).getBefore();
+							} else {
+								row = ((TapUpdateRecordEvent) tapEvent).getAfter();
+							}
 						}
-					}
-					final List<Object> partitionValue = keySelector.select(tapEvent, row);
-					final List<Object> partitionOriginalValues = keySelector.convert2OriginValue(partitionValue);
-					final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionOriginalValues);
-					final int partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
- 					final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(partition);
-					final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
-					if (!enqueuePartitionEvent(partition, queue, normalEvent)) {
-						break;
+						final List<Object> partitionValue = keySelector.select(tapEvent, row);
+						final List<Object> partitionOriginalValues = keySelector.convert2OriginValue(partitionValue);
+						final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionOriginalValues);
+						final int partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
+						final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(partition);
+						final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
+						if (!enqueuePartitionEvent(partition, queue, normalEvent)) {
+							break;
+						}
+					} catch (Exception e) {
+						String msg = String.format(" tableName: %s, %s", tableName, e.getMessage());
+						throw new RuntimeException(msg, e);
 					}
 				} else {
 					generateBarrierEvent();
