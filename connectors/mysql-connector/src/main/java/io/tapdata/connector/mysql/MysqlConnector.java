@@ -27,6 +27,8 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -115,6 +117,20 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
+    }
+
+
+    private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+        RetryOptions retryOptions = RetryOptions.create();
+        retryOptions.setNeedRetry(true);
+        retryOptions.beforeRetryMethod(()->{
+            try {
+                this.onStart(tapConnectionContext);
+            } catch (Throwable ignore) {
+            }
+        });
+        return retryOptions;
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
