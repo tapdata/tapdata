@@ -77,7 +77,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
             null,
             null,
             ((DataProcessorContext) processorBaseContext).getCacheService(),
-            new ObsScriptLogger(obsLogger)
+            new ObsScriptLogger(obsLogger, logger)
     );
 
     this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
