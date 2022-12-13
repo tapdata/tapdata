@@ -23,6 +23,8 @@ public class FieldMinMaxValue {
 		return this;
 	}
 	public FieldMinMaxValue detectType(Object value) {
+		if(value == null)
+			return this;
 		if(value instanceof Number) {
 			type = TYPE_NUMBER;
 		} else if(value instanceof String) {
@@ -49,6 +51,11 @@ public class FieldMinMaxValue {
 		this.max = max;
 		return this;
 	}
+
+	public boolean isAvailable() {
+		return min != null && max != null && fieldName != null;
+	}
+
 
 	public static FieldMinMaxValue create() {
 		return new FieldMinMaxValue();

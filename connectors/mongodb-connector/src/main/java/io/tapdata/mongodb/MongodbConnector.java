@@ -491,21 +491,33 @@ public class MongodbConnector extends ConnectorBase {
 		//Get min value
 		FindIterable<Document> minIterable = collection.find(query).sort(minSort).projection(new Document().append(fieldName, 1)).limit(1);
 		Document minDoc = minIterable.first();
-		if(minDoc == null)
-			throw new CoreException(MongoErrors.NO_RECORD_WHILE_GET_MIN, "No record while get min for field {}, query {}, sort {}", fieldName, query, sort);
+		if(minDoc == null) {
+//			throw new CoreException(MongoErrors.NO_RECORD_WHILE_GET_MIN, "No record while get min for field {}, query {}, sort {}", fieldName, query, sort);
+			TapLogger.info(TAG, "No record while get min for field {}, query {}, sort {}", fieldName, query, sort);
+			return null;
+		}
 		Object minValue = minDoc.get(fieldName);
-		if(minValue == null)
-			throw new CoreException(MongoErrors.MIN_VALUE_IS_NULL, "Min value is null for field {}, query {}, sort {}", fieldName, query, sort);
+//		if(minValue == null) {
+////			throw new CoreException(MongoErrors.MIN_VALUE_IS_NULL, "Min value is null for field {}, query {}, sort {}", fieldName, query, sort);
+//			TapLogger.info(TAG, "Min value is null for field {}, query {}, sort {}", fieldName, query, sort);
+//			return null;
+//		}
 		fieldMinMaxValue.min(minValue).detectType(minValue);
 
 		//Get max value
 		FindIterable<Document> maxIterable = collection.find(query).sort(maxSort).projection(new Document().append(fieldName, 1)).limit(1);
 		Document maxDoc = maxIterable.first();
-		if(maxDoc == null)
-			throw new CoreException(MongoErrors.NO_RECORD_WHILE_GET_MAX, "No record while get max for field {}, query {}, sort {}", fieldName, query, sort);
+		if(maxDoc == null) {
+//			throw new CoreException(MongoErrors.NO_RECORD_WHILE_GET_MAX, "No record while get max for field {}, query {}, sort {}", fieldName, query, sort);
+			TapLogger.info(TAG, "No record while get max for field {}, query {}, sort {}", fieldName, query, sort);
+			return null;
+		}
 		Object maxValue = maxDoc.get(fieldName);
-		if(maxValue == null)
-			throw new CoreException(MongoErrors.MAX_VALUE_IS_NULL, "Max value is null for field {}, query {}, sort {}", fieldName, query, sort);
+//		if(maxValue == null) {
+////			throw new CoreException(MongoErrors.MAX_VALUE_IS_NULL, "Max value is null for field {}, query {}, sort {}", fieldName, query, sort);
+//			TapLogger.info(TAG, "Max value is null for field {}, query {}, sort {}", fieldName, query, sort);
+//			return null;
+//		}
 		fieldMinMaxValue.max(maxValue);
 
 		return fieldMinMaxValue;

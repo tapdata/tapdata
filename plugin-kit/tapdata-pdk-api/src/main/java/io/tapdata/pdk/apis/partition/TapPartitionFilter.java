@@ -2,6 +2,8 @@ package io.tapdata.pdk.apis.partition;
 
 
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapFilter;
 
@@ -30,7 +32,7 @@ public class TapPartitionFilter extends TapFilter {
 
 
 	public TapPartitionFilter resetMatch(DataMap match) {
-		this.match = match;
+		this.match = match != null ? (DataMap) InstanceFactory.instance(TapUtils.class).cloneMap(match) : null;
 		return this;
 	}
 
@@ -79,7 +81,7 @@ public class TapPartitionFilter extends TapFilter {
 
 	public static List<TapPartitionFilter> filtersWhenMinMaxEquals(TapPartitionFilter boundaryPartitionFilter, FieldMinMaxValue fieldMinMaxValue, Object min) {
 		List<TapPartitionFilter> partitionFilters = new ArrayList<>();
-		if(min != boundaryPartitionFilter.getLeftBoundary().getValue()) {
+		if(boundaryPartitionFilter.getLeftBoundary() == null || min != boundaryPartitionFilter.getLeftBoundary().getValue()) {
 			partitionFilters.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch())
 					.leftBoundary(boundaryPartitionFilter.getLeftBoundary())
 					.rightBoundary(QueryOperator.lt(fieldMinMaxValue.getFieldName(), min)));

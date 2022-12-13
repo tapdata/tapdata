@@ -18,6 +18,7 @@ import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -49,6 +50,11 @@ public class DatabaseReadPartitionSplitter {
 
 	public DatabaseReadPartitionSplitter registerCustomSplitter(Class<?> clazz, TypeSplitter typeSplitter) {
 		typeSplitterMap.put(clazz.getName(), typeSplitter);
+		return this;
+	}
+	private int splitPiecesForCountIsSlow = 200;
+	public DatabaseReadPartitionSplitter splitPiecesForCountIsSlow(int splitPiecesForCountIsSlow) {
+		this.splitPiecesForCountIsSlow = splitPiecesForCountIsSlow;
 		return this;
 	}
 	private boolean countIsSlow;
@@ -171,21 +177,34 @@ public class DatabaseReadPartitionSplitter {
 		return null;
 	}
 
-	private void handleReadPartitionPrivate(PartitionCollector currentPartitionCollector, List<TapPartitionFilter> gatherFilters, Long total) {
+	private void handleReadPartitionPrivate(PartitionCollector currentPartitionCollector, Map<TapPartitionFilter, Long> gatherFilters, Long total) {
 		if(gatherFilters == null)
-			gatherFilters = new ArrayList<>();
+			gatherFilters = new LinkedHashMap<>();
 		if(total == null)
 			total = 0L;
 		while (currentPartitionCollector != null && currentPartitionCollector.getState() == PartitionCollector.STATE_DONE) {
 			Map<TapPartitionFilter, Long> partitionFilterLongMap = currentPartitionCollector.getPartitionCountMap();
 			for(Map.Entry<TapPartitionFilter, Long> entry : partitionFilterLongMap.entrySet()) {
-				if(entry.getValue() < 0) { //countIsSlow = true
+				if(countIsSlow) { //countIsSlow = true
 					//unknown count for this partition
-					ReadPartition readPartition1 = ReadPartition.create().id(entry.getKey().toString()).partitionFilter(entry.getKey());
-					TapLogger.info(TAG, id + ": ReadPartition is ready to start reading for no count process, {}", readPartition1);
-					consumer.accept(readPartition1);
+					if(entry.getValue() < 0) {
+						if(!gatherFilters.isEmpty()) {
+							ReadPartition readPartition1 = getReadPartition(gatherFilters, total);
+							consumer.accept(readPartition1);
+
+							gatherFilters.clear();
+							total = 0L;
+						}
+
+						ReadPartition readPartition1 = ReadPartition.create().id(entry.getKey().toString()).partitionFilter(entry.getKey());
+						TapLogger.info(TAG, id + ": ReadPartition is ready to start reading for no count process, {}", readPartition1);
+						consumer.accept(readPartition1);
+					} else {
+						gatherFilters.put(entry.getKey(), entry.getValue());
+						total += entry.getValue();
+					}
 				} else {//countIsSlow = false
-					gatherFilters.add(entry.getKey());
+					gatherFilters.put(entry.getKey(), entry.getValue());
 					total += entry.getValue();
 
 					if(total >= maxRecordInPartition) {
@@ -224,9 +243,10 @@ public class DatabaseReadPartitionSplitter {
 		}
 	}
 
-	private ReadPartition getReadPartition(List<TapPartitionFilter> gatherFilters, long total) {
-		TapPartitionFilter left = gatherFilters.get(0);
-		TapPartitionFilter right = gatherFilters.get(gatherFilters.size() - 1);
+	private ReadPartition getReadPartition(Map<TapPartitionFilter, Long> gatherFilters, long total) {
+		List<TapPartitionFilter> filters = new ArrayList<>(gatherFilters.keySet());
+		TapPartitionFilter left = filters.get(0);
+		TapPartitionFilter right = filters.get(filters.size() - 1);
 		TapPartitionFilter finalFilter = TapPartitionFilter.create().resetMatch(left.getMatch()).leftBoundary(left.getLeftBoundary()).rightBoundary(right.getRightBoundary());
 
 		ReadPartition readPartition1 = ReadPartition.create().id(finalFilter.toString()).partitionFilter(finalFilter);
@@ -246,23 +266,76 @@ public class DatabaseReadPartitionSplitter {
 		TapLogger.info(TAG, id + " " + partitionFilter + ": start splitting");
 		long count = splitProgress.getCount();
 		List<TapIndexField> indexFields = splitContext.getIndexFields();
-		long times = 200; //split 200 pieces by default. When count is < 0, default pieces will be used.
+		long splitPieces = 200; //split 200 pieces by default. When count is < 0, default pieces will be used.
 		if(count >= 0) {
-			times = count / maxRecordInPartition + ((count % maxRecordInPartition) == 0 ? 0 : 1);
-			TapLogger.info(TAG, id + " " + partitionFilter + ": Split into {} pieces", times);
+			splitPieces = count / maxRecordInPartition + ((count % maxRecordInPartition) == 0 ? 0 : 1);
+			TapLogger.info(TAG, id + " " + partitionFilter + ": Split into {} pieces", splitPieces);
 		} else {
-			TapLogger.info(TAG, id + " " + partitionFilter + ": Split into {} pieces by default as count is too slow", times);
+			TapLogger.info(TAG, id + " " + partitionFilter + ": Split into {} pieces by default as count is too slow", splitPieces);
 		}
 
 		TapIndexField indexField = indexFields.get(splitProgress.getCurrentFieldPos());
 		FieldMinMaxValue fieldMinMaxValue = queryFieldMinMaxValue.minMaxValue(context, table, partitionFilter, indexField.getName());
+		if(fieldMinMaxValue == null) {
+			partitionCollector.addPartition(partitionFilter, 0L);
+			partitionCollector.state(PartitionCollector.STATE_DONE);
+			TapLogger.info(TAG, "Partition {} can not find min/max value which means no record in table.", partitionFilter);
+			return null;
+		}
 		String type = fieldMinMaxValue.getType();
 		TypeSplitter typeSplitter = typeSplitterMap.get(type);
 		if(typeSplitter == null)
 			throw new CoreException(ConnectorErrors.MISSING_TYPE_SPLITTER, "Missing type splitter for type {}", type);
 		partitionCollector.state(PartitionCollector.STATE_MIN_MAX);
 
-		List<TapPartitionFilter> partitionFilters = typeSplitter.split(partitionFilter, fieldMinMaxValue, (int) times);
+		Map<TapPartitionFilter, Long> minMaxPartitionMap = new HashMap<>();
+
+		List<TapPartitionFilter> partitionFilters = typeSplitter.split(partitionFilter, fieldMinMaxValue, (int) splitPieces);
+		if(countIsSlow) {
+			long finalTimes = splitPieces;
+			boolean noMoreSplit = false;
+			long minTimes = splitPieces / 2;
+			long time = System.currentTimeMillis();
+			while(!noMoreSplit && partitionFilters.size() < minTimes) {
+				TapLogger.info(TAG, id + " [countIsSlow] current partition size {} is less than minimum split pieces {}, will continue split to satisfy split pieces {} or can NOT split any more. ", partitionFilters.size(), minTimes, minTimes);
+				List<TapPartitionFilter> newPartitionFilters = new ArrayList<>();
+				AtomicBoolean canSplit = new AtomicBoolean(false);
+				jobContext.foreach(partitionFilters, eachPartitionFilter -> {
+					boolean noBoundary = eachPartitionFilter.getRightBoundary() == null && eachPartitionFilter.getLeftBoundary() == null && eachPartitionFilter.getMatch() != null;
+					if(noBoundary) {
+						newPartitionFilters.add(eachPartitionFilter);
+						return true;
+					}
+
+					if(eachPartitionFilter.equals(partitionFilter)) {
+						newPartitionFilters.add(eachPartitionFilter);
+						return true;
+					}
+
+					FieldMinMaxValue fieldMinMaxValueForPartition = queryFieldMinMaxValue.minMaxValue(context, table, eachPartitionFilter, indexField.getName());
+					if(fieldMinMaxValueForPartition == null) {
+						newPartitionFilters.add(eachPartitionFilter);
+						minMaxPartitionMap.put(eachPartitionFilter, 0L);
+						return true;
+					} else {
+						minMaxPartitionMap.put(eachPartitionFilter, -1L);
+					}
+
+					String typeForPartition = fieldMinMaxValueForPartition.getType();
+					TypeSplitter typeSplitterForPartition = typeSplitterMap.get(typeForPartition);
+					if(typeSplitterForPartition == null)
+						throw new CoreException(ConnectorErrors.MISSING_TYPE_SPLITTER, "Missing type splitter for type {}", typeForPartition);
+
+					List<TapPartitionFilter> partitionFiltersForPartition = typeSplitterForPartition.split(eachPartitionFilter, fieldMinMaxValueForPartition, (int) finalTimes);
+					canSplit.set(true);
+					newPartitionFilters.addAll(partitionFiltersForPartition);
+					return true;
+				});
+				noMoreSplit = !canSplit.get();
+				partitionFilters = newPartitionFilters;
+			}
+			TapLogger.info(TAG, id + " [countIsSlow] Finished split partitionFilter {}, current partition size {}, minimum split pieces {}, noMoreSplit {} takes {} milliseconds", partitionFilter, partitionFilters.size(), minTimes, noMoreSplit, (System.currentTimeMillis() - time));
+		}
 		partitionCollector.state(PartitionCollector.STATE_SPLIT);
 
 		AtomicReference<PartitionCollector> partitionCollectorRef = new AtomicReference<>(partitionCollector);
@@ -271,10 +344,20 @@ public class DatabaseReadPartitionSplitter {
 			if(!countIsSlow) {
 				partitionCount = countByPartitionFilter.countByPartitionFilter(context, table, eachPartitionFilter);
 				TapLogger.info(TAG, id + " " + partitionFilter + ": Partition count {} for {}", partitionCount, eachPartitionFilter);
+			} else if(!minMaxPartitionMap.containsKey(eachPartitionFilter)){
+				FieldMinMaxValue fieldMinMaxValueForPartition = queryFieldMinMaxValue.minMaxValue(context, table, eachPartitionFilter, indexField.getName());
+				if(fieldMinMaxValueForPartition == null) {
+					minMaxPartitionMap.put(eachPartitionFilter, 0L);
+				} else {
+					minMaxPartitionMap.put(eachPartitionFilter, -1L);
+				}
 			}
+
 			boolean noBoundary = eachPartitionFilter.getRightBoundary() == null && eachPartitionFilter.getLeftBoundary() == null && eachPartitionFilter.getMatch() != null;
 			partitionCollectorRef.get().setState(PartitionCollector.STATE_COUNT);
-			if(noBoundary || (partitionCount >= 0 && partitionCount > maxRecordWithRatioInPartition)) {
+			Long eachCount = minMaxPartitionMap.get(eachPartitionFilter);
+			boolean isEmptyPartition = eachCount != null && eachCount == 0;
+			if(!isEmptyPartition && (noBoundary || (partitionCount >= 0 && partitionCount > maxRecordWithRatioInPartition))) {
 				PartitionCollector newPartitionCollector = new PartitionCollector().state(PartitionCollector.STATE_COUNT);
 				partitionCollectorRef.get().sibling(newPartitionCollector);
 				partitionCollectorRef.get().state(PartitionCollector.STATE_DONE);
@@ -299,7 +382,11 @@ public class DatabaseReadPartitionSplitter {
 				newPartitionCollector.sibling(siblingCollector);
 				partitionCollectorRef.set(siblingCollector);
 			} else { // no need for split
-				partitionCollectorRef.get().addPartition(eachPartitionFilter, partitionCount);
+				if(isEmptyPartition) {
+					partitionCollectorRef.get().addPartition(eachPartitionFilter, 0L);
+				} else {
+					partitionCollectorRef.get().addPartition(eachPartitionFilter, partitionCount);
+				}
 			}
 			return true;
 		});
@@ -351,5 +438,15 @@ public class DatabaseReadPartitionSplitter {
 		return countIsSlow;
 	}
 
+	public int getCountNumOfThread() {
+		return countNumOfThread;
+	}
 
+	public long getMaxRecordWithRatioInPartition() {
+		return maxRecordWithRatioInPartition;
+	}
+
+	public int getSplitPiecesForCountIsSlow() {
+		return splitPiecesForCountIsSlow;
+	}
 }
