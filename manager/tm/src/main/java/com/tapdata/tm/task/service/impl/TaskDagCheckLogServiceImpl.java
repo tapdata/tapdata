@@ -132,7 +132,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         // check task nodes has js node
         boolean hasJsNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode);
         if (hasJsNode) {
-            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTestTaskId(), taskDto.getName());
+            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName());
             Optional.ofNullable(jsNodeLog).ifPresent(modelLogs::addAll);
         }
 

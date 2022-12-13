@@ -130,7 +130,14 @@ public class TaskDto extends ParentTaskDto {
 
     private boolean needCreateRecord;
 
+    /**
+     * js 试运行id
+     */
     private String testTaskId;
+    /**
+     * js模型推演id
+     */
+    private String transformTaskId;
 
     public DAG getDag() {
         if (dag != null) {
