@@ -11,13 +11,14 @@ import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.parser.Feature;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.log.dto.LogDto;
 import com.tapdata.tm.log.service.LogService;
 import com.tapdata.tm.tcm.service.TcmService;
+import com.tapdata.tm.uploadlog.service.UploadLogService;
 import com.tapdata.tm.utils.MD5Util;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -66,6 +67,9 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
 
     @Autowired
     TcmService tcmService;
+
+    @Autowired
+    UploadLogService uploadLogService;
 
 
     /**
@@ -187,6 +191,9 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
                     break;
                 case "downloadUrl": //  获取engine的downloadUrl
                     getLatestDownloadUrl(session);
+                    break;
+                case "uploadLog": // 上传日志处理心跳
+                    uploadLogService.handleUploadHeartBeat(map);
                     break;
                 default:
                     session.sendMessage(new TextMessage("Type is not supported"));
