@@ -264,8 +264,13 @@ def run_jobs(test_case, run_params_template):
         p.config({"type": "initial_sync"})
         run_param = gen_run_param(p, run_params_template[i], i)
         logger.notice("start run number {} job, name is: {}, param is: {}", i, job_name, run_param)
+        with open("jobs_number", "a+") as fd:
+            fd.write(".\n")
         case_result = run_job(p, test_case, run_param)
         logger.notice("{}", "#" * 150)
+        if case_result:
+            with open("pass_jobs_number", "a+") as fd:
+                fd.write(".\n")
         result.append({
             "params": run_param,
             "result": case_result
