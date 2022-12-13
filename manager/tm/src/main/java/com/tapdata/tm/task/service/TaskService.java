@@ -360,6 +360,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             oldTaskDto = findById(taskDto.getId(), user);
             taskDto.setSyncType(oldTaskDto.getSyncType());
             taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
+            taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
 
             if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
                 taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
@@ -418,6 +419,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         if (StringUtils.isEmpty(taskDto.getTestTaskId())) {
             taskDto.setTestTaskId(new ObjectId().toHexString());
+        }
+        if (StringUtils.isEmpty(taskDto.getTransformTaskId())) {
+            taskDto.setTransformTaskId(new ObjectId().toHexString());
         }
 
         return save(taskDto, user);

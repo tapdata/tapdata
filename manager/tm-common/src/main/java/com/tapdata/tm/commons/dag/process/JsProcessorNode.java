@@ -82,7 +82,7 @@ public class JsProcessorNode extends ProcessorNode {
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
         taskDtoCopy.setDag(build);
-        taskDtoCopy.setId(new ObjectId(taskDto.getTestTaskId()));
+        taskDtoCopy.setId(new ObjectId(taskDto.getTransformTaskId()));
         taskDtoCopy.setName(taskDto.getName() + "(100)");
         List<Schema> inputSchema = getInputSchema();
         if (CollectionUtils.isEmpty(inputSchema)) {

@@ -893,9 +893,4 @@ public class DAGService implements DAGDataService {
     public ObjectId getTaskId() {
         return null;
     }
-
-    @Override
-    public Schema convertToSchema(MetadataInstancesDto metadataInstances) {
-        return this.convertToSchema(metadataInstances, userService.loadUserById(MongoUtils.toObjectId(metadataInstances.getUserId())));
-    }
 }

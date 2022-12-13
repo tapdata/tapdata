@@ -2,7 +2,6 @@ package com.tapdata.tm.commons.dag;
 
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.schema.TapTable;
@@ -97,6 +96,4 @@ public interface DAGDataService {
 
     TaskDto getTaskById(String taskId);
     ObjectId getTaskId();
-
-    Schema convertToSchema(MetadataInstancesDto metadataInstances);
 }

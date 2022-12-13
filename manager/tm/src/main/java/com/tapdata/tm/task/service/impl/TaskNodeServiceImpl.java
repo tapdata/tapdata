@@ -439,10 +439,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
 
-        List<MetadataInstancesDto> schemaList = metadataInstancesService.findByTaskId(taskId, userDetail);
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-            Map<String, List<Schema>> schemaMap = schemaList.stream().map(s -> dagDataService.convertToSchema(s))
-                    .collect(Collectors.groupingBy(Schema::getNodeId));
 
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));
@@ -464,14 +461,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 nodes.add(target);
             }
 
-            nodes.forEach(n -> {
-                if (! (n instanceof MigrateJsProcessorNode)) {
-                    Node<List<Schema>> node = (Node<List<Schema>>) n;
-                    node.setSchema(schemaMap.get(n.getId()));
-                    node.setOutputSchema(schemaMap.get(n.getId()));
-                }
-            });
-
             List<Edge> edges = dtoDag.edgeMap().get(nodeId);
             if (CollectionUtils.isNotEmpty(edges)) {
                 Edge edge = new Edge(nodeId, target.getId());
@@ -485,8 +474,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             taskDtoCopy.setDag(temp);
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             final List<String> predIds = new ArrayList<>();
-            Map<String, Schema> schemaMap = schemaList.stream().map(s -> dagDataService.convertToSchema(s))
-                    .collect(Collectors.toMap(Schema::getNodeId, Function.identity(), (e1, e2 )-> e1));
 
             getPrePre(dtoDag.getNode(nodeId), predIds);
             predIds.add(nodeId);
@@ -502,9 +489,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                         .peek(n -> {
                             if (n instanceof JsProcessorNode) {
                                 ((JsProcessorNode)n).setScript(script);
-                            } else {
-                                n.setSchema(schemaMap.get(n.getId()));
-                                n.setOutputSchema(schemaMap.get(n.getId()));
                             }
                         })
                         .filter(n -> predIds.contains(n.getId()))
@@ -530,7 +514,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             taskDtoCopy.setDag(build);
         }
 
-        taskDtoCopy.setName(taskDto.getName() + "(100)");
+        taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
 
