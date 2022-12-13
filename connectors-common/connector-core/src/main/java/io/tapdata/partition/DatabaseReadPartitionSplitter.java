@@ -198,11 +198,18 @@ public class DatabaseReadPartitionSplitter {
 				}
 			}
 			PartitionCollector nextSplit = currentPartitionCollector.getNextSplit();
+			PartitionCollector nextIndex = currentPartitionCollector.getNextIndex();
 			if(nextSplit != null) {
 				handleReadPartitionPrivate(nextSplit, gatherFilters, total);
-			}
-			PartitionCollector nextIndex = currentPartitionCollector.getNextIndex();
-			if(nextIndex != null) {
+			} else if(nextIndex != null) {
+				if(!gatherFilters.isEmpty()) {
+					ReadPartition readPartition1 = getReadPartition(gatherFilters, total);
+					consumer.accept(readPartition1);
+
+					gatherFilters.clear();
+					total = 0L;
+				}
+
 				handleReadPartitionPrivate(nextIndex, null, null);
 			}
 			currentPartitionCollector = currentPartitionCollector.getSibling();
