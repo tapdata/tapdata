@@ -77,7 +77,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
             null,
             null,
             ((DataProcessorContext) processorBaseContext).getCacheService(),
-            new ObsScriptLogger(obsLogger)
+            new ObsScriptLogger(obsLogger, logger)
     );
 
     this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
@@ -117,7 +117,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     processContext.setEventTime(eventTime);
     processContext.setTs(eventTime);
     SyncStage syncStage = tapdataEvent.getSyncStage();
-    processContext.setSyncType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
+    processContext.setType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
+    processContext.setSyncType(getProcessorBaseContext().getTaskDto().getSyncType());
 
     ProcessContextEvent processContextEvent = processContext.getEvent();
     if (processContextEvent == null) {
@@ -127,6 +128,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     if (null != before) {
       processContextEvent.setBefore(before);
     }
+    processContextEvent.setType(processContext.getType());
     Map<String, Object> eventMap = MapUtil.obj2Map(processContextEvent);
     Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
     contextMap.put("event", eventMap);

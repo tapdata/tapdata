@@ -77,13 +77,13 @@ public class TestRunAspectTask extends AspectTask {
           resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(transformFromTapValue(inputEvent));
           processAspect.consumer(outputEvent -> {
             //mock
-            TapEvent tapEvent = outputEvent.getTapEvent();
-            String tableId = TapEventUtil.getTableId(tapEvent);
-            if (!multipleTables) {
-              tableId = nodeId;
-            }
-            TapTable tapTable = processorBaseContext.getTapTableMap().get(tableId);
-            SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+//            TapEvent tapEvent = outputEvent.getTapEvent();
+//            String tableId = TapEventUtil.getTableId(tapEvent);
+//            if (!multipleTables) {
+//              tableId = nodeId;
+//            }
+//            TapTable tapTable = processorBaseContext.getTapTableMap().get(tableId);
+//            SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
             Map<String, Object> afterMap = transformFromTapValue(outputEvent);
             resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(afterMap);
           });
