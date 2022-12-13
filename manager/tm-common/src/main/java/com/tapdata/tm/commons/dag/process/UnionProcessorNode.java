@@ -14,8 +14,6 @@ import java.util.List;
 @Setter
 public class UnionProcessorNode extends ProcessorNode{
 
-    private String mergedTableName;
-
     public UnionProcessorNode() {
         super(NodeEnum.union_processor.name());
     }
@@ -26,10 +24,8 @@ public class UnionProcessorNode extends ProcessorNode{
             return schema;
         }
 
-        Assert.notNull(mergedTableName);
         Assert.notEmpty(inputSchemas);
 
-        return inputSchemas.stream().filter(t -> t.getName().equals(mergedTableName))
-                .findFirst().orElseThrow(() -> new RuntimeException("mergedTableName is not find schema"));
+        return inputSchemas.get(0);
     }
 }
