@@ -1,3 +1,4 @@
+# desc: 一个宽表合并任务
 def test(Pipeline, p, car_claim, car_policy, car_claim_sink):
     p.readFrom(car_claim)
     p2 = Pipeline()
