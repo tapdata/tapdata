@@ -1,12 +1,14 @@
 # 1. 执行单测
+rm -rf /tmp/xxx
+mkdir -p /tmp/xxx
 p=`pwd`
 cd $p/../
 bash build/build.sh -c plugin-kit -m ut | grep "Tests run" > /tmp/xxx/plugin-kit.ut
-build/build.sh -c file-storages -m ut | grep "Tests run" > /tmp/xxx/file-storages.ut
-build/build.sh -c connectors-common -m ut | grep "Tests run" > /tmp/xxx/connectors-common.ut
-build/build.sh -c connectors -m ut | grep "Tests run" > /tmp/xxx/connectors.ut
-build/build.sh -c iengine -m ut | grep "Tests run" > /tmp/xxx/iengine.ut
-build/build.sh -c manager -m ut | grep "Tests run" > /tmp/xxx/manager.ut
+bash build/build.sh -c file-storages -m ut | grep "Tests run" > /tmp/xxx/file-storages.ut
+bash build/build.sh -c connectors-common -m ut | grep "Tests run" > /tmp/xxx/connectors-common.ut
+bash build/build.sh -c connectors -m ut | grep "Tests run" > /tmp/xxx/connectors.ut
+bash build/build.sh -c iengine -m ut | grep "Tests run" > /tmp/xxx/iengine.ut
+bash build/build.sh -c manager -m ut | grep "Tests run" > /tmp/xxx/manager.ut
 
 # 2. 执行集成测试
 cd $p
@@ -51,15 +53,18 @@ for i in `cat config.yaml |grep connector|awk -F ":" '{print $2}'`; do
     connectors=$connectors","$i
 done
 connectors=$connectors"]"
+echo $connectors
 echo "std::out >> 用例: 创建数据源, 并加载模型, 类型包括: $connectos" >> cases/cases_result
 
 cd cases || exit
 
-for i in `ls|grep test_dev_sync_js.py|grep -v cases_result`; do
+for i in `ls|grep test_dev_sync.py|grep -v cases_result`; do
     rm -rf $i"_cases_result"
     python3 runner.py --case $i --bench 123 &> $i"_cases_result"
     cat $i"_cases_result" >> cases_result
 done
+
+cat cases_result
 
 pass="true"
 
@@ -73,13 +78,22 @@ case_results=""
 for i in `cat cases/cases_result|grep "std::out >>"`; do
     case_results='"'$i'",'
 done
+
 jobs_number=`wc -l cases/jobs_number`
 pass_jobs_number=`wc -l cases/pass_jobs_number`
 echo "jobs number is: $jobs_number"
 echo "pass jobs number is: $pass_jobs_number"
 
-cat /tmp/xxx/*
+plugin_kit_ut=`cat /tmp/xxx/plugin-kit.ut|grep "Tests run"|grep -v "\-\-"|grep -v "Tests run: 0"`
+file_storages_ut=`cat /tmp/xxx/file-storages.ut|grep "Tests run"|grep -v "\-\-"|grep -v "Tests run: 0"`
+connectors_common_ut=`cat /tmp/xxx/connectors-common.ut|grep "Tests run"|grep -v "\-\-"|grep -v "Tests run: 0"`
+connectors_ut=`cat /tmp/xxx/connectors.ut|grep "Tests run"|grep -v "\-\-"|grep -v "Tests run: 0"`
+iengine_ut=`cat /tmp/xxx/iengine.ut|grep "Tests run"|grep -v "\-\-"|grep -v "Tests run: 0"`
+manager_ut=`cat /tmp/xxx/manager.ut|grep "Tests run"|grep -v "\-\-"|grep -v "Tests run: 0"`
 
 echo $case_results
 
-python3 build/feishu_notice.py --branch ${{ env.CURRENT_BRANCH}} --runner "OP 版本每夜自动化测试" --detail_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" --token ${{ secrets.GITHUB_TOKEN }} --job_id ${{ github.run_id }} --app_id ${{ env.FEISHU_APP_ID }} --person_in_charge ${{ env.FEISHU_PERSON_IN_CHARGE }} --app_secret ${{ env.FEISHU_APP_SECRET}} --chat_id gf9b5g97 --message_type night_build_notice --message '{"pass":'$pass',"ut_sum":100,"ut_pass":10,"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
+echo $CURRENT_BRANCH
+echo $GITHUB_TOKEN
+
+python3 build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${server_url}/${repository}/actions/runs/${run_id}" --token ${GITHUB_TOKEN} --job_id ${run_id} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id gf9b5g97 --message_type night_build_notice --message '{"pass":'$pass',"ut_sum":100,"ut_pass":10,"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
