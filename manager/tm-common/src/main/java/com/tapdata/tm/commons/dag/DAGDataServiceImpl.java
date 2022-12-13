@@ -113,7 +113,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         metadataMap.remove(qualifiedName);
     }
 
-    private Schema convertToSchema(MetadataInstancesDto metadataInstances) {
+    @Override
+    public Schema convertToSchema(MetadataInstancesDto metadataInstances) {
         if (metadataInstances == null)
             return null;
         Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstances), Schema.class);
