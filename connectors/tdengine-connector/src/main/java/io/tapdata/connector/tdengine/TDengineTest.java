@@ -64,19 +64,16 @@ public class TDengineTest extends CommonDbTest {
 
     @Override
     public Boolean testStreamRead() {
-        try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
-            Properties properties = new Properties();
+        Properties properties = new Properties();
 //            properties.setProperty(TMQConstants.BOOTSTRAP_SERVERS, "127.0.0.1:6030");
-            properties.setProperty(TMQConstants.BOOTSTRAP_SERVERS, String.format("%s:%s", jdbcContext.getConfig().getHost(), 6030));
-            properties.setProperty(TMQConstants.MSG_WITH_TABLE_NAME, Boolean.TRUE.toString());
-            properties.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, Boolean.TRUE.toString());
-            properties.setProperty(TMQConstants.GROUP_ID, "test_group_id");
-            properties.setProperty(TMQConstants.MSG_WITH_TABLE_NAME, Boolean.TRUE.toString());
-            properties.setProperty(TMQConstants.AUTO_OFFSET_RESET, "latest");
-            properties.setProperty(TMQConstants.VALUE_DESERIALIZER,
-                    "io.tapdata.connector.tdengine.subscribe.TDengineResultDeserializer");
-            TaosConsumer<Map<String, Object>> taosConsumer = new TaosConsumer<>(properties);
+        properties.setProperty(TMQConstants.BOOTSTRAP_SERVERS, String.format("%s:%s", jdbcContext.getConfig().getHost(), 6030));
+        properties.setProperty(TMQConstants.MSG_WITH_TABLE_NAME, Boolean.TRUE.toString());
+        properties.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, Boolean.TRUE.toString());
+        properties.setProperty(TMQConstants.GROUP_ID, "test_group_id");
+        properties.setProperty(TMQConstants.AUTO_OFFSET_RESET, "latest");
+        properties.setProperty(TMQConstants.VALUE_DESERIALIZER,
+                "io.tapdata.connector.tdengine.subscribe.TDengineResultDeserializer");
+        try (TaosConsumer<Map<String, Object>> taosConsumer = new TaosConsumer<>(properties)) {
             consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY, TEST_STREAM_READ_SUCCESS));
             return true;
         } catch (Throwable e) {

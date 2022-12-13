@@ -33,14 +33,12 @@ public class TDengineSubscribe {
         this.offset = offset;
     }
 
-    public void subscribe(BiConsumer<Map<String, Object>, String> biConsumer, ShutdownCallBack shutdownCallBack) throws InterruptedException {
+    public void subscribe(BiConsumer<Map<String, Object>, String> biConsumer, ShutdownCallBack shutdownCallBack) {
 
         try {
             // prepare
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
             CommonDbConfig config = tdengineJdbcContext.getConfig();
-            String jdbcUrl = String.format("jdbc:TAOS://%s:6030/%s?user=%s&password=%s", config.getHost(), config.getDatabase(), config.getUser(), config.getPassword());
-            Connection connection = DriverManager.getConnection(jdbcUrl);
+            Connection connection = tdengineJdbcContext.getConnection();
             // create topic
             List<String> topicList = new ArrayList<>();
             try (Statement statement = connection.createStatement()) {
@@ -66,7 +64,6 @@ public class TDengineSubscribe {
             properties.setProperty(TMQConstants.MSG_WITH_TABLE_NAME, Boolean.TRUE.toString());
             properties.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, Boolean.TRUE.toString());
             properties.setProperty(TMQConstants.GROUP_ID, "test_group_id");
-            properties.setProperty(TMQConstants.MSG_WITH_TABLE_NAME, Boolean.TRUE.toString());
             properties.setProperty(TMQConstants.AUTO_OFFSET_RESET, "latest");
             properties.setProperty(TMQConstants.VALUE_DESERIALIZER,
                     "io.tapdata.connector.tdengine.subscribe.TDengineResultDeserializer");
@@ -77,22 +74,30 @@ public class TDengineSubscribe {
                 while (!shutdown.get()) {
                     ConsumerRecords<Map<String, Object>> records = taosConsumer.poll(Duration.ofMillis(100));
                     Optional<TopicPartition> topicPartition = getTopicPartition(records);
-                    if (topicPartition.isPresent() && EmptyKit.isNotBlank(topicPartition.get().getTableName())) {
+                    if (topicPartition.isPresent() && EmptyKit.isNotBlank(this.getTableName(topicPartition.get()))) {
                         for (Map<String, Object> record : records) {
-                            biConsumer.accept(record, topicPartition.get().getTableName());
+                            biConsumer.accept(record, this.getTableName(topicPartition.get()));
                         }
                     }
                     Thread.sleep(1000);
                 }
-                taosConsumer.unsubscribe();
             }
-        } catch (SQLException | NoSuchFieldException | IllegalAccessException e) {
-            TapLogger.error(TAG, "Table data sync error: ", e.getMessage(), e);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
+        } catch (SQLException | NoSuchFieldException | IllegalAccessException | InterruptedException e) {
+            TapLogger.error(TAG, "Table data sync error: {}", e.getMessage(), e);
         } finally {
             shutdownCallBack.call();
         }
+    }
+
+    private String getTableName(TopicPartition topicPartition) {
+        String tableName = topicPartition.getTableName();
+        if (EmptyKit.isNotEmpty(tableName)) {
+            return tableName;
+        }
+        if (!topicPartition.getTopic().startsWith("topic_")) {
+            return null;
+        }
+        return topicPartition.getTopic().substring(6);
     }
 
     public Optional<TopicPartition> getTopicPartition(ConsumerRecords<Map<String, Object>> consumerRecords) throws NoSuchFieldException, IllegalAccessException {
