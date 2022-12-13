@@ -122,7 +122,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				List<TapEvent> cloneList = new ArrayList<>();
 				int count = 0;
 				for (TapEvent tapEvent : tapEventList) {
-					if (count > rows) {
+					if (count >= rows) {
 						break;
 					}
 					cloneList.add((TapEvent) tapEvent.clone());
