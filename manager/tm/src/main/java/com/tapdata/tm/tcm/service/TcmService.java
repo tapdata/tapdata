@@ -84,8 +84,10 @@ public class TcmService {
     }
 
     public String updateUploadStatus(Map map) {
-       String responseStr = HttpUtils.sendPostData(TMC_URL + "/api/tcm/updateUploadStatus",
-               JSON.toJSONString(map), (String) map.get("userId"));
+        Object data = map.get("data");
+        Object userId = ((Map) data).get("userId");
+        String responseStr = HttpUtils.sendPostData(TMC_URL + "/api/tcm/updateUploadStatus",
+               JSON.toJSONString(data), userId.toString());
         if (StringUtils.isNotEmpty(responseStr)) {
             ResponseMessage<String> responseMessage = JsonUtil.parseJson(responseStr, new TypeToken<ResponseMessage<PaidPlanRes>>() {
             }.getType());
@@ -97,6 +99,5 @@ public class TcmService {
         }
         return null;
     }
-
 
 }
