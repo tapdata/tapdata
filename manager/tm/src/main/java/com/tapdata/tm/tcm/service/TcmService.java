@@ -2,6 +2,7 @@ package com.tapdata.tm.tcm.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
+import com.alibaba.fastjson.JSON;
 import com.google.gson.reflect.TypeToken;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.tcm.dto.PaidPlanRes;
@@ -81,4 +82,22 @@ public class TcmService {
         }
         return null;
     }
+
+    public String updateUploadStatus(Map map) {
+        Object data = map.get("data");
+        Object userId = ((Map) data).get("userId");
+        String responseStr = HttpUtils.sendPostData(TMC_URL + "/api/tcm/updateUploadStatus",
+               JSON.toJSONString(data), userId.toString());
+        if (StringUtils.isNotEmpty(responseStr)) {
+            ResponseMessage<String> responseMessage = JsonUtil.parseJson(responseStr, new TypeToken<ResponseMessage<PaidPlanRes>>() {
+            }.getType());
+            if (ResponseMessage.OK.equals(responseMessage.getCode())) {
+                return responseMessage.getData();
+            } else {
+                log.error("Update UploadStatus failed {}({})", responseMessage.getCode(), responseMessage.getMessage());
+            }
+        }
+        return null;
+    }
+
 }
