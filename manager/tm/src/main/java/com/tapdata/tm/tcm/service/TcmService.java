@@ -83,21 +83,23 @@ public class TcmService {
         return null;
     }
 
-    public String updateUploadStatus(Map map) {
+    public void updateUploadStatus(Map map) {
         Object data = map.get("data");
         Object userId = ((Map) data).get("userId");
         String responseStr = HttpUtils.sendPostData(TMC_URL + "/api/tcm/updateUploadStatus",
-               JSON.toJSONString(data), userId.toString());
+                JSON.toJSONString(data), userId.toString());
         if (StringUtils.isNotEmpty(responseStr)) {
             ResponseMessage<String> responseMessage = JsonUtil.parseJson(responseStr, new TypeToken<ResponseMessage<PaidPlanRes>>() {
             }.getType());
             if (ResponseMessage.OK.equals(responseMessage.getCode())) {
-                return responseMessage.getData();
+                Object responseMsg = responseMessage.getData();
+                if ("success".equals(responseMsg.toString())) {
+                    log.error("Update UploadStatus failed {}({})", responseMessage.getCode(), responseMsg);
+                }
             } else {
                 log.error("Update UploadStatus failed {}({})", responseMessage.getCode(), responseMessage.getMessage());
             }
         }
-        return null;
     }
 
 }

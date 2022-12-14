@@ -17,6 +17,8 @@ import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.log.dto.LogDto;
 import com.tapdata.tm.log.service.LogService;
+import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
+import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.uploadlog.service.UploadLogService;
 import com.tapdata.tm.utils.MD5Util;
@@ -71,6 +73,9 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
     @Autowired
     UploadLogService uploadLogService;
 
+    @Autowired
+    MessageQueueService messageQueueService;
+
 
     /**
      * 握手后建立成功
@@ -107,8 +112,27 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
     }
 
     public static void sendMessage(String uuid, String message) throws IOException {
-        WebSocketSession webSocketSession = agentMap.get(uuid).getSession();
+        AgentInfo agentInfo = agentMap.get(uuid);
+        if (agentInfo == null) {
+            return;
+        }
+        WebSocketSession webSocketSession = agentInfo.getSession();
         webSocketSession.sendMessage(new TextMessage(message));
+    }
+
+    // todo 发送分开
+    public void sendDistributeClusterMessage(String uuid, String message) throws IOException {
+        AgentInfo agentInfo = agentMap.get(uuid);
+        if (agentInfo == null) {
+            MessageQueueDto queueDto = new MessageQueueDto();
+            queueDto.setReceiver(uuid);
+            queueDto.setData(message);
+            queueDto.setType("pipeCluster");
+            messageQueueService.save(queueDto);
+        } else {
+            WebSocketSession webSocketSession = agentInfo.getSession();
+            webSocketSession.sendMessage(new TextMessage(message));
+        }
     }
 
 

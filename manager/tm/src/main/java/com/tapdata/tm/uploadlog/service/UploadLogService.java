@@ -1,10 +1,10 @@
 package com.tapdata.tm.uploadlog.service;
 
-import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.uploadlog.dto.UploadLogDto;
 import com.tapdata.tm.utils.MD5Util;
@@ -27,25 +27,27 @@ public class UploadLogService {
     @Autowired
     ClusterStateService clusterStateService;
 
+    @Autowired
+    WebSocketClusterServer webSocketClusterServer;
+
     /**
      * 从tcm获取请求发送ws给agent
      * @param uploadLogDto
      * @return
      */
-    public String upload(UploadLogDto uploadLogDto)  {
+    public String upload(UploadLogDto uploadLogDto, UserDetail userDetail)  {
         try {
-            log.info("uploadLogDto  data{}", JSONObject.toJSONString(uploadLogDto));
+            // todo 增加userDetail查询
             ClusterStateDto  clusterStateDto= clusterStateService.findOne(Query.query(Criteria.where("systemInfo.process_id").is(uploadLogDto.getTmInfoEngineId())));
             if (clusterStateDto == null){
-                log.info("AgentId don't exist");
+                log.error("AgentId don't exist");
                 throw new BizException("NotFoundAgent", "Not found agent by id " + uploadLogDto.getTmInfoEngineId());
             }
-            log.info("send message....");
-            WebSocketClusterServer.sendMessage(clusterStateDto.getSystemInfo().getUuid(), getSendObj(uploadLogDto));
-            log.info("send message end....");
+            log.debug("send message start");
+            webSocketClusterServer.sendDistributeClusterMessage(clusterStateDto.getSystemInfo().getUuid(), getSendObj(uploadLogDto));
         } catch (Exception e) {
-            log.info("send message fail....",e.getMessage());
-            throw new BizException("Send message fail:{}" + e.getMessage());
+            log.error("send message fail",e);
+            throw new BizException("SendFail","Send message fail:{}" + e.getMessage());
         }
         return "success";
     }
@@ -74,7 +76,7 @@ public class UploadLogService {
         try {
             tcmService.updateUploadStatus(map);
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error("handle Upload HeartBeat fail:{}", e);
         }
     }
 
