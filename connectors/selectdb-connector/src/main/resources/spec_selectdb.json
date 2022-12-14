@@ -2,18 +2,24 @@
   "properties": {
     "name": "SelectDB",
     "icon": "icons/selectdb.png",
-    "doc" : "${doc}",
+    "doc": "${doc}",
     "id": "selectdb"
   },
   "configOptions": {
-    "capabilities":[
+    "capabilities": [
       {
         "id": "dml_insert_policy",
-        "alternatives": ["update_on_exists", "ignore_on_exists"]
+        "alternatives": [
+          "update_on_exists",
+          "ignore_on_exists"
+        ]
       },
       {
         "id": "dml_update_policy",
-        "alternatives": ["ignore_on_nonexists", "insert_on_nonexists"]
+        "alternatives": [
+          "ignore_on_nonexists",
+          "insert_on_nonexists"
+        ]
       },
       {
         "id": "api_server_supported"
@@ -46,7 +52,7 @@
           "title": "${database}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-		  "apiServerKey": "database_name",
+          "apiServerKey": "database_name",
           "x-index": 3
         },
         "user": {
@@ -54,7 +60,7 @@
           "title": "${user}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-		  "apiServerKey": "database_username",
+          "apiServerKey": "database_username",
           "x-index": 6
         },
         "password": {
@@ -62,8 +68,16 @@
           "title": "${password}",
           "x-decorator": "FormItem",
           "x-component": "Password",
-		  "apiServerKey": "database_password",
+          "apiServerKey": "database_password",
           "x-index": 7
+        },
+        "selectdbHttp": {
+          "type": "string",
+          "title": "${dorisHttp}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "required": true,
+          "x-index": 30
         }
       }
     }
@@ -74,332 +88,172 @@
       "doc": "docs/postgres_en_US.md",
       "host": "Host",
       "port": "Port",
-      "database" : "database",
-      "schema" : "schema",
-      "extParams" : "extParams",
-      "user" : "user",
-      "password" : "password",
-      "logPluginName" : "logPluginName",
+      "database": "database",
+      "schema": "schema",
+      "extParams": "extParams",
+      "user": "user",
+      "password": "password",
+      "logPluginName": "logPluginName",
       "timezone": "timezone"
     },
     "zh_CN": {
       "doc": "docs/postgres_zh_CN.md",
       "host": "地址",
       "port": "端口",
-      "database" : "数据库",
-      "schema" : "模型",
-      "extParams" : "额外参数",
-      "user" : "账号",
-      "password" : "密码",
-      "logPluginName" : "日志插件",
+      "database": "数据库",
+      "schema": "模型",
+      "extParams": "额外参数",
+      "user": "账号",
+      "password": "密码",
+      "logPluginName": "日志插件",
       "timezone": "时区"
     },
     "zh_TW": {
       "doc": "docs/postgres_zh_TW.md",
       "host": "地址",
       "port": "端口",
-      "database" : "數據庫",
-      "schema" : "模型",
-      "extParams" : "額外參數",
-      "user" : "賬號",
-      "password" : "密碼",
-      "logPluginName" : "日誌插件",
+      "database": "數據庫",
+      "schema": "模型",
+      "extParams": "額外參數",
+      "user": "賬號",
+      "password": "密碼",
+      "logPluginName": "日誌插件",
       "timezone": "時區"
     }
   },
   "dataTypes": {
-    "smallint": {
-      "bit": 16,
-      "priority": 3,
-      "value": [
-        -32768,
-        32767
+    "ARRAY": {
+      "to": "TapArray"
+    },
+    "DATETIMEV2": {
+      "to": "TapDateTime",
+      "range": [
+        "0000-01-01 00:00:00.000000",
+        "9999-12-31 23:59:59.999999"
       ],
-      "to": "TapNumber"
+      "pattern": "YYYY-MM-DD HH:MM:SS.ffffff",
+      "fraction": 6,
+      "withTimeZone": false
     },
-    "integer": {
-      "bit": 32,
-      "priority": 1,
-      "value": [
-        -2147483648,
-        2147483647
-      ],
-      "to": "TapNumber"
-    },
-    "bigint": {
-      "bit": 64,
-      "priority": 3,
-      "value": [
-        -9223372036854775808,
-        9223372036854775807
-      ],
-      "to": "TapNumber"
-    },
-    "numeric[($precision,$scale)]": {
-      "precision": [
-        1,
-        1000
-      ],
-      "scale": [
-        0,
-        1000
-      ],
-      "fixed": true,
-      "preferPrecision": 20,
-      "preferScale": 8,
-      "priority": 1,
-      "to": "TapNumber"
-    },
-    "real": {
-      "bit": 32,
-      "priority": 2,
-      "precision": [
-        1,
-        6
-      ],
-      "scale": [
-        0,
-        6
-      ],
-      "fixed": false,
-      "to": "TapNumber"
-    },
-    "double precision": {
-      "priority": 2,
-      "precision": [
-        1,
-        17
-      ],
-      "preferPrecision": 11,
-      "preferScale": 4,
-      "scale": [
-        0,
-        17
-      ],
-      "fixed": false,
-      "to": "TapNumber"
-    },
-    "character[($byte)]": {
-      "byte": 10485760,
-      "priority": 2,
-      "preferByte": 255,
-      "fixed": true,
-      "to": "TapString"
-    },
-    "character varying[($byte)]": {
-      "byte": 10485760,
-      "priority": 1,
-      "defaultByte": 10485760,
-      "preferByte": 2000,
-      "to": "TapString"
-    },
-    "text": {
-      "byte": "4g",
-      "priority": 2,
-      "to": "TapString"
-    },
-    "bytea": {
-      "byte": "4g",
-      "priority": 1,
-      "to": "TapBinary"
-    },
-    "bit[($byte)]": {
-      "byte": 64,
-      "defaultByte": 1,
-      "priority": 3,
-      "fixed": true,
-      "queryOnly": true,
-      "to": "TapBinary"
-    },
-    "bit varying[($byte)]": {
-      "byte": 64,
-      "defaultByte": 64,
-      "priority": 1,
-      "queryOnly": true,
-      "to": "TapBinary"
-    },
-    "boolean": {
-      "bit": 1,
-      "priority": 1,
-      "to": "TapBoolean"
-    },
-    "date": {
+    "DATEV2": {
+      "to": "TapDate",
       "range": [
         "0001-01-01",
         "9999-12-31"
       ],
-      "pattern": "yyyy-MM-dd",
-      "priority": 1,
-      "to": "TapDate"
+      "pattern": "YYYY-MM-DD"
     },
-    "interval": {
-      "range": [
-        "-99:59:59",
-        "99:59:59"
-      ],
-      "pattern": "HH:mm:ss",
-      "queryOnly": true,
-      "to": "TapTime"
+    "bigint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 64,
+      "precision": 19,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ]
     },
-    "timestamp[($fraction)] without time zone": {
+    "boolean": {
+      "bit": 8,
+      "unsigned": "",
+      "to": "TapNumber"
+    },
+    "char[($byte)]": {
+      "byte": 255,
+      "to": "TapString",
+      "defaultByte": 1,
+      "fixed": true
+    },
+    "date": {
+      "byte": 3,
       "range": [
-        "1000-01-01 00:00:00",
-        "9999-12-31 23:59:59"
+        "0000-01-01",
+        "9999-12-31"
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss",
-      "fraction": [
-        0,
-        6
+      "to": "TapDate",
+      "pattern": "YYYY-MM-DD"
+    },
+    "datetime": {
+      "byte": 8,
+      "range": [
+        "1000-01-01 00:00:00 000000000",
+        "9999-12-31 23:59:59 999999999"
       ],
-      "withTimeZone": false,
-      "defaultFraction": 6,
-      "priority": 1,
+      "pattern": "YYYY-MM-DD HH:MM:SS",
       "to": "TapDateTime"
     },
-    "timestamp[($fraction)] with time zone": {
-      "range": [
-        "1000-01-01 00:00:00",
-        "9999-12-31 23:59:59"
+    "decimal[($precision,$scale)]": {
+      "bit": 128,
+      "precision": [
+        1,
+        27
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss",
-      "fraction": [
+      "defaultPrecision": 10,
+      "scale": [
         0,
-        6
+        9
       ],
-      "withTimeZone": true,
-      "defaultFraction": 6,
-      "priority": 2,
-      "to": "TapDateTime"
+      "defaultScale": 0,
+      "to": "TapNumber"
     },
-    "time[($fraction)] without time zone": {
-      "range": [
-        "00:00:00",
-        "23:59:59"
+    "double": {
+      "bit": 64,
+      "to": "TapNumber"
+    },
+    "float": {
+      "bit": 32,
+      "to": "TapNumber"
+    },
+    "HLL": {
+      "byte": "16385",
+      "to": "TapNumber",
+      "queryOnly": true
+    },
+    "int[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        -2147483648,
+        2147483647
+      ]
+    },
+    "largeint": {
+      "bit": 128,
+      "to": "TapNumber"
+    },
+    "smallint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 16,
+      "value": [
+        -32768,
+        32767
       ],
-      "pattern": "HH:mm:ss",
-      "fraction": [
-        0,
-        6
-      ],
-      "withTimeZone": false,
-      "defaultFraction": 6,
-      "priority": 1,
-      "to": "TapTime"
+      "precision": 5
     },
-    "time[($fraction)] with time zone": {
-      "range": [
-        "00:00:00",
-        "23:59:59"
-      ],
-      "pattern": "HH:mm:ss",
-      "fraction": [
-        0,
-        6
-      ],
-      "withTimeZone": true,
-      "defaultFraction": 6,
-      "priority": 2,
-      "to": "TapTime"
+    "string": {
+      "byte": "2147483643",
+      "to": "TapString"
     },
-    "point": {
-      "to": "TapBinary",
-      "queryOnly": true
+    "tinyint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 8,
+      "precision": 3,
+      "value": [
+        -128,
+        127
+      ]
     },
-    "line": {
-      "to": "TapBinary",
-      "queryOnly": true
-    },
-    "lseg": {
-      "to": "TapBinary",
-      "queryOnly": true
-    },
-    "box": {
-      "to": "TapBinary",
-      "queryOnly": true
-    },
-    "path": {
-      "to": "TapBinary",
-      "queryOnly": true
-    },
-    "polygon": {
-      "to": "TapBinary",
-      "queryOnly": true
-    },
-    "circle": {
-      "to": "TapBinary",
-      "queryOnly": true
-    },
-    "cidr": {
+    "varchar[($byte)]": {
+      "byte": "65535",
       "to": "TapString",
-      "preferByte": 255,
+      "defaultByte": 1
+    },
+    "quantile_state": {
+      "to": "TapNumber",
       "queryOnly": true
     },
-    "inet": {
-      "to": "TapString",
-      "preferByte": 255,
-      "queryOnly": true
-    },
-    "macaddr": {
-      "to": "TapString",
-      "queryOnly": true
-    },
-    "uuid": {
-      "to": "TapString",
-      "preferByte": 256,
-      "queryOnly": true
-    },
-    "xml": {
-      "to": "TapString",
-      "queryOnly": true
-    },
-    "json": {
-      "to": "TapString",
-      "queryOnly": true
-    },
-    "tsvector": {
-      "to": "TapString",
-      "queryOnly": true
-    },
-    "tsquery": {
-      "to": "TapString",
-      "queryOnly": true
-    },
-    "oid": {
-      "to": "TapString",
-      "preferByte": 255,
-      "queryOnly": true
-    },
-    "regproc": {
-      "to": "TapString",
-      "preferByte": 255,
-      "queryOnly": true
-    },
-    "regprocedure": {
-      "to": "TapString",
-      "queryOnly": true
-    },
-    "regoper": {
-      "to": "TapString",
-      "queryOnly": true
-    },
-    "regoperator": {
-      "to": "TapString",
-      "queryOnly": true
-    },
-    "regclass": {
-      "to": "TapString",
-      "queryOnly": true
-    },
-    "regtype": {
-      "to": "TapString",
-      "queryOnly": true
-    },
-    "regconfig": {
-      "to": "TapString",
-      "queryOnly": true
-    },
-    "regdictionary": {
-      "to": "TapString",
+    "bitmap": {
+      "to": "TapNumber",
       "queryOnly": true
     }
   }

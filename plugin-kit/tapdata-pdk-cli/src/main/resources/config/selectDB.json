@@ -1,0 +1,12 @@
+{
+  "connection": {
+    "host": "39.108.6.77",
+    "port": 16605 ,
+    "database": "TEST",
+    "user": "admin",
+    "password": "Gotapd8",
+    "selectdbHttp": "39.108.6.77:42199"
+  },
+  "node": {
+  }
+}
