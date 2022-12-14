@@ -12,6 +12,7 @@ public class Source {
 
     /** */
     private List<Field> fields;
+    private List<String> columns;
     /** */
     private String connectionId;
     /** */
@@ -23,4 +24,5 @@ public class Source {
     /** */
     private String table;
     private String nodeId;
+    private String nodeName;
 }

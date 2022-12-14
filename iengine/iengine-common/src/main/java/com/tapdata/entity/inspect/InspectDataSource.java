@@ -33,4 +33,5 @@ public class InspectDataSource implements Serializable {
 	// 增量校验时使用，增量运行配置
 	private InspectCdcRunProfiles cdcRunProfiles;
 	private String nodeId;
+	private String nodeName;
 }
