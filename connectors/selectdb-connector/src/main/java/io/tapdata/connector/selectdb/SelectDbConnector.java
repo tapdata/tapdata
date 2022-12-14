@@ -128,7 +128,7 @@ public class SelectDbConnector extends ConnectorBase {
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
         if (!useStreamLoad()) {
-            throw new UnsupportedOperationException("doris httpUrl is required for write operation");
+            throw new UnsupportedOperationException("selectDB httpUrl is required for write operation");
         }
         selectDbStreamLoader.writeRecord(tapRecordEvents, tapTable, writeListResultConsumer);
     }
