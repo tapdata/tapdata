@@ -1,4 +1,5 @@
 # 1. 执行单测
+OIFS=$IFS
 rm -rf /tmp/xxx
 mkdir -p /tmp/xxx
 p=`pwd`
@@ -80,9 +81,11 @@ fi
 cd $p
 
 case_results=""
+IFS=$'\n'
 for i in `cat cases/cases_result|grep "std::out"`; do
     case_results=$case_results'"'$i'",'
 done
+IFS=$OIFS
 
 jobs_number=`wc -l cases/jobs_number|awk '{print $1}'`
 pass_jobs_number=`wc -l cases/pass_jobs_number|awk '{print $1}'`
@@ -106,19 +109,19 @@ ut_sum=`cat /tmp/xxx/*|grep "Tests run"|grep -v "Time elapsed"|awk -F "Tests run
 ut_failure=`cat /tmp/xxx/*|grep "Tests run"|grep -v "Time elapsed"|awk -F "Failures:" '{print $2}'|awk -F "," '{print $1}'|awk '{s+=$1} END {print s}'`
 ut_error=`cat /tmp/xxx/*|grep "Tests run"|grep -v "Time elapsed"|awk -F "Errors:" '{print $2}'|awk -F "," '{print $1}'|awk '{s+=$1} END {print s}'`
 ut_skip=`cat /tmp/xxx/*|grep "Tests run"|grep -v "Time elapsed"|awk -F "Skipped:" '{print $2}'|awk -F "," '{print $1}'|awk '{s+=$1} END {print s}'`
-ut_pass=`echo $it_sum-$it_failure-$it_error-$it_skip|bc`
+ut_pass=`echo $ut_sum-$ut_failure-$ut_error-$ut_skip|bc`
 
 echo "ut sum number is: $ut_sum, pass number is: $ut_pass"
 
-OIFS=$IFS
-not_success_its=`cat /tmp/xxx|grep "Time elapsed"|grep -v "Failures: 0, Errors: 0, Skipped: 0"`
+not_success_its=`cat /tmp/xxx/*|grep "Time elapsed"|grep -v "Failures: 0, Errors: 0, Skipped: 0"`
 IFS=$'\n'
 its=""
 for i in $not_success_its; do
     its='"'$i'",'$its
 done
+IFS=$OIFS
 
-pip3 install argparse, git
+pip3 install argparse GitPython
 
 env
 
