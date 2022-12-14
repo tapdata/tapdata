@@ -6,6 +6,7 @@ import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
@@ -226,7 +227,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         workers.forEach(worker -> {
 
             Query query = Query.query(Criteria.where("agentId").is(worker.getProcessId()).and("status").is(TaskDto.STATUS_RUNNING));
-            query.fields().include("id", "name");
+            query.fields().include("id", "name", "syncType");
             //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
             List<TaskDto> tasks = taskService.findAll(query);
 
@@ -237,6 +238,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
             WorkerProcessInfoDto workerProcessInfo = new WorkerProcessInfoDto();
             workerProcessInfo.setRunningNum(tasks.size());
+            Map<String, Long> groupBySyncType = tasks.stream().collect(Collectors.groupingBy(ParentTaskDto::getSyncType, Collectors.counting()));
+            workerProcessInfo.setRunningTaskNum(groupBySyncType);
             workerProcessInfo.setDataFlows(tasks.stream().map(task -> {
                 DataFlowDto dataFlow = new DataFlowDto();
                 dataFlow.setId(task.getId());
