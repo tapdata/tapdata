@@ -428,21 +428,21 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
-		ExecuteResult executeResult = new ExecuteResult();
+		ExecuteResult<?> executeResult;
 		try {
-			Map<String, Object> executeObj = fromJson(tapExecuteCommand.getCommand(), Map.class);
-			String command = (String) executeObj.get("command");
+			Map<String, Object> executeObj = tapExecuteCommand.getParams();
+			String command = tapExecuteCommand.getCommand();
 			if ("execute".equals(command)) {
-				executeResult.setModifiedCount(mongodbExecuteCommandFunction.execute(executeObj, mongoClient));
+				executeResult = new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.execute(executeObj, mongoClient));
 			} else if ("executeQuery".equals(command)) {
-				executeResult.setResults(mongodbExecuteCommandFunction.executeQuery(executeObj, mongoClient));
+				executeResult = new ExecuteResult<List<Map<String, Object>>>().result(mongodbExecuteCommandFunction.executeQuery(executeObj, mongoClient));
 			} else if ("count".equals(command)) {
-				executeResult.setModifiedCount(mongodbExecuteCommandFunction.count(executeObj, mongoClient));
+				executeResult = new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.count(executeObj, mongoClient));
 			} else {
 				throw new NotSupportedException();
 			}
 		} catch (Exception e) {
-			executeResult.setError(e);
+			executeResult = new ExecuteResult<>().error(e);
 		}
 
 		executeResultConsumer.accept(executeResult);

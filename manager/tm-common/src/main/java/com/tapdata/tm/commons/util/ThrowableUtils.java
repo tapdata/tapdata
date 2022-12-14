@@ -1,4 +1,4 @@
-package com.tapdata.tm.utils;
+package com.tapdata.tm.commons.util;
 
 public class ThrowableUtils {
     /**

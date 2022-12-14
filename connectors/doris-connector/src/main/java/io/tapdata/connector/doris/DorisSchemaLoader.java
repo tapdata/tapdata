@@ -234,7 +234,7 @@ public class DorisSchemaLoader {
     public void createTable(final TapTable tapTable) {
         String database = dorisContext.getDorisConfig().getDatabase();
         final String tableName = tapTable.getName();
-        Collection<String> primaryKeys = tapTable.primaryKeys();
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
         Connection connection = dorisContext.getConnection();
         try (
                 Statement statement = connection.createStatement();
@@ -263,6 +263,7 @@ public class DorisSchemaLoader {
         }
 
         try {
+            TapLogger.info(TAG, "Create table: " + tableName + " | Sql: " + sql);
             dorisContext.execute(sql);
         } catch (Exception e) {
             throw new RuntimeException("Create Table " + tableName + " Failed | Error: " + e.getMessage() + " | Sql: " + sql, e);
