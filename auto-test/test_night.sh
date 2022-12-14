@@ -83,7 +83,11 @@ cd $p
 case_results=""
 IFS=$'\n'
 for i in `cat cases/cases_result|grep "std::out"`; do
-    case_results=$case_results'"'$i'",'
+    if [[ "x"$case_results == "x" ]]; then
+        case_results='"'$i'"'
+    else
+        case_results=$case_results'"'$i'",'
+    fi
 done
 IFS=$OIFS
 
@@ -117,7 +121,11 @@ not_success_its=`cat /tmp/xxx/*|grep "Time elapsed"|grep -v "Failures: 0, Errors
 IFS=$'\n'
 uts=""
 for i in $not_success_its; do
-    uts='"'$i'",'$its
+    if [[ "x"$uts == "x" ]]; then
+        uts='"'$i'"'
+    else
+        uts='"'$i'",'$uts
+    fi
 done
 IFS=$OIFS
 
