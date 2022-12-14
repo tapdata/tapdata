@@ -11,7 +11,7 @@
         "resources": [
           {
             "type": "page",
-            "code": "",
+            "code": "v2_dashboard",
             "path": "/dashboard"
           }
         ],
@@ -79,7 +79,7 @@
         "resources": [
           {
             "type": "page",
-            "code": "",
+            "code": "v2_data_pipeline",
             "path": ""
           }
         ],
@@ -283,7 +283,7 @@
         "resources": [
           {
             "type": "button",
-            "code": "",
+            "code": "v2_log_collector",
             "path": ""
           }
         ],
@@ -334,7 +334,7 @@
         "resources": [
           {
             "type": "button",
-            "code": "",
+            "code": "v2_function_management",
             "path": ""
           }
         ],
@@ -436,7 +436,7 @@
         "resources": [
           {
             "type": "button",
-            "code": "",
+            "code": "v2_custom_node",
             "path": ""
           }
         ],
@@ -470,7 +470,7 @@
         "resources": [
           {
             "type": "button",
-            "code": "",
+            "code": "v2_shared_cache",
             "path": ""
           }
         ],
@@ -538,7 +538,7 @@
         "resources": [
           {
             "type": "button",
-            "code": "",
+            "code": "v2_data_discovery",
             "path": ""
           }
         ],
@@ -589,7 +589,7 @@
         "resources": [
           {
             "type": "button",
-            "code": "",
+            "code": "v2_data-server",
             "path": ""
           }
         ],
@@ -657,7 +657,7 @@
         "resources": [
           {
             "type": "button",
-            "code": "",
+            "code": "v2_data_server_audit",
             "path": ""
           }
         ],
@@ -725,7 +725,7 @@
         "resources": [
           {
             "type": "button",
-            "code": "",
+            "code": "v2_system-management",
             "path": ""
           }
         ],
@@ -844,7 +844,7 @@
         "resources": [
           {
             "type": "button",
-            "code": "",
+            "code": "v2_setting",
             "path": ""
           }
         ],
