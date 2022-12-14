@@ -6,7 +6,6 @@ import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.ddl.DDLSqlGenerator;
 import io.tapdata.connector.selectdb.bean.SelectDbColumn;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
-import io.tapdata.connector.selectdb.util.HttpUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -15,7 +14,6 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
-import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
@@ -27,7 +25,6 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,16 +47,14 @@ public class SelectDbConnector extends ConnectorBase {
     private String selectDbVersion;
     private SelectDbTest selectDbTest;
     private DDLSqlGenerator ddlSqlGenerator;
-    //    private String fullPath = "/home/json" + File.separator + "SelectDBJson" + ".json";
-//    private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private SelectDbStreamLoader selectDbStreamLoader;
 
     @Override
     public void onStart(TapConnectionContext connectorContext) {
+        this.selectDbVersion = selectDbJdbcContext.queryVersion();
         this.selectDbConfig = (SelectDbConfig) new SelectDbConfig().load(connectorContext.getConnectionConfig());
         this.selectDbTest = new SelectDbTest(selectDbConfig, testItem -> {
         }).initContext();
-        this.selectDbVersion = selectDbJdbcContext.queryVersion();
     }
 
     @Override

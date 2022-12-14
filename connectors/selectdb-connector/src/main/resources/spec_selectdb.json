@@ -73,7 +73,7 @@
         },
         "selectdbHttp": {
           "type": "string",
-          "title": "${dorisHttp}",
+          "title": "${selectdbHttp}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "required": true,
@@ -89,43 +89,34 @@
       "host": "Host",
       "port": "Port",
       "database": "database",
-      "schema": "schema",
-      "extParams": "extParams",
       "user": "user",
       "password": "password",
-      "logPluginName": "logPluginName",
-      "timezone": "timezone"
+      "selectdbHttp": "selectDBHttp"
     },
     "zh_CN": {
       "doc": "docs/postgres_zh_CN.md",
       "host": "地址",
       "port": "端口",
       "database": "数据库",
-      "schema": "模型",
-      "extParams": "额外参数",
       "user": "账号",
       "password": "密码",
-      "logPluginName": "日志插件",
-      "timezone": "时区"
+      "selectdbHttp": "HTTP地址"
     },
     "zh_TW": {
       "doc": "docs/postgres_zh_TW.md",
       "host": "地址",
       "port": "端口",
       "database": "數據庫",
-      "schema": "模型",
-      "extParams": "額外參數",
       "user": "賬號",
       "password": "密碼",
-      "logPluginName": "日誌插件",
-      "timezone": "時區"
+      "selectdbHttp": "HTTP地址"
     }
   },
   "dataTypes": {
     "ARRAY": {
       "to": "TapArray"
     },
-    "DATETIMEV2": {
+    "datetimev2": {
       "to": "TapDateTime",
       "range": [
         "0000-01-01 00:00:00.000000",
@@ -135,7 +126,7 @@
       "fraction": 6,
       "withTimeZone": false
     },
-    "DATEV2": {
+    "datev2": {
       "to": "TapDate",
       "range": [
         "0001-01-01",

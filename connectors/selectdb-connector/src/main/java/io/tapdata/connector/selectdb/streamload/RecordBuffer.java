@@ -14,12 +14,13 @@ import java.util.concurrent.LinkedBlockingDeque;
  **/
 public class RecordBuffer {
     private static final String TAG = RecordBuffer.class.getSimpleName();
-    BlockingQueue<ByteBuffer> writeQueue;
-    BlockingQueue<ByteBuffer> readQueue;
+
     int bufferCapacity;
     int queueSize;
     ByteBuffer currentWriteBuffer;
     ByteBuffer currentReadBuffer;
+    BlockingQueue<ByteBuffer> writeQueue;
+    BlockingQueue<ByteBuffer> readQueue;
 
     public RecordBuffer(int capacity, int queueSize) {
         TapLogger.info(TAG, "init RecordBuffer capacity {}, count {}", capacity, queueSize);
@@ -41,13 +42,13 @@ public class RecordBuffer {
     public void startBufferData() {
         assert readQueue.size() == 0;
         assert writeQueue.size() == queueSize;
-        for (ByteBuffer byteBuffer: writeQueue) {
+        for (ByteBuffer byteBuffer : writeQueue) {
             assert byteBuffer.position() == 0;
             assert byteBuffer.remaining() == bufferCapacity;
         }
     }
 
-    public void stopBufferData() throws IOException{
+    public void stopBufferData() throws IOException {
         try {
             // add Empty buffer as finish flag.
             boolean isEmpty = false;
@@ -69,7 +70,7 @@ public class RecordBuffer {
         }
     }
 
-    public void write(byte[] buf) throws InterruptedException{
+    public void write(byte[] buf) throws InterruptedException {
         int wPos = 0;
         do {
             if (currentWriteBuffer == null) {

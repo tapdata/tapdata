@@ -19,13 +19,8 @@ import java.util.StringJoiner;
  * Date: 2022/12/14
  **/
 public class MessageSerializer {
-    public static byte[] serialize(TapTable table, TapRecordEvent recordEvent) throws IOException {
-        // in some case, the before might be null, here we use after if the before is null
-        // and doris will use pk to delete the data
-//        if (before == null) {
-//            before = after;
-//        }
 
+    public static byte[] serialize(TapTable table, TapRecordEvent recordEvent) throws IOException {
         String value = "";
         if (recordEvent instanceof TapInsertRecordEvent) {
             final TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) recordEvent;
@@ -47,13 +42,13 @@ public class MessageSerializer {
     }
 
     public static String buildCSVString(TapTable table, Map<String, Object> values, boolean delete) throws IOException {
-        if(MapUtils.isNotEmpty(values)) {
-            Object value="";
+        if (MapUtils.isNotEmpty(values)) {
+            Object value = "";
             StringJoiner joiner = new StringJoiner(Constants.FIELD_DELIMITER_DEFAULT);
             final Map<String, TapField> tapFieldMap = table.getNameFieldMap();
             for (final Map.Entry<String, TapField> entry : tapFieldMap.entrySet()) {
-                if(values.containsKey(entry.getKey())) {
-                     value = values.getOrDefault(entry.getKey(), Constants.NULL_VALUE);
+                if (values.containsKey(entry.getKey())) {
+                    value = values.getOrDefault(entry.getKey(), Constants.NULL_VALUE);
                     // value get from the value map may be null
                     if (value == null) {
                         value = Constants.NULL_VALUE;

@@ -18,6 +18,7 @@ public class HttpPutBuilder {
     public Map<String, String> header;
     String url;
     HttpEntity httpEntity;
+
     public HttpPutBuilder() {
         header = new HashMap<>();
     }

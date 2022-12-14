@@ -40,23 +40,26 @@ import static io.tapdata.base.ConnectorBase.writeListResult;
  **/
 public class SelectDbStreamLoader {
     private static final String TAG = SelectDbStreamLoader.class.getSimpleName();
-    private AtomicInteger lastEventFlag;
-    private int size;
-    private static final int MAX_FLUSH_BATCH_SIZE = 5000;
-    private RecordStream recordStream;
-    private Future<CloseableHttpResponse> pendingLoadFuture;
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private boolean loadBatchFirstRecord;
+
     private static final String LOAD_URL_PATTERN = "http://%s/api/%s/%s/_stream_load";
     private static final String LABEL_PREFIX_PATTERN = "tapdata_%s_%s";
+    private static final int MAX_FLUSH_BATCH_SIZE = 5000;
+
+    private int size;
+    private AtomicInteger lastEventFlag;
+    private RecordStream recordStream;
+    private boolean loadBatchFirstRecord;
     private ExecutorService executorService;
     private CloseableHttpClient httpClient;
     private SelectDbConfig selectDbConfig;
+    private Future<CloseableHttpResponse> pendingLoadFuture;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
 
     public void shutdown() {
         this.stopLoad();
     }
+
     private void stopLoad() {
         flush();
     }
