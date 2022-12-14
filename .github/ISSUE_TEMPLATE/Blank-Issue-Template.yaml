@@ -1,0 +1,10 @@
+name: Blank Issue
+description: Blank Issue
+body:
+  - type: textarea
+    id: issue-comment
+    attributes:
+      label: "Comment"
+      placeholder: "Leave a comment"
+    validations:
+      required: true
