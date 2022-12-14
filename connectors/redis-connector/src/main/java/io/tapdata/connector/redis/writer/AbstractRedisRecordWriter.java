@@ -15,6 +15,7 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Pipeline;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ public abstract class AbstractRedisRecordWriter {
     protected final RedisConfig redisConfig;
     protected final TapTable tapTable;
     protected final List<String> fieldList;
+    protected final List<String> keyFieldList;
     protected static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class); //json util
 
     public AbstractRedisRecordWriter(RedisContext redisContext, TapTable tapTable) {
@@ -35,6 +37,7 @@ public abstract class AbstractRedisRecordWriter {
         this.tapTable = tapTable;
         this.fieldList = tapTable.getNameFieldMap().entrySet().stream().sorted(Comparator.comparing(v ->
                 EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(Map.Entry::getKey).collect(Collectors.toList());
+        this.keyFieldList = getKeyFieldList();
     }
 
     public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Exception {
@@ -81,9 +84,23 @@ public abstract class AbstractRedisRecordWriter {
     protected String getRedisKey(Map<String, Object> value) {
         String key = redisConfig.getKeyExpression();
         for (String field : fieldList) {
-            key = key.replaceAll("${" + field + "}", String.valueOf(value.get(field)));
+            key = key.replaceAll("\\$\\{" + field + "}", String.valueOf(value.get(field)));
         }
         return key;
+    }
+
+    protected List<String> getKeyFieldList() {
+        List<String> keyFieldList = new ArrayList<>();
+        String expression = redisConfig.getKeyExpression();
+        if (EmptyKit.isBlank(expression)) {
+            return keyFieldList;
+        }
+        for (String field : fieldList) {
+            if (expression.contains("${" + field + "}")) {
+                keyFieldList.add(field);
+            }
+        }
+        return keyFieldList;
     }
 
     protected String getJsonValue(Map<String, Object> value) {

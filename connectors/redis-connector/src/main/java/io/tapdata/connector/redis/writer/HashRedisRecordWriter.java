@@ -38,13 +38,21 @@ public class HashRedisRecordWriter extends AbstractRedisRecordWriter {
 
     @Override
     protected void handleUpdateEvent(TapUpdateRecordEvent event, Pipeline pipelined) {
-        Map<String, Object> value = event.getAfter();
-        String fieldName = getRedisKey(value);
-        if (redisConfig.getOneKey()) {
-            String strValue = ValueDataEnum.JSON.getType().equals(redisConfig.getValueData()) ? getJsonValue(value) : getTextValue(value);
-            pipelined.hset(keyName, fieldName, strValue);
+        Map<String, Object> beforeValue = event.getBefore();
+        Map<String, Object> afterValue = event.getAfter();
+        Map<String, Object> lastBefore = new HashMap<>();
+        if (EmptyKit.isNotEmpty(beforeValue)) {
+            lastBefore.putAll(beforeValue);
         } else {
-            pipelined.hmset(fieldName, toStringMap(value));
+            keyFieldList.forEach(v -> lastBefore.put(v, afterValue.get(v)));
+        }
+        if (redisConfig.getOneKey()) {
+            pipelined.hdel(keyName, getRedisKey(lastBefore));
+            String strValue = ValueDataEnum.JSON.getType().equals(redisConfig.getValueData()) ? getJsonValue(afterValue) : getTextValue(afterValue);
+            pipelined.hset(keyName, getRedisKey(afterValue), strValue);
+        } else {
+            pipelined.del(getRedisKey(lastBefore));
+            pipelined.hmset(getRedisKey(afterValue), toStringMap(afterValue));
         }
     }
 

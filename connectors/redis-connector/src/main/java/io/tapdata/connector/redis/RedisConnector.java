@@ -159,7 +159,7 @@ public class RedisConnector extends ConnectorBase {
                 keyName = redisConfig.getKeyTableName();
             }
             jedis.del(keyName);
-            jedis.rpush(keyName, String.join(redisConfig.getValueJoinString(), fieldList));
+            jedis.rpush(keyName, String.join(EmptyKit.isEmpty(redisConfig.getValueJoinString()) ? "," : redisConfig.getValueJoinString(), fieldList));
         }
     }
 }

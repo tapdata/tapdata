@@ -9,6 +9,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
 import redis.clients.jedis.Pipeline;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public class ListRedisRecordWriter extends AbstractRedisRecordWriter {
@@ -41,10 +42,16 @@ public class ListRedisRecordWriter extends AbstractRedisRecordWriter {
             throw new Exception("Redis update failed  reason before data is null");
         }
         Map<String, Object> beforeValue = event.getBefore();
-        String oldValue = ValueDataEnum.JSON.getType().equals(redisConfig.getValueData()) ? getJsonValue(beforeValue) : getTextValue(beforeValue);
+        Map<String, Object> lastBefore = new HashMap<>();
+        if (EmptyKit.isNotEmpty(beforeValue)) {
+            lastBefore.putAll(beforeValue);
+        } else {
+            keyFieldList.forEach(v -> lastBefore.put(v, afterValue.get(v)));
+        }
+        String oldValue = ValueDataEnum.JSON.getType().equals(redisConfig.getValueData()) ? getJsonValue(lastBefore) : getTextValue(lastBefore);
         if (!redisConfig.getOneKey()) {
             String newKeyName = getRedisKey(afterValue);
-            String oldKeyName = getRedisKey(beforeValue);
+            String oldKeyName = getRedisKey(lastBefore);
             if (newKeyName.equals(oldKeyName)) {
                 updateRedisList(pipelined, newKeyName, oldValue, newValue);
             } else {
@@ -60,7 +67,11 @@ public class ListRedisRecordWriter extends AbstractRedisRecordWriter {
     protected void handleDeleteEvent(TapDeleteRecordEvent event, Pipeline pipelined) {
         Map<String, Object> value = event.getBefore();
         String oldValue = ValueDataEnum.JSON.getType().equals(redisConfig.getValueData()) ? getJsonValue(value) : getTextValue(value);
-        pipelined.lrem(keyName, 1, oldValue);
+        if (redisConfig.getOneKey()) {
+            pipelined.lrem(keyName, 1, oldValue);
+        } else {
+            pipelined.lrem(getRedisKey(value), 1, oldValue);
+        }
     }
 
     private void updateRedisList(Pipeline pipelined, String keyName, String oldValue, String newValue) {
