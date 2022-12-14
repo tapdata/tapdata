@@ -102,17 +102,20 @@ public class TaskAop {
                     Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
 
         }else if (arg instanceof List<?>){
-            List<String> list = (List<String>) arg;
+            List<ObjectId> list = (List<ObjectId>) arg;
 
-            List<TaskDto> taskList = taskService.findAllTasksByIds(list);
+            if (CollectionUtils.isNotEmpty(list)) {
+                List<String> collect = list.stream().map(ObjectId::toHexString).collect(Collectors.toList());
+                List<TaskDto> taskList = taskService.findAllTasksByIds(collect);
 
-            if (CollectionUtils.isNotEmpty(taskList)) {
-                taskList.forEach(taskDto -> {
-                            updateTaskStartTime(taskDto);
-                            userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
-                                    Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
-                        }
-                );
+                if (CollectionUtils.isNotEmpty(taskList)) {
+                    taskList.forEach(taskDto -> {
+                                updateTaskStartTime(taskDto);
+                                userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
+                                        Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
+                            }
+                    );
+                }
             }
         }
         return null;

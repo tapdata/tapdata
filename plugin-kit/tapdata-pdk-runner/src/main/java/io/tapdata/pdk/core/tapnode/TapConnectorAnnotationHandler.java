@@ -4,6 +4,7 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -18,6 +19,8 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,11 +37,20 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
         if (classes != null && !classes.isEmpty()) {
             newerIdGroupTapNodeInfoMap = new ConcurrentHashMap<>();
             TapLogger.debug(TAG, "--------------TapConnector Classes Start------------- size {}", classes.size());
+			Set<String> connectorSupperClassNames = new HashSet<>();
+			for (Class<?> aClass : classes) {
+				connectorSupperClassNames.addAll(findAllConnectorSuperClassName(aClass));
+			}
+
             for (Class<?> clazz : classes) {
                 TapConnectorClass tapConnectorClass = clazz.getAnnotation(TapConnectorClass.class);
                 if (tapConnectorClass != null) {
-                    URL url = clazz.getClassLoader().getResource(tapConnectorClass.value());
-                    if (url != null) {
+					if (connectorSupperClassNames.contains(clazz.getCanonicalName())) {
+						continue;
+					}
+
+					URL url = clazz.getClassLoader().getResource(tapConnectorClass.value());
+					if (url != null) {
                         TapNodeSpecification tapNodeSpecification = null;
                         try {
                             InputStream is = url.openStream();
@@ -48,7 +60,7 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
 
                             String errorMessage = null;
                             if (tapNodeSpecification == null) {
-                                errorMessage = "Specification not found";
+								errorMessage = "Specification not found";
                             } else {
                                 if(tapNodeSpecification.getGroup() == null) {
                                     tapNodeSpecification.setGroup(clazz.getPackage().getImplementationVendor());
@@ -149,6 +161,20 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
         }
         return null;
     }
+
+	private Set<String> findAllConnectorSuperClassName(Class<?> clazz) {
+		Set<String> classNames = new HashSet<>();
+		List<Class<?>> classList = ReflectionUtil.getSuperClasses(clazz);
+		if (classList != null) {
+			for(Class<?> superClass : classList) {
+				final Annotation clazzAnnotation = superClass.getAnnotation(TapConnectorClass.class);
+				if(clazzAnnotation != null) {
+					classNames.add(superClass.getCanonicalName());
+				}
+			}
+		}
+		return classNames;
+	}
 
     @Override
     public Class<? extends Annotation> watchAnnotation() {
