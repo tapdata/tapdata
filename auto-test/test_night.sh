@@ -60,7 +60,7 @@ for i in `cat config.yaml|grep connector|awk -F ":" '{print $2}'`; do
 done
 connectors=$connectors"]"
 echo $connectors
-echo "std::out >> 用例: 创建数据源, 并加载模型, 数据源类型包括: $connectos" >> cases/cases_result
+echo "std::out >> 用例: 创建数据源, 并加载模型, 数据源类型包括: $connectors" >> cases/cases_result
 
 cd cases
 
@@ -115,9 +115,9 @@ echo "ut sum number is: $ut_sum, pass number is: $ut_pass"
 
 not_success_its=`cat /tmp/xxx/*|grep "Time elapsed"|grep -v "Failures: 0, Errors: 0, Skipped: 0"`
 IFS=$'\n'
-its=""
+uts=""
 for i in $not_success_its; do
-    its='"'$i'",'$its
+    uts='"'$i'",'$its
 done
 IFS=$OIFS
 
@@ -125,7 +125,12 @@ pip3 install argparse GitPython
 
 env
 
-message='{"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
+if [[ "x"$uts == "x" ]]; then
+    message='{"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
+else
+    message='{"uts":['$uts'],"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
+fi
+
 echo $message
 
-python3 ../build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${server_url}/${repository}/actions/runs/${run_id}" --token ${GITHUB_TOKEN} --job_id ${run_id} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id gf9b5g97 --message_type night_build_notice --message $message
+python3 ../build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --token ${GITHUB_TOKEN} --job_id ${GITHUB_RUN_ID} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id gf9b5g97 --message_type night_build_notice --message $message
