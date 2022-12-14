@@ -122,14 +122,18 @@ public abstract class WriteRecorder {
     public abstract void addInsertBatch(Map<String, Object> after) throws SQLException;
 
     //(most often) update data
-    public void addUpdateBatch(Map<String, Object> after) throws SQLException {
+    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before) throws SQLException {
         if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
             return;
         }
         //in some datasource, before of events is always empty, so before is unreliable
-        Map<String, Object> before = new HashMap<>();
-        uniqueCondition.forEach(k -> before.put(k, after.get(k)));
-        justUpdate(after, before);
+        Map<String, Object> lastBefore = new HashMap<>();
+        if (EmptyKit.isNotEmpty(before)) {
+            lastBefore.putAll(before);
+        } else {
+            uniqueCondition.forEach(k -> lastBefore.put(k, after.get(k)));
+        }
+        justUpdate(after, lastBefore);
         preparedStatement.addBatch();
     }
 
