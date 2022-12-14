@@ -938,5 +938,892 @@
         "version": "v2"
       }
     ]
+  },
+
+  {
+    "insert": "RoleMapping",
+    "documents": [
+      {
+        "principalId": "v2_dashboard",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_creation",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_edition",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_pipeline",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_dag_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_record_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_dag_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector_detail",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_import",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_custom_node",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_custom_node_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_discovery",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_object",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_catalogue",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server-list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api-client",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api-servers",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit-list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit-details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_system-management",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_cluster-management_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_user_management_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_management",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_management_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_creation",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_edition",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_setting-center",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_account-setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_notification-setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_system_settings_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_alarm_settings_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+
+      {
+        "principalId": "v2_dashboard",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_creation",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_edition",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_pipeline",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_dag_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_record_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_dag_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector_detail",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_import",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_custom_node",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_custom_node_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_discovery",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_object",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_catalogue",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server-list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api-client",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api-servers",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit-list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit-details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_system-management",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_cluster-management_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_user_management_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_management",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_management_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_creation",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_edition",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_setting-center",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_account-setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_notification-setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_system_settings_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_alarm_settings_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      }
+    ]
   }
 ]
