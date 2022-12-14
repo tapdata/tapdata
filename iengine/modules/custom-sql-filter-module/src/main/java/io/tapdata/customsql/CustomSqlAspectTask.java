@@ -8,7 +8,9 @@ import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
-import io.tapdata.customsql.util.*;
+import io.tapdata.customsql.util.DateTimeUtil;
+import io.tapdata.customsql.util.NumberUtil;
+import io.tapdata.customsql.util.StringUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.codec.filter.ToTapValueCheck;
 import io.tapdata.entity.event.TapEvent;
@@ -19,12 +21,14 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,7 +63,18 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
                         TapEvent tapEvent = events.get(index).getTapEvent();
                         if (tapEvent instanceof TapRecordEvent) {
                             boolean result = checkAndFilter(events.get(index), tapTableMap, tableNode, tapCodecsFilterManager);
-                            if (index == events.size() - 1 && !result) {
+                            TapEvent tapRecordEvent = events.get(index).getTapEvent();
+                            if(tapRecordEvent instanceof TapUpdateRecordEvent && !result){
+                                Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getBefore();
+                                if(MapUtils.isEmpty(after)){
+                                    after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+                                }
+                                TapDeleteRecordEvent tapDeleteRecordEvent =
+                                        TapSimplify.deleteDMLEvent(after,((TapUpdateRecordEvent) tapRecordEvent).getTableId());
+                                events.get(index).setTapEvent(tapDeleteRecordEvent);
+                                result =true;
+                            }
+                            if (index == events.size() - 1 && !result ) {
                                 heartbeat = true;
                             }
                             if (!result) {
@@ -67,7 +82,8 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
                             }
                         }
                     }
-                    // 删除过滤的事件，最后一个事件如果过滤则转化为心态事件
+
+                    // 删除过滤的事件，最后一个事件如果过滤则转化为心跳事件
                     if (CollectionUtils.isNotEmpty(deletedEvents)) {
                         events.removeAll(deletedEvents);
                         if (heartbeat) {
