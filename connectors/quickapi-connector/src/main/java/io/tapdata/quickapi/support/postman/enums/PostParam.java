@@ -1,4 +1,4 @@
-package io.tapdata.api.postman;
+package io.tapdata.quickapi.support.postman.enums;
 
 public class PostParam {
     public static final String VARIABLE = "variable";

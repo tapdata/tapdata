@@ -1,10 +1,14 @@
 package io.tapdata.pdk.apis.api;
 
+import java.util.List;
 import java.util.Map;
 
 /**
  * @author aplomb
  */
 public interface APIInvoker {
-	Map<String, Object> invoke(String uri, String method, Map<String, Object> params);
+	APIResponse invoke(String uriOrName, String method, Map<String, Object> params);
+
+	void setAPIResponseInterceptor(APIResponseInterceptor interceptor);
+
 }

@@ -1,4 +1,4 @@
-package io.tapdata.api.postman.entity;
+package io.tapdata.quickapi.support.postman.entity.params;
 
 import java.util.List;
 

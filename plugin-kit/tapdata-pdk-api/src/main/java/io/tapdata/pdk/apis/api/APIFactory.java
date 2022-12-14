@@ -17,4 +17,6 @@ public interface APIFactory {
 	 * @return
 	 */
 	APIInvoker loadAPI(String apiContent, String type, Map<String, Object> params);
+	APIInvoker loadAPI(Map<String, Object> params);
+	APIInvoker loadAPI();
 }
