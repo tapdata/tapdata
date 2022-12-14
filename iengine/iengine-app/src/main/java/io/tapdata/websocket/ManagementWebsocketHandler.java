@@ -399,8 +399,10 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 				continue;
 			}
 			try {
-				session.sendMessage(textMessage);
-				break;
+				synchronized (session) {
+					session.sendMessage(textMessage);
+					break;
+				}
 			} catch (Throwable e) {
 				if (++failTime > retryTime) {
 					throw new RuntimeException("Retried sending " + failTime + " times, but all failed, cancel retry.", e);

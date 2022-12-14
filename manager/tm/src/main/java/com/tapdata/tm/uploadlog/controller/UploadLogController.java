@@ -26,7 +26,7 @@ public class UploadLogController extends BaseController {
     @Operation(summary = "upload agent log")
     @PostMapping("/upload")
     public ResponseMessage<String> upload(@RequestBody UploadLogDto uploadLogDto) {
-        return success(uploadLogService.upload(uploadLogDto));
+        return success(uploadLogService.upload(uploadLogDto,getLoginUser()));
     }
 
 }

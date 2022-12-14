@@ -37,7 +37,9 @@ public enum MessageType {
 
 	CREATETABLEDDL("createTableDDL"),
 
-	AUTO_INSPECT_AGAIN("autoInspectAgain");
+	AUTO_INSPECT_AGAIN("autoInspectAgain"),
+
+	PIPE_CLUSTER("pipeCluster");
 
 	private String type;
 
