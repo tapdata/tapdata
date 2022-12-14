@@ -614,6 +614,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						DataProcessorContext.newBuilder()
 								.withTaskDto(taskDto)
 								.withNode(node)
+								.withTapTableMap(tapTableMap)
 								.build()
 				);
 				break;

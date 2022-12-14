@@ -197,6 +197,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         String editVersion = buildEditVersion(taskDto);
         taskDto.setEditVersion(editVersion);
+        taskDto.setTestTaskId(new ObjectId().toHexString());
+        taskDto.setTransformTaskId(new ObjectId().toHexString());
 
         //模型推演
         //setDefault(taskDto);
