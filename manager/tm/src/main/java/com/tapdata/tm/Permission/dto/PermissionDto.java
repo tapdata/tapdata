@@ -23,5 +23,7 @@ public class PermissionDto{
     private String status;
     private String type;
 
+    private String version;
+
 
 }

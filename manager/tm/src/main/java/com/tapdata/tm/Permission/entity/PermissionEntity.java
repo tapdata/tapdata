@@ -30,4 +30,6 @@ public class PermissionEntity {
     private String type;
     private Boolean isMenu;
 
+    private String version;
+
 }
