@@ -32,7 +32,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -159,7 +158,6 @@ public class ScriptExecutorsManager {
     }
 
     public List<? extends Map<String, Object>> executeQuery(Map<String, Object> executeObj) throws Throwable {
-
       ExecuteResult<List<Map<String, Object>>> executeResult = new ExecuteResult<>();
       pdkExecute("executeQuery", executeObj, executeResult);
       return executeResult.getResult();
@@ -176,7 +174,7 @@ public class ScriptExecutorsManager {
       Map<String, Object> executeObj = new HashMap<>();
       executeObj.put("funcName", funcName);
       executeObj.put("params", params);
-      pdkExecute("call", executeObj,executeResult);
+      pdkExecute("call", executeObj, executeResult);
       return executeResult.getResult();
     }
 
@@ -187,15 +185,18 @@ public class ScriptExecutorsManager {
         String tag = specification.getName() + "-" + specification.getVersion();
         throw new RuntimeException("pdk [" + tag + "] not support execute command");
       }
-
-      AtomicReference<ExecuteResult<T>> consumerBack = new AtomicReference<>();
-
       TapExecuteCommand executeCommand = getTapExecuteCommand(command, executeObj);
-      executeCommandFunction.execute(this.connectorNode.getConnectorContext(), executeCommand, consumerBack::set);
+      executeCommandFunction.execute(this.connectorNode.getConnectorContext(), executeCommand, e -> {
 
-      executeResult = consumerBack.get();
-      if (executeResult != null && executeResult.getError() != null) {
-        throw new RuntimeException("script execute error", executeResult.getError());
+        if (e.getError() != null) {
+          executeResult.setError(e.getError());
+          return;
+        }
+        executeResult.setResult((T) e.getResult());
+      });
+
+      if (executeResult == null || executeResult.getError() != null) {
+        throw new RuntimeException("script execute error", executeResult == null ? new NullPointerException() : executeResult.getError());
       }
     }
 
