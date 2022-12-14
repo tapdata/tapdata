@@ -64,14 +64,20 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
                         if (tapEvent instanceof TapRecordEvent) {
                             boolean result = checkAndFilter(events.get(index), tapTableMap, tableNode, tapCodecsFilterManager);
                             TapEvent tapRecordEvent = events.get(index).getTapEvent();
-                            if(tapRecordEvent instanceof TapUpdateRecordEvent && !result){
+                            if(tapRecordEvent instanceof TapUpdateRecordEvent){
                                 Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getBefore();
-                                if(MapUtils.isEmpty(after)){
-                                    after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+                                if(!result) {
+                                    if (MapUtils.isEmpty(after)) {
+                                        after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+                                    }
+                                    TapDeleteRecordEvent tapDeleteRecordEvent =
+                                            TapSimplify.deleteDMLEvent(after, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
+                                    events.get(index).setTapEvent(tapDeleteRecordEvent);
+                                }else {
+                                    TapInsertRecordEvent insertRecordEvent =
+                                            TapSimplify.insertRecordEvent(after, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
+                                    events.get(index).setTapEvent(insertRecordEvent);
                                 }
-                                TapDeleteRecordEvent tapDeleteRecordEvent =
-                                        TapSimplify.deleteDMLEvent(after,((TapUpdateRecordEvent) tapRecordEvent).getTableId());
-                                events.get(index).setTapEvent(tapDeleteRecordEvent);
                                 result =true;
                             }
                             if (index == events.size() - 1 && !result ) {
