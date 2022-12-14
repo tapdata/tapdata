@@ -118,6 +118,7 @@ ut_pass=`echo $ut_sum-$ut_failure-$ut_error-$ut_skip|bc`
 echo "ut sum number is: $ut_sum, pass number is: $ut_pass"
 
 not_success_its=`cat /tmp/xxx/*|grep --color=never "Time elapsed"|grep --color=never -v "Failures: 0, Errors: 0, Skipped: 0"`
+echo $not_success_its
 IFS=$'\n'
 uts=""
 for i in $not_success_its; do
@@ -138,7 +139,8 @@ echo $uts
 if [[ "x"$uts == "x" ]]; then
     message='{"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
 else
-    message='{"uts":['$uts'],"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
+    message='{"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
+    #message='{"uts":['$uts'],"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
 fi
 
 echo $message
