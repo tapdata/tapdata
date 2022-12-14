@@ -7,33 +7,32 @@ import com.tapdata.constant.UUIDGenerator;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
-import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.observable.logging.ObsLogger;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.ExecuteResult;
+import io.tapdata.pdk.apis.entity.TapExecuteCommand;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
-import io.tapdata.schema.TapTableUtil;
-import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 import org.voovan.tools.collection.CacheMap;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -80,6 +79,10 @@ public class ScriptExecutorsManager {
     Connections connections = clientMongoOperator.findOne(new Query(where("name").is(connectionName)),
             ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 
+    if (connections == null) {
+      throw new RuntimeException("The specified connection source [" + connectionName + "] does not exist, please check");
+    }
+
     return new ScriptExecutor(connections, hazelcastInstance, this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId);
   }
 
@@ -88,15 +91,14 @@ public class ScriptExecutorsManager {
     this.cacheMap.clear();
   }
 
-  private class ScriptExecutor {
+  public class ScriptExecutor {
 
     private final ConnectorNode connectorNode;
 
     private final String TAG;
 
     private final String associateId;
-
-    private final TapCodecsFilterManager codecsFilterManager;
+    private final Supplier<ExecuteCommandFunction> executeCommandFunctionSupplier;
 
 
     public ScriptExecutor(Connections connections, HazelcastInstance hazelcastInstance, String TAG) {
@@ -104,11 +106,10 @@ public class ScriptExecutorsManager {
 
       Map<String, Object> connectionConfig = connections.getConfig();
       DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-      //todo 根据connections查询TapTableMap
-      TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId("");
-      PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
       PdkStateMap pdkStateMap = new PdkStateMap(TAG, hazelcastInstance, PdkStateMap.StateMapMode.HTTP_TM);
       PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
+      TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("ScriptExecutor", TAG);
+      PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
       this.associateId = this.getClass().getSimpleName() + "-" + connections.getName() + "-" + UUIDGenerator.uuid();
       this.connectorNode = PdkUtil.createNode(TAG,
               databaseType,
@@ -126,7 +127,9 @@ public class ScriptExecutorsManager {
         throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
       }
 
-      this.codecsFilterManager = connectorNode.getCodecsFilterManager();
+      ConnectorFunctions connectorFunctions = this.connectorNode.getConnectorFunctions();
+      this.executeCommandFunctionSupplier = connectorFunctions::getExecuteCommandFunction;
+
     }
 
     /**
@@ -149,42 +152,59 @@ public class ScriptExecutorsManager {
      * @return
      */
     public long execute(Map<String, Object> executeObj) throws Throwable {
+      ExecuteResult<Long> executeResult = new ExecuteResult<>();
+      pdkExecute("execute", executeObj, executeResult);
+      return executeResult.getResult();
+    }
 
-      //generate TapRecordEvent
-      List<TapRecordEvent> recordEvents = getTapRecordEventList(executeObj);
+    public List<? extends Map<String, Object>> executeQuery(Map<String, Object> executeObj) throws Throwable {
+      ExecuteResult<List<Map<String, Object>>> executeResult = new ExecuteResult<>();
+      pdkExecute("executeQuery", executeObj, executeResult);
+      return executeResult.getResult();
+    }
 
-      ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-      QueryByFilterFunction queryByFilterFunction = connectorFunctions.getQueryByFilterFunction();
-      WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
+    public long count(Map<String, Object> executeObj) throws Throwable {
+      ExecuteResult<Long> executeResult = new ExecuteResult<>();
+      pdkExecute("count", executeObj, executeResult);
+      return executeResult.getResult();
+    }
 
-      AtomicReference<WriteListResult<TapRecordEvent>> consumerBack = new AtomicReference<>();
-      writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), recordEvents, null,
-              consumer -> {
-                if (consumer != null) {
-                  consumerBack.set(consumer);
-                }
-              });
+    public Object call(String funcName, List<Map<String, Object>> params) throws Throwable {
+      ExecuteResult<Long> executeResult = new ExecuteResult<>();
+      Map<String, Object> executeObj = new HashMap<>();
+      executeObj.put("funcName", funcName);
+      executeObj.put("params", params);
+      pdkExecute("call", executeObj, executeResult);
+      return executeResult.getResult();
+    }
 
-      Map<TapRecordEvent, Throwable> errorMap = consumerBack.get().getErrorMap();
-      if (MapUtils.isNotEmpty(errorMap)) {
-        TapRecordEvent lastErrorTapRecord = null;
-        Throwable lastErrorThrowable = null;
-        for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-          lastErrorTapRecord = tapRecordEventThrowableEntry.getKey();
-          lastErrorThrowable = tapRecordEventThrowableEntry.getValue();
-        }
-        throw new RuntimeException(String.format("Write record %s failed", lastErrorTapRecord), lastErrorThrowable);
+    private <T> void pdkExecute(String command, Map<String, Object> executeObj, ExecuteResult<T> executeResult) throws Throwable {
+      ExecuteCommandFunction executeCommandFunction = this.executeCommandFunctionSupplier.get();
+      if (executeCommandFunction == null) {
+        TapNodeSpecification specification = this.connectorNode.getConnectorContext().getSpecification();
+        String tag = specification.getName() + "-" + specification.getVersion();
+        throw new RuntimeException("pdk [" + tag + "] not support execute command");
       }
-      return consumerBack.get().getModifiedCount();
+      TapExecuteCommand executeCommand = getTapExecuteCommand(command, executeObj);
+      executeCommandFunction.execute(this.connectorNode.getConnectorContext(), executeCommand, e -> {
+
+        if (e.getError() != null) {
+          executeResult.setError(e.getError());
+          return;
+        }
+        executeResult.setResult((T) e.getResult());
+      });
+
+      if (executeResult == null || executeResult.getError() != null) {
+        throw new RuntimeException("script execute error", executeResult == null ? new NullPointerException() : executeResult.getError());
+      }
     }
 
-    private List<TapRecordEvent> getTapRecordEventList(Map<String, Object> executeObj) {
-      return null;
+    @NotNull
+    private TapExecuteCommand getTapExecuteCommand(String command, Map<String, Object> executeObj) {
+      return TapExecuteCommand.create().command(command).params(executeObj);
     }
 
-    public List<Map<String, Object>> executeQuery(Map<String, Object> executeObj) {
-      return null;
-    }
 
     void close() {
 

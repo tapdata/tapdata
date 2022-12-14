@@ -32,6 +32,8 @@ public class MonitoringLogQueryParam {
     private String search;
     private List<String> levels;
 
+    private String type = "monitor";
+
     public boolean isOrderValid() {
         return StringUtils.equalsAny(order, ORDER_ASC, ORDER_DESC);
     }

@@ -26,6 +26,7 @@ import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -46,7 +47,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
   private final Invocable engine;
 
-  private final ScriptExecutorsManager scriptExecutorsManager;
+  private ScriptExecutorsManager scriptExecutorsManager;
 
   private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
 
@@ -76,14 +77,19 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
             null,
             null,
             ((DataProcessorContext) processorBaseContext).getCacheService(),
-            new ObsScriptLogger(obsLogger)
+            new ObsScriptLogger(obsLogger, logger)
     );
 
+    this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
+  }
+
+  @Override
+  protected void doInit(@NotNull Context context) throws Exception {
+    super.doInit(context);
+    Node node = getNode();
     this.scriptExecutorsManager = new ScriptExecutorsManager(obsLogger, clientMongoOperator, jetContext.hazelcastInstance(),
             node.getTaskId(), node.getId());
-
     ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
-    this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
   }
 
   @SneakyThrows
@@ -111,7 +117,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     processContext.setEventTime(eventTime);
     processContext.setTs(eventTime);
     SyncStage syncStage = tapdataEvent.getSyncStage();
-    processContext.setSyncType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
+    processContext.setType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
+    processContext.setSyncType(getProcessorBaseContext().getTaskDto().getSyncType());
 
     ProcessContextEvent processContextEvent = processContext.getEvent();
     if (processContextEvent == null) {
@@ -121,6 +128,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     if (null != before) {
       processContextEvent.setBefore(before);
     }
+    processContextEvent.setType(processContext.getType());
     Map<String, Object> eventMap = MapUtil.obj2Map(processContextEvent);
     Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
     contextMap.put("event", eventMap);

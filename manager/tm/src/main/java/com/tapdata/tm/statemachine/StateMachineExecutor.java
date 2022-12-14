@@ -8,6 +8,7 @@ package com.tapdata.tm.statemachine;
 
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.statemachine.enums.TaskState;
 import com.tapdata.tm.statemachine.model.StateContext;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.model.Transition;
@@ -54,6 +55,8 @@ public class StateMachineExecutor<S, E> {
 				}
 				if (transition.getAction() != null){
 					result = transition.getAction().apply(context);
+					result.setBefore(((TaskState)transition.getSource()).getName());
+					result.setAfter(((TaskState)transition.getTarget()).getName());
 				}
 				if (context.getNeedPostProcessor() != null && context.getNeedPostProcessor()){
 					log.info("The status changes from {} to {} successfully,context: {}", context.getSource(), context.getTarget(), JsonUtil.toJson(context));

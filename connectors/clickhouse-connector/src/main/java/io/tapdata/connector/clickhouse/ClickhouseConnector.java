@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
+import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
@@ -215,6 +216,8 @@ public class ClickhouseConnector extends ConnectorBase {
 //        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
 //        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
 //        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> clickhouseJdbcContext.getConnection(), c));
     }
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {

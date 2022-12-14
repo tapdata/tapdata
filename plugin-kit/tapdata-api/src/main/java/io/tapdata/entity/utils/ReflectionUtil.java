@@ -1,6 +1,9 @@
 package io.tapdata.entity.utils;
 
+import io.tapdata.entity.event.TapBaseEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.schema.TapIndex;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
@@ -29,6 +32,10 @@ public class ReflectionUtil {
     }
 
     public static void main(String[] args) {
+        List<Class<?>> list = ReflectionUtil.getSuperClasses(TapInsertRecordEvent.class);
+        List<Class<?>> list1 = ReflectionUtil.getSuperClasses(Object.class);
+        List<Class<?>> list2 = ReflectionUtil.getSuperClasses(TapBaseEvent.class);
+        List<Class<?>> list3 = ReflectionUtil.getSuperClasses(TapIndex.class);
     }
 
     public static Class<?> getInitiatableClass(Class<?> clazz) {
@@ -233,6 +240,19 @@ public class ReflectionUtil {
         return getDeclaredMethod(clazz, "get" + fieldName, null);
     }
 
+    public static List<Class<?>> getSuperClasses(Class<?> clazz) {
+        Class<?> superClass = clazz.getSuperclass();
+        if(superClass != null && !superClass.equals(Object.class)) {
+            List<Class<?>> classes = new ArrayList<>();
+            classes.add(superClass);
+            List<Class<?>> parentClasses = getSuperClasses(superClass);
+            if(parentClasses != null) {
+                classes.addAll(parentClasses);
+            }
+            return classes;
+        }
+        return null;
+    }
     /**
      * 循环向上转型, 获取对象的 DeclaredMethod
      *

@@ -23,6 +23,7 @@ import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.SampleMockUtil;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,6 +45,8 @@ public class TestRunAspectTask extends AspectTask {
 
   private final TapCodecsFilterManager codecsFilterManager;
 
+  private boolean multipleTables;
+
   public TestRunAspectTask() {
     observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::processorNodeProcessAspect);
     TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
@@ -56,6 +59,9 @@ public class TestRunAspectTask extends AspectTask {
     Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> n.getType().equals("virtualTarget")).findFirst();
     optional.ifPresent(node -> this.nodeIds = task.getDag().predecessors(node.getId()).stream()
             .map(Element::getId).collect(Collectors.toSet()));
+
+    this.multipleTables = CollectionUtils.isNotEmpty(task.getDag().getSourceNode());
+
   }
 
   private Void processorNodeProcessAspect(ProcessorNodeProcessAspect processAspect) {
@@ -71,9 +77,13 @@ public class TestRunAspectTask extends AspectTask {
           resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(transformFromTapValue(inputEvent));
           processAspect.consumer(outputEvent -> {
             //mock
-            TapEvent tapEvent = outputEvent.getTapEvent();
-            TapTable tapTable = processorBaseContext.getTapTableMap().get(TapEventUtil.getTableId(tapEvent));
-            SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+//            TapEvent tapEvent = outputEvent.getTapEvent();
+//            String tableId = TapEventUtil.getTableId(tapEvent);
+//            if (!multipleTables) {
+//              tableId = nodeId;
+//            }
+//            TapTable tapTable = processorBaseContext.getTapTableMap().get(tableId);
+//            SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
             Map<String, Object> afterMap = transformFromTapValue(outputEvent);
             resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(afterMap);
           });

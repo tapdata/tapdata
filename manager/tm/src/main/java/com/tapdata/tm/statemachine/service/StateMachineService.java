@@ -6,11 +6,13 @@
  */
 package com.tapdata.tm.statemachine.service;
 
+import cn.hutool.core.date.StopWatch;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.statemachine.StateMachine;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.enums.DataFlowState;
@@ -25,6 +27,8 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+
+import java.util.concurrent.CompletableFuture;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
@@ -45,6 +49,8 @@ public class StateMachineService {
 
 	@Autowired
 	private UserService userService;
+	@Autowired
+	private MonitoringLogsService monitoringLogsService;
 
 	public StateMachineResult test(String id, String event, String status){
 		DataFlowState state = DataFlowState.getState(status);
@@ -114,7 +120,15 @@ public class StateMachineService {
 		trigger.setEvent(event);
 		trigger.setUserDetail(userDetail);
 		trigger.setData(dto);
-		return executeAboutTask(trigger);
+
+		StopWatch stopWatch = new StopWatch();
+		stopWatch.start();
+		StateMachineResult stateMachineResult = executeAboutTask(trigger);
+		stopWatch.stop();
+
+		CompletableFuture.runAsync(() -> monitoringLogsService.taskStateMachineLog(dto, userDetail, event, stateMachineResult, stopWatch.getTotalTimeMillis()));
+
+		return stateMachineResult;
 	}
 
 	private StateMachineResult executeAboutTask(TaskStateTrigger trigger){
