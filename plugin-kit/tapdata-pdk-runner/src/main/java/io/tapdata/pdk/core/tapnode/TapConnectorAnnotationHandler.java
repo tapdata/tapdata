@@ -4,6 +4,7 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -19,6 +20,7 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,16 +39,13 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
             TapLogger.debug(TAG, "--------------TapConnector Classes Start------------- size {}", classes.size());
 			Set<String> connectorSupperClassNames = new HashSet<>();
 			for (Class<?> aClass : classes) {
-				final Set<String> allConnectorSuperClassName = findAllConnectorSuperClassName(aClass);
-				if (findAllConnectorSuperClassName(aClass) != null && !allConnectorSuperClassName.isEmpty()) {
-					connectorSupperClassNames.addAll(allConnectorSuperClassName);
-				}
+				connectorSupperClassNames.addAll(findAllConnectorSuperClassName(aClass));
 			}
 
             for (Class<?> clazz : classes) {
                 TapConnectorClass tapConnectorClass = clazz.getAnnotation(TapConnectorClass.class);
                 if (tapConnectorClass != null) {
-					if (connectorSupperClassNames != null && connectorSupperClassNames.contains(clazz.getCanonicalName())) {
+					if (connectorSupperClassNames.contains(clazz.getCanonicalName())) {
 						continue;
 					}
 
@@ -163,31 +162,18 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
         return null;
     }
 
-	private Set<String> findAllConnectorSuperClassName(Class clazz) {
-		Set<String> className = new HashSet<>();
-		if (clazz != null) {
-			final Annotation clazzAnnotation = clazz.getAnnotation(TapConnectorClass.class);
-			if (clazzAnnotation == null) {
-				return className;
-			}
-
-			final Class superclass = clazz.getSuperclass();
-			if (superclass != null) {
-				final Annotation tapConnectorAnnotation = superclass.getAnnotation(TapConnectorClass.class);
-				if (tapConnectorAnnotation != null) {
-					className.add(superclass.getCanonicalName());
-				}
-
-				if (superclass.getSuperclass() != null) {
-					final Set<String> superClassName = findAllConnectorSuperClassName(superclass.getSuperclass());
-					if (superClassName != null && !superClassName.isEmpty()) {
-						className.addAll(superClassName);
-					}
+	private Set<String> findAllConnectorSuperClassName(Class<?> clazz) {
+		Set<String> classNames = new HashSet<>();
+		List<Class<?>> classList = ReflectionUtil.getSuperClasses(clazz);
+		if (classList != null) {
+			for(Class<?> superClass : classList) {
+				final Annotation clazzAnnotation = superClass.getAnnotation(TapConnectorClass.class);
+				if(clazzAnnotation != null) {
+					classNames.add(superClass.getCanonicalName());
 				}
 			}
 		}
-
-		return className;
+		return classNames;
 	}
 
     @Override
