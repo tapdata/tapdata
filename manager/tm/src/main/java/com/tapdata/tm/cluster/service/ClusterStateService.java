@@ -102,13 +102,13 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             update.set("updateTime", new Date());
             update.set("updateVersion", version);
 //            workerService.update(workQuery, update);
-            workerService.updateAll(query,update);
+            workerService.update(query,update, userDetail);
             retResult = "1";
         } else {
             List<String> downList = Arrays.asList("tapdata", "tapdata.exe", "tapdata-agent", "log4j2.yml");
             clusterStateDtoList.forEach(clusterStateDto -> {
                 addNewClusterOperation(clusterStateDto, param, downList);
-                updateWorker(processId, param.getVersion());
+                updateWorker(processId, param.getVersion(), userDetail);
             });
 
         }
@@ -243,7 +243,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         repository.getMongoOperations().insert(cluserOperationEntity);
     }
 
-    private void updateWorker(String processId, String version) {
+    private void updateWorker(String processId, String version, UserDetail user) {
         Query query = Query.query(Criteria.where("process_id").is(processId));
         Update update = new Update();
         update.set("updateVersion", version);
@@ -252,7 +252,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         update.set("updateStatus", "preparing");
         update.set("updateMsg", "preparing");
         update.set("updatePingTime", new Date().getTime());
-        workerService.updateAll(query,update);
+        workerService.update(query, update, user);
     }
 
     /**
