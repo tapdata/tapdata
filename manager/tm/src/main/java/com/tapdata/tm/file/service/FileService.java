@@ -1,7 +1,5 @@
 package com.tapdata.tm.file.service;
 
-import cn.hutool.core.io.IORuntimeException;
-import cn.hutool.core.io.IoUtil;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.gridfs.GridFSBucket;
 import com.mongodb.client.gridfs.GridFSBuckets;
@@ -11,14 +9,12 @@ import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
-import com.tapdata.tm.utils.ThrowableUtils;
-import lombok.Setter;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.MongoDatabaseFactory;

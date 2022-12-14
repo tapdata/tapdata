@@ -24,7 +24,7 @@ import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.ThrowableUtils;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;

@@ -571,7 +571,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }, () -> {
                 log.error("getRun JsResultVo error:{}", dto.getMessage());
                 res.setCode("SystemError");
-                res.setMessage("SystemError");
+                res.setMessage(dto.getMessage());
             });
         } else {
             result.setOver(false);
