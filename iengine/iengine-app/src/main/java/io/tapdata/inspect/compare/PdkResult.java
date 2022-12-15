@@ -1,6 +1,7 @@
 package io.tapdata.inspect.compare;
 
 import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -46,7 +48,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	private TapCodecsFilterManager defaultCodecsFilterManager;
 	private Projection projection;
 
-	public PdkResult(List<String> sortColumns, Connections connections, String tableName, ConnectorNode connectorNode, boolean fullMatch) {
+	public PdkResult(List<String> sortColumns, Connections connections, String tableName, Set<String> columns, ConnectorNode connectorNode, boolean fullMatch) {
 		super(sortColumns, connections, tableName);
 		this.connectorNode = connectorNode;
 		for (String sortColumn : sortColumns) {
@@ -57,6 +59,9 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 			throw new RuntimeException("Connector does not support query by filter function: " + connectorNode.getConnectorContext().getSpecification().getId());
 		}
 		this.tapTable = connectorNode.getConnectorContext().getTableMap().get(tableName);
+		if (null == tapTable) {
+			throw new RuntimeException("Table '" + connections.getName() + "'.'" + tableName + "' not exists.");
+		}
 		this.hasNext = new AtomicBoolean(true);
 		this.running = new AtomicBoolean(true);
 		this.codecsFilterManager = connectorNode.getCodecsFilterManager();
@@ -64,6 +69,12 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		if (!fullMatch) {
 			projection = new Projection();
 			sortColumns.forEach(s -> projection.include(s));
+		} else if (null != columns && !columns.isEmpty()) {
+			projection = new Projection();
+			sortColumns.forEach(s -> projection.include(s));
+			columns.forEach(s -> {
+				if (!sortColumns.contains(s)) projection.include(s);
+			});
 		} else {
 			projection = null;
 		}
