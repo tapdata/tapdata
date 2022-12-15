@@ -4,12 +4,15 @@ rm -rf /tmp/xxx
 mkdir -p /tmp/xxx
 p=`pwd`
 cd $p/../
+ut_start_time=`date '+%s'`
 bash build/build.sh -c plugin-kit -m ut | grep "Tests run" > /tmp/xxx/plugin-kit.ut
 bash build/build.sh -c file-storages -m ut | grep "Tests run" > /tmp/xxx/file-storages.ut
 bash build/build.sh -c connectors-common -m ut | grep "Tests run" > /tmp/xxx/connectors-common.ut
 bash build/build.sh -c connectors -m ut | grep "Tests run" > /tmp/xxx/connectors.ut
 bash build/build.sh -c iengine -m ut | grep "Tests run" > /tmp/xxx/iengine.ut
 bash build/build.sh -c manager -m ut | grep "Tests run" > /tmp/xxx/manager.ut
+ut_end_time=`date '+%s'`
+ut_cost_time=`echo $ut_end_time-$ut_start_time|bc`
 
 # 2. 执行集成测试
 cd $p
@@ -51,33 +54,37 @@ python3 init/create_datasource.py
 data_set="["
 for i in `ls init/data/|grep "\.py"|grep -v grep`; do
     if [[ $data_set == "[" ]]; then
-        data_set=`echo $i|awk -F '.' '{print $1}'`
+        data_set=$data_set`echo $i|awk -F '.' '{print $1}'`
     else
         data_set=$data_set", "`echo $i|awk -F '.' '{print $1}'`
     fi
 done
 data_set=$data_set"]"
-echo "std::out >> 环境准备: 用例执行编号为:"`cat init/.table_suffix_cache_file`", 导入数据集为: ${data_set}" >> cases/cases_result
+echo "std::out >> 环境准备: 用例执行编号为: "`cat init/.table_suffix_cache_file`", 导入数据集为: ${data_set}" >> cases/cases_result
 
 connectors="["
 for i in `cat config.yaml|grep connector|awk -F ":" '{print $2}'|awk -F '"' '{print $2}'`; do
     if [[ $connectors == "[" ]]; then
-        connectors=$i
+        connectors=$connectors$i
     else
         connectors=$connectors","$i
     fi
 done
 connectors=$connectors"]"
 echo $connectors
-echo "std::out >> 用例: 创建数据源, 并加载模型, 数据源类型包括: $connectors" >> cases/cases_result
+echo "std::out >> 用例: 创建数据源, 并加载模型, 数据源类型包括: $connectors, 此次集成测试增量数据量为: $bench" >> cases/cases_result
 
 cd cases
 
+bench=123
+it_start_time=`date '+%s'`
 for i in `ls|grep test_|grep -v cases_result`; do
     rm -rf $i"_cases_result"
-    python3 runner.py --case $i --bench 123 &> $i"_cases_result"
+    python3 runner.py --case $i --bench $bench &> $i"_cases_result"
     cat $i"_cases_result" >> cases_result
 done
+it_end_time=`date '+%s'`
+it_cost_time=`echo $it_end_time-$it_start_time|bc`
 
 cat cases_result
 
@@ -146,13 +153,13 @@ for i in $not_success_its; do
 done
 IFS=$OIFS
 
-pip3 install argparse GitPython
+pip3 install argparse GitPython psutil
 
 env
 
 echo $uts
 
-message='{"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"'$start_result'","its":['$case_results']}'
+message='{"ut_cost_time":'$ut_cost_time',"it_cost_time:"'$it_cost_time',"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"'$start_result'","its":['$case_results']}'
 
 echo $message
 

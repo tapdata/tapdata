@@ -2655,7 +2655,12 @@ class Job:
                 }
             }
         }
-        res = req.post("/measurement/query/v2", json=payload).json()
+        for i in range(5):
+            try:
+                res = req.post("/measurement/query/v2", json=payload).json()
+                break
+            except Exception as e:
+                time.sleep(1)
         job_stats = JobStats()
         if len(res["data"]["samples"]["totalData"]) > 0:
             stats = res["data"]["samples"]["totalData"][0]
