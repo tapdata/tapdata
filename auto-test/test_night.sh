@@ -70,19 +70,22 @@ for i in `cat config.yaml|grep connector|awk -F ":" '{print $2}'|awk -F '"' '{pr
         connectors=$connectors","$i
     fi
 done
+bench=123
 connectors=$connectors"]"
 echo $connectors
 echo "std::out >> 用例: 创建数据源, 并加载模型, 数据源类型包括: $connectors, 此次集成测试增量数据量为: $bench" >> cases/cases_result
 
 cd cases
 
-bench=123
 it_start_time=`date '+%s'`
-for i in `ls|grep test_|grep -v cases_result`; do
+cases=`ls|grep test_|grep -v cases_result`
+IFS=$'\n'
+for i in $cases; do
     rm -rf $i"_cases_result"
     python3 runner.py --case $i --bench $bench &> $i"_cases_result"
     cat $i"_cases_result" >> cases_result
 done
+IFS=$OIFS
 it_end_time=`date '+%s'`
 it_cost_time=`echo $it_end_time-$it_start_time|bc`
 
@@ -159,7 +162,7 @@ env
 
 echo $uts
 
-message='{"ut_cost_time":'$ut_cost_time',"it_cost_time:"'$it_cost_time',"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"'$start_result'","its":['$case_results']}'
+message='{"ut_cost_time":'$ut_cost_time',"it_cost_time":'$it_cost_time',"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"'$start_result'","its":['$case_results']}'
 
 echo $message
 
