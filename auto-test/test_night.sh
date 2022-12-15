@@ -78,8 +78,10 @@ it_start_time=`date '+%s'`
 cases=`ls|grep test_|grep -v cases_result`
 IFS=$'\n'
 for i in $cases; do
+    echo "will exec case: "$i
     rm -rf $i"_cases_result"
     python3 runner.py --case $i --bench $bench &> $i"_cases_result"
+    cat $i"_cases_result"
     cat $i"_cases_result" >> cases_result
 done
 IFS=$OIFS
