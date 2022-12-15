@@ -1783,6 +1783,1229 @@
           "$oid": "5d31ae1ab953565ded04badd"
         },
         "self_only": false
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "62bc5008d4958d013d97c7a6",
+        "principalType": "USER"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_SYNC",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_verify",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_quality",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_rules",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "time_to_live",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_lineage",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_explorer",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_doc_test",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_stats",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_clients",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_server",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_collect",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "schedule_jobs",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Cluster_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "agents",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "system_settings",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_search",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_search_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "shared_cache",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "shared_cache_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "custom_node",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "custom_node_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "function_manager",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "function_manager_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "log_collector",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "log_collector_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "notice",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "notice_settings",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_category_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_category_application",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_transmission_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_transmission",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_SYNC_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_SYNC_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_category_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_category_application",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_operation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_operation_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_import",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_export",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_Function_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_verify_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_verify_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "verify_job_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "verify_job_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "verify_job_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "verify_job_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "verify_job_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_government_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_government",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_category_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_category_application",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "meta_data_deleting",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "meta_data_deleting_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "new_model_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_quality_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_quality_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_quality_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_quality_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_rules_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_rules_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_rule_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_rule_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "time_to_live_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "time_to_live_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "time_to_live_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "time_to_live_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_lineage_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_publish_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_publish",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_management_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_category_application",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_category_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_publish",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_publish_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_import",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_export",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_explorer_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_explorer_export",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_explorer_deleting",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_time_zone_editing",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_download",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_explorer_tagging",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_doc_test_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_doc_test_export",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_stats_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_clients_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_clients_amangement",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_server_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_server_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_collect_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_collect_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "system_management_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "system_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "schedule_jobs_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "schedule_jobs_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Cluster_management_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Cluster_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Cluster_operation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "status_log",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "agents_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_management_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_category_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_category_application",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_management_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "system_settings_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "system_settings_modification",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "chart",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "chart_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "dictionary_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "dictionary",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "dictionary_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
       }
     ]
   }
