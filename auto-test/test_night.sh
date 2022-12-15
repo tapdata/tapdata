@@ -82,12 +82,15 @@ cd $p
 
 case_results=""
 IFS=$'\n'
+x=1
 for i in `cat cases/cases_result|grep "std::out"`; do
+    r=`echo $i|awk -F "std::out >> " '{print $2}'`
     if [[ "x"$case_results == "x" ]]; then
-        case_results='"'$i'"'
+        case_results=$x'. "'$r'"'
     else
-        case_results=$case_results',"'$i'"'
+        case_results=$case_results',"'$x'. '$r'"'
     fi
+    x=`echo $x+1|bc`
 done
 IFS=$OIFS
 
@@ -136,13 +139,8 @@ env
 
 echo $uts
 
-if [[ "x"$uts == "x" ]]; then
-    message='{"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
-else
-    message='{"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
-    #message='{"uts":['$uts'],"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
-fi
+message='{"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
 
 echo $message
 
-python3 ../build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --token ${GITHUB_TOKEN} --job_id ${GITHUB_RUN_ID} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id gf9b5g97 --message_type night_build_notice --message "'"$message"'"
+python3 ../build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --token ${GITHUB_TOKEN} --job_id ${GITHUB_RUN_ID} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id gf9b5g97 --message_type night_build_notice --message "$message"
