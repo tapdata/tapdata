@@ -66,15 +66,16 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
                             boolean result = checkAndFilter(events.get(index), tapTableMap, tableNode, tapCodecsFilterManager);
                             TapEvent tapRecordEvent = events.get(index).getTapEvent();
                             if(tapRecordEvent instanceof TapUpdateRecordEvent){
-                                Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getBefore();
                                 if(!result) {
-                                    if (MapUtils.isEmpty(after)) {
-                                        after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+                                    Map<String, Object> before = ((TapUpdateRecordEvent) tapRecordEvent).getBefore();
+                                    if (MapUtils.isEmpty(before)) {
+                                        before = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
                                     }
                                     TapDeleteRecordEvent tapDeleteRecordEvent =
-                                            TapSimplify.deleteDMLEvent(after, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
+                                            TapSimplify.deleteDMLEvent(before, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
                                     events.get(index).setTapEvent(tapDeleteRecordEvent);
                                 }else {
+                                    Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
                                     TapInsertRecordEvent insertRecordEvent =
                                             TapSimplify.insertRecordEvent(after, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
                                     events.get(index).setTapEvent(insertRecordEvent);
