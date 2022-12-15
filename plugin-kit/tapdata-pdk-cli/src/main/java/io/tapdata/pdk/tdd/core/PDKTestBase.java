@@ -219,7 +219,7 @@ public class PDKTestBase {
             case SupportFunction.TYPE_ANY:
                 AtomicBoolean hasAny = new AtomicBoolean(false);
                 for(Class<? extends TapFunction> func : supportFunction.getAnyOfFunctions()) {
-                    final Method method = connectorFunctions.getClass().getDeclaredMethod("get" + func.getSimpleName());
+                    final Method method = connectorFunctions.getClass().getMethod("get" + func.getSimpleName());
                     CommonUtils.ignoreAnyError(() -> {
                         Object obj = method.invoke(connectorFunctions);
                         if(obj != null) {
@@ -231,7 +231,7 @@ public class PDKTestBase {
                 }
                 return hasAny.get();
             case SupportFunction.TYPE_ONE:
-                Method method = connectorFunctions.getClass().getDeclaredMethod("get" + supportFunction.getFunction().getSimpleName());
+                Method method = connectorFunctions.getClass().getMethod("get" + supportFunction.getFunction().getSimpleName());
                 return method.invoke(connectorFunctions) != null;
         }
         return false;
