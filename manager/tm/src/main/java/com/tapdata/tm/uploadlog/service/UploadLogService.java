@@ -38,7 +38,8 @@ public class UploadLogService {
     public String upload(UploadLogDto uploadLogDto, UserDetail userDetail)  {
         try {
             // todo 增加userDetail查询
-            ClusterStateDto  clusterStateDto= clusterStateService.findOne(Query.query(Criteria.where("systemInfo.process_id").is(uploadLogDto.getTmInfoEngineId())));
+            ClusterStateDto  clusterStateDto= clusterStateService.findOne(Query.query(Criteria.where("systemInfo.process_id").
+                    is(uploadLogDto.getTmInfoEngineId()).and("status").is("running")));
             if (clusterStateDto == null){
                 log.error("AgentId don't exist");
                 throw new BizException("NotFoundAgent", "Not found agent by id " + uploadLogDto.getTmInfoEngineId());
