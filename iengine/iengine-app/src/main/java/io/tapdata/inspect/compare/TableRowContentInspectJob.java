@@ -112,7 +112,11 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 		otherFieldLimit = uniqueFieldLimit;
 
 		if (fullMatch) {
-			compareFn = new DefaultCompare();
+			if (null != inspectTask.getSource().getColumns() && null != inspectTask.getTarget().getColumns()) {
+				compareFn = new DefaultCompare(inspectTask.getSource().getColumns(), inspectTask.getTarget().getColumns());
+			} else {
+				compareFn = new DefaultCompare();
+			}
 		}
 
 		if (inspectTask.getBatchSize() > 0) {
@@ -259,13 +263,15 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 							moveSource = false;
 							moveTarget = true;
 							msg = "TARGET " + targetVal;
-							targetOnly++;
-							if (uniqueFieldLimit > 0) {
-								uniqueFieldLimit--;
-								InspectDetail detail = new InspectDetail();
-								detail.setTarget(diffRecordTypeConvert(targetRecord));
-								detail.setType("uniqueField");
-								inspectDetails.add(detail);
+							if (InspectDifferenceMode.isAll(inspectTaskContext.getInspectDifferenceMode())) {
+								targetOnly++;
+								if (uniqueFieldLimit > 0) {
+									uniqueFieldLimit--;
+									InspectDetail detail = new InspectDetail();
+									detail.setTarget(diffRecordTypeConvert(targetRecord));
+									detail.setType("uniqueField");
+									inspectDetails.add(detail);
+								}
 							}
 						}
 
@@ -349,10 +355,15 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 
 	private BaseResult<Map<String, Object>> queryForCursor(Connections connections, InspectDataSource inspectDataSource, ConnectorNode connectorNode, boolean fullMatch) {
 		inspectDataSource.setDirection("DESC"); // force desc
+		Set<String> columns = null;
+		if (null != inspectDataSource.getColumns()) {
+			columns = new LinkedHashSet<>(inspectDataSource.getColumns());
+		}
 		return new PdkResult(
 				getSortColumns(inspectDataSource.getSortColumn()),
 				connections,
 				inspectDataSource.getTable(),
+				columns,
 				connectorNode,
 				fullMatch
 		);

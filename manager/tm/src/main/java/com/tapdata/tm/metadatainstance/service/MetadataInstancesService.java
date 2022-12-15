@@ -1674,6 +1674,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         List<MetadataInstancesDto> items = list.getItems();
         for (MetadataInstancesDto item : items) {
             List<Field> fields = item.getFields();
+            if (null == fields) continue;
+
             List<String> deleteFieldNames = fields.stream().filter(Field::isDeleted).map(Field::getFieldName).collect(Collectors.toList());
             item.setFields(fields.stream().filter(f->!f.isDeleted()).collect(Collectors.toList()));
             List<TableIndex> indices = item.getIndices();
