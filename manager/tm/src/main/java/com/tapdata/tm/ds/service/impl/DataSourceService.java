@@ -1492,10 +1492,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					datasourceUpdate.set("testTime", System.currentTimeMillis());
 					if (DataSourceEntity.STATUS_READY.equals(status.toString())) {
 						datasourceUpdate.set("testCount", 0);
-						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), true));
+//						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), true));
 					} else {
 						datasourceUpdate.inc("testCount", 1);
-						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), false));
+//						CompletableFuture.runAsync(() -> alarmService.connectAlarm(oldConnectionDto.getName(), id, datasourceUpdate.toString(), false));
 					}
 				}
 				return repository.update(query, datasourceUpdate, user).getModifiedCount();
