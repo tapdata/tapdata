@@ -7,14 +7,14 @@
         <artifactId>connectors</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
-    <artifactId>tdengine-connector</artifactId>
-    <name>TDengine Connector</name>
+    <artifactId>aliyun-adb-mysql-connector</artifactId>
+    <name>Aliyun ADB MySQL Connector</name>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <developers>
         <developer>
-            <name>IssaacWang</name>
-            <email>15390672285@163.com</email>
+            <name>jackin</name>
+            <email>jackin@tapdata.io</email>
         </developer>
     </developers>
     <modules>
@@ -23,7 +23,6 @@
 
     <properties>
         <java.version>8</java.version>
-        <sql.core.version>1.0-SNAPSHOT</sql.core.version>
     </properties>
     <dependencies>
         <dependency>
@@ -32,37 +31,9 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-			<version>5.8.1</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>sql-core</artifactId>
-            <version>${sql.core.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>${commons.lang3.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-            <version>31.1-jre</version>
-        </dependency>
-        <dependency>
-            <groupId>com.taosdata.jdbc</groupId>
-            <artifactId>taos-jdbcdriver</artifactId>
-            <version>3.0.3</version>
-            <scope>compile</scope>
-            <exclusions>
-                <exclusion>
-                    <artifactId>slf4j-api</artifactId>
-                    <groupId>org.slf4j</groupId>
-                </exclusion>
-            </exclusions>
+            <artifactId>mysql-connector</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
     </dependencies>
     <build>
@@ -107,9 +78,11 @@
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <filters>
                                 <filter>
-                                    <artifact>io.debezium:debezium-core</artifact>
+                                    <artifact>**:**</artifact>
                                     <excludes>
-                                        <exclude>io/debezium/jdbc/JdbcValueConverters</exclude>
+                                        <exclude>**/org/apache/log4j/**</exclude>
+                                        <exclude>**/org/apache/logging/log4j/**</exclude>
+                                        <exclude>**/org/slf4j/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
