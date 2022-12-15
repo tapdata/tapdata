@@ -1,5 +1,6 @@
 package com.tapdata.tm.cluster.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 
 /**
@@ -10,6 +11,9 @@ import lombok.*;
 @Data
 @EqualsAndHashCode(callSuper=false)
 public class Component {
+    @Schema(description = "进程状态")
     private String status;
     private String processID;
+    @Schema(description = "服务状态")
+    private String serviceStatus;
 }
