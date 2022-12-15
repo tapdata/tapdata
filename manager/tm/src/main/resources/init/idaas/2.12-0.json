@@ -1737,46 +1737,6 @@
         "self_only": false
       },
       {
-        "principalId": "v2_user_management_menu",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5d31ae1ab953565ded04badd"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_role_management",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5d31ae1ab953565ded04badd"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_role_management_menu",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5d31ae1ab953565ded04badd"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_role_creation",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5d31ae1ab953565ded04badd"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_role_edition",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5d31ae1ab953565ded04badd"
-        },
-        "self_only": false
-      },
-      {
         "principalId": "v2_setting",
         "principalType": "PERMISSION",
         "roleId": {
