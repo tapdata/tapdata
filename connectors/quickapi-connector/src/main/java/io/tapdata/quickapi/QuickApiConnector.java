@@ -1,7 +1,6 @@
 package io.tapdata.quickapi;
 
 import cn.hutool.json.JSONUtil;
-import io.tapdata.api.APIFactoryImpl;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
@@ -10,6 +9,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.api.APIFactory;
+import io.tapdata.pdk.apis.api.APIResponse;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
@@ -18,6 +18,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.quickapi.common.QuickApiConfig;
 import io.tapdata.quickapi.server.TestQuickApi;
 import io.tapdata.quickapi.server.enums.QuickApiTestItem;
+import io.tapdata.quickapi.support.APIFactoryImpl;
 import io.tapdata.quickapi.support.postman.PostManAnalysis;
 
 import java.util.*;
@@ -52,11 +53,11 @@ public class QuickApiConnector extends ConnectorBase {
 
 			apiFactory = new APIFactoryImpl();
 			invoker = (PostManAnalysis)apiFactory.loadAPI(jsonTxt, apiType, null);
-//			invoker.setAPIResponseInterceptor((response, urlOrName, method, params)->{
-//				APIResponse interceptorResponse = APIResponse.create();
-//
-//				return interceptorResponse;
-//			});
+			invoker.setAPIResponseInterceptor((response, urlOrName, method, params)->{
+				APIResponse interceptorResponse = APIResponse.create();
+
+				return interceptorResponse;
+			});
 		}
 	}
 
@@ -74,6 +75,8 @@ public class QuickApiConnector extends ConnectorBase {
 			connectorFunctions.supportBatchCount(this::batchCount)
 					.supportBatchRead(this::batchRead)
 					.supportTimestampToStreamOffset(this::timestampToStreamOffset);
+		}else{
+			TapLogger.error(TAG,"ConnectorFunctions must be not null or not be empty. ");
 		}
 	}
 
@@ -106,6 +109,7 @@ public class QuickApiConnector extends ConnectorBase {
 		TestQuickApi testQuickApi = null;
 		try {
 			testQuickApi = TestQuickApi.create(connectionContext);
+			consumer.accept(testItem(QuickApiTestItem.TEST_PARAM.testName(),TestItem.RESULT_SUCCESSFULLY));
 		}catch (Exception e){
 			consumer.accept(testItem(QuickApiTestItem.TEST_PARAM.testName(),TestItem.RESULT_FAILED,e.getMessage()));
 		}

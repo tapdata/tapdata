@@ -1,13 +1,13 @@
 package io.tapdata.quickapi.server;
 
 import cn.hutool.json.JSONUtil;
-import io.tapdata.api.APIFactoryImpl;
 import io.tapdata.pdk.apis.api.APIFactory;
 import io.tapdata.pdk.apis.api.APIResponse;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.quickapi.core.emun.TapApiTag;
 import io.tapdata.quickapi.server.enums.QuickApiTestItem;
+import io.tapdata.quickapi.support.APIFactoryImpl;
 import io.tapdata.quickapi.support.postman.PostManAnalysis;
 import io.tapdata.quickapi.support.postman.PostManApiContext;
 import io.tapdata.quickapi.support.postman.entity.ApiMap;

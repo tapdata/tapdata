@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Map;
 
 public class PostManApiContext  extends TapApiBase {
+    public static PostManApiContext create(){
+        return new PostManApiContext();
+    }
 
     private ApiInfo info;
 

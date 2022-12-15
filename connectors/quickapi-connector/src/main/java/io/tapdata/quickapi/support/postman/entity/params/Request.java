@@ -1,11 +1,28 @@
 package io.tapdata.quickapi.support.postman.entity.params;
 
+import java.util.Map;
+
 public class Request {
     String description;
     String method;
     Url url;
     Header header;
     Body body;
+    public static Request create(){
+        return new Request();
+    }
+    public static Request create(Map<String ,Object> map){
+        try {
+            String description;
+            String method;
+            Url url;
+            Header header;
+            Body body;
+            return new Request();
+        }catch (Exception e){
+            return new Request();
+        }
+    }
 
     public String description(){
         return this.description;

@@ -15,9 +15,10 @@ import io.tapdata.quickapi.support.postman.entity.ApiVariable;
 import io.tapdata.quickapi.support.postman.entity.params.Api;
 import io.tapdata.quickapi.support.postman.entity.params.Body;
 import io.tapdata.quickapi.support.postman.entity.params.Header;
+import io.tapdata.quickapi.support.postman.entity.params.Url;
 import io.tapdata.quickapi.support.postman.enums.PostParam;
 import io.tapdata.quickapi.core.emun.TapApiTag;
-import io.tapdata.quickapi.support.postman.util.ApiMapUtil;
+
 import io.tapdata.quickapi.support.postman.util.ReplaceTagUtil;
 import okhttp3.*;
 
@@ -174,8 +175,24 @@ public class PostManAnalysis
     }
 
     Api generateApiEntity(Map<String,Object> apiMap){
+        try {
+            String id = (String) apiMap.get(PostParam.ID);
+            String name = (String) apiMap.get(PostParam.NAME);;
+            io.tapdata.quickapi.support.postman.entity.params.Request request = io.tapdata.quickapi.support.postman.entity.params.Request.create();
 
-        return null;
+            Map<String,Object> requestMap = (Map<String, Object>) apiMap.get(PostParam.REQUEST);
+            String description = (String) requestMap.get(PostParam.DESCRIPTION);
+            String method = (String) requestMap.get(PostParam.METHOD);
+            Url url;
+            Header header;
+            Body body;
+
+            String response;
+
+            return null;
+        }catch (Exception e){
+            return null;
+        }
     }
 
     @Override
@@ -195,32 +212,66 @@ public class PostManAnalysis
         }
 
         List<Object> item = this.getList(PostParam.ITEM, json);
+        Map<String, List<Object>> listMap = this.item(item);
         ApiMap apiMap = ApiMap.create();
-        item.stream().filter(api->{
-            if (null == api) return false;
-            if (!filterUselessApi) return true;
-            try {
-                Map<String,Object> apiDetail = (Map<String,Object>)api;
-                String name = (String)apiDetail.get(PostParam.NAME);
-                return TapApiTag.isLabeled(name);
-            }catch (Exception e){
-                return false;
-            }
-        }).forEach(api->{
-            try {
-                Map<String,Object> apiDetail = (Map<String,Object>)api;
-                String name = (String)apiDetail.get(PostParam.NAME);
-                Map<String,Object> request = (Map<String,Object>) apiDetail.get(PostParam.REQUEST);
-                Object urlObj = request.get(PostParam.URL);
-                String url = null;
-                if (urlObj instanceof String){
-                    url = (String) urlObj;
-                }else if(urlObj instanceof Map){
-                    url = (String) ((Map<String,Object>)urlObj).get(PostParam.RAW);
+        listMap.forEach((key,apiItem)->{
+            apiItem.stream().filter(api->{
+                if (null == api) return false;
+                if (!filterUselessApi) return true;
+                try {
+                    Map<String,Object> apiDetail = (Map<String,Object>)api;
+                    String name = (String)apiDetail.get(PostParam.NAME);
+                    return TapApiTag.isLabeled(name);
+                }catch (Exception e){
+                    return false;
                 }
-                apiMap.add(ApiMap.ApiEntity.create(name,url,this.generateApiEntity(apiDetail)));
-            }catch (Exception ignored){ }
+            }).forEach(api->{
+                try {
+                    Map<String,Object> apiDetail = (Map<String,Object>)api;
+                    String name = (String)apiDetail.get(PostParam.NAME);
+                    Map<String,Object> request = (Map<String,Object>) apiDetail.get(PostParam.REQUEST);
+                    Object urlObj = request.get(PostParam.URL);
+                    String url = null;
+                    if (urlObj instanceof String){
+                        url = (String) urlObj;
+                    }else if(urlObj instanceof Map){
+                        url = (String) ((Map<String,Object>)urlObj).get(PostParam.RAW);
+                    }
+                    String method = (String)request.get(PostParam.METHOD);
+                    apiMap.add(ApiMap.ApiEntity.create(url,name,this.generateApiEntity(apiDetail)).method(method));
+                }catch (Exception ignored){ }
+            });
         });
+
+
+//        item.stream().filter(api->{
+//            if (null == api) return false;
+//            if (!filterUselessApi) return true;
+//            try {
+//                Map<String,Object> apiDetail = (Map<String,Object>)api;
+//                String name = (String)apiDetail.get(PostParam.NAME);
+//                return TapApiTag.isLabeled(name);
+//            }catch (Exception e){
+//                return false;
+//            }
+//        }).forEach(api->{
+//            try {
+//                Map<String,Object> apiDetail = (Map<String,Object>)api;
+//                String name = (String)apiDetail.get(PostParam.NAME);
+//                Map<String,Object> request = (Map<String,Object>) apiDetail.get(PostParam.REQUEST);
+//                Object urlObj = request.get(PostParam.URL);
+//                String url = null;
+//                if (urlObj instanceof String){
+//                    url = (String) urlObj;
+//                }else if(urlObj instanceof Map){
+//                    url = (String) ((Map<String,Object>)urlObj).get(PostParam.RAW);
+//                }
+//                apiMap.add(ApiMap.ApiEntity.create(name,url,this.generateApiEntity(apiDetail)));
+//            }catch (Exception ignored){ }
+//        });
+        if (Objects.isNull(this.apiContext)){
+            this.apiContext = PostManApiContext.create();
+        }
         this.apiContext.info(ApiInfo.create(this.getMap(PostParam.INFO,json)))
                 .event(ApiEvent.create(this.getList(PostParam.EVENT,json)))
                 .variable(ApiVariable.create(this.getList(PostParam.VARIABLE,json)))
@@ -252,7 +303,7 @@ public class PostManAnalysis
         String apiMethod = apiEntity.method();
         Header<String,String> apiHeader = apiRequest.header();
         Body apiBody = apiRequest.body();
-        //@TODO http请求
+
         OkHttpClient client = new OkHttpClient().newBuilder()
                 .build();
         MediaType mediaType = MediaType.parse("application/json");

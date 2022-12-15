@@ -24,13 +24,13 @@
           ],
           "x-index": 10,
           "required": false,
-          "display": "hidden",
-          "hidden": true
+          "x-display": "hidden"
         },
         "jsonTxt": {
           "type": "String",
           "title": "${jsonTxt}",
           "x-decorator": "FormItem",
+          "x-component": "Input",
           "x-component-props": {
             "type": "textarea"
           },

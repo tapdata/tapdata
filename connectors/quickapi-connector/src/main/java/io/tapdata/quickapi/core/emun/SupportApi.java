@@ -1,6 +1,8 @@
 package io.tapdata.quickapi.core.emun;
 
-import io.tapdata.api.invoker.PostManAPIInvoker;
+//import io.tapdata.api.invoker.PostManAPIInvoker;
+
+import io.tapdata.quickapi.support.PostManAPIInvoker;
 
 public enum SupportApi {
     POST_MAN("POST_MAN", PostManAPIInvoker.class),

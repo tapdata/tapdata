@@ -40,12 +40,12 @@
             <version>5.5.1</version>
             <scope>compile</scope>
         </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>custom-connector</artifactId>
-            <version>1.0-SNAPSHOT</version>
-            <scope>test</scope>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.tapdata</groupId>-->
+<!--            <artifactId>custom-connector</artifactId>-->
+<!--            <version>1.0-SNAPSHOT</version>-->
+<!--            <scope>test</scope>-->
+<!--        </dependency>-->
     </dependencies>
     <build>
         <plugins>
