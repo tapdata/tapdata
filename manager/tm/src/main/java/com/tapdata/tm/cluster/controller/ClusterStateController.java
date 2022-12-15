@@ -71,7 +71,7 @@ public class ClusterStateController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(clusterStateService.find(filter));
+        return success(clusterStateService.getAll(filter));
     }
 
     /**

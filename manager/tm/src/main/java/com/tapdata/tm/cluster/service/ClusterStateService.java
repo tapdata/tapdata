@@ -9,6 +9,8 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.*;
@@ -347,4 +349,29 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         mongoTemplate.updateFirst(query, update, ClusterStateEntity.class);
     }
 
+    public Page<ClusterStateDto> getAll(Filter filter) {
+        Page<ClusterStateDto> page = this.find(filter);
+
+        Optional.ofNullable(page).flatMap(p -> Optional.ofNullable(p.getItems())).ifPresent(items -> {
+            List<String> processIds = items.stream().map(n -> n.getSystemInfo().getProcess_id()).collect(Collectors.toList());
+
+            List<String> availableProcessIds = Lists.newArrayList();
+            List<Worker> workers = workerService.findAvailableAgentBySystem(processIds);
+            Optional.ofNullable(workers).ifPresent(w -> w.forEach(k -> availableProcessIds.add(k.getProcessId())));
+
+            items.forEach(m -> {
+                Optional.ofNullable(m.getManagement()).ifPresent(management -> management.setServiceStatus(management.getStatus()));
+                Optional.ofNullable(m.getApiServer()).ifPresent(api -> api.setServiceStatus(api.getStatus()));
+                Optional.ofNullable(m.getEngine()).ifPresent(fe -> {
+                    if (availableProcessIds.contains(m.getSystemInfo().getProcess_id())) {
+                        fe.setServiceStatus(fe.getStatus());
+                    } else {
+                        fe.setServiceStatus("stopped");
+                    }
+
+                });
+            });
+        });
+        return page;
+    }
 }

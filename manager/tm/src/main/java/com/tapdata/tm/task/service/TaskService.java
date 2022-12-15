@@ -33,6 +33,7 @@ import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
@@ -99,7 +100,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -359,6 +359,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (taskDto.getId() != null) {
             oldTaskDto = findById(taskDto.getId(), user);
             taskDto.setSyncType(oldTaskDto.getSyncType());
+            taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
+            taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
 
             if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
                 taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
@@ -414,6 +416,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         taskDto.setWriteBatchSize(null);
         taskDto.setWriteBatchWaitMs(null);
+
+        if (StringUtils.isEmpty(taskDto.getTestTaskId())) {
+            taskDto.setTestTaskId(new ObjectId().toHexString());
+        }
+        if (StringUtils.isEmpty(taskDto.getTransformTaskId())) {
+            taskDto.setTransformTaskId(new ObjectId().toHexString());
+        }
 
         return save(taskDto, user);
 
@@ -1774,7 +1783,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     /**
      * 统计的是Task中的statuses
      *
-     * @param syncTypeToTaskList
+     * @param synList
      * @return
      */
     private Map<String, Object> getDataDevChart(List<TaskDto> synList) {

@@ -58,22 +58,22 @@ public class TablestoreConnector extends ConnectorBase {
         clientConfiguration.setConnectionTimeoutInMillisecond(5000);
         clientConfiguration.setSocketTimeoutInMillisecond(5000);
         clientConfiguration.setRetryStrategy(new AlwaysRetryStrategy());
-        if (Objects.isNull(tablestoreConfig.getToken())) {
-            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(),
-                    tablestoreConfig.getKey(), tablestoreConfig.getInstance(), clientConfiguration);
+        if (Objects.isNull(tablestoreConfig.getAccessKeyToken())) {
+            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(),
+                    tablestoreConfig.getAccessKeySecret(), tablestoreConfig.getInstance(), clientConfiguration);
         } else {
-            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(),
-                    tablestoreConfig.getKey(), tablestoreConfig.getInstance(), clientConfiguration, tablestoreConfig.getToken());
+            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(),
+                    tablestoreConfig.getAccessKeySecret(), tablestoreConfig.getInstance(), clientConfiguration, tablestoreConfig.getAccessKeyToken());
         }
     }
 
     private SyncClient createInternalClient() {
-        if (Objects.isNull(tablestoreConfig.getToken())) {
-            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(), tablestoreConfig.getKey(),
+        if (Objects.isNull(tablestoreConfig.getAccessKeyToken())) {
+            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(), tablestoreConfig.getAccessKeySecret(),
                     tablestoreConfig.getInstance());
         } else {
-            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(), tablestoreConfig.getKey(),
-                    tablestoreConfig.getInstance(), tablestoreConfig.getToken());
+            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(), tablestoreConfig.getAccessKeySecret(),
+                    tablestoreConfig.getInstance(), tablestoreConfig.getAccessKeyToken());
         }
     }
 
