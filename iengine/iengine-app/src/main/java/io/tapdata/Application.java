@@ -9,10 +9,11 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StartResultUtil;
 import io.tapdata.aspect.ApplicationStartAspect;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.task.AspectTaskManager;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -25,7 +26,6 @@ import org.apache.logging.log4j.core.appender.rolling.CompositeTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
 import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
-import org.apache.logging.log4j.core.config.AppenderRef;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.core.util.IOUtils;
@@ -160,6 +160,7 @@ public class Application {
 			}
 
 			AspectUtils.executeAspect(ApplicationStartAspect.class, ApplicationStartAspect::new);
+			run.getBean(TapdataTaskScheduler.class).runTaskIfNeedWhenEngineStart();
 		} catch (Exception e) {
 			String err = "Run flow engine application failed, err: " + e.getMessage();
 			logger.error(err, e);
