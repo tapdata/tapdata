@@ -28,13 +28,14 @@ fi
 
 cat config.yaml
 
+start_result="成功"
+
 server=`head -3 config.yaml |grep server|awk -F '"' '{print $2}'`
 curl $server --max-time 3 2>&1 > /dev/null
 if [[ $? -ne 0 ]]; then
     echo "curl server timeout, skip testing..."
     echo "tapdata server may not work ok, please check it"
-    echo "TEST FAIL !"
-    exit 1
+    start_result="失败"
 fi
 
 curl $server --max-time 3 -v 2>&1|grep "HTTP/1"|grep 200
@@ -49,14 +50,22 @@ python3 init/create_datasource.py
 
 data_set="["
 for i in `ls init/data/|grep "\.py"|grep -v grep`; do
-    data_set=$data_set", "`echo $i|awk -F '.' '{print $1}'`
+    if [[ $data_set == "[" ]]; then
+        data_set=`echo $i|awk -F '.' '{print $1}'`
+    else
+        data_set=$data_set", "`echo $i|awk -F '.' '{print $1}'`
+    fi
 done
 data_set=$data_set"]"
 echo "std::out >> 环境准备: 用例执行编号为:"`cat init/.table_suffix_cache_file`", 导入数据集为: ${data_set}" >> cases/cases_result
 
 connectors="["
 for i in `cat config.yaml|grep connector|awk -F ":" '{print $2}'|awk -F '"' '{print $2}'`; do
-    connectors=$connectors","$i
+    if [[ $connectors == "[" ]]; then
+        connectors=$i
+    else
+        connectors=$connectors","$i
+    fi
 done
 connectors=$connectors"]"
 echo $connectors
@@ -64,7 +73,7 @@ echo "std::out >> 用例: 创建数据源, 并加载模型, 数据源类型包�
 
 cd cases
 
-for i in `ls|grep test_dev_sync.py|grep -v cases_result`; do
+for i in `ls|grep test_|grep -v cases_result`; do
     rm -rf $i"_cases_result"
     python3 runner.py --case $i --bench 123 &> $i"_cases_result"
     cat $i"_cases_result" >> cases_result
@@ -78,6 +87,10 @@ if [[ -f /tmp/fail ]]; then
     pass="false"
 fi
 
+if [[ $start_result != "成功" ]]; then
+    pass="false"
+fi
+
 cd $p
 
 case_results=""
@@ -86,7 +99,7 @@ x=1
 for i in `cat cases/cases_result|grep "std::out"`; do
     r=`echo $i|awk -F "std::out >> " '{print $2}'`
     if [[ "x"$case_results == "x" ]]; then
-        case_results=$x'. "'$r'"'
+        case_results='"'$x'. '$r'"'
     else
         case_results=$case_results',"'$x'. '$r'"'
     fi
@@ -139,7 +152,7 @@ env
 
 echo $uts
 
-message='{"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"成功","its":['$case_results']}'
+message='{"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"'$start_result'","its":['$case_results']}'
 
 echo $message
 
