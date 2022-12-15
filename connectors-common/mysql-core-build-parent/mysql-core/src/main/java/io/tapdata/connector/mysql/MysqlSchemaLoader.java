@@ -47,13 +47,11 @@ public class MysqlSchemaLoader {
             "              from INFORMATION_SCHEMA.KEY_COLUMN_USAGE k\n" +
             "              where k.TABLE_SCHEMA = '%s'\n" +
             "                and k.TABLE_NAME = i.TABLE_NAME\n" +
-            "                and i.INDEX_NAME = CONCAT(k.CONSTRAINT_NAME, '_idx')\n" +
             "                and i.COLUMN_NAME = k.COLUMN_NAME) CONSTRAINT_NAME\n" +
             "      from INFORMATION_SCHEMA.STATISTICS i\n" +
             "\n" +
             "      where i.TABLE_SCHEMA = '%s'\n" +
-            "        and i.TABLE_NAME %s\n" +
-            "        and i.INDEX_NAME <> 'PRIMARY') t\n" +
+            "        and i.TABLE_NAME %s ) t\n" +
             "where t.CONSTRAINT_NAME is null";
 
 

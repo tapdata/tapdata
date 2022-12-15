@@ -15,6 +15,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,6 +42,16 @@ public class UnionProcessorNode extends ProcessorNode{
 
         for (int i = 0; i < inputSchemas.size(); i++) {
             Schema inputSchema = inputSchemas.get(i);
+
+            Iterator<TableIndex> indexIterator = inputSchema.getIndices().iterator();
+            Consumer<TableIndex> uniqueKeyConsumer = (index) -> {
+                if (index.isUnique()) {
+                    indexIterator.remove();
+                }
+            };
+            indexIterator.forEachRemaining(uniqueKeyConsumer);
+
+
             if (i == 0) {
                 schema = inputSchema;
                 continue;
@@ -51,6 +62,20 @@ public class UnionProcessorNode extends ProcessorNode{
             } else if (CollectionUtils.isNotEmpty(inputSchema.getFields())) {
                 Map<String, Field> inputFieldMap = inputSchema.getFields().stream()
                         .collect(Collectors.toMap(Field::getFieldName, Function.identity(), (e1, e2) -> e1));
+
+                Iterator<Field> fieldIterator = schema.getFields().iterator();
+                Consumer<Field> fieldConsumer = (field) -> {
+                    if (inputFieldMap.containsKey(field.getFieldName())) {
+                        if (field.getIsNullable() != inputFieldMap.get(field.getFieldName()).getIsNullable()) {
+                            fieldIterator.remove();
+                        }
+                        if (field.getPrimaryKey() != inputFieldMap.get(field.getFieldName()).getPrimaryKey()) {
+                            fieldIterator.remove();
+                        }
+                    }
+                };
+                fieldIterator.forEachRemaining(fieldConsumer);
+
                 // compare tapType
                 schema.getFields().forEach(field -> {
                     if (inputFieldMap.containsKey(field.getFieldName())) {
@@ -77,12 +102,12 @@ public class UnionProcessorNode extends ProcessorNode{
                         .collect(Collectors.toMap(Field::getFieldName, Function.identity(), (e1, e2) -> e1));
 
                 Schema finalSchema = schema;
-                Consumer<Field> fieldConsumer = (field) -> {
+                Consumer<Field> addFieldConsumer = (field) -> {
                    if (!fieldMap.containsKey(field.getFieldName())) {
                        finalSchema.getFields().add(field);
                    }
                 };
-                inputSchema.getFields().iterator().forEachRemaining(fieldConsumer);
+                inputSchema.getFields().iterator().forEachRemaining(addFieldConsumer);
             }
             // field -- end
 
@@ -99,7 +124,7 @@ public class UnionProcessorNode extends ProcessorNode{
                         finalSchema.getIndices().add(index);
                     }
                 };
-                inputSchema.getIndices().iterator().forEachRemaining(indexConsumer);
+                indexIterator.forEachRemaining(indexConsumer);
             }
             // index -- end
         }
