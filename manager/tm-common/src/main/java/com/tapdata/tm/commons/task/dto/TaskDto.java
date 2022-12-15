@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Data;
+import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -129,6 +130,17 @@ public class TaskDto extends ParentTaskDto {
     private Date monitorStartDate;
 
     private boolean needCreateRecord;
+
+    /**
+     * js 试运行id
+     */
+    private String testTaskId;
+    /**
+     * js模型推演id
+     */
+    private String transformTaskId;
+
+    private int stopRetryTimes;
 
     public DAG getDag() {
         if (dag != null) {

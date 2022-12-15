@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
+import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -226,6 +227,11 @@ public class TaskEntity extends BaseEntity {
     private boolean needCreateRecord;
 
     private boolean crontabExpressionFlag;
+
+    private String testTaskId;
+    private String transformTaskId;
+    private int stopRetryTimes;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

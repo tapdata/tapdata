@@ -2924,9 +2924,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
 
+        //sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
 
+        updateTaskRecordStatus(taskDto, pauseStatus, user);
+    }
+
+    public void sendStoppingMsg(String taskId, String agentId, UserDetail user, boolean force) {
         DataSyncMq dataSyncMq = new DataSyncMq();
-        dataSyncMq.setTaskId(taskDto.getId().toHexString());
+        dataSyncMq.setTaskId(taskId);
         dataSyncMq.setForce(force);
         dataSyncMq.setOpType(DataSyncMq.OP_TYPE_STOP);
         dataSyncMq.setType(MessageType.DATA_SYNC.getType());
@@ -2935,16 +2940,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         String json = JsonUtil.toJsonUseJackson(dataSyncMq);
         data = JsonUtil.parseJsonUseJackson(json, Map.class);
         MessageQueueDto queueDto = new MessageQueueDto();
-        queueDto.setReceiver(taskDto.getAgentId());
+        queueDto.setReceiver(agentId);
         queueDto.setData(data);
         queueDto.setType("pipe");
 
-        log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
+        log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
-
-        updateTaskRecordStatus(taskDto, pauseStatus, user);
     }
-
 
 
     /**
