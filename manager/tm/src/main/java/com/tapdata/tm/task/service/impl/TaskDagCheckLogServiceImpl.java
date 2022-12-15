@@ -6,10 +6,13 @@ import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitor.dto.TaskLogDto;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.repository.TaskDagCheckLogRepository;
@@ -34,10 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.text.MessageFormat;
 import java.time.format.DateTimeFormatter;
-import java.util.Date;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,6 +47,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     private TaskDagCheckLogRepository repository;
     private MongoTemplate mongoTemplate;
     private TaskService taskService;
+    private MonitoringLogsService monitoringLogsService;
 
     @Override
     public TaskDagCheckLog save(TaskDagCheckLog log) {
@@ -128,6 +129,13 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         Query modelQuery = new Query(modelCriteria.and("checkType").in(delayList));
         modelQuery.with(Sort.by("_id"));
         List<TaskDagCheckLog> modelLogs = find(modelQuery);
+        // check task nodes has js node
+        boolean hasJsNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode);
+        if (hasJsNode) {
+            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName());
+            Optional.ofNullable(jsNodeLog).ifPresent(modelLogs::addAll);
+        }
+
         LinkedList<TaskLogInfoVo> data = packCheckLogs(taskDto, taskDagCheckLogs);
         TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, false);
 

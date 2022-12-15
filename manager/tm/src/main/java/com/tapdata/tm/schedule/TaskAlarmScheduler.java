@@ -31,7 +31,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.ThrowableUtils;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -351,6 +351,7 @@ public class TaskAlarmScheduler {
                     AlarmInfo data = first.get();
                     alarmInfo.setId(data.getId());
                     alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
+                    alarmInfo.setLastOccurrenceTime(null);
 
                     long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
                     summary = MessageFormat.format(template[3], nodeName, alarmRuleDto.getMs(), continued, current, DateUtil.now(), flag);
@@ -450,6 +451,7 @@ public class TaskAlarmScheduler {
                     alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
                     alarmInfo.setSummary(summary);
                     alarmInfo.setRecoveryTime(DateUtil.date());
+                    alarmInfo.setLastOccurrenceTime(null);
                     alarmService.save(alarmInfo);
                 }
             }

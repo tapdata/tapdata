@@ -72,7 +72,6 @@
           "x-index": 4,
           "required": true
         },
-
         "passwordDisplay": {
           "type": "boolean",
           "title": "${passwordDisplay}",
@@ -159,64 +158,167 @@
         "valueType": {
           "type": "string",
           "title": "${valueType}",
-          "default": "list",
+          "default": "String",
           "x-decorator": "FormItem",
           "x-component": "Select",
-          "x-index": 3,
+          "x-index": 1,
           "enum": [
             {
-              "label": "list with header",
-              "value": "list"
+              "label": "String",
+              "value": "String"
             },
             {
-              "label": "json",
-              "value": "json"
-            }
-          ],
-          "x-reactions": [
+              "label": "List",
+              "value": "List"
+            },
             {
-              "target": ".cacheKeys",
-              "fulfill": {
-                "state": {
-                  "visible": "{{$self.value === 'json'}}"
-                }
-              }
+              "label": "Hash",
+              "value": "Hash"
             }
-          ],
-          "index": 1
+          ]
         },
-        "cachePrefix": {
-          "type": "string",
-          "title": "${cachePrefix}",
+        "oneKey": {
+          "type": "boolean",
+          "title": "${oneKey}",
           "x-decorator": "FormItem",
-          "x-component": "Input",
-          "index": 2,
-          "required": true
-
-        },
-        "cacheKeys": {
-          "type": "string",
-          "title": "${cacheKey}",
-          "x-decorator": "FormItem",
-          "x-component": "FieldSelect",
-          "x-component-props": {
-            "allowCreate": true,
-            "multiple": true,
-            "filterable": true
-          },
-          "x-reactions": ["{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+          "x-component": "Switch",
+          "x-index": 2,
+          "default": false,
+          "x-reactions": [
             {
               "dependencies": [".valueType"],
               "fulfill": {
                 "state": {
-                  "visible": "{{$deps[0] === 'json'}}"
+                  "visible": "{{$deps[0] !== 'String'}}"
                 }
               }
             }
-          ],
-          "index": 3,
+          ]
+        },
+        "keyTableName": {
+          "type": "string",
+          "title": "${keyTableName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 3,
+          "x-reactions": [
+            {
+              "dependencies": [".oneKey"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{$deps[0]}}"
+                }
+              }
+            }
+          ]
+        },
+        "listHead": {
+          "type": "boolean",
+          "title": "${listHead}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-index": 4,
+          "default": false,
+          "x-reactions": [
+            {
+              "dependencies": [".valueType",".oneKey"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{$deps[0] === 'List' && $deps[1]}}"
+                }
+              }
+            }
+          ]
+        },
+        "keyExpression": {
+          "type": "string",
+          "title": "${keyExpression}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 5
+        },
+        "valueData": {
+          "type": "string",
+          "title": "${valueData}",
+          "default": "Json",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 6,
+          "enum": [
+            {
+              "label": "Text",
+              "value": "Text"
+            },
+            {
+              "label": "Json",
+              "value": "Json"
+            }
+          ]
+        },
+        "valueJoinString": {
+          "type": "string",
+          "title": "${valueJoinString}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 7,
+          "default": ",",
+          "required": true,
+          "x-reactions": [
+            {
+              "dependencies": [".valueData"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{$deps[0] === 'Text'}}"
+                }
+              }
+            }
+          ]
+        },
+        "valueTransferredString": {
+          "type": "string",
+          "title": "${valueTransferredString}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 8,
+          "default": "\"",
+          "required": true,
+          "x-reactions": [
+            {
+              "dependencies": [".valueData"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{$deps[0] === 'Text'}}"
+                }
+              }
+            }
+          ]
+        },
+        "expireTime": {
+          "type": "string",
+          "title": "${expireTime}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "x-index": 9,
+          "default": 0,
           "required": true
-
+        },
+        "resetExpire": {
+          "type": "boolean",
+          "title": "${resetExpire}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-index": 10,
+          "default": false,
+          "x-reactions": [
+            {
+              "dependencies": [".expireTime"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{$deps[0] !== 0}}"
+                }
+              }
+            }
+          ]
         }
       }
     }
@@ -234,13 +336,20 @@
       "sentinelName": "Sentinel name",
       "standalone": "Single machine deployment",
       "sentinel": "Sentinel deployment",
-      "valueType": "storage format",
       "sentinelAddress" : "Server address",
       "Address" : "Please enter the server address",
-      "sentinelPort": "server port",
-      "cacheKey": "cache key",
-      "cachePrefix": "cache key",
-      "prompt": "add"
+      "sentinelPort": "Server port",
+      "valueType": "Storage format",
+      "oneKey": "Save in one key",
+      "keyTableName": "One key name",
+      "listHead": "Include head",
+      "keyExpression": "Key expression",
+      "valueData": "Value display",
+      "valueJoinString": "Value join string",
+      "valueTransferredString": "Value transferred string",
+      "expireTime": "Expire time(second)",
+      "resetExpire": "Reset expire time when updated",
+      "prompt": "Add"
     },
     "zh_CN": {
       "doc": "docs/redis_zh_CN.md",
@@ -253,12 +362,19 @@
       "sentinelName": "哨兵名称",
       "standalone": "单机部署",
       "sentinel": "哨兵部署",
-      "valueType": "存储格式",
       "sentinelAddress" : "服务器地址",
       "Address" : "服务器地址",
       "sentinelPort": "端口",
-      "cacheKey": "缓存键",
-      "cachePrefix": "缓存key",
+      "valueType": "存储格式",
+      "oneKey": "单键存储",
+      "keyTableName": "键名",
+      "listHead": "包含表头",
+      "keyExpression": "键表达式",
+      "valueData": "值显示",
+      "valueJoinString": "值连接符",
+      "valueTransferredString": "转义字符",
+      "expireTime": "有效时间（秒）",
+      "resetExpire": "更新时重置有效时间",
       "prompt": "添加"
     },
     "zh_TW": {
@@ -272,12 +388,19 @@
       "sentinelName": "哨兵名稱",
       "standalone": "單機部署",
       "sentinel": "哨兵部署",
-      "valueType": "存儲格式",
       "sentinelAddress" : "服務器地址",
       "Address" : "服務器地址",
       "sentinelPort": "服務器端口",
-      "cacheKey": "緩存鍵",
-      "cachePrefix": "緩存key",
+      "valueType": "存储格式",
+      "oneKey": "單鍵存储",
+      "keyTableName": "鍵名",
+      "listHead": "包含表頭",
+      "keyExpression": "鍵運算式",
+      "valueData": "值顯示",
+      "valueJoinString": "值連接符",
+      "valueTransferredString": "轉義字元",
+      "expireTime": "有效時間（秒）",
+      "resetExpire": "更新時重置有效時間",
       "prompt": "添加"
     }
   },

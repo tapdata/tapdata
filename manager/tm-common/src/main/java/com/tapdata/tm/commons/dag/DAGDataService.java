@@ -96,5 +96,4 @@ public interface DAGDataService {
 
     TaskDto getTaskById(String taskId);
     ObjectId getTaskId();
-
 }

@@ -956,6 +956,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     if (metadataInstancesDto != null) {
                         metadataInstancesDto.setFields(value.getFields());
                         metadataInstancesDto.setIndexes(value.getIndexes());
+                        metadataInstancesDto.setIndices(value.getIndices());
                         metadataInstancesDto.setDeleted(false);
                         metadataInstancesDto.setCreateSource(value.getCreateSource());
                         metadataInstancesDto.setVersion(value.getVersion());
@@ -1332,6 +1333,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Criteria criteria = Criteria
                 .where("is_deleted").ne(true)
                 .and("nodeId").is(nodeId);
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
+    public List<MetadataInstancesDto> findByTaskId(String taskId, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("taskId").is(taskId);
 
         return findAllDto(Query.query(criteria), userDetail);
     }

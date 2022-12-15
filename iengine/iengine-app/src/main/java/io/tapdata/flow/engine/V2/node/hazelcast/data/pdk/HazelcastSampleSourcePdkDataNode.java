@@ -8,6 +8,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -67,6 +68,8 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 			if (node instanceof DatabaseNode) {
 				rows = ((DatabaseNode) node).getRows() == null ? 1 : ((DatabaseNode) node).getRows();
 				tables = ((DatabaseNode) node).getTableNames();
+			} else if (node instanceof TableNode) {
+				rows = ((TableNode) node).getRows() == null ? 1 : ((TableNode) node).getRows();
 			}
 
 			// 测试任务
@@ -119,7 +122,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				List<TapEvent> cloneList = new ArrayList<>();
 				int count = 0;
 				for (TapEvent tapEvent : tapEventList) {
-					if (count > rows) {
+					if (count >= rows) {
 						break;
 					}
 					cloneList.add((TapEvent) tapEvent.clone());

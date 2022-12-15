@@ -17,6 +17,8 @@ public class ProcessContextEvent implements Serializable {
 
 	private String syncType;
 
+	private String type;
+
 	private long ts;
 
 	private Map<String, Object> updateFields;
@@ -86,5 +88,13 @@ public class ProcessContextEvent implements Serializable {
 
 	public void setBefore(Map<String, Object> before) {
 		this.before = before;
+	}
+
+	public String getType() {
+		return type;
+	}
+
+	public void setType(String type) {
+		this.type = type;
 	}
 }
