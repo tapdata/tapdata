@@ -29,8 +29,6 @@ if [[ "x"$CASE_CONFIG != "x" ]]; then
     echo $CASE_CONFIG|base64 -d > config.yaml
 fi
 
-cat config.yaml
-
 start_result="成功"
 
 server=`head -3 config.yaml |grep server|awk -F '"' '{print $2}'`
@@ -72,7 +70,6 @@ for i in `cat config.yaml|grep connector|awk -F ":" '{print $2}'|awk -F '"' '{pr
 done
 bench=123
 connectors=$connectors"]"
-echo $connectors
 echo "std::out >> 用例: 创建数据源, 并加载模型, 数据源类型包括: $connectors, 此次集成测试增量数据量为: $bench" >> cases/cases_result
 
 cd cases
@@ -119,8 +116,6 @@ IFS=$OIFS
 
 jobs_number=`wc -l cases/jobs_number|awk '{print $1}'`
 pass_jobs_number=`wc -l cases/pass_jobs_number|awk '{print $1}'`
-echo "jobs number is: $jobs_number"
-echo "pass jobs number is: $pass_jobs_number"
 
 plugin_kit_ut=`cat /tmp/xxx/plugin-kit.ut|grep "Tests run"|grep -v "\-\-"|grep -v "Tests run: 0"`
 file_storages_ut=`cat /tmp/xxx/file-storages.ut|grep "Tests run"|grep -v "\-\-"|grep -v "Tests run: 0"`
@@ -129,22 +124,13 @@ connectors_ut=`cat /tmp/xxx/connectors.ut|grep "Tests run"|grep -v "\-\-"|grep -
 iengine_ut=`cat /tmp/xxx/iengine.ut|grep "Tests run"|grep -v "\-\-"|grep -v "Tests run: 0"`
 manager_ut=`cat /tmp/xxx/manager.ut|grep "Tests run"|grep -v "\-\-"|grep -v "Tests run: 0"`
 
-echo $case_results
-
-echo $manager_ut
-
-echo $iengine_ut
-
 ut_sum=`cat /tmp/xxx/*|grep "Tests run"|grep -v "Time elapsed"|awk -F "Tests run:" '{print $2}'|awk -F "," '{print $1}'|awk '{s+=$1} END {print s}'`
 ut_failure=`cat /tmp/xxx/*|grep "Tests run"|grep -v "Time elapsed"|awk -F "Failures:" '{print $2}'|awk -F "," '{print $1}'|awk '{s+=$1} END {print s}'`
 ut_error=`cat /tmp/xxx/*|grep "Tests run"|grep -v "Time elapsed"|awk -F "Errors:" '{print $2}'|awk -F "," '{print $1}'|awk '{s+=$1} END {print s}'`
 ut_skip=`cat /tmp/xxx/*|grep "Tests run"|grep -v "Time elapsed"|awk -F "Skipped:" '{print $2}'|awk -F "," '{print $1}'|awk '{s+=$1} END {print s}'`
 ut_pass=`echo $ut_sum-$ut_failure-$ut_error-$ut_skip|bc`
 
-echo "ut sum number is: $ut_sum, pass number is: $ut_pass"
-
 not_success_its=`cat /tmp/xxx/*|grep --color=never "Time elapsed"|grep --color=never -v "Failures: 0, Errors: 0, Skipped: 0"`
-echo $not_success_its
 IFS=$'\n'
 uts=""
 for i in $not_success_its; do
@@ -160,10 +146,6 @@ pip3 install argparse GitPython psutil
 
 env
 
-echo $uts
-
 message='{"ut_cost_time":'$ut_cost_time',"it_cost_time":'$it_cost_time',"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"'$start_result'","its":['$case_results']}'
 
-echo $message
-
-python3 ../build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --token ${GITHUB_TOKEN} --job_id ${GITHUB_RUN_ID} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id gf9b5g97 --message_type night_build_notice --message "$message"
+python3 ../build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --token ${GITHUB_TOKEN} --job_id ${GITHUB_RUN_ID} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id ${FEISHU_CHAT_ID} --message_type night_build_notice --message "$message"
