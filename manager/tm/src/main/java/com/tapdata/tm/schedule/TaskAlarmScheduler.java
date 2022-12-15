@@ -31,7 +31,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.ThrowableUtils;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;

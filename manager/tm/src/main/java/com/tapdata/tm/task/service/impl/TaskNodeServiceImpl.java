@@ -2,14 +2,14 @@ package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Maps;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
@@ -20,6 +20,7 @@ import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
@@ -30,6 +31,7 @@ import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.task.service.TaskNodeService;
 import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
@@ -40,7 +42,6 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
-import io.netty.util.concurrent.CompleteFuture;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
@@ -57,11 +58,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import com.tapdata.tm.task.service.TaskNodeService;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -83,6 +80,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private DataSourceDefinitionService dataSourceDefinitionService;
     private TaskRecordService taskRecordService;
     private MonitoringLogsService monitoringLogService;
+    private DAGDataService dagDataService;
 
     @SneakyThrows
     @Override
@@ -419,6 +417,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         return result;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void testRunJsNode(TestRunDto dto, UserDetail userDetail) {
         String taskId = dto.getTaskId();
@@ -430,13 +429,18 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
+        String testTaskId = taskDto.getTestTaskId();
+        monitoringLogService.deleteLogs(testTaskId);
+
         DAG dtoDag = taskDto.getDag();
 
         TaskDto taskDtoCopy = new TaskDto();
         BeanUtils.copyProperties(taskDto, taskDtoCopy);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
+
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));
             first.setRows(rows);
@@ -470,6 +474,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             taskDtoCopy.setDag(temp);
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             final List<String> predIds = new ArrayList<>();
+
             getPrePre(dtoDag.getNode(nodeId), predIds);
             predIds.add(nodeId);
             Dag dag = dtoDag.toDag();
@@ -481,6 +486,11 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             target.setName(target.getId());
             if (CollectionUtils.isNotEmpty(nodes)) {
                 nodes = nodes.stream()
+                        .peek(n -> {
+                            if (n instanceof JsProcessorNode) {
+                                ((JsProcessorNode)n).setScript(script);
+                            }
+                        })
                         .filter(n -> predIds.contains(n.getId()))
                         .peek(n -> {
                             if (n instanceof TableNode) ((TableNode) n).setRows(rows);
@@ -504,14 +514,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             taskDtoCopy.setDag(build);
         }
 
-        String testTaskId = taskDto.getTestTaskId();
-        if (StringUtils.isEmpty(testTaskId)) {
-            testTaskId = new ObjectId().toHexString();
-            String finalTestTaskId = testTaskId;
-            CompletableFuture.runAsync(() -> taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), Update.update("testTaskId", finalTestTaskId)));
-        }
-
-        taskDtoCopy.setName(taskDto.getName() + "(100)");
+        taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
 
@@ -525,9 +528,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         queueDto.setData(taskDtoCopy);
         queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
         messageQueueService.sendMessage(queueDto);
-
-        String finalTestTaskId = testTaskId;
-        CompletableFuture.runAsync(() -> monitoringLogService.deleteLogs(finalTestTaskId));
     }
 
     private void getPrePre(Node node, List<String> preIds) {
@@ -543,7 +543,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     @Override
     public void saveResult(JsResultDto jsResultDto) {
         if (Objects.nonNull(jsResultDto)) {
-            StringJoiner joiner = new StringJoiner(":", jsResultDto.getTaskId(), jsResultDto.getVersion().toString());
+            StringJoiner joiner = new StringJoiner(":");
+            joiner.add(jsResultDto.getTaskId());
+            joiner.add(jsResultDto.getVersion().toString());
             CacheUtils.put(joiner.toString(),  jsResultDto);
         }
     }
@@ -555,7 +557,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId), "testTaskId");
 
-        StringJoiner joiner = new StringJoiner(":", taskDto.getTestTaskId(), version.toString());
+        StringJoiner joiner = new StringJoiner(":");
+        joiner.add(taskDto.getTestTaskId());
+        joiner.add(version.toString());
         if (CacheUtils.isExist(joiner.toString())) {
             result.setOver(true);
             JsResultDto dto = new JsResultDto();
@@ -567,7 +571,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }, () -> {
                 log.error("getRun JsResultVo error:{}", dto.getMessage());
                 res.setCode("SystemError");
-                res.setMessage("SystemError");
+                res.setMessage(dto.getMessage());
             });
         } else {
             result.setOver(false);
@@ -636,7 +640,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         //Map<String, List<TypeMappingsEntity>> typeMapping = typeMappingsService.getTypeMapping(databaseType, TypeMappingDirection.TO_DATATYPE);
 
         schema.setInvalidFields(new ArrayList<>());
-        String finalDbVersion = dbVersion;
         Map<String, Field> fields = schema.getFields().stream().collect(Collectors.toMap(Field::getFieldName, f -> f, (f1, f2) -> f1));
 
 
@@ -658,9 +661,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             if (updateFieldMap.size() != 0) {
                 PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(expression));
 
-                updateFieldMap.forEach((k, v) -> {
-                    tapTable.getNameFieldMap().replace(k, v);
-                });
+                updateFieldMap.forEach((k, v) -> tapTable.getNameFieldMap().replace(k, v));
             }
         }
 
