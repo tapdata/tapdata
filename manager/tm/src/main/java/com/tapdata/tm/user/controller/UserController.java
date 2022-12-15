@@ -18,20 +18,12 @@ import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.roleMapping.dto.PrincipleType;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
-import com.tapdata.tm.user.dto.ChangePasswordRequest;
-import com.tapdata.tm.user.dto.CreateUserRequest;
-import com.tapdata.tm.user.dto.DeletePermissionRoleMappingDto;
-import com.tapdata.tm.user.dto.GenerateAccessTokenDto;
-import com.tapdata.tm.user.dto.LoginRequest;
-import com.tapdata.tm.user.dto.UserDto;
+import com.tapdata.tm.user.dto.*;
 import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.param.ResetPasswordParam;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
-
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
-
 import com.tapdata.tm.utils.RC4Util;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -39,19 +31,6 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import javax.servlet.http.HttpServletRequest;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -62,9 +41,17 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.MediaType;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.util.*;
+import java.util.stream.Collectors;
+
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -411,6 +398,27 @@ public class UserController extends BaseController {
         roleMappingService.deleteAll(Query.query(Criteria.where("roleId").is(toObjectId(id)).and("principalType").is("PERMISSION")));
         if (CollectionUtils.isNotEmpty(dto.getData())) {
             roleMappingService.save(dto.getData(), userDetail);
+        }
+        return success();
+
+    }
+
+    @Operation(summary = "user updatePermissionRoleMapping")
+    @PutMapping("/updatePermissionRoleMapping")
+    public ResponseMessage<Page<RoleDto>> updatePermissionRoleMapping(@RequestBody UpdatePermissionRoleMappingDto dto) {
+
+        UserDetail userDetail = getLoginUser();
+        if (CollectionUtils.isNotEmpty(dto.getDeletes())) {
+            List<RoleMappingDto> deletes = dto.getDeletes();
+            List<Criteria> deleteCriteria = new ArrayList<>();
+            for (RoleMappingDto delete : deletes) {
+                Criteria criteria = Criteria.where("roleId").is(delete.getRoleId()).and("principalId").is(delete.getPrincipalId()).and("principalType").is("PERMISSION");
+                deleteCriteria.add(criteria);
+            }
+            roleMappingService.deleteAll(Query.query(new Criteria().orOperator(deleteCriteria)));
+        }
+        if (CollectionUtils.isNotEmpty(dto.getAdds())) {
+            roleMappingService.save(dto.getAdds(), userDetail);
         }
         return success();
 
