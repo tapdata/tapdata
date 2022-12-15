@@ -25,6 +25,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -159,10 +160,10 @@ public class TaskRestartSchedule {
     }
 
     public void stoppingTask() {
-        long heartExpire = getHeartExpire();
+        long heartExpire = 30000L;
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_STOPPING)
-                .and("scheduledTime").lt(new Date(System.currentTimeMillis() - heartExpire));
+                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -174,13 +175,20 @@ public class TaskRestartSchedule {
 
 
         all.forEach(taskDto -> {
-            stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
+            int stopRetryTimes = taskDto.getStopRetryTimes();
+            if (stopRetryTimes > 8) {
+                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
+            } else {
+                taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(),  userMap.get(taskDto.getUserId()), false);
+                Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
+                taskService.updateById(taskDto.getId(), update, userMap.get(taskDto.getUserId()));
+            }
         });
     }
 
 
     public void schedulingTask() {
-        long heartExpire = getHeartExpire();
+        long heartExpire = 30000L;
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
                 .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
@@ -215,7 +223,7 @@ public class TaskRestartSchedule {
 
 
     public void waitRunTask() {
-        long heartExpire = getHeartExpire();
+        long heartExpire = 30000L;
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN)
                 .and("scheduledTime").lt(new Date(System.currentTimeMillis() - heartExpire));

@@ -139,6 +139,8 @@ public class TaskDto extends ParentTaskDto {
      */
     private String transformTaskId;
 
+    private int stopRetryTimes;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());
