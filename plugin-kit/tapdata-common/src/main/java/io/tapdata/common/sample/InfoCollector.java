@@ -66,7 +66,7 @@ public class InfoCollector {
                     result.put(entry.getKey(), entry.getValue().value());
                     long takes = System.currentTimeMillis() - time;
                     if(takes > 10) {
-                        logger.warn("Info {} execute more than 10 milliseconds, {}", entry.getValue().getClass().getSimpleName(), takes);
+                        logger.debug("Info {} execute more than 10 milliseconds, {}", entry.getValue().getClass().getSimpleName(), takes);
                     }
                 } catch(Throwable throwable) {
                     throwable.printStackTrace();
