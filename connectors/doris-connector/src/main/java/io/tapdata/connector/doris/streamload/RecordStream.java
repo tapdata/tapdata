@@ -47,4 +47,12 @@ public class RecordStream extends InputStream {
             throw new RuntimeException(e);
         }
     }
+
+    public void init() {
+        recordBuffer.init();
+    }
+
+    public boolean canWrite(int length) {
+        return recordBuffer.currentBufferRemaining() > length;
+    }
 }

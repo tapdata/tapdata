@@ -232,8 +232,20 @@ public class DorisSchemaLoader {
     }
 
     public void createTable(final TapTable tapTable) {
+        String database = dorisContext.getDorisConfig().getDatabase();
         final String tableName = tapTable.getName();
-        Collection<String> primaryKeys = tapTable.primaryKeys();
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+        Connection connection = dorisContext.getConnection();
+        try (
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = queryOneTable(statement, database, tableName)
+        ) {
+            if (resultSet.next()) {
+                return;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Check table exists failed | Error: " + e.getMessage(), e);
+        }
         String sql;
         if (CollectionUtils.isEmpty(primaryKeys)) {
             String firstColumn = tapTable.getNameFieldMap().values().stream().findFirst().orElseGet(TapField::new).getName();
@@ -251,10 +263,10 @@ public class DorisSchemaLoader {
         }
 
         try {
+            TapLogger.info(TAG, "Create table: " + tableName + " | Sql: " + sql);
             dorisContext.execute(sql);
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Create Table " + tableName + " Failed! " + e.getMessage());
+            throw new RuntimeException("Create Table " + tableName + " Failed | Error: " + e.getMessage() + " | Sql: " + sql, e);
         }
     }
 
@@ -263,12 +275,11 @@ public class DorisSchemaLoader {
         try (Statement statement = connection.createStatement();
              ResultSet table = queryOneTable(statement, dataName, tableName)){
             if (table.next()) {
-                String sql = "DROP TABLE " + tableName;
+                String sql = String.format("DROP TABLE `%s`.`%s`", dataName, tableName);
                 dorisContext.execute(sql);
             }
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Drop Table " + tableName + " Failed! \n ");
+            throw new RuntimeException(String.format("Drop Table " + tableName + " Failed | Error: %s", e.getMessage()), e);
         }
     }
 
@@ -277,12 +288,11 @@ public class DorisSchemaLoader {
         try (Statement statement = connection.createStatement();
              ResultSet table = queryOneTable(statement, dataName, tableName)){
             if (table.next()) {
-                String sql = "TRUNCATE TABLE " + tableName;
+                String sql = String.format("TRUNCATE TABLE `%s`.`%s`", dataName, tableName);
                 dorisContext.execute(sql);
             }
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("TRUNCATE TABLE " + tableName + " Failed! \n ");
+            throw new RuntimeException("TRUNCATE TABLE " + tableName + String.format(" Failed | Error: %s", e.getMessage()), e);
         }
     }
 

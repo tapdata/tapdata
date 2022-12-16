@@ -332,12 +332,13 @@
     "char[($byte)]": {
       "byte": 255,
       "to": "TapString",
-      "defaultByte": 1
+      "defaultByte": 1,
+      "fixed": true
     },
     "varchar[($byte)]": {
-      "byte": "65535",
+      "byte": "65533",
       "to": "TapString",
-      "bitRatio": 3
+      "defaultByte": 1
     },
     "string": {
       "byte": "2147483643",
