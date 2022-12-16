@@ -15,6 +15,8 @@ import com.tapdata.tm.utils.MessageUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.AntPathMatcher;
+import org.springframework.util.PathMatcher;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -37,25 +39,46 @@ public class BaseController {
 	@Autowired
 	private AccessTokenService accessTokenService;
 
+	private static final PathMatcher pathMatcher = new AntPathMatcher();
+
 	public static void main(String[] args) {
 		System.out.println(ReUtil.isMatch("get|post|put", "get1"));
 		System.out.println(ReUtil.isMatch("get|post|put", "get"));
 		System.out.println(ReUtil.isMatch("/api/MetadataInstances", "/api/MetadataInstances"));
+
+		AntPathMatcher antPathMatcher = new AntPathMatcher();
+		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstances/node/schemaPage"));
+		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstances"));
+		System.out.println(antPathMatcher.match("/api/MetadataInstances/**".toLowerCase(), "/api/metadatainstances".toLowerCase()));
+		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstances?id=1"));
+		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstance1"));
 	}
 
-	private static final Set<String> authWhiteList = new HashSet<String>() {{
-		add(getRequestUrlAndMethod("/api/MetadataInstances", "get"));
-		add(getRequestUrlAndMethod("/api/MetadataInstances/node", "get"));
-		add(getRequestUrlAndMethod("/api/MetadataInstances/node/schema", "get"));
-		add(getRequestUrlAndMethod("/api/MetadataInstances/node/schemaPage", "get"));
+	private static final Map<String, Set<String>> authWhiteListMap = new HashMap<String, Set<String>>() {{
+
+		put("GET", new HashSet<String>() {{
+//			add("/api/MetadataInstances/**");
+			add("/api/MetadataDefinition/**");
+			add("/api/Javascript_functions/**");
+			add("/api/customNode/**");
+			add("/api/clusterStates/**");
+			add("/api/Workers/**");
+//			add("/api/discovery/**");
+//			add("/api/shareCache/**");
+		}});
 	}};
 
-	private static String getRequestUrlAndMethod(String uri, String method) {
-		return uri.trim().toLowerCase() + "|" + method.trim().toLowerCase();
-	}
-
 	private static boolean isFreeAuth(String uri, String method) {
-		return authWhiteList.contains(getRequestUrlAndMethod(uri, method));
+		Set<String> uriSet = authWhiteListMap.get(method.trim().toUpperCase());
+		if (uriSet == null) {
+			return false;
+		}
+		for (String pattern : uriSet) {
+			if (pathMatcher.match(pattern, uri)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static void judgeFreeAuth(String uri, String method, UserDetail userDetail) {

@@ -98,6 +98,14 @@ public class UserDetail implements Serializable, UserDetails {
 		authenticationThreadLocal.set(true);
 	}
 
+	public void setAuth() {
+		authenticationThreadLocal.set(false);
+	}
+
+	public void setFreeAuth(boolean auth) {
+		authenticationThreadLocal.set(auth);
+	}
+
 	public boolean isFreeAuth() {
 		return authenticationThreadLocal.get();
 	}
