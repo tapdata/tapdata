@@ -1237,7 +1237,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				String connectionId = oldConnectionDto.getId().toHexString();
 				oldConnectionDto.setBuildModelId(connectionId);
 
-				MetadataInstancesDto databaseModel = MetaDataBuilderUtils.build("database", oldConnectionDto, user.getUserId(), user.getUsername());
+				MetadataInstancesDto databaseModel = MetaDataBuilderUtils.build("database", oldConnectionDto, oldConnectionDto.getUserId(), oldConnectionDto.getCreateUser());
 
 				Criteria criteria1 = Criteria.where("qualified_name").is(databaseModel.getQualifiedName());
 				MetadataInstancesDto oldMeta = metadataInstancesService.findOne(new Query(criteria1), user);

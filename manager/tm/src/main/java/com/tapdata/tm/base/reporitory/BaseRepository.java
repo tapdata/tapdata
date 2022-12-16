@@ -4,7 +4,6 @@ import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
-import com.google.common.collect.Maps;
 import com.mongodb.client.ListIndexesIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.IndexOptions;
@@ -170,7 +169,7 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
 //			query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
 //		}
 
-        if (!userDetail.isRoot()) {
+        if (!userDetail.isRoot() && !userDetail.isFreeAuth()) {
             if (!queryObject.containsKey("user_id")) {
                 query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
             }
@@ -194,7 +193,7 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
             where.and("customerId").is(userDetail.getCustomerId());
         }
 
-        if (!userDetail.isRoot()) {
+        if ((!userDetail.isRoot()) && !userDetail.isFreeAuth()) {
             if (!queryCriteria.containsKey("createBy")) {
                 where.and("createBy").is(userDetail.getUserId());
             }

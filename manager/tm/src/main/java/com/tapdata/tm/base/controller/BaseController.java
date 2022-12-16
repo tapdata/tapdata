@@ -1,13 +1,14 @@
 package com.tapdata.tm.base.controller;
 
+import cn.hutool.core.util.ReUtil;
+import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.dto.Field;
-import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MessageUtil;
@@ -35,6 +36,40 @@ public class BaseController {
 	private UserService userService;
 	@Autowired
 	private AccessTokenService accessTokenService;
+
+	public static void main(String[] args) {
+		System.out.println(ReUtil.isMatch("get|post|put", "get1"));
+		System.out.println(ReUtil.isMatch("get|post|put", "get"));
+		System.out.println(ReUtil.isMatch("/api/MetadataInstances", "/api/MetadataInstances"));
+	}
+
+	private static final Set<String> authWhiteList = new HashSet<String>() {{
+		add(getRequestUrlAndMethod("/api/MetadataInstances", "get"));
+		add(getRequestUrlAndMethod("/api/MetadataInstances/node", "get"));
+		add(getRequestUrlAndMethod("/api/MetadataInstances/node/schema", "get"));
+		add(getRequestUrlAndMethod("/api/MetadataInstances/node/schemaPage", "get"));
+	}};
+
+	private static String getRequestUrlAndMethod(String uri, String method) {
+		return uri.trim().toLowerCase() + "|" + method.trim().toLowerCase();
+	}
+
+	private static boolean isFreeAuth(String uri, String method) {
+		return authWhiteList.contains(getRequestUrlAndMethod(uri, method));
+	}
+
+	private static void judgeFreeAuth(String uri, String method, UserDetail userDetail) {
+		//				Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+//				if (Objects.isNull(buildProfile)) {
+//					buildProfile = "DAAS";
+//				}
+//				boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+		if (true) {
+			if (isFreeAuth(uri, method)) {
+				userDetail.setFreeAuth();
+			}
+		}
+	}
 
 	public Filter parseFilter(String filterJson) {
 		filterJson=replaceLoopBack(filterJson);
@@ -92,6 +127,7 @@ public class BaseController {
 			log.info("Load user by request header user_id({})", userIdFromHeader);
 			UserDetail userDetail = userService.loadUserByExternalId(userIdFromHeader);
 			if (userDetail != null) {
+				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
 			throw new BizException("NotLogin");
@@ -114,6 +150,7 @@ public class BaseController {
 			}
 			UserDetail userDetail = userService.loadUserById(userId);
 			if (userDetail != null) {
+				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
 			throw new BizException("NotLogin");
@@ -139,6 +176,7 @@ public class BaseController {
 				}
 			}
 			if (userDetail != null) {
+				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
 			throw new BizException("NotLogin");
