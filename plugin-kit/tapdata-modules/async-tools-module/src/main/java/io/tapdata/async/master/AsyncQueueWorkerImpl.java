@@ -95,9 +95,19 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	public AsyncQueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer) {
 		return externalJob(id, jobContextConsumer, false);
 	}
+
 	@Override
 	public AsyncQueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
-		asyncJobChain.externalJob(id, jobContextConsumer, pending);
+		return externalJob(id, null, jobContextConsumer, pending);
+	}
+	@Override
+	public AsyncQueueWorker externalJob(String id, AsyncJob asyncJob, Function<JobContext, JobContext> jobContextConsumer) {
+		return externalJob(id, asyncJob, jobContextConsumer, false);
+	}
+
+	@Override
+	public AsyncQueueWorker externalJob(String id, AsyncJob asyncJob, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
+		asyncJobChain.externalJob(id, asyncJob, jobContextConsumer, pending);
 		if (!pending && state.get() > STATE_NONE && state.get() < STATE_STOPPED)
 			startPrivate();
 		return this;
@@ -144,22 +154,25 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	}
 
 	@Override
-	public void setAsyncJobErrorListener(AsyncJobErrorListener listener) {
+	public AsyncQueueWorker setAsyncJobErrorListener(AsyncJobErrorListener listener) {
 		asyncJobErrorListener = listener;
+		return this;
 	}
 
 	@Override
-	public void setQueueWorkerStateListener(QueueWorkerStateListener listener) {
+	public AsyncQueueWorker setQueueWorkerStateListener(QueueWorkerStateListener listener) {
 		queueWorkerStateListener = listener;
+		return this;
 	}
 
 	@Override
-	public void start(JobContext jobContext) {
+	public AsyncQueueWorker start(JobContext jobContext) {
 		start(jobContext, false);
+		return this;
 	}
 
 	@Override
-	public void start(JobContext jobContext, boolean startOnCurrentThread) {
+	public AsyncQueueWorker start(JobContext jobContext, boolean startOnCurrentThread) {
 		if(changeState(STATE_NONE, STATE_IDLE, null, false)) {
 			this.startOnCurrentThread = startOnCurrentThread;
 			initialJobContext = jobContext;
@@ -167,10 +180,11 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 		} else {
 			TapLogger.warn(TAG, "AsyncQueueWorker {} started already, can not start again, state {}", id, state.get());
 		}
+		return this;
 	}
 
 	@Override
-	public void start(JobContext jobContext, long delayMilliSeconds, long periodMilliSeconds) {
+	public AsyncQueueWorker start(JobContext jobContext, long delayMilliSeconds, long periodMilliSeconds) {
 		if(delayMilliSeconds < 0 || periodMilliSeconds < 50)
 			throw new CoreException(AsyncErrors.ILLEGAL_ARGUMENTS, "Illegal arguments for delayMilliSeconds {} periodMilliSeconds {} to start AsyncQueueWorker {}", delayMilliSeconds, periodMilliSeconds, id);
 		if(changeState(STATE_NONE, STATE_IDLE, null, false)) {
@@ -181,10 +195,11 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 		} else {
 			TapLogger.warn(TAG, "AsyncQueueWorker {} started already, can not start again, state {}", id, state.get());
 		}
+		return this;
 	}
 
 	@Override
-	public void stop() {
+	public AsyncQueueWorker stop() {
 		if(state.get() != STATE_STOPPED) {
 			changeState(state.get(), STATE_STOPPED, Collections.EMPTY_LIST, false);
 			cancelAll("Stopped");
@@ -194,6 +209,7 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 			}
 			threadPoolExecutor.shutdownNow();
 		}
+		return this;
 	}
 
 	private void startPrivate() {

@@ -9,6 +9,11 @@ public interface ObjectSerializable {
     Object toObject(byte[] data, ToObjectOptions options);
 
     class FromObjectOptions {
+        private boolean useActualMapAndList = false;
+        public FromObjectOptions useActualMapAndList(boolean useActualMapAndList) {
+            this.useActualMapAndList = useActualMapAndList;
+            return this;
+        }
         private boolean toJavaPlatform = true;
         public FromObjectOptions toJavaPlatform(boolean toJavaPlatform) {
             this.toJavaPlatform = toJavaPlatform;
@@ -21,6 +26,14 @@ public interface ObjectSerializable {
 
         public void setToJavaPlatform(boolean toJavaPlatform) {
             this.toJavaPlatform = toJavaPlatform;
+        }
+
+        public boolean isUseActualMapAndList() {
+            return useActualMapAndList;
+        }
+
+        public void setUseActualMapAndList(boolean useActualMapAndList) {
+            this.useActualMapAndList = useActualMapAndList;
         }
     }
 

@@ -865,4 +865,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		JobStatus jetJobStatus = getJetJobStatus();
 		return null == jetJobStatus || jetJobStatus.equals(JobStatus.RUNNING);
 	}
+
+	public ObsLogger getObsLogger() {
+		return obsLogger;
+	}
 }

@@ -34,6 +34,7 @@ import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionsFunction;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
@@ -582,10 +583,11 @@ public class MongodbConnector extends ConnectorBase {
 		return query;
 	}
 
-	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, Long maxRecordInPartition, List<ReadPartition> existingPartitions, Consumer<ReadPartition> consumer) {
+	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, Long maxRecordInPartition, List<ReadPartition> existingPartitions, int splitType, Consumer<ReadPartition> consumer) {
 		calculateDatabaseReadPartitions(connectorContext, table, maxRecordInPartition, existingPartitions, consumer)
 				.countByPartitionFilter(this::countByPartitionFilter)
 				.queryFieldMinMaxValue(this::queryFieldMinMaxValue)
+				.countIsSlow(splitType != GetReadPartitionsFunction.SPLIT_TYPE_BY_COUNT)
 				.registerCustomSplitter(ObjectId.class, new ObjectIdSplitter())
 				.startSplitting();
 	}

@@ -2,7 +2,11 @@ package io.tapdata.entity.schema.value;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.error.TapAPIErrorCodes;
+import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.utils.io.DataInputStreamEx;
+import io.tapdata.entity.utils.io.DataOutputStreamEx;
 
+import java.io.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Time;
@@ -15,7 +19,7 @@ import java.util.Date;
 import java.util.Objects;
 import java.util.TimeZone;
 
-public class DateTime {
+public class DateTime implements Serializable, JavaCustomSerializer {
     public static final int ORIGIN_TYPE_NONE = 1;
     private static final int ORIGIN_TYPE_ZONED_DATE_TIME = 10;
     private static final int ORIGIN_TYPE_INSTANT = 20;
@@ -364,5 +368,34 @@ public class DateTime {
 
     public void setTimeZone(TimeZone timeZone) {
         this.timeZone = timeZone;
+    }
+
+    @Override
+    public void from(InputStream inputStream) throws IOException {
+        DataInputStreamEx dataInputStream = dataInputStream(inputStream);
+        originType = dataInputStream.original().readInt();
+        fraction = dataInputStream.original().readInt();
+        seconds = dataInputStream.readLong();
+        nano = dataInputStream.readInt();
+        int hasValue = dataInputStream.original().read();
+        if(hasValue == DataOutputStreamEx.HASVALUE) {
+            String zoneId = dataInputStream.original().readUTF();
+            timeZone = TimeZone.getTimeZone(zoneId);
+        }
+    }
+
+    @Override
+    public void to(OutputStream outputStream) throws IOException {
+        DataOutputStreamEx dataOutputStreamEx = dataOutputStream(outputStream);
+        dataOutputStreamEx.original().writeInt(originType);
+        dataOutputStreamEx.original().writeInt(fraction);
+        dataOutputStreamEx.writeLong(seconds);
+        dataOutputStreamEx.writeInt(nano);
+        if(timeZone != null) {
+            dataOutputStreamEx.original().write(DataOutputStreamEx.HASVALUE);
+            dataOutputStreamEx.original().writeUTF(timeZone.getID());
+        } else
+            dataOutputStreamEx.original().write(DataOutputStreamEx.NOVALUE);
+
     }
 }

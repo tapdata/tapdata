@@ -49,17 +49,23 @@ public class AsyncJobChainImpl implements AsyncJobChain {
 	}
 	@Override
 	public AsyncJobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
-		Class<? extends AsyncJob> jobClass = asyncJobMap.get(id);
-		if(jobClass == null)
-			throw new CoreException(AsyncErrors.MISSING_JOB_CLASS_FOR_TYPE, "Job class is missing for type {}", id);
-		AsyncJob asyncJob;
-		try {
-			asyncJob = jobClass.getConstructor().newInstance();
-		} catch (Throwable e) {
-			throw new CoreException(AsyncErrors.INITIATE_JOB_CLASS_FAILED, "Initiate job class {} failed, {}", jobClass, tapUtils.getStackTrace(e));
+		return externalJob(id, null, jobContextConsumer, pending);
+	}
+	@Override
+	public AsyncJobChain externalJob(String id, AsyncJob asyncJob, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
+		if(asyncJob == null) {
+			Class<? extends AsyncJob> jobClass = asyncJobMap.get(id);
+			if(jobClass == null)
+				throw new CoreException(AsyncErrors.MISSING_JOB_CLASS_FOR_TYPE, "Job class is missing for type {}", id);
+			try {
+				asyncJob = jobClass.getConstructor().newInstance();
+			} catch (Throwable e) {
+				throw new CoreException(AsyncErrors.INITIATE_JOB_CLASS_FAILED, "Initiate job class {} failed, {}", jobClass, tapUtils.getStackTrace(e));
+			}
 		}
+		AsyncJob finalAsyncJob = asyncJob;
 		job(id, jobContext -> {
-			JobContext context = asyncJob.run(jobContext);
+			JobContext context = finalAsyncJob.run(jobContext);
 			return jobContextConsumer.apply(context);
 		}, pending);
 		return this;

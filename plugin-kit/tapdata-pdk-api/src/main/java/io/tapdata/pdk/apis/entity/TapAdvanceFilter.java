@@ -10,6 +10,7 @@ import java.util.List;
  * or, and
  */
 public class TapAdvanceFilter extends TapFilter {
+    private Integer batchSize;
     private Integer skip;
     private Integer limit;
     private List<QueryOperator> operators;

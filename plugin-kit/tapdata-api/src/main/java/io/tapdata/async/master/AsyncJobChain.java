@@ -17,6 +17,8 @@ public interface AsyncJobChain {
 
 	AsyncJobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending);
 
+	AsyncJobChain externalJob(String id, AsyncJob asyncJob, Function<JobContext, JobContext> jobContextConsumer, boolean pending);
+
 	boolean isPending(String id);
 
 	AsyncJob remove(String id);
