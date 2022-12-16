@@ -14,6 +14,7 @@ FTP (File Transfer Protocol) can set the file server encoding.
 SFTP (Secure Encrypted File Transfer Protocol) can set the file server encoding. Linux system is enabled by default
 #### **SMB**
 SMB (File Sharing Protocol) Network file sharing protocol supported by Windows system, compatible with 1. x, 2. x, 3. x.
+- Special note: When accessing a file share, select the shared directory first, and then fill in the path. (shared directory/file path)
 #### **S3FS**
 S3FS (file system following S3 protocol)
 
