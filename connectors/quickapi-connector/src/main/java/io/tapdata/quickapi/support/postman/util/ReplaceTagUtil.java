@@ -20,8 +20,14 @@ public class ReplaceTagUtil {
     }
 
     public static void main(String[] args) {
-        String regx = ".*(JJK\\[[^\\]]+).*";
-        System.out.println("START[123]JJK[526]".matches(regx));
-        System.out.println(Pattern.compile(regx).matcher("START[123]JJK[526]").group());
+//        String regx = ".*(JJK\\[[^\\]]+).*";
+//        System.out.println("START[123]JJK[526]".matches(regx));
+//        System.out.println(Pattern.compile(regx).matcher("START[123]JJK[526]").group());
+
+        String expireStatus = "body.message=NO AUTH&&body.code=500021";
+        String[] propertiesArr = expireStatus.split("\\|\\||&&");
+        for (String s : propertiesArr) {
+            System.out.println(s);
+        }
     }
 }

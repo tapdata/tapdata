@@ -3,6 +3,7 @@ package io.tapdata.quickapi;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
@@ -10,20 +11,32 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.api.APIFactory;
 import io.tapdata.pdk.apis.api.APIResponse;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.quickapi.common.QuickApiConfig;
+import io.tapdata.quickapi.core.emun.TapApiTag;
 import io.tapdata.quickapi.server.TestQuickApi;
 import io.tapdata.quickapi.server.enums.QuickApiTestItem;
 import io.tapdata.quickapi.support.APIFactoryImpl;
+import io.tapdata.quickapi.support.postman.ExpireHandel;
 import io.tapdata.quickapi.support.postman.PostManAnalysis;
+import io.tapdata.quickapi.support.postman.PostManApiContext;
+import io.tapdata.quickapi.support.postman.entity.ApiMap;
+import io.tapdata.quickapi.support.postman.entity.params.Api;
+import io.tapdata.quickapi.support.postman.pageStage.PageStage;
+import io.tapdata.quickapi.support.postman.pageStage.TapPage;
+import io.tapdata.quickapi.support.postman.util.ApiMapUtil;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 @TapConnectorClass("spec.json")
 public class QuickApiConnector extends ConnectorBase {
@@ -33,6 +46,9 @@ public class QuickApiConnector extends ConnectorBase {
 	private QuickApiConfig config;
 	private PostManAnalysis invoker;
 	private APIFactory apiFactory;
+	private Map<String,Object> apiParam = new HashMap<>();
+
+	private AtomicBoolean task = new AtomicBoolean(true);
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -48,14 +64,27 @@ public class QuickApiConnector extends ConnectorBase {
 			if (!JSONUtil.isJson(jsonTxt)){
 				TapLogger.error(TAG,"API JSON only JSON format. ");
 			}
-			config.apiConfig(apiType)
-					.jsonTxt(jsonTxt);
-
+			config.apiConfig(apiType).jsonTxt(jsonTxt);
 			apiFactory = new APIFactoryImpl();
-			invoker = (PostManAnalysis)apiFactory.loadAPI(jsonTxt, apiType, null);
+			invoker = (PostManAnalysis)apiFactory.loadAPI(jsonTxt, apiType, apiParam);
 			invoker.setAPIResponseInterceptor((response, urlOrName, method, params)->{
-				APIResponse interceptorResponse = APIResponse.create();
-
+				if( Objects.isNull(response) ) {
+					throw new CoreException(String.format("Http request call failed, unable to get the request result: url or name [%s], method [%s].",urlOrName,method));
+				}
+				APIResponse interceptorResponse = response;
+				ExpireHandel expireHandel = ExpireHandel.create(response, config.expireStatus(),config.tokenParams());
+				if (expireHandel.builder()){
+					PostManApiContext postManApiContext = invoker.apiContext();
+					List<ApiMap.ApiEntity> apiEntities = ApiMapUtil.tokenApis(postManApiContext.apis());
+					if ( !apiEntities.isEmpty() ){
+						ApiMap.ApiEntity apiEntity = apiEntities.get(0);
+						APIResponse tokenResponse = invoker.invoke(apiEntity.name(), apiEntity.method(), params);
+						if (expireHandel.refreshComplete(tokenResponse,params)) {
+							//再调用
+							interceptorResponse = invoker.invoke(urlOrName, method, params);
+						}
+					}
+				}
 				return interceptorResponse;
 			});
 		}
@@ -63,16 +92,14 @@ public class QuickApiConnector extends ConnectorBase {
 
 	@Override
 	public void onStop(TapConnectionContext connectionContext) throws Throwable {
-		synchronized (this) {
-			this.notify();
-		}
-		TapLogger.info(TAG, "Stop connector");
+		this.task.set(false);
 	}
 
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 		if(Objects.nonNull(connectorFunctions)) {
 			connectorFunctions.supportBatchCount(this::batchCount)
+					.supportStreamRead(this::streamRead)
 					.supportBatchRead(this::batchRead)
 					.supportTimestampToStreamOffset(this::timestampToStreamOffset);
 		}else{
@@ -80,9 +107,13 @@ public class QuickApiConnector extends ConnectorBase {
 		}
 	}
 
+	private void streamRead(TapConnectorContext tapConnectorContext, List<String> strings, Object o, int i, StreamReadConsumer streamReadConsumer) {
+		TapLogger.info(TAG,"Quick Api do not support stream read. ");
+	}
+
 
 	private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long time) {
-		return null;
+		return Objects.isNull(time)?System.currentTimeMillis():time;
 	}
 
 	public void batchRead(TapConnectorContext connectorContext,
@@ -90,6 +121,40 @@ public class QuickApiConnector extends ConnectorBase {
 						  Object offset,
 						  int batchCount,
 						  BiConsumer<List<TapEvent>, Object> consumer){
+		PostManApiContext postManApiContext = invoker.apiContext();
+		List<ApiMap.ApiEntity> tables = ApiMapUtil.tableApis(postManApiContext.apis());
+		if (tables.isEmpty()) {
+			throw new CoreException("Please use TAP on the API document_ The TABLE format label specifies at least one table data add in for the data source.");
+		}
+		if (Objects.isNull(table)){
+			throw new CoreException("Table must not be null or empty.");
+		}
+		Map<String,ApiMap.ApiEntity> apiGroupByTableName = tables.stream()
+				.filter(api-> Objects.nonNull(api) && TapApiTag.isTableName(api.name())).collect(Collectors.toMap(api-> {
+					String name = api.name();
+					return TapApiTag.analysisTableName(name);
+				},api->api,(a1,a2)->a1));
+		String currentTable = table.getId();
+		ApiMap.ApiEntity api = apiGroupByTableName.get(currentTable);
+		if (Objects.isNull(api)){
+			throw new CoreException("Can not get table api by table id "+currentTable+".");
+		}
+		if (Objects.isNull(offset)){
+			offset = new Object();
+		}
+		TapPage tapPage = TapPage.create()
+				.api(api)
+				.offset(offset)
+				.batchCount(batchCount)
+				.invoker(invoker)
+				.tableName(currentTable)
+				.task(task)
+				.consumer(consumer);
+		PageStage stage = PageStage.stage(api.api().pageStage());
+		if (Objects.isNull(stage)){
+			throw new CoreException(String.format(" The paging type [%s] is unrecognized or temporarily not supported. ",api.api().pageStage()));
+		}
+		stage.page(tapPage);
 	}
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
 		return 0L;
@@ -97,7 +162,7 @@ public class QuickApiConnector extends ConnectorBase {
 
 	@Override
 	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-		List<String> schema = ((PostManAnalysis)invoker).apiContext().tapTable();
+		List<String> schema = invoker.apiContext().tapTable();
 		List<TapTable> tableList = new ArrayList<>();
 		schema.stream().filter(Objects::nonNull).forEach(name->tableList.add(table(name,name)));
 		consumer.accept( tableList );
@@ -141,6 +206,8 @@ public class QuickApiConnector extends ConnectorBase {
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-		return 0;
+		List<String> schema = invoker.apiContext().tapTable();
+		if (Objects.isNull(schema)) return 0;
+		return schema.size();
 	}
 }

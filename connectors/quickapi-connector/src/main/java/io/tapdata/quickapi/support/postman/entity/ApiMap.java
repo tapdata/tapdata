@@ -1,10 +1,10 @@
 package io.tapdata.quickapi.support.postman.entity;
 
-import io.tapdata.quickapi.support.postman.entity.params.Api;
+import cn.hutool.json.JSONUtil;
+import io.tapdata.quickapi.support.postman.entity.params.*;
+import io.tapdata.quickapi.support.postman.enums.PostParam;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Objects;
+import java.util.*;
 
 
 public class ApiMap extends HashSet<ApiMap.ApiEntity>{
@@ -43,15 +43,24 @@ public class ApiMap extends HashSet<ApiMap.ApiEntity>{
         String name;
         String method;
         Api api;
+        String apiJson;
         public static ApiEntity create(){
             return new ApiEntity();
         }
         public static ApiEntity create(String url,String name,Api api){
             return new ApiEntity(url,name,api);
         }
+        public static ApiEntity create(String url,String name,String apiJson){
+            return new ApiEntity(url,name,apiJson);
+        }
         public ApiEntity(String url,String name,Api api){
             this.url = url;
             this.api = api;
+            this.name = name;
+        }
+        public ApiEntity(String url,String name,String apiJson){
+            this.url = url;
+            this.apiJson = apiJson;
             this.name = name;
         }
         public ApiEntity(){
@@ -59,6 +68,9 @@ public class ApiMap extends HashSet<ApiMap.ApiEntity>{
         }
         public String url(){
             return this.url;
+        }
+        public String apiJson(){
+            return this.apiJson;
         }
         public String method(){
             return this.method;
@@ -71,6 +83,10 @@ public class ApiMap extends HashSet<ApiMap.ApiEntity>{
         }
         public ApiEntity url(String url){
             this.url = url;
+            return this;
+        }
+        public ApiEntity apiJson(String apiJson){
+            this.apiJson = apiJson;
             return this;
         }
         public ApiEntity name(String name){
@@ -97,6 +113,61 @@ public class ApiMap extends HashSet<ApiMap.ApiEntity>{
         @Override
         public int hashCode() {
             return Objects.hash(url, name, api);
+        }
+
+        public Api variableAssignment(Map<String, Object> params){
+            Api baseApi = null;
+            Request baseRequest = null;
+            List<Header> baseHeard = null;
+            Body baseBody = null;
+            Request request = Request.create();
+            Url url = null;
+            if (Objects.isNull(this.api)){
+                baseApi = generateApiEntity(JSONUtil.parseObj(this.apiJson));
+                //final String[] json = {this.apiJson};
+                //if (Objects.nonNull(params) && !params.isEmpty() && Objects.nonNull(json[0])){
+                //    params.forEach((key,value)-> json[0] = json[0].replaceAll(key,String.valueOf(value)));
+                //}
+                //return generateApiEntity(JSONUtil.parseObj(json[0]));
+            }else {
+                baseApi = this.api;
+            }
+            baseRequest = baseApi.request();
+            url = baseApi.request().url();
+            baseHeard = baseApi.request().header();
+            baseBody = baseApi.request().body();
+
+            //对url中接口参数和查询参数进行赋值
+            Url assignmentUrl = url.variableAssignment(params);
+
+
+            List<Header> headers = new ArrayList<>();
+            if (Objects.nonNull(baseHeard) && !baseHeard.isEmpty()){
+                baseHeard.stream().filter(Objects::nonNull).forEach(heard-> headers.add(heard.variableAssignment(params)));
+            }
+
+            Body body = baseBody.variableAssignment(params);
+            request.url(assignmentUrl)
+                    .description(baseRequest.description())
+                    .method(baseRequest.method())
+                    .header(headers)
+                    .body(body);
+            return Api.create().request(request).id(baseApi.id()).nameFullDetail(baseApi.name());
+        }
+
+        public Api generateApiEntity(){
+            return generateApiEntity(JSONUtil.parseObj(this.apiJson));
+        }
+        public static Api generateApiEntity(Map<String,Object> apiMap){
+            try {
+                String id = (String) apiMap.get(PostParam.ID);
+                String name = (String) apiMap.get(PostParam.NAME);;
+                io.tapdata.quickapi.support.postman.entity.params.Request request = io.tapdata.quickapi.support.postman.entity.params.Request.create((Map<String, Object>) apiMap.get(PostParam.REQUEST));
+                String response = JSONUtil.toJsonStr(apiMap.get(PostParam.RESPONSE));
+                return Api.create().id(id).nameFullDetail(name).request(request).response(response);
+            }catch (Exception e){
+                return Api.create();
+            }
         }
     }
 }

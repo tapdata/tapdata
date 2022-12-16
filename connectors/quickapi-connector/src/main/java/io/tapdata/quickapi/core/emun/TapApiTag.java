@@ -5,27 +5,41 @@ import java.util.List;
 import java.util.Objects;
 
 public enum TapApiTag {
-    TAP_TABLE("TAP_TABLE",".*(TAP_TABLE\\[[^\\]]+).*",""),
-    TAP_LOGIN("TAP_LOGIN","",""),
+    TAP_TABLE("TAP_TABLE",".*(TAP_TABLE\\[[^\\]]+).*","",""),
+    TAP_LOGIN("TAP_LOGIN","","",""),
 
-    PAGE_SIZE_PAGE_INDEX("PAGE_SIZE_PAGE_INDEX",".*(TAP_TABLE\\[[^\\]]+\\(PAGE_SIZE_PAGE_INDEX)).*",""),
-    FROM_TO("FROM_TO",".*(TAP_TABLE\\[[^\\]]+\\(FROM_TO)).*",""),
-    PAGE_LIMIT("PAGE_LIMIT",".*(TAP_TABLE\\[[^\\]]+\\(PAGE_LIMIT)).*",""),
-    PAGE_TOKEN("PAGE_TOKEN",".*(TAP_TABLE\\[[^\\]]+\\(PAGE_TOKEN)).*",""),
-    PG_NONE("PG_NONE",".*(TAP_TABLE\\[[^\\]]+\\(PG_NONE)).*",""),
+    PAGE_SIZE_PAGE_INDEX("PAGE_SIZE_PAGE_INDEX",".*(TAP_TABLE\\[[^\\]]+\\(PAGE_SIZE_PAGE_INDEX)).*","",""),
+    FROM_TO("FROM_TO",".*(TAP_TABLE\\[[^\\]]+\\(FROM_TO)).*","",""),
+    PAGE_LIMIT("PAGE_LIMIT",".*(TAP_TABLE\\[[^\\]]+\\(PAGE_LIMIT)).*","",""),
+    PAGE_TOKEN("PAGE_TOKEN",".*(TAP_TABLE\\[[^\\]]+\\(PAGE_TOKEN)).*","",""),
+    PAGE_NONE("PAGE_NONE",".*(TAP_TABLE\\[[^\\]]+\\(PAGE_NONE)).*","",""),
 
-    TAP_GET_TOKEN("TAP_GET_TOKEN","",""),
-    TAP_TABLE_COUNT("TAP_TABLE_COUNT","",""),
+    TAP_GET_TOKEN("TAP_GET_TOKEN","","",""),
+    TAP_TABLE_COUNT("TAP_TABLE_COUNT","","",""),
+
+    TAP_PAGE_FROM("TAP_PAGE_FROM","","","TAP_PAGE_PARAM"),
+    TAP_PAGE_TO("TAP_PAGE_TO","","","TAP_PAGE_PARAM"),
+
+    TAP_PAGE_SIZE("TAP_PAGE_SIZE","","","TAP_PAGE_PARAM"),
+    TAP_PAGE_INDEX("TAP_PAGE_INDEX","","","TAP_PAGE_PARAM"),
+
+    TAP_PAGE_OFFSET("TAP_PAGE_OFFSET","","","TAP_PAGE_PARAM"),
+    TAP_PAGE_LIMIT("TAP_PAGE_LIMIT","","","TAP_PAGE_PARAM")
     ;
 
     String tagName;
     String tagDescription;
     String tagRegex;
+    String type;
+    public String type(){
+        return this.type;
+    }
 
-    TapApiTag(String tagName, String tagRegex, String tagDescription){
+    TapApiTag(String tagName, String tagRegex, String tagDescription,String type){
         this.tagDescription = tagDescription;
         this.tagName = tagName;
         this.tagRegex = tagRegex;
+        this.type = type;
     }
     public String tagRegex(){
         return this.tagRegex;
@@ -76,11 +90,17 @@ public enum TapApiTag {
                 return null;
             }
             String pageStage = apiName.substring(pageStart, pageEnd);
-            return Objects.equals(PAGE_SIZE_PAGE_INDEX.tagName,pageStage)
-                    || Objects.equals(FROM_TO.tagName,pageStage)
-                    || Objects.equals(PAGE_LIMIT.tagName,pageStage)
-                    || Objects.equals(PAGE_TOKEN.tagName,pageStage)
-                    || Objects.equals(PG_NONE.tagName,pageStage)
+//            return Objects.equals(PAGE_SIZE_PAGE_INDEX.tagName,pageStage)
+//                    || Objects.equals(FROM_TO.tagName,pageStage)
+//                    || Objects.equals(PAGE_LIMIT.tagName,pageStage)
+//                    || Objects.equals(PAGE_TOKEN.tagName,pageStage)
+//                    || Objects.equals(PG_NONE.tagName,pageStage)
+//                    ? pageStage : null;
+            return pageStage.startsWith(PAGE_SIZE_PAGE_INDEX.tagName)
+                    || pageStage.startsWith(FROM_TO.tagName)
+                    || pageStage.startsWith(PAGE_LIMIT.tagName)
+                    || pageStage.startsWith(PAGE_TOKEN.tagName)
+                    || pageStage.startsWith(PAGE_NONE.tagName)
                     ? pageStage : null;
         }
         return null;
@@ -107,6 +127,17 @@ public enum TapApiTag {
 
     public static boolean isTokenApi(String apiName){
         return (Objects.nonNull(apiName) && apiName.startsWith(TAP_GET_TOKEN.tagName));
+    }
+
+    public static boolean isTapPageParam(String paramDescription){
+        if (Objects.isNull(paramDescription)) return false;
+        TapApiTag[] values = values();
+        for (TapApiTag value : values) {
+            if ( "TAP_PAGE_PARAM".equals(value.type()) && paramDescription.contains(value.tagName())){
+                return true;
+            }
+        }
+        return false;
     }
 
     public static void main(String[] args) {

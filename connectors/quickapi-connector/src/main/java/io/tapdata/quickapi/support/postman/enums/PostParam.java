@@ -22,6 +22,8 @@ public class PostParam {
     public static final String AUTH = "auth";
     public static final String RESPONSE = "response";
     public static final String DISABLED = "disabled";
+    public static final String OPTIONS = "options";
+    public static final String BODY = "body";
 
     public static final String EVENT = "event";
     public static final String LISTEN = "listen";

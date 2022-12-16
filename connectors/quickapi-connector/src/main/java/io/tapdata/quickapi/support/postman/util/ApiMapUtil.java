@@ -2,11 +2,9 @@ package io.tapdata.quickapi.support.postman.util;
 
 import io.tapdata.quickapi.core.emun.TapApiTag;
 import io.tapdata.quickapi.support.postman.entity.ApiMap;
+import io.tapdata.quickapi.support.postman.entity.params.Api;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class ApiMapUtil {
 
@@ -15,6 +13,8 @@ public class ApiMapUtil {
         List<ApiMap.ApiEntity> list = new ArrayList<>();
         apiMap.forEach(entity->{
             if(TapApiTag.isTableName(entity.name())){
+                Api requestApi = entity.api();
+                requestApi.nameFullDetail(requestApi.name());
                 list.add(entity);
             }
         });
@@ -32,6 +32,22 @@ public class ApiMapUtil {
         return list;
     }
 
+    public static Object getKeyFromMap(Object mapObj,String keyName){
+        if (mapObj instanceof Map){
+            int indexPoint = keyName.indexOf(".");
+            String nameKey = keyName.substring(0, indexPoint < 0 ?keyName.length() : indexPoint);
+            Object value = ((Map<String,Object>)mapObj).get(nameKey);
+            if(indexPoint > 0 && indexPoint < keyName.length()) {
+                String subKey = keyName.substring(indexPoint + 1);
+                return getKeyFromMap(value, subKey);
+            }else {
+                return value ;
+            }
+        }else if(mapObj instanceof String){
+            return mapObj;
+        }
+        return mapObj;
+    }
 //    public static boolean isTapTableApi(String apiName) {
 //        //String regx = ".*(TAP_TABLE\\[[^\\]]+).*";
 ////        System.out.println("START[123]JJK[526]".matches(regx));

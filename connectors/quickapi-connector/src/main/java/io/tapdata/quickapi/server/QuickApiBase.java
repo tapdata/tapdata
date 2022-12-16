@@ -28,7 +28,11 @@ public class QuickApiBase {
             if (!JSONUtil.isJson(jsonTxt)){
                 throw new RuntimeException("API JSON only JSON format. ");
             }
+            String expireStatus = connectionConfig.getString("expireStatus");
+            String tokenParams = connectionConfig.getString("tokenParams");
             config.apiConfig(apiType)
+                    .expireStatus(expireStatus)
+                    .tokenParams(tokenParams)
                     .jsonTxt(jsonTxt);
         }
     }

@@ -1,6 +1,7 @@
 package io.tapdata.quickapi.server;
 
 import cn.hutool.json.JSONUtil;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.apis.api.APIFactory;
 import io.tapdata.pdk.apis.api.APIResponse;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -8,6 +9,7 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.quickapi.core.emun.TapApiTag;
 import io.tapdata.quickapi.server.enums.QuickApiTestItem;
 import io.tapdata.quickapi.support.APIFactoryImpl;
+import io.tapdata.quickapi.support.postman.ExpireHandel;
 import io.tapdata.quickapi.support.postman.PostManAnalysis;
 import io.tapdata.quickapi.support.postman.PostManApiContext;
 import io.tapdata.quickapi.support.postman.entity.ApiMap;
@@ -27,6 +29,26 @@ public class TestQuickApi extends QuickApiBase {
         super(connectionContext);
         apiFactory = new APIFactoryImpl();
         invoker = (PostManAnalysis)apiFactory.loadAPI(super.config.jsonTxt(), super.config.apiType(), null);
+        invoker.setAPIResponseInterceptor((response, urlOrName, method, params)->{
+            if( Objects.isNull(response) ) {
+                throw new CoreException(String.format("Http request call failed, unable to get the request result: url or name [%s], method [%s].",urlOrName,method));
+            }
+            APIResponse interceptorResponse = response;
+            ExpireHandel expireHandel = ExpireHandel.create(response, config.expireStatus(),config.tokenParams());
+            if (expireHandel.builder()){
+                PostManApiContext postManApiContext = invoker.apiContext();
+                List<ApiMap.ApiEntity> apiEntities = ApiMapUtil.tokenApis(postManApiContext.apis());
+                if ( !apiEntities.isEmpty() ){
+                    ApiMap.ApiEntity apiEntity = apiEntities.get(0);
+                    APIResponse tokenResponse = invoker.invoke(apiEntity.name(), apiEntity.method(), params);
+                    if (expireHandel.refreshComplete(tokenResponse,params)) {
+                        //再调用
+                        interceptorResponse = invoker.invoke(urlOrName, method, params);
+                    }
+                }
+            }
+            return interceptorResponse;
+        });
     }
 
     private PostManAnalysis invoker;
@@ -115,16 +137,16 @@ public class TestQuickApi extends QuickApiBase {
                         .append(")")
                         .append("Trial run API: name=")
                         .append(apiEntity.name())
-                        .append(", url=")
-                        .append(apiEntity.url())
-                        .append(", method=")
-                        .append(apiEntity.method())
+//                        .append(", url=")
+//                        .append(apiEntity.url())
+//                        .append(", method=")
+//                        .append(apiEntity.method())
                         .append(", running result:");
                 if (Objects.isNull(http) || !Objects.equals(http.httpCode(),200)){
-                    builder.append("[ERROR]. ");
+                    builder.append("[ERROR]. \n");
                     testApiFailed = true;
                 }else {
-                    builder.append("[SUCCEED]. ");
+                    builder.append("[SUCCEED]. \n");
                 }
                 joiner.add(builder.toString());
             }

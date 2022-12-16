@@ -1,18 +1,35 @@
 package io.tapdata.quickapi.support.postman.entity.params;
 
+import io.tapdata.quickapi.core.emun.TapApiTag;
+
 import java.util.Objects;
 
 public class Api {
     String id;
     String name;
+    String tableName;
+    String pageStage;
+    String pageResultPath;
     Request request;
     String response;
+    public static Api create(){
+        return new Api();
+    }
 
     public String id(){
         return this.id;
     }
     public String name(){
         return this.name;
+    }
+    public String tableName(){
+        return this.tableName;
+    }
+    public String pageStage(){
+        return this.pageStage;
+    }
+    public String pageResultPath(){
+        return this.pageResultPath;
     }
     public Request request(){
         return this.request;
@@ -26,6 +43,33 @@ public class Api {
     }
     public Api name(String name){
         this.name = name;
+        return this;
+    }
+    public Api nameFullDetail(String name){
+        this.name = name;
+        this.tableName = TapApiTag.analysisTableName(name);
+        this.pageStage = TapApiTag.getPageStage(name);
+        if (Objects.nonNull(this.pageStage)){
+            String[] arr = this.pageStage.split(":");
+            if (arr.length == 2){
+                this.pageResultPath = arr[1];
+            }
+            if (arr.length>0){
+                this.pageStage = arr[0];
+            }
+        }
+        return this;
+    }
+    public Api tableName(String tableName){
+        this.tableName = tableName;
+        return this;
+    }
+    public Api pageStage(String pageStage){
+        this.pageStage = pageStage;
+        return this;
+    }
+    public Api pageResultPath(String pageResultPath){
+        this.pageResultPath = pageResultPath;
         return this;
     }
     public Api request(Request request){
