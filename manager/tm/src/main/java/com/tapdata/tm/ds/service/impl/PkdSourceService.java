@@ -15,6 +15,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -196,6 +197,7 @@ public class PkdSourceService {
                 break;
             default:
         }
+        query.with(Sort.by("createTime").descending());
 
         DataSourceDefinitionDto one = dataSourceDefinitionService.findOne(query);
 

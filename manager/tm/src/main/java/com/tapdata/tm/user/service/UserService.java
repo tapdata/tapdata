@@ -189,7 +189,8 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
      */
     public UserDetail loadUserByExternalId(String userId) {
 
-        Optional<User> userOptional = repository.findOne(Query.query(Criteria.where("externalUserId").is(userId)));
+        final Query userQuery = Query.query(Criteria.where("externalUserId").is(userId));
+        Optional<User> userOptional = repository.findOne(userQuery);
         User user = null;
         UserDetail userDetail = null;
         if (userOptional.isPresent()) {
@@ -237,9 +238,14 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
                 final String email = user.getEmail();
                 user.setEmail(null);
                 Update userUpdate = repository.buildUpdateSet(user);
-                Query query = Query.query(Criteria.where("email").is(email));
-                UpdateResult res = repository.getMongoOperations().upsert(query, userUpdate, User.class);
-                Optional<User> optional = repository.findOne(query);
+                //Query query = Query.query(Criteria.where("email").is(email));
+                UpdateResult res = repository.getMongoOperations().upsert(userQuery, userUpdate, User.class);
+                // 没有插入新记录时，删除新生成的 customer 信息
+                if (res.getUpsertedId() == null) {
+                    customerService.deleteById(customerDto.getId());
+                }
+                // 查询数据库中的用户信息，有可能是之前 insert 进去的
+                Optional<User> optional = repository.findOne(userQuery);
                 if (optional.isPresent())
                     user = optional.get();
 
