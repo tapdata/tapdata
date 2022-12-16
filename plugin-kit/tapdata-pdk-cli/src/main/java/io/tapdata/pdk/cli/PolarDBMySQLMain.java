@@ -5,9 +5,9 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 /**
  * @author jackin
  * @Description
- * @create 2022-12-15 11:50
+ * @create 2022-12-15 11:49
  **/
-public class TDDAliyunADBMysqlMain {
+public class PolarDBMySQLMain {
 	public static void main(String... args) {
 		CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
 		args = new String[]{
@@ -16,7 +16,7 @@ public class TDDAliyunADBMysqlMain {
 //                "test", "-c", "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/tapdata-pdk-cli/src/main/resources/config/doris.json",
 				"test",
 				"-c",
-				"plugin-kit/tapdata-pdk-cli/src/main/resources/config/aliyun-adb-mysql.json",
+				"plugin-kit/tapdata-pdk-cli/src/main/resources/config/polar-db-mysql.json",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.CreateTableTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.basic.BasicTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.DMLTest",
@@ -30,8 +30,8 @@ public class TDDAliyunADBMysqlMain {
 //                "-i", "tapdata-pdk-api",
 //                "-i", "connectors/connector-core",
 //                "-i", "connectors/mysql/mysql-core",
-//				"-m", "/Applications/apache-maven-3.8.1",
-				"connectors/aliyun-adb-mysql-connector",
+				"-m", "/Applications/apache-maven-3.8.1",
+				"connectors/polar-db-mysql-connector",
 		};
 
 		Main.registerCommands().execute(args);

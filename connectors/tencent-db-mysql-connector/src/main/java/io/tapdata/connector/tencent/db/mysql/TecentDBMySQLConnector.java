@@ -1,33 +1,25 @@
-package io.tapdata.connector.adb;
+package io.tapdata.connector.tencent.db.mysql;
 
 import io.tapdata.connector.mysql.MysqlConnector;
-import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
 import java.util.function.Consumer;
 
 /**
  * @author jackin
  * @Description
- * @create 2022-12-12 15:18
+ * @create 2022-12-15 11:42
  **/
-@TapConnectorClass("aliyun-adb-mysql-spec.json")
-public class AliyunADBMySQLConnector extends MysqlConnector {
+@TapConnectorClass("tecent-db-mysql-spec.json")
+public class TecentDBMySQLConnector extends MysqlConnector {
 
 	@Override
 	public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
 		tapConnectionContext.getConnectionConfig().put("protocolType", "mysql");
 		super.onStart(tapConnectionContext);
-	}
-
-	@Override
-	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
-		super.registerCapabilities(connectorFunctions, codecRegistry);
-		connectorFunctions.supportWriteRecord(null);
 	}
 
 	@Override
