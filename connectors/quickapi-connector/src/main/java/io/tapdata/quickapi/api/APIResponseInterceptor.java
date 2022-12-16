@@ -1,4 +1,4 @@
-package io.tapdata.pdk.apis.api;
+package io.tapdata.quickapi.api;
 
 import java.util.Map;
 

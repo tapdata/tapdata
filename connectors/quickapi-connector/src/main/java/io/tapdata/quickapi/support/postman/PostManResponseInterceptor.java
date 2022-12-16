@@ -1,7 +1,7 @@
 package io.tapdata.quickapi.support.postman;
 
-import io.tapdata.pdk.apis.api.APIResponse;
-import io.tapdata.pdk.apis.api.APIResponseInterceptor;
+import io.tapdata.quickapi.api.APIResponse;
+import io.tapdata.quickapi.api.APIResponseInterceptor;
 
 import java.util.Map;
 

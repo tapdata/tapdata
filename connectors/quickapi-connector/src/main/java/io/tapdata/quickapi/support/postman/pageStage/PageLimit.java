@@ -2,7 +2,7 @@ package io.tapdata.quickapi.support.postman.pageStage;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.pdk.apis.api.APIResponse;
+import io.tapdata.quickapi.api.APIResponse;
 import io.tapdata.quickapi.core.emun.TapApiTag;
 import io.tapdata.quickapi.support.postman.PostManAnalysis;
 import io.tapdata.quickapi.support.postman.entity.ApiMap;

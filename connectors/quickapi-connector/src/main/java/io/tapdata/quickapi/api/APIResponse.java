@@ -1,4 +1,4 @@
-package io.tapdata.pdk.apis.api;
+package io.tapdata.quickapi.api;
 
 import java.util.Map;
 
@@ -10,7 +10,7 @@ public class APIResponse {
     public static APIResponse create(){
         return new APIResponse();
     }
-    public static APIResponse create(Integer httpCode,Map<String, String> headers,Map<String, Object> result){
+    public static APIResponse create(Integer httpCode, Map<String, String> headers, Map<String, Object> result){
         return new APIResponse();
     }
     public APIResponse(){

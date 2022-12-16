@@ -1,14 +1,11 @@
-package io.tapdata.pdk.apis.api.comom;
+package io.tapdata.quickapi.api.comom;
 
 //import io.tapdata.quickapi.core.annotation.ApiType;
 //import io.tapdata.quickapi.core.emun.SupportApi;
 //import io.tapdata.api.invoker.PostManAPIInvoker;
-import io.tapdata.pdk.apis.api.APIResponse;
 //import org.reflections.Reflections;
 
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public interface APIDocument<V> {
 //    public static PostManAPIInvoker analysisDefault(String apiJson){

@@ -1,4 +1,4 @@
-package io.tapdata.pdk.apis.api.comom;
+package io.tapdata.quickapi.api.comom;
 
 import java.util.List;
 

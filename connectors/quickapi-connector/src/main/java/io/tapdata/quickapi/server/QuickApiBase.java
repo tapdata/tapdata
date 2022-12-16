@@ -1,6 +1,5 @@
 package io.tapdata.quickapi.server;
 
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.quickapi.common.QuickApiConfig;

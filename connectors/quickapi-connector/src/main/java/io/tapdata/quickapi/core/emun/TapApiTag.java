@@ -24,7 +24,9 @@ public enum TapApiTag {
     TAP_PAGE_INDEX("TAP_PAGE_INDEX","","","TAP_PAGE_PARAM"),
 
     TAP_PAGE_OFFSET("TAP_PAGE_OFFSET","","","TAP_PAGE_PARAM"),
-    TAP_PAGE_LIMIT("TAP_PAGE_LIMIT","","","TAP_PAGE_PARAM")
+    TAP_PAGE_LIMIT("TAP_PAGE_LIMIT","","","TAP_PAGE_PARAM"),
+
+    TAP_PAGE_TOKEN("TAP_PAGE_TOKEN","","","TAP_PAGE_PARAM")
     ;
 
     String tagName;

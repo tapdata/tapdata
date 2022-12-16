@@ -2,10 +2,10 @@ package io.tapdata.quickapi.support.postman;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.pdk.apis.api.APIInvoker;
-import io.tapdata.pdk.apis.api.APIResponse;
-import io.tapdata.pdk.apis.api.APIResponseInterceptor;
-import io.tapdata.pdk.apis.api.comom.APIDocument;
+import io.tapdata.quickapi.api.APIInvoker;
+import io.tapdata.quickapi.api.APIResponse;
+import io.tapdata.quickapi.api.APIResponseInterceptor;
+import io.tapdata.quickapi.api.comom.APIDocument;
 import io.tapdata.quickapi.core.annotation.ApiType;
 import io.tapdata.quickapi.support.postman.entity.ApiEvent;
 import io.tapdata.quickapi.support.postman.entity.ApiInfo;
@@ -21,9 +21,7 @@ import io.tapdata.quickapi.core.emun.TapApiTag;
 import io.tapdata.quickapi.support.postman.util.ReplaceTagUtil;
 import okhttp3.*;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 

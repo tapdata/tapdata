@@ -4,7 +4,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
-import io.tapdata.pdk.apis.api.APIResponse;
+import io.tapdata.quickapi.api.APIResponse;
 import io.tapdata.quickapi.support.postman.PostManAnalysis;
 import io.tapdata.quickapi.support.postman.entity.ApiMap;
 import io.tapdata.quickapi.support.postman.entity.params.Api;

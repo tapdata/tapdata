@@ -1,4 +1,4 @@
-package io.tapdata.pdk.apis.api.comom;
+package io.tapdata.quickapi.api.comom;
 //
 //public class MyInterceptor implements HandlerInterceptor {
 //	//return true;执行下一个拦截器，放行。

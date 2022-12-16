@@ -1,7 +1,7 @@
 package io.tapdata.quickapi.support.postman;
 
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.pdk.apis.api.APIResponse;
+import io.tapdata.quickapi.api.APIResponse;
 import io.tapdata.quickapi.support.postman.util.ApiMapUtil;
 
 import java.util.*;

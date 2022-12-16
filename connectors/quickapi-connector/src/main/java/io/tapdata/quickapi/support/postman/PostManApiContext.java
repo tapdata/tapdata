@@ -1,6 +1,6 @@
 package io.tapdata.quickapi.support.postman;
 
-import io.tapdata.pdk.apis.api.comom.TapApiBase;
+import io.tapdata.quickapi.api.comom.TapApiBase;
 import io.tapdata.quickapi.support.postman.entity.ApiEvent;
 import io.tapdata.quickapi.support.postman.entity.ApiInfo;
 import io.tapdata.quickapi.support.postman.entity.ApiMap;

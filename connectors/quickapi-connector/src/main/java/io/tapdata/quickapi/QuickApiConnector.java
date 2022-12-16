@@ -8,14 +8,13 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
-import io.tapdata.pdk.apis.api.APIFactory;
-import io.tapdata.pdk.apis.api.APIResponse;
-import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.quickapi.api.APIFactory;
+import io.tapdata.quickapi.api.APIResponse;
 import io.tapdata.quickapi.common.QuickApiConfig;
 import io.tapdata.quickapi.core.emun.TapApiTag;
 import io.tapdata.quickapi.server.TestQuickApi;
@@ -25,14 +24,12 @@ import io.tapdata.quickapi.support.postman.ExpireHandel;
 import io.tapdata.quickapi.support.postman.PostManAnalysis;
 import io.tapdata.quickapi.support.postman.PostManApiContext;
 import io.tapdata.quickapi.support.postman.entity.ApiMap;
-import io.tapdata.quickapi.support.postman.entity.params.Api;
 import io.tapdata.quickapi.support.postman.pageStage.PageStage;
 import io.tapdata.quickapi.support.postman.pageStage.TapPage;
 import io.tapdata.quickapi.support.postman.util.ApiMapUtil;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -175,7 +172,7 @@ public class QuickApiConnector extends ConnectorBase {
 		TestQuickApi testQuickApi = null;
 		try {
 			testQuickApi = TestQuickApi.create(connectionContext);
-			consumer.accept(testItem(QuickApiTestItem.TEST_PARAM.testName(),TestItem.RESULT_SUCCESSFULLY));
+			consumer.accept(testItem(QuickApiTestItem.TEST_PARAM.testName(), TestItem.RESULT_SUCCESSFULLY));
 		}catch (Exception e){
 			consumer.accept(testItem(QuickApiTestItem.TEST_PARAM.testName(),TestItem.RESULT_FAILED,e.getMessage()));
 		}

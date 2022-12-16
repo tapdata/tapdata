@@ -1,9 +1,10 @@
-package io.tapdata.quickapi.support;
+package io.tapdata.quickapi;
 
 import io.tapdata.entity.annotations.Implementation;
+import io.tapdata.entity.utils.ClassFactory;
 import io.tapdata.quickapi.api.APIFactory;
 import io.tapdata.quickapi.api.APIInvoker;
-import io.tapdata.quickapi.support.postman.PostManAnalysis;
+import io.tapdata.quickapi.support.PostManAPIInvoker;
 
 import java.util.Map;
 
@@ -14,9 +15,9 @@ import java.util.Map;
 public class APIFactoryImpl implements APIFactory {
 	@Override
 	public APIInvoker loadAPI(String apiContent, String type, Map<String, Object> params) {
-		//PostManAPIInvoker apiFactory = PostManAnalysis.create();//ClassFactory.create(PostManAPIInvoker.class);
-		APIInvoker analysis = PostManAnalysis.create().analysis(apiContent, type, params);
-		return analysis;
+		PostManAPIInvoker apiFactory = ClassFactory.create(PostManAPIInvoker.class);
+		apiFactory.analysis(type,apiContent,params);
+		return apiFactory;
 	}
 
 	@Override
