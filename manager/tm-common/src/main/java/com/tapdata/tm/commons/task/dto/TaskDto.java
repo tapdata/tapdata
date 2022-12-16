@@ -139,6 +139,8 @@ public class TaskDto extends ParentTaskDto {
      */
     private String transformTaskId;
 
+    private int stopRetryTimes;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());
@@ -150,8 +152,10 @@ public class TaskDto extends ParentTaskDto {
 
     @Data
     public static class SyncPoint implements Serializable {
-        /** 数据源id */
         @EqField
+        private String nodeId;
+        private String nodeName;
+        /** 数据源id */
         private String connectionId;
         /** 数据源名称 */
         private String connectionName;

@@ -15,9 +15,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -41,6 +39,9 @@ public class UnionProcessorNode extends ProcessorNode{
 
         for (int i = 0; i < inputSchemas.size(); i++) {
             Schema inputSchema = inputSchemas.get(i);
+
+            Optional.ofNullable(inputSchema.getIndices()).ifPresent(indices -> indices.removeIf(TableIndex::isUnique));
+
             if (i == 0) {
                 schema = inputSchema;
                 continue;
@@ -51,23 +52,32 @@ public class UnionProcessorNode extends ProcessorNode{
             } else if (CollectionUtils.isNotEmpty(inputSchema.getFields())) {
                 Map<String, Field> inputFieldMap = inputSchema.getFields().stream()
                         .collect(Collectors.toMap(Field::getFieldName, Function.identity(), (e1, e2) -> e1));
+
                 // compare tapType
                 schema.getFields().forEach(field -> {
                     if (inputFieldMap.containsKey(field.getFieldName())) {
                         Field inputField = inputFieldMap.get(field.getFieldName());
-                        if (inputField.getDataType().equals(field.getDataType())) {
-                            Object[] inputBytes = getBytes(inputField.getTapType());
-                            Object[] bytes = getBytes(field.getTapType());
 
-                            if (inputBytes[0] != bytes[0]) {
-                                TapString tapString = new TapString().bytes(Long.MAX_VALUE);
-                                field.setTapType(JsonUtil.toJson(tapString));
-                            } else if (Long.parseLong(inputBytes[1].toString()) > Long.parseLong(bytes[1].toString())) {
-                                field.setTapType(inputField.getTapType());
-                            }
-                        } else {
+                        Object[] inputBytes = getBytes(inputField.getTapType());
+                        Object[] bytes = getBytes(field.getTapType());
+
+                        if (inputBytes[0] != bytes[0]) {
                             TapString tapString = new TapString().bytes(Long.MAX_VALUE);
                             field.setTapType(JsonUtil.toJson(tapString));
+                        } else if (Long.parseLong(inputBytes[1].toString()) > Long.parseLong(bytes[1].toString())) {
+                            field.setTapType(inputField.getTapType());
+                            field.setDataType(inputField.getDataType());
+                            field.setDataTypeTemp(inputField.getDataTypeTemp());
+                        }
+
+
+                        if (field.getIsNullable() != inputFieldMap.get(field.getFieldName()).getIsNullable()) {
+                            field.setIsNullable(false);
+                        }
+
+                        if (field.getPrimaryKey() != inputFieldMap.get(field.getFieldName()).getPrimaryKey()) {
+                            field.setPrimaryKey(false);
+                            field.setPrimaryKeyPosition(null);
                         }
                     }
                 });
@@ -77,12 +87,12 @@ public class UnionProcessorNode extends ProcessorNode{
                         .collect(Collectors.toMap(Field::getFieldName, Function.identity(), (e1, e2) -> e1));
 
                 Schema finalSchema = schema;
-                Consumer<Field> fieldConsumer = (field) -> {
+                Consumer<Field> addFieldConsumer = (field) -> {
                    if (!fieldMap.containsKey(field.getFieldName())) {
                        finalSchema.getFields().add(field);
                    }
                 };
-                inputSchema.getFields().iterator().forEachRemaining(fieldConsumer);
+                Optional.ofNullable(inputSchema.getFields()).ifPresent(fields -> fields.iterator().forEachRemaining(addFieldConsumer));
             }
             // field -- end
 
@@ -99,7 +109,8 @@ public class UnionProcessorNode extends ProcessorNode{
                         finalSchema.getIndices().add(index);
                     }
                 };
-                inputSchema.getIndices().iterator().forEachRemaining(indexConsumer);
+
+                Optional.ofNullable(inputSchema.getIndices()).ifPresent(indices -> indices.iterator().forEachRemaining(indexConsumer));
             }
             // index -- end
         }

@@ -524,7 +524,7 @@ public class DAG implements Serializable, Cloneable {
             }
             logger.debug("Transform schema cost {}ms", System.currentTimeMillis() - start);
         } catch (Exception e) {
-            logger.error("transformSchema", ThrowableUtils.getStackTraceByPn(e));
+            logger.error("transformSchema error:" + ThrowableUtils.getStackTraceByPn(e));
             Map<String, List<Message>> msg = Maps.newHashMap();
             msg.put(taskId.toHexString(), Lists.newArrayList(new Message("error", e.getMessage(), JSON.toJSONString(e.getStackTrace()), null)));
             return msg;

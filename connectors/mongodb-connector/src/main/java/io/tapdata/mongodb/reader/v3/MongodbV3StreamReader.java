@@ -103,14 +103,16 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 								final String mongodbURI = entry.getValue();
 
 								replicaSetReadThreadPool.submit(() -> {
+									if (running.get()) {
 										try {
-												Thread.currentThread().setName("replicaSet-read-thread-" + replicaSetName);
-												readFromOplog(replicaSetName, mongodbURI, eventBatchSize, consumer);
+											Thread.currentThread().setName("replicaSet-read-thread-" + replicaSetName);
+											readFromOplog(replicaSetName, mongodbURI, eventBatchSize, consumer);
 										} catch (Exception e) {
-												running.compareAndSet(true, false);
-												TapLogger.error(TAG, "read oplog event from {} failed {}", replicaSetName, e.getMessage(), e);
-												error = e;
+											running.compareAndSet(true, false);
+											TapLogger.error(TAG, "read oplog event from {} failed {}", replicaSetName, e.getMessage(), e);
+											error = e;
 										}
+									}
 								});
 						}
 				}
