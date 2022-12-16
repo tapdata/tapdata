@@ -49,4 +49,13 @@ public class QuickApiConfig {
         this.hookText = hookText;
         return this;
     }
+
+    public static void main(String[] args) {
+        String url = "http://127.0.0.1/api/post?key1=&key2=12,3,5,6&key3=";
+        int indexOf = url.indexOf("key99=");
+        int indexOfEnd = url.indexOf("&", indexOf);
+        String keyValueAgo = url.substring(indexOf,indexOfEnd < 0 ? url.length():indexOfEnd);
+        System.out.println(keyValueAgo);
+        System.out.println(url.replaceAll(keyValueAgo,"key99=111"));
+    }
 }

@@ -1,10 +1,12 @@
 package io.tapdata.quickapi.support.postman.entity;
 
-import cn.hutool.json.JSONUtil;
 import io.tapdata.quickapi.support.postman.entity.params.*;
 import io.tapdata.quickapi.support.postman.enums.PostParam;
 
 import java.util.*;
+
+import static io.tapdata.base.ConnectorBase.fromJson;
+import static io.tapdata.base.ConnectorBase.toJson;
 
 
 public class ApiMap extends HashSet<ApiMap.ApiEntity>{
@@ -123,7 +125,7 @@ public class ApiMap extends HashSet<ApiMap.ApiEntity>{
             Request request = Request.create();
             Url url = null;
             if (Objects.isNull(this.api)){
-                baseApi = generateApiEntity(JSONUtil.parseObj(this.apiJson));
+                baseApi = generateApiEntity((Map<String, Object>) fromJson(this.apiJson));
                 //final String[] json = {this.apiJson};
                 //if (Objects.nonNull(params) && !params.isEmpty() && Objects.nonNull(json[0])){
                 //    params.forEach((key,value)-> json[0] = json[0].replaceAll(key,String.valueOf(value)));
@@ -156,14 +158,14 @@ public class ApiMap extends HashSet<ApiMap.ApiEntity>{
         }
 
         public Api generateApiEntity(){
-            return generateApiEntity(JSONUtil.parseObj(this.apiJson));
+            return generateApiEntity((Map<String, Object>) fromJson(this.apiJson));
         }
         public static Api generateApiEntity(Map<String,Object> apiMap){
             try {
                 String id = (String) apiMap.get(PostParam.ID);
                 String name = (String) apiMap.get(PostParam.NAME);;
                 io.tapdata.quickapi.support.postman.entity.params.Request request = io.tapdata.quickapi.support.postman.entity.params.Request.create((Map<String, Object>) apiMap.get(PostParam.REQUEST));
-                String response = JSONUtil.toJsonStr(apiMap.get(PostParam.RESPONSE));
+                String response = toJson(apiMap.get(PostParam.RESPONSE));
                 return Api.create().id(id).nameFullDetail(name).request(request).response(response);
             }catch (Exception e){
                 return Api.create();

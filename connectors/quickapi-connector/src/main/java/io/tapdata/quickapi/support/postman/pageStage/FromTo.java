@@ -1,17 +1,13 @@
 package io.tapdata.quickapi.support.postman.pageStage;
 
-import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.api.APIResponse;
 import io.tapdata.quickapi.core.emun.TapApiTag;
 import io.tapdata.quickapi.support.postman.PostManAnalysis;
 import io.tapdata.quickapi.support.postman.entity.ApiMap;
 import io.tapdata.quickapi.support.postman.entity.params.Api;
 import io.tapdata.quickapi.support.postman.enums.PostParam;
-import io.tapdata.quickapi.support.postman.util.ApiMapUtil;
 
 import java.util.*;
 import java.util.function.BiConsumer;
@@ -64,51 +60,12 @@ public class FromTo implements PageStage{
         }
         param.put(fromKeyName,toValue);
         param.put(toKeyName,toValue+pageSize);
-        APIResponse apiResponse = invoker.invoke(apiName, apiMethod, param);
+        APIResponse apiResponse = invoker.invoke(apiName, apiMethod, param,true);
         Map<String, Object> result = apiResponse.result();
         while (this.accept(result,tapPage,pageResultPath)){
             param.put(fromKeyName,toValue+1);
-            apiResponse = invoker.invoke(apiName, apiMethod, param);
+            apiResponse = invoker.invoke(apiName, apiMethod, param,true);
             result = apiResponse.result();
         }
-    }
-    private boolean accept(Map<String, Object> result,TapPage tapPage,String pageResultPath){
-        Object pageResult = ApiMapUtil.getKeyFromMap(result, pageResultPath);
-        if (Objects.isNull(pageResult)){
-            throw new CoreException(String.format("The value of the [%s] parameter was not found in the request result, the interface call failed, or check whether the parameter key is correct.",pageResultPath));
-        }
-        List<TapEvent> tapEvents = new ArrayList<>();
-        BiConsumer<List<TapEvent>, Object> consumer = tapPage.consumer();
-        int size = tapPage.batchCount();
-        if (pageResult instanceof Collection){
-            Collection entity = (Collection)pageResult;
-            for (Object ent : entity) {
-                if(!tapPage.isAlive()) return tapPage.isAlive();
-                if (Objects.isNull(ent)) continue;
-                try {
-                    Map<String,Object> after = (Map<String, Object>) ent;
-                    tapEvents.add(TapSimplify.insertRecordEvent(after,tapPage.tableName()).referenceTime(System.currentTimeMillis()));
-                }catch (Exception e){
-                    continue;
-                }
-                if (tapEvents.size() == size){
-                    consumer.accept(tapEvents, tapPage.offset());
-                    tapEvents = new ArrayList<>();
-                }
-            }
-            if (!tapEvents.isEmpty()){
-                consumer.accept(tapEvents, tapPage.offset());
-            }
-            return !entity.isEmpty();
-        }else if(pageResult instanceof Map){
-            Map<String,Object> entity = (Map<String,Object>)pageResult;
-            tapEvents.add(TapSimplify.insertRecordEvent(entity,tapPage.tableName()).referenceTime(System.currentTimeMillis()));
-            consumer.accept(tapEvents, tapPage.offset());
-            return true;
-        }else {
-            TapLogger.info(TAG, "pageResultPath :\n"+ JSONUtil.toJsonStr(pageResult));
-            throw new CoreException(String.format("The data obtained from %s is not recognized as table data.",pageResultPath));
-        }
-        //return false;
     }
 }

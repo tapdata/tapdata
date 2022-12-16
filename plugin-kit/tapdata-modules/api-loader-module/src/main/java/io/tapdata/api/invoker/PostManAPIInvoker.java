@@ -12,7 +12,7 @@ public abstract class PostManAPIInvoker
     APIResponseInterceptor interceptor;
 
     @Override
-    public APIResponse invoke(String uriOrName, String method, Map<String, Object> params) {
+    public APIResponse invoke(String uriOrName, String method, Map<String, Object> params,boolean invoker) {
         APIResponse response = http(uriOrName, method, params);
         response = interceptor.intercept(response,uriOrName,method,params);
         return response;

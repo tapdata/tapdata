@@ -1,6 +1,5 @@
 package io.tapdata.quickapi.server;
 
-import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.apis.api.APIFactory;
 import io.tapdata.pdk.apis.api.APIResponse;
@@ -15,11 +14,13 @@ import io.tapdata.quickapi.support.postman.PostManApiContext;
 import io.tapdata.quickapi.support.postman.entity.ApiMap;
 import io.tapdata.quickapi.support.postman.util.ApiMapUtil;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.StringJoiner;
 
 import static io.tapdata.base.ConnectorBase.testItem;
+import static io.tapdata.base.ConnectorBase.toJson;
 
 public class TestQuickApi extends QuickApiBase {
     public static TestQuickApi create(TapConnectionContext connectionContext){
@@ -40,10 +41,10 @@ public class TestQuickApi extends QuickApiBase {
                 List<ApiMap.ApiEntity> apiEntities = ApiMapUtil.tokenApis(postManApiContext.apis());
                 if ( !apiEntities.isEmpty() ){
                     ApiMap.ApiEntity apiEntity = apiEntities.get(0);
-                    APIResponse tokenResponse = invoker.invoke(apiEntity.name(), apiEntity.method(), params);
+                    APIResponse tokenResponse = invoker.invoke(apiEntity.name(), apiEntity.method(), params,true);
                     if (expireHandel.refreshComplete(tokenResponse,params)) {
                         //再调用
-                        interceptorResponse = invoker.invoke(urlOrName, method, params);
+                        interceptorResponse = invoker.invoke(urlOrName, method, params,true);
                     }
                 }
             }
@@ -57,9 +58,10 @@ public class TestQuickApi extends QuickApiBase {
     //检查JSON 格式是否正确
     public TestItem testJSON(){
         try {
-            if (JSONUtil.isJson(super.config.jsonTxt())) {
+            try {
+                toJson(super.config.jsonTxt());
                 return testItem(QuickApiTestItem.TEST_JSON_FORMAT.testName(), TestItem.RESULT_SUCCESSFULLY);
-            }else {
+            }catch (Exception e){
                 return testItem(QuickApiTestItem.TEST_JSON_FORMAT.testName(), TestItem.RESULT_FAILED,"API JSON only JSON format. ");
             }
         }catch (Exception e){
@@ -130,7 +132,7 @@ public class TestQuickApi extends QuickApiBase {
             boolean testApiFailed = false;
             StringJoiner joiner = new StringJoiner(";\n");
             for (ApiMap.ApiEntity apiEntity : tables) {
-                APIResponse http = invoker.invoke(apiEntity.name(), apiEntity.method(), null);
+                APIResponse http = invoker.invoke(apiEntity.name(), apiEntity.method(), new HashMap<>(),true);
                 StringBuilder builder = new StringBuilder();
                 builder.append("(")
                         .append(testApiIndex++)
@@ -143,7 +145,7 @@ public class TestQuickApi extends QuickApiBase {
 //                        .append(apiEntity.method())
                         .append(", running result:");
                 if (Objects.isNull(http) || !Objects.equals(http.httpCode(),200)){
-                    builder.append("[ERROR]. \n");
+                    builder.append("[ERROR]").append(toJson(http.result())).append(".\n");
                     testApiFailed = true;
                 }else {
                     builder.append("[SUCCEED]. \n");

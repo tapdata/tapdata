@@ -1,6 +1,5 @@
 package io.tapdata.quickapi;
 
-import cn.hutool.json.JSONUtil;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
@@ -61,10 +60,17 @@ public class QuickApiConnector extends ConnectorBase {
 			if (Objects.isNull(jsonTxt)){
 				TapLogger.error(TAG,"API JSON must be not null or not empty. ");
 			}
-			if (!JSONUtil.isJson(jsonTxt)){
+			try {
+				toJson(jsonTxt);
+			}catch (Exception e){
 				TapLogger.error(TAG,"API JSON only JSON format. ");
 			}
-			config.apiConfig(apiType).jsonTxt(jsonTxt);
+			String expireStatus = connectionConfig.getString("expireStatus");
+			String tokenParams = connectionConfig.getString("tokenParams");
+			config.apiConfig(apiType)
+					.jsonTxt(jsonTxt)
+					.expireStatus(expireStatus)
+					.tokenParams(tokenParams);
 			apiFactory = new APIFactoryImpl();
 			invoker = (PostManAnalysis)apiFactory.loadAPI(jsonTxt, apiType, apiParam);
 			invoker.setAPIResponseInterceptor((response, urlOrName, method, params)->{
@@ -78,10 +84,10 @@ public class QuickApiConnector extends ConnectorBase {
 					List<ApiMap.ApiEntity> apiEntities = ApiMapUtil.tokenApis(postManApiContext.apis());
 					if ( !apiEntities.isEmpty() ){
 						ApiMap.ApiEntity apiEntity = apiEntities.get(0);
-						APIResponse tokenResponse = invoker.invoke(apiEntity.name(), apiEntity.method(), params);
+						APIResponse tokenResponse = invoker.invoke(apiEntity.name(), apiEntity.method(), params,false);
 						if (expireHandel.refreshComplete(tokenResponse,params)) {
 							//再调用
-							interceptorResponse = invoker.invoke(urlOrName, method, params);
+							interceptorResponse = invoker.invoke(urlOrName, method, params,true);
 						}
 					}
 				}
@@ -99,16 +105,11 @@ public class QuickApiConnector extends ConnectorBase {
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 		if(Objects.nonNull(connectorFunctions)) {
 			connectorFunctions.supportBatchCount(this::batchCount)
-					.supportStreamRead(this::streamRead)
 					.supportBatchRead(this::batchRead)
 					.supportTimestampToStreamOffset(this::timestampToStreamOffset);
 		}else{
 			TapLogger.error(TAG,"ConnectorFunctions must be not null or not be empty. ");
 		}
-	}
-
-	private void streamRead(TapConnectorContext tapConnectorContext, List<String> strings, Object o, int i, StreamReadConsumer streamReadConsumer) {
-		TapLogger.info(TAG,"Quick Api do not support stream read. ");
 	}
 
 

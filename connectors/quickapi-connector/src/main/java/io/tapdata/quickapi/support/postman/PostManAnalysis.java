@@ -1,6 +1,5 @@
 package io.tapdata.quickapi.support.postman;
 
-import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.api.APIInvoker;
@@ -27,6 +26,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static io.tapdata.base.ConnectorBase.fromJson;
+import static io.tapdata.base.ConnectorBase.toJson;
 
 @ApiType
 public class PostManAnalysis
@@ -109,10 +111,10 @@ public class PostManAnalysis
     public APIInvoker analysis(String apiJson,String type, Map<String, Object> params) {
         Map<String, Object> json = null;
         if (Objects.nonNull(apiJson)) {
-            json = JSONUtil.parseObj(apiJson);
+            json = (Map<String, Object>) fromJson(apiJson);
         }else {
             try {
-                json = JSONUtil.readJSONObject(new File(sourcePath),StandardCharsets.UTF_8);
+                json = null;//@TODO (Map<String, Object>) fromJson(new File(sourcePath),StandardCharsets.UTF_8);
             }catch (Throwable ignored){
                 json = null;
             }
@@ -187,44 +189,76 @@ public class PostManAnalysis
         Api assignmentApi = api.variableAssignment(variable);
 
         //封装http
+
         io.tapdata.quickapi.support.postman.entity.params.Request apiRequest = assignmentApi.request();
         Url apiUrl = apiRequest.url();
-        String apiMethod = apiRequest.method();
+        String apiMethod = Objects.isNull(apiRequest.method())?"GET":apiRequest.method().toUpperCase(Locale.ROOT);
         List<Header> apiHeader = apiRequest.header();
         Map<String,String> headMap = new HashMap<>();
         if (Objects.nonNull(apiHeader) && !apiHeader.isEmpty()){
             apiHeader.stream().filter(Objects::nonNull).forEach(head -> headMap.put(head.key(),head.value()));
         }
-        Body apiBody = apiRequest.body();
         MediaType mediaType = MediaType.parse("application/json");
-        Map<String,Object> bodyMap = JSONUtil.parseObj(apiBody.raw());
+        String url = apiUrl.raw();
+        Body apiBody = apiRequest.body();
+        Map<String,Object> bodyMap = null;
+        try {
+            bodyMap = (Map<String, Object>) fromJson(apiBody.raw());
+        }finally {
+            if(Objects.isNull(bodyMap)){
+                bodyMap = new HashMap<>();
+            }
+        }
         List<Map<String, Object>> query = apiUrl.query();
         for (Map<String, Object> queryMap : query) {
             String key = String.valueOf(queryMap.get(PostParam.KEY));
             //Object value = queryMap.get(PostParam.VALUE);
-            Object value = params.get(key);
-            queryMap.put(PostParam.VALUE,value);
             String desc = String.valueOf(queryMap.get(PostParam.DESCRIPTION));
             if(TapApiTag.isTapPageParam(desc)){
-                bodyMap.put(key,value);
+                Object value = params.get(key);
+                if(Objects.nonNull(value)){
+                    queryMap.put(PostParam.VALUE,value);
+                    bodyMap.put(key,value);
+                    String keyParam = key + "=";
+                    if (url.contains(keyParam)){
+                        int indexOf = url.indexOf(keyParam);
+                        int indexOfEnd = url.indexOf("&", indexOf);
+                        String keyValueAgo = url.substring(indexOf,indexOfEnd < 0 ? url.length():indexOfEnd);
+                        url = url.replaceAll(keyValueAgo,keyParam+value);
+                    }
+                }
             }
         }
-        RequestBody body = RequestBody.create(mediaType, JSONUtil.toJsonStr(bodyMap));
-        Request request = new Request.Builder()
-                .url(apiUrl.raw())
-                .method(apiMethod, body)
+        RequestBody body = RequestBody.create(mediaType, toJson(bodyMap));
+        Request.Builder builder = new Request.Builder()
+                .url(url)
                 .headers(Headers.of(headMap))
-                .addHeader("Content-Type", "application/json")
-                .build();
-        return request;
+                .addHeader("Content-Type", "application/json");
+        if ("POST".equals(apiMethod) || "PATCH".equals(apiMethod) || "PUT".equals(apiMethod)){
+            builder.method(apiMethod, body);
+        }else {
+            builder.get();
+        }
+        return builder.build();
     }
+
     public APIResponse http(Request request) throws IOException {
         OkHttpClient client = new OkHttpClient().newBuilder().build();
         Response response = client.newCall(request).execute();
         return APIResponse.create().httpCode(response.code())
-                .result(JSONUtil.parseObj(response.body().string()))
-                .headers(JSONUtil.parseObj(response.headers()));
+                .result((Map<String, Object>) fromJson(response.body().string()))
+                .headers(getHeaderMap(response.headers()));
     }
+
+    private Map<String, Object> getHeaderMap(Headers headers) {
+        if(headers == null) {
+            return new HashMap<>();
+        }
+        Map<String, List<String>> multiMap = headers.toMultimap();
+        //TODO
+        return new HashMap<>();
+    }
+
     public APIResponse http(String uriOrName, String method, Map<String, Object> params) {
         try {
             return this.http(this.httpPrepare(uriOrName, method, params));
@@ -234,9 +268,14 @@ public class PostManAnalysis
     }
 
     @Override
-    public APIResponse invoke(String uriOrName, String method, Map<String, Object> params) {
+    public APIResponse invoke(String uriOrName, String method, Map<String, Object> params, boolean invoker) {
+        if (Objects.isNull(params)){
+            params = new HashMap<>();
+        }
         APIResponse response = this.http(uriOrName, method, params);
-        response = this.interceptor.intercept(response,uriOrName,method,params);
+        if (invoker) {
+            response = this.interceptor.intercept(response, uriOrName, method, params);
+        }
         return response;
     }
 
