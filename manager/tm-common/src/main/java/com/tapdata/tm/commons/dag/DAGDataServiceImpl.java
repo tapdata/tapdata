@@ -888,6 +888,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 update2.setHistories(hisModels);
                 update2.setFields(metadataInstancesDto.getFields());
                 update2.setIndexes(metadataInstancesDto.getIndexes());
+                update2.setIndices(metadataInstancesDto.getIndices());
                 update2.setDeleted(false);
                 update2.setCreateSource(metadataInstancesDto.getCreateSource());
                 update2.setVersion(newVersion);
