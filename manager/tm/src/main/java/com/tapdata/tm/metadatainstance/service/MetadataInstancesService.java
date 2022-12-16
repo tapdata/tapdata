@@ -1337,6 +1337,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findAllDto(Query.query(criteria), userDetail);
     }
 
+    public List<MetadataInstancesDto> findByTaskId(String taskId, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("taskId").is(taskId);
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
     public List<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto) {
         Page<MetadataInstancesDto> page = findByNodeId(nodeId, fields, user, taskDto, null, 1, 0);
         return page.getItems();
@@ -1666,6 +1674,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         List<MetadataInstancesDto> items = list.getItems();
         for (MetadataInstancesDto item : items) {
             List<Field> fields = item.getFields();
+            if (null == fields) continue;
+
             List<String> deleteFieldNames = fields.stream().filter(Field::isDeleted).map(Field::getFieldName).collect(Collectors.toList());
             item.setFields(fields.stream().filter(f->!f.isDeleted()).collect(Collectors.toList()));
             List<TableIndex> indices = item.getIndices();

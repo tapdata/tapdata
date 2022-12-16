@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * @author Dexter
  */
-abstract class AbstractHandler {
+public abstract class AbstractHandler {
     final TaskDto task;
     @Getter
     SampleCollector collector;

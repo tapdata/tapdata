@@ -130,7 +130,16 @@ public class TaskDto extends ParentTaskDto {
 
     private boolean needCreateRecord;
 
+    /**
+     * js 试运行id
+     */
     private String testTaskId;
+    /**
+     * js模型推演id
+     */
+    private String transformTaskId;
+
+    private int stopRetryTimes;
 
     public DAG getDag() {
         if (dag != null) {
@@ -143,8 +152,10 @@ public class TaskDto extends ParentTaskDto {
 
     @Data
     public static class SyncPoint implements Serializable {
-        /** 数据源id */
         @EqField
+        private String nodeId;
+        private String nodeName;
+        /** 数据源id */
         private String connectionId;
         /** 数据源名称 */
         private String connectionName;

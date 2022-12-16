@@ -18,6 +18,7 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.Loader;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -523,6 +524,7 @@ public class DAG implements Serializable, Cloneable {
             }
             logger.debug("Transform schema cost {}ms", System.currentTimeMillis() - start);
         } catch (Exception e) {
+            logger.error("transformSchema error:" + ThrowableUtils.getStackTraceByPn(e));
             Map<String, List<Message>> msg = Maps.newHashMap();
             msg.put(taskId.toHexString(), Lists.newArrayList(new Message("error", e.getMessage(), JSON.toJSONString(e.getStackTrace()), null)));
             return msg;
