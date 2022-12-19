@@ -68,6 +68,26 @@ public class ApiMapUtil {
         return "";
     }
 
+    public static void depthSearchParamFromMap(Object mapObj,String keyName,List<Map.Entry<String,Object>> valueEntry){
+        if (Objects.isNull(mapObj) || Objects.isNull(keyName)) return ;
+        if (mapObj instanceof Map){
+            Map<String,Object> map = (Map<String,Object>)mapObj;
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+                if (keyName.equals(key)) {
+                    valueEntry.add(new AbstractMap.SimpleEntry<>(key,value));
+                }
+                if (value instanceof Map || value instanceof Collection)  depthSearchParamFromMap(entry.getValue(),keyName);
+            }
+        }else if (mapObj instanceof Collection){
+            Collection list = (Collection) mapObj;
+            for (Object arr : list) {
+                depthSearchParamFromMap(arr,keyName);
+            }
+        }
+    }
+
 //    public static boolean isTapTableApi(String apiName) {
 //        //String regx = ".*(TAP_TABLE\\[[^\\]]+).*";
 ////        System.out.println("START[123]JJK[526]".matches(regx));

@@ -57,7 +57,7 @@ PAGE_ NONE：適用於清單返回不分頁的普通數據獲取。
     TAP_ PAGE_ OFFSET則對應介面參數from，
     TAP_ PAGE_ LIMIT對應得介面參數為limit.
 ```
-![图片Alt]("TAP_TABLE.PNG")
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_TABLE.PNG)
 
 **補充說明：**以上是ZoHo Desk工單介面聲明的案例，Coding的獲取事項api名稱聲明案例為：
 
@@ -67,14 +67,14 @@ TAP_ TABLE[Issues]（PAGE_SIZE_PAGE_INDEX:Response.Data.List）獲取事項清�
 
 其語義表示為：設定了事項錶名稱為Issues，使用了PAGE_ SIZE_ PAGE_ INDEX這個分頁邏輯，並指定了API結果中Response.Data.List的數據作為錶數據。
 
-![图片Alt]("TAP_TABLE-2.PNG")
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_TABLE-2.PNG)
 
 ##### 2.2.2登入授權介面聲明
 
 
 您需要使用TAP_ LOGIN標籤聲明登入介面。 與錶資料介面的聲明管道一致，需要在介面名稱中添加聲明標籤，登入介面聲明標籤的關鍵字是TAP_ LOGIN，使用此標籤表示此資料來源在調用API獲取數據時會進行access_ token的過去判斷，那麼需要您在連接配寘頁面進行過期狀態描述以及指定access_ token獲取後的鍵值匹配。， 例如下圖表示在Postman對ZoHo Desk進行登入介面的聲明：
 
-![图片Alt]("TAP_LOGIN.PNG")
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_LOGIN.PNG)
 
 #### 2.3 event表示一些Postman事件，這個我們基本上使用不到。
 
@@ -94,7 +94,7 @@ TAP_ TABLE[Issues]（PAGE_SIZE_PAGE_INDEX:Response.Data.List）獲取事項清�
 
 - 3.1 access_ token過期狀態是指您的API訪問過期後，在調用指定介面後Saas平臺返回的訪問失敗狀態。
 
-![图片Alt]("TAP_TABLE-ZoHo.PNG")
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_TABLE-ZoHo.PNG)
 
 例如我們在調用ZoHo獲取工單時，access_ token過期了，此時返回結果如下圖所示，那麼您可以將過期狀態描述為errorCode=INVALID_ OAUTH，這樣再執行API時可以自動根據返回結果識別為token過期實現自動刷新token。
 
@@ -104,7 +104,7 @@ TAP_ TABLE[Issues]（PAGE_SIZE_PAGE_INDEX:Response.Data.List）獲取事項清�
 
 - 3.3在PostMan對登入（獲取API存取權限）的API介面進行聲明，當執行API過程中發現了access_ token過期後悔調用這個指定的API進行access_ token重繪，這個登入介面需要在介面的名稱上加上TAP_ LOGIN這樣一個標誌性文字。 例如：對ZoHo權杖重繪介面的名稱為“TAP_LOGIN重繪AccessToken-登入”，其加上了TAP_ LOGIN（見左上角）表示此介面用於實現自動權杖重繪操作。
 
-![图片Alt]("TAP_LOGIN-ZoHo.PNG")
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_LOGIN-ZoHo.PNG)
 
 - 3.4過期狀態描述有以下描述規則：
 
@@ -112,10 +112,10 @@ TAP_ TABLE[Issues]（PAGE_SIZE_PAGE_INDEX:Response.Data.List）獲取事項清�
 //支持直接指定值
 body.message=NO AUTH
 
-//支持且關係判斷 
+//支持且關係判斷，使用&&連接
 body.message=NO AUTH&&body.code=500021
 
-//支持或關係判斷
+//支持或關係判斷，換行處理
 body.code=500021||body.code=500021
 
 //支持範圍值

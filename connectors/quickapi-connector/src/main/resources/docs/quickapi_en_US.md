@@ -59,7 +59,7 @@ which contains the following keywords:
     TAP_ PAGE_ OFFSET corresponds to interface parameters from, 
     TAP_ PAGE_ The interface parameter corresponding to LIMIT is limit
 ```
-![图片Alt]("TAP_TABLE.PNG")
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_TABLE.PNG)
 
 **Supplementary note:**The above is a case of ZoHo Desk work order interface declaration, and the case of API name declaration of coding acquisition is:
 
@@ -67,13 +67,13 @@ TAP_ TABLE [Issues] (PAGE_SIZE_PAGE_INDEX: Response. Data. List) Get the list of
 
 Its semantics are as follows: the event table name is set as Issues, and PAGE is used_ SIZE_ PAGE_ INDEX, the paging logic, specifies the data of Response. Data. List in the API result as the table data.
 
-![图片Alt]("TAP_TABLE-2.PNG")
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_TABLE-2.PNG)
 
 #####2.2.2 Statement of login authorization interface
 
 You need to use TAP_ The LOGIN tag declares the login interface. It is consistent with the declaration method of the table data interface. A declaration label needs to be added to the interface name. The keyword of the declaration label of the login interface is TAP_ LOGIN, this label indicates that the data source will have access when calling the API to obtain data_ To judge the past of token, you need to describe the expiration status and specify access on the connection configuration page_ The key value obtained by token matches., For example, the following figure shows the statement of the login interface for ZoHo Desk in Postman:
 
-![图片Alt]("TAP_LOGIN.PNG")
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_LOGIN.PNG)
 
 ####2.3 Event indicates some Postman events, which we can hardly use.
 
@@ -93,7 +93,7 @@ Fill in access_ Token expiration status description. (The access_token here gene
 
 - 3.1 access_ Token expiration status refers to the access failure status returned by the Saas platform after calling the specified interface after your API access expires.
 
-![图片Alt]("TAP_TABLE-ZoHo.PNG")
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_TABLE-ZoHo.PNG)
 
 For example, when we call ZoHo to obtain a work order, access_ The token has expired, and the returned result is shown in the following figure. Then you can describe the expiration status as errorCode=INVALID_ OAUTH, so that when the API is executed again, it can automatically recognize the expired token according to the returned results to refresh the token automatically.
 
@@ -103,7 +103,7 @@ For example, when we call ZoHo to obtain a work order, access_ The token has exp
 
 - 3.3 Declare the API interface for login (access to API) in PostMan. When the API is executed, access is found_ The token expires and regrets calling the specified API for access_ Token refresh. This login interface needs to add TAP to the name of the interface_ LOGIN is a symbolic text. For example, the name of the ZoHo token refresh interface is "TAP_LOGIN refresh AccessToken login", which adds TAP_ LOGIN (see the upper left corner) indicates that this interface is used to implement automatic token refresh operations.
 
-![图片Alt]("TAP_LOGIN-ZoHo.PNG")
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_LOGIN-ZoHo.PNG)
 
 - 3.4 Expiration status description has the following description rules:
 
@@ -111,10 +111,10 @@ For example, when we call ZoHo to obtain a work order, access_ The token has exp
 // Support direct value assignment 
 body.message=NO AUTH
 
-// Support and relationship judgment 
+// Support and relationship judgment，split with &&
 body.message=NO AUTH&&body.code=500021
 
-//Support or relationship judgment 
+//Support or relationship judgment, Line breaking 
 body.code=500021||body.code=500021
 
 // Support range value 

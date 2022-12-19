@@ -182,6 +182,7 @@ public class PostManAnalysis
         if(Objects.nonNull(params) && !params.isEmpty()) {
             variable.putAll(params);
         }
+        params.putAll(variable);
 
         //对url、body、header中的属性进行替换
         Api assignmentApi = api.variableAssignment(variable);

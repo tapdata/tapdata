@@ -144,19 +144,41 @@ public enum TapApiTag {
 
     public static void main(String[] args) {
 
-        System.out.println(analysisTableName("TAP_TABLE[sss"));
-        System.out.println(analysisTableName("TAP_TABLE[sss]"));
-        System.out.println(analysisTableName("TAP_TABLE[]"));
-        System.out.println(analysisTableName("sssTAP_TABLE[sss"));
-        System.out.println(analysisTableName("sssTAP_TABLE[sss]"));
-        System.out.println(analysisTableName("sssTAP_TABLE[sss]eee"));
-        System.out.println(analysisTableName("TAP_TABLE[sss]eee"));
-        System.out.println(analysisTableName("TAP_TABLEddd[sss]eee"));
+//        System.out.println(analysisTableName("TAP_TABLE[sss"));
+//        System.out.println(analysisTableName("TAP_TABLE[sss]"));
+//        System.out.println(analysisTableName("TAP_TABLE[]"));
+//        System.out.println(analysisTableName("sssTAP_TABLE[sss"));
+//        System.out.println(analysisTableName("sssTAP_TABLE[sss]"));
+//        System.out.println(analysisTableName("sssTAP_TABLE[sss]eee"));
+//        System.out.println(analysisTableName("TAP_TABLE[sss]eee"));
+//        System.out.println(analysisTableName("TAP_TABLEddd[sss]eee"));
+//
+//
+//        System.out.println(getPageStage("TAP_TABLE[sss(PAGE_SIZE_PAGE_INDEX)"));
+//        System.out.println(getPageStage("TAP_TABLE[sss]()"));
+//        System.out.println(getPageStage("TAP_TABLE[sss](SSS)"));
+//        System.out.println(getPageStage("TAP_TABLE[sss](PAGE_SIZE_PAGE_INDEX)"));
 
 
-        System.out.println(getPageStage("TAP_TABLE[sss(PAGE_SIZE_PAGE_INDEX)"));
-        System.out.println(getPageStage("TAP_TABLE[sss]()"));
-        System.out.println(getPageStage("TAP_TABLE[sss](SSS)"));
-        System.out.println(getPageStage("TAP_TABLE[sss](PAGE_SIZE_PAGE_INDEX)"));
+        System.out.println(rangeEquals("[11]","1"));
+        System.out.println(rangeEquals("[11,]","13"));
+        System.out.println(rangeEquals("[,11]","1"));
+        System.out.println(rangeEquals("[11,22]","12"));
     }
+
+    private static boolean rangeEquals(String before,String after){
+        //[11]    >=11
+        //[11,]   >=11
+        //[,11]   <=11
+        //[11,22] >=11 && <=22
+        int indexOfSpilt = before.indexOf(",");
+        String prefixStr = indexOfSpilt==1 ? "" : before.substring(1,indexOfSpilt<0?before.indexOf("]"):indexOfSpilt);
+        int indexOfSuf = before.indexOf("]");
+        String suffixStr = (indexOfSpilt + 1) == indexOfSuf || indexOfSpilt <0? "" : before.substring(indexOfSpilt + 1,indexOfSuf);
+        Double prefix = prefixStr.equals("")?Double.MIN_VALUE: Double.parseDouble(prefixStr);
+        Double suffix = suffixStr.equals("")?Double.MAX_VALUE: Double.parseDouble(suffixStr);
+        Double afterNumber = Double.valueOf(after);
+        return afterNumber >= prefix && afterNumber <= suffix;
+    }
+
 }
