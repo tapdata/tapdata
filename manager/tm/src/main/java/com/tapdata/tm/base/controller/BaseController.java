@@ -9,6 +9,7 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MessageUtil;
@@ -39,6 +40,9 @@ public class BaseController {
 	@Autowired
 	private AccessTokenService accessTokenService;
 
+	@Autowired
+	private ProductComponent productComponent;
+
 	private static final PathMatcher pathMatcher = new AntPathMatcher();
 
 	public static void main(String[] args) {
@@ -58,7 +62,7 @@ public class BaseController {
 
 		put("GET", new HashSet<String>() {{
 //			add("/api/MetadataInstances/**");
-			add("/api/MetadataDefinition/**");
+//			add("/api/MetadataDefinition/**");
 			add("/api/Javascript_functions/**");
 			add("/api/customNode/**");
 			add("/api/clusterStates/**");
@@ -81,13 +85,8 @@ public class BaseController {
 		return false;
 	}
 
-	private static void judgeFreeAuth(String uri, String method, UserDetail userDetail) {
-		//				Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
-//				if (Objects.isNull(buildProfile)) {
-//					buildProfile = "DAAS";
-//				}
-//				boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
-		if (true) {
+	private void judgeFreeAuth(String uri, String method, UserDetail userDetail) {
+		if (productComponent.isDAAS()) {
 			if (isFreeAuth(uri, method)) {
 				userDetail.setFreeAuth();
 			}
