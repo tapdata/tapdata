@@ -588,7 +588,6 @@ public class DAG implements Serializable, Cloneable {
     public Map<String, List<Message>> validate() {
         Map<String, List<Message>> messages = new HashMap<>();
 
-
         //校验dag
         Map<String, List<Message>> checkDagMessage = checkDag();
         if (!checkDagMessage.isEmpty()) {
