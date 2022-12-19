@@ -76,6 +76,8 @@ cd cases
 
 it_start_time=`date '+%s'`
 cases=`ls|grep test_|grep -v cases_result`
+echo "$cases"
+ls -al
 IFS=$'\n'
 for i in $cases; do
     echo "will exec case: "$i
@@ -150,4 +152,4 @@ env
 
 message='{"ut_cost_time":'$ut_cost_time',"it_cost_time":'$it_cost_time',"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"'$start_result'","its":['$case_results']}'
 
-python3 ../build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --token ${GITHUB_TOKEN} --job_id ${GITHUB_RUN_ID} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id ${FEISHU_CHAT_ID} --message_type night_build_notice --message "$message"
+python3 ../build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --token ${GITHUB_TOKEN} --job_id ${GITHUB_RUN_ID} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id gf9b5g97 --message_type night_build_notice --message "$message"
