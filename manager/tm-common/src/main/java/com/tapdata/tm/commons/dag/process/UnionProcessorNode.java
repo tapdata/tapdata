@@ -14,6 +14,7 @@ import io.tapdata.entity.utils.JsonParser;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -51,12 +52,14 @@ public class UnionProcessorNode extends ProcessorNode{
                 schema.setFields(inputSchema.getFields());
             } else if (CollectionUtils.isNotEmpty(inputSchema.getFields())) {
                 Map<String, Field> inputFieldMap = inputSchema.getFields().stream()
-                        .collect(Collectors.toMap(Field::getFieldName, Function.identity(), (e1, e2) -> e1));
+                        .collect(Collectors.toMap(field -> StringUtils.upperCase(field.getFieldName()),
+                                Function.identity(), (e1, e2) -> e1));
 
                 // compare tapType
                 schema.getFields().forEach(field -> {
-                    if (inputFieldMap.containsKey(field.getFieldName())) {
-                        Field inputField = inputFieldMap.get(field.getFieldName());
+                    String fieldName = StringUtils.upperCase(field.getFieldName());
+                    if (inputFieldMap.containsKey(fieldName)) {
+                        Field inputField = inputFieldMap.get(fieldName);
 
                         Object[] inputBytes = getBytes(inputField.getTapType());
                         Object[] bytes = getBytes(field.getTapType());
@@ -85,11 +88,12 @@ public class UnionProcessorNode extends ProcessorNode{
 
                 // compare need add field
                 Map<String, Field> fieldMap = schema.getFields().stream()
-                        .collect(Collectors.toMap(Field::getFieldName, Function.identity(), (e1, e2) -> e1));
+                        .collect(Collectors.toMap(field -> StringUtils.upperCase(field.getFieldName()),
+                                Function.identity(), (e1, e2) -> e1));
 
                 Schema finalSchema = schema;
                 Consumer<Field> addFieldConsumer = (field) -> {
-                   if (!fieldMap.containsKey(field.getFieldName())) {
+                   if (!fieldMap.containsKey(StringUtils.upperCase(field.getFieldName()))) {
                        finalSchema.getFields().add(field);
                    }
                 };
