@@ -1,58 +1,203 @@
-## **連接配寘幫助**
-### **1. 先決條件（作為源）**
-#### **1.1 填寫團隊名稱**
-在您的Coding連結中也可以直觀地獲取，比如：https://{teamName}.coding.net/，那麼他的團隊名稱就是teamName 
-#### **1.2從Coding管理頁面獲取訪問權杖Token**
-- 權杖必須填寫完整，這是一個充分且必要的前置條件。
-- 獲取權杖的管道：
-```
-前往Coding進入個人帳戶設定->
-在左側選單中找到訪問權杖->
-點擊新建權杖->
-輸入權杖描述，選擇到期时间，選擇對應許可權，點擊保存->
-複製生成的權杖，前往連接頁面。
-```
-- 開始前往獲取您的訪問權杖吧： https://tapdata.coding.net/user/account/setting/tokens
-#### **1.3選擇連接模式**
-- 只需要您考慮您的需求下需要什麼樣結構的數據：
-##### **1.3.1 CSV模式（暫未支持）**
-- 是一種簡單的鍵值對模式，類似於Mysql下的資料存儲結構。 似乎是把普通檔案模式下的數據拍平出來的格式。
-##### **1.3.1 Document模式**
-- 是數據的原始狀態，它與我們JSON數據格式基本類似。
-#### **1.4選擇增量管道**
-- 此時此刻，有Coding支持的web hook形式，也有普通按時輪詢的增量管道。
-- 當然，如果您選擇了比較節約處理器效能的WebHook模式，那麼您就需要前往Coding配寘web Hook（點擊HookButton，您可以看到一行簡潔明瞭的URL，在此，需要您複製前往Coding粘貼到WebHook配寘頁面的URL輸入框。）
-##### **1.4.1輪詢式**
-##### **1.4.1 WebHook**
-- 此模式需要在創建任務前配寘好ServiceHook:
-- 配寘web Hook的流程如下：
-```
-進入您的團隊->
-選擇一個項目->
-進入項目設定->
-點擊開發者選項->
-點擊ServerHook ->
-右上角點擊新建ServerHook ->
-選擇HttpWebHook，點擊下一步->
-選擇您需要的觸發事件，點擊下一步->
-此時按您的需求設定配寘，同時把之前的生成的URL粘貼到服務URL中。
-```
-- 一鍵前往配寘web Hook： https://tapdata.coding.net/p/testissue/setting/webhook
----
-特別說明：**創建新的Coding連接，如果選擇WebHook模式，一定要記得前往Coding為此連接節點配寘ServiceHook哦！**
----
+## **Quick Api連接配寘幫助**
 
-### **3.先決條件（作為目標）**
 
-…
+### 1、填寫連接名稱（必填）
 
-### **4.數據說明**
-支持增量輪詢的任何錶在執行增量輪詢時都無法監聽並處理删除事件（所有修改事件都以插入事件處理），如需要具體的事件區分請選擇WebHook增量管道（局限於SaaS平臺，並不是所有錶都支持webHook增量） 
-#### **4.1事項錶-Issues**
-事項錶包含全部類型包括需求、反覆運算、任務、史詩以及自定義的類型。
-其增量管道在輪詢式下無法準確知道增量事件，統一作為新增事件處理。
-#### **4.2迭代表-Iterations**
-迭代表包含所有反覆運算。
-受限於Coding的OpenAPI，其輪詢式增量採取從頭覆蓋，意味著任務開始後監控上顯示的增量事件數存在誤差，但不會造成真實數據誤差。
-#### **4.3項目成員錶-ProjectMembers**
-此錶包含當前選中的項目下的全部項目成員。
+
+第一步但不一定是第一步也可以是最後一步，要填寫連接名稱，因為這是第一個必填項。
+
+
+### 2、輸入從PostMan匯出的JSON格式的API文字（必填）
+
+匯出的JSON檔案中會包含info、item、event、variable四個主要的部分；
+
+#### 2.1 info表示這個postman API檔案的基本資訊。
+
+
+#### 2.2 item表示這個postman API檔案內包含的API介面資訊。 需要保證您為待使用API介面具有一定的編輯操作：
+
+
+##### 2.2.1錶介面聲明（必要操作）
+
+
+您需要在相應的錶數據API上個此API名稱上添加一些規範化的標籤，例如我使獲取ZoHo Desk上門戶的工單Tickets，那麼我需要在PostMan上對這個獲取工單的API進行一定的編輯加工：加工後的API名稱應該為
+
+```
+    TAP_TABLE**[Tickets]**（PAGE_LIMIT:data）獲取工單清單
+```
+
+其中包含了以下關鍵字：
+
+- A、TAP_ TABLE：建錶關鍵字，表示當前API獲取到的數據會形成一張資料表。
+
+
+- B、[Tickets]：指定錶名稱，一般與TAP_ TABLE關鍵字一起出現，指定建錶後的錶名稱以及API獲取到的資料存儲到此錶。 使用[]包裹的一段文字。 請合理組織錶名稱，不建議使用特殊字元，如使用錶名稱中包含[]這兩個字元之一將影響建錶後的錶名稱。
+
+
+- C、（PAGE_LIMIT:data）：指定獲取錶數據的分頁査詢類型，以及API調用後返回結果以data的值作為錶數據，當前API使用的是PAGE_ LIMIT分頁類型査詢數據，表明這個API是根據記錄索引和頁內偏移進行分頁的，具體的分頁類型需要您分析API介面後進行指明，不然將會影響查詢結果，造成數據誤差。 以下是提供的分頁類型，您可以根據相關API特性進行指定分頁類型：
+
+
+```
+
+PAGE_ SIZE_ PAGE_ INDEX：適用於使用頁碼和頁內偏移數進行分頁。 需要搭配TAP_ PAGE_ SIZE和TAP_ PAGE_ INDEX標籤指定分頁參數。
+
+FROM_ TO：適用於使用記錄開始索引和結束索引進行分頁的。 需要單配TAP_ PAGE_ FROM和TAP_ PAGE_ TO標籤指定分頁參數。
+
+PAGE_ LIMIT：適用於使用記錄索引和頁內偏移數進行分頁的。 需要搭配TAP_ PAGE_ OFFSET和TAP_ PAGE_ LIMIT標籤指定分頁參數。
+
+PAGE_ TOKEN：適用於使用緩存分頁Token進行分頁的，首頁傳空，下一頁使用上次査詢返回的token進行査詢。 需要搭配使用TAP_ PAGE_ TOKEN標籤指定分頁參數。
+
+PAGE_ NONE：適用於清單返回不分頁的普通數據獲取。
+
+```
+
+
+- D、分頁參數指定：以當前査詢ZoHo Desk工單API為例，使用的分頁類型為PAGE_ LIMIT，那麼分頁參數需要在其對應得描述文字中添加相應的參數標籤指明TAP_ PAGE_ OFFSET和TAP_ PAGE_ LIMIT，
+```  
+    TAP_ PAGE_ OFFSET則對應介面參數from，
+    TAP_ PAGE_ LIMIT對應得介面參數為limit.
+```
+![图片Alt]("TAP_TABLE.PNG")
+
+**補充說明：**以上是ZoHo Desk工單介面聲明的案例，Coding的獲取事項api名稱聲明案例為：
+
+
+TAP_ TABLE[Issues]（PAGE_SIZE_PAGE_INDEX:Response.Data.List）獲取事項清單
+
+
+其語義表示為：設定了事項錶名稱為Issues，使用了PAGE_ SIZE_ PAGE_ INDEX這個分頁邏輯，並指定了API結果中Response.Data.List的數據作為錶數據。
+
+![图片Alt]("TAP_TABLE-2.PNG")
+
+##### 2.2.2登入授權介面聲明
+
+
+您需要使用TAP_ LOGIN標籤聲明登入介面。 與錶資料介面的聲明管道一致，需要在介面名稱中添加聲明標籤，登入介面聲明標籤的關鍵字是TAP_ LOGIN，使用此標籤表示此資料來源在調用API獲取數據時會進行access_ token的過去判斷，那麼需要您在連接配寘頁面進行過期狀態描述以及指定access_ token獲取後的鍵值匹配。， 例如下圖表示在Postman對ZoHo Desk進行登入介面的聲明：
+
+![图片Alt]("TAP_LOGIN.PNG")
+
+#### 2.3 event表示一些Postman事件，這個我們基本上使用不到。
+
+
+#### 2.4 variable表示介面中定義的一些變數，需要保證的是在API上定義的變數一定能在這個variable中找到並存在實際且正確的值，否則這個使用了無法找到或錯誤值變數的API介面將在不久的將來調用失敗。
+
+
+### 3、填寫access_ token過期狀態描述（選填）
+
+
+注：
+
+這個輸入項作為選填的原因是：部分Saas平臺提供的OpenAPI使用的是永久性的訪問權杖，無需考慮token過期的情况，例如Coding。 但對於使用臨時權杖訪問OpenAPI的Saas平臺，需要你填寫這個輸入項，否則可能造成不可預知的後果。
+
+填寫access_ token過期狀態描述。 （這裡的access_token泛指API介面訪問權杖，每個Saas的名稱可能並不一致）
+
+
+- 3.1 access_ token過期狀態是指您的API訪問過期後，在調用指定介面後Saas平臺返回的訪問失敗狀態。
+
+![图片Alt]("TAP_TABLE-ZoHo.PNG")
+
+例如我們在調用ZoHo獲取工單時，access_ token過期了，此時返回結果如下圖所示，那麼您可以將過期狀態描述為errorCode=INVALID_ OAUTH，這樣再執行API時可以自動根據返回結果識別為token過期實現自動刷新token。
+
+
+- 3.2這個狀態描述需要您手動通過PostMan訪問API總結出來（因為我們無法預知這些Saas平臺在access_token過期後以何種響應結果返回）；
+
+
+- 3.3在PostMan對登入（獲取API存取權限）的API介面進行聲明，當執行API過程中發現了access_ token過期後悔調用這個指定的API進行access_ token重繪，這個登入介面需要在介面的名稱上加上TAP_ LOGIN這樣一個標誌性文字。 例如：對ZoHo權杖重繪介面的名稱為“TAP_LOGIN重繪AccessToken-登入”，其加上了TAP_ LOGIN（見左上角）表示此介面用於實現自動權杖重繪操作。
+
+![图片Alt]("TAP_LOGIN-ZoHo.PNG")
+
+- 3.4過期狀態描述有以下描述規則：
+
+```properties
+//支持直接指定值
+body.message=NO AUTH
+
+//支持且關係判斷 
+body.message=NO AUTH&&body.code=500021
+
+//支持或關係判斷
+body.code=500021||body.code=500021
+
+//支持範圍值
+body.code=[50000,51000]
+
+//可考慮支持規則運算式
+body.message=regex('$/[0-1|a-z]{5}/$')
+
+header.httpCode=401
+
+code=401
+```
+
+### 4、指定自動刷新token後的鍵值匹配規則（選填）
+
+
+注：
+
+
+這個輸入項作為選填的原因在配寘token狀態描述後需要你填寫這個輸入項，否則可能造成不可預知的後果，
+
+
+雖然系統會為您在登入介面返回值中模糊匹配關鍵數據到全域參數列表中，但是無法保證模糊匹配上的token能正確賦值到你自定義的token參數上。
+
+
+因為模糊匹配規則只是個經驗值，不能保證100%成功匹配上，大致的匹配思路如下：
+
+
+（1）在登入授權介面的返回值中找出可能是token的欄位及其對應得值。
+
+
+```
+根據關鍵字access_ toke，在介面返回值中找到符合條件的token；
+
+如果第一步沒有在則使用token關鍵字進行蒐索，如果存在多個這樣的值，那麼在全域參數中找出與訪問權杖值得格式最相近的作為訪問權杖；
+
+如果依然沒有找到，則使用token關鍵字進行上一步操作。
+
+最終如果沒辦法找出則拋錯並產生提示，需要手動指定返回結果與全域變數中的token鍵值規則。
+
+```
+
+（2）在全域參數中找出可能是訪問權杖的内容並重新賦值。
+
+找出全域參數列表中在介面Headers中Authorization參數使用的變數。
+
+
+
+需要指明重繪token的API在獲取到的結果中哪一個鍵值對應檔案中描述的AccessToken。
+
+
+例如：
+
+```
+
+我在ZoHo Desk中使用Postman匯出的介面集合中，
+
+我使用了一個全域參數accessToken來聲明了一個全域變數，
+
+這個變數應用在所有的API上，用於API的訪問權杖。
+
+
+zoho desk的登入介面返回的訪問權杖名稱叫做access_ tokon，
+
+此時我們需要在此聲明accessToken=access_ token。
+
+```
+
+
+###資料來源支持
+
+
+- 1.在PostMan中進行API的聲明，至少包含了一個以上的TAP_ TABLE聲明後的API，否則使用這個創建的連接將無法掃描到任何錶，TAP_ TABLE需要同時聲明錶名稱，分頁類型，分頁參數指定。 否則會出現錯誤的結果。
+
+
+- 2.可能需要配寘登入授權API，如果配寘了登入授權API，則需要您在連接配寘頁面配寘Token過期規則以及指定獲取Token的介面中返回結果與全域變數中token變數對應關係。
+
+
+- 3.支持大部分場景下的Saas資料來源，如：
+
+
+使用永久Token進行OpenAPI調用的：Coding等。
+
+
+使用動態重繪訪問權杖的OpenAPI調用的：ZoHo Desk等。 
