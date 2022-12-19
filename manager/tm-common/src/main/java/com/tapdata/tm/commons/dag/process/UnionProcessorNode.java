@@ -70,7 +70,6 @@ public class UnionProcessorNode extends ProcessorNode{
                             field.setDataTypeTemp(inputField.getDataTypeTemp());
                         }
 
-
                         if (field.getIsNullable() != inputFieldMap.get(field.getFieldName()).getIsNullable()) {
                             field.setIsNullable(false);
                         }
@@ -79,6 +78,8 @@ public class UnionProcessorNode extends ProcessorNode{
                             field.setPrimaryKey(false);
                             field.setPrimaryKeyPosition(null);
                         }
+                    } else {
+                        field.setIsNullable(false);
                     }
                 });
 
@@ -133,7 +134,7 @@ public class UnionProcessorNode extends ProcessorNode{
                 return new Object[]{tapDateTime.getType(), tapDateTime.getBytes()};
             case "TapNumber":
                 TapNumber tapNumber = InstanceFactory.instance(JsonParser.class).fromJson(tapTypeJson, TapNumber.class);
-                return new Object[]{tapNumber.getType(), Objects.nonNull(tapNumber.getBit()) ? tapNumber.getBit().longValue() : tapNumber.getPrecision().longValue() + tapNumber.getScale()};
+                return new Object[]{tapNumber.getType(), Objects.nonNull(tapNumber.getBit()) ? tapNumber.getBit().longValue() : tapNumber.getPrecision().longValue()};
             case "TapString":
                 TapString tapString = InstanceFactory.instance(JsonParser.class).fromJson(tapTypeJson, TapString.class);
                 return new Object[]{tapString.getType(), tapString.getBytes()};
