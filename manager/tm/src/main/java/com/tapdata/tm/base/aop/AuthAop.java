@@ -25,6 +25,25 @@ public class AuthAop {
   private ProductComponent productComponent;
 
 
+  @Around("execution(public * com.tapdata.tm.base.reporitory.BaseRepository.buildUpdateSet(..)) && target(com.tapdata.tm.ds.repository.DataSourceRepository) && args(.., userDetail)")
+  public Object dataSourceRepository_buildUpdateSet(ProceedingJoinPoint pjp, UserDetail userDetail) throws Throwable {
+    if (productComponent.isCloud()) {
+      return pjp.proceed();
+    }
+    String tempUserId = null;
+    try {
+      if (userDetail != null && !userDetail.isFreeAuth()) {
+        tempUserId = userDetail.getUserId();
+        userDetail.setUserId(null);
+      }
+      return pjp.proceed();
+    } finally {
+      if (tempUserId != null) {
+        userDetail.setUserId(tempUserId);
+      }
+    }
+  }
+
   @Around("execution(public * com.tapdata.tm.base.service.BaseService.*(..)) && target(com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService) && args(.., filter, user)")
   public Object metadataDefinitionService_filter(ProceedingJoinPoint pjp, Filter filter, UserDetail user) throws Throwable {
     if (productComponent.isCloud()) {

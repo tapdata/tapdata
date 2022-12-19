@@ -237,9 +237,9 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
     public Update buildUpdateSet(Entity entity, UserDetail userDetail) {
         Update update = new Update();
         Field[] files = ReflectionUtils.getAllDeclaredFields(entityClass);
-//        if (userDetail != null){
-//            applyUserDetail(entity, userDetail);
-//        }
+        if (userDetail != null){
+            applyUserDetail(entity, userDetail);
+        }
         for (int i = 0; i < files.length; i++) {
             Field field = files[i];
             if ("$jacocoData".equals(field.getName())) {
