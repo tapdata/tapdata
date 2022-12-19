@@ -37,7 +37,7 @@ public class ApplicationService extends BaseService<ApplicationDto, ApplicationE
 
 
     public Page find(Filter filter, UserDetail userDetail) {
-        return super.find(filter, userDetail);
+        return super.find(filter);
     }
 
     public ApplicationDto updateById(ApplicationDto applicationDto, UserDetail userDetail) {
