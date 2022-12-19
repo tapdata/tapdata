@@ -5,6 +5,7 @@
 -Incremental reading of file data source is through file wildcard scanning. Only new files or modifications of original files can be sensed. The scanning cycle is 1 minute by default. The data synchronization of deleting files and deleting file contents is not supported, and the involved files are added in full every time, and the purpose of modification is achieved by updating the condition field.
 
 ### **2. Supporting file protocol**
+The following file protocol path delimiters use "/"
 #### **LOCAL**
 Local represents the file of the operating system where the local (engine) is located
 #### **FTP**
@@ -13,6 +14,7 @@ FTP (File Transfer Protocol) can set the file server encoding.
 SFTP (Secure Encrypted File Transfer Protocol) can set the file server encoding. Linux system is enabled by default
 #### **SMB**
 SMB (File Sharing Protocol) Network file sharing protocol supported by Windows system, compatible with 1. x, 2. x, 3. x.
+- Special note: When accessing a file share, select the shared directory first, and then fill in the path. (shared directory/file path)
 #### **S3FS**
 S3FS (file system following S3 protocol)
 
