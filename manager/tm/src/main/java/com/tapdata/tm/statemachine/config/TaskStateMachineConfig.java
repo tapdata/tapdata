@@ -7,6 +7,9 @@
 package com.tapdata.tm.statemachine.config;
 
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.behavior.BehaviorCode;
+import com.tapdata.tm.behavior.entity.BehaviorEntity;
+import com.tapdata.tm.behavior.service.BehaviorService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.statemachine.annotation.EnableStateMachine;
@@ -18,11 +21,14 @@ import com.tapdata.tm.statemachine.model.StateContext;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.model.TaskStateContext;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.function.Function;
 
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
+import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -30,6 +36,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 @EnableStateMachine
+@Slf4j
 public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskState, DataFlowEvent> {
 
 
@@ -98,6 +105,9 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 	@Autowired
 	private TaskRepository taskRepository;
 
+	@Autowired
+	private BehaviorService behaviorService;
+
 
 	public Function<StateContext<TaskState, DataFlowEvent>, StateMachineResult> commonAction() {
 		return (stateContext) ->{
@@ -105,12 +115,28 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 				Update update = Update.update("status", stateContext.getTarget().getName());
 				setOperTime(stateContext.getTarget().getName(), update);
 
-				Query query = Query.query(Criteria.where("_id").is(((TaskStateContext) stateContext).getData().getId())
+				TaskDto task = ((TaskStateContext) stateContext).getData();
+				Query query = Query.query(Criteria.where("_id").is(task.getId())
 						.and("status").is(stateContext.getSource().getName()));
 
 				UserDetail userDetail = stateContext.getUserDetail();
 				query = taskRepository.applyUserDetail(query, userDetail);
 				UpdateResult updateResult = mongoTemplate.updateFirst(query, update, TaskEntity.class);
+
+				try {
+					BehaviorEntity behavior = new BehaviorEntity();
+					behavior.setCode(BehaviorCode.taskStatusChange.name());
+					behavior.setAttrs(new HashMap<>());
+					behavior.getAttrs().put("id", task.getId());
+					behavior.getAttrs().put("status", stateContext.getSource().getName());
+					behavior.getAttrs().put("name", task.getName());
+					behavior.getAttrs().put("syncType", task.getSyncType());
+					behavior.getAttrs().put("type", task.getType());
+					behaviorService.trace(behavior, userDetail);
+				} catch (Exception e) {
+					log.error("Trace task status behavior failed", e);
+				}
+
 				if (updateResult.wasAcknowledged() && updateResult.getModifiedCount() > 0){
 					stateContext.setNeedPostProcessor(true);
 					((TaskStateContext)stateContext).getData().setStatus(stateContext.getTarget().getName());

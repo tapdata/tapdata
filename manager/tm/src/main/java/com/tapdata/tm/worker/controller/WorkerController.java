@@ -2,9 +2,14 @@ package com.tapdata.tm.worker.controller;
 
 import com.google.gson.reflect.TypeToken;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.CheckTaskUsedAgentDto;
 import com.tapdata.tm.worker.dto.WorkerDto;
@@ -41,11 +46,13 @@ public class WorkerController extends BaseController {
         return "get success";
     }
 
+    private final UserLogService userLogService;
+    private SettingsService settingsService;
     private WorkerService workerService;
 
-    private SettingsService settingsService;
-    public WorkerController(WorkerService workerService, SettingsService settingsService) {
+    public WorkerController(WorkerService workerService, UserLogService userLogService, SettingsService settingsService) {
         this.workerService = workerService;
+        this.userLogService = userLogService;
         this.settingsService = settingsService;
     }
 
@@ -69,6 +76,11 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping("/health")
     public ResponseMessage<WorkerDto> health(@RequestBody WorkerDto worker) {
+        // flow-engine will set pingTime to 1 when users ask to stop the flow-engine in DFS， so here we
+        // keep the pingTime value 1
+        if (worker.getPingTime() == null || worker.getPingTime() != 1) {
+            worker.setPingTime(new Date().getTime());
+        }
         return success(workerService.health(worker, getLoginUser()));
     }
 
@@ -272,6 +284,9 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+
+        UserDetail userDetail = getLoginUser();
+
         Where where = parseWhere(whereJson);
         Document update = Document.parse(reqBody);
         if (update.containsKey("$set") && update.get("$set") instanceof Document) {
@@ -280,10 +295,31 @@ public class WorkerController extends BaseController {
             }
         }
 
+        com.tapdata.tm.userLog.constant.Operation operation = null;
+
         if (update.containsKey("isDeleted") && update.getBoolean("isDeleted")) {
             update.put("ping_time", 0L);
+            operation = com.tapdata.tm.userLog.constant.Operation.DELETE;
         }else if (update.containsKey("stopping") && update.getBoolean("stopping")){
             update.put("ping_time", System.currentTimeMillis() - 1000 * 60 * 5);
+            operation = com.tapdata.tm.userLog.constant.Operation.STOP;
+        }
+        boolean isTcmRequest = update.containsKey("isTCM") && update.getBoolean("isTCM");
+        if (isTcmRequest && operation != null) {
+            try {
+                Filter filter = new Filter();
+                filter.setWhere(where);
+
+                WorkerDto worker = workerService.findOne(filter, userDetail);
+                if (worker != null && worker.getTcmInfo() != null) {
+                    userLogService.addUserLog(
+                            Modular.AGENT, operation,
+                            userDetail, worker.getTcmInfo().getAgentName());
+                }
+            } catch (Exception e) {
+                // Ignore record agent operation log error
+                log.error("Record update worker operation fail", e);
+            }
         }
 
         if (!update.containsKey("$set") && !update.containsKey("$setOnInsert") && !update.containsKey("$unset")) {
@@ -292,7 +328,7 @@ public class WorkerController extends BaseController {
             update = _body;
         }
 
-        long count = workerService.updateByWhere(where, update, getLoginUser());
+        long count = workerService.updateByWhere(where, update, userDetail);
         /*if (reqBody.contains("\"$set\"") || reqBody.contains("\"$setOnInsert\"") || reqBody.contains("\"$unset\"")) {
             UpdateDto<WorkerDto> updateDto = JsonUtil.parseJsonUseJackson(reqBody, new TypeReference<UpdateDto<WorkerDto>>(){});
 

@@ -9,8 +9,6 @@ import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
-import io.tapdata.aspect.TaskStopAspect;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
@@ -20,6 +18,7 @@ import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -258,6 +257,23 @@ public class TapdataTaskScheduler {
 			}
 		} catch (Exception e) {
 			logger.error("Schedule start task failed {}", e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * Will run when engine start in cloud mode
+	 * Run task(s) already started, find clause: status=running and agentID={@link TapdataTaskScheduler#instanceNo}
+	 */
+	public void runTaskIfNeedWhenEngineStart() {
+		if(!appType.isCloud()) return;
+		Query query = new Query(
+				new Criteria("agentId").is(instanceNo)
+						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
+		);
+		List<TaskDto> tasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+		if (CollectionUtils.isNotEmpty(tasks)) {
+			logger.info("Found task(s) already running before engine start, will run these task(s) immediately\n  {}", tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
+			tasks.forEach(this::sendStartTask);
 		}
 	}
 

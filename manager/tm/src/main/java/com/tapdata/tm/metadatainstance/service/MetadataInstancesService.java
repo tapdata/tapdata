@@ -788,7 +788,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
     public int bulkSave(List<MetadataInstancesDto> metadataInstancesDtos,
+                        MetadataInstancesDto dataSourceMetadataInstance,
                         DataSourceConnectionDto dataSourceConnectionDto,
+                        DAG.Options options,
                         UserDetail userDetail,
                         Map<String, MetadataInstancesEntity> existsMetadataInstances) {
 
@@ -813,6 +815,70 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 historyModel.setVersionUserId(userDetail.getUserId());
                 historyModel.setVersionUserName(userDetail.getUsername());
                 historyModel.setHistories(null);
+
+                Map<String, Field> existsFieldMap = existsMetadataInstance.getFields().stream()
+                        .collect(Collectors.toMap(Field::getOriginalFieldName, f -> f, (f1, f2) -> f1));
+
+                HashMap<String, Field> fields = new HashMap<>();
+                metadataInstancesDto.getFields().forEach(field -> {
+                    if (existsFieldMap.containsKey(field.getOriginalFieldName())) {
+                        Field existsField = existsFieldMap.get(field.getOriginalFieldName());
+                        field.setId(existsField.getId());
+
+                        boolean isManual = Field.SOURCE_MANUAL.equals(existsField.getSource());
+                        if (isManual) {
+                            field.setDataType(existsField.getDataType());
+                            field.setPrecision(existsField.getPrecision());
+                            field.setScale(existsField.getScale());
+                        }
+                    }
+                    if (StringUtils.isBlank(field.getId())) {
+                        field.setId(new ObjectId().toHexString());
+                    }
+
+                    // Make sure the target model fields do not have the same name
+                    if (!fields.containsKey(field.getFieldName())) {
+                        fields.put(field.getFieldName(), field);
+                    }
+                });
+
+                // 未设置 rollback 时，默认保留用户配置过的字段
+                // rollback = 'all' or (rollback = 'table' and rollbackTable = metadataInstancesDto.getOriginalName()) , 回滚当前表
+                String rollback = options != null ? options.getRollback() : null;
+                String rollbackTable = options != null ? options.getRollbackTable() : null;
+                String fieldsNameTransform = options != null ? options.getFieldsNameTransform() : null;
+                if ("all".equalsIgnoreCase(rollback) ||
+                        ("table".equalsIgnoreCase(rollback) &&
+                                metadataInstancesDto.getOriginalName().equalsIgnoreCase(rollbackTable))) {
+
+                    metadataInstancesDto.getFields().forEach(field -> {
+                        if (existsFieldMap.containsKey(field.getOriginalFieldName())) {
+                            Field existsField = existsFieldMap.get(field.getOriginalFieldName());
+                            /*if ("manual".equalsIgnoreCase(existsField.getSource())
+                                    && existsField.getIsAutoAllowed() != null && !existsField.getIsAutoAllowed()) {*/
+                            String transformDataType = field.getDataType();
+                                BeanUtils.copyProperties(existsField, field);
+                                if ("table".equalsIgnoreCase(rollback) && StringUtils.isNotBlank(fieldsNameTransform)) {
+                                    if ("toUpperCase".equalsIgnoreCase(fieldsNameTransform)) {
+                                        field.setFieldName(field.getOriginalFieldName().toUpperCase());
+                                    } else if("toLowerCase".equalsIgnoreCase(fieldsNameTransform)) {
+                                        field.setFieldName(field.getOriginalFieldName().toLowerCase());
+                                    } else {
+                                        field.setFieldName(field.getOriginalFieldName());
+                                    }
+                                } else {
+                                    field.setFieldName(field.getOriginalFieldName());
+                                }
+                                field.setJavaType(field.getOriginalJavaType());
+                                field.setPrecision(field.getOriPrecision());
+                                field.setDataType(transformDataType); //field.getOriginalDataType());
+                                field.setDeleted(false);
+                            //}
+                            field.setId(existsField.getId());
+                        }
+                    });
+                }
+
                 Update update = new Update();
                 update.set("version", newVersion);
                 ArrayList<MetadataInstancesDto> hisModels = new ArrayList<>();
@@ -844,6 +910,13 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
                 //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
                 beforeSave(metadataInstancesDto, userDetail);
+                if ("vika".equals(dataSourceConnectionDto.getDatabase_type())) {
+                    metadataInstance.setFields(null);
+                    metadataInstance.setMetaType(MetaType.VikaDatasheet.name());
+                } else if ("qingflow".equals(dataSourceConnectionDto.getDatabase_type())) {
+                    metadataInstance.setFields(null);
+                    metadataInstance.setMetaType(MetaType.qingFlowApp.name());
+                }
                 Update update = repository.buildUpdateSet(metadataInstance, userDetail);
                 Query where = Query.query(Criteria.where("qualified_name").is(metadataInstance.getQualifiedName()));
                 repository.applyUserDetail(where, userDetail);

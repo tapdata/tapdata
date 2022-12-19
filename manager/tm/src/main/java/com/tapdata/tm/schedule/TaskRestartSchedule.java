@@ -176,7 +176,7 @@ public class TaskRestartSchedule {
 
         all.forEach(taskDto -> {
             int stopRetryTimes = taskDto.getStopRetryTimes();
-            if (stopRetryTimes > 10) {
+            if (stopRetryTimes > 8) {
                 stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
             } else {
                 taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(),  userMap.get(taskDto.getUserId()), false);

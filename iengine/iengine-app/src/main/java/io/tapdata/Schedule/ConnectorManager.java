@@ -26,6 +26,8 @@ import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.*;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
+import io.tapdata.observable.metric.TaskSampleReporter;
+import io.tapdata.observable.metric.TaskSampleRetriever;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
 import io.tapdata.websocket.ManagementWebsocketHandler;
@@ -269,7 +271,6 @@ public class ConnectorManager {
         throw new Exception(msg, e);
       }*/
 		}
-
 		configCenter.putConfig(ConfigurationCenter.BASR_URLS, baseURLs);
 		configCenter.putConfig(ConfigurationCenter.RETRY_TIME, restRetryTime);
 		configCenter.putConfig(ConfigurationCenter.AGENT_ID, instanceNo);

@@ -10,6 +10,11 @@ import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.BatchTypeOperation;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.dag.vo.TableOperation;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -49,6 +54,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     private List<String> inputLanes;
     private List<String> outputLanes;
     private String existDataProcessMode = "keepData";
+    private String dropType;
     private Integer readBatchSize;
     private Integer readCdcInterval;
     private List<FieldProcess> fieldProcess;
@@ -59,6 +65,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     private List<SyncObjects> syncObjects;
     private List<BatchTypeOperation> batchOperationList;
 
+    private List<TableOperation> tableOperations;
+
     //包含的表名，用于数据挖掘，在加载schema的时候存入
     private List<String> tableNames;
 
@@ -67,13 +75,14 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     // 复制任务 全部 or 自定义
     private String migrateTableSelectType;
 
+    public static final String SELF_TYPE = "database";
+
     public DatabaseNode() {
         super("database");
     }
 
-
     @Override
-    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
+    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
         //把inputSchemas的deleted的field给过滤掉
         if (TaskDto.SYNC_TYPE_SYNC.equals(getDag().getSyncType())) {
             for (List<Schema> inputSchema : inputSchemas) {
@@ -108,7 +117,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                 (s1, s2) -> SchemaUtils.mergeSchema(Collections.singletonList(s1), s2)));
 
         if (listener != null) {
-            listener.schemaTransformResult(getId(), schemaTransformerResults);
+            listener.schemaTransformResult(getId(), this, schemaTransformerResults);
         }
         List<Schema> outputSchema;
         if (schemas.size() == 0) {
