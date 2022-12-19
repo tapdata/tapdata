@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.DataSourcePool;
+import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.mysql.SqlMaker;
 import io.tapdata.connector.tidb.ddl.TidbSqlMaker;
 import io.tapdata.connector.tidb.dml.TidbRecordWrite;
@@ -94,6 +95,7 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> tidbContext.getConnection(), c));
 
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {

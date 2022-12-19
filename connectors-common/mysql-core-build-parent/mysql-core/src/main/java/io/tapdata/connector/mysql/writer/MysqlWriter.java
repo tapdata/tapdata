@@ -15,10 +15,8 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.collections4.map.LRUMap;
 
-import java.sql.Connection;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
@@ -30,12 +28,10 @@ public abstract class MysqlWriter {
 
 	private static final String TAG = MysqlWriter.class.getSimpleName();
 	protected MysqlJdbcContext mysqlJdbcContext;
-	protected Connection connection;
 	private final AtomicBoolean running;
 
 	public MysqlWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
 		this.mysqlJdbcContext = mysqlJdbcContext;
-		this.connection = mysqlJdbcContext.getConnection();
 		this.running = new AtomicBoolean(true);
 	}
 
@@ -131,7 +127,7 @@ public abstract class MysqlWriter {
 		}
 	}
 
-	protected static class LRUOnRemoveMap<K, V> extends LRUMap<K, V> {
+	public static class LRUOnRemoveMap<K, V> extends LRUMap<K, V> {
 
 		private Consumer<Entry<K, V>> onRemove;
 

@@ -1,5 +1,6 @@
 package io.tapdata.connector.mysql.writer;
 
+import io.debezium.util.HexConverter;
 import io.tapdata.connector.mysql.MysqlJdbcContext;
 import io.tapdata.connector.mysql.util.JdbcUtil;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -11,8 +12,16 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Statement;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -22,30 +31,52 @@ import java.util.stream.Collectors;
  * @Description
  * @create 2022-10-25 14:30
  **/
-public abstract class MysqlJdbcWriter extends MysqlWriter{
+public abstract class MysqlJdbcWriter extends MysqlWriter {
 	private final static String TAG = MysqlJdbcWriter.class.getSimpleName();
 	protected static final String INSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values(%s)";
 	protected static final String UPDATE_SQL_TEMPLATE = "UPDATE `%s`.`%s` SET %s WHERE %s";
 	protected static final String DELETE_SQL_TEMPLATE = "DELETE FROM `%s`.`%s` WHERE %s";
 	protected static final String CHECK_ROW_EXISTS_TEMPLATE = "SELECT COUNT(1) as count FROM `%s`.`%s` WHERE %s";
-	protected final Map<String, JdbcCache> jdbcCacheMap = new ConcurrentHashMap<>();
+	private static final String LARGE_INSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values %s";
+	private static final String INSERT_IGNORE_SQL_TEMPLATE = "INSERT IGNORE INTO `%s`.`%s`(%s) values %s";
+	private static final String REPLACE_INTO_SQL_TEMPLATE = "REPLACE INTO `%s`.`%s`(%s) values %s";
+	private static final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
+	private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
+	protected Map<String, JdbcCache> jdbcCacheMap;
 
 	public MysqlJdbcWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
 		super(mysqlJdbcContext);
+		this.jdbcCacheMap = new ConcurrentHashMap<>();
+	}
+
+	public MysqlJdbcWriter(MysqlJdbcContext mysqlJdbcContext, Map<String, JdbcCache> jdbcCacheMap) throws Throwable {
+		super(mysqlJdbcContext);
+		this.jdbcCacheMap = jdbcCacheMap;
 	}
 
 	protected JdbcCache getJdbcCache() {
 		String name = Thread.currentThread().getName();
 		JdbcCache jdbcCache = jdbcCacheMap.get(name);
 		if (null == jdbcCache) {
-			jdbcCache = new JdbcCache();
-			jdbcCacheMap.put(name, jdbcCache);
+			synchronized (this.jdbcCacheMap) {
+				jdbcCache = jdbcCacheMap.get(name);
+				if (null == jdbcCache) {
+					try {
+						Connection connection = mysqlJdbcContext.getConnection();
+						jdbcCache = new JdbcCache(connection);
+						jdbcCacheMap.put(name, jdbcCache);
+					} catch (SQLException e) {
+						throw new RuntimeException(String.format("Create jdbc connection failed, error: %s", e.getMessage()), e);
+					}
+				}
+			}
 		}
 		return jdbcCache;
 	}
 
 	protected PreparedStatement getInsertPreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
-		Map<String, PreparedStatement> insertMap = getJdbcCache().getInsertMap();
+		JdbcCache jdbcCache = getJdbcCache();
+		Map<String, PreparedStatement> insertMap = jdbcCache.getInsertMap();
 		String key = getKey(tapTable, tapRecordEvent);
 		PreparedStatement preparedStatement = insertMap.get(key);
 		if (null == preparedStatement) {
@@ -67,7 +98,7 @@ public abstract class MysqlJdbcWriter extends MysqlWriter{
 			List<String> questionMarks = fields.stream().map(f -> "?").collect(Collectors.toList());
 			String sql = String.format(INSERT_SQL_TEMPLATE, database, tableId, String.join(",", fields), String.join(",", questionMarks));
 			try {
-				preparedStatement = this.connection.prepareStatement(sql);
+				preparedStatement = jdbcCache.getConnection().prepareStatement(sql);
 			} catch (SQLException e) {
 				throw new Exception("Create insert prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
 			} catch (Exception e) {
@@ -79,7 +110,8 @@ public abstract class MysqlJdbcWriter extends MysqlWriter{
 	}
 
 	protected PreparedStatement getUpdatePreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
-		Map<String, PreparedStatement> updateMap = getJdbcCache().getUpdateMap();
+		JdbcCache jdbcCache = getJdbcCache();
+		Map<String, PreparedStatement> updateMap = jdbcCache.getUpdateMap();
 		String key = getKey(tapTable, tapRecordEvent);
 		PreparedStatement preparedStatement = updateMap.get(key);
 		if (null == preparedStatement) {
@@ -105,7 +137,7 @@ public abstract class MysqlJdbcWriter extends MysqlWriter{
 			}
 			String sql = String.format(UPDATE_SQL_TEMPLATE, database, tableId, String.join(",", setList), String.join(" AND ", whereList));
 			try {
-				preparedStatement = this.connection.prepareStatement(sql);
+				preparedStatement = jdbcCache.getConnection().prepareStatement(sql);
 			} catch (SQLException e) {
 				throw new Exception("Create update prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
 			} catch (Exception e) {
@@ -117,7 +149,8 @@ public abstract class MysqlJdbcWriter extends MysqlWriter{
 	}
 
 	protected PreparedStatement getDeletePreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
-		Map<String, PreparedStatement> deleteMap = getJdbcCache().getDeleteMap();
+		JdbcCache jdbcCache = getJdbcCache();
+		Map<String, PreparedStatement> deleteMap = jdbcCache.getDeleteMap();
 		String key = getKey(tapTable, tapRecordEvent);
 		PreparedStatement preparedStatement = deleteMap.get(key);
 		if (null == preparedStatement) {
@@ -136,7 +169,7 @@ public abstract class MysqlJdbcWriter extends MysqlWriter{
 			}
 			String sql = String.format(DELETE_SQL_TEMPLATE, database, tableId, String.join(" AND ", whereList));
 			try {
-				preparedStatement = this.connection.prepareStatement(sql);
+				preparedStatement = jdbcCache.getConnection().prepareStatement(sql);
 			} catch (SQLException e) {
 				throw new Exception("Create delete prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
 			} catch (Exception e) {
@@ -148,7 +181,8 @@ public abstract class MysqlJdbcWriter extends MysqlWriter{
 	}
 
 	protected PreparedStatement getCheckRowExistsPreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
-		Map<String, PreparedStatement> checkExistsMap = getJdbcCache().getCheckExistsMap();
+		JdbcCache jdbcCache = getJdbcCache();
+		Map<String, PreparedStatement> checkExistsMap = jdbcCache.getCheckExistsMap();
 		String key = getKey(tapTable, tapRecordEvent);
 		PreparedStatement preparedStatement = checkExistsMap.get(key);
 		if (null == preparedStatement) {
@@ -167,7 +201,7 @@ public abstract class MysqlJdbcWriter extends MysqlWriter{
 			}
 			String sql = String.format(CHECK_ROW_EXISTS_TEMPLATE, database, tableId, String.join(" AND ", whereList));
 			try {
-				preparedStatement = this.connection.prepareStatement(sql);
+				preparedStatement = jdbcCache.getConnection().prepareStatement(sql);
 			} catch (SQLException e) {
 				throw new Exception("Create check row exists prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
 			} catch (Exception e) {
@@ -227,11 +261,98 @@ public abstract class MysqlJdbcWriter extends MysqlWriter{
 		}
 	}
 
+	protected String appendLargeInsertSql(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) {
+		String valueString = getValueString(tapTable, tapRecordEvents);
+		DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
+		String database = connectionConfig.getString("database");
+		return String.format(LARGE_INSERT_SQL_TEMPLATE, database, tapTable.getId(), getFieldString(tapTable), valueString);
+	}
+
+	protected String appendLargeInsertOnDuplicateUpdateSql(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) {
+		return appendLargeInsertSql(tapConnectorContext, tapTable, tapRecordEvents) + appendOnDuplicateKeyUpdate(tapTable);
+	}
+
+	protected String appendLargeInsertIgnoreSql(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) {
+		String valueString = getValueString(tapTable, tapRecordEvents);
+		DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
+		String database = connectionConfig.getString("database");
+		return String.format(INSERT_IGNORE_SQL_TEMPLATE, database, tapTable.getId(), getFieldString(tapTable), valueString);
+	}
+
+	protected String appendReplaceIntoSql(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) {
+		String valueString = getValueString(tapTable, tapRecordEvents);
+		String database = tapConnectorContext.getConnectionConfig().getString("database");
+		return String.format(REPLACE_INTO_SQL_TEMPLATE, database, tapTable.getId(), getFieldString(tapTable), valueString);
+	}
+
+	protected String getFieldString(TapTable tapTable) {
+		Set<String> fieldSet = tapTable.getNameFieldMap().keySet();
+		return "`" + String.join("`,`", fieldSet) + "`";
+	}
+
+	protected String getValueString(TapTable tapTable, List<TapRecordEvent> tapRecordEvents) {
+		List<String> valueList = new ArrayList<>();
+		Set<String> fieldSet = tapTable.getNameFieldMap().keySet();
+		for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+			List<String> oneRowValueList = new ArrayList<>();
+			Map<String, Object> after = getAfter(tapRecordEvent);
+			for (String fieldName : fieldSet) {
+				Object obj = after.get(fieldName);
+				oneRowValueList.add(object2String(obj));
+			}
+			valueList.add("(" + String.join(",", oneRowValueList) + ")");
+		}
+		return String.join(",", valueList);
+	}
+
+	protected String appendOnDuplicateKeyUpdate(TapTable tapTable) {
+		String sql = "\nON DUPLICATE KEY UPDATE\n  ";
+		List<String> list = new ArrayList<>();
+		Set<String> fieldSet = tapTable.getNameFieldMap().keySet();
+		for (String fieldName : fieldSet) {
+			list.add("`" + fieldName + "`=VALUES(`" + fieldName + "`)");
+		}
+		sql += String.join(",", list);
+		return sql;
+	}
+
+	protected String object2String(Object obj) {
+		String result;
+		if (null == obj) {
+			result = "null";
+		} else if (obj instanceof String) {
+			result = "'" + ((String) obj).replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'").replaceAll("\\(", "\\\\(").replaceAll("\\)", "\\\\)") + "'";
+		} else if (obj instanceof Number) {
+			result = obj.toString();
+		} else if (obj instanceof Date) {
+			result = "'" + dateFormat.format(obj) + "'";
+		} else if (obj instanceof Instant) {
+			result = "'" + LocalDateTime.ofInstant((Instant) obj, ZoneId.of("GMT")).format(dateTimeFormatter) + "'";
+		} else if (obj instanceof byte[]) {
+			String hexString = HexConverter.convertToHexString((byte[]) obj);
+			return "X'" + hexString + "'";
+		} else if (obj instanceof Boolean) {
+			if ("true".equalsIgnoreCase(obj.toString())) {
+				return "1";
+			}
+			return "0";
+		} else {
+			return "'" + obj + "'";
+		}
+		return result;
+	}
+
 	protected static class JdbcCache {
+		private Connection connection;
 		private final Map<String, PreparedStatement> insertMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
 		private final Map<String, PreparedStatement> updateMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
 		private final Map<String, PreparedStatement> deleteMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
 		private final Map<String, PreparedStatement> checkExistsMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
+		private final List<Statement> statementList = new ArrayList<>();
+
+		public JdbcCache(Connection connection) {
+			this.connection = connection;
+		}
 
 		public Map<String, PreparedStatement> getInsertMap() {
 			return insertMap;
@@ -249,11 +370,25 @@ public abstract class MysqlJdbcWriter extends MysqlWriter{
 			return checkExistsMap;
 		}
 
+		public Statement getStatement() throws SQLException {
+			if (null == connection)
+				throw new IllegalArgumentException("Cannot create sql statement when connection is null");
+			if (!connection.isValid(5)) throw new RuntimeException("Connection is invalid");
+			Statement statement = connection.createStatement();
+			statementList.add(statement);
+			return statement;
+		}
+
+		public Connection getConnection() {
+			return connection;
+		}
+
 		public void clear() {
 			this.insertMap.clear();
 			this.updateMap.clear();
 			this.deleteMap.clear();
 			this.checkExistsMap.clear();
+			statementList.forEach(JdbcUtil::closeQuietly);
 		}
 	}
 }

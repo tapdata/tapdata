@@ -29,6 +29,9 @@ public abstract class TapBytesBase extends TapMapping {
 //            return bytes;
 //        // 14 / 8 = 2, 14 / 7 = 2
 //        return (bytes / this.byteRatio + ((bytes % this.byteRatio) > 0 ? 1 : 0));
+        if(byteRatio == null && comingByteRatio != null) {
+            return comingBytes * comingByteRatio;
+        }
         return comingBytes;
     }
 

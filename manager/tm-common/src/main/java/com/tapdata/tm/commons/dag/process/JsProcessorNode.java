@@ -38,7 +38,7 @@ public class JsProcessorNode extends ProcessorNode {
 
     @Override
     protected Schema loadSchema(List<String> includes) {
-        List<Node<Schema>> predecessors = this.predecessors();
+//        List<Node<Schema>> predecessors = this.predecessors();
         final List<String> predIds = new ArrayList<>();
         getPrePre(this, predIds);
         predIds.add(this.getId());
@@ -82,7 +82,7 @@ public class JsProcessorNode extends ProcessorNode {
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
         taskDtoCopy.setDag(build);
-        taskDtoCopy.setId(new ObjectId());
+        taskDtoCopy.setId(Optional.of(new ObjectId(taskDto.getTransformTaskId())).orElseGet(ObjectId::new));
         taskDtoCopy.setName(taskDto.getName() + "(100)");
         List<Schema> inputSchema = getInputSchema();
         if (CollectionUtils.isEmpty(inputSchema)) {
