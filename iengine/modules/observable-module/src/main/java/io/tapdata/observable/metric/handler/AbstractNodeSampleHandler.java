@@ -12,7 +12,7 @@ import java.util.Map;
 /**
  * @author Dexter
  */
-abstract class AbstractNodeSampleHandler extends AbstractHandler {
+public abstract class AbstractNodeSampleHandler extends AbstractHandler {
     static final String SAMPLE_TYPE_NODE    = "node";
 
     final Node<?> node;

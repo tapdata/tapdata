@@ -77,7 +77,7 @@ public class SchemaUtils {
             log.warn("Can't merge non schema.");
             return null;
         } else {
-            List<TableIndex> inputIndices = _inputSchemas.stream()
+            List<TableIndex> inputIndices = inputSchemas.stream()
                     .filter(s->null != s.getIndices())
                     .flatMap(s -> s.getIndices().stream())
                     .filter(Objects::nonNull).collect(Collectors.toList());
