@@ -1318,7 +1318,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private Page<TaskDto> findDataCopyList(Filter filter, UserDetail userDetail) {
         Where where = filter.getWhere();
 
-        Criteria criteria = Criteria.where("is_deleted").ne(true).and("user_id").is(userDetail.getUserId());
+        Criteria criteria = new Criteria();
+        if (!userDetail.isRoot()) {
+            criteria.and("user_id").is(userDetail.getUserId());
+        }
         Criteria orToCriteria = parseOrToCriteria(where);
 
         // Supplementary data verification status
