@@ -150,6 +150,18 @@ pip3 install argparse GitPython psutil
 
 env
 
+if [[ "x"$jobs_number == "x" ]]; then
+    jobs_number="0"
+fi
+
+if [[ "x"$pass_jobs_number == "x" ]]; then
+    pass_jobs_number="0"
+fi
+
+if [[ "x"$jobs_number != "x"$pass_jobs_number ]]; then
+    pass="false"
+fi
+
 message='{"ut_cost_time":'$ut_cost_time',"it_cost_time":'$it_cost_time',"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"'$start_result'","its":['$case_results']}'
 
 echo $message

@@ -258,23 +258,29 @@ def run_jobs(test_case, run_params_template):
 
     logger.info("will create {} job for this test case and start running it...", len(run_params_template))
     for i in range(len(run_params_template)):
-        logger.notice("{}", "=" * 150)
-        job_name = "%s%s_%d" % (test_case.__name__, get_suffix(), i)
-        p = Pipeline(job_name, mode="sync")
-        p.config({"type": "initial_sync"})
-        run_param = gen_run_param(p, run_params_template[i], i)
-        logger.notice("start run number {} job, name is: {}, param is: {}", i, job_name, run_param)
-        with open("jobs_number", "a+") as fd:
-            fd.write(".\n")
-        case_result = run_job(p, test_case, run_param)
-        logger.notice("{}", "#" * 150)
-        if case_result:
-            with open("pass_jobs_number", "a+") as fd:
+        try:
+            logger.notice("{}", "=" * 150)
+            job_name = "%s%s_%d" % (test_case.__name__, get_suffix(), i)
+            p = Pipeline(job_name, mode="sync")
+            p.config({"type": "initial_sync"})
+            run_param = gen_run_param(p, run_params_template[i], i)
+            logger.notice("start run number {} job, name is: {}, param is: {}", i, job_name, run_param)
+            with open("jobs_number", "a+") as fd:
                 fd.write(".\n")
-        result.append({
-            "params": run_param,
-            "result": case_result
-        })
+            case_result = run_job(p, test_case, run_param)
+            logger.notice("{}", "#" * 150)
+            if case_result:
+                with open("pass_jobs_number", "a+") as fd:
+                    fd.write(".\n")
+            result.append({
+                "params": run_param,
+                "result": case_result
+            })
+        except Exception as e:
+            result.append({
+                "params": run_param,
+                "result": False,
+            })
     return result
 
 def clean_smart_cdc():
