@@ -88,7 +88,7 @@ public class BaseController {
 	private void judgeFreeAuth(String uri, String method, UserDetail userDetail) {
 		if (productComponent.isDAAS()) {
 			if (isFreeAuth(uri, method)) {
-				userDetail.setFreeAuth();
+ 				userDetail.setFreeAuth();
 			}
 		}
 	}
