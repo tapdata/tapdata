@@ -75,7 +75,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 								javaScriptFunctions,
 								clientMongoOperator,
 								((DataProcessorContext) processorBaseContext).getCacheService(),
-								new ObsScriptLogger(obsLogger));
+								new ObsScriptLogger(obsLogger, logger));
 				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
 				((ScriptEngine) engine).put("state", stateMap);
 			} catch (ScriptException e) {

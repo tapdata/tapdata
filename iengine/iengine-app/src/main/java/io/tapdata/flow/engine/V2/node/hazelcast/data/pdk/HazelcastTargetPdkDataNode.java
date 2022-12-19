@@ -116,13 +116,17 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				throw new NodeException("Init target node failed, table \"" + tableId + "\"'s schema is null").context(getDataProcessorContext());
 			}
 			dropTable(existsDataProcessEnum, tableId);
-			createTable(tapTable);
+			boolean createdTable = createTable(tapTable);
 			clearData(existsDataProcessEnum, tableId);
-			createTargetIndex(node, tableId, tapTable);
+			createTargetIndex(node, tableId, tapTable, createdTable);
 		}
 	}
 
-	private void createTargetIndex(Node node, String tableId, TapTable tapTable) {
+	private void createTargetIndex(Node node, String tableId, TapTable tapTable, boolean createdTable) {
+
+		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {
+			return;
+		}
 		CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
 		if (null == createIndexFunction) {
 			return;
@@ -131,7 +135,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		AtomicReference<TapCreateIndexEvent> indexEvent = new AtomicReference<>();
 		try {
 			List<TapIndex> tapIndices = new ArrayList<>();
-			TapIndex tapIndex = new TapIndex();
+			TapIndex tapIndex = new TapIndex().unique(true);
 			List<TapIndexField> tapIndexFields = new ArrayList<>();
 			List<String> updateConditionFields = null;
 			if (node instanceof TableNode) {
@@ -150,6 +154,15 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				return;
 			}
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
+				boolean usePkAsUpdateConditions = usePkAsUpdateConditions(updateConditionFields, tapTable.primaryKeys());
+				if (usePkAsUpdateConditions && createdTable) {
+					logger.warn("Table " + tableId + "use the primary key as the update condition, which is created when the table is create, and ignored");
+					obsLogger.warn("Table " + tableId + "use the primary key as the update condition, which is created when the table is create, and ignored");
+					return;
+				}
+				if (!usePkAsUpdateConditions) {
+					tapIndex.primary(true);
+				}
 				updateConditionFields.forEach(field -> {
 					TapIndexField tapIndexField = new TapIndexField();
 					tapIndexField.setName(field);
@@ -206,12 +219,14 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	private void createTable(TapTable tapTable) {
+	private boolean createTable(TapTable tapTable) {
 		AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
+		boolean createdTable;
 		try {
 			CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
 			CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
-			if (createTableV2Function != null || createTableFunction != null) {
+			createdTable = createTableV2Function != null || createTableFunction != null;
+			if (createdTable) {
 				handleTapTablePrimaryKeys(tapTable);
 				tapCreateTableEvent.set(createTableEvent(tapTable));
 				executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
@@ -244,7 +259,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			obsLogger.error(nodeException.getMessage(), nodeException);
 			throw nodeException;
 		}
-
+		return createdTable;
 	}
 
 	private void dropTable(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
@@ -486,8 +501,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private boolean executeCreateTableFunction(TapCreateTableEvent tapCreateTableEvent) {
 		String tgtTableName = getTgtTableNameFromTapEvent(tapCreateTableEvent);
 		TapTable tgtTapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
-		createTable(tgtTapTable);
-		return true;
+		return createTable(tgtTapTable);
 	}
 
 	private void writeRecord(List<TapEvent> events) {
@@ -545,7 +559,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					removePdkMethodInvoker(pdkMethodInvoker);
 				}
 			} catch (Exception e) {
-				throw new NodeException(e).context(getDataProcessorContext()).events(events);
+				String msg = String.format(" tableName: %s, %s", tgtTableName, e.getMessage());
+				throw new NodeException(msg, e).context(getDataProcessorContext()).events(events);
 			}
 		} else {
 			throw new NodeException("PDK connector " + getConnectorNode().getConnectorContext().getSpecification().getId() + " does not support write record function")

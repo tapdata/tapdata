@@ -17,7 +17,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +26,6 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 @DisplayName("connectionTest.test")//连接测试，必测方法
 @TapGo(sort = 4)
 public class ConnectionTest extends PDKTestBase {
-
     //此方法不需要调用PDK数据源的init/stop方法， 直接调用connectionTest即可。 至少返回一个测试项即为成功。
     @DisplayName("connectionTest.testConnectionTest")//用例1， 返回恰当的测试结果
     @Test
@@ -45,44 +43,40 @@ public class ConnectionTest extends PDKTestBase {
                 Method testCase = super.getMethod("testConnectionTest");
                 TapConnectorContext connectorContext = prepare.connectorNode().getConnectorContext();
                 ConnectorFunctions connectorFunctions = prepare.connectorNode().getConnectorFunctions();
-
                 //Version， Connection， Login的TestItem项没有上报时， 输出警告。
                 Map<String,TestItem> testItemMap = new HashMap<>();
                 prepare.connectorNode().getConnector().connectionTest(connectorContext,consumer->{
                     if (null!=consumer) testItemMap.put(consumer.getItem(),consumer);
                 });
-
                 //String item = consumer.getItem();
                 TapAssert.asserts(()->
-                        Assertions.assertTrue(
-                                testItemMap.containsKey(TestItem.ITEM_CONNECTION)||
-                                        testItemMap.containsKey(TestItem.ITEM_VERSION)||
-                                        testItemMap.containsKey(TestItem.ITEM_LOGIN),
-                                TapSummary.format("connectionTest.testConnectionTest.errorVCL")
-                        )
+                    Assertions.assertTrue(
+                testItemMap.containsKey(TestItem.ITEM_CONNECTION)||
+                        testItemMap.containsKey(TestItem.ITEM_VERSION)||
+                        testItemMap.containsKey(TestItem.ITEM_LOGIN),
+                        TapSummary.format("connectionTest.testConnectionTest.errorVCL")
+                    )
                 ).acceptAsWarn(testCase,
-                        TapSummary.format("connectionTest.testConnectionTest.succeedVCL")
+                    TapSummary.format("connectionTest.testConnectionTest.succeedVCL")
                 );
-
                 //当实现BatchReadFunction的时候， Read没有上报时， 输出警告。
                 BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
                 if (null!=batchReadFunction) {
                     TapAssert.asserts(() ->
-                            Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_READ),
-                                    TapSummary.format("connectionTest.testConnectionTest.errorBatchRead"))
+                        Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_READ),
+                            TapSummary.format("connectionTest.testConnectionTest.errorBatchRead"))
                     ).acceptAsWarn(testCase,
-                            TapSummary.format("connectionTest.testConnectionTest.succeedBatchRead")
+                        TapSummary.format("connectionTest.testConnectionTest.succeedBatchRead")
                     );
                 }
-
                 //当实现StreamReadFunction的时候， Read log没有上报时， 输出警告。
                 StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
                 if (null!=streamReadFunction){
                     TapAssert.asserts(()->
-                            Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_READ_LOG),
-                                    TapSummary.format("connectionTest.testConnectionTest.errorStreamRead"))
+                        Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_READ_LOG),
+                            TapSummary.format("connectionTest.testConnectionTest.errorStreamRead"))
                     ).acceptAsWarn(testCase,
-                            TapSummary.format("connectionTest.testConnectionTest.succeedStreamRead")
+                        TapSummary.format("connectionTest.testConnectionTest.succeedStreamRead")
                     );
                 }
 
@@ -90,10 +84,10 @@ public class ConnectionTest extends PDKTestBase {
                 WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
                 if (null!=writeRecordFunction){
                     TapAssert.asserts(()->
-                            Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_WRITE),
-                                    TapSummary.format("connectionTest.testConnectionTest.errorWriteRecord"))
+                        Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_WRITE),
+                            TapSummary.format("connectionTest.testConnectionTest.errorWriteRecord"))
                     ).acceptAsWarn(testCase,
-                            TapSummary.format("connectionTest.testConnectionTest.succeedWriteRecord")
+                        TapSummary.format("connectionTest.testConnectionTest.succeedWriteRecord")
                     );
                 }
             }catch (Throwable e){

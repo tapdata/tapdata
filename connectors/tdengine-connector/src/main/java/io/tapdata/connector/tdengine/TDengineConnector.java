@@ -81,6 +81,8 @@ public class TDengineConnector extends ConnectorBase {
         fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
         fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
         fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
+
+        Class.forName("com.taosdata.jdbc.TSDBDriver");
     }
 
     @Override
@@ -92,23 +94,44 @@ public class TDengineConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
-        codecRegistry.registerFromTapValue(TapMapValue.class, "json", tapValue -> toJson(tapValue.getValue()));
-        codecRegistry.registerFromTapValue(TapArrayValue.class, "json", tapValue -> toJson(tapValue.getValue()));
+        codecRegistry.registerFromTapValue(TapRawValue.class, "VARCHAR(1000)", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null) {
+                return toString(tapValue.getValue());
+            }
+            return null;
+        });
+        codecRegistry.registerFromTapValue(TapMapValue.class, "VARCHAR(1000)", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null) {
+                return toString(tapValue.getValue());
+            }
+            return null;
+        });
+        codecRegistry.registerFromTapValue(TapArrayValue.class, "VARCHAR(1000)", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null) {
+                return toString(tapValue.getValue());
+            }
+            return null;
+        });
 
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, "TIMESTAMP", tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
                 tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
             }
             return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
         });
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
+        codecRegistry.registerFromTapValue(TapDateValue.class, "TIMESTAMP", tapDateValue -> {
             if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
                 tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
-
-        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+        codecRegistry.registerFromTapValue(TapTimeValue.class, "VARCHAR(20)", tapTimeValue -> {
+            if (tapTimeValue.getValue() != null && tapTimeValue.getValue().getTimeZone() == null) {
+                tapTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SSSSSS");
+        });
+        codecRegistry.registerFromTapValue(TapYearValue.class, "VARCHAR(4)", tapYearValue -> {
             if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
                 tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
             }

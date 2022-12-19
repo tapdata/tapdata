@@ -1,5 +1,6 @@
 package com.tapdata.tm.monitor.service.impl;
 
+import cn.hutool.core.date.StopWatch;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -49,10 +50,11 @@ public class BatchServiceImpl implements BatchService {
                 BatchResponeVo result = new BatchResponeVo();
                 try {
                     if (Objects.isNull(serviceEnum)) {
-                        result.put(k, new BatchDataVo("SystemError", "not required service method", null));
+                        result.put(k, new BatchDataVo("SystemError", "not required service method", null, null));
                         return result;
                     }
-
+                    StopWatch stopWatch = new StopWatch();
+                    stopWatch.start();
                     Class<?> serviceClass = Class.forName(serviceEnum.getService());
                     Class<?> paramClass = Class.forName(serviceEnum.getParam());
                     Method method = serviceClass.getMethod(serviceEnum.getMethod(), paramClass);
@@ -60,12 +62,14 @@ public class BatchServiceImpl implements BatchService {
                     Object obj = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(param), paramClass);
                     Object bean = SpringUtil.getBean(serviceClass);
                     Object data = method.invoke(bean, obj);
-                    result.put(k, new BatchDataVo("ok", null, data));
+                    stopWatch.stop();
+                    result.put(k, new BatchDataVo("ok", null, data, stopWatch.getTotalTimeMillis()));
+
                     return result;
                 } catch (ClassNotFoundException | InvocationTargetException | NoSuchMethodException |
                          IllegalAccessException e) {
                     log.error("BatchService batch method error msg:{}", e.getMessage(), e);
-                    result.put(k, new BatchDataVo("SystemError", e.getCause().getMessage(), null));
+                    result.put(k, new BatchDataVo("SystemError", e.getCause().getMessage(), null, null));
                     return result;
                 }
             }, scheduler);
@@ -86,7 +90,7 @@ public class BatchServiceImpl implements BatchService {
         /// need a schedular executor
         final CompletableFuture<BatchResponeVo> timer = new CompletableFuture<>();
         scheduler.schedule(()-> timer.complete(new BatchResponeVo() {{
-            put(key, new BatchDataVo("SystemError", "method excute timeout "+duration.get(SECONDS)+"s", null));
+            put(key, new BatchDataVo("SystemError", "method excute timeout "+duration.get(SECONDS)+"s", null, null));
         }}),duration.toMillis(), TimeUnit.MILLISECONDS);
         return timer;
     }

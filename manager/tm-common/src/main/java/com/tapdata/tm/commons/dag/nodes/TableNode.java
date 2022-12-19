@@ -144,6 +144,7 @@ public class TableNode extends DataNode {
     @EqField
     private String redisKeyPrefix;
 
+    private Integer rows;
 
     private Map<String, Object> nodeConfig;
 

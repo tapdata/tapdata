@@ -96,10 +96,9 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
         taskDtoCopy.setDag(build);
-        taskDtoCopy.setId(new ObjectId());
+        taskDtoCopy.setId(Optional.of(new ObjectId(taskDto.getTransformTaskId())).orElseGet(ObjectId::new));
         taskDtoCopy.setName(taskDto.getName() + "(100)");
         taskDtoCopy.setParentSyncType(taskDto.getSyncType());
-
 
         List<Schema> result = Lists.newArrayList();
         List<MigrateJsResultVo> jsResult;

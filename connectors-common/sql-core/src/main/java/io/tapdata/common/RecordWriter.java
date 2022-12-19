@@ -50,7 +50,7 @@ public class RecordWriter {
                     insertRecorder.executeBatch(listResult);
                     deleteRecorder.executeBatch(listResult);
                     TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
-                    updateRecorder.addUpdateBatch(updateRecordEvent.getAfter());
+                    updateRecorder.addUpdateBatch(updateRecordEvent.getAfter(), updateRecordEvent.getBefore());
                     updateRecorder.addAndCheckCommit(recordEvent, listResult);
                 } else if (recordEvent instanceof TapDeleteRecordEvent) {
                     insertRecorder.executeBatch(listResult);

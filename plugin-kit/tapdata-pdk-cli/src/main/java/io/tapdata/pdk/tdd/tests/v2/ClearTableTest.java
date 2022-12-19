@@ -2,18 +2,14 @@ package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.Record;
@@ -25,7 +21,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.List;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
@@ -66,7 +61,6 @@ public class ClearTableTest extends PDKTestBase {
                         TapSummary.format("clearTable.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
                     )
                 ).acceptAsError(testCase, TapSummary.format("clearTable.insert.succeed",recordCount));
-
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnectorContext context = connectorNode.getConnectorContext();
                 ConnectorFunctions functions = connectorNode.getConnectorFunctions();
@@ -81,7 +75,6 @@ public class ClearTableTest extends PDKTestBase {
                 event.setReferenceTime(System.currentTimeMillis());
                 clear.clearTable(context,event);
                 TapAssert.asserts(()->Assertions.assertTrue(true)).acceptAsError(testCase,TapSummary.format("clearTable.clean",recordCount));
-
                 //如果数据源实现了BatchCountFunction方法，调用BatchCountFunction方法查看该表是否为0；
                 BatchCountFunction batchCountFunction = functions.getBatchCountFunction();
                 if (null!=batchCountFunction){
@@ -127,7 +120,6 @@ public class ClearTableTest extends PDKTestBase {
     public static List<SupportFunction> testFunctions() {
         return list(
                 support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-//                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction")),
                 supportAny(list(BatchCountFunction.class, QueryByFilterFunction.class, QueryByAdvanceFilterFunction.class),TapSummary.format(anyOneFunFormat,"BatchCountFunction,QueryByFilterFunction,QueryByAdvanceFilterFunction")),
                 support(ClearTableFunction.class,TapSummary.format(inNeedFunFormat,"ClearTableFunction"))
         );

@@ -12,6 +12,9 @@
         "id": "master_slave_merge"
       },
       {
+        "id": "dynamic_schema"
+      },
+      {
         "id": "dml_insert_policy",
         "alternatives": ["update_on_exists", "ignore_on_exists"]
       },

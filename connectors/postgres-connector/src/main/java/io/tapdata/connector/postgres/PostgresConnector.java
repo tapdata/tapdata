@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
+import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlGenerator;
 import io.tapdata.connector.postgres.bean.PostgresColumn;
 import io.tapdata.connector.postgres.cdc.PostgresCdcRunner;
@@ -99,11 +100,7 @@ public class PostgresConnector extends ConnectorBase {
                     if (value.stream().anyMatch(v -> (boolean) v.get("is_primary"))) {
                         primaryKey.addAll(value.stream().map(v -> v.getString("column_name")).collect(Collectors.toList()));
                     }
-                    TapIndex index = index(key);
-                    value.forEach(v -> index.indexField(indexField(v.getString("column_name")).fieldAsc("A".equals(v.getString("asc_or_desc")))));
-                    index.setUnique(value.stream().anyMatch(v -> (boolean) v.get("is_unique")));
-                    index.setPrimary(value.stream().anyMatch(v -> (boolean) v.get("is_primary")));
-                    tapIndexList.add(index);
+                    tapIndexList.add(makeTapIndex(key, value));
                 });
                 //3、table columns info
                 AtomicInteger keyPos = new AtomicInteger(0);
@@ -120,6 +117,23 @@ public class PostgresConnector extends ConnectorBase {
             });
             consumer.accept(tapTableList);
         });
+    }
+
+    private TapIndex makeTapIndex(String key, List<DataMap> value) {
+        TapIndex index = index(key);
+        value.forEach(v -> index.indexField(indexField(v.getString("column_name")).fieldAsc("A".equals(v.getString("asc_or_desc")))));
+        index.setUnique(value.stream().anyMatch(v -> (boolean) v.get("is_unique")));
+        index.setPrimary(value.stream().anyMatch(v -> (boolean) v.get("is_primary")));
+        return index;
+    }
+
+    private List<TapIndex> discoverIndex(String tableName) {
+        List<TapIndex> tapIndexList = TapSimplify.list();
+        List<DataMap> indexList = postgresJdbcContext.queryAllIndexes(Collections.singletonList(tableName));
+        Map<String, List<DataMap>> indexMap = indexList.stream()
+                .collect(Collectors.groupingBy(idx -> idx.getString("index_name"), LinkedHashMap::new, Collectors.toList()));
+        indexMap.forEach((key, value) -> tapIndexList.add(makeTapIndex(key, value)));
+        return tapIndexList;
     }
 
     @Override
@@ -151,7 +165,7 @@ public class PostgresConnector extends ConnectorBase {
         connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
-//        connectorFunctions.supportCreateIndex(this::createIndex);
+        connectorFunctions.supportCreateIndex(this::createIndex);
         // source
         connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchRead);
@@ -166,6 +180,7 @@ public class PostgresConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> postgresJdbcContext.getConnection(), c));
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null) return toJson(tapRawValue.getValue());
@@ -311,7 +326,8 @@ public class PostgresConnector extends ConnectorBase {
     //initialize jdbc context, slot name, version
     private void initConnection(TapConnectionContext connectorContext) {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
-        postgresTest = new PostgresTest(postgresConfig, testItem -> {}).initContext();
+        postgresTest = new PostgresTest(postgresConfig, testItem -> {
+        }).initContext();
         if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
             postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
         }
@@ -344,8 +360,22 @@ public class PostgresConnector extends ConnectorBase {
     }
 
     private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
-        String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + table.getId() + "\" " + CommonSqlMaker.buildSqlByAdvanceFilter(filter);
-        postgresJdbcContext.query(sql, resultSet -> {
+        StringBuilder builder = new StringBuilder("SELECT ");
+        Projection projection = filter.getProjection();
+        if (EmptyKit.isNull(projection) || (EmptyKit.isEmpty(projection.getIncludeFields()) && EmptyKit.isEmpty(projection.getExcludeFields()))) {
+            builder.append("*");
+        } else {
+            builder.append("\"");
+            if (EmptyKit.isNotEmpty(filter.getProjection().getIncludeFields())) {
+                builder.append(String.join("\",\"", filter.getProjection().getIncludeFields()));
+            } else {
+                builder.append(table.getNameFieldMap().keySet().stream()
+                        .filter(tapField -> !filter.getProjection().getExcludeFields().contains(tapField)).collect(Collectors.joining("\",\"")));
+            }
+            builder.append("\"");
+        }
+        builder.append(" FROM \"").append(postgresConfig.getSchema()).append("\".\"").append(table.getId()).append("\" ").append(CommonSqlMaker.buildSqlByAdvanceFilter(filter));
+        postgresJdbcContext.query(builder.toString(), resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet.next()) {
                 filterResults.add(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)));
@@ -423,9 +453,11 @@ public class PostgresConnector extends ConnectorBase {
     private void createIndex(TapConnectorContext connectorContext, TapTable tapTable, TapCreateIndexEvent createIndexEvent) {
         try {
             List<String> sqls = TapSimplify.list();
-            if (EmptyKit.isNotEmpty(createIndexEvent.getIndexList())) {
+            List<TapIndex> indexList = createIndexEvent.getIndexList().stream().filter(v -> discoverIndex(tapTable.getId()).stream()
+                    .noneMatch(i -> DbKit.ignoreCreateIndex(i, v))).collect(Collectors.toList());
+            if (EmptyKit.isNotEmpty(indexList)) {
                 if (Integer.parseInt(postgresVersion) > 90500) {
-                    createIndexEvent.getIndexList().stream().filter(i -> !i.isPrimary()).forEach(i ->
+                    indexList.stream().filter(i -> !i.isPrimary()).forEach(i ->
                             sqls.add("CREATE " + (i.isUnique() ? "UNIQUE " : " ") + "INDEX " +
                                     (EmptyKit.isNotNull(i.getName()) ? "IF NOT EXISTS \"" + i.getName() + "\"" : "") + " ON \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" +
                                     i.getIndexFields().stream().map(f -> "\"" + f.getName() + "\" " + (f.getFieldAsc() ? "ASC" : "DESC"))
@@ -433,9 +465,9 @@ public class PostgresConnector extends ConnectorBase {
                 } else {
                     List<String> existsIndexes = TapSimplify.list();
                     postgresJdbcContext.query("SELECT relname FROM pg_class WHERE relname IN (" +
-                                    createIndexEvent.getIndexList().stream().map(i -> "'" + (EmptyKit.isNotNull(i.getName()) ? i.getName() : "") + "'").collect(Collectors.joining(",")) + ") AND relkind = 'i'",
+                                    indexList.stream().map(i -> "'" + (EmptyKit.isNotNull(i.getName()) ? i.getName() : "") + "'").collect(Collectors.joining(",")) + ") AND relkind = 'i'",
                             resultSet -> existsIndexes.addAll(DbKit.getDataFromResultSet(resultSet).stream().map(v -> v.getString("relname")).collect(Collectors.toList())));
-                    createIndexEvent.getIndexList().stream().filter(i -> !i.isPrimary() && !existsIndexes.contains(i.getName())).forEach(i ->
+                    indexList.stream().filter(i -> !i.isPrimary() && !existsIndexes.contains(i.getName())).forEach(i ->
                             sqls.add("CREATE " + (i.isUnique() ? "UNIQUE " : " ") + "INDEX " +
                                     (EmptyKit.isNotNull(i.getName()) ? "\"" + i.getName() + "\"" : "") + " ON \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" +
                                     i.getIndexFields().stream().map(f -> "\"" + f.getName() + "\" " + (f.getFieldAsc() ? "ASC" : "DESC"))

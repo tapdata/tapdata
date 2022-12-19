@@ -64,6 +64,7 @@
                             <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                             <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
                             <Version>${version}</Version>
+                            <Authentication>beta</Authentication>
                             <Git-Build-Time>${git.build.time}</Git-Build-Time>
                             <Git-Branch>${git.branch}</Git-Branch>
                             <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>

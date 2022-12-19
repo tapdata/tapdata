@@ -196,14 +196,16 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 									try {
 										syncProgressRecord(lastMsg, syncProgress, syncProgressKey);
 									} catch (JsonProcessingException e) {
-										throw new NodeException(e);
+										String msg = String.format(" tableName: %s, %s", lastMsg.getTableName(), e.getMessage());
+										throw new NodeException(msg, e);
 									}
 								},
 								commitMsg -> {
 									try {
 										syncProgressRecord(commitMsg, syncProgress, syncProgressKey);
 									} catch (JsonProcessingException e) {
-										throw new NodeException(e);
+										String msg = String.format(" tableName: %s, %s", commitMsg.getTableName(), e.getMessage());
+										throw new NodeException(msg, e);
 									}
 								}
 						);

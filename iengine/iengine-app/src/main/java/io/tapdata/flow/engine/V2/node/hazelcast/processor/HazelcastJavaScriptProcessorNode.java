@@ -19,12 +19,14 @@ import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
+import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -33,6 +35,7 @@ import javax.script.ScriptEngine;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -43,6 +46,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
   public static final String TAG = HazelcastJavaScriptProcessorNode.class.getSimpleName();
 
   private final Invocable engine;
+
+  private ScriptExecutorsManager scriptExecutorsManager;
 
   private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
 
@@ -65,17 +70,26 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
             new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
             ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
 
-      this.engine = ScriptUtil.getScriptEngine(
-              JSEngineEnum.GRAALVM_JS.getEngineName(),
-              script, javaScriptFunctions,
-              clientMongoOperator,
-              null,
-              null,
-              ((DataProcessorContext) processorBaseContext).getCacheService(),
-              new ObsScriptLogger(obsLogger)
-      );
+    this.engine = ScriptUtil.getScriptEngine(
+            JSEngineEnum.GRAALVM_JS.getEngineName(),
+            script, javaScriptFunctions,
+            clientMongoOperator,
+            null,
+            null,
+            ((DataProcessorContext) processorBaseContext).getCacheService(),
+            new ObsScriptLogger(obsLogger, logger)
+    );
 
     this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
+  }
+
+  @Override
+  protected void doInit(@NotNull Context context) throws Exception {
+    super.doInit(context);
+    Node node = getNode();
+    this.scriptExecutorsManager = new ScriptExecutorsManager(obsLogger, clientMongoOperator, jetContext.hazelcastInstance(),
+            node.getTaskId(), node.getId());
+    ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
   }
 
   @SneakyThrows
@@ -103,7 +117,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     processContext.setEventTime(eventTime);
     processContext.setTs(eventTime);
     SyncStage syncStage = tapdataEvent.getSyncStage();
-    processContext.setSyncType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
+    processContext.setType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
+    processContext.setSyncType(getProcessorBaseContext().getTaskDto().getSyncType());
 
     ProcessContextEvent processContextEvent = processContext.getEvent();
     if (processContextEvent == null) {
@@ -113,6 +128,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     if (null != before) {
       processContextEvent.setBefore(before);
     }
+    processContextEvent.setType(processContext.getType());
     Map<String, Object> eventMap = MapUtil.obj2Map(processContextEvent);
     Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
     contextMap.put("event", eventMap);
@@ -154,6 +170,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
   @Override
   protected void doClose() throws Exception {
     try {
+      CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.scriptExecutorsManager).ifPresent(ScriptExecutorsManager::close), TAG);
       CommonUtils.ignoreAnyError(() -> {
         if (this.engine instanceof GraalJSScriptEngine) {
           ((GraalJSScriptEngine) this.engine).close();

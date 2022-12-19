@@ -10,7 +10,7 @@
     "addtionalString": ""
   },
   "node": {
-
+    "timestamp": "tap_date_time"
   },
   "test": {
     "pdkId" : "tdengine"

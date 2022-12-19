@@ -127,7 +127,6 @@ public class TaskDto extends ParentTaskDto {
     private Long snapshotDoneAt;
 
     private Long scheduleDate;
-    private Date monitorStartDate;
 
     private boolean needCreateRecord;
 
@@ -153,8 +152,10 @@ public class TaskDto extends ParentTaskDto {
 
     @Data
     public static class SyncPoint implements Serializable {
-        /** 数据源id */
         @EqField
+        private String nodeId;
+        private String nodeName;
+        /** 数据源id */
         private String connectionId;
         /** 数据源名称 */
         private String connectionName;

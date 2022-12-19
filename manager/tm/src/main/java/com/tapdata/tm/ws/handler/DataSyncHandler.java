@@ -111,16 +111,9 @@ public class DataSyncHandler implements WebSocketHandler{
         }
     }
 
-//    private void handleResult(String opType, ObjectId id, UserDetail user) {
-//        switch (opType) {
-//            case DataSyncMq.OP_TYPE_DELETE:
-//                //任务状态在运行中，可能收到运行已完成。
-//                taskService.deleted(id, user);
-//                break;
-//            case DataSyncMq.OP_TYPE_RESET:
-//                //任务状态在运行中，可能收到运行已完成。
-//                taskService.reseted(id, user);
-//                break;
-//        }
-//    }
+    private void handleResult(String opType, ObjectId id, UserDetail user) {
+        switch (opType) {
+
+        }
+    }
 }

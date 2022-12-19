@@ -2,6 +2,7 @@ package io.tapdata.connector.mysql;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConfig;
+import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
@@ -20,6 +21,7 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.DbKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -28,6 +30,7 @@ import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -35,6 +38,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * @author samuel
@@ -101,7 +105,7 @@ public class MysqlConnector extends ConnectorBase {
 
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
-        connectorFunctions.supportCreateTable(this::createTable);
+        connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportBatchCount(this::batchCount);
@@ -116,21 +120,9 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
     }
 
-
-    private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
-        RetryOptions retryOptions = RetryOptions.create();
-        retryOptions.setNeedRetry(true);
-        retryOptions.beforeRetryMethod(()->{
-            try {
-                this.onStart(tapConnectionContext);
-            } catch (Throwable ignore) {
-            }
-        });
-        return retryOptions;
-    }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
         MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
@@ -184,11 +176,21 @@ public class MysqlConnector extends ConnectorBase {
         return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
     }
 
-    private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) throws Throwable {
+    private List<TapIndex> queryExistIndexes(String database, String tableName) {
+        MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
+        try {
+            return mysqlSchemaLoader.discoverIndexes(database, tableName);
+        } catch (Throwable throwable) {
+            return Collections.emptyList();
+        }
+    }
+
+    private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) {
         List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
         SqlMaker sqlMaker = new MysqlMaker();
-        // todo 判断是否需要自动创建索引
-        for (TapIndex tapIndex : indexList) {
+        String database = tapConnectorContext.getConnectionConfig().getString("database");
+        for (TapIndex tapIndex : indexList.stream().filter(v -> queryExistIndexes(database, tapTable.getId()).stream()
+                .noneMatch(i -> DbKit.ignoreCreateIndex(i, v))).collect(Collectors.toList())) {
             String createIndexSql;
             try {
                 createIndexSql = sqlMaker.createIndex(tapConnectorContext, tapTable, tapIndex);
@@ -222,7 +224,7 @@ public class MysqlConnector extends ConnectorBase {
     }
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
+    public void onStop(TapConnectionContext connectionContext) {
         try {
             Optional.ofNullable(this.mysqlReader).ifPresent(MysqlReader::close);
         } catch (Exception ignored) {
@@ -253,19 +255,21 @@ public class MysqlConnector extends ConnectorBase {
         mysqlJdbcContext.dropTable(tapDropTableEvent.getTableId());
     }
 
-    private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+    private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+        CreateTableOptions createTableOptions = new CreateTableOptions();
         try {
             if (mysqlJdbcContext.tableExists(tapCreateTableEvent.getTableId())) {
                 DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
                 String database = connectionConfig.getString("database");
                 String tableId = tapCreateTableEvent.getTableId();
+                createTableOptions.setTableExists(true);
                 TapLogger.info(TAG, "Table \"{}.{}\" exists, skip auto create table", database, tableId);
             } else {
                 String mysqlVersion = mysqlJdbcContext.getMysqlVersion();
                 SqlMaker sqlMaker = new MysqlMaker();
                 if (null == tapCreateTableEvent.getTable()) {
                     TapLogger.warn(TAG, "Create table event's tap table is null, will skip it: " + tapCreateTableEvent);
-                    return;
+                    return createTableOptions;
                 }
                 String[] createTableSqls = sqlMaker.createTable(tapConnectorContext, tapCreateTableEvent, mysqlVersion);
                 for (String createTableSql : createTableSqls) {
@@ -275,7 +279,9 @@ public class MysqlConnector extends ConnectorBase {
                         throw new Exception("Execute create table failed, sql: " + createTableSql + ", message: " + e.getMessage(), e);
                     }
                 }
+                createTableOptions.setTableExists(false);
             }
+            return createTableOptions;
         } catch (Throwable t) {
             throw new Exception("Create table failed, message: " + t.getMessage(), t);
         }
@@ -308,7 +314,7 @@ public class MysqlConnector extends ConnectorBase {
         }
     }
 
-    private void query(TapConnectorContext tapConnectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable tapTable, Consumer<FilterResults> consumer) throws Throwable {
+    private void query(TapConnectorContext tapConnectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable tapTable, Consumer<FilterResults> consumer) {
         FilterResults filterResults = new FilterResults();
         filterResults.setFilter(tapAdvanceFilter);
         try {
@@ -370,13 +376,13 @@ public class MysqlConnector extends ConnectorBase {
     }
 
     @Override
-    public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
+    public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         CommonDbConfig commonDbConfig = new CommonDbConfig();
         commonDbConfig.set__connectionType(databaseContext.getConnectionConfig().getString("__connectionType"));
         try (
                 MysqlConnectionTest mysqlConnectionTest = new MysqlConnectionTest(new MysqlJdbcContext(databaseContext),
-                        databaseContext, consumer, commonDbConfig, connectionOptions);
+                        databaseContext, consumer, commonDbConfig, connectionOptions)
         ) {
             mysqlConnectionTest.testOneByOne();
             return connectionOptions;

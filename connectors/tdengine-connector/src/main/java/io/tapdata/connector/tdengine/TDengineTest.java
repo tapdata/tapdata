@@ -1,14 +1,16 @@
 package io.tapdata.connector.tdengine;
 
 import com.google.common.collect.Lists;
+import com.taosdata.jdbc.tmq.TMQConstants;
+import com.taosdata.jdbc.tmq.TaosConsumer;
 import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.tdengine.config.TDengineConfig;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.testItem;
@@ -22,20 +24,62 @@ public class TDengineTest extends CommonDbTest {
     protected static final String TEST_DROP_TABLE = "drop table %s";
     protected static final String TEST_WRITE_SUCCESS = "Create,Insert,Delete,Drop succeed";
 
+    protected static final String TEST_STREAM_READ_SUCCESS = "stream read succeed";
+
+    private final static String DATABASE_READ_RIGHT = "SHOW CREATE DATABASE %s";
+
     public TDengineTest() {
         super();
     }
 
     public TDengineTest(TDengineConfig tdengineConfig, Consumer<TestItem> consumer) {
         super(tdengineConfig, consumer);
-        // TDengine增量数据需要安装驱动，所以在连接测试处不检测
-        testFunctionMap.remove("testStreamRead");
         jdbcContext = DataSourcePool.getJdbcContext(tdengineConfig, TDengineJdbcContext.class, uuid);
     }
 
     @Override
     protected List<String> supportVersions() {
         return Lists.newArrayList("3.*");
+    }
+
+    @Override
+    public Boolean testReadPrivilege() {
+        try {
+
+            jdbcContext.query(String.format(DATABASE_READ_RIGHT,
+                    commonDbConfig.getDatabase()), resultSet -> {
+                if (Objects.isNull(resultSet) || resultSet.getMetaData().getColumnCount() < 1) {
+                    consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                            "Current user may have no read privilege for database"));
+                } else {
+                    consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY, "All tables can be selected"));
+                }
+            });
+            return true;
+        } catch (Throwable e) {
+            consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_FAILED, e.getMessage()));
+            return false;
+        }
+    }
+
+    @Override
+    public Boolean testStreamRead() {
+        Properties properties = new Properties();
+//            properties.setProperty(TMQConstants.BOOTSTRAP_SERVERS, "127.0.0.1:6030");
+        properties.setProperty(TMQConstants.BOOTSTRAP_SERVERS, String.format("%s:%s", jdbcContext.getConfig().getHost(), 6030));
+        properties.setProperty(TMQConstants.MSG_WITH_TABLE_NAME, Boolean.TRUE.toString());
+        properties.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, Boolean.TRUE.toString());
+        properties.setProperty(TMQConstants.GROUP_ID, "test_group_id");
+        properties.setProperty(TMQConstants.AUTO_OFFSET_RESET, "latest");
+        properties.setProperty(TMQConstants.VALUE_DESERIALIZER,
+                "io.tapdata.connector.tdengine.subscribe.TDengineResultDeserializer");
+        try (TaosConsumer<Map<String, Object>> taosConsumer = new TaosConsumer<>(properties)) {
+            consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY, TEST_STREAM_READ_SUCCESS));
+            return true;
+        } catch (Throwable e) {
+            consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "Tapdata server has no TDengine client"));
+        }
+        return false;
     }
 
     @Override
