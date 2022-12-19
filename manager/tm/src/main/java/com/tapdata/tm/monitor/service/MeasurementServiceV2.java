@@ -2,10 +2,7 @@ package com.tapdata.tm.monitor.service;
 
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
 import com.mongodb.client.result.DeleteResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -13,6 +10,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.constant.Granularity;
@@ -24,7 +22,6 @@ import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.ThrowableUtils;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
@@ -309,6 +306,8 @@ public class MeasurementServiceV2 {
      * @return Map
      */
     private Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long time, String padding) {
+//        StopWatch stopWatch = new StopWatch(JSON.toJSONString(querySample.getTags()));
+//        stopWatch.start("start method");
         List<String> fields = querySample.getFields();
         Map<String, Sample> data = new HashMap<>();
         if (!StringUtils.equalsAny(querySample.getType(),
@@ -335,6 +334,7 @@ public class MeasurementServiceV2 {
         criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
         boolean typeIsTask = false;
+        boolean typeIsEngine = false;
         for (Map.Entry<String, String> entry : querySample.getTags().entrySet()) {
             String format = String.format(TAG_FORMAT, entry.getKey());
             String value = entry.getValue();
@@ -342,17 +342,31 @@ public class MeasurementServiceV2 {
             if (format.equals("tags.type") && "task".equals(value)) {
                 typeIsTask = true;
             }
+            if (format.equals("tags.type") && "engine".equals(value)) {
+                typeIsEngine = true;
+            }
         }
 
+//        stopWatch.stop();
         MatchOperation match = Aggregation.match(criteria);
         GroupOperation group = Aggregation.group(MeasurementEntity.FIELD_TAGS)
                 .first(MeasurementEntity.FIELD_DATE).as(MeasurementEntity.FIELD_DATE)
                 .first(MeasurementEntity.FIELD_TAGS).as(MeasurementEntity.FIELD_TAGS)
                 .first(MeasurementEntity.FIELD_SAMPLES).as(MeasurementEntity.FIELD_SAMPLES);
         // match should be at the first param, sort should be the second while group be the last
-        Aggregation aggregation = Aggregation.newAggregation( match, sort, group).withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+//        stopWatch.start("start query");
+        Aggregation aggregation;
+        if (typeIsEngine) {
+            LimitOperation limit = new LimitOperation(1L);
+            aggregation = Aggregation.newAggregation( match, sort, limit, group);
+        } else {
+            aggregation = Aggregation.newAggregation( match, sort, group);
+        }
+        aggregation.withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
         List<MeasurementEntity> entities = results.getMappedResults();
+//        stopWatch.stop();
+//        stopWatch.start("start package");
 
         for (MeasurementEntity entity : entities) {
             String hash = hashTag(entity.getTags());
@@ -424,45 +438,11 @@ public class MeasurementServiceV2 {
             sample.setVs(values);
         }
 
+//        stopWatch.stop();
+//        System.out.println("stopWatch query " + JSON.toJSONString(criteria));
+//        System.out.println("stopWatch time " + stopWatch.getTotalTimeMillis());
+//        System.out.println("stopWatch data " + stopWatch.prettyPrint());
         return data;
-    }
-
-    private Long calculateMaxReplicateLag(MeasurementQueryParam.MeasurementQuerySample querySample) {
-        Long maxRep = 0L;
-
-        try {
-            String taskId = querySample.getTags().get("taskId");
-            String taskRecordId = querySample.getTags().get("taskRecordId");
-            Criteria repCriteria = Criteria.where("grnty").is("minute")
-                    .and("tags.taskId").is(taskId)
-                    .and("tags.taskRecordId").is(taskRecordId)
-                    .and("tags.type").is("task");
-            MatchOperation repMatch = Aggregation.match(repCriteria);
-            GroupOperation repGroup = Aggregation.group("max").max("$ss.vs.replicateLag").as("max");
-            Aggregation repAggregation = Aggregation.newAggregation(repMatch, repGroup);
-            AggregationResults<Document> repAggregate = mongoOperations.aggregate(repAggregation, MeasurementEntity.COLLECTION_NAME, Document.class);
-            List<Document> mappedResults = repAggregate.getMappedResults();
-            for (Document document : mappedResults) {
-                Object max = document.get("max");
-
-                JSONArray objects = JSON.parseArray(max.toString());
-                if (objects.size() == 0) {
-                    continue;
-                }
-                List<Integer> list = JSON.parseArray(max.toString(), Integer.class);
-                list.removeAll(Collections.singleton(null));
-                if (CollectionUtils.isNotEmpty(list)) {
-                    Integer temp = Collections.max(list);
-                    if (temp > maxRep) {
-                        maxRep = Long.valueOf(temp);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("calculateMaxReplicateLag error:"+ ThrowableUtils.getStackTraceByPn(e));
-        }
-
-        return maxRep;
     }
 
     private Number getSnapshotStartAt(MeasurementQueryParam.MeasurementQuerySample querySample) {

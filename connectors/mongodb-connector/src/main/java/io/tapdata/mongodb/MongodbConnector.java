@@ -32,6 +32,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
+import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
@@ -83,6 +84,8 @@ public class MongodbConnector extends ConnectorBase {
 
 	private volatile MongodbWriter mongodbWriter;
 	private Map<String, Integer> stringTypeValueMap;
+
+	private final MongodbExecuteCommandFunction mongodbExecuteCommandFunction = new MongodbExecuteCommandFunction();
 
 	private Bson queryCondition(String firstPrimaryKey, Object value) {
 		return gte(firstPrimaryKey, value);
@@ -421,6 +424,28 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportTimestampToStreamOffset(this::streamOffset);
 		connectorFunctions.supportErrorHandleFunction(this::errorHandle);
 //        connectorFunctions.supportStreamOffset((connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer) -> streamOffset(connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer));
+		connectorFunctions.supportExecuteCommandFunction(this::executeCommand);
+	}
+
+	private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
+		ExecuteResult<?> executeResult;
+		try {
+			Map<String, Object> executeObj = tapExecuteCommand.getParams();
+			String command = tapExecuteCommand.getCommand();
+			if ("execute".equals(command)) {
+				executeResult = new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.execute(executeObj, mongoClient));
+			} else if ("executeQuery".equals(command)) {
+				executeResult = new ExecuteResult<List<Map<String, Object>>>().result(mongodbExecuteCommandFunction.executeQuery(executeObj, mongoClient));
+			} else if ("count".equals(command)) {
+				executeResult = new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.count(executeObj, mongoClient));
+			} else {
+				throw new NotSupportedException();
+			}
+		} catch (Exception e) {
+			executeResult = new ExecuteResult<>().error(e);
+		}
+
+		executeResultConsumer.accept(executeResult);
 	}
 
 	private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
@@ -762,6 +787,8 @@ public class MongodbConnector extends ConnectorBase {
 		try {
 			mongodbStreamReader.read(connectorContext, tableList, offset, eventBatchSize, consumer);
 		} catch (Exception e) {
+			mongodbStreamReader.onDestroy();
+			mongodbStreamReader = null;
 			throw new RuntimeException(e);
 		}
 

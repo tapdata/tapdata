@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
+import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
@@ -215,6 +216,8 @@ public class ClickhouseConnector extends ConnectorBase {
 //        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
 //        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
 //        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> clickhouseJdbcContext.getConnection(), c));
     }
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
@@ -297,8 +300,22 @@ public class ClickhouseConnector extends ConnectorBase {
     }
 
     private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
-        String sql = "SELECT * FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), table.getId()) + " " + CommonSqlMaker.buildSqlByAdvanceFilter(filter);
-        clickhouseJdbcContext.query(sql, resultSet -> {
+        StringBuilder builder = new StringBuilder("SELECT ");
+        Projection projection = filter.getProjection();
+        if (EmptyKit.isNull(projection) || (EmptyKit.isEmpty(projection.getIncludeFields()) && EmptyKit.isEmpty(projection.getExcludeFields()))) {
+            builder.append("*");
+        } else {
+            builder.append("\"");
+            if (EmptyKit.isNotEmpty(filter.getProjection().getIncludeFields())) {
+                builder.append(String.join("\",\"", filter.getProjection().getIncludeFields()));
+            } else {
+                builder.append(table.getNameFieldMap().keySet().stream()
+                        .filter(tapField -> !filter.getProjection().getExcludeFields().contains(tapField)).collect(Collectors.joining("\",\"")));
+            }
+            builder.append("\"");
+        }
+        builder.append(" FROM ").append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), table.getId())).append(" ").append(CommonSqlMaker.buildSqlByAdvanceFilter(filter));
+        clickhouseJdbcContext.query(builder.toString(), resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet != null && resultSet.next()) {
                 filterResults.add(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)));

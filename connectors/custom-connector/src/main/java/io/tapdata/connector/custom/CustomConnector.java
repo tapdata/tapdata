@@ -241,6 +241,7 @@ public class CustomConnector extends ConnectorBase {
         consumer.streamReadStarted();
         List<TapEvent> eventList = new ArrayList<>();
         Object lastContextMap = null;
+        long ts = System.currentTimeMillis();
         while (isAlive() && t.isAlive()) {
             CustomEventMessage message = null;
             try {
@@ -250,10 +251,11 @@ public class CustomConnector extends ConnectorBase {
             if (EmptyKit.isNotNull(message)) {
                 eventList.add(message.getTapEvent());
                 lastContextMap = message.getContextMap();
-                if (eventList.size() == recordSize) {
+                if (eventList.size() == recordSize || (System.currentTimeMillis() - ts) >= 3000) {
                     consumer.accept(eventList, lastContextMap);
                     contextMap.set(lastContextMap);
                     eventList = new ArrayList<>();
+                    ts = System.currentTimeMillis();
                 }
             }
         }

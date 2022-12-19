@@ -5,7 +5,7 @@ import lombok.Data;
 
 
 @Data
-public class TestMailDto {
+public class    TestMailDto {
     //private List<SettingsDto> settingsDto;
     @JsonProperty("SMTP_Server_Host")
     private String SMTP_Server_Host;

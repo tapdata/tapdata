@@ -311,10 +311,19 @@ public class MailUtils {
                 account.setFrom(parms.getFrom());
                 account.setUser(parms.getUser());
                 account.setPass(parms.getPass());
-                // 使用SSL安全连接
-                account.setSslEnable(true);
-                //指定实现javax.net.SocketFactory接口的类的名称,这个类将被用于创建SMTP的套接字
-                account.setSocketFactoryClass("javax.net.ssl.SSLSocketFactory");
+                if ("SSL".equals(parms.getProtocol())) {
+                    // 使用SSL安全连接
+                    account.setSslEnable(true);
+                    //指定实现javax.net.SocketFactory接口的类的名称,这个类将被用于创建SMTP的套接字
+                    account.setSocketFactoryClass("javax.net.ssl.SSLSocketFactory");
+                } else if ("TLS".equals(parms.getProtocol())) {
+                    account.setStarttlsEnable(true);
+                    account.setSocketFactoryClass("javax.net.ssl.SSLSocketFactory");
+                } else {
+                    account.setSslEnable(false);
+                    account.setStarttlsEnable(false);
+                }
+
                 //如果设置为true,未能创建一个套接字使用指定9的套接字工厂类将导致使用java.net.Socket创建的套接字类, 默认值为true
                 account.setSocketFactoryFallback(true);
                 // 指定的端口连接到在使用指定的套接字工厂。如果没有设置,将使用默认端口456

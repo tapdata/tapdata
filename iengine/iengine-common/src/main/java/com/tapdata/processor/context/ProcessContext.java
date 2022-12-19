@@ -23,6 +23,8 @@ public class ProcessContext implements Serializable {
 
 	private String syncType;
 
+	private String type;
+
 	private long eventTime;
 	private long ts;
 
@@ -126,5 +128,13 @@ public class ProcessContext implements Serializable {
 
 	public void setEvent(ProcessContextEvent event) {
 		this.event = event;
+	}
+
+	public String getType() {
+		return type;
+	}
+
+	public void setType(String type) {
+		this.type = type;
 	}
 }

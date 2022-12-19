@@ -123,16 +123,17 @@ public class CommonDbTest implements AutoCloseable {
             if (jdbcContext.queryAllTables(Arrays.asList(TEST_WRITE_TABLE, TEST_WRITE_TABLE.toUpperCase())).size() > 0) {
                 sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
             }
+            String schemaPrefix = EmptyKit.isNotEmpty(commonDbConfig.getSchema()) ? ("\"" + commonDbConfig.getSchema() + "\".") : "";
             //create
-            sqls.add(String.format(TEST_CREATE_TABLE, TEST_WRITE_TABLE));
+            sqls.add(String.format(TEST_CREATE_TABLE, schemaPrefix + TEST_WRITE_TABLE));
             //insert
-            sqls.add(String.format(TEST_WRITE_RECORD, TEST_WRITE_TABLE));
+            sqls.add(String.format(TEST_WRITE_RECORD, schemaPrefix + TEST_WRITE_TABLE));
             //update
-            sqls.add(String.format(TEST_UPDATE_RECORD, TEST_WRITE_TABLE));
+            sqls.add(String.format(TEST_UPDATE_RECORD, schemaPrefix + TEST_WRITE_TABLE));
             //delete
-            sqls.add(String.format(TEST_DELETE_RECORD, TEST_WRITE_TABLE));
+            sqls.add(String.format(TEST_DELETE_RECORD, schemaPrefix + TEST_WRITE_TABLE));
             //drop
-            sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
+            sqls.add(String.format(TEST_DROP_TABLE, schemaPrefix + TEST_WRITE_TABLE));
             jdbcContext.batchExecute(sqls);
             consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY, TEST_WRITE_SUCCESS));
         } catch (Exception e) {

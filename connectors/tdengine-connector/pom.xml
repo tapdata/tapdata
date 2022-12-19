@@ -50,11 +50,12 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
+            <version>31.1-jre</version>
         </dependency>
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>3.0.2</version>
+            <version>3.0.3</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -86,6 +87,7 @@
                                 <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                                 <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
                                 <Version>${project.version}</Version>
+                                <Authentication>beta</Authentication>
                                 <Git-Build-Time>${git.build.time}</Git-Build-Time>
                                 <Git-Branch>${git.branch}</Git-Branch>
                                 <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>

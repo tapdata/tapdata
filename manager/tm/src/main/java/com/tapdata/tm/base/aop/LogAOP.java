@@ -3,7 +3,7 @@ package com.tapdata.tm.base.aop;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
-import com.tapdata.tm.utils.ThrowableUtils;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.Signature;
 import org.aspectj.lang.annotation.*;
