@@ -275,6 +275,159 @@
         "version": "v2"
       },
       {
+        "description": "数据校验",
+        "name": "v2_data_check",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_data_pipeline",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_data_check",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据校验-列表",
+        "name": "v2_data_check_list",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_list",
+            "path": "/dataVerification"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据校验-创建",
+        "name": "v2_data_check_create",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_create",
+            "path": "/dataVerification/create"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据校验编辑",
+        "name": "v2_data_check_edit",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_edit",
+            "path": "/dataVerification/:id/edit"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "校验详情",
+        "name": "v2_data_check_details",
+        "need_permission": true,
+        "order": 4,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_details",
+            "path": "/dataVerification/:id/details"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "校验历史",
+        "name": "v2_data_check_history",
+        "need_permission": true,
+        "order": 5,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_history",
+            "path": "/dataVerification/:id/history"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "校验结果",
+        "name": "v2_data_check_result",
+        "need_permission": true,
+        "order": 6,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_result",
+            "path": "/dataVerification/dataVerifyResult/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "校验结果详情",
+        "name": "v2_data_check_result_details",
+        "need_permission": true,
+        "order": 7,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_result_details",
+            "path": "/dataVerification/dataVerifyResult/:id/details"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "校验结果历史",
+        "name": "v2_data_check_result_history",
+        "need_permission": true,
+        "order": 8,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_result_history",
+            "path": "/dataVerification/dataVerifyResult/:id/history"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
         "description": "共享挖掘",
         "name": "v2_log_collector",
         "need_permission": true,
@@ -1072,6 +1225,78 @@
         "self_only": false
       },
       {
+        "principalId": "v2_data_check",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_history",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result_history",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
         "principalId": "v2_log_collector",
         "principalType": "PERMISSION",
         "roleId": {
@@ -1506,6 +1731,78 @@
       },
       {
         "principalId": "v2_data_flow_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_history",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result_history",
         "principalType": "PERMISSION",
         "roleId": {
           "$oid": "5d31ae1ab953565ded04badd"
