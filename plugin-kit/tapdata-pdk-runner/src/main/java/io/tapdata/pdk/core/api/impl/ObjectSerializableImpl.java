@@ -203,7 +203,7 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 			}
 		}
 		if (data == null) {
-			String str = jsonParser.toJson(obj);
+			String str = jsonParser.toJson(obj, JsonParser.ToJsonFeature.WriteMapNullValue);
 			try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
 //				 GZIPOutputStream gos = new GZIPOutputStream(bos);
 				 DataOutputStream oos = new DataOutputStream(bos);
@@ -270,7 +270,7 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 					for(int i = 0; i < size; i++) {
 						Object key = readObject(dis, options);
 						Object value = readObject(dis, options);
-						if(key != null && value != null) {
+						if(key != null) {
 							map.put(key, value);
 						}
 					}
