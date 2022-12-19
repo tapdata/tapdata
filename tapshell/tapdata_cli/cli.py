@@ -2608,6 +2608,7 @@ class Job:
             logger.warn("save job fail")
             return False
         res = req.put("/Task/batchStart", params={"taskIds": self.id}).json()
+        print(res)
         if res["code"] != "ok":
             return False
 
