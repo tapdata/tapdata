@@ -16,7 +16,6 @@
 		<module>websocket-server-module</module>
 		<module>websocket-client-module</module>
 		<module>service-skeleton-module</module>
-		<module>api-loader-module</module>
     </modules>
 
 	<properties>
