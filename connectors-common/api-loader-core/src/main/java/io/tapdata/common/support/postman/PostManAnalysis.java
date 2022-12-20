@@ -199,6 +199,8 @@ public class PostManAnalysis
         }
         MediaType mediaType = MediaType.parse("application/json");
         String url = apiUrl.raw();
+//        int indexOfChar = url.indexOf("?");
+//        url = indexOfChar <= 0? url: url.substring(0,indexOfChar);
         Body apiBody = apiRequest.body();
         Map<String,Object> bodyMap = null;
         try {
@@ -209,25 +211,28 @@ public class PostManAnalysis
             }
         }
         List<Map<String, Object>> query = apiUrl.query();
-        for (Map<String, Object> queryMap : query) {
-            String key = String.valueOf(queryMap.get(PostParam.KEY));
-            //Object value = queryMap.get(PostParam.VALUE);
-            String desc = String.valueOf(queryMap.get(PostParam.DESCRIPTION));
-            if(TapApiTag.isTapPageParam(desc)){
-                Object value = params.get(key);
-                if(Objects.nonNull(value)){
-                    queryMap.put(PostParam.VALUE,value);
-                    bodyMap.put(key,value);
-                    String keyParam = key + "=";
-                    if (url.contains(keyParam)){
-                        int indexOf = url.indexOf(keyParam);
-                        int indexOfEnd = url.indexOf("&", indexOf);
-                        String keyValueAgo = url.substring(indexOf,indexOfEnd < 0 ? url.length():indexOfEnd);
-                        url = url.replaceAll(keyValueAgo,keyParam+value);
-                    }
-                }
-            }
-        }
+        /**
+         *  for (Map<String, Object> queryMap : query) {
+         *             String key = String.valueOf(queryMap.get(PostParam.KEY));
+         *             //Object value = queryMap.get(PostParam.VALUE);
+         *             String desc = String.valueOf(queryMap.get(PostParam.DESCRIPTION));
+         *             if(TapApiTag.isTapPageParam(desc)){
+         *                 Object value = params.get(key);
+         *                 if(Objects.nonNull(value)){
+         *                     queryMap.put(PostParam.VALUE,value);
+         *                     bodyMap.put(key,value);
+         *                     String keyParam = key + "=";
+         *                     if (url.contains(keyParam)){
+         *                         int indexOf = url.indexOf(keyParam);
+         *                         int indexOfEnd = url.indexOf("&", indexOf);
+         *                         String keyValueAgo = url.substring(indexOf,indexOfEnd < 0 ? url.length():indexOfEnd);
+         *                         url = url.replaceAll(keyValueAgo,keyParam+value);
+         *                     }
+         *                 }
+         *             }
+         *         }
+         * */
+        url = ReplaceTagUtil.replaceUrlParams(query,bodyMap,params,url);
         RequestBody body = RequestBody.create(mediaType, toJson(bodyMap));
         Request.Builder builder = new Request.Builder()
                 .url(url)
