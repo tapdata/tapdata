@@ -15,6 +15,7 @@
         <module>mq-core</module>
         <module>logminer-core</module>
         <module>file-connector-core</module>
+        <module>api-loader-core</module>
     </modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
