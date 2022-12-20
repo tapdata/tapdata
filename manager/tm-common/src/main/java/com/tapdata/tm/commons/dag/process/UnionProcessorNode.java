@@ -73,11 +73,11 @@ public class UnionProcessorNode extends ProcessorNode{
                             field.setDataTypeTemp(inputField.getDataTypeTemp());
                         }
 
-                        if (field.getIsNullable() != inputFieldMap.get(field.getFieldName()).getIsNullable()) {
+                        if (field.getIsNullable() != inputFieldMap.get(fieldName).getIsNullable()) {
                             field.setIsNullable(false);
                         }
 
-                        if (field.getPrimaryKey() != inputFieldMap.get(field.getFieldName()).getPrimaryKey()) {
+                        if (field.getPrimaryKey() != inputFieldMap.get(fieldName).getPrimaryKey()) {
                             field.setPrimaryKey(false);
                             field.setPrimaryKeyPosition(null);
                         }
