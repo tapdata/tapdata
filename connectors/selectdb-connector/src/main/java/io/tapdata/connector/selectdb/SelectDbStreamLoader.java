@@ -5,10 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
 import io.tapdata.connector.selectdb.exception.SelectDbRunTimeException;
 import io.tapdata.connector.selectdb.exception.StreamLoadException;
-import io.tapdata.connector.selectdb.streamload.Constants;
-import io.tapdata.connector.selectdb.streamload.HttpPutBuilder;
-import io.tapdata.connector.selectdb.streamload.MessageSerializer;
-import io.tapdata.connector.selectdb.streamload.RecordStream;
+import io.tapdata.connector.selectdb.streamload.*;
 import io.tapdata.connector.selectdb.streamload.rest.models.RespContent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -23,6 +20,8 @@ import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -32,7 +31,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import static io.tapdata.base.ConnectorBase.writeListResult;
 
 /**
  * Author:Skeet
@@ -43,7 +41,7 @@ public class SelectDbStreamLoader {
 
     private static final String LOAD_URL_PATTERN = "http://%s/api/%s/%s/_stream_load";
     private static final String LABEL_PREFIX_PATTERN = "tapdata_%s_%s";
-    private static final int MAX_FLUSH_BATCH_SIZE = 5000;
+    private static final int MAX_FLUSH_BATCH_SIZE = 10000;
 
     private int size;
     private AtomicInteger lastEventFlag;
@@ -52,9 +50,14 @@ public class SelectDbStreamLoader {
     private ExecutorService executorService;
     private CloseableHttpClient httpClient;
     private SelectDbConfig selectDbConfig;
+    private SelectDbContext selectDbContext;
     private Future<CloseableHttpResponse> pendingLoadFuture;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    public SelectDbStreamLoader(SelectDbContext selectDbContext, CloseableHttpClient httpClient) {
+        this.selectDbContext = selectDbContext;
+        this.httpClient = httpClient;
+    }
 
     public void shutdown() {
         this.stopLoad();
@@ -68,46 +71,38 @@ public class SelectDbStreamLoader {
         this.httpClient = httpClient;
         this.selectDbConfig = selectDbConfig;
         this.recordStream = new RecordStream(Constants.CACHE_BUFFER_SIZE, Constants.CACHE_BUFFER_COUNT);
+        this.size = 0;
+        this.lastEventFlag = new AtomicInteger(0);
+        this.selectDbContext = selectDbContext;
         this.executorService = new ThreadPoolExecutor(1, 1,
                 0L, TimeUnit.MILLISECONDS, new LinkedBlockingDeque<>());
-
         this.loadBatchFirstRecord = true;
-        this.size = 0;
-
-        this.lastEventFlag = new AtomicInteger(0);
     }
 
 
     public synchronized void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
         TapLogger.info(TAG, "batch events length is: {}", tapRecordEvents.size());
-        WriteListResult<TapRecordEvent> listResult = writeListResult();
-        int index = 0;
-        boolean before_is_null = false;
+
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        DataOutputStream dataOutputStream = new DataOutputStream(byteArrayOutputStream);
         for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
             byte[] bytes = MessageSerializer.serialize(table, tapRecordEvent);
-            if (needFlush(tapRecordEvent, bytes.length)) {
-                int lastFlag = this.lastEventFlag.get();
-                RespContent flushResult = flush();
-                incrementFlushResult(flushResult, listResult, lastFlag, before_is_null);
-            }
-
-            if (tapRecordEvent instanceof TapUpdateRecordEvent && index < 1) {
-                final TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) tapRecordEvent;
-                final Map<String, Object> before = updateRecordEvent.getBefore();
-                if (before == null) {
-                    before_is_null = true;
-                }
-                index++;
-            }
-            if (lastEventFlag.get() == 0) {
-                startLoad(table, this.selectDbConfig, tapRecordEvent);
-            }
-            writeRecord(bytes);
+            dataOutputStream.write(bytes);
+            dataOutputStream.write(Constants.LINE_DELIMITER_DEFAULT.getBytes(StandardCharsets.UTF_8));
         }
-        int lastFlag = this.lastEventFlag.get();
-        RespContent lastFlushResult = flush();
-        incrementFlushResult(lastFlushResult, listResult, lastFlag, before_is_null);
-        writeListResultConsumer.accept(listResult);
+        byte[] finalBytes = byteArrayOutputStream.toByteArray();
+        CopyIntoUtils.upload(finalBytes);
+
+        CopyIntoUtils.copyInto(table);
+
+//        WriteListResult<TapRecordEvent> listResult = writeListResult();
+//        writeListResultConsumer.accept(listResult);
+    }
+
+    private volatile boolean isStop;
+
+    public void stop() {
+        this.isStop = true;
     }
 
     private boolean needFlush(TapRecordEvent recordEvent, int length) {
@@ -151,7 +146,7 @@ public class SelectDbStreamLoader {
         try {
             recordStream.endInput();
             TapLogger.info(TAG, "stream load stopped");
-            Assert.notNull(pendingLoadFuture, "pendingLoadFuture of DorisStreamLoad should never be null");
+            Assert.notNull(pendingLoadFuture, "pendingLoadFuture of SelectDBStreamLoad should never be null");
             lastEventFlag.set(0);
             size = 0;
             RespContent respContent = handlePreCommitResponse(pendingLoadFuture.get());
@@ -220,7 +215,7 @@ public class SelectDbStreamLoader {
             for (Map.Entry<String, TapField> entry : table.getNameFieldMap().entrySet()) {
                 columns.add(entry.getKey());
             }
-            // add the DORIS_DELETE_SIGN at the end of the column
+            // add the SELECTDB_DELETE_SIGN at the end of the column
             columns.add(Constants.SELECTDB_DELETE_SIGN);
             HttpPutBuilder putBuilder = new HttpPutBuilder();
             recordStream.startInput();
@@ -243,8 +238,8 @@ public class SelectDbStreamLoader {
         }
     }
 
-    private String buildLoadUrl(final String dorisHttp, final String database, final String tableName) {
-        return String.format(LOAD_URL_PATTERN, dorisHttp, database, tableName);
+    private String buildLoadUrl(final String selectDbHttp, final String database, final String tableName) {
+        return String.format(LOAD_URL_PATTERN, selectDbHttp, database, tableName);
     }
 
     private String buildPrefix(final String tableName) {

@@ -6,6 +6,8 @@ import lombok.Setter;
 
 
 import java.io.Serializable;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Author:Skeet
@@ -15,12 +17,18 @@ import java.io.Serializable;
 @Setter
 @Getter
 public class SelectDbConfig extends CommonDbConfig implements Serializable {
-
+    private static final long serialVersionUID = 1L;
+    private String databaseUrlPattern = "jdbc:mysql://%s:%s/%s?rewriteBatchedStatements=true";
     private String logPluginName = "selectdboutput";
-    private String SelectDbHttp;
+    private int insertBatchSize = 1000;
+    private String selectDbHttp;
+    public SelectDbConfig selectDbHttp(String selectDbHttp){
+        this.selectDbHttp = selectDbHttp;
+        return this;
+    }
 
     public SelectDbConfig() {
-        setDbType("mysql");
+        setDbType("doris");
         setJdbcDriver("com.mysql.cj.jdbc.Driver");
     }
 
@@ -30,5 +38,15 @@ public class SelectDbConfig extends CommonDbConfig implements Serializable {
 
     public void setLogPluginName(String logPluginName) {
         this.logPluginName = logPluginName;
+    }
+
+    public SelectDbConfig load(Map<String, Object> map) {
+        SelectDbConfig config = (SelectDbConfig) super.load(map);
+        Object selectDbHttpObj = map.get("selectdbHttp");
+        return config.selectDbHttp(Objects.nonNull(selectDbHttpObj)?String.valueOf(selectDbHttpObj):"");
+    }
+
+    public String getDatabaseUrl() {
+        return String.format(this.getDatabaseUrlPattern(), this.getHost(), this.getPort(), this.getDatabase());
     }
 }

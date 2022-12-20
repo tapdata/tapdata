@@ -112,4 +112,9 @@ public class HttpPutBuilder {
         put.setEntity(httpEntity);
         return put;
     }
+
+    public HttpPutBuilder addFileName(String fileName){
+        header.put("fileName", fileName);
+        return this;
+    }
 }

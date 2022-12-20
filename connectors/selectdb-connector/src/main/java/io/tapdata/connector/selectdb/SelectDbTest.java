@@ -33,7 +33,6 @@ public class SelectDbTest extends CommonDbTest {
 
     public SelectDbTest(SelectDbConfig selectDbConfig, Consumer<TestItem> consumer) {
         super(selectDbConfig, consumer);
-
     }
 
     public SelectDbTest initContext() {
@@ -41,73 +40,40 @@ public class SelectDbTest extends CommonDbTest {
         return this;
     }
 
+    protected static final String TEST_CREATE_TABLE = "create table %s(`user_id` VARCHAR(255) COMMENT 'ti',\n" +
+            "`username` VARCHAR(255) COMMENT 'name')\n" +
+            "COMMENT \"测试数据2\"\n" +
+            "DISTRIBUTED BY HASH(`user_id`)";
+    protected static final String TEST_WRITE_RECORD = "insert into %s (user_id, username) VALUES ('1', 'test1')";
+//    protected static final String TEST_UPDATE_RECORD = "update %s set username='test2' where user_id = '1'";
+    protected static final String TEST_DELETE_RECORD = "delete from %s where user_id = 1;";
+    protected static final String TEST_DROP_TABLE = "drop table %s";
+    protected static final String TEST_WRITE_SUCCESS = "Create,Insert,Update,Delete,Drop succeed";
+
     @Override
-    public Boolean testWritePrivilege() {
-        return WriteOrReadPrivilege("write");
-    }
-
-    private boolean WriteOrReadPrivilege(String mark) {
-        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-        String databaseName = String.valueOf(connectionConfig.get("database"));
-        List<String> tableList = new ArrayList();
-        AtomicReference<Boolean> globalWrite = new AtomicReference();
-        AtomicReference<TestItem> testItem = new AtomicReference<>();
-        String itemMark = TestItem.ITEM_READ;
-        if ("write".equals(mark)) {
-            itemMark = TestItem.ITEM_WRITE;
-        }
+    protected Boolean testWritePrivilege() {
         try {
-            String finalItemMark = itemMark;
-            selectDbJdbcContext.query(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
-                while (resultSet.next()) {
-                    String grantSql = resultSet.getString(1);
-                    if (testWriteOrReadPrivilege(grantSql, tableList, databaseName, mark)) {
-                        testItem.set(testItem(finalItemMark, TestItem.RESULT_SUCCESSFULLY));
-                        globalWrite.set(true);
-                        return;
-                    }
-                }
-
-            });
-        } catch (Throwable e) {
-            consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, e.getMessage()));
-            return false;
+            List<String> sqls = new ArrayList<>();
+//            selectDbJdbcContext =(SelectDbJdbcContext) DataSourcePool.getJdbcContext(commonDbConfig, SelectDbJdbcContext.class, uuid);
+//            if (jdbcContext.queryAllTables(Arrays.asList(TEST_WRITE_TABLE, TEST_WRITE_TABLE.toUpperCase())).size() > 0) {
+//                sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
+//            }
+            //create
+            sqls.add(String.format(TEST_CREATE_TABLE, TEST_WRITE_TABLE));
+            //insert
+            sqls.add(String.format(TEST_WRITE_RECORD, TEST_WRITE_TABLE));
+            //update
+//            sqls.add(String.format(TEST_UPDATE_RECORD, TEST_WRITE_TABLE));
+            //delete
+            sqls.add(String.format(TEST_DELETE_RECORD, TEST_WRITE_TABLE));
+            //drop
+            sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
+            jdbcContext.batchExecute(sqls);
+            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY, TEST_WRITE_SUCCESS));
+        } catch (Exception e) {
+            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, e.getMessage()));
         }
-        if (globalWrite.get() != null) {
-            consumer.accept(testItem.get());
-            return true;
-        }
-        if (CollectionUtils.isNotEmpty(tableList)) {
-            consumer.accept(testItem(itemMark, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, JSONObject.toJSONString(tableList)));
-            return true;
-        }
-        consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, "Without table can " + mark));
-        return false;
-    }
-
-    public boolean testWriteOrReadPrivilege(String grantSql, List<String> tableList, String databaseName, String mark) {
-        boolean privilege;
-        privilege = grantSql.contains("INSERT") && grantSql.contains("UPDATE") && grantSql.contains("DELETE")
-                || grantSql.contains("ALL PRIVILEGES");
-        if ("read".equals(mark)) {
-            privilege = grantSql.contains("SELECT") || grantSql.contains("ALL PRIVILEGES");
-        }
-        if (grantSql.contains("*.* TO")) {
-            if (privilege) {
-                return true;
-            }
-
-        } else if (grantSql.contains("`" + databaseName + "`" + ".* TO")) {
-            if (privilege) {
-                return true;
-            }
-        } else if (grantSql.contains("`" + databaseName + "`" + ".")) {
-            String table = grantSql.substring(grantSql.indexOf(databaseName + "."), grantSql.indexOf("TO")).trim();
-            if (privilege) {
-                tableList.add(table);
-            }
-        }
-        return false;
+        return true;
     }
 
     @Override

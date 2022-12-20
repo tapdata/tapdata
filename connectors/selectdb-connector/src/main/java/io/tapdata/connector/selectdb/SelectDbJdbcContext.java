@@ -128,6 +128,13 @@ public class SelectDbJdbcContext extends JdbcContext {
         return indexList;
     }
 
+
+    private static final String TABLE_NAME_IN = " AND TABLE_NAME IN(%s)";
+
+    private static final String SELECT_TABLES = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
+
+    private final static String SDB_ONE_TABLE = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s'";
+
     private final static String SDB_ALL_TABLE = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
 
     private final static String SDB_ALL_COLUMN = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME %s";

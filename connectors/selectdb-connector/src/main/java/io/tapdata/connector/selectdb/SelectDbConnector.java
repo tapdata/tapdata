@@ -3,12 +3,17 @@ package io.tapdata.connector.selectdb;
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
+import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.ddl.DDLSqlGenerator;
 import io.tapdata.connector.selectdb.bean.SelectDbColumn;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
+import io.tapdata.connector.selectdb.streamload.CopyIntoUtils;
+import io.tapdata.connector.selectdb.util.HttpUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
@@ -22,8 +27,9 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
-import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 import java.util.*;
@@ -41,25 +47,43 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
 
 @TapConnectorClass("spec_selectdb.json")
 public class SelectDbConnector extends ConnectorBase {
+    public static final String TAG = SelectDbConnector.class.getSimpleName();
 
     private SelectDbConfig selectDbConfig;
+    private SelectDbContext selectDbContext;
     private SelectDbJdbcContext selectDbJdbcContext;
     private String selectDbVersion;
     private SelectDbTest selectDbTest;
     private DDLSqlGenerator ddlSqlGenerator;
+    private CopyIntoUtils copyIntoUtils;
     private SelectDbStreamLoader selectDbStreamLoader;
+    private static final SelectDbDDLInstance DDLInstance = SelectDbDDLInstance.getInstance();
+
 
     @Override
     public void onStart(TapConnectionContext connectorContext) {
-        this.selectDbVersion = selectDbJdbcContext.queryVersion();
-        this.selectDbConfig = (SelectDbConfig) new SelectDbConfig().load(connectorContext.getConnectionConfig());
+        this.copyIntoUtils = new CopyIntoUtils(connectorContext);
+        this.selectDbContext = new SelectDbContext(connectorContext);
+        this.selectDbConfig = new SelectDbConfig().load(connectorContext.getConnectionConfig());
         this.selectDbTest = new SelectDbTest(selectDbConfig, testItem -> {
         }).initContext();
+        if (EmptyKit.isNull(selectDbJdbcContext) || selectDbJdbcContext.isFinish()) {
+            selectDbJdbcContext = (SelectDbJdbcContext) DataSourcePool.getJdbcContext(selectDbConfig, SelectDbJdbcContext.class, connectorContext.getId());
+        }
+        this.selectDbVersion = selectDbJdbcContext.queryVersion();
+        this.selectDbStreamLoader = new SelectDbStreamLoader(selectDbContext, new HttpUtil().getHttpClient());
+        this.selectDbStreamLoader = new SelectDbStreamLoader(new HttpUtil().getHttpClient(), selectDbConfig);
+
+        TapLogger.info(TAG, "SelectDB connector started");
     }
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        this.selectDbStreamLoader.shutdown();
+        try {
+            this.selectDbStreamLoader.shutdown();
+        } catch (Exception e) {
+
+        }
     }
 
     @Override
@@ -70,6 +94,7 @@ public class SelectDbConnector extends ConnectorBase {
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportQueryByFilter(this::queryByFilter);
+        connectorFunctions.supportErrorHandleFunction(this::handleErrors);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null)
@@ -105,6 +130,15 @@ public class SelectDbConnector extends ConnectorBase {
                 return toJson(tapValue.getValue());
             return "null";
         });
+
+        //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+    }
+
+    private RetryOptions handleErrors(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+        return RetryOptions.create().needRetry(true);
     }
 
     private void queryByFilter(TapConnectorContext tapConnectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
@@ -122,19 +156,48 @@ public class SelectDbConnector extends ConnectorBase {
             }
         }
         listConsumer.accept(filterResults);
-
-
     }
+
+    private TapEventCollector tapEventCollector;
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
-        if (!useStreamLoad()) {
-            throw new UnsupportedOperationException("selectDB httpUrl is required for write operation");
+        if (tapEventCollector == null) {
+            synchronized (this) {
+                if (tapEventCollector == null) {
+                    tapEventCollector = TapEventCollector.create()
+                            .maxRecords(500)
+                            .idleSeconds(1)
+                            .table(tapTable)
+                            .writeListResultConsumer(writeListResultConsumer)
+                            .eventCollected(this::uploadEvents);
+                }
+            }
         }
-        selectDbStreamLoader.writeRecord(tapRecordEvents, tapTable, writeListResultConsumer);
+        tapEventCollector.addTapEvents(tapRecordEvents);
     }
 
-    private boolean useStreamLoad() {
-        return StringUtils.isNotBlank(selectDbConfig.getSelectDbHttp());
+    /**
+     * This is a thread safe method. Please upload synchronously
+     *
+     * @param writeListResultConsumer
+     * @param events
+     */
+    private void uploadEvents(Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, List<TapRecordEvent> events, TapTable table) {
+        //TODO upload tapEvents to selectDB.
+
+        try {
+            selectDbStreamLoader.writeRecord(events, table, writeListResultConsumer);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+
+        WriteListResult<TapRecordEvent> listResult = writeListResult();
+        writeListResultConsumer.accept(new WriteListResult<TapRecordEvent>().insertedCount(events.size()));
+    }
+
+    private void writeRecord1(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
+        selectDbStreamLoader.writeRecord(tapRecordEvents, tapTable, writeListResultConsumer);
     }
 
     @Override
@@ -145,33 +208,33 @@ public class SelectDbConnector extends ConnectorBase {
         List<List<DataMap>> tableLists = Lists.partition(tableList, tableSize);
         tableLists.forEach(subList -> {
             List<TapTable> tapTableList = TapSimplify.list();
-            List<String> subTableNames = subList.stream().map(v -> v.getString("table_name")).collect(Collectors.toList());
+            List<String> subTableNames = subList.stream().map(v -> v.getString("TABLE_NAME")).collect(Collectors.toList());
             List<DataMap> columnList = selectDbJdbcContext.queryAllColumns(subTableNames);
             List<DataMap> indexList = selectDbJdbcContext.queryAllIndexes(subTableNames);
             //make up tapTable
             subList.forEach(subTable -> {
                 //1、table name/comment
-                String table = subTable.getString("table_name");
+                String table = subTable.getString("TABLE_NAME");
                 TapTable tapTable = table(table);
-                tapTable.setComment(subTable.getString("comment"));
+                tapTable.setComment(subTable.getString("COMMENT"));
                 //2、primary key and table index (find primary key from index info)
                 List<String> primaryKey = TapSimplify.list();
                 List<TapIndex> tapIndexList = TapSimplify.list();
-                Map<String, List<DataMap>> indexMap = indexList.stream().filter(idx -> table.equals(idx.getString("table_name")))
-                        .collect(Collectors.groupingBy(idx -> idx.getString("index_name"), LinkedHashMap::new, Collectors.toList()));
+                Map<String, List<DataMap>> indexMap = indexList.stream().filter(idx -> table.equals(idx.getString("TABLE_NAME")))
+                        .collect(Collectors.groupingBy(idx -> idx.getString("TABLE_NAME"), LinkedHashMap::new, Collectors.toList()));
                 indexMap.forEach((key, value) -> {
                     if (value.stream().anyMatch(v -> (boolean) v.get("is_primary"))) {
-                        primaryKey.addAll(value.stream().map(v -> v.getString("column_name")).collect(Collectors.toList()));
+                        primaryKey.addAll(value.stream().map(v -> v.getString("COLUMN_NAME")).collect(Collectors.toList()));
                     }
                     TapIndex index = index(key);
-                    value.forEach(v -> index.indexField(indexField(v.getString("column_name")).fieldAsc("A".equals(v.getString("asc_or_desc")))));
+                    value.forEach(v -> index.indexField(indexField(v.getString("COLUMN_NAME")).fieldAsc("A".equals(v.getString("asc_or_desc")))));
                     index.setUnique(value.stream().anyMatch(v -> (boolean) v.get("is_unique")));
                     index.setPrimary(value.stream().anyMatch(v -> (boolean) v.get("is_primary")));
                     tapIndexList.add(index);
                 });
                 //3、table columns info
                 AtomicInteger keyPos = new AtomicInteger(0);
-                columnList.stream().filter(col -> table.equals(col.getString("table_name")))
+                columnList.stream().filter(col -> table.equals(col.getString("TABLE_NAME")))
                         .forEach(col -> {
                             TapField tapField = new SelectDbColumn(col).getTapField(); //make up fields
                             tapField.setPos(keyPos.incrementAndGet());
@@ -188,16 +251,21 @@ public class SelectDbConnector extends ConnectorBase {
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
-        selectDbConfig = (SelectDbConfig) new SelectDbConfig().load(databaseContext.getConnectionConfig());
+        DataMap connectionConfig = databaseContext.getConnectionConfig();
+        if (Objects.isNull(connectionConfig)) {
+            throw new CoreException("connectionConfig cannot be null");
+        }
+        selectDbConfig = new SelectDbConfig().load(connectionConfig);
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(selectDbConfig.getConnectionString());
 
-        try (SelectDbTest selectDbTest = new SelectDbTest(selectDbConfig, consumer).initContext()
-        ) {
+        try (SelectDbTest selectDbTest = new SelectDbTest(selectDbConfig, consumer).initContext()) {
             selectDbTest.testOneByOne();
             return connectionOptions;
         }
+
     }
+
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
@@ -206,21 +274,23 @@ public class SelectDbConnector extends ConnectorBase {
 
     private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         TapTable tapTable = tapCreateTableEvent.getTable();
+        String database = selectDbContext.getSelectDbConfig().getDatabase();
         CreateTableOptions createTableOptions = new CreateTableOptions();
-        if (selectDbJdbcContext.queryAllTables(Collections.singletonList(tapTable.getId())).size() > 0) {
+        List<DataMap> tableNames = selectDbJdbcContext.queryAllTables(Collections.singletonList(tapTable.getId()));
+        if (tableNames.contains(tapTable.getId())) {
             createTableOptions.setTableExists(true);
             return createTableOptions;
         }
         Collection<String> primaryKeys = tapTable.primaryKeys();
         String firstColumn = tapTable.getNameFieldMap().values().stream().findFirst().orElseGet(TapField::new).getName();
-        String sql = "CREATE TABLE IF NOT EXISTS \"" + selectDbConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" +
-                CommonSqlMaker.buildColumnDefinition(tapTable, false) + ")";
+        String sql = "CREATE TABLE IF NOT EXISTS " + database + "." + tapTable.getId() + "(" +
+                DDLInstance.buildColumnDefinition(tapTable) + ")";
         if (EmptyKit.isEmpty(primaryKeys)) {
             sql += "DUPLICATE KEY (" + firstColumn + " ) " +
                     "DISTRIBUTED BY HASH(" + firstColumn + " ) BUCKETS 10 ";
         } else {
-            sql += "UNIQUE KEY (" + primaryKeys + " ) " +
-                    "DISTRIBUTED BY HASH(" + primaryKeys + " ) BUCKETS 10 ";
+            sql += "UNIQUE KEY (" + DDLInstance.buildDistributedKey(primaryKeys) + " ) " +
+                    "DISTRIBUTED BY HASH(" + DDLInstance.buildDistributedKey(primaryKeys) + " ) BUCKETS 10 ";
         }
         try {
             List<String> sqls = TapSimplify.list();

@@ -71,7 +71,7 @@
           "apiServerKey": "database_password",
           "x-index": 7
         },
-        "selectdbHttp": {
+        "selectDbHttp": {
           "type": "string",
           "title": "${selectdbHttp}",
           "x-decorator": "FormItem",
@@ -191,8 +191,16 @@
       "to": "TapNumber"
     },
     "float": {
-      "bit": 32,
-      "to": "TapNumber"
+      "to": "TapNumber",
+      "precision": [
+        1,
+        6
+      ],
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false
     },
     "HLL": {
       "byte": "16385",
@@ -235,7 +243,7 @@
       ]
     },
     "varchar[($byte)]": {
-      "byte": "65535",
+      "byte": "65533",
       "to": "TapString",
       "defaultByte": 1
     },
