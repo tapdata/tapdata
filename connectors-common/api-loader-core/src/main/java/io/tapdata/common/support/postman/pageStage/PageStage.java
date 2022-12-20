@@ -36,9 +36,10 @@ public interface PageStage {
     public static PageStage stage(String pageTag){
         if (Objects.isNull(pageTag)) return null;
         try {
+            //noinspection unchecked
             Class<? extends PageStage> pageStage = (Class<? extends PageStage>) Class.forName(PageStage.stagePackageName(pageTag));
             return pageStage.newInstance();
-        }catch (Exception e){
+        } catch (Exception ignored){
 
         }
         return null;
