@@ -98,7 +98,7 @@ public class ExcelConnector extends FileConnector {
                     }
                 }
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                TapLogger.warn(TAG, String.format("Reading file %s occurs error, skip it", fileOffset.getPath()), e);
             }
         });
     }
