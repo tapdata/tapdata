@@ -110,19 +110,20 @@ TAP_ TABLE[Issues]（PAGE_SIZE_PAGE_INDEX:Response.Data.List）獲取事項清�
 
 ```properties
 //支持直接指定值
-body.message=NO AUTH
+body.errorCode=NO AUTH
 
 //支持且關係判斷，使用&&連接
-body.message=NO AUTH&&body.code=500021
+body.errorCode=NO AUTH&&body.code=500021
 
 //支持或關係判斷，換行處理
-body.code=500021||body.code=500021
+body.code=500021
+body.code=500021
 
 //支持範圍值
 body.code=[50000,51000]
 
 //可考慮支持規則運算式
-body.message=regex('$/[0-1|a-z]{5}/$')
+body.errorCode=regex('$/[0-1|a-z]{5}/$')
 
 header.httpCode=401
 

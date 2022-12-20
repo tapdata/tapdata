@@ -85,10 +85,10 @@
 
 ```properties
 //支持直接指定值
-body.message=NO AUTH
+body.errorCode=NO AUTH
 
 //支持且关系判断，使用&&连接
-body.message=NO AUTH&&body.code=500021
+body.errorCode=NO AUTH&&body.code=500021
 
 //支持或关系判断，并列的或关系换行表示
 body.code=500021
@@ -98,7 +98,7 @@ body.code=500021
 body.code=[50000,51000]
 
 //可考虑支持正则表达式
-body.message=regex('$/[0-1|a-z]{5}/$')
+body.errorCode=regex('$/[0-1|a-z]{5}/$')
 
 header.httpCode=401
 

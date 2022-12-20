@@ -125,36 +125,4 @@ public class Url {
         }
         return Url.create().query(queryBack).variable(this.variable).raw(rawBack[0]).host(this.host).path(this.path);
     }
-
-    public static void main(String[] args) {
-        String raw = "{{base_url}}/sheets/v3/spreadsheets/:spreadsheet_token/sheets/:sheet_id/float_images";
-        List<String> host = new ArrayList<>();
-        List<String> path = new ArrayList<>();
-        List<Map<String,Object>> variable = new ArrayList<>();
-        Map<String,Object> q = new HashMap<>();
-        q.put("key","spreadsheet_token");
-        q.put("value","shtcnmBA*****yGehy8");
-        q.put("description","表格 token");
-        variable.add(q);
-        q = new HashMap<>();
-        q.put("key","sheet_id");
-        q.put("value","0b**12");
-        q.put("description","子表 id");
-        variable.add(q);
-        List<Map<String,Object>> query = new ArrayList<>();
-        Map<String,Object> v = new HashMap<>();
-        v.put("key","tokenId");
-        v.put("value","0b**12");
-        v.put("description","子表 id");
-        query.add(v);
-
-        Url url = Url.create().query(query).variable(variable).raw(raw).host(host).path(path);
-
-        Map<String,Object> map = new HashMap<>();
-        map.put("base_url","http://127.0.0.1");
-        map.put("sheet_id","520");
-        map.put("tokenId","666");
-        System.out.println(url.variableAssignment(map).raw());
-
-    }
 }

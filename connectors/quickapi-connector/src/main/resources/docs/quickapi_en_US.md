@@ -109,19 +109,20 @@ For example, when we call ZoHo to obtain a work order, access_ The token has exp
 
 ```properties
 // Support direct value assignment 
-body.message=NO AUTH
+body.errorCode=NO AUTH
 
 // Support and relationship judgment，split with &&
-body.message=NO AUTH&&body.code=500021
+body.errorCode=NO AUTH&&body.code=500021
 
 //Support or relationship judgment, Line breaking 
-body.code=500021||body.code=500021
+body.code=500021
+body.code=500021
 
 // Support range value 
 body.code=[50000,51000]
 
 // Consider supporting regular expressions 
-body.message=regex('$/[0-1|a-z]{5}/$')
+body.errorCode=regex('$/[0-1|a-z]{5}/$')
 
 header.httpCode=401
 

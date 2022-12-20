@@ -14,6 +14,7 @@
 
     <properties>
         <java.version>8</java.version>
+        <ok.http.version>3.10.0</ok.http.version>
     </properties>
 
     <dependencies>
@@ -29,8 +30,14 @@
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
-            <version>3.10.0</version>
+            <version>${ok.http.version}</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>RELEASE</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
