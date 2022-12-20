@@ -14,6 +14,7 @@ import io.tapdata.entity.utils.JsonParser;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -51,12 +52,14 @@ public class UnionProcessorNode extends ProcessorNode{
                 schema.setFields(inputSchema.getFields());
             } else if (CollectionUtils.isNotEmpty(inputSchema.getFields())) {
                 Map<String, Field> inputFieldMap = inputSchema.getFields().stream()
-                        .collect(Collectors.toMap(Field::getFieldName, Function.identity(), (e1, e2) -> e1));
+                        .collect(Collectors.toMap(field -> StringUtils.upperCase(field.getFieldName()),
+                                Function.identity(), (e1, e2) -> e1));
 
                 // compare tapType
                 schema.getFields().forEach(field -> {
-                    if (inputFieldMap.containsKey(field.getFieldName())) {
-                        Field inputField = inputFieldMap.get(field.getFieldName());
+                    String fieldName = StringUtils.upperCase(field.getFieldName());
+                    if (inputFieldMap.containsKey(fieldName)) {
+                        Field inputField = inputFieldMap.get(fieldName);
 
                         Object[] inputBytes = getBytes(inputField.getTapType());
                         Object[] bytes = getBytes(field.getTapType());
@@ -70,25 +73,27 @@ public class UnionProcessorNode extends ProcessorNode{
                             field.setDataTypeTemp(inputField.getDataTypeTemp());
                         }
 
-
-                        if (field.getIsNullable() != inputFieldMap.get(field.getFieldName()).getIsNullable()) {
+                        if (field.getIsNullable() != inputFieldMap.get(fieldName).getIsNullable()) {
                             field.setIsNullable(false);
                         }
 
-                        if (field.getPrimaryKey() != inputFieldMap.get(field.getFieldName()).getPrimaryKey()) {
+                        if (field.getPrimaryKey() != inputFieldMap.get(fieldName).getPrimaryKey()) {
                             field.setPrimaryKey(false);
                             field.setPrimaryKeyPosition(null);
                         }
+                    } else {
+                        field.setIsNullable(false);
                     }
                 });
 
                 // compare need add field
                 Map<String, Field> fieldMap = schema.getFields().stream()
-                        .collect(Collectors.toMap(Field::getFieldName, Function.identity(), (e1, e2) -> e1));
+                        .collect(Collectors.toMap(field -> StringUtils.upperCase(field.getFieldName()),
+                                Function.identity(), (e1, e2) -> e1));
 
                 Schema finalSchema = schema;
                 Consumer<Field> addFieldConsumer = (field) -> {
-                   if (!fieldMap.containsKey(field.getFieldName())) {
+                   if (!fieldMap.containsKey(StringUtils.upperCase(field.getFieldName()))) {
                        finalSchema.getFields().add(field);
                    }
                 };
@@ -133,7 +138,7 @@ public class UnionProcessorNode extends ProcessorNode{
                 return new Object[]{tapDateTime.getType(), tapDateTime.getBytes()};
             case "TapNumber":
                 TapNumber tapNumber = InstanceFactory.instance(JsonParser.class).fromJson(tapTypeJson, TapNumber.class);
-                return new Object[]{tapNumber.getType(), Objects.nonNull(tapNumber.getBit()) ? tapNumber.getBit().longValue() : tapNumber.getPrecision().longValue() + tapNumber.getScale()};
+                return new Object[]{tapNumber.getType(), Objects.nonNull(tapNumber.getBit()) ? tapNumber.getBit().longValue() : tapNumber.getPrecision().longValue()};
             case "TapString":
                 TapString tapString = InstanceFactory.instance(JsonParser.class).fromJson(tapTypeJson, TapString.class);
                 return new Object[]{tapString.getType(), tapString.getBytes()};

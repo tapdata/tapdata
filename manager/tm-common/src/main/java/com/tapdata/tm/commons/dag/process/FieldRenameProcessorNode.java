@@ -1,14 +1,11 @@
 package com.tapdata.tm.commons.dag.process;
 
-import cn.hutool.db.meta.Column;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.TableIndexColumn;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
