@@ -25,8 +25,12 @@ public class AuthAop {
   private ProductComponent productComponent;
 
 
-  @Around("execution(public * com.tapdata.tm.base.reporitory.BaseRepository.buildUpdateSet(..)) && target(com.tapdata.tm.ds.repository.DataSourceRepository) && args(.., userDetail)")
-  public Object dataSourceRepository_buildUpdateSet(ProceedingJoinPoint pjp, UserDetail userDetail) throws Throwable {
+  @Around("execution(public * com.tapdata.tm.base.service.BaseService.updateByWhere(..)) && target(com.tapdata.tm.inspect.service.InspectService) && args(.., userDetail)")
+  public Object inspectRepository_buildUpdateSet(ProceedingJoinPoint pjp, UserDetail userDetail) throws Throwable {
+    return ignoreUserIdWhenUpdate(pjp, userDetail);
+  }
+
+  private Object ignoreUserIdWhenUpdate(ProceedingJoinPoint pjp, UserDetail userDetail) throws Throwable {
     if (productComponent.isCloud()) {
       return pjp.proceed();
     }
@@ -42,6 +46,11 @@ public class AuthAop {
         userDetail.setUserId(tempUserId);
       }
     }
+  }
+
+  @Around("execution(public * com.tapdata.tm.base.reporitory.BaseRepository.buildUpdateSet(..)) && target(com.tapdata.tm.ds.repository.DataSourceRepository) && args(.., userDetail)")
+  public Object dataSourceRepository_buildUpdateSet(ProceedingJoinPoint pjp, UserDetail userDetail) throws Throwable {
+    return ignoreUserIdWhenUpdate(pjp, userDetail);
   }
 
   @Around("execution(public * com.tapdata.tm.base.service.BaseService.*(..)) && target(com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService) && args(.., filter, user)")
