@@ -7,6 +7,8 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Maps;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
@@ -53,6 +55,7 @@ import org.springframework.stereotype.Service;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -275,7 +278,10 @@ public class AlarmServiceImpl implements AlarmService {
             }
 
             if (Objects.nonNull(title)) {
-                MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), title, content);
+                Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
+                AtomicReference<String> mailTitle = new AtomicReference<>(title);
+                Optional.ofNullable(prefix).ifPresent(pre -> mailTitle.updateAndGet(v -> pre.getValue() + v));
+                MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
             }
         }
     }
