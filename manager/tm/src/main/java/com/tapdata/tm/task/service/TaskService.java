@@ -2877,7 +2877,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String stopped(ObjectId id, UserDetail user) {
         //判断子任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId");
+        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId");
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);
 
