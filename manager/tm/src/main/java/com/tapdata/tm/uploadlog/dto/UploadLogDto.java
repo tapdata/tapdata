@@ -14,4 +14,5 @@ public class UploadLogDto {
     private String tmInfoEngineId;
     private String userId;
     private String id;
+    private int uploadDays;
 }
