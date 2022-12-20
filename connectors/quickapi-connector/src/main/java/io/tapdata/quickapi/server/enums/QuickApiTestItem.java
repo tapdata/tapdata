@@ -13,4 +13,20 @@ public enum QuickApiTestItem {
     public String testName(){
         return this.testName;
     }
+
+    public static void main(String[] args) {
+        String s ="(regex()(.*?)())";
+        System.out.println("regex(1)".matches(s));
+        System.out.println("regex()".matches(s));
+        System.out.println("regex(dgfdg)".matches(s));
+        System.out.println("regex(rsgd%][@@)".matches(s));
+        System.out.println("tt(1)".matches(s));
+
+        String s2= "(\\[)(.*?)(])";
+        System.out.println("[1,2]".matches(s2));
+        System.out.println("[1]".matches(s2));
+        System.out.println("[2]".matches(s2));
+        System.out.println("[,2]".matches(s2));
+        System.out.println("[".matches(s2));
+    }
 }

@@ -13,20 +13,21 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.quickapi.api.APIFactory;
-import io.tapdata.quickapi.api.APIResponse;
+import io.tapdata.common.api.APIFactory;
+import io.tapdata.common.api.APIResponse;
 import io.tapdata.quickapi.common.QuickApiConfig;
-import io.tapdata.quickapi.core.emun.TapApiTag;
+import io.tapdata.common.core.emun.TapApiTag;
+import io.tapdata.quickapi.server.QuickAPIResponseInterceptor;
 import io.tapdata.quickapi.server.TestQuickApi;
 import io.tapdata.quickapi.server.enums.QuickApiTestItem;
-import io.tapdata.quickapi.support.APIFactoryImpl;
-import io.tapdata.quickapi.support.postman.ExpireHandel;
-import io.tapdata.quickapi.support.postman.PostManAnalysis;
-import io.tapdata.quickapi.support.postman.PostManApiContext;
-import io.tapdata.quickapi.support.postman.entity.ApiMap;
-import io.tapdata.quickapi.support.postman.pageStage.PageStage;
-import io.tapdata.quickapi.support.postman.pageStage.TapPage;
-import io.tapdata.quickapi.support.postman.util.ApiMapUtil;
+import io.tapdata.common.support.APIFactoryImpl;
+import io.tapdata.quickapi.server.ExpireHandel;
+import io.tapdata.common.support.postman.PostManAnalysis;
+import io.tapdata.common.support.postman.PostManApiContext;
+import io.tapdata.common.support.postman.entity.ApiMap;
+import io.tapdata.common.support.postman.pageStage.PageStage;
+import io.tapdata.common.support.postman.pageStage.TapPage;
+import io.tapdata.common.support.postman.util.ApiMapUtil;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -70,26 +71,7 @@ public class QuickApiConnector extends ConnectorBase {
 					.tokenParams(tokenParams);
 			apiFactory = new APIFactoryImpl();
 			invoker = (PostManAnalysis)apiFactory.loadAPI(jsonTxt, apiType, apiParam);
-			invoker.setAPIResponseInterceptor((response, urlOrName, method, params)->{
-				if( Objects.isNull(response) ) {
-					throw new CoreException(String.format("Http request call failed, unable to get the request result: url or name [%s], method [%s].",urlOrName,method));
-				}
-				APIResponse interceptorResponse = response;
-				ExpireHandel expireHandel = ExpireHandel.create(response, config.expireStatus(),config.tokenParams());
-				if (expireHandel.builder()){
-					PostManApiContext postManApiContext = invoker.apiContext();
-					List<ApiMap.ApiEntity> apiEntities = ApiMapUtil.tokenApis(postManApiContext.apis());
-					if ( !apiEntities.isEmpty() ){
-						ApiMap.ApiEntity apiEntity = apiEntities.get(0);
-						APIResponse tokenResponse = invoker.invoke(apiEntity.name(), apiEntity.method(), params,false);
-						if (expireHandel.refreshComplete(tokenResponse,params)) {
-							//再调用
-							interceptorResponse = invoker.invoke(urlOrName, method, params,true);
-						}
-					}
-				}
-				return interceptorResponse;
-			});
+			invoker.setAPIResponseInterceptor(QuickAPIResponseInterceptor.create(config,invoker));
 		}
 	}
 

@@ -5,10 +5,10 @@
 //import io.tapdata.pdk.apis.api.APIResponseInterceptor;
 //import io.tapdata.pdk.apis.api.comom.APIDocument;
 //import io.tapdata.pdk.apis.api.comom.TapApiBase;
-//import io.tapdata.quickapi.support.postman.entity.ApiEvent;
-//import io.tapdata.quickapi.support.postman.entity.ApiInfo;
-//import io.tapdata.quickapi.support.postman.entity.ApiMap;
-//import io.tapdata.quickapi.support.postman.entity.ApiVariable;
+//import io.tapdata.common.support.postman.entity.ApiEvent;
+//import io.tapdata.common.support.postman.entity.ApiInfo;
+//import io.tapdata.common.support.postman.entity.ApiMap;
+//import io.tapdata.common.support.postman.entity.ApiVariable;
 //
 //import java.util.List;
 //import java.util.Map;

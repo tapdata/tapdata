@@ -1,20 +1,17 @@
 package io.tapdata.quickapi.server;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.quickapi.api.APIFactory;
-import io.tapdata.quickapi.api.APIResponse;
-import io.tapdata.quickapi.core.emun.TapApiTag;
+import io.tapdata.common.api.APIFactory;
+import io.tapdata.common.api.APIResponse;
+import io.tapdata.common.core.emun.TapApiTag;
 import io.tapdata.quickapi.server.enums.QuickApiTestItem;
-import io.tapdata.quickapi.support.APIFactoryImpl;
-import io.tapdata.quickapi.support.postman.ExpireHandel;
-import io.tapdata.quickapi.support.postman.PostManAnalysis;
-import io.tapdata.quickapi.support.postman.PostManApiContext;
-import io.tapdata.quickapi.support.postman.entity.ApiMap;
-import io.tapdata.quickapi.support.postman.util.ApiMapUtil;
+import io.tapdata.common.support.APIFactoryImpl;
+import io.tapdata.common.support.postman.PostManAnalysis;
+import io.tapdata.common.support.postman.PostManApiContext;
+import io.tapdata.common.support.postman.entity.ApiMap;
+import io.tapdata.common.support.postman.util.ApiMapUtil;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.StringJoiner;
@@ -30,26 +27,7 @@ public class TestQuickApi extends QuickApiBase {
         super(connectionContext);
         apiFactory = new APIFactoryImpl();
         invoker = (PostManAnalysis)apiFactory.loadAPI(super.config.jsonTxt(), super.config.apiType(), null);
-        invoker.setAPIResponseInterceptor((response, urlOrName, method, params)->{
-            if( Objects.isNull(response) ) {
-                throw new CoreException(String.format("Http request call failed, unable to get the request result: url or name [%s], method [%s].",urlOrName,method));
-            }
-            APIResponse interceptorResponse = response;
-            ExpireHandel expireHandel = ExpireHandel.create(response, config.expireStatus(),config.tokenParams());
-            if (expireHandel.builder()){
-                PostManApiContext postManApiContext = invoker.apiContext();
-                List<ApiMap.ApiEntity> apiEntities = ApiMapUtil.tokenApis(postManApiContext.apis());
-                if ( !apiEntities.isEmpty() ){
-                    ApiMap.ApiEntity apiEntity = apiEntities.get(0);
-                    APIResponse tokenResponse = invoker.invoke(apiEntity.name(), apiEntity.method(), params,true);
-                    if (expireHandel.refreshComplete(tokenResponse,params)) {
-                        //再调用
-                        interceptorResponse = invoker.invoke(urlOrName, method, params,true);
-                    }
-                }
-            }
-            return interceptorResponse;
-        });
+        invoker.setAPIResponseInterceptor(QuickAPIResponseInterceptor.create(config,invoker));
     }
 
     private PostManAnalysis invoker;
