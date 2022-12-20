@@ -79,6 +79,7 @@ public class SchemaUtils {
         } else {
             if (!logicInput && CollectionUtils.isNotEmpty(inputSchemas)) {
                 List<TableIndex> inputIndices = inputSchemas.stream()
+                        .filter(Objects::nonNull)
                         .filter(s -> null != s.getIndices())
                         .flatMap(s -> s.getIndices().stream())
                         .filter(Objects::nonNull).collect(Collectors.toList());
