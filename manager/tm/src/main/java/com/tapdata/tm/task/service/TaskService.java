@@ -1668,12 +1668,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public Map<String, Object> chart(UserDetail user) {
         Map<String, Object> resultChart = new HashMap<>();
-        Criteria criteria = Criteria.where("user_id").is(user.getUserId())
+        Criteria criteria = new Criteria()
                 .and("is_deleted").ne(true)
                 .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
                 .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
                 //共享缓存的任务设计的有点问题
                 .and("shareCache").ne(true);
+        if (!user.isRoot()) {
+            criteria.and("user_id").is(user.getUserId());
+        }
 
 
         Query query = Query.query(criteria);
