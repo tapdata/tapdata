@@ -30,6 +30,7 @@ public class PageToken implements PageStage{
         List<Map<String, Object>> query = api.api().request().url().query();
         String sizeKeyName = null;
         String tokenName = null;
+        String hasNextName = null;
         int sizeValue = 0;
         String tokenValue = null;
 
@@ -45,6 +46,9 @@ public class PageToken implements PageStage{
             if (Objects.equals(queryParamDescription, TapApiTag.TAP_PAGE_TOKEN.tagName())) {
                 tokenName = objKeyName;
                 tokenValue = Objects.isNull(valueObj)?"":String.valueOf(valueObj);
+            }
+            if(Objects.equals(queryParamDescription, TapApiTag.TAP_HAS_MORE_PAGE.tagName())){
+                hasNextName = objKeyName;
             }
         }
 
@@ -66,11 +70,23 @@ public class PageToken implements PageStage{
             apiResponse = invoker.invoke(apiName, apiMethod, param,true);
             result = apiResponse.result();
             param.put(tokenName, tokenValue = getPageToken(result,tokenName));
+            if(!hasNext(result,hasNextName)){
+                break;
+            }
         }
     }
 
     private String getPageToken(Map<String, Object> result,String keyName){
         if (Objects.isNull(result)) return  "";
         return (String) ApiMapUtil.depthSearchParamFromMap(result,keyName);
+    }
+
+    private Boolean hasNext(Map<String, Object> result,String keyName){
+        if (Objects.isNull(result)) return  false;
+        try {
+            return (Boolean) ApiMapUtil.getKeyFromMap(result,keyName);
+        }catch (Exception e){
+            return false;
+        }
     }
 }
