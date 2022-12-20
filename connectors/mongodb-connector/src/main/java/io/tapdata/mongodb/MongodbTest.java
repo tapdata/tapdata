@@ -154,13 +154,13 @@ public class MongodbTest extends CommonDbTest {
                 return false;
             }
             if (!validateReadOrWriteDatabase(connectionStatus, database, READ_PRIVILEGE_ACTIONS)) {
-                consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_FAILED, "Missing read privileges on" + mongodbConfig.getDatabase() + "database"));
+                consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_FAILED, "Missing read privileges on" + mongodbConfig.getDatabase() + "database"));
                 return false;
             }
-            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
+            consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY));
             return true;
         } else {
-            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, "Source mongodb instance must be the shards or replica set."));
+            consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_FAILED, "Source mongodb instance must be the shards or replica set."));
             return false;
         }
     }
@@ -174,12 +174,12 @@ public class MongodbTest extends CommonDbTest {
         MongoDatabase mongoDatabase = mongoClient.getDatabase(mongodbConfig.getDatabase());
         Document connectionStatus = mongoDatabase.runCommand(new Document("connectionStatus", 1).append("showPrivileges", 1));
         if (!validateReadOrWriteDatabase(connectionStatus, mongodbConfig.getDatabase(), READ_WRITE_PRIVILEGE_ACTIONS)) {
-            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_FAILED, "Missing readWrite privileges on" + mongodbConfig.getDatabase() + "database"));
+            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, "Missing readWrite privileges on" + mongodbConfig.getDatabase() + "database"));
             return false;
         }
         Document isMaster = mongoDatabase.runCommand(new Document("isMaster", 1));
         if (!isMaster.containsKey("msg") && !"isdbgrid".equals(isMaster.getString("msg")) && !isMaster.containsKey("setName")) {
-            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                     "Warning: target is not replicaset or shards, can not use validator and progress feature."));
             return true;
         }
