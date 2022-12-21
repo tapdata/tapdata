@@ -18,9 +18,6 @@ def check(Pipeline, p, car_claim, car_policy, car_claim_sink):
     if not hasattr(sink_client, "count"):
         return False
 
-    if sink_client.count() != 7:
-        return False
-
     rows = sink_client.query(condition={"POLICY_ID" : "888"})
     if len(rows) == 0:
         return False
