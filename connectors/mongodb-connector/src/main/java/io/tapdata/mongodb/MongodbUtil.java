@@ -7,6 +7,7 @@ import com.mongodb.client.*;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
+import io.tapdata.mongodb.codecs.TapdataBigDecimalCodec;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.util.SSLUtil;
 import org.apache.commons.collections4.CollectionUtils;
@@ -14,6 +15,9 @@ import org.bson.BsonDocument;
 import org.bson.BsonString;
 import org.bson.BsonTimestamp;
 import org.bson.Document;
+import org.bson.codecs.BigDecimalCodec;
+import org.bson.codecs.configuration.CodecRegistries;
+import org.bson.codecs.configuration.CodecRegistry;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -259,7 +263,9 @@ public class MongodbUtil {
 	}
 
 	public static MongoClient createMongoClient(MongodbConfig mongodbConfig) {
-		final MongoClientSettings.Builder builder = MongoClientSettings.builder();
+		CodecRegistry defaultCodecRegistry = MongoClientSettings.getDefaultCodecRegistry();
+		CodecRegistry codecRegistry = CodecRegistries.fromRegistries(CodecRegistries.fromCodecs(new TapdataBigDecimalCodec()), defaultCodecRegistry);
+		final MongoClientSettings.Builder builder = MongoClientSettings.builder().codecRegistry(codecRegistry);
 		String mongodbUri = mongodbConfig.getUri();
 		if (null == mongodbUri || "".equals(mongodbUri)) {
 			throw new RuntimeException("Create MongoDB client failed, error: uri is blank");
