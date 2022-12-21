@@ -55,7 +55,7 @@ public class CustomConnector extends ConnectorBase {
         initScriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
         initScriptEngine.eval(ScriptUtil.appendBeforeFunctionScript(customConfig.getCustomBeforeScript()) + "\n"
                 + ScriptUtil.appendAfterFunctionScript(customConfig.getCustomAfterScript()));
-        initScriptEngine.put("log", new CustomLog());
+//        initScriptEngine.put("log", new CustomLog());
     }
 
     @Override
@@ -130,7 +130,7 @@ public class CustomConnector extends ConnectorBase {
         } else {
             scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
             scriptEngine.eval(ScriptUtil.appendTargetFunctionScript(customConfig.getTargetScript()));
-            scriptEngine.put("log", new CustomLog());
+//            scriptEngine.put("log", new CustomLog());
             writeEnginePool.put(threadName, scriptEngine);
         }
         List<Map<String, Object>> data = new ArrayList<>();
@@ -170,7 +170,7 @@ public class CustomConnector extends ConnectorBase {
         ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getHistoryScript(), true));
         scriptEngine.put("core", scriptCore);
-        scriptEngine.put("log", new CustomLog());
+//        scriptEngine.put("log", new CustomLog());
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         Runnable runnable = () -> {
             Invocable invocable = (Invocable) scriptEngine;
@@ -222,7 +222,7 @@ public class CustomConnector extends ConnectorBase {
         ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getCdcScript(), false));
         scriptEngine.put("core", scriptCore);
-        scriptEngine.put("log", new CustomLog());
+//        scriptEngine.put("log", new CustomLog());
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         Runnable runnable = () -> {
             Invocable invocable = (Invocable) scriptEngine;
