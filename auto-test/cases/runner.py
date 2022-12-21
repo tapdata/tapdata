@@ -22,7 +22,7 @@ def gen_run_params_template(test_case, support_datasources):
     possible_params = []
     params = test_case.test.__code__.co_varnames[0:test_case.test.__code__.co_argcount]
     for i in params:
-        if i == "pipeline":
+        if i == "Pipeline":
             possible_params.append([Pipeline])
             continue
 
@@ -96,6 +96,7 @@ def gen_support_datasources(datasources):
 
 
 def run_jobs(test_case, run_params_template):
+    result = []
     timeout = args.bench / 10
     if timeout < 60:
         timeout = 60
@@ -111,16 +112,18 @@ def run_jobs(test_case, run_params_template):
             logger.info("wait job start running cost: {} seconds", int(time.time() - s))
         else:
             logger.error("wait job running timeout: {}, will skip it", )
-            return
+            return False
 
         if not wait_job_initial(p, timeout):
-            return
+            return False
 
+        cdc_result = True
         if p.job.setting.get("type") == "initial_sync+cdc":
-            test_cdc(p, run_param)
+            cdc_result = test_cdc(p, run_param)
 
         stop_and_clean(p)
-        manual_check(test_case, run_param)
+        check_result = manual_check(test_case, run_param)
+        return cdc_result and check_result
 
     def gen_run_param(p, template, index):
         run_param = []
@@ -192,6 +195,7 @@ def run_jobs(test_case, run_params_template):
                 now_stats = p.job.stats().__dict__
                 logger.error("metrics input {} expect {} vs now {} wait fail after {} seconds", event, wait_stats, now_stats,
                              int(time.time() - s))
+                return False
 
             if args.bench == 0 or not hasattr(db_client, "bench"):
                 continue
@@ -212,6 +216,8 @@ def run_jobs(test_case, run_params_template):
             now_stats = p.job.stats().input_insert
             logger.error("metrics input insert expect {} vs now {} wait fail after {} seconds", wait_stats, now_stats,
                          int(time.time() - s))
+            return False
+        return True
 
     def stop_and_clean(p):
         if args.nowait:
@@ -242,7 +248,7 @@ def run_jobs(test_case, run_params_template):
 
     def manual_check(test_case, run_param):
         if "check" not in test_case.__dict__:
-            return False
+            return True
         logger.info("find case check func, will run it ...")
         if test_case.check(*run_param):
             logger.info("case check {}", "success!")
@@ -252,15 +258,30 @@ def run_jobs(test_case, run_params_template):
 
     logger.info("will create {} job for this test case and start running it...", len(run_params_template))
     for i in range(len(run_params_template)):
-        logger.notice("{}", "=" * 150)
-        job_name = "%s%s_%d" % (test_case.__name__, get_suffix(), i)
-        p = Pipeline(job_name, mode="sync")
-        p.config({"type": "initial_sync"})
-        run_param = gen_run_param(p, run_params_template[i], i)
-        logger.notice("start run number {} job, name is: {}, param is: {}", i, job_name, run_param)
-        run_job(p, test_case, run_param)
-        logger.notice("{}", "#" * 150)
-
+        try:
+            logger.notice("{}", "=" * 150)
+            job_name = "%s%s_%d" % (test_case.__name__, get_suffix(), i)
+            p = Pipeline(job_name, mode="sync")
+            p.config({"type": "initial_sync"})
+            run_param = gen_run_param(p, run_params_template[i], i)
+            logger.notice("start run number {} job, name is: {}, param is: {}", i, job_name, run_param)
+            with open("jobs_number", "a+") as fd:
+                fd.write(".\n")
+            case_result = run_job(p, test_case, run_param)
+            logger.notice("{}", "#" * 150)
+            if case_result:
+                with open("pass_jobs_number", "a+") as fd:
+                    fd.write(".\n")
+            result.append({
+                "params": run_param,
+                "result": case_result
+            })
+        except Exception as e:
+            result.append({
+                "params": run_param,
+                "result": False,
+            })
+    return result
 
 def clean_smart_cdc():
     if args.nowait:
@@ -274,6 +295,7 @@ def clean_smart_cdc():
 
 
 def main():
+    case_text = "std::out >> "
     datasources = get_sources()
     global args
     args = parse_args()
@@ -282,6 +304,15 @@ def main():
         cdc_sources_config = smart_cdc(datasources)
 
     case_name = get_case().split(".")[0]
+    desc = case_name
+    try:
+        with open(case_name + ".py", "r") as fd:
+            line = fd.readline()
+            if "desc:" in line:
+                desc = line.split("desc:")[1].strip()
+    except Exception as e:
+        pass
+    case_text += "用例: " + desc
     support_datasources = gen_support_datasources(datasources)
 
     # logger.info("support datasource is: {}", support_datasources)
@@ -293,10 +324,14 @@ def main():
         sys.exit(1)
 
     run_params_template = gen_run_params_template(test_case, support_datasources)
-    run_jobs(test_case, run_params_template)
+    result = run_jobs(test_case, run_params_template)
     clean_smart_cdc()
-    #print(json.dumps(result, indent=4))
-
+    success = 0
+    for i in result:
+        if i["result"]:
+            success += 1
+    case_text += ", 此用例共运行了 {} 个任务, 通过 {} 个".format(len(result), success)
+    print(case_text)
 
 def parse_args():
     parser = argparse.ArgumentParser()
