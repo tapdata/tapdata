@@ -19,7 +19,7 @@ public final class TapdataBigDecimalCodec implements Codec<BigDecimal> {
             return;
         }
         if (value.precision() > 34) {
-            writer.writeDecimal128(new Decimal128(value.setScale(value.scale() + 34 - value.precision(), RoundingMode.DOWN)));
+            writer.writeDecimal128(new Decimal128(value.setScale(value.scale() + 34 - value.precision(), RoundingMode.HALF_UP)));
         } else {
             writer.writeDecimal128(new Decimal128(value));
         }
