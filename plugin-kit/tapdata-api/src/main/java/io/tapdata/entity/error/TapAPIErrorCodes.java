@@ -14,4 +14,6 @@ public class TapAPIErrorCodes {
 	public static final int ERROR_ALL_IPS_FAILED = 1010;
 	public static final int ERROR_UNKNOWN_TAP_TYPE = 1011;
 	public static final int ERROR_ILLEGAL_DATETIME_ORIGIN_TYPE = 1012;
+	public static final int ERROR_FIND_CONNECTOR_TYPE_FAILED = 1013;
+	public static final int ERROR_JAVA_CUSTOM_DESERIALIZE_FAILED = 1014;
 }

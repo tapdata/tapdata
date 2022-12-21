@@ -8,9 +8,11 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
+import org.apache.commons.codec.binary.Base64;
 import org.bson.BsonTimestamp;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
@@ -20,6 +22,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class ObjectSerializableImplTest {
+    @Test
+    public void allTypeTest() {
+        ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+
+    }
+
+    @Test
+    public void supportFirstVersion() {
+        String str = "ZAAXamF2YS51dGlsLkxpbmtlZEhhc2hNYXAAAAADAAAACwGs7QAFdAADYWJjAAAADAGs7QAFdAAEYWFhYQAAAAsBrO0ABXQAA2FhYQAAAPRlABNqYXZhLnV0aWwuQXJyYXlMaXN0AAAAAgAAAGlkABdqYXZhLnV0aWwuTGlua2VkSGFzaE1hcAAAAAEAAAALAaztAAV0AANhYWEAAAA4ZQATamF2YS51dGlsLkFycmF5TGlzdAAAAAIAAAALAaztAAV0AAMyMzQAAAALAaztAAV0AAMyMzQAAABpZAAXamF2YS51dGlsLkxpbmtlZEhhc2hNYXAAAAABAAAACwGs7QAFdAADYWFhAAAAOGUAE2phdmEudXRpbC5BcnJheUxpc3QAAAACAAAACwGs7QAFdAADMjM0AAAACwGs7QAFdAADMjM0AAAACwGs7QAFdAADbWFwAAAAg2QAF2phdmEudXRpbC5MaW5rZWRIYXNoTWFwAAAAAQAAAAsBrO0ABXQAA2FhYQAAAFIBrO0ABXNyABFqYXZhLmxhbmcuSW50ZWdlchLioKT3gYc4AgABSQAFdmFsdWV4cgAQamF2YS5sYW5nLk51bWJlcoaslR0LlOCLAgAAeHAAAAB7";
+
+        ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+        Map<String, Object> map = (Map<String, Object>) objectSerializable.toObject(Base64.decodeBase64(str));
+
+        Assertions.assertEquals("aaaa", map.get("abc"));
+//        Map<String, Object> map = map(
+//                entry("abc", "aaaa"),
+//                entry("aaa", list(map(entry("aaa", list("234", "234"))), map(entry("aaa", list("234", "234"))))),
+//                entry("map", map(entry("aaa", 123)))
+//        );
+    }
+
     @Test
     public void test() {
         ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);

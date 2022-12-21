@@ -9,7 +9,12 @@ public interface ObjectSerializable {
     Object toObject(byte[] data, ToObjectOptions options);
 
     class FromObjectOptions {
-        private boolean useActualMapAndList = false;
+        private boolean writeNullValue = true;
+        public FromObjectOptions writeNullValue(boolean writeNullValue) {
+            this.writeNullValue = writeNullValue;
+            return this;
+        }
+        private boolean useActualMapAndList = true;
         public FromObjectOptions useActualMapAndList(boolean useActualMapAndList) {
             this.useActualMapAndList = useActualMapAndList;
             return this;
@@ -34,6 +39,14 @@ public interface ObjectSerializable {
 
         public void setUseActualMapAndList(boolean useActualMapAndList) {
             this.useActualMapAndList = useActualMapAndList;
+        }
+
+        public boolean isWriteNullValue() {
+            return writeNullValue;
+        }
+
+        public void setWriteNullValue(boolean writeNullValue) {
+            this.writeNullValue = writeNullValue;
         }
     }
 

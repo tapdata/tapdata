@@ -1,4 +1,4 @@
-package io.tapdata.pdk.core.api.impl;
+package io.tapdata.pdk.core.api.impl.serialize;
 
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.Implementation;
@@ -6,18 +6,22 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.serializer.JavaCustomSerializer;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.ObjectSerializable;
-import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 
+/**
+ * Performance is worse than v2.
+ */
+@Deprecated
 @Implementation(value = ObjectSerializable.class, buildNumber = 0)
 public class ObjectSerializableImpl implements ObjectSerializable {
 	public static final byte TYPE_SERIALIZABLE = 1;
@@ -25,10 +29,6 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 	public static final byte TYPE_MONGODB_DOCUMENT = 3;
 	public static final byte TYPE_JAVA_CUSTOM_SERIALIZER = 4;
 	public static final byte TYPE_MONGODB_OBJECT_ID = 5;
-
-	public static final byte TYPE_STRING = 20;
-	public static final byte TYPE_INTEGER = 21;
-	private static final int TYPE_BYTES = 22;
 	public static final byte TYPE_MAP = 100;
 	public static final byte TYPE_LIST = 101;
 	private static final int END = -88888;
@@ -50,10 +50,7 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 				 DataOutputStream dos = new DataOutputStream(bos);
 			) {
 				dos.writeByte(TYPE_MAP);
-				if(fromObjectOptions.isUseActualMapAndList())
-					dos.writeUTF(obj.getClass().getName());
-				else
-					dos.writeUTF("");
+				dos.writeUTF(obj.getClass().getName());
 				dos.writeInt(map.size());
 				for(Map.Entry<?, ?> entry : map.entrySet()) {
 					Object key = entry.getKey();
@@ -63,19 +60,14 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 				}
 				dos.close();
 				data = bos.toByteArray();
-			} catch (Throwable ignored) {
-				ignored.printStackTrace();
-			}
+			} catch (Throwable ignored) {}
 		} else if(obj instanceof List) {
 			List<?> list = (List<?>) obj;
 			try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
 				 DataOutputStream dos = new DataOutputStream(bos);
 			) {
 				dos.writeByte(TYPE_LIST);
-				if(fromObjectOptions.isUseActualMapAndList())
-					dos.writeUTF(obj.getClass().getName());
-				else
-					dos.writeUTF("");
+				dos.writeUTF(obj.getClass().getName());
 				dos.writeInt(list.size());
 				for(Object objValue : list) {
 					writeObjectAllCases(objValue, dos, fromObjectOptions);
@@ -143,52 +135,6 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 		if (obj == null)
 			return null;
 		byte[] data = null;
-		if(obj instanceof String) {
-			String str = (String) obj;
-			try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-//				 GZIPOutputStream gos = new GZIPOutputStream(bos);
-				 DataOutputStream oos = new DataOutputStream(bos);
-			) {
-				oos.writeByte(TYPE_STRING);
-				oos.writeUTF(str);
-				oos.close();
-				data = bos.toByteArray();
-				return data;
-			} catch (IOException e) {
-//				e.printStackTrace();
-			}
-		}
-		if(obj instanceof Integer) {
-			Integer value = (Integer) obj;
-			try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-//				 GZIPOutputStream gos = new GZIPOutputStream(bos);
-				 DataOutputStream oos = new DataOutputStream(bos);
-			) {
-				oos.writeByte(TYPE_INTEGER);
-				oos.writeInt(value);
-				oos.close();
-				data = bos.toByteArray();
-				return data;
-			} catch (IOException e) {
-//				e.printStackTrace();
-			}
-		}
-		if(obj instanceof byte[]) {
-			byte[] data1 = (byte[]) obj;
-			try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-//				 GZIPOutputStream gos = new GZIPOutputStream(bos);
-				 DataOutputStream oos = new DataOutputStream(bos);
-			) {
-				oos.writeByte(TYPE_BYTES);
-				oos.writeInt(data1.length);
-				oos.write(data1);
-				oos.close();
-				data = bos.toByteArray();
-				return data;
-			} catch (IOException e) {
-//				e.printStackTrace();
-			}
-		}
 		if(obj instanceof JavaCustomSerializer) {
 			JavaCustomSerializer javaCustomSerializer = (JavaCustomSerializer) obj;
 			try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -198,55 +144,54 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 				javaCustomSerializer.to(baos);
 				oos.close();
 				data = baos.toByteArray();
-				return data;
 			} catch (IOException e) {
 				throw new RuntimeException(e);
 			}
 		}
-		String name = obj.getClass().getName();
-		switch (name) {
-			case "org.bson.Document":
-				if(documentToJsonMethod == null) {
-					try {
-						documentToJsonMethod = obj.getClass().getMethod("toJson");
-					} catch (Throwable throwable) {
-						throwable.printStackTrace();
-					}
-				}
-				if(documentToJsonMethod != null) {
-					try {
-						String json = (String) documentToJsonMethod.invoke(obj);
-						try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-//						 GZIPOutputStream gos = new GZIPOutputStream(bos);
-							 DataOutputStream oos = new DataOutputStream(bos);
-						) {
-							oos.writeByte(TYPE_MONGODB_DOCUMENT);
-							oos.writeUTF(json);
-							oos.close();
-							data = bos.toByteArray();
-							return data;
-						} catch (IOException e) {
-//						e.printStackTrace();
+		if(data == null) {
+			String name = obj.getClass().getName();
+			switch (name) {
+				case "org.bson.Document":
+					if(documentToJsonMethod == null) {
+						try {
+							documentToJsonMethod = obj.getClass().getMethod("toJson");
+						} catch (Throwable throwable) {
+							throwable.printStackTrace();
 						}
-					} catch (Throwable e) {
-//					e.printStackTrace();
 					}
-				}
-				break;
-			case "org.bson.types.ObjectId":
-				try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+					if(documentToJsonMethod != null) {
+						try {
+							String json = (String) documentToJsonMethod.invoke(obj);
+							try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
 //						 GZIPOutputStream gos = new GZIPOutputStream(bos);
-					 DataOutputStream oos = new DataOutputStream(bos);
-				) {
-					oos.writeByte(TYPE_MONGODB_OBJECT_ID);
-					oos.writeUTF(obj.toString());
-					oos.close();
-					data = bos.toByteArray();
-					return data;
-				} catch (IOException e) {
+								 DataOutputStream oos = new DataOutputStream(bos);
+							) {
+								oos.writeByte(TYPE_MONGODB_DOCUMENT);
+								oos.writeUTF(json);
+								oos.close();
+								data = bos.toByteArray();
+							} catch (IOException e) {
 //						e.printStackTrace();
-				}
-				break;
+							}
+						} catch (Throwable e) {
+//					e.printStackTrace();
+						}
+					}
+					break;
+				case "org.bson.types.ObjectId":
+					try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+//						 GZIPOutputStream gos = new GZIPOutputStream(bos);
+						 DataOutputStream oos = new DataOutputStream(bos);
+					) {
+						oos.writeByte(TYPE_MONGODB_OBJECT_ID);
+						oos.writeUTF(obj.toString());
+						oos.close();
+						data = bos.toByteArray();
+					} catch (IOException e) {
+//						e.printStackTrace();
+					}
+					break;
+			}
 		}
 		if (data == null && obj instanceof Serializable && fromObjectOptions.isToJavaPlatform()) {
 			try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -262,7 +207,7 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 			}
 		}
 		if (data == null) {
-			String str = jsonParser.toJson(obj);
+			String str = jsonParser.toJson(obj, JsonParser.ToJsonFeature.WriteMapNullValue);
 			try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
 //				 GZIPOutputStream gos = new GZIPOutputStream(bos);
 				 DataOutputStream oos = new DataOutputStream(bos);
@@ -318,22 +263,18 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 			case TYPE_MAP:
 				String classStr = dis.readUTF();
 				int size = dis.readInt();
+				Class<? extends Map> mapClass = (Class<? extends Map>) findClass(options, classStr);
 				Map<Object, Object> map = null;
-				if(StringUtils.isBlank(classStr)) {
-					map = new LinkedHashMap<>();
-				} else {
-					Class<? extends Map> mapClass = (Class<? extends Map>) findClass(options, classStr);
-					try {
-						map = mapClass.newInstance();
-					} catch (Throwable e) {
-						return null;
-					}
+				try {
+					map = mapClass.newInstance();
+				} catch (Throwable e) {
+					return null;
 				}
 				if(size > 0) {
 					for(int i = 0; i < size; i++) {
 						Object key = readObject(dis, options);
 						Object value = readObject(dis, options);
-						if(key != null && value != null) {
+						if(key != null) {
 							map.put(key, value);
 						}
 					}
@@ -342,16 +283,12 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 			case TYPE_LIST:
 				String listClassStr = dis.readUTF();
 				int listSize = dis.readInt();
-				List<Object> list;
-				if(StringUtils.isBlank(listClassStr)) {
-					list = new ArrayList<>();
-				} else {
-					Class<? extends List> listClass = (Class<? extends List>) findClass(options, listClassStr);
-					try {
-						list = listClass.newInstance();
-					} catch (Throwable e) {
-						return null;
-					}
+				Class<? extends List> listClass = (Class<? extends List>) findClass(options, listClassStr);
+				List<Object> list = null;
+				try {
+					list = listClass.newInstance();
+				} catch (Throwable e) {
+					return null;
 				}
 				if(listSize > 0) {
 					for(int i = 0; i < listSize; i++) {
@@ -361,15 +298,6 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 					}
 				}
 				return list;
-			case TYPE_STRING:
-				return dis.readUTF();
-			case TYPE_INTEGER:
-				return dis.readInt();
-			case TYPE_BYTES:
-				int length = dis.readInt();
-				byte[] data = new byte[length];
-				dis.readFully(data);
-				return data;
 			case TYPE_JSON:
 				String className = dis.readUTF();
 				String content = dis.readUTF();
@@ -428,7 +356,7 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 						javaCustomSerializer.from(dis);
 						return javaCustomSerializer;
 					} catch (Throwable e) {
-						throw new RuntimeException(e);
+//						throw new RuntimeException(e);
 					}
 				}
 				break;
@@ -505,18 +433,18 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 		long time = System.currentTimeMillis();
 		for(int i = 0; i < 100000; i++)
 			objectSerializable.toObject(objectSerializable.fromObject(map));
-		System.out.println("takes " + (System.currentTimeMillis() - time) + " bytes " + objectSerializable.fromObject(map).length);
+		System.out.println("takes " + (System.currentTimeMillis() - time));
 
 		Map<String, Object> aa = (Map<String, Object>) fromJson(toJson(map));
 
 		time = System.currentTimeMillis();
 		for(int i = 0; i < 1000000; i++)
 			fromJson(toJson(map));
-		System.out.println("takes " + (System.currentTimeMillis() - time) + " bytes " + toJson(map).getBytes(StandardCharsets.UTF_8).length);
+		System.out.println("takes " + (System.currentTimeMillis() - time));
 
 		time = System.currentTimeMillis();
-		byte[] theData = null;
 		for(int i = 0; i < 100000; i++) {
+			byte[] theData = null;
 			try (ByteArrayOutputStream bos = new ByteArrayOutputStream();ObjectOutputStream oos = new ObjectOutputStream(bos)) {
 				oos.writeObject(map);
 				oos.close();
@@ -531,6 +459,6 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 //						e.printStackTrace();
 			}
 		}
-		System.out.println("takes " + (System.currentTimeMillis() - time) + " bytes " + theData.length);
+		System.out.println("takes " + (System.currentTimeMillis() - time));
 	}
 }
