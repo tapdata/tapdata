@@ -30,6 +30,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -450,7 +451,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			}
 			values.add(String.valueOf(value));
 		}
-		return MD5Util.crypt(String.join("_", values), false);
+		return Base64.getEncoder().encodeToString(String.join("_", values).getBytes(StandardCharsets.UTF_8));
 	}
 
 	private String getJoinValueKeyByTarget(Map<String, Object> data, MergeTableProperties mergeProperty, MergeTableProperties lastMergeProperty) {
@@ -475,7 +476,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			}
 			values.add(String.valueOf(value));
 		}
-		return String.join("_", values);
+		return Base64.getEncoder().encodeToString(String.join("_", values).getBytes(StandardCharsets.UTF_8));
 	}
 
 	private List<String> getJoinKeys(List<Map<String, String>> joinKeys, JoinConditionType joinConditionType) {
