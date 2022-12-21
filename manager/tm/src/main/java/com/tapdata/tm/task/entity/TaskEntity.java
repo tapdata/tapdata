@@ -229,6 +229,7 @@ public class TaskEntity extends BaseEntity {
 
     private String testTaskId;
     private String transformTaskId;
+    private int stopRetryTimes;
 
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";

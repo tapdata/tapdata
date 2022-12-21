@@ -1,3 +1,4 @@
+# desc: 源到目标, 数据开发, 增加 UDF, 且修改了表结构, 自己实现了校验的任务
 import os, sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../utils")

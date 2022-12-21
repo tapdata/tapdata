@@ -201,12 +201,13 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "x-index": 3,
+          "required": true,
           "x-reactions": [
             {
-              "dependencies": [".oneKey"],
+              "dependencies": [".valueType",".oneKey"],
               "fulfill": {
                 "state": {
-                  "visible": "{{$deps[0]}}"
+                  "visible": "{{$deps[0] !== 'String' && $deps[1]}}"
                 }
               }
             }
@@ -235,7 +236,18 @@
           "title": "${keyExpression}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "x-index": 5
+          "x-index": 5,
+          "required": true,
+          "x-reactions": [
+            {
+              "dependencies": [".valueType",".oneKey"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{$deps[0] === 'Hash' || !$deps[1]}}"
+                }
+              }
+            }
+          ]
         },
         "valueData": {
           "type": "string",
@@ -253,7 +265,16 @@
               "label": "Json",
               "value": "Json"
             }
-          ]
+          ],
+          "x-reactions": {
+            "dependencies": [".valueType",".oneKey"],
+            "fulfill": {
+              "run": "{{$self.value = 'Json'}}",
+              "schema": {
+                "x-component-props.options": "{{$deps[0] === 'Hash' && !$deps[1] ? [$self.dataSource[1]] : $self.dataSource}}"
+              }
+            }
+          }
         },
         "valueJoinString": {
           "type": "string",

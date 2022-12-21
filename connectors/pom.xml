@@ -36,6 +36,8 @@
 		<module>json-connector</module>
 		<module>tdengine-connector</module>
 		<module>vika-connector</module>
+		<module>quickapi-connector</module>
+		<module>aliyun-adb-mysql-connector</module>
 	</modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>

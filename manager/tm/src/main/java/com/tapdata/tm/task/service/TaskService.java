@@ -197,6 +197,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         String editVersion = buildEditVersion(taskDto);
         taskDto.setEditVersion(editVersion);
+        taskDto.setTestTaskId(new ObjectId().toHexString());
+        taskDto.setTransformTaskId(new ObjectId().toHexString());
 
         //模型推演
         //setDefault(taskDto);
@@ -334,6 +336,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (CollectionUtils.isNotEmpty(sources)) {
                     Node node1 = sources.get(0);
                     TableNode tableNode = (TableNode) node1;
+                    syncPoint.setNodeName(tableNode.getId());
+                    syncPoint.setNodeName(tableNode.getName());
                     syncPoint.setConnectionId(tableNode.getConnectionId());
                 }
 
@@ -391,11 +395,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (dag != null) {
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
-                    // supplement migrate_field_rename_processor fieldMapping data
-                    supplementMigrateFieldMapping(taskDto, user);
-
-                    taskSaveService.syncTaskSetting(taskDto, user);
-
                     transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
                 }
             } else {
@@ -429,6 +428,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     private void supplementMigrateFieldMapping(TaskDto taskDto, UserDetail userDetail) {
+        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+            return;
+        }
+
         DAG dag = taskDto.getDag();
         dag.getNodes().forEach(node -> {
             if (node instanceof MigrateFieldRenameProcessorNode) {
@@ -662,6 +665,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @return
      */
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask) {
+
+        // supplement migrate_field_rename_processor fieldMapping data
+        supplementMigrateFieldMapping(taskDto, user);
+        taskSaveService.syncTaskSetting(taskDto, user);
 
         DAG dag = taskDto.getDag();
 
@@ -2766,9 +2773,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
 
+        //sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
 
+        updateTaskRecordStatus(taskDto, pauseStatus, user);
+    }
+
+    public void sendStoppingMsg(String taskId, String agentId, UserDetail user, boolean force) {
         DataSyncMq dataSyncMq = new DataSyncMq();
-        dataSyncMq.setTaskId(taskDto.getId().toHexString());
+        dataSyncMq.setTaskId(taskId);
         dataSyncMq.setForce(force);
         dataSyncMq.setOpType(DataSyncMq.OP_TYPE_STOP);
         dataSyncMq.setType(MessageType.DATA_SYNC.getType());
@@ -2777,16 +2789,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         String json = JsonUtil.toJsonUseJackson(dataSyncMq);
         data = JsonUtil.parseJsonUseJackson(json, Map.class);
         MessageQueueDto queueDto = new MessageQueueDto();
-        queueDto.setReceiver(taskDto.getAgentId());
+        queueDto.setReceiver(agentId);
         queueDto.setData(data);
         queueDto.setType("pipe");
 
-        log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
+        log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
-
-        updateTaskRecordStatus(taskDto, pauseStatus, user);
     }
-
 
 
     /**
@@ -2805,10 +2814,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
 
-        Date now = DateUtil.date();
         Update update = Update.update("scheduleDate", null);
-
-        monitoringLogsService.startTaskMonitoringLog(taskDto, user, now);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RUNNING, user);
         if (stateMachineResult.isFail()) {
@@ -2868,7 +2874,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String stopped(ObjectId id, UserDetail user) {
         //判断子任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId");
+        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId");
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);
 
@@ -2965,41 +2971,38 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         DAG dag = taskDto.getDag();
         Node node = dag.getNode(tgtNode);
         if (node instanceof DataParentNode) {
-            String connectionId = ((DataParentNode<?>) node).getConnectionId();
-            if (StringUtils.isNotBlank(connectionId)) {
-                List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
-                if (CollectionUtils.isEmpty(syncPoints)) {
-                    syncPoints = new ArrayList<>();
+            List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
+            if (CollectionUtils.isEmpty(syncPoints)) {
+                syncPoints = new ArrayList<>();
+            }
+
+            boolean exist = false;
+            TaskDto.SyncPoint syncPoint = new TaskDto.SyncPoint();
+            for (TaskDto.SyncPoint item : syncPoints) {
+                if (node.getId().equals(item.getNodeId())) {
+                    syncPoint = item;
+                    exist = true;
+                    break;
                 }
+            }
+            syncPoint.setPointType(point.getPointType());
+            syncPoint.setDateTime(point.getDateTime());
+            syncPoint.setTimeZone(point.getTimeZone());
+            syncPoint.setNodeId(node.getId());
+            syncPoint.setNodeName(node.getName());
+            syncPoint.setConnectionId(((DataParentNode<?>) node).getConnectionId());
 
-
-                boolean exist = false;
-                TaskDto.SyncPoint syncPoint = new TaskDto.SyncPoint();
-                for (TaskDto.SyncPoint item : syncPoints) {
-                    if (connectionId.equals(item.getConnectionId())) {
-                        syncPoint = item;
-                        exist = true;
-                        break;
-                    }
-                }
-
-                syncPoint.setPointType(point.getPointType());
-                syncPoint.setDateTime(point.getDateTime());
-                syncPoint.setTimeZone(point.getTimeZone());
-                syncPoint.setConnectionId(connectionId);
-
-                if (exist) {
-                    Criteria criteriaPoint = Criteria.where("_id").is(taskDto.getId()).and("syncPoints")
-                            .elemMatch(Criteria.where("connectionId").is(connectionId));
-                    Update update = Update.update("syncPoints.$", syncPoint);
-                    //更新内嵌文档
-                    update(new Query(criteriaPoint), update);
-                } else {
-                    syncPoints.add(syncPoint);
-                    Criteria criteriaPoint = Criteria.where("_id").is(taskDto.getId());
-                    Update update = Update.update("syncPoints", syncPoints);
-                    update(new Query(criteriaPoint), update);
-                }
+            if (exist) {
+                Criteria criteriaPoint = Criteria.where("_id").is(taskDto.getId()).and("syncPoints")
+                        .elemMatch(Criteria.where("nodeId").is(node.getId()));
+                Update update = Update.update("syncPoints.$", syncPoint);
+                //更新内嵌文档
+                update(new Query(criteriaPoint), update);
+            } else {
+                syncPoints.add(syncPoint);
+                Criteria criteriaPoint = Criteria.where("_id").is(taskDto.getId());
+                Update update = Update.update("syncPoints", syncPoints);
+                update(new Query(criteriaPoint), update);
             }
         }
 

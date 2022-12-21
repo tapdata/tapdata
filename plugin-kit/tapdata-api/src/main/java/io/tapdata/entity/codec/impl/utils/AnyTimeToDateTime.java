@@ -26,13 +26,20 @@ public class AnyTimeToDateTime {
         classHandlers.register(ZonedDateTime.class, DateTime::new);
     }
 
-    public static DateTime toDateTime(Object obj) {
-        if(obj instanceof DateTime)
+    private static Object specialTypeHandler(Object obj) {
+        if(obj instanceof Number)
+            obj = ((Number) obj).longValue();
+        else if(obj instanceof DateTime)
             return (DateTime) obj;
-        return (DateTime) classHandlers.handle(obj);
+        return obj;
+    }
+
+    public static DateTime toDateTime(Object obj) {
+        return (DateTime) classHandlers.handle(specialTypeHandler(obj));
     }
 
     public static DateTime toDateTime(Object obj, Integer fraction) {
+        obj = specialTypeHandler(obj);
         if(fraction != null && obj instanceof Long) {
             return new DateTime((Long) obj, fraction);
         } else {
