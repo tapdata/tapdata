@@ -1,14 +1,13 @@
 package com.tapdata.tm.schedule;
 
-import cn.hutool.core.util.RandomUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
@@ -21,7 +20,6 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -48,7 +46,7 @@ public class TaskRestartSchedule {
     private UserService userService;
     private SettingsService settingsService;
     private WorkerService workerService;
-
+    private MonitoringLogsService monitoringLogsService;
     private StateMachineService stateMachineService;
 
     /**
@@ -217,7 +215,13 @@ public class TaskRestartSchedule {
 
 
         all.forEach(taskDto -> {
-            taskScheduleService.scheduling(taskDto, userMap.get(taskDto.getUserId()));
+            UserDetail user = userMap.get(taskDto.getUserId());
+            try {
+                taskScheduleService.scheduling(taskDto, user);
+            } catch (Exception e) {
+                monitoringLogsService.startTaskErrorLog(taskDto, user, e);
+                throw e;
+            }
         });
     }
 
@@ -237,12 +241,18 @@ public class TaskRestartSchedule {
         Map<String, UserDetail> userMap = userService.getUserMapByIdList(userList);
         all.forEach(taskDto -> {
             boolean start = true;
-            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
+            UserDetail user = userMap.get(taskDto.getUserId());
+            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
             if (stateMachineResult.isFail()) {
                 start = false;
             }
             if (start) {
-                taskScheduleService.scheduling(taskDto, userMap.get(taskDto.getUserId()));
+                try {
+                    taskScheduleService.scheduling(taskDto, user);
+                } catch (Exception e) {
+                    monitoringLogsService.startTaskErrorLog(taskDto, user, e);
+                    throw e;
+                }
             }
         });
     }

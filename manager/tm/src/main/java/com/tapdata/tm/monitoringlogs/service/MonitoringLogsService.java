@@ -313,9 +313,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             msg = e.getMessage();
         }
 
-        String message = "task start error :"  + msg;
-
-        save(builder.message(message).build(), user);
+        save(builder.message(msg).build(), user);
     }
 
     public void agentAssignMonitoringLog(TaskDto taskDto, String assigned, Integer available, UserDetail user, Date now) {

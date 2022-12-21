@@ -684,9 +684,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         updateById(taskDto, user);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.CONFIRM, user);
-        if (stateMachineResult.isOk()){
-            updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
-        }
 
         return taskDto;
     }
@@ -2668,7 +2665,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
         //需要将重启标识清除
         update(query, Update.update("isEdit", false).set("restartFlag", false), user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULING, user);
         taskScheduleService.scheduling(taskDto, user);
     }
 
@@ -2774,8 +2770,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
         //sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
-
-        updateTaskRecordStatus(taskDto, pauseStatus, user);
     }
 
     public void sendStoppingMsg(String taskId, String agentId, UserDetail user, boolean force) {
@@ -2823,7 +2817,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         update(query1, update, user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING, user);
         return id.toHexString();
     }
 
@@ -2842,7 +2835,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR, user);
 
         return id.toHexString();
 
@@ -2862,7 +2854,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_COMPLETE, user);
 
         return id.toHexString();
     }
@@ -2882,7 +2873,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP, user);
         return id.toHexString();
     }
 
