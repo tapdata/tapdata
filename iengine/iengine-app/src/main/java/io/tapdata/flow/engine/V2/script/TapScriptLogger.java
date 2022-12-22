@@ -26,14 +26,14 @@ public class TapScriptLogger implements ScriptLogger {
     @Override
     public void warn(String message, Object... params) {
         Log4jUtil.setThreadContext(taskId);
-        TapLogger.info("", message, params);
+        TapLogger.warn("", message, params);
 
     }
 
     @Override
     public void error(String message, Object... params) {
         Log4jUtil.setThreadContext(taskId);
-        TapLogger.info("", message, params);
+        TapLogger.error("", message, params);
 
     }
 
@@ -47,7 +47,7 @@ public class TapScriptLogger implements ScriptLogger {
     @Override
     public void fatal(String message, Object... params) {
         Log4jUtil.setThreadContext(taskId);
-        TapLogger.info("", message, params);
+        TapLogger.fatal("", message, params);
 
     }
 }
