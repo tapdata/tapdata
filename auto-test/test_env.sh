@@ -147,4 +147,4 @@ if [[ "x"$FEISHU_CHAT_ID == "x" ]]; then
 fi
 echo "feishu chat id is: ${FEISHU_CHAT_ID}"
 
-python3 ../build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --token ${GITHUB_TOKEN} --job_id ${GITHUB_RUN_ID} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id ${FEISHU_CHAT_ID} --message_type night_build_notice --message "$message"
+python3 ../build/feishu_notice.py --branch "test" --runner "OP 环境测一测" --detail_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --token ${GITHUB_TOKEN} --job_id ${GITHUB_RUN_ID} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id ${FEISHU_CHAT_ID} --message_type night_build_notice --message "$message"
