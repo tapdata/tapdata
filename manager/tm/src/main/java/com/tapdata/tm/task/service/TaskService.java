@@ -752,7 +752,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         if (stateMachineResult.isOk()) {
             taskResetLogService.clearLogByTaskId(id.toHexString());
-            sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+            if(!sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE)){
+                throw new BizException("Clear.Slot",taskDto.getId());
+            }
         }
         //afterRemove(taskDto, user);
 
@@ -2589,7 +2591,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //resetFlag(taskDto.getId(), user, "resetFlag");
     }
 
-    private void sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
+    private boolean sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
+        boolean flag = false;
         if (checkPdkTask(taskDto, user)) {
 
             DataSyncMq mq = new DataSyncMq();
@@ -2616,7 +2619,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 }
                 if (StringUtils.isBlank(agentId)) {
                     //任务指定的agent已经停用，当前操作不给用。
-                    throw new BizException("Agent.DesignatedAgentNotAvailable");
+                   // throw new BizException("Agent.DesignatedAgentNotAvailable");
+                    List<DatabaseNode> nodes = taskDto.getDag().getSourceNode();
+                   for (DatabaseNode databaseNode :nodes){
+                       if("PostgreSQL".equalsIgnoreCase(databaseNode.getDatabaseType())&&
+                               DataSyncMq.OP_TYPE_DELETE.equals(opType)){
+                          flag = true;
+                       }
+
+                   }
 
                 }
 
@@ -2680,6 +2691,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 afterRemove(taskDto, user);
             }
         }
+        return flag;
     }
 
 //    public boolean deleteById(TaskDto taskDto, UserDetail user) {
