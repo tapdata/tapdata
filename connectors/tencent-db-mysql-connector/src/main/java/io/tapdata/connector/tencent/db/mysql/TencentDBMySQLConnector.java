@@ -13,8 +13,8 @@ import java.util.function.Consumer;
  * @Description
  * @create 2022-12-15 11:42
  **/
-@TapConnectorClass("tecent-db-mysql-spec.json")
-public class TecentDBMySQLConnector extends MysqlConnector {
+@TapConnectorClass("tencent-db-mysql-spec.json")
+public class TencentDBMySQLConnector extends MysqlConnector {
 
 	@Override
 	public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {

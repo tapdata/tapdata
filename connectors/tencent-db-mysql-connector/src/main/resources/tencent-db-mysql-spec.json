@@ -1,7 +1,7 @@
 {
   "properties": {
-    "name": "TecentDB MySQL",
-    "icon": "icons/tecent_db_mysql.png",
+    "name": "TencentDB MySQL",
+    "icon": "icons/tencent_db_mysql.png",
     "id": "tencent-db-mysql",
     "doc": "${doc}"
   },
@@ -211,7 +211,7 @@
       "password": "password",
       "addtionalString": "Connection Parameter String",
       "timezone": "timezone",
-      "doc": "docs/aliyun_rds_mysql_en_US.md"
+      "doc": "docs/tencent_db_mysql_en_US.md"
     },
     "zh_CN": {
       "host": "地址",
@@ -221,7 +221,7 @@
       "password": "密码",
       "addtionalString": "连接参数",
       "timezone": "时区",
-      "doc": "docs/aliyun_rds_mysql_zh_CN.md"
+      "doc": "docs/tencent_db_mysql_zh_CN.md"
     },
     "zh_TW": {
       "host": "地址",
@@ -231,7 +231,7 @@
       "password": "密碼",
       "addtionalString": "連接參數",
       "timezone": "時區",
-      "doc": "docs/aliyun_rds_mysql_zh_TW.md"
+      "doc": "docs/tencent_db_mysql_zh_TW.md"
     }
   },
   "dataTypes": {

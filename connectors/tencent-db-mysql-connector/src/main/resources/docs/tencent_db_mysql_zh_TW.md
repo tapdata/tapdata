@@ -1,15 +1,15 @@
 ## **连接配置帮助**
 
-### **1. Aliyun RDS MySQL 安装说明**
+### **1. TencentDB MySQL 安装说明**
 
-请遵循以下说明以确保在 Tapdata 中成功添加和使用Aliyun RDS MySQL数据库。
+请遵循以下说明以确保在 Tapdata 中成功添加和使用TencentDB MySQL数据库。
 
 ### **2. 支持版本**
-Aliyun RDS MySQL 5.0、5.1、5.5、5.6、5.7、8.x
+TencentDB MySQL 5.0、5.1、5.5、5.6、5.7、8.x
 
 ### **3. 先决条件（作为源）**
 #### **3.1 开启 Binlog**
-- 必须开启 Aliyun RDS MySQL 的 binlog ，Tapdata 才能正常完成同步工作。
+- 必须开启 TencentDB MySQL 的 binlog ，Tapdata 才能正常完成同步工作。
 - 级连删除（CASCADE DELETE），这类由数据库产生的删除不会记录在binlog内，所以不被支持。
 修改 `$MYSQL_HOME/mysql.cnf `, 例如:
 ```
@@ -20,13 +20,13 @@ binlog_format     = row
 binlog_row_image  = full
 ```
 配置解释：<br>
-server-id: 对于 Aliyun RDS MySQL 中的每个服务器和复制客户端必须是唯一的<br>
+server-id: 对于 TencentDB MySQL 中的每个服务器和复制客户端必须是唯一的<br>
 binlog_format：必须设置为 row 或者 ROW<br>
 binlog_row_image：必须设置为 full<br>
 expire_logs_days：二进制日志文件保留的天数，到期会自动删除<br>
 log_bin：binlog 序列文件的基本名称<br>
 
-#### **3.2 重启 Aliyun RDS MySQL**
+#### **3.2 重启 TencentDB MySQL**
 
 ```
 /etc/inint.d/mysqld restart
@@ -43,7 +43,7 @@ show variables like 'binlog_row_image';
 ```
 输出结果中，binlog_row_image value应该是"FULL"
 
-#### **3.3 创建Aliyun RDS MySQL账号**
+#### **3.3 创建TencentDB MySQL账号**
 Mysql8以后，对密码加密的方式不同，请注意使用对应版本的方式，设置密码，否则会导致无法进行增量同步
 ##### **3.3.1 5.x版本**
 ```
@@ -69,4 +69,5 @@ GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 't
 ```
 #### **3.5 约束说明**
 ```
-当从Aliyun RDS MySQL同步到其他异构数据库时，如果源Aliyun RDS MySQL存在表级联设置，因该级联触发产生的数据更新和删除不会传递到目标。如需要在目标端构建级联处理能力，可以视目标情况，通过触发器等手段来实现该类型的数据同步。
+当从TencentDB MySQL同步到其他异构数据库时，如果源TencentDB MySQL存在表级联设置，因该级联触发产生的数据更新和删除不会传递到目标。如需要在目标端构建级联处理能力，可以视目标情况，通过触发器等手段来实现该类型的数据同步。
+```

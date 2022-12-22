@@ -7,7 +7,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
  * @Description
  * @create 2022-12-15 11:49
  **/
-public class TecentDBMysqlMain {
+public class TDDAliyunADBPostgresMain {
 	public static void main(String... args) {
 		CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
 		args = new String[]{
@@ -16,7 +16,7 @@ public class TecentDBMysqlMain {
 //                "test", "-c", "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/tapdata-pdk-cli/src/main/resources/config/doris.json",
 				"test",
 				"-c",
-				"plugin-kit/tapdata-pdk-cli/src/main/resources/config/tecent-db-mysql.json",
+				"plugin-kit/tapdata-pdk-cli/src/main/resources/config/aliyun-adb-postgres.json",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.CreateTableTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.basic.BasicTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.DMLTest",
@@ -31,7 +31,7 @@ public class TecentDBMysqlMain {
 //                "-i", "connectors/connector-core",
 //                "-i", "connectors/mysql/mysql-core",
 				"-m", "/Applications/apache-maven-3.8.1",
-				"connectors/tencent-db-mysql-connector",
+				"connectors/aliyun-adb-postgres-connector",
 		};
 
 		Main.registerCommands().execute(args);
