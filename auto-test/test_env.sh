@@ -79,6 +79,7 @@ for i in $cases; do
     python3 runner.py --case $i --bench $bench &> $i"_cases_result"
     cat $i"_cases_result"
     cat $i"_cases_result" >> cases_result
+    break
 done
 IFS=$OIFS
 
