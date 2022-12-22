@@ -80,6 +80,14 @@ public class PostgresDebeziumConfig {
                 .with("transforms.tsFormat1.target.type", "string")
                 .with("transforms.tsFormat1.field", "transaction_time")
                 .with("transforms.tsFormat1.format", "yyyy-MM-dd HH:mm:ss")
+                .with("interval.handling.mode", "string")
+                .with("converters", "timestampTZ,geometry,other")
+                .with("timestampTZ.type", "io.tapdata.connector.postgres.converters.TimestampTZConverter")
+                .with("timestampTZ.schema.name", "io.debezium.postgresql.type.TimestampTZ")
+                .with("geometry.type", "io.tapdata.connector.postgres.converters.GeometryConverter")
+                .with("geometry.schema.name", "io.debezium.postgresql.type.Geometry")
+                .with("other.type", "io.tapdata.connector.postgres.converters.OtherConverter")
+                .with("other.schema.name", "io.debezium.postgresql.type.Other")
                 .with("plugin.name", postgresConfig.getLogPluginName());
         if (EmptyKit.isNotEmpty(observedTableList)) {
             //construct tableWhiteList with schema.table(,) as <public.Student,postgres.test>
