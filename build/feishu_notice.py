@@ -1,7 +1,7 @@
 from typing import Iterator
 import base64
 import argparse
-import git
+import git, psutil
 import os
 import json
 from datetime import datetime
@@ -12,7 +12,20 @@ MAX_LENGTH = 30
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 ROOT_PATH = "/".join([CURRENT_PATH, ".."])
 OWNER = 'tapdata'
-REPO = 'tapdata'
+REPO = 'tapdata-enterprise'
+
+def time_readable(seconds):
+    seconds = int(seconds)
+    if seconds < 60:
+        return "{} seconds".format(seconds)
+    minutes = round(seconds / 60, 1)
+    if minutes < 60:
+        return "{} minutes".format(minutes)
+    hours = round(minutes / 60, 1)
+    if hours <= 48:
+        return "{} hours".format(hours)
+    days = round(hours / 24, 1)
+    return "{} days".format(days)
 
 
 class GithubActionApi:
@@ -80,13 +93,15 @@ class Args:
     def __init__(self):
         self.git_obj = Git(ROOT_PATH)
         parse = argparse.ArgumentParser(description="send error info to feishu.")
-        parse.add_argument('--branch', dest="branch", required=True, type=str, help="github branch")
+        parse.add_argument('--addr', dest="addr", required=False, type=str, help="test env addr", default=None)
+        parse.add_argument('--branch', dest="branch", required=False, type=str, help="github branch", default=None)
+        parse.add_argument('--message_type', dest="message_type", required=False, type=str, help="feishu message type", default="build_fail_notice")
+        parse.add_argument('--message', dest="message", required=False, type=str, help="feishu message", default="{}")
         parse.add_argument("--runner", dest="runner", required=True, type=str, help="github action runner name")
         parse.add_argument("--detail_url", dest="detail_url", required=True, type=str, help="detail url")
         parse.add_argument("--token", dest="token", required=True, type=str, help="github personal token")
         parse.add_argument("--job_id", dest="job_id", required=True, type=str, help="github action job id")
-        parse.add_argument("--person_in_charge", dest="person_in_charge", required=True, type=str,
-                           help="person_in_charge of module")
+        parse.add_argument("--person_in_charge", dest="person_in_charge", required=False, type=str, help="person_in_charge of module", default="eyJwZW9wbGVfbGlzdCI6IFt7ImVtYWlsIjogImVyaW5AdGFwZGF0YS5pbyIsICJnaXRodWJfbmFtZSI6ICIifSwgeyJlbWFpbCI6ICJqZXJyeUB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogImRyZWFtY29pbjE5OTgifSwgeyJlbWFpbCI6ICJiZWliZWlAdGFwZGF0YS5pbyIsICJnaXRodWJfbmFtZSI6ICJ4YnN1cmEifSwgeyJlbWFpbCI6ICJsZW9uQHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAib3BlbmxnIn0sIHsiZW1haWwiOiAicmlja0B0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogIndhZWlsdWEifSwgeyJlbWFpbCI6ICJzdGV2ZW5AdGFwZGF0YS5pbyIsICJnaXRodWJfbmFtZSI6ICIzMjA3Mzk1NSJ9LCB7ImVtYWlsIjogInplZEB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogInplZDEyMDEifSwgeyJlbWFpbCI6ICJqYWNxdWVzQHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAiaml1eWV0eCJ9LCB7ImVtYWlsIjogImZhbm5pZUB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogIkZhbm5pZUdpcmwifSwgeyJlbWFpbCI6ICJsaWFuZ3poaWthaUB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogIlR3b1BlbnMifSwgeyJlbWFpbCI6ICJwYXluZUB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogIkdvc3RKUiJ9LCB7ImVtYWlsIjogInh1ZmVpQHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAiY24teHVmZWkifSwgeyJlbWFpbCI6ICJ6ZXJvaHl1YW5AdGFwZGF0YS5pbyIsICJnaXRodWJfbmFtZSI6ICJ6ZXJvaHl1YW4ifSwgeyJlbWFpbCI6ICJsZW1vbkB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogIm5pbmdtZW5nNzc3In0sIHsiZW1haWwiOiAiamFja2luQHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAiamFja2luLWNvZGUifSwgeyJlbWFpbCI6ICJkYXl1bkB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogImRhbmllbDIwMDkifSwgeyJlbWFpbCI6ICJkZXJpbkB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogIkRlcmluQ2hlbiJ9LCB7ImVtYWlsIjogImhhcnNlbkB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogIkhhcnNlbkxpbiJ9LCB7ImVtYWlsIjogInNhbUB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogInBseTAwMSJ9LCB7ImVtYWlsIjogImRleHRlckB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogImR4dHJ6aGFuZyJ9LCB7ImVtYWlsIjogImFwbG9tYkB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogImRvYnlicm9zIn0sIHsiZW1haWwiOiAiamFyYWRAdGFwZGF0YS5pbyIsICJnaXRodWJfbmFtZSI6ICJqYXJhZDA2MjgifSwgeyJlbWFpbCI6ICJnYXZpbkB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogIiJ9LCB7ImVtYWlsIjogImxpbHlAdGFwZGF0YS5pbyIsICJnaXRodWJfbmFtZSI6ICIifSwgeyJlbWFpbCI6ICJtYXJrQHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAibWF6aHVhbmcxMTEifSwgeyJlbWFpbCI6ICJkYXZpZHh1QHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAibWF0dGhld3h1ZGEifSwgeyJlbWFpbCI6ICJqYXNvbkB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogIiJ9LCB7ImVtYWlsIjogInJvYm90QHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAienNqbHUifV0sICJwZW9wbGVfaW5fY2hhcmdlIjogeyJidWlsZCBmcm9udGVuZCI6IFt7ImVtYWlsIjogInh1ZmVpQHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAiY24teHVmZWkifSwgeyJlbWFpbCI6ICJwYXluZUB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogIkdvc3RKUiJ9XSwgImNvbXBpbGUgcGx1Z2luLWtpdCBtb2R1bGUiOiBbeyJlbWFpbCI6ICJqYXJhZEB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogImphcmFkMDYyOCJ9LCB7ImVtYWlsIjogImRlcmluQHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAiRGVyaW5DaGVuIn1dLCAiY29tcGlsZSBvcGVuc291cmNlIG1hbmFnZXIiOiBbeyJlbWFpbCI6ICJ6ZWRAdGFwZGF0YS5pbyIsICJnaXRodWJfbmFtZSI6ICJ6ZWQxMjAxIn0sIHsiZW1haWwiOiAiemVyb2h5dWFuQHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAiemVyb2h5dWFuIn1dLCAiY29tcGlsZSBjb25uZWN0b3JzLWNvbW1vbiBtb2R1bGUiOiBbeyJlbWFpbCI6ICJqYXJhZEB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogImphcmFkMDYyOCJ9XSwgImNvbXBpbGUgbWFuYWdlciBtb2R1bGUgaWYgYnJhbmNoIGlzIHJlbGVhc2UiOiBbeyJlbWFpbCI6ICJ6ZWRAdGFwZGF0YS5pbyIsICJnaXRodWJfbmFtZSI6ICJ6ZWQxMjAxIn0sIHsiZW1haWwiOiAiemVyb2h5dWFuQHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAiemVyb2h5dWFuIn1dLCAiY29tcGlsZSBtYW5hZ2VyIG1vZHVsZSBpZiBicmFuY2ggaXMgbm90IHJlbGVhc2UiOiBbeyJlbWFpbCI6ICJ6ZWRAdGFwZGF0YS5pbyIsICJnaXRodWJfbmFtZSI6ICJ6ZWQxMjAxIn0sIHsiZW1haWwiOiAiemVyb2h5dWFuQHRhcGRhdGEuaW8iLCAiZ2l0aHViX25hbWUiOiAiemVyb2h5dWFuIn1dLCAiY29tcGlsZSBpZW5naW5lIG1vZHVsZXMiOiBbeyJlbWFpbCI6ICJqYWNraW5AdGFwZGF0YS5pbyIsICJnaXRodWJfbmFtZSI6ICJqYWNraW4tY29kZSJ9XSwgImNvbXBpbGUgY29ubmVjdG9ycyBtb2R1bGUiOiBbeyJlbWFpbCI6ICJqYXJhZEB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogImphcmFkMDYyOCJ9XSwgImNvbXBpbGUgdGFwZGF0YS1hZ2VudCBtb2R1bGUiOiBbeyJlbWFpbCI6ICJzdGV2ZW5AdGFwZGF0YS5pbyIsICJnaXRodWJfbmFtZSI6ICIzMjA3Mzk1NSJ9XSwgImNvbXBpbGUgYXBpc2VydmVyIG1vZHVsZSI6IFt7ImVtYWlsIjogInN0ZXZlbkB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogIjMyMDczOTU1In1dLCAib3RoZXIiOiBbeyJlbWFpbCI6ICJqZXJyeUB0YXBkYXRhLmlvIiwgImdpdGh1Yl9uYW1lIjogImRyZWFtY29pbjE5OTgifV19fQ==")
         parse.add_argument("--app_id", dest="app_id", required=True, type=str, help="app id of feishu bot")
         parse.add_argument("--app_secret", dest="app_secret", required=True, type=str, help="app secret of feishu bot")
         parse.add_argument("--chat_id", dest="chat_id", required=True, type=str, help="chat id of feishu group")
@@ -112,6 +127,10 @@ class Args:
     @property
     def branch(self):
         return self.args.branch
+
+    @property
+    def addr(self):
+        return self.args.addr
 
     @property
     def runner(self):
@@ -155,6 +174,14 @@ class Args:
     @property
     def chat_id(self):
         return self.args.chat_id
+
+    @property
+    def message_type(self):
+        return self.args.message_type
+
+    @property
+    def message(self):
+        return json.loads(self.args.message)
 
 
 class Feishu:
@@ -261,8 +288,11 @@ class FeishuMessage(Feishu):
         return self._make_request_body(body)
 
     def _request(self, data):
-        params = {"receive_id_type": "chat_id"}
+        params = {"receive_id_type": "user_id"}
+        if self.chat_id.startswith("oc_"):
+            params = {"receive_id_type": "chat_id"}
         res = requests.post(self.base_url + "/im/v1/messages", json=data, headers=self.headers, params=params)
+        print(res.text)
         if res.json().get("code") == 0:
             print("send message success.")
         else:
@@ -361,6 +391,7 @@ class Card:
     def _get_at_name(self):
         openid = self.person_in_charge.get_by_github_name(self.args_obj.commit_author)
         if openid is None:
+            return f"@berry"
             raise Exception(f"Can't find {self.args_obj.commit_author} in FEISHU_NOTICE_LIST, please update")
         openid = openid[0]
         if openid.startswith("ou_") and "@" not in openid:
@@ -368,6 +399,127 @@ class Card:
         else:
             at_string = f"@{openid}"
         return at_string
+
+    def _format_test_fields(self):
+        f = {
+            "is_short": False,
+            "text": {
+                "content": "",
+                "tag": "lark_md",
+            }
+        }
+        message = self.args_obj.message
+        fields = []
+        fields += [{
+            "is_short": True,
+            "text": {
+                "content": "**测试环境:**\nGithub CI 环境",
+                "tag": "lark_md"
+            }
+        }, {
+            "is_short": True,
+            "text": {
+                "content": "**机器硬件配置:**\ncpu: {}, memory: {}GB".format(psutil.cpu_count(logical=False), round(psutil.virtual_memory().total/1024/1024/1024, 1)),
+                "tag": "lark_md"
+            }
+        }]
+        fields.append(f)
+        fields += [{
+            "is_short": True,
+            "text": {
+                "content": f"**分支名称**: {self.args_obj.branch}",
+                "tag": "lark_md"
+            }
+        }, {
+            "is_short": True,
+            "text": {
+                "content": f"**构建任务**: {self.args_obj.runner}",
+                "tag": "lark_md"
+            }
+        }]
+        fields.append(f)
+        fields += [
+            {
+                "is_short": True,
+                "text": {
+                    "content": "\n**编译结果**: {}".format(message.get("build_result")),
+                    "tag": "lark_md"
+                }
+            },
+        ]
+        fields += [
+            {
+                "is_short": True,
+                "text": {
+                    "content": "**环境启动结果**: {}".format(message.get("start_result")),
+                    "tag": "lark_md"
+                }
+            },
+        ]
+        fields.append(f)
+        fields += [
+            {
+                "is_short": True,
+                "text": {
+                    "content": "**单测情况总览**:\n总数: {}, 通过: {}".format(message.get("ut_sum"), message.get("ut_pass")),
+                    "tag": "lark_md"
+                }
+            },
+        ]
+        fields += [
+            {
+                "is_short": True,
+                "text": {
+                    "content": "**单测耗时**:\n{}".format(time_readable(message.get("ut_cost_time"))),
+                    "tag": "lark_md"
+                }
+            },
+        ]
+        fields.append(f)
+        fields += [
+            {
+                "is_short": True,
+                "text": {
+                    "content": "**集成测试情况总览**:\n总数: {}, 通过: {}".format(message.get("it_sum"), message.get("it_pass")),
+                    "tag": "lark_md"
+                }
+            },
+        ]
+        fields += [
+            {
+                "is_short": True,
+                "text": {
+                    "content": "**集成测试耗时**:\n{}".format(time_readable(message.get("it_cost_time"))),
+                    "tag": "lark_md"
+                }
+            },
+        ]
+        fields.append(f)
+        fields += [
+            {
+                "is_short": False,
+                "text": {
+                    "content": "**集成测试用例详情**:\n" + "\n".join(message.get("its")),
+                    "tag": "lark_md"
+                }
+            },
+        ]
+        if message.get("uts") is not None:
+            fields.append(f)
+            fields += [
+                {
+                    "is_short": False,
+                    "text": {
+                        "content": "**失败单测详情**:\n" + "\n".join(message.get("uts")),
+                        "tag": "lark_md"
+                    }
+                },
+            ]
+        return {
+            "fields": fields,
+            "tag": "div",
+        }
+
 
     def _format_fields(self):
         fields = []
@@ -445,6 +597,37 @@ class Card:
             "tag": "div",
         }
 
+    def _format_night_build_message_detail_button(self, message):
+        button_text = ""
+        if message.get("pass", False):
+            return {
+                "actions": [{
+                    "tag": "button",
+                    "text": {
+                        "content": "当前开发分支工作基本正常",
+                        "tag": "lark_md"
+                    },
+                    "url": self.args_obj.detail_url,
+                    "type": "default",
+                    "value": {}
+                }],
+                "tag": "action"
+            }
+        return {
+            "actions": [{
+                "tag": "button",
+                "text": {
+                    "content": "点击查看用例详情",
+                    "tag": "lark_md"
+                },
+                "url": self.args_obj.detail_url,
+                "type": "default",
+                "value": {}
+            }],
+            "tag": "action"
+        }
+
+
     def _format_error_message_detail_button(self):
         return {
             "actions": [{
@@ -461,15 +644,36 @@ class Card:
         }
 
     def todict(self):
-        return [
-            self._format_fields(),
-            self._format_error_message_detail_button(),
-        ]
+        if self.args_obj.message_type == "build_fail_notice":
+            return [
+                self._format_fields(),
+                self._format_error_message_detail_button(),
+            ]
+        if self.args_obj.message_type == "night_build_notice":
+            return [
+                self._format_test_fields(),
+                self._format_night_build_message_detail_button(self.args_obj.message)
+            ]
 
 
 if __name__ == "__main__":
     args = Args()
     card = Card(args)
-    title = args.commit_author + ", 你提交的代码构建失败了, 请尽快处理"
-    FeishuMessage(title, card.todict(), args.chat_id, app_id=args.app_id,
-                  app_secret=args.app_secret).send_card()
+    color = "red"
+    if args.message_type == "build_fail_notice":
+        title = args.commit_author + ", 你提交的代码构建失败了, 请尽快处理"
+    if args.message_type == "night_build_notice":
+        p = "未通过"
+        if args.message.get("pass", False):
+            color = "green"
+            p = "通过"
+        if args.addr is not None:
+            title = "环境 {} 自动化测试: {}".format(args.addr, p)
+        else:
+            title = "开发分支 {} 自动化测试: {}".format(args.branch, p)
+
+    FeishuMessage(
+        title, card.todict(), args.chat_id, app_id=args.app_id,
+        app_secret=args.app_secret, title_color=color,
+    ).send_card()
+
