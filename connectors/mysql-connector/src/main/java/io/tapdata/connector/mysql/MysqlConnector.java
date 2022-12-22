@@ -29,11 +29,14 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
+import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -119,8 +122,46 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
+        connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
     }
 
+    private FieldMinMaxValue minMaxValue(TapConnectorContext tapConnectorContext, TapTable tapTable, TapPartitionFilter tapPartitionFilter, String fieldName) {
+        SqlMaker sqlMaker = new MysqlMaker();
+        FieldMinMaxValue fieldMinMaxValue = FieldMinMaxValue.create().fieldName(fieldName);
+        String selectSql;
+        try {
+            selectSql = sqlMaker.selectSql(tapConnectorContext, tapTable, tapPartitionFilter);
+        } catch (Throwable e) {
+            throw new RuntimeException("Build sql with partition filter failed", e);
+        }
+        // min value
+        String minSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MIN(`%s`) AS MIN_VALUE FROM", fieldName));
+        AtomicReference<Object> minObj = new AtomicReference<>();
+        try {
+            mysqlJdbcContext.query(minSql, rs->{
+                if (rs.next()) {
+                    minObj.set(rs.getObject("MIN_VALUE"));
+                }
+            });
+        } catch (Throwable e) {
+            throw new RuntimeException("Query min value failed, sql: " + minSql, e);
+        }
+        Optional.ofNullable(minObj.get()).ifPresent(min -> fieldMinMaxValue.min(min).detectType(min));
+        // max value
+        String maxSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MAX(`%s`) AS MAX_VALUE FROM", fieldName));
+        AtomicReference<Object> maxObj = new AtomicReference<>();
+        try {
+            mysqlJdbcContext.query(maxSql, rs->{
+                if (rs.next()) {
+                    maxObj.set(rs.getObject("MAX_VALUE"));
+                }
+            });
+        } catch (Throwable e) {
+            throw new RuntimeException("Query max value failed, sql: " + maxSql, e);
+        }
+        Optional.ofNullable(maxObj.get()).ifPresent(max -> fieldMinMaxValue.max(max).detectType(max));
+        return fieldMinMaxValue;
+    }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
         MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);

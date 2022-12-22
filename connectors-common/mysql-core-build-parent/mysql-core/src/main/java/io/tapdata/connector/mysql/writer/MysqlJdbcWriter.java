@@ -3,6 +3,7 @@ package io.tapdata.connector.mysql.writer;
 import io.debezium.util.HexConverter;
 import io.tapdata.connector.mysql.MysqlJdbcContext;
 import io.tapdata.connector.mysql.util.JdbcUtil;
+import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
@@ -298,7 +299,7 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 			Map<String, Object> after = getAfter(tapRecordEvent);
 			for (String fieldName : fieldSet) {
 				Object obj = after.get(fieldName);
-				oneRowValueList.add(object2String(obj));
+				oneRowValueList.add(MysqlUtil.object2String(obj));
 			}
 			valueList.add("(" + String.join(",", oneRowValueList) + ")");
 		}
@@ -314,32 +315,6 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 		}
 		sql += String.join(",", list);
 		return sql;
-	}
-
-	protected String object2String(Object obj) {
-		String result;
-		if (null == obj) {
-			result = "null";
-		} else if (obj instanceof String) {
-			result = "'" + ((String) obj).replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'").replaceAll("\\(", "\\\\(").replaceAll("\\)", "\\\\)") + "'";
-		} else if (obj instanceof Number) {
-			result = obj.toString();
-		} else if (obj instanceof Date) {
-			result = "'" + dateFormat.format(obj) + "'";
-		} else if (obj instanceof Instant) {
-			result = "'" + LocalDateTime.ofInstant((Instant) obj, ZoneId.of("GMT")).format(dateTimeFormatter) + "'";
-		} else if (obj instanceof byte[]) {
-			String hexString = HexConverter.convertToHexString((byte[]) obj);
-			return "X'" + hexString + "'";
-		} else if (obj instanceof Boolean) {
-			if ("true".equalsIgnoreCase(obj.toString())) {
-				return "1";
-			}
-			return "0";
-		} else {
-			return "'" + obj + "'";
-		}
-		return result;
 	}
 
 	protected static class JdbcCache {

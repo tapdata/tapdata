@@ -9,6 +9,7 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -16,6 +17,7 @@ import io.tapdata.pdk.apis.entity.Projection;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -129,30 +131,19 @@ public class MysqlMaker implements SqlMaker {
         DataMap match = tapAdvanceFilter.getMatch();
         List<String> whereList = new ArrayList<>();
         if (MapUtils.isNotEmpty(match)) {
-            for (Map.Entry<String, Object> entry : match.entrySet()) {
-                String key = entry.getKey();
-                Object value = entry.getValue();
-                if (value instanceof Number) {
-                    whereList.add(key + "<=>" + value);
-                } else {
-                    whereList.add(key + "<=>'" + value + "'");
-                }
-            }
+            match.forEach((k,v)->{
+                String valueStr = MysqlUtil.object2String(v);
+                whereList.add(String.format("`%s`<=>%s", k, valueStr));
+            });
         }
         List<QueryOperator> operators = tapAdvanceFilter.getOperators();
         if (CollectionUtils.isNotEmpty(operators)) {
-            for (QueryOperator operator : operators) {
-                String key = operator.getKey();
-                Object value = operator.getValue();
-                int op = operator.getOperator();
-                QueryOperatorEnum queryOperatorEnum = QueryOperatorEnum.fromOp(op);
-                String opStr = queryOperatorEnum.getOpStr();
-                if (value instanceof Number) {
-                    whereList.add(key + opStr + value);
-                } else {
-                    whereList.add(key + opStr + "'" + value + "'");
+            operators.forEach(o -> {
+                String queryOperatorSql = getQueryOperatorSql(o);
+                if (StringUtils.isNotBlank(queryOperatorSql)) {
+                    whereList.add(queryOperatorSql);
                 }
-            }
+            });
         }
         if (CollectionUtils.isNotEmpty(whereList)) {
             sql += " WHERE " + String.join(" AND ", whereList);
@@ -179,6 +170,49 @@ public class MysqlMaker implements SqlMaker {
         if (null != skip && skip.compareTo(0) > 0) {
             sql += " OFFSET " + skip;
         }
+        return sql;
+    }
+
+    @Override
+    public String selectSql(TapConnectorContext tapConnectorContext, TapTable tapTable, TapPartitionFilter tapPartitionFilter) throws Throwable {
+        String database = tapConnectorContext.getConnectionConfig().getString("database");
+        String sql = String.format("SELECT * FROM `%s`.`%s`", database, tapTable.getId());
+        if (null == tapPartitionFilter) {
+            return sql;
+        }
+        List<String> whereList = new ArrayList<>();
+        QueryOperator leftBoundary = tapPartitionFilter.getLeftBoundary();
+        QueryOperator rightBoundary = tapPartitionFilter.getRightBoundary();
+        List<QueryOperator> queryOperators = TapSimplify.list(leftBoundary, rightBoundary);
+        queryOperators.forEach(o->{
+            String queryOperatorSql = getQueryOperatorSql(o);
+            if (StringUtils.isNotBlank(queryOperatorSql)) {
+                whereList.add(queryOperatorSql);
+            }
+        });
+        DataMap match = tapPartitionFilter.getMatch();
+        if (MapUtils.isNotEmpty(match)) {
+            match.forEach((k,v)->{
+                String valueStr = MysqlUtil.object2String(v);
+                whereList.add(String.format("`%s`<=>%s", k, valueStr));
+            });
+        }
+        if (CollectionUtils.isNotEmpty(whereList)) {
+            sql += " WHERE " + String.join(" AND ", whereList);
+        }
+        return sql;
+    }
+
+    public String getQueryOperatorSql(QueryOperator queryOperator) {
+        String sql;
+        if (null == queryOperator) {
+            return "";
+        }
+        int operator = queryOperator.getOperator();
+        Object value = queryOperator.getValue();
+        String valueStr = MysqlUtil.object2String(value);
+        QueryOperatorEnum queryOperatorEnum = QueryOperatorEnum.fromOp(operator);
+        sql = "`" + queryOperator.getKey() + "`" + queryOperatorEnum.opStr + valueStr;
         return sql;
     }
 

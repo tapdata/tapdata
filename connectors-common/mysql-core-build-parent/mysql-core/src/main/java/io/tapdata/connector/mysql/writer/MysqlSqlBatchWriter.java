@@ -1,6 +1,7 @@
 package io.tapdata.connector.mysql.writer;
 
 import io.tapdata.connector.mysql.MysqlJdbcContext;
+import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -176,7 +177,7 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 				if (!before.containsKey(primaryKey)) {
 					throw new RuntimeException(String.format("Append delete sql failed, before data not contains key '%s', cannot append where clause in delete sql\nBefore data: %s", primaryKey, before));
 				}
-				subWhereList.add("`" + primaryKey + "`<=>" + object2String(before.get(primaryKey)));
+				subWhereList.add("`" + primaryKey + "`<=>" + MysqlUtil.object2String(before.get(primaryKey)));
 			}
 			whereList.add("(" + String.join(" AND ", subWhereList) + ")");
 		}
