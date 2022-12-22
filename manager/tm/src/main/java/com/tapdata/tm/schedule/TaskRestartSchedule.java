@@ -4,6 +4,7 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -30,7 +31,9 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -171,16 +174,27 @@ public class TaskRestartSchedule {
         List<String> userList = all.stream().map(BaseDto::getUserId).collect(Collectors.toList());
         Map<String, UserDetail> userMap = userService.getUserMapByIdList(userList);
 
-        all.forEach(taskDto -> {
+        for (TaskDto taskDto : all) {
             int stopRetryTimes = taskDto.getStopRetryTimes();
-            if (stopRetryTimes > 10) {
-                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
-            } else {
-                taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(),  userMap.get(taskDto.getUserId()), false);
-                Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
-                taskService.updateById(taskDto.getId(), update, userMap.get(taskDto.getUserId()));
+            UserDetail userDetail = userMap.get(taskDto.getUserId());
+            if (Objects.isNull(userDetail)) {
+                continue;
             }
-        });
+
+            if (stopRetryTimes > 10) {
+                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
+            } else {
+                CompletableFuture.runAsync(() -> {
+                    String template = "The task is being stopped, the number of retries is {0}, it is recommended to try to force stop";
+                    String msg = MessageFormat.format(template, taskDto.getStopRetryTimes());
+                    monitoringLogsService.startTaskErrorLog(taskDto, userDetail, new BizException(msg));
+                });
+
+                taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetail, false);
+                Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
+                taskService.updateById(taskDto.getId(), update, userDetail);
+            }
+        }
     }
 
     public void overTimeTask() {
