@@ -38,6 +38,13 @@
 		<module>vika-connector</module>
 		<module>quickapi-connector</module>
 		<module>aliyun-adb-mysql-connector</module>
+		<module>aliyun-rds-mysql-connector</module>
+		<module>mysql-pxc-connector</module>
+		<module>tencent-db-mysql-connector</module>
+		<module>polar-db-mysql-connector</module>
+		<module>tencent-db-mongodb-connector</module>
+		<module>aliyun-mongodb-connector</module>
+		<module>aliyun-adb-postgres-connector</module>
 	</modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
