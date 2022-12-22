@@ -110,9 +110,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return;
         } else {
-
-            UpdateResult waitRunResult = taskService.update(query1, waitRunUpdate, user);
-            taskService.updateTaskRecordStatus(taskDto, TaskDto.STATUS_WAIT_RUN, user);
+            taskService.update(query1, waitRunUpdate, user);
         }
         //发送websocket消息，提醒flowengin启动
         DataSyncMq dataSyncMq = new DataSyncMq();
@@ -135,8 +133,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             TaskEntity taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
             disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), now));
-        } else {
-            taskService.updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
         }
 
         //数据发现的任务收集

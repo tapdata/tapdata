@@ -1,3 +1,4 @@
+# desc: 源到目标, 数据开发, 增加 UDF, 且修改了表结构, 自己实现了校验的任务
 import os, sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../utils")
@@ -16,7 +17,7 @@ def test(p, car_claim, car_claim_sink):
 def check(p, car_claim, car_claim_sink):
     sink_client = newDB(car_claim_sink)
     if not hasattr(sink_client, "query"):
-        return False
+        return True
 
     rows = sink_client.query()
     if len(rows) == 0:

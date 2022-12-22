@@ -9,6 +9,14 @@ public class ErrorKit {
         }
     }
 
+    public static Throwable getLastCause(Throwable e) {
+        Throwable last = e;
+        while(EmptyKit.isNotNull(last.getCause())) {
+            last = last.getCause();
+        }
+        return last;
+    }
+
     public interface AnyError {
         void run() throws Throwable;
     }

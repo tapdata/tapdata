@@ -395,11 +395,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (dag != null) {
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
-                    // supplement migrate_field_rename_processor fieldMapping data
-                    supplementMigrateFieldMapping(taskDto, user);
-
-                    taskSaveService.syncTaskSetting(taskDto, user);
-
                     transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
                 }
             } else {
@@ -433,6 +428,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     private void supplementMigrateFieldMapping(TaskDto taskDto, UserDetail userDetail) {
+        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+            return;
+        }
+
         DAG dag = taskDto.getDag();
         dag.getNodes().forEach(node -> {
             if (node instanceof MigrateFieldRenameProcessorNode) {
@@ -667,6 +666,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask) {
 
+        // supplement migrate_field_rename_processor fieldMapping data
+        supplementMigrateFieldMapping(taskDto, user);
+        taskSaveService.syncTaskSetting(taskDto, user);
+
         DAG dag = taskDto.getDag();
 
         if (!taskDto.getShareCache()) {
@@ -681,9 +684,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         updateById(taskDto, user);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.CONFIRM, user);
-        if (stateMachineResult.isOk()){
-            updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
-        }
 
         return taskDto;
     }
@@ -2665,7 +2665,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
         //需要将重启标识清除
         update(query, Update.update("isEdit", false).set("restartFlag", false), user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULING, user);
         taskScheduleService.scheduling(taskDto, user);
     }
 
@@ -2771,8 +2770,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
         //sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
-
-        updateTaskRecordStatus(taskDto, pauseStatus, user);
     }
 
     public void sendStoppingMsg(String taskId, String agentId, UserDetail user, boolean force) {
@@ -2811,10 +2808,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
 
-        Date now = DateUtil.date();
         Update update = Update.update("scheduleDate", null);
-
-        monitoringLogsService.startTaskMonitoringLog(taskDto, user, now);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RUNNING, user);
         if (stateMachineResult.isFail()) {
@@ -2823,7 +2817,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         update(query1, update, user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING, user);
         return id.toHexString();
     }
 
@@ -2842,7 +2835,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR, user);
 
         return id.toHexString();
 
@@ -2862,7 +2854,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_COMPLETE, user);
 
         return id.toHexString();
     }
@@ -2874,7 +2865,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String stopped(ObjectId id, UserDetail user) {
         //判断子任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId");
+        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId");
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);
 
@@ -2882,7 +2873,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP, user);
         return id.toHexString();
     }
 

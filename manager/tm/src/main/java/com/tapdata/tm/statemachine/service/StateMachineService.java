@@ -22,6 +22,7 @@ import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.model.TaskStateTrigger;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.FunctionUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -114,7 +115,7 @@ public class StateMachineService {
 
 	}
 
-	public StateMachineResult executeAboutTask(TaskDto dto, DataFlowEvent event, UserDetail userDetail){
+	public StateMachineResult executeAboutTask(TaskDto dto, DataFlowEvent event, UserDetail userDetail) {
 		TaskStateTrigger trigger = new TaskStateTrigger();
 		trigger.setSource(TaskState.getState(dto.getStatus()));
 		trigger.setEvent(event);
@@ -126,7 +127,17 @@ public class StateMachineService {
 		StateMachineResult stateMachineResult = executeAboutTask(trigger);
 		stopWatch.stop();
 
-		CompletableFuture.runAsync(() -> monitoringLogsService.taskStateMachineLog(dto, userDetail, event, stateMachineResult, stopWatch.getTotalTimeMillis()));
+		CompletableFuture.runAsync(() -> {
+			monitoringLogsService.taskStateMachineLog(dto, userDetail, event, stateMachineResult, stopWatch.getTotalTimeMillis());
+
+			FunctionUtils.isTureOrFalse(stateMachineResult.isOk()).trueOrFalseHandle(
+					() -> taskService.updateTaskRecordStatus(dto, stateMachineResult.getAfter(), userDetail),
+					() -> {
+						monitoringLogsService.startTaskErrorLog(dto, userDetail, new BizException("concurrent start operations, this operation don‘t effective"));
+						taskService.updateTaskRecordStatus(dto, stateMachineResult.getBefore(), userDetail);
+					}
+			);
+		});
 
 		return stateMachineResult;
 	}
