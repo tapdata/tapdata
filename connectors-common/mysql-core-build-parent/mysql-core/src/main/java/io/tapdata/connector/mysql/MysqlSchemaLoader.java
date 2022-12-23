@@ -2,6 +2,7 @@ package io.tapdata.connector.mysql;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;

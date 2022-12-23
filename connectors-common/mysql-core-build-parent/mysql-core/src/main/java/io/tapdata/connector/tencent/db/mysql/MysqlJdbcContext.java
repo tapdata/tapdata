@@ -1,8 +1,9 @@
-package io.tapdata.connector.mysql;
+package io.tapdata.connector.tencent.db.mysql;
 
 import com.mysql.cj.jdbc.StatementImpl;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.pool.HikariProxyStatement;
+import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.util.JdbcUtil;
 import io.tapdata.entity.logger.TapLogger;
