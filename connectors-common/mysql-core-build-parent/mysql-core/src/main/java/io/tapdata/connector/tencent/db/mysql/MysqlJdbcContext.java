@@ -104,7 +104,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 			additionalString = additionalString.substring(1);
 		}
 
-		String protocolType = String.valueOf(connectionConfig.get("protocolType"));
+		String protocolType = connectionConfig.get("protocolType") == null ? null : String.valueOf(connectionConfig.get("protocolType"));
 		if (EmptyKit.isEmpty(protocolType)) {
 			protocolType = type;
 		}
