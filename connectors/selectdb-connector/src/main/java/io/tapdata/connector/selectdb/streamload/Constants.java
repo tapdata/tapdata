@@ -5,7 +5,7 @@ package io.tapdata.connector.selectdb.streamload;
  * Date: 2022/12/14
  **/
 public class Constants {
-    public static final String FIELD_DELIMITER_DEFAULT = ",";
+    public static final String FIELD_DELIMITER_DEFAULT = "||%%||";
     public static final String LINE_DELIMITER_DEFAULT = "\n";
     public static final String SELECTDB_DELETE_SIGN = "__SELECTDB_DELETE_SIGN__";
     public static final String NULL_VALUE = "\\N";

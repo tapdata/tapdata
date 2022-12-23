@@ -78,7 +78,7 @@ public class TapEventCollector {
     }
 
     private synchronized void tryUpload(boolean forced) {
-        if(!isUploading && pendingUploadEvents != null) {
+        if (!isUploading && pendingUploadEvents != null) {
             TapLogger.info(TAG, "tryUpload forced {} delay {} pendingUploadEvents {}", forced, touch != null ? System.currentTimeMillis() - touch : 0, pendingUploadEvents.size());
             uploadEvents();
         } else if (pendingUploadEvents == null && (forced || (touch != null && System.currentTimeMillis() - touch > idleSeconds * 1000L))) {
@@ -93,8 +93,6 @@ public class TapEventCollector {
         isUploading = true;
         try {
             if (pendingUploadEvents != null) {
-                //TODO upload
-//            writeListResultConsumer.accept(new WriteListResult<TapRecordEvent>().insertedCount(1));
                 if (eventCollected != null)
                     eventCollected.collected(writeListResultConsumer, pendingUploadEvents, table);
                 pendingUploadEvents = null;
@@ -109,7 +107,7 @@ public class TapEventCollector {
             events.addAll(eventList);
         }
         touch = System.currentTimeMillis();
-        tryUpload(events.size() > maxRecords);
+        tryUpload(events.size() > maxRecords || eventList.size() < maxRecords);
     }
 
     public int getMaxRecords() {

@@ -2,7 +2,6 @@ package io.tapdata.connector.selectdb;
 
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.ddl.DDLSqlGenerator;
 import io.tapdata.connector.selectdb.bean.SelectDbColumn;
@@ -33,7 +32,6 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -57,6 +55,7 @@ public class SelectDbConnector extends ConnectorBase {
     private DDLSqlGenerator ddlSqlGenerator;
     private CopyIntoUtils copyIntoUtils;
     private SelectDbStreamLoader selectDbStreamLoader;
+    public static final int size = 5000;
     private static final SelectDbDDLInstance DDLInstance = SelectDbDDLInstance.getInstance();
 
 
@@ -126,9 +125,10 @@ public class SelectDbConnector extends ConnectorBase {
             return "null";
         });
         codecRegistry.registerFromTapValue(TapTimeValue.class, "datetime", tapValue -> {
-            if (tapValue != null && tapValue.getValue() != null)
-                return toJson(tapValue.getValue());
-            return "null";
+            if (tapValue != null && tapValue.getValue() != null) {
+                return tapValue.getValue();
+            }
+            return null;
         });
 
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
@@ -145,7 +145,7 @@ public class SelectDbConnector extends ConnectorBase {
         Set<String> columnNames = tapTable.getNameFieldMap().keySet();
         List<FilterResult> filterResults = new LinkedList<>();
         for (TapFilter filter : filters) {
-            String sql = "SELECT * FROM \"" + selectDbConfig.getSchema() + "\".\"" + tapTable.getId() + "\" WHERE " + CommonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "=");
+            String sql = "SELECT * FROM `" + selectDbConfig.getDatabase() + "`.`" + tapTable.getId() + "` WHERE " + buildKeyAndValue(filter.getMatch(), "AND", "=");
             FilterResult filterResult = new FilterResult();
             try {
                 selectDbJdbcContext.queryWithNext(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
@@ -158,6 +158,23 @@ public class SelectDbConnector extends ConnectorBase {
         listConsumer.accept(filterResults);
     }
 
+    public static String buildKeyAndValue(Map<String, Object> record, String splitSymbol, String operator) {
+        StringBuilder builder = new StringBuilder();
+        if (EmptyKit.isNotEmpty(record)) {
+            record.forEach((fieldName, value) -> {
+                builder.append('`').append(fieldName).append('`').append(operator);
+                if (!(value instanceof Number)) {
+                    builder.append('\'').append(value).append('\'');
+                } else {
+                    builder.append(value);
+                }
+                builder.append(' ').append(splitSymbol).append(' ');
+            });
+            builder.delete(builder.length() - splitSymbol.length() - 1, builder.length());
+        }
+        return builder.toString();
+    }
+
     private TapEventCollector tapEventCollector;
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
@@ -165,7 +182,7 @@ public class SelectDbConnector extends ConnectorBase {
             synchronized (this) {
                 if (tapEventCollector == null) {
                     tapEventCollector = TapEventCollector.create()
-                            .maxRecords(500)
+                            .maxRecords(size)
                             .idleSeconds(1)
                             .table(tapTable)
                             .writeListResultConsumer(writeListResultConsumer)
@@ -183,21 +200,11 @@ public class SelectDbConnector extends ConnectorBase {
      * @param events
      */
     private void uploadEvents(Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, List<TapRecordEvent> events, TapTable table) {
-        //TODO upload tapEvents to selectDB.
-
         try {
-            selectDbStreamLoader.writeRecord(events, table, writeListResultConsumer);
+            writeListResultConsumer.accept(selectDbStreamLoader.writeRecord(events, table));
         } catch (IOException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
+            TapLogger.error(TAG, "" + e.getMessage());
         }
-
-        WriteListResult<TapRecordEvent> listResult = writeListResult();
-        writeListResultConsumer.accept(new WriteListResult<TapRecordEvent>().insertedCount(events.size()));
-    }
-
-    private void writeRecord1(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
-        selectDbStreamLoader.writeRecord(tapRecordEvents, tapTable, writeListResultConsumer);
     }
 
     @Override
@@ -209,7 +216,7 @@ public class SelectDbConnector extends ConnectorBase {
         tableLists.forEach(subList -> {
             List<TapTable> tapTableList = TapSimplify.list();
             List<String> subTableNames = subList.stream().map(v -> v.getString("TABLE_NAME")).collect(Collectors.toList());
-            List<DataMap> columnList = selectDbJdbcContext.queryAllColumns(subTableNames);
+            Map<String, List<DataMap>> columnList = selectDbJdbcContext.queryAllColumnsGroupByTableName(subTableNames);
             List<DataMap> indexList = selectDbJdbcContext.queryAllIndexes(subTableNames);
             //make up tapTable
             subList.forEach(subTable -> {
@@ -223,25 +230,23 @@ public class SelectDbConnector extends ConnectorBase {
                 Map<String, List<DataMap>> indexMap = indexList.stream().filter(idx -> table.equals(idx.getString("TABLE_NAME")))
                         .collect(Collectors.groupingBy(idx -> idx.getString("TABLE_NAME"), LinkedHashMap::new, Collectors.toList()));
                 indexMap.forEach((key, value) -> {
-                    if (value.stream().anyMatch(v -> (boolean) v.get("is_primary"))) {
+                    if (value.stream().anyMatch(v -> (boolean) v.get("IS_PRIMARY"))) {
                         primaryKey.addAll(value.stream().map(v -> v.getString("COLUMN_NAME")).collect(Collectors.toList()));
                     }
                     TapIndex index = index(key);
-                    value.forEach(v -> index.indexField(indexField(v.getString("COLUMN_NAME")).fieldAsc("A".equals(v.getString("asc_or_desc")))));
-                    index.setUnique(value.stream().anyMatch(v -> (boolean) v.get("is_unique")));
-                    index.setPrimary(value.stream().anyMatch(v -> (boolean) v.get("is_primary")));
+                    value.forEach(v -> index.indexField(indexField(v.getString("COLUMN_NAME")).fieldAsc("A".equals(v.getString("ASC_OR_DESC")))));
+                    index.setUnique(value.stream().anyMatch(v -> (boolean) v.get("IS_UNIQUE")));
+                    index.setPrimary(value.stream().anyMatch(v -> (boolean) v.get("IS_PRIMARY")));
                     tapIndexList.add(index);
                 });
                 //3、table columns info
-                AtomicInteger keyPos = new AtomicInteger(0);
-                columnList.stream().filter(col -> table.equals(col.getString("TABLE_NAME")))
-                        .forEach(col -> {
-                            TapField tapField = new SelectDbColumn(col).getTapField(); //make up fields
-                            tapField.setPos(keyPos.incrementAndGet());
-                            tapField.setPrimaryKey(primaryKey.contains(tapField.getName()));
-                            tapField.setPrimaryKeyPos(primaryKey.indexOf(tapField.getName()) + 1);
-                            tapTable.add(tapField);
-                        });
+                LinkedHashMap<String, TapField> fieldMap = new LinkedHashMap<>();
+                List<DataMap> columnFields = columnList.get(table);
+                columnFields.stream().filter(Objects::nonNull).forEach(col -> {
+                    TapField tapField = SelectDbColumn.create(col).getTapField();
+                    fieldMap.put(tapField.getName(), tapField);
+                });
+                tapTable.setNameFieldMap(fieldMap);
                 tapTable.setIndexList(tapIndexList);
                 tapTableList.add(tapTable);
             });
@@ -266,7 +271,6 @@ public class SelectDbConnector extends ConnectorBase {
 
     }
 
-
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
         return selectDbJdbcContext.queryAllTables(null).size();
@@ -281,7 +285,7 @@ public class SelectDbConnector extends ConnectorBase {
             createTableOptions.setTableExists(true);
             return createTableOptions;
         }
-        Collection<String> primaryKeys = tapTable.primaryKeys();
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
         String firstColumn = tapTable.getNameFieldMap().values().stream().findFirst().orElseGet(TapField::new).getName();
         String sql = "CREATE TABLE IF NOT EXISTS " + database + "." + tapTable.getId() + "(" +
                 DDLInstance.buildColumnDefinition(tapTable) + ")";
@@ -297,13 +301,13 @@ public class SelectDbConnector extends ConnectorBase {
             sqls.add(sql);
             //comment on table and column
             if (EmptyKit.isNotNull(tapTable.getComment())) {
-                sqls.add("COMMENT ON TABLE \"" + selectDbConfig.getSchema() + "\".\"" + tapTable.getId() + "\" IS '" + tapTable.getComment() + "'");
+                sqls.add("COMMENT ON TABLE `" + selectDbConfig.getSchema() + "`.`" + tapTable.getId() + "` IS '" + tapTable.getComment() + "'");
             }
             Map<String, TapField> fieldMap = tapTable.getNameFieldMap();
             for (String fieldName : fieldMap.keySet()) {
                 String fieldComment = fieldMap.get(fieldName).getComment();
                 if (EmptyKit.isNotNull(fieldComment)) {
-                    sqls.add("COMMENT ON COLUMN \"" + selectDbConfig.getSchema() + "\".\"" + tapTable.getId() + "\".\"" + fieldName + "\" IS '" + fieldComment + "'");
+                    sqls.add("COMMENT ON COLUMN `" + selectDbConfig.getSchema() + "`.`" + tapTable.getId() + "`.`" + fieldName + "` IS '" + fieldComment + "'");
                 }
             }
             selectDbJdbcContext.batchExecute(sqls);
@@ -318,7 +322,8 @@ public class SelectDbConnector extends ConnectorBase {
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
             if (selectDbJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() > 1) {
-                selectDbJdbcContext.execute("TRUNCATE TABLE \"" + selectDbConfig.getSchema() + "\".\"" + tapClearTableEvent.getTableId() + "\"");
+                String database = selectDbConfig.getSchema();
+                selectDbJdbcContext.execute("TRUNCATE TABLE `" + selectDbConfig.getDatabase() + "`.`" + tapClearTableEvent.getTableId() + "`");
             }
         } catch (Throwable e) {
             e.printStackTrace();
@@ -328,8 +333,8 @@ public class SelectDbConnector extends ConnectorBase {
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
-            if (selectDbJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() == 1) {
-                selectDbJdbcContext.execute("DROP TABLE IF EXISTS \"" + selectDbConfig.getSchema() + "\".\"" + tapDropTableEvent.getTableId() + "\"");
+            if (selectDbJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() > 1) {
+                selectDbJdbcContext.execute("DROP TABLE IF EXISTS `" + selectDbConfig.getDatabase() + "`.`" + tapDropTableEvent.getTableId() + "`");
             }
         } catch (Throwable e) {
             e.printStackTrace();

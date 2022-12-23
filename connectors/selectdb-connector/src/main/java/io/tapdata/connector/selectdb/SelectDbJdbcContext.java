@@ -17,8 +17,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Author:Skeet
@@ -102,16 +106,22 @@ public class SelectDbJdbcContext extends JdbcContext {
 
     @Override
     public List<DataMap> queryAllColumns(List<String> tableNames) {
+        return null;
+    }
+
+    public Map<String,List<DataMap>> queryAllColumnsGroupByTableName(List<String> tableNames) {
+        StringJoiner joiner = new StringJoiner(",");
+        tableNames.stream().filter(Objects::nonNull).forEach(tab->joiner.add("'"+tab+"'"));
         TapLogger.debug(TAG, "Query columns of some tables, schema: " + getConfig().getSchema());
         List<DataMap> columnList = TapSimplify.list();
-        String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
+        //String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
         try {
-            query(String.format(SDB_ALL_COLUMN, getConfig().getDatabase(), getConfig().getSchema(), tableSql),
+            query(String.format(SDB_ALL_COLUMN, getConfig().getDatabase(), joiner.toString()),
                     resultSet -> columnList.addAll(DbKit.getDataFromResultSet(resultSet)));
         } catch (Throwable e) {
             TapLogger.error(TAG, "Execute queryAllColumns failed, error: " + e.getMessage(), e);
         }
-        return columnList;
+        return columnList.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(field -> String.valueOf(field.get("TABLE_NAME"))));
     }
 
     @Override
@@ -137,7 +147,7 @@ public class SelectDbJdbcContext extends JdbcContext {
 
     private final static String SDB_ALL_TABLE = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
 
-    private final static String SDB_ALL_COLUMN = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME %s";
+    private final static String SDB_ALL_COLUMN = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME in (%s)";
 
     private final static String SDB_ALL_INDEX = "select i.TABLE_NAME,\n" +
             "i.INDEX_NAME,\n" +

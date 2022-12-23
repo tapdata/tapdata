@@ -33,11 +33,10 @@ public class CopyIntoUtils {
     private static String database;
     private static String port;
     private static String selectdbHttp;
-    private boolean loadBatchFirstRecord;
     private static final String UPLOAD_URL_PATTERN = "http://%s/copy/upload";
     private static final String COMMIT_PATTERN = "http://%s/copy/query";
     private static final HttpClientBuilder httpClientBuilder = HttpClients.custom().disableRedirectHandling();
-    private static final String uuidName = UUID.randomUUID().toString() + "_" + System.currentTimeMillis() + ".csv";
+    private static String uuidName;
 
     public CopyIntoUtils(TapConnectionContext tapConnectionContext) {
         this.tapConnectionContext = tapConnectionContext;
@@ -50,46 +49,34 @@ public class CopyIntoUtils {
         selectdbHttp = connectionConfig.getString("selectdbHttp");
     }
 
-
     public static void upload(byte[] bytes) throws IOException {
         if (selectdbHttp == null) {
             throw new RuntimeException("load_url cannot be empty, or the host cannot connect.Please check your configuration.");
         }
         String uploadLoadUrl = String.format(UPLOAD_URL_PATTERN, selectdbHttp);
+        String uploadUuidName = UUID.randomUUID().toString() + "_" + System.currentTimeMillis() + ".csv";
+        uuidName = uploadUuidName;
         String location = getUploadAddress(uploadLoadUrl, uuidName);
         put(location, uuidName, bytes);
     }
 
     public static void copyInto(TapTable table) throws IOException {
-//        String host = getLoadHost();
-//        if (host == null) {
-//            throw new RuntimeException("load_url cannot be empty, or the host cannot connect.Please check your configuration.");
-//        }
-//        OkHttpClient client = new OkHttpClient().newBuilder().build();
-//        MediaType mediaType = MediaType.parse("application/json");
-//        String sql = "{\"sql\": \"copy into" + table.getId() + "from @~(\\\"" + uuidName + "\\\") PROPERTIES (\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\",\\\")\\\"}";
-//
-//        RequestBody body = RequestBody.create(mediaType, sql);
-//        String queryLoadUrl = String.format(COMMIT_PATTERN, selectdbHttp);
-//        Request request = new Request.Builder()
-//                .url(queryLoadUrl)
-//                .method("POST", body)
-//                .addHeader("Content-Type", "application/json")
-//                .addHeader("Authorization", "Basic YWRtaW46R290YXBkOA==")
-//                .build();
-//        Response response = client.newCall(request).execute();
-//        System.out.println(response);
 
         OkHttpClient.Builder builder = new OkHttpClient().newBuilder();
-        builder.connectTimeout(10, TimeUnit.SECONDS);
-        builder.readTimeout(10, TimeUnit.SECONDS);
+        builder.connectTimeout(15, TimeUnit.SECONDS);
+        builder.readTimeout(25, TimeUnit.SECONDS);
         OkHttpClient client = builder.build();
 
         MediaType mediaType = MediaType.parse("application/json");
-        String sql = "{\"sql\": \"copy into " + database + "." + table.getId() + " from @~(\\\"" + uuidName + "\\\") PROPERTIES (\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\",\\\")\"}";
+        String sql = "{\"sql\": \"copy into " +
+                database + "." +
+                table.getId() + " from @~(\\\"" +
+                uuidName + "\\\") PROPERTIES (\\\"copy.use_delete_sign\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\""+
+                Constants.FIELD_DELIMITER_DEFAULT+"\\\")\"}";
         RequestBody body = RequestBody.create(mediaType, sql);
+        String uploadLoadUrl = String.format(COMMIT_PATTERN, selectdbHttp);
         Request request = new Request.Builder()
-                .url("http://39.108.6.77:42199/copy/query")
+                .url(uploadLoadUrl)
                 .method("POST", body)
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Authorization", "Basic YWRtaW46R290YXBkOA==")
@@ -97,8 +84,6 @@ public class CopyIntoUtils {
         Response response = client.newCall(request).execute();
         response.close();
         TapLogger.info(TAG, "");
-
-
     }
 
     private static String getUploadAddress(String loadUrl, String fileName) throws IOException {
@@ -121,12 +106,6 @@ public class CopyIntoUtils {
     }
 
     public static String put(String loadUrl, String fileName, byte[] data) throws IOException {
-
-
-//        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-//        byteArrayOutputStream.write(data);
-//        byteArrayOutputStream.write(IOUtils.toByteArray(FileUtils.openInputStream(new File(""))));
-//        byte[] newData = byteArrayOutputStream.toByteArray();
 
         HttpPutBuilder putBuilder = new HttpPutBuilder();
         putBuilder.setUrl(loadUrl)

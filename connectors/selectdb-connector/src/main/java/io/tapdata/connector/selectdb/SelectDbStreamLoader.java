@@ -25,11 +25,11 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 
 /**
@@ -38,11 +38,9 @@ import java.util.function.Consumer;
  **/
 public class SelectDbStreamLoader {
     private static final String TAG = SelectDbStreamLoader.class.getSimpleName();
-
     private static final String LOAD_URL_PATTERN = "http://%s/api/%s/%s/_stream_load";
     private static final String LABEL_PREFIX_PATTERN = "tapdata_%s_%s";
     private static final int MAX_FLUSH_BATCH_SIZE = 10000;
-
     private int size;
     private AtomicInteger lastEventFlag;
     private RecordStream recordStream;
@@ -79,24 +77,31 @@ public class SelectDbStreamLoader {
         this.loadBatchFirstRecord = true;
     }
 
-
-    public synchronized void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
+    public synchronized WriteListResult<TapRecordEvent> writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table) throws IOException {
         TapLogger.info(TAG, "batch events length is: {}", tapRecordEvents.size());
+//        WriteListResult<TapRecordEvent> listResult = writeListResult();
+        WriteListResult<TapRecordEvent> listResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
 
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         DataOutputStream dataOutputStream = new DataOutputStream(byteArrayOutputStream);
         for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
-            byte[] bytes = MessageSerializer.serialize(table, tapRecordEvent);
-            dataOutputStream.write(bytes);
+            String trimStr = new String(MessageSerializer.serialize(table, tapRecordEvent), StandardCharsets.UTF_8);
+            dataOutputStream.write(trimStr.trim().getBytes(StandardCharsets.UTF_8));
             dataOutputStream.write(Constants.LINE_DELIMITER_DEFAULT.getBytes(StandardCharsets.UTF_8));
+            if (tapRecordEvent instanceof TapInsertRecordEvent) {
+                listResult.incrementInserted(1);
+            } else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
+                listResult.incrementModified(1);
+            } else if (tapRecordEvent instanceof TapDeleteRecordEvent) {
+                listResult.incrementRemove(1);
+            } else {
+                listResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
+            }
         }
-        byte[] finalBytes = byteArrayOutputStream.toByteArray();
+        final byte[] finalBytes = byteArrayOutputStream.toByteArray();
         CopyIntoUtils.upload(finalBytes);
-
         CopyIntoUtils.copyInto(table);
-
-//        WriteListResult<TapRecordEvent> listResult = writeListResult();
-//        writeListResultConsumer.accept(listResult);
+        return listResult;
     }
 
     private volatile boolean isStop;
