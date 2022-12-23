@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.statemachine.StateMachine;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
@@ -133,7 +134,7 @@ public class StateMachineService {
 			FunctionUtils.isTureOrFalse(stateMachineResult.isOk()).trueOrFalseHandle(
 					() -> taskService.updateTaskRecordStatus(dto, stateMachineResult.getAfter(), userDetail),
 					() -> {
-						monitoringLogsService.startTaskErrorLog(dto, userDetail, new BizException("concurrent start operations, this operation don‘t effective"));
+						monitoringLogsService.startTaskErrorLog(dto, userDetail, "concurrent start operations, this operation don‘t effective", Level.ERROR);
 						taskService.updateTaskRecordStatus(dto, stateMachineResult.getBefore(), userDetail);
 					}
 			);
