@@ -291,6 +291,8 @@ class FeishuMessage(Feishu):
         params = {"receive_id_type": "user_id"}
         if self.chat_id.startswith("oc_"):
             params = {"receive_id_type": "chat_id"}
+        if self.chat_id.startswith("ou_"):
+            params = {"receive_id_type": "open_id"}
         res = requests.post(self.base_url + "/im/v1/messages", json=data, headers=self.headers, params=params)
         print(res.text)
         if res.json().get("code") == 0:
