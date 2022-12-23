@@ -55,7 +55,7 @@ public class SelectDbConnector extends ConnectorBase {
     private DDLSqlGenerator ddlSqlGenerator;
     private CopyIntoUtils copyIntoUtils;
     private SelectDbStreamLoader selectDbStreamLoader;
-    public static final int size = 5000;
+    public static final int size = 50;
     private static final SelectDbDDLInstance DDLInstance = SelectDbDDLInstance.getInstance();
 
 
@@ -346,4 +346,3 @@ public class SelectDbConnector extends ConnectorBase {
         selectDbJdbcContext.queryAllTables(TapSimplify.list(), batchSize, listConsumer);
     }
 }
-

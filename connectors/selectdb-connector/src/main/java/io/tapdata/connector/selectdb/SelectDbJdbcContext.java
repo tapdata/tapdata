@@ -68,7 +68,7 @@ public class SelectDbJdbcContext extends JdbcContext {
         List<DataMap> tableList = TapSimplify.list();
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
         try {
-            query(String.format(SDB_ALL_TABLE, getConfig().getDatabase(), getConfig().getSchema(), tableSql),
+            query(String.format(SDB_ALL_TABLE, getConfig().getDatabase(), tableSql),
                     resultSet -> tableList.addAll(DbKit.getDataFromResultSet(resultSet)));
         } catch (Throwable e) {
             TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
@@ -109,9 +109,9 @@ public class SelectDbJdbcContext extends JdbcContext {
         return null;
     }
 
-    public Map<String,List<DataMap>> queryAllColumnsGroupByTableName(List<String> tableNames) {
+    public Map<String, List<DataMap>> queryAllColumnsGroupByTableName(List<String> tableNames) {
         StringJoiner joiner = new StringJoiner(",");
-        tableNames.stream().filter(Objects::nonNull).forEach(tab->joiner.add("'"+tab+"'"));
+        tableNames.stream().filter(Objects::nonNull).forEach(tab -> joiner.add("'" + tab + "'"));
         TapLogger.debug(TAG, "Query columns of some tables, schema: " + getConfig().getSchema());
         List<DataMap> columnList = TapSimplify.list();
         //String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
@@ -145,7 +145,7 @@ public class SelectDbJdbcContext extends JdbcContext {
 
     private final static String SDB_ONE_TABLE = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s'";
 
-    private final static String SDB_ALL_TABLE = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
+    private final static String SDB_ALL_TABLE = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE' %s";
 
     private final static String SDB_ALL_COLUMN = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME in (%s)";
 

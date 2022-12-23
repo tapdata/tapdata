@@ -72,7 +72,7 @@ public class TapEventCollector {
     public void monitorIdle() {
         synchronized (lock) {
             if (future == null) {
-                future = scheduledExecutorService.schedule(() -> tryUpload(false), 1, TimeUnit.SECONDS);
+                future = scheduledExecutorService.schedule(() -> tryUpload(true), 1, TimeUnit.SECONDS);
             }
         }
     }
@@ -107,7 +107,7 @@ public class TapEventCollector {
             events.addAll(eventList);
         }
         touch = System.currentTimeMillis();
-        tryUpload(events.size() > maxRecords || eventList.size() < maxRecords);
+        tryUpload(events.size() > maxRecords);
     }
 
     public int getMaxRecords() {
