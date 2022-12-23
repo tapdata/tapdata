@@ -2490,7 +2490,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .unset("startTime")
                     .unset("lastStartDate")
                     .unset("stopTime")
+                    .unset("stopRetryTimes")
                     .unset("currentEventTimestamp")
+                    .unset("scheduleDate")
                     .set("needCreateRecord", taskDto.isNeedCreateRecord());
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
@@ -2664,7 +2666,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
         //需要将重启标识清除
-        update(query, Update.update("isEdit", false).set("restartFlag", false), user);
+        update(query, Update.update("isEdit", false).set("restartFlag", false).set("stopRetryTimes", 0), user);
         taskScheduleService.scheduling(taskDto, user);
     }
 
@@ -2872,6 +2874,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (stateMachineResult.isFail()) {
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
+        } else {
+            Update update = Update.update("stopRetryTimes", 0);
+            updateById(id, update, user);
         }
         return id.toHexString();
     }

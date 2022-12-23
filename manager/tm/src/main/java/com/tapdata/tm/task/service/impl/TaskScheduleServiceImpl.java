@@ -1,7 +1,7 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.mongodb.client.result.UpdateResult;
+import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
@@ -42,7 +43,9 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
@@ -88,6 +91,11 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         }
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+        CompletableFuture.runAsync(() -> {
+            String template = "Scheduling calculation results {0}.";
+            String msg = MessageFormat.format(template, JSON.toJSONString(calculationEngineVo));
+            monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
+        });
         if (StringUtils.isBlank(taskDto.getAgentId())) {
             scheduleFailed(taskDto, user);
         }
