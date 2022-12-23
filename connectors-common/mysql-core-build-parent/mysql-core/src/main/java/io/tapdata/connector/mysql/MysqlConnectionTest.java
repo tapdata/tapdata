@@ -6,7 +6,6 @@ import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.constant.MysqlTestItem;
-import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.constant.ConnectionTypeEnum;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;

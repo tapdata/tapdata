@@ -18,7 +18,10 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -262,25 +265,27 @@ public class MysqlSchemaLoader {
     public List<TapIndex> discoverIndexes(String database, String tableName) throws Throwable {
         List<TapIndex> indexes = new ArrayList<>();
         mysqlJdbcContext.query(String.format(SELECT_ALL_INDEX_SQL, database, database, tableName), indexRs -> {
-            TapIndex tempIndex = new TapIndex();
             while (indexRs.next()) {
                 String indexName = indexRs.getString("INDEX_NAME");
-                if (!Objects.equals(tempIndex.getName(), indexName)) {
-                    tempIndex = new TapIndex();
-                    tempIndex.setName(indexName);
+                TapIndex tapIndex = indexes.stream().filter(i -> i.getName().equals(indexName)).findFirst().orElse(null);
+                if (null == tapIndex) {
+                    tapIndex = new TapIndex();
+                    tapIndex.setName(indexName);
                     int nonUnique = indexRs.getInt("NON_UNIQUE");
-                    tempIndex.setUnique(nonUnique != 1);
-                    tempIndex.setPrimary(false);
-                    indexes.add(tempIndex);
+                    tapIndex.setUnique(nonUnique == 1);
+                    tapIndex.setPrimary(false);
+                    indexes.add(tapIndex);
+                }
+                List<TapIndexField> indexFields = tapIndex.getIndexFields();
+                if (null == indexFields) {
+                    indexFields = new ArrayList<>();
+                    tapIndex.setIndexFields(indexFields);
                 }
                 TapIndexField tapIndexField = new TapIndexField();
                 tapIndexField.setName(indexRs.getString("COLUMN_NAME"));
                 String collation = indexRs.getString("COLLATION");
                 tapIndexField.setFieldAsc("A".equals(collation));
-                tempIndex.indexField(tapIndexField);
-            }
-            if (null != tempIndex.getName()) {
-                indexes.add(tempIndex);
+                indexFields.add(tapIndexField);
             }
         });
         return indexes;

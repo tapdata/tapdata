@@ -1,6 +1,6 @@
 package io.tapdata.connector.mysql.writer;
 
-import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
+import io.tapdata.connector.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;

@@ -1,8 +1,8 @@
 package io.tapdata.connector.mysql.writer;
 
 import io.debezium.util.HexConverter;
+import io.tapdata.connector.mysql.MysqlJdbcContext;
 import io.tapdata.connector.mysql.util.JdbcUtil;
-import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
