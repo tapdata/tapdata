@@ -72,7 +72,11 @@ public class ScriptExecutorsManager {
   }
 
   public ScriptExecutor getScriptExecutor(String connectionName) {
-    return this.cacheMap.get(connectionName);
+    ScriptExecutor scriptExecutor = this.cacheMap.get(connectionName);
+    if (scriptExecutor == null) {
+      throw new IllegalArgumentException("The specified connection source [" + connectionName + "] could not build the executor, please check");
+    }
+    return scriptExecutor;
   }
 
   private ScriptExecutor create(String connectionName) {
@@ -80,7 +84,7 @@ public class ScriptExecutorsManager {
             ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 
     if (connections == null) {
-      throw new RuntimeException("The specified connection source [" + connectionName + "] does not exist, please check");
+      throw new IllegalArgumentException("The specified connection source [" + connectionName + "] does not exist, please check");
     }
 
     return new ScriptExecutor(connections, hazelcastInstance, this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId);
