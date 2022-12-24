@@ -9,7 +9,7 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.function.Consumer;
 
-public class CsvFileWriter implements Consumer<OutputStream> {
+public class CsvFileWriter {
 
     private String path;
     private OutputStream outputStream;
@@ -27,7 +27,7 @@ public class CsvFileWriter implements Consumer<OutputStream> {
     }
 
     public void init() throws Exception {
-        storage.openFileOutputStream(path, this, true);
+        this.outputStream = storage.openFileOutputStream(path,true);
         this.writer = new OutputStreamWriter(outputStream, fileEncoding);
         this.csvWriter = new CSVWriter(writer);
         closed = false;
@@ -80,8 +80,4 @@ public class CsvFileWriter implements Consumer<OutputStream> {
         ErrorKit.ignoreAnyError(() -> csvWriter.flush());
     }
 
-    @Override
-    public void accept(OutputStream outputStream) {
-
-    }
 }

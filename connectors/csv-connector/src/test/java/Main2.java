@@ -43,25 +43,6 @@ public class Main2 {
                 ))
                 .withStorageClassName("io.tapdata.storage.s3fs.S3fsFileStorage")
                 .build();
-        storage.openFileOutputStream("/ppp.csv", os -> {
-            try(
-                    Writer writer = new OutputStreamWriter(os);
-                    CSVWriter csvWriter = new CSVWriter(writer)
-                    ) {
-                csvWriter.writeNext(new String[]{"k", "s"});
-                csvWriter.writeNext(new String[]{"k", "s"});
-                csvWriter.writeNext(new String[]{"k", "s"});
-                csvWriter.writeNext(new String[]{"k", "s"});
-                csvWriter.flush();
-                csvWriter.writeNext(new String[]{"k", "s"});
-                csvWriter.writeNext(new String[]{"t", "s"});
-                csvWriter.writeNext(new String[]{"t", "s"});
-                csvWriter.writeNext(new String[]{"t", "s"});
-                csvWriter.flush();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }, true);
     }
 
     private static String replaceDateSign(String fileNameExpression) {
