@@ -182,14 +182,13 @@ public class TaskRestartSchedule {
             }
 
             if (stopRetryTimes > 10) {
-                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
-            } else {
                 CompletableFuture.runAsync(() -> {
                     String template = "The task is being stopped, the number of retries is {0}, it is recommended to try to force stop.";
                     String msg = MessageFormat.format(template, taskDto.getStopRetryTimes());
-                    monitoringLogsService.startTaskErrorLog(taskDto, userDetail, msg, Level.ERROR);
+                    monitoringLogsService.startTaskErrorLog(taskDto, userDetail, msg, Level.WARN);
                 });
-
+                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
+            } else {
                 taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetail, false);
                 Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
                 taskService.updateById(taskDto.getId(), update, userDetail);
