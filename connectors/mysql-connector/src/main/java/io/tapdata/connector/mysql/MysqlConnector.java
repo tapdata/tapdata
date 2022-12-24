@@ -9,6 +9,7 @@ import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
