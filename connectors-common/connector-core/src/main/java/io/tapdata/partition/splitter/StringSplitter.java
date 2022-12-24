@@ -13,7 +13,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 /**
  * @author aplomb
  */
-public class StringSplitter implements TypeSplitter {
+public class StringSplitter implements TypeSplitter<String> {
 	//https://www.ssec.wisc.edu/~tomw/java/unicode.html
 	static String unicodeChart = "0x0000-0x007F\t0-127\tBasic Latin\n" +
 			"0x0080-0x00FF\t128-255\tLatin-1 Supplement\n" +
@@ -174,5 +174,10 @@ public class StringSplitter implements TypeSplitter {
 		} else {
 			return new ArrayList<>(TapPartitionFilter.filtersWhenMinMaxEquals(boundaryPartitionFilter, fieldMinMaxValue, min));
 		}
+	}
+
+	@Override
+	public int compare(String o1, String o2) {
+		return o1.compareTo(o2);
 	}
 }

@@ -12,7 +12,7 @@ import java.util.Objects;
 /**
  * @author aplomb
  */
-public class NumberSplitter implements TypeSplitter {
+public class NumberSplitter implements TypeSplitter<Number> {
 	public static NumberSplitter INSTANCE = new NumberSplitter();
 	@Override
 	public List<TapPartitionFilter> split(TapPartitionFilter boundaryPartitionFilter, FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces) {
@@ -54,5 +54,10 @@ public class NumberSplitter implements TypeSplitter {
 			}
 		}
 		return partitionFilters;
+	}
+
+	@Override
+	public int compare(Number o1, Number o2) {
+		return NumberUtils.compareTo(o1, o2);
 	}
 }

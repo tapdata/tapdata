@@ -85,6 +85,8 @@ public class TapSequenceStorageImpl extends TapStorageImpl implements TapSequenc
 
 	@Override
 	public Iterator<Object> iterator() {
+		//TODO can read full data only after close stream. So only support add data then iterate, can not add after iterate.
+		//TODO should use MemoryMapFile with zstd compression to reimplement this. Then no such limit any more.
 		if(stateMachine.getCurrentState().equals(STATE_INITIALIZED)) {
 			stateMachine.gotoState(STATE_WRITE_DONE_START_ITERATE, "Write done, start iterating, can not back to write anymore. ");
 		}

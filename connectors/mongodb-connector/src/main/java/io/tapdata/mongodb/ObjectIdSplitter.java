@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * @author aplomb
  */
-public class ObjectIdSplitter implements TypeSplitter {
+public class ObjectIdSplitter implements TypeSplitter<ObjectId> {
 	@Override
 	public List<TapPartitionFilter> split(TapPartitionFilter boundaryPartitionFilter, FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces) {
 		ObjectId min = (ObjectId) fieldMinMaxValue.getMin();
@@ -58,5 +58,10 @@ public class ObjectIdSplitter implements TypeSplitter {
 					.rightBoundary(boundaryPartitionFilter.getRightBoundary()));
 		}
 		return partitionFilters;
+	}
+
+	@Override
+	public int compare(ObjectId o1, ObjectId o2) {
+		return o1.compareTo(o2);
 	}
 }

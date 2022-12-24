@@ -1,13 +1,21 @@
 package partition;
 
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.partition.splitter.BooleanSplitter;
+import io.tapdata.partition.splitter.DateTimeSplitter;
+import io.tapdata.partition.splitter.NumberSplitter;
+import io.tapdata.partition.splitter.StringSplitter;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.List;
+
+import static io.tapdata.base.ConnectorBase.list;
 
 /**
  * @author aplomb
@@ -17,29 +25,31 @@ public class Test {
 		ReadPartition readPartition = ReadPartition.create().id("id").partitionFilter(TapPartitionFilter.create().rightBoundary(QueryOperator.lt("a", 1)).leftBoundary(QueryOperator.gt("a", 123)));
 		System.out.println(readPartition);
 
-		Instant instant = Instant.now();
-		long value = instant.getEpochSecond() * 1000_000_000 + instant.getNano();
-		BigDecimal value1 = BigDecimal.valueOf(instant.getEpochSecond() * 1000_000_000).add(BigDecimal.valueOf(instant.getNano()));
-		System.out.println("seconds " + instant.getEpochSecond());
-		System.out.println("nano " + instant.getNano());
-		System.out.println("value " + value);
-		System.out.println("value1 " + value1);
-		System.out.println("value1 " + Long.MAX_VALUE);
+		Comparator<String> comparator = String::compareTo;
+		List<String> strList = list("a1", "b", "c", "a", "a", "A", "a4");
+		System.out.println("strList " + strList);
+		strList.sort(comparator);
+		System.out.println("sorted strList " + strList);
 
-		DateTime dateTime = new DateTime(new Date());
-		System.out.println("dateTime " + dateTime);
+		int value = NumberSplitter.INSTANCE.compare(23d, 1l);
+		int value1 = NumberSplitter.INSTANCE.compare(23d, 23d);
+		int value2 = NumberSplitter.INSTANCE.compare(23d, 24d);
 
-		BigDecimal nano = dateTime.toNanoSeconds();
-		System.out.println("nano " + nano);
+		int v1 = StringSplitter.INSTANCE.compare("aaa", "aab");
+		int v2 = StringSplitter.INSTANCE.compare("aaa", "aaa");
+		int v3 = StringSplitter.INSTANCE.compare("aab", "aaa");
 
-		System.out.println("theDateTime " + new DateTime(nano, 9));
+		int a1 = DateTimeSplitter.INSTANCE.compare(new DateTime(1671848089546L, 3), new DateTime(1671848089446L, 3));
+		int a2 = DateTimeSplitter.INSTANCE.compare(new DateTime(1671848089446L, 3), new DateTime(1671848089446L, 3));
+		int a3 = DateTimeSplitter.INSTANCE.compare(new DateTime(1671848089346L, 3), new DateTime(1671848089446L, 3));
 
-		System.out.println("compared " + (BigDecimal.TEN.compareTo(BigDecimal.ONE)));
-		System.out.println("Math.pow " + ((Double)Math.pow(10, 1)).longValue());
-		System.out.println("Math.pow " + ((Double)Math.pow(10, 10)).longValue());
-		System.out.println("Math.pow " + ((Double)Math.pow(10, 7)).longValue());
-		System.out.println("Math.pow " + ((Double)Math.pow(10, 8)).longValue());
-		System.out.println("Math.pow " + ((Double)Math.pow(10, 9)).longValue());
-		System.out.println("Math.pow " + ((Double)Math.pow(10, 15)).longValue());
+
+		int aa1 = DateTimeSplitter.INSTANCE.compare(new DateTime(1681848089546L, 3), new DateTime(1671848089446L, 3));
+		int aa2 = DateTimeSplitter.INSTANCE.compare(new DateTime(1671848089446L, 3), new DateTime(1671848089446L, 3));
+		int aa3 = DateTimeSplitter.INSTANCE.compare(new DateTime(1631848089346L, 3), new DateTime(1671848089446L, 3));
+
+		int b1 = BooleanSplitter.INSTANCE.compare(true, false);
+		int b2 = BooleanSplitter.INSTANCE.compare(true, true);
+		int b3 = BooleanSplitter.INSTANCE.compare(false, true);
 	}
 }

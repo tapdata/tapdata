@@ -10,7 +10,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 /**
  * @author aplomb
  */
-public class BooleanSplitter implements TypeSplitter {
+public class BooleanSplitter implements TypeSplitter<Boolean> {
 	public static BooleanSplitter INSTANCE = new BooleanSplitter();
 	@Override
 	public List<TapPartitionFilter> split(TapPartitionFilter boundaryPartitionFilter, FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces) {
@@ -22,5 +22,10 @@ public class BooleanSplitter implements TypeSplitter {
 		if(max != null && max)
 			list.add(TapPartitionFilter.create().resetMatch(boundaryPartitionFilter.getMatch()).match(fieldMinMaxValue.getFieldName(), true));
 		return list;
+	}
+
+	@Override
+	public int compare(Boolean o1, Boolean o2) {
+		return o1.compareTo(o2);
 	}
 }

@@ -7,13 +7,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @author aplomb
  */
 public class PDKSourceContext {
-	private HazelcastSourcePdkDataNodeEx sourcePdkDataNode;
+	private HazelcastSourcePdkDataNodeEx1 sourcePdkDataNode;
 
 	public static PDKSourceContext create() {
 		return new PDKSourceContext();
 	}
 
-	public PDKSourceContext sourcePdkDataNode(HazelcastSourcePdkDataNodeEx sourcePdkDataNode) {
+	public PDKSourceContext sourcePdkDataNode(HazelcastSourcePdkDataNodeEx1 sourcePdkDataNode) {
 		this.sourcePdkDataNode = sourcePdkDataNode;
 		return this;
 	}
@@ -28,7 +28,7 @@ public class PDKSourceContext {
 		return this;
 	}
 
-	public HazelcastSourcePdkDataNodeEx getSourcePdkDataNode() {
+	public HazelcastSourcePdkDataNodeEx1 getSourcePdkDataNode() {
 		return sourcePdkDataNode;
 	}
 

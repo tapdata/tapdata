@@ -168,7 +168,8 @@ public class DatabaseReadPartitionSplitter {
 					TapLogger.info(TAG, id + ": Split job done because worker has entered LONG IDLE state");
 				}
 			});
-			parallelWorker.start(JobContext.create(splitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob));
+			parallelWorker.job(JobContext.create(splitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob));
+			parallelWorker.start();
 		}
 	}
 
@@ -367,7 +368,7 @@ public class DatabaseReadPartitionSplitter {
 					if(indexFields.size() > pos) { // split into next index position.
 						newPartitionCollector.nextIndex(new PartitionCollector()).state(PartitionCollector.STATE_DONE);
 						SplitProgress newSplitProgress = SplitProgress.create().partitionCollector(newPartitionCollector.getNextIndex()).partitionFilter(eachPartitionFilter).currentFieldPos(splitProgress.getCurrentFieldPos() + 1).count(partitionCount);
-						parallelWorker.start(JobContext.create(newSplitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob));
+						parallelWorker.job(JobContext.create(newSplitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob));
 					} else { // no more next index, make it a partition.
 						newPartitionCollector.addPartition(eachPartitionFilter, partitionCount);
 						newPartitionCollector.state(PartitionCollector.STATE_DONE);
@@ -375,7 +376,7 @@ public class DatabaseReadPartitionSplitter {
 				} else { // still can be split in current index position. min != max case.
 					newPartitionCollector.nextSplit(new PartitionCollector()).state(PartitionCollector.STATE_DONE);
 					SplitProgress newSplitProgress = SplitProgress.create().partitionCollector(newPartitionCollector.getNextSplit()).partitionFilter(eachPartitionFilter).currentFieldPos(splitProgress.getCurrentFieldPos()).count(partitionCount);
-					parallelWorker.start(JobContext.create(newSplitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob));
+					parallelWorker.job(JobContext.create(newSplitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob));
 				}
 
 				PartitionCollector siblingCollector = new PartitionCollector().state(PartitionCollector.STATE_COUNT);

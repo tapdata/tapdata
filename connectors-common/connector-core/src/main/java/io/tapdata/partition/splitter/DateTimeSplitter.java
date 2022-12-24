@@ -18,7 +18,7 @@ import java.util.Objects;
 /**
  * @author aplomb
  */
-public class DateTimeSplitter implements TypeSplitter {
+public class DateTimeSplitter implements TypeSplitter<DateTime> {
 	public static DateTimeSplitter INSTANCE = new DateTimeSplitter();
 	@Override
 	public List<TapPartitionFilter> split(TapPartitionFilter boundaryPartitionFilter, FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces) {
@@ -69,5 +69,10 @@ public class DateTimeSplitter implements TypeSplitter {
 			}
 		}
 		return partitionFilters;
+	}
+
+	@Override
+	public int compare(DateTime o1, DateTime o2) {
+		return o1.compareTo(o2);
 	}
 }

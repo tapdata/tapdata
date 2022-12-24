@@ -37,6 +37,7 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 //	private final AtomicInteger runningCount = new AtomicInteger(0);
 	private final List<Container<JobContext, AsyncQueueWorker>> pendingQueueWorkers = new CopyOnWriteArrayList<>();
 	private final AtomicBoolean stopped = new AtomicBoolean(false);
+	private final AtomicBoolean started = new AtomicBoolean(false);
 	public AsyncParallelWorkerImpl(String id, int parallelCount) {
 		this.id = id;
 		this.parallelCount = parallelCount;
@@ -50,7 +51,7 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	}
 
 	@Override
-	public synchronized AsyncQueueWorker start(String queueWorkerId, JobContext jobContext, Consumer<AsyncQueueWorker> consumer) {
+	public synchronized AsyncQueueWorker job(String queueWorkerId, JobContext jobContext, Consumer<AsyncQueueWorker> consumer) {
 		if(stopped.get())
 			return null;
 		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker(queueWorkerId, false);
@@ -58,12 +59,17 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 			consumer.accept(asyncQueueWorker);
 		}
 
-		if(runningQueueWorkers.size() < parallelCount) {
-			AsyncQueueWorker old = runningQueueWorkers.putIfAbsent(queueWorkerId, asyncQueueWorker);
-			if(old == null) {
-				startAsyncQueueWorker(jobContext, asyncQueueWorker);
+		if(state.get() == STATE_RUNNING && runningQueueWorkers.size() < parallelCount) {
+			if(!pendingQueueWorkers.isEmpty()) {
+				pendingQueueWorkers.add(new Container<>(jobContext, asyncQueueWorker));
+				startImmediately();
 			} else {
-				TapLogger.warn(TAG, "queueWorkerId {} already exists", queueWorkerId);
+				AsyncQueueWorker old = runningQueueWorkers.putIfAbsent(queueWorkerId, asyncQueueWorker);
+				if(old == null) {
+					startAsyncQueueWorker(jobContext, asyncQueueWorker);
+				} else {
+					TapLogger.warn(TAG, "queueWorkerId {} already exists", queueWorkerId);
+				}
 			}
 		} else {
 			pendingQueueWorkers.add(new Container<>(jobContext, asyncQueueWorker));
@@ -72,8 +78,8 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	}
 
 	@Override
-	public AsyncQueueWorker start(JobContext jobContext, Consumer<AsyncQueueWorker> consumer) {
-		return start(UUID.randomUUID().toString(), jobContext, consumer);
+	public AsyncQueueWorker job(JobContext jobContext, Consumer<AsyncQueueWorker> consumer) {
+		return job(UUID.randomUUID().toString(), jobContext, consumer);
 	}
 
 	@Override
@@ -145,7 +151,6 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 				removeRunningToExecutePendingWorker(id);
 			}
 		});
-		changeState(state.get(), STATE_RUNNING, list(STATE_NONE, STATE_IDLE, STATE_LONG_IDLE), false);
 		asyncQueueWorker.start(jobContext);
 	}
 
@@ -153,7 +158,21 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 		AsyncQueueWorker worker = runningQueueWorkers.remove(id); //this worker is already in stopped state.
 		if(worker != null)
 			CommonUtils.ignoreAnyError(worker::stop, TAG);
-		if(worker != null && !pendingQueueWorkers.isEmpty() && !stopped.get()) {
+		if(state.get() == STATE_RUNNING && worker != null && !pendingQueueWorkers.isEmpty() && !stopped.get()) {
+			startImmediately();
+		} else if(pendingQueueWorkers.isEmpty() && runningQueueWorkers.isEmpty()) {
+			changeState(STATE_RUNNING, STATE_IDLE, null, true);
+		}
+	}
+
+	@Override
+	public void start() {
+		if(changeState(state.get(), STATE_RUNNING, list(STATE_NONE, STATE_IDLE, STATE_LONG_IDLE), false)) {
+			startImmediately();
+		}
+	}
+	private synchronized void startImmediately() {
+		while(!pendingQueueWorkers.isEmpty() && !stopped.get() && runningQueueWorkers.size() < parallelCount) {
 			Container<JobContext, AsyncQueueWorker> container = pendingQueueWorkers.remove(0);
 			if(container != null) {
 				if(runningQueueWorkers.size() < parallelCount) {
@@ -165,11 +184,9 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 						TapLogger.warn(TAG, "queueWorkerId {} already exists", asyncQueueWorker.getId());
 					}
 				} else {
-					pendingQueueWorkers.add(container);
+					pendingQueueWorkers.add(0, container);
 				}
 			}
-		} else if(pendingQueueWorkers.isEmpty() && runningQueueWorkers.isEmpty()) {
-			changeState(STATE_RUNNING, STATE_IDLE, null, true);
 		}
 	}
 

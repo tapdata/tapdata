@@ -19,7 +19,7 @@ import java.util.Date;
 import java.util.Objects;
 import java.util.TimeZone;
 
-public class DateTime implements Serializable, JavaCustomSerializer {
+public class DateTime implements Serializable, JavaCustomSerializer, Comparable<DateTime> {
     public static final int ORIGIN_TYPE_NONE = 1;
     private static final int ORIGIN_TYPE_ZONED_DATE_TIME = 10;
     private static final int ORIGIN_TYPE_INSTANT = 20;
@@ -397,5 +397,17 @@ public class DateTime implements Serializable, JavaCustomSerializer {
         } else
             dataOutputStreamEx.original().write(DataOutputStreamEx.NOVALUE);
 
+    }
+
+    @Override
+    public int compareTo(DateTime o) {
+        int compareTo = 0;
+        if(seconds != null && o.seconds != null) {
+            compareTo = seconds.compareTo(o.seconds);
+        }
+        if(compareTo == 0 && nano != null && o.nano != null) {
+            compareTo = nano.compareTo(o.nano);
+        }
+        return compareTo;
     }
 }

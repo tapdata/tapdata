@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 /**
  * @author aplomb
@@ -29,22 +28,23 @@ public class AsyncParallelWorkerTest extends AsyncTestBase {
 			System.out.println("id " + id + " from " + fromState + " to " + toState);
 		});
 		List<String> ids = new ArrayList<>();
-		asyncParallelWorker.start("1", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
+		asyncParallelWorker.job("1", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
 			ids.add(asyncQueueWorker.getId());
 			return null;
 		}));
-		asyncParallelWorker.start("2", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
+		asyncParallelWorker.job("2", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
 			ids.add(asyncQueueWorker.getId());
 			return null;
 		}));
-		asyncParallelWorker.start("3", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
+		asyncParallelWorker.job("3", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
 			ids.add(asyncQueueWorker.getId());
 			return null;
 		}));
-		asyncParallelWorker.start("4", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
+		asyncParallelWorker.job("4", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
 			ids.add(asyncQueueWorker.getId());
 			return null;
 		}));
+		asyncParallelWorker.start();
 		new Thread(() -> {
 			try {
 				Thread.sleep(100L);
@@ -67,11 +67,11 @@ public class AsyncParallelWorkerTest extends AsyncTestBase {
 			lastState.set(toState);
 		});
 		List<String> ids = new ArrayList<>();
-		asyncParallelWorker.start("1", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
+		asyncParallelWorker.job("1", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
 			ids.add(asyncQueueWorker.getId());
 			return null;
 		}));
-
+		asyncParallelWorker.start();
 		new Thread(() -> {
 			try {
 				Thread.sleep(200L);
