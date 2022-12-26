@@ -1,6 +1,8 @@
 package io.tapdata.quickapi;
 
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.api.APIInvoker;
+import io.tapdata.common.api.comom.TapApiBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
@@ -41,7 +43,7 @@ public class QuickApiConnector extends ConnectorBase {
 	private final Object streamReadLock = new Object();
 
 	private QuickApiConfig config;
-	private PostManAnalysis invoker;
+	private APIInvoker invoker;
 	private APIFactory apiFactory;
 	private Map<String,Object> apiParam = new HashMap<>();
 
@@ -70,7 +72,7 @@ public class QuickApiConnector extends ConnectorBase {
 					.expireStatus(expireStatus)
 					.tokenParams(tokenParams);
 			apiFactory = new APIFactoryImpl();
-			invoker = (PostManAnalysis)apiFactory.loadAPI(jsonTxt, apiType, apiParam);
+			invoker = apiFactory.loadAPI(jsonTxt, apiType, apiParam);
 			invoker.setAPIResponseInterceptor(QuickAPIResponseInterceptor.create(config,invoker));
 		}
 	}
@@ -101,8 +103,7 @@ public class QuickApiConnector extends ConnectorBase {
 						  Object offset,
 						  int batchCount,
 						  BiConsumer<List<TapEvent>, Object> consumer){
-		PostManApiContext postManApiContext = invoker.apiContext();
-		List<ApiMap.ApiEntity> tables = ApiMapUtil.tableApis(postManApiContext.apis());
+		List<ApiMap.ApiEntity> tables = invoker.tableApis();
 		if (tables.isEmpty()) {
 			throw new CoreException("Please use TAP on the API document_ The TABLE format label specifies at least one table data add in for the data source.");
 		}
@@ -142,7 +143,7 @@ public class QuickApiConnector extends ConnectorBase {
 
 	@Override
 	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-		List<String> schema = invoker.apiContext().tapTable();
+		List<String> schema = invoker.tables();
 		List<TapTable> tableList = new ArrayList<>();
 		schema.stream().filter(Objects::nonNull).forEach(name->tableList.add(table(name,name)));
 		consumer.accept( tableList );
@@ -186,7 +187,7 @@ public class QuickApiConnector extends ConnectorBase {
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-		List<String> schema = invoker.apiContext().tapTable();
+		List<String> schema = invoker.tables();
 		if (Objects.isNull(schema)) return 0;
 		return schema.size();
 	}

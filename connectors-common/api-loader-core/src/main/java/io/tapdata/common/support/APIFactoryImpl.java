@@ -13,8 +13,7 @@ public class APIFactoryImpl implements APIFactory {
 	@Override
 	public APIInvoker loadAPI(String apiContent, String type, Map<String, Object> params) {
 		//PostManAPIInvoker apiFactory = PostManAnalysis.create();//ClassFactory.create(PostManAPIInvoker.class);
-		APIInvoker analysis = PostManAnalysis.create().analysis(apiContent, type, params);
-		return analysis;
+		return PostManAnalysis.create().analysis(apiContent, params);
 	}
 
 	@Override

@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "name": "QingFlow",
+    "icon": "icons/logo.png",
+    "doc" : "${doc}",
+    "id": "qingflow"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+    }
+  }
+ }

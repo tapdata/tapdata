@@ -1,5 +1,8 @@
 package io.tapdata.common.api;
 
+import io.tapdata.common.support.postman.entity.ApiMap;
+
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -10,4 +13,9 @@ public interface APIInvoker {
 
 	void setAPIResponseInterceptor(APIResponseInterceptor interceptor);
 
+	public List<ApiMap.ApiEntity> tableApis();
+
+	public List<String> tables();
+
+	public Map<String,Object> variable();
 }

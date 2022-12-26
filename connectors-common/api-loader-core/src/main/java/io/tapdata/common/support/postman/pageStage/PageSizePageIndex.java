@@ -1,14 +1,17 @@
 package io.tapdata.common.support.postman.pageStage;
 
-import io.tapdata.entity.error.CoreException;
+import io.tapdata.common.api.APIInvoker;
 import io.tapdata.common.api.APIResponse;
 import io.tapdata.common.core.emun.TapApiTag;
-import io.tapdata.common.support.postman.PostManAnalysis;
 import io.tapdata.common.support.postman.entity.ApiMap;
 import io.tapdata.common.support.postman.entity.params.Api;
 import io.tapdata.common.support.postman.enums.PostParam;
+import io.tapdata.entity.error.CoreException;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public class PageSizePageIndex implements PageStage{
     private static final String TAG = PageSizePageIndex.class.getSimpleName();
@@ -16,7 +19,7 @@ public class PageSizePageIndex implements PageStage{
     public void page(TapPage tapPage) {
         ApiMap.ApiEntity api = tapPage.api();
         Api requestApi = api.api();
-        PostManAnalysis invoker = tapPage.invoker();
+        APIInvoker invoker = tapPage.invoker();
 
         String apiName = api.name();
         String apiMethod = api.method();

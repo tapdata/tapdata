@@ -1,8 +1,8 @@
 package io.tapdata.common.support.postman.pageStage;
 
-import io.tapdata.entity.event.TapEvent;
-import io.tapdata.common.support.postman.PostManAnalysis;
+import io.tapdata.common.api.APIInvoker;
 import io.tapdata.common.support.postman.entity.ApiMap;
+import io.tapdata.entity.event.TapEvent;
 
 import java.util.List;
 import java.util.Map;
@@ -23,7 +23,7 @@ public class TapPage {
     private int batchCount;
     private String tableName;
     private BiConsumer<List<TapEvent>, Object> consumer;
-    private PostManAnalysis invoker;
+    private APIInvoker invoker;
     private ApiMap.ApiEntity api;
     private Map<String,Object> apiParam;
     public static TapPage create(){
@@ -48,7 +48,7 @@ public class TapPage {
         this.consumer = consumer;
         return this;
     }
-    public TapPage invoker(PostManAnalysis invoker){
+    public TapPage invoker(APIInvoker invoker){
         this.invoker = invoker;
         return this;
     }
@@ -69,7 +69,7 @@ public class TapPage {
     public BiConsumer<List<TapEvent>, Object> consumer(){
         return this.consumer;
     }
-    public PostManAnalysis invoker(){
+    public APIInvoker invoker(){
         return this.invoker;
     }
     public ApiMap.ApiEntity api(){

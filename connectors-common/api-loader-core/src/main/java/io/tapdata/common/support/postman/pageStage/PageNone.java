@@ -1,14 +1,14 @@
 package io.tapdata.common.support.postman.pageStage;
 
+import io.tapdata.common.api.APIInvoker;
+import io.tapdata.common.api.APIResponse;
+import io.tapdata.common.support.postman.entity.ApiMap;
+import io.tapdata.common.support.postman.entity.params.Api;
+import io.tapdata.common.support.postman.util.ApiMapUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
-import io.tapdata.common.api.APIResponse;
-import io.tapdata.common.support.postman.PostManAnalysis;
-import io.tapdata.common.support.postman.entity.ApiMap;
-import io.tapdata.common.support.postman.entity.params.Api;
-import io.tapdata.common.support.postman.util.ApiMapUtil;
 
 import java.util.*;
 import java.util.function.BiConsumer;
@@ -21,8 +21,7 @@ public class PageNone implements PageStage{
     public void page(TapPage tapPage) {
         ApiMap.ApiEntity api = tapPage.api();
         Api requestApi = api.api();
-        int batchCount = tapPage.batchCount();
-        PostManAnalysis invoker = tapPage.invoker();
+        APIInvoker invoker = tapPage.invoker();
         BiConsumer<List<TapEvent>, Object> consumer = tapPage.consumer();
 
         String apiName = api.name();
@@ -32,7 +31,6 @@ public class PageNone implements PageStage{
         int size = tapPage.batchCount();
 
         String pageResultPath = requestApi.pageResultPath();
-        String tableName = requestApi.tableName();
         if (Objects.isNull(pageResultPath)){
             TapLogger.info(TAG, toJson(apiResponse));
             throw new CoreException("The table data source field is not specified in the interface return result.");
@@ -44,7 +42,7 @@ public class PageNone implements PageStage{
         }
         List<TapEvent> tapEvents = new ArrayList<>();
         if (pageResult instanceof Collection){
-            Collection entity = (Collection)pageResult;
+            Collection<Object> entity = (Collection<Object>)pageResult;
             for (Object ent : entity) {
                 if(!tapPage.isAlive()) return;
                 if (Objects.isNull(ent)) continue;

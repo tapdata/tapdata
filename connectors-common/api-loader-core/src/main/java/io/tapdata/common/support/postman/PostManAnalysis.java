@@ -1,5 +1,7 @@
 package io.tapdata.common.support.postman;
 
+import io.tapdata.common.api.comom.TapApiBase;
+import io.tapdata.common.support.postman.util.ApiMapUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.common.api.APIInvoker;
@@ -39,7 +41,7 @@ public class PostManAnalysis
 
     PostManApiContext apiContext;
 
-    public PostManApiContext apiContext(){
+    public TapApiBase apiContext(){
         return this.apiContext;
     }
 
@@ -106,7 +108,7 @@ public class PostManAnalysis
     }
 
     @Override
-    public APIInvoker analysis(String apiJson,String type, Map<String, Object> params) {
+    public APIInvoker analysis(String apiJson, Map<String, Object> params) {
         Map<String, Object> json = null;
         if (Objects.nonNull(apiJson)) {
             json = (Map<String, Object>) fromJson(apiJson);
@@ -294,5 +296,20 @@ public class PostManAnalysis
     @Override
     public void setAPIResponseInterceptor(APIResponseInterceptor interceptor) {
         this.interceptor = interceptor;
+    }
+
+    @Override
+    public List<ApiMap.ApiEntity> tableApis() {
+        return ApiMapUtil.tableApis(this.apiContext.apis());
+    }
+
+    @Override
+    public List<String> tables() {
+        return this.apiContext.tapTable();
+    }
+
+    @Override
+    public Map<String, Object> variable() {
+        return this.apiContext.variable();
     }
 }

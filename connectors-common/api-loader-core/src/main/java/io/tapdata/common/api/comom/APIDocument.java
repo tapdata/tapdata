@@ -38,5 +38,5 @@ public interface APIDocument<V> {
 //    public default V analysis(String apiJson,String type){
 //       return APIDocument.analysisByType(type,apiJson);
 //    }
-    public V analysis(String apiJson,String type, Map<String, Object> params);
+    public V analysis(String apiJson,Map<String, Object> params);
 }

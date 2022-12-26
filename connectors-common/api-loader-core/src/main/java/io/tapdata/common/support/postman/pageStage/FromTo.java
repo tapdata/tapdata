@@ -1,10 +1,10 @@
 package io.tapdata.common.support.postman.pageStage;
 
+import io.tapdata.common.api.APIInvoker;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.common.api.APIResponse;
 import io.tapdata.common.core.emun.TapApiTag;
-import io.tapdata.common.support.postman.PostManAnalysis;
 import io.tapdata.common.support.postman.entity.ApiMap;
 import io.tapdata.common.support.postman.entity.params.Api;
 import io.tapdata.common.support.postman.enums.PostParam;
@@ -18,7 +18,7 @@ public class FromTo implements PageStage{
     public void page(TapPage tapPage) {
         ApiMap.ApiEntity api = tapPage.api();
         Api requestApi = api.api();
-        PostManAnalysis invoker = tapPage.invoker();
+        APIInvoker invoker = tapPage.invoker();
         BiConsumer<List<TapEvent>, Object> consumer = tapPage.consumer();
 
         String apiName = api.name();

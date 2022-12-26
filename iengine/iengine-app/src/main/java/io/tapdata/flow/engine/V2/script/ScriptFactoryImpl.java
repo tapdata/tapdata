@@ -7,12 +7,17 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.pdk.core.connector.TapConnectorManager;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Implementation(ScriptFactory.class)
 public class ScriptFactoryImpl implements ScriptFactory {

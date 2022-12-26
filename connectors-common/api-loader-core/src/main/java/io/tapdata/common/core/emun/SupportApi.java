@@ -1,7 +1,5 @@
 package io.tapdata.common.core.emun;
 
-//import io.tapdata.api.invoker.PostManAPIInvoker;
-
 import io.tapdata.common.support.PostManAPIInvoker;
 
 public enum SupportApi {

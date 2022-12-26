@@ -1,16 +1,14 @@
 package io.tapdata.quickapi.server;
 
-import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.common.api.APIFactory;
+import io.tapdata.common.api.APIInvoker;
 import io.tapdata.common.api.APIResponse;
 import io.tapdata.common.core.emun.TapApiTag;
-import io.tapdata.quickapi.server.enums.QuickApiTestItem;
 import io.tapdata.common.support.APIFactoryImpl;
-import io.tapdata.common.support.postman.PostManAnalysis;
-import io.tapdata.common.support.postman.PostManApiContext;
 import io.tapdata.common.support.postman.entity.ApiMap;
-import io.tapdata.common.support.postman.util.ApiMapUtil;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.quickapi.server.enums.QuickApiTestItem;
 
 import java.util.List;
 import java.util.Objects;
@@ -26,11 +24,11 @@ public class TestQuickApi extends QuickApiBase {
     public TestQuickApi(TapConnectionContext connectionContext){
         super(connectionContext);
         apiFactory = new APIFactoryImpl();
-        invoker = (PostManAnalysis)apiFactory.loadAPI(super.config.jsonTxt(), super.config.apiType(), null);
+        invoker = apiFactory.loadAPI(super.config.jsonTxt(), super.config.apiType(), null);
         invoker.setAPIResponseInterceptor(QuickAPIResponseInterceptor.create(config,invoker));
     }
 
-    private PostManAnalysis invoker;
+    private APIInvoker invoker;
     private APIFactory apiFactory;
 
     //检查JSON 格式是否正确
@@ -50,8 +48,7 @@ public class TestQuickApi extends QuickApiBase {
     //是否含有 TAP_TABLE，有没有正确指定表名称，否则 ERROR，是否指明分页逻辑，否则 ERROR
     public TestItem testTapTableTag(){
         try {
-            PostManApiContext postManApiContext = invoker.apiContext();
-            List<ApiMap.ApiEntity> tables = ApiMapUtil.tableApis(postManApiContext.apis());
+            List<ApiMap.ApiEntity> tables = this.invoker.tableApis();
             if (tables.isEmpty()) {
                 return testItem(QuickApiTestItem.TEST_TAP_TABLE.testName(), TestItem.RESULT_FAILED,"Please use TAP on the API document_ The TABLE format label specifies at least one table data add in for the data source.");
             }
@@ -76,8 +73,7 @@ public class TestQuickApi extends QuickApiBase {
     //3. 是否声明了access_token变量名称的对应关系
     public TestItem testTokenConfig(){
         try {
-            PostManApiContext postManApiContext = invoker.apiContext();
-            List<ApiMap.ApiEntity> tables = ApiMapUtil.tokenApis(postManApiContext.apis());
+            List<ApiMap.ApiEntity> tables = this.invoker.tableApis();
             if (!tables.isEmpty()) {
                 if (tables.size()>1){
                     return testItem(QuickApiTestItem.TEST_TOKEN.testName(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,"The resolved API document does not use TAP_GET_TOKEN claims that the access TOKEN has obtained too many API.");
@@ -101,8 +97,7 @@ public class TestQuickApi extends QuickApiBase {
     //依次检查能否依次调通这些除token获取以外的标记了的接口，否则 WARN
     public TestItem testApi(){
         try {
-            PostManApiContext postManApiContext = invoker.apiContext();
-            List<ApiMap.ApiEntity> tables = ApiMapUtil.tableApis(postManApiContext.apis());
+            List<ApiMap.ApiEntity> tables = this.invoker.tableApis();
             if (tables.isEmpty()) {
                 return testItem(QuickApiTestItem.TEST_TAP_TABLE.testName(), TestItem.RESULT_FAILED,"Please use TAP on the API document_ The TABLE format label specifies at least one table data add in for the data source.");
             }
@@ -110,7 +105,7 @@ public class TestQuickApi extends QuickApiBase {
             boolean testApiFailed = false;
             StringJoiner joiner = new StringJoiner(";\n");
             for (ApiMap.ApiEntity apiEntity : tables) {
-                APIResponse http = invoker.invoke(apiEntity.name(), apiEntity.method(), postManApiContext.variable(),true);
+                APIResponse http = invoker.invoke(apiEntity.name(), apiEntity.method(), this.invoker.variable(),true);
                 StringBuilder builder = new StringBuilder();
                 builder.append("(")
                         .append(testApiIndex++)
