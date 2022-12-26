@@ -80,8 +80,9 @@ public class MysqlSchemaLoader {
                 List<TapTable> tempList = new ArrayList<>();
                 tables.forEach(table -> {
                     TapTable tapTable = TapSimplify.table(table);
-
-                    discoverFields(columnMap.get(table), tapTable, instance, dataTypesMap);
+                    if (columnMap.containsKey(table)) {
+                        discoverFields(columnMap.get(table), tapTable, instance, dataTypesMap);
+                    }
                     if (indexMap.containsKey(table)) {
                         tapTable.setIndexList(discoverIndexes(indexMap.get(table), table));
                     }
