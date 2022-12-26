@@ -7,7 +7,7 @@ import java.util.Map;
  */
 public interface APIFactory {
 	String TYPE_POSTMAN = "postman";
-
+	String TYPE_API_FOX = "api-fox";
 	/**
 	 * Generate APIInvoker instance from api description content.
 	 *

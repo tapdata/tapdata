@@ -24,15 +24,12 @@ import io.tapdata.pdk.apis.javascript.core.emun.TapApiTag;
 import io.tapdata.pdk.apis.javascript.entitys.APIEntity;
 import io.tapdata.pdk.apis.javascript.entitys.APIResponse;
 
-import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static io.tapdata.base.ConnectorBase.fromJson;
-import static io.tapdata.base.ConnectorBase.toJson;
 
 @ApiType
 public class PostManAPIInvoker
