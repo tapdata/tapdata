@@ -7,6 +7,7 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -24,6 +25,17 @@ public class TapEventCollector {
     private ScheduledFuture<?> future;
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     private Long touch;
+    private final AtomicBoolean isStarted = new AtomicBoolean(false);
+    public void start() {
+        if(isStarted.compareAndSet(false, true)) {
+            monitorIdle();
+        }
+    }
+
+    public void stop() {
+        if(future != null)
+            future.cancel(true);
+    }
 
     public interface EventCollected {
         void collected(Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, List<TapRecordEvent> events, TapTable table);
@@ -72,7 +84,13 @@ public class TapEventCollector {
     public void monitorIdle() {
         synchronized (lock) {
             if (future == null) {
-                future = scheduledExecutorService.schedule(() -> tryUpload(true), 1, TimeUnit.SECONDS);
+                future = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+                    try {
+                        tryUpload(true);
+                    } catch(Throwable throwable) {
+                        TapLogger.error(TAG, "tryUpload failed in scheduler, {}", throwable.getMessage());
+                    }
+                }, 1, 1, TimeUnit.SECONDS);
             }
         }
     }
@@ -81,7 +99,7 @@ public class TapEventCollector {
         if (!isUploading && pendingUploadEvents != null) {
             TapLogger.info(TAG, "tryUpload forced {} delay {} pendingUploadEvents {}", forced, touch != null ? System.currentTimeMillis() - touch : 0, pendingUploadEvents.size());
             uploadEvents();
-        } else if (pendingUploadEvents == null && (forced || (touch != null && System.currentTimeMillis() - touch > idleSeconds * 1000L))) {
+        } else if ((pendingUploadEvents == null && !events.isEmpty()) && (forced || (touch != null && System.currentTimeMillis() - touch > idleSeconds * 1000L))) {
             pendingUploadEvents = events;
             events = new CopyOnWriteArrayList<>();
             TapLogger.info(TAG, "tryUpload forced {} delay {} pendingUploadEvents {}", forced, touch != null ? System.currentTimeMillis() - touch : 0, pendingUploadEvents.size());

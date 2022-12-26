@@ -3,10 +3,9 @@ package io.tapdata.connector.selectdb;
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.DataSourcePool;
-import io.tapdata.common.ddl.DDLSqlGenerator;
 import io.tapdata.connector.selectdb.bean.SelectDbColumn;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
-import io.tapdata.connector.selectdb.streamload.CopyIntoUtils;
+import io.tapdata.connector.selectdb.util.CopyIntoUtils;
 import io.tapdata.connector.selectdb.util.HttpUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
@@ -52,10 +51,10 @@ public class SelectDbConnector extends ConnectorBase {
     private SelectDbJdbcContext selectDbJdbcContext;
     private String selectDbVersion;
     private SelectDbTest selectDbTest;
-    private DDLSqlGenerator ddlSqlGenerator;
     private CopyIntoUtils copyIntoUtils;
+    private CopyIntoUtils copyIntoKey;
     private SelectDbStreamLoader selectDbStreamLoader;
-    public static final int size = 50;
+    public static final int size = 10000;
     private static final SelectDbDDLInstance DDLInstance = SelectDbDDLInstance.getInstance();
 
 
@@ -81,7 +80,10 @@ public class SelectDbConnector extends ConnectorBase {
         try {
             this.selectDbStreamLoader.shutdown();
         } catch (Exception e) {
-
+            TapLogger.error(TAG, "selectDbStreamLoader shutdown failed, {}", e.getMessage());
+        }
+        if(tapEventCollector != null) {
+            tapEventCollector.stop();
         }
     }
 
@@ -187,6 +189,7 @@ public class SelectDbConnector extends ConnectorBase {
                             .table(tapTable)
                             .writeListResultConsumer(writeListResultConsumer)
                             .eventCollected(this::uploadEvents);
+                    tapEventCollector.start();
                 }
             }
         }
@@ -286,6 +289,7 @@ public class SelectDbConnector extends ConnectorBase {
             return createTableOptions;
         }
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
+        this.copyIntoKey = new CopyIntoUtils(EmptyKit.isEmpty(primaryKeys));
         String firstColumn = tapTable.getNameFieldMap().values().stream().findFirst().orElseGet(TapField::new).getName();
         String sql = "CREATE TABLE IF NOT EXISTS " + database + "." + tapTable.getId() + "(" +
                 DDLInstance.buildColumnDefinition(tapTable) + ")";
@@ -321,8 +325,7 @@ public class SelectDbConnector extends ConnectorBase {
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
-            if (selectDbJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() > 1) {
-                String database = selectDbConfig.getSchema();
+            if (selectDbJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
                 selectDbJdbcContext.execute("TRUNCATE TABLE `" + selectDbConfig.getDatabase() + "`.`" + tapClearTableEvent.getTableId() + "`");
             }
         } catch (Throwable e) {
@@ -333,9 +336,7 @@ public class SelectDbConnector extends ConnectorBase {
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
-            if (selectDbJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() > 1) {
                 selectDbJdbcContext.execute("DROP TABLE IF EXISTS `" + selectDbConfig.getDatabase() + "`.`" + tapDropTableEvent.getTableId() + "`");
-            }
         } catch (Throwable e) {
             e.printStackTrace();
             throw new RuntimeException("Drop Table " + tapDropTableEvent.getTableId() + " Failed! \n ");

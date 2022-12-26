@@ -1,5 +1,7 @@
-package io.tapdata.connector.selectdb.streamload;
+package io.tapdata.connector.selectdb.util;
 
+import io.tapdata.connector.selectdb.streamload.Constants;
+import io.tapdata.connector.selectdb.streamload.HttpPutBuilder;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
@@ -29,12 +31,11 @@ public class CopyIntoUtils {
     public static final String TAG = CopyIntoUtils.class.getSimpleName();
 
     private TapConnectionContext tapConnectionContext;
-    private static String host;
     private static String user;
     private static String password;
     private static String database;
-    private static String port;
     private static String selectdbHttp;
+    private static boolean primaryKeys;
     private static final String UPLOAD_URL_PATTERN = "http://%s/copy/upload";
     private static final String COMMIT_PATTERN = "http://%s/copy/query";
     private static final HttpClientBuilder httpClientBuilder = HttpClients.custom().disableRedirectHandling();
@@ -43,12 +44,14 @@ public class CopyIntoUtils {
     public CopyIntoUtils(TapConnectionContext tapConnectionContext) {
         this.tapConnectionContext = tapConnectionContext;
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-        host = connectionConfig.getString("host");
-        port = connectionConfig.getString("port");
         user = connectionConfig.getString("user");
         password = connectionConfig.getString("password");
         database = connectionConfig.getString("database");
         selectdbHttp = connectionConfig.getString("selectdbHttp");
+    }
+
+    public CopyIntoUtils(boolean key) {
+        primaryKeys = key;
     }
 
     public static void upload(byte[] bytes) throws IOException {
@@ -69,12 +72,18 @@ public class CopyIntoUtils {
         builder.readTimeout(25, TimeUnit.SECONDS);
         OkHttpClient client = builder.build();
         MediaType mediaType = MediaType.parse("application/json");
-        String sql = "{\"sql\": \"copy into " +
+        String DUPLICATE_KEY_SQL = "{\"sql\": \"copy into " +
+                database + "." +
+                table.getId() + " from @~(\\\"" +
+                uuidName + "\\\") PROPERTIES (\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\"" +
+                Constants.FIELD_DELIMITER_DEFAULT + "\\\")\"}";
+        String UNIQUE_KEY_SQL = "{\"sql\": \"copy into " +
                 database + "." +
                 table.getId() + " from @~(\\\"" +
                 uuidName + "\\\") PROPERTIES (\\\"copy.use_delete_sign\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\"" +
                 Constants.FIELD_DELIMITER_DEFAULT + "\\\")\"}";
-        RequestBody body = RequestBody.create(mediaType, sql);
+
+        RequestBody body = RequestBody.create(mediaType, primaryKeys ? DUPLICATE_KEY_SQL : UNIQUE_KEY_SQL);
         String uploadLoadUrl = String.format(COMMIT_PATTERN, selectdbHttp);
         final String authInfo = user + ":" + password;
         byte[] encoded = Base64.encodeBase64(authInfo.getBytes(StandardCharsets.UTF_8));
@@ -123,21 +132,4 @@ public class CopyIntoUtils {
             throw new ExportException("Error code " + statusCode);
         }
     }
-
-    public CopyIntoUtils setHost(String host) {
-        this.host = host;
-        return this;
-    }
-
-    public CopyIntoUtils setUser(String user) {
-        this.user = user;
-        return this;
-    }
-
-    public CopyIntoUtils setPassword(String password) {
-        this.password = password;
-        return this;
-    }
-
-
 }

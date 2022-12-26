@@ -7,6 +7,7 @@ import io.tapdata.connector.selectdb.exception.SelectDbRunTimeException;
 import io.tapdata.connector.selectdb.exception.StreamLoadException;
 import io.tapdata.connector.selectdb.streamload.*;
 import io.tapdata.connector.selectdb.streamload.rest.models.RespContent;
+import io.tapdata.connector.selectdb.util.CopyIntoUtils;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;

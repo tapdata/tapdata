@@ -16,13 +16,12 @@ import java.sql.*;
 
 @Setter
 @Getter
-public class SelectDbContext implements AutoCloseable{
+public class SelectDbContext implements AutoCloseable {
     private static final String TAG = SelectDbContext.class.getSimpleName();
     private TapConnectionContext tapConnectionContext;
     private SelectDbConfig selectDbConfig;
     private Connection connection;
     private Statement statement;
-
 
     public SelectDbContext(final TapConnectionContext tapConnectionContext) {
         this.tapConnectionContext = tapConnectionContext;
@@ -45,7 +44,6 @@ public class SelectDbContext implements AutoCloseable{
         }
     }
 
-
     public ResultSet executeQuery(final Statement statement, final String sql) throws Exception {
         TapLogger.debug(TAG, "Execute sql: " + sql);
         try {
@@ -64,7 +62,6 @@ public class SelectDbContext implements AutoCloseable{
             throw new SQLException("Execute sql failed, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
         }
     }
-
 
     @Override
     public void close() throws Exception {
