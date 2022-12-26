@@ -137,27 +137,3 @@ public class TestJs {
         return true;
     }
 }
-
-//package test;
-//
-//
-//import io.tapdata.entity.event.TapEvent;
-//
-//import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-//import org.junit.jupiter.api.Test;
-//
-//
-//import javax.script.Invocable;
-//import javax.script.ScriptEngine;
-//import javax.script.ScriptEngineManager;
-//import javax.script.ScriptException;
-//import java.util.ArrayList;
-//import java.util.List;
-//import java.util.concurrent.TimeUnit;
-//import java.util.concurrent.atomic.AtomicReference;
-//
-//import static io.tapdata.entity.simplify.TapSimplify.list;
-//
-//public class MainTest {
-
-//}

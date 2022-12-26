@@ -1,10 +1,8 @@
 package io.tapdata.quickapi;
 
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.api.APIInvoker;
-import io.tapdata.common.api.comom.TapApiBase;
+import io.tapdata.common.APIFactoryImpl;
 import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
@@ -15,27 +13,17 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.common.api.APIFactory;
-import io.tapdata.common.api.APIResponse;
+import io.tapdata.pdk.apis.javascript.APIFactory;
+import io.tapdata.pdk.apis.javascript.APIInvoker;
 import io.tapdata.quickapi.common.QuickApiConfig;
-import io.tapdata.common.core.emun.TapApiTag;
 import io.tapdata.quickapi.server.QuickAPIResponseInterceptor;
 import io.tapdata.quickapi.server.TestQuickApi;
 import io.tapdata.quickapi.server.enums.QuickApiTestItem;
-import io.tapdata.common.support.APIFactoryImpl;
-import io.tapdata.quickapi.server.ExpireHandel;
-import io.tapdata.common.support.postman.PostManAnalysis;
-import io.tapdata.common.support.postman.PostManApiContext;
-import io.tapdata.common.support.postman.entity.ApiMap;
-import io.tapdata.common.support.postman.pageStage.PageStage;
-import io.tapdata.common.support.postman.pageStage.TapPage;
-import io.tapdata.common.support.postman.util.ApiMapUtil;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 @TapConnectorClass("spec.json")
 public class QuickApiConnector extends ConnectorBase {
@@ -98,44 +86,12 @@ public class QuickApiConnector extends ConnectorBase {
 		return Objects.isNull(time)?System.currentTimeMillis():time;
 	}
 
-	public void batchRead(TapConnectorContext connectorContext,
+	public void batchRead(TapConnectorContext context,
 						  TapTable table,
 						  Object offset,
 						  int batchCount,
 						  BiConsumer<List<TapEvent>, Object> consumer){
-		List<ApiMap.ApiEntity> tables = invoker.tableApis();
-		if (tables.isEmpty()) {
-			throw new CoreException("Please use TAP on the API document_ The TABLE format label specifies at least one table data add in for the data source.");
-		}
-		if (Objects.isNull(table)){
-			throw new CoreException("Table must not be null or empty.");
-		}
-		Map<String,ApiMap.ApiEntity> apiGroupByTableName = tables.stream()
-				.filter(api-> Objects.nonNull(api) && TapApiTag.isTableName(api.name())).collect(Collectors.toMap(api-> {
-					String name = api.name();
-					return TapApiTag.analysisTableName(name);
-				},api->api,(a1,a2)->a1));
-		String currentTable = table.getId();
-		ApiMap.ApiEntity api = apiGroupByTableName.get(currentTable);
-		if (Objects.isNull(api)){
-			throw new CoreException("Can not get table api by table id "+currentTable+".");
-		}
-		if (Objects.isNull(offset)){
-			offset = new Object();
-		}
-		TapPage tapPage = TapPage.create()
-				.api(api)
-				.offset(offset)
-				.batchCount(batchCount)
-				.invoker(invoker)
-				.tableName(currentTable)
-				.task(task)
-				.consumer(consumer);
-		PageStage stage = PageStage.stage(api.api().pageStage());
-		if (Objects.isNull(stage)){
-			throw new CoreException(String.format(" The paging type [%s] is unrecognized or temporarily not supported. ",api.api().pageStage()));
-		}
-		stage.page(tapPage);
+		invoker.pageStage(context,table,offset,batchCount,task,consumer);
 	}
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
 		return 0L;

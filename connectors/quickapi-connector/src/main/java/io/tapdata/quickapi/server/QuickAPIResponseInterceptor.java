@@ -1,13 +1,10 @@
 package io.tapdata.quickapi.server;
 
-import io.tapdata.common.api.APIInvoker;
-import io.tapdata.common.api.APIResponse;
-import io.tapdata.common.api.APIResponseInterceptor;
-import io.tapdata.common.support.postman.PostManAnalysis;
-import io.tapdata.common.support.postman.PostManApiContext;
-import io.tapdata.common.support.postman.entity.ApiMap;
-import io.tapdata.common.support.postman.util.ApiMapUtil;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.pdk.apis.javascript.APIInvoker;
+import io.tapdata.pdk.apis.javascript.entitys.APIResponse;
+import io.tapdata.pdk.apis.javascript.APIResponseInterceptor;
+import io.tapdata.pdk.apis.javascript.entitys.APIEntity;
 import io.tapdata.quickapi.common.QuickApiConfig;
 
 import java.util.List;
@@ -38,9 +35,9 @@ public class QuickAPIResponseInterceptor implements APIResponseInterceptor {
         ExpireHandel expireHandel = ExpireHandel.create(response, config.expireStatus(),config.tokenParams());
         if (expireHandel.builder()){
 
-            List<ApiMap.ApiEntity> apiEntities = invoker.tableApis();
+            List<APIEntity> apiEntities = invoker.tableApis();
             if ( !apiEntities.isEmpty() ){
-                ApiMap.ApiEntity apiEntity = apiEntities.get(0);
+                APIEntity apiEntity = apiEntities.get(0);
                 APIResponse tokenResponse = invoker.invoke(apiEntity.name(), apiEntity.method(), params,true);
                 if (expireHandel.refreshComplete(tokenResponse,params)) {
                     //再调用
