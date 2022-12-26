@@ -23,6 +23,8 @@ import java.io.File;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
  * @author jackin
@@ -30,49 +32,69 @@ import java.util.Map;
  **/
 public class PdkUtil {
 
-	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId) {
-		// create the dir used for storing the pdk jar file if the dir not exists
-		String dir = System.getProperty("user.dir") + File.separator + "dist";
-		File folder = new File(dir);
-		if (!folder.exists()) {
-			folder.mkdirs();
+	private static final Map<String, Object> pdkHashDownloadLockMap = new ConcurrentHashMap<>();
+
+	public static Object pdkDownloadLock(String pdkHash) {
+		Object lock = pdkHashDownloadLockMap.get(pdkHash);
+		if(lock == null) {
+			return pdkHashDownloadLockMap.computeIfAbsent(pdkHash, s -> new int[0]);
 		}
+		return lock;
+	}
 
-		String filePrefix = fileName.split("\\.jar")[0];
-		StringBuilder filePath = new StringBuilder(dir)
-				.append(File.separator)
-				.append(filePrefix)
-				.append("__").append(resourceId).append("__");
+	public static boolean pdkDownloadUnlock(String pdkHash, Object lock) {
+		return pdkHashDownloadLockMap.remove(pdkHash, lock);
+	}
 
-		filePath.append(".jar");
-		File theFilePath = new File(filePath.toString());
-		if (!theFilePath.isFile()) {
-			httpClientMongoOperator.downloadFile(
-					new HashMap<String, Object>(1) {{
-						put("pdkHash", pdkHash);
-					}},
-					"/pdk/jar",
-					filePath.toString(),
-					false
-			);
+	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId) {
+		final Object lock = pdkDownloadLock(pdkHash);
+		synchronized (lock) {
+			try {
+				// create the dir used for storing the pdk jar file if the dir not exists
+				String dir = System.getProperty("user.dir") + File.separator + "dist";
+				File folder = new File(dir);
+				if (!folder.exists()) {
+					folder.mkdirs();
+				}
+
+				String filePrefix = fileName.split("\\.jar")[0];
+				StringBuilder filePath = new StringBuilder(dir)
+						.append(File.separator)
+						.append(filePrefix)
+						.append("__").append(resourceId).append("__");
+
+				filePath.append(".jar");
+				File theFilePath = new File(filePath.toString());
+				if (!theFilePath.isFile()) {
+					httpClientMongoOperator.downloadFile(
+							new HashMap<String, Object>(1) {{
+								put("pdkHash", pdkHash);
+							}},
+							"/pdk/jar",
+							filePath.toString(),
+							false
+					);
 
 //        PDKIntegration.
-			PDKIntegration.refreshJars(filePath.toString());
+					PDKIntegration.refreshJars(filePath.toString());
 
-			if (isSnapshot(fileName)) {
-				IOFileFilter fileFilter = FileFilterUtils.and(EmptyFileFilter.NOT_EMPTY,
-						new WildcardFileFilter("*" + filePrefix + "*"));
-				Collection<File> files = FileUtils.listFiles(new File(dir), fileFilter, DirectoryFileFilter.INSTANCE);
-				for (File file : files) {
-					if (!file.getAbsolutePath().equals(filePath.toString())) {
-						FileUtils.deleteQuietly(file);
+					if (isSnapshot(fileName)) {
+						IOFileFilter fileFilter = FileFilterUtils.and(EmptyFileFilter.NOT_EMPTY,
+								new WildcardFileFilter("*" + filePrefix + "*"));
+						Collection<File> files = FileUtils.listFiles(new File(dir), fileFilter, DirectoryFileFilter.INSTANCE);
+						for (File file : files) {
+							if (!file.getAbsolutePath().equals(filePath.toString())) {
+								FileUtils.deleteQuietly(file);
+							}
+						}
 					}
+				} else if (!PDKIntegration.hasJar(theFilePath.getName())) {
+					PDKIntegration.refreshJars(filePath.toString());
 				}
+			} finally {
+				pdkDownloadUnlock(pdkHash, lock);
 			}
-		} else if (!PDKIntegration.hasJar(theFilePath.getName())) {
-			PDKIntegration.refreshJars(filePath.toString());
 		}
-
 	}
 
 	private static boolean isSnapshot(String fileName) {
