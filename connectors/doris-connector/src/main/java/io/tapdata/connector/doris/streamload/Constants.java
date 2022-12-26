@@ -6,7 +6,7 @@ package io.tapdata.connector.doris.streamload;
  */
 public class Constants {
     public static final String FIELD_DELIMITER_DEFAULT = "||%%||";
-    public static final String LINE_DELIMITER_DEFAULT = "\n";
+    public static final String LINE_DELIMITER_DEFAULT = "||__||";
     public static final String DORIS_DELETE_SIGN = "__DORIS_DELETE_SIGN__";
     public static final String NULL_VALUE = "\\N";
     public static final int CACHE_BUFFER_SIZE = 256 * 1024;
