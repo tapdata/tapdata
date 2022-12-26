@@ -7,6 +7,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.js.connector.enums.Constants;
 import io.tapdata.js.utils.ScriptUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.javascript.core.ConnectorLog;
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
 
 import javax.script.Invocable;
@@ -30,6 +31,9 @@ public class LoadJavaScripter {
     private String jarFilePath ;
     private String flooder;
     private ScriptEngine scriptEngine;
+    public ScriptEngine scriptEngine(){
+        return this.scriptEngine;
+    }
 
     //UnModify Map
     private Map<String,String> supportFunctions;
