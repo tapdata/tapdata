@@ -17,8 +17,10 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.javascript.APIInvoker;
+import io.tapdata.pdk.apis.javascript.APIIterateInterceptor;
 import io.tapdata.pdk.apis.javascript.APIResponseInterceptor;
 import io.tapdata.pdk.apis.javascript.comom.APIDocument;
+import io.tapdata.pdk.apis.javascript.comom.APIIterateError;
 import io.tapdata.pdk.apis.javascript.core.annotation.ApiType;
 import io.tapdata.pdk.apis.javascript.core.emun.TapApiTag;
 import io.tapdata.pdk.apis.javascript.entitys.APIEntity;
@@ -189,5 +191,19 @@ public class PostManAPIInvoker
                 .task(task)
                 .consumer(consumer);
         stage.page(tapPage);
+    }
+
+    @Override
+    public void iterateAllData(String urlOrName, String method, Object offset, APIIterateInterceptor interceptor) {
+        if (Objects.isNull(urlOrName)){
+            throw new CoreException(" Please specify the corresponding paging API name or URL .");
+        }
+        Map<String,Object> param = new HashMap<>();
+        if (offset instanceof Map){
+            param.putAll((Map<String, Object>) offset);
+        }
+        APIResponse invoke = this.invoke(urlOrName, method, param, true);
+        Map<String, Object> result = invoke.result();
+        interceptor.iterate(result,offset, APIIterateError.error());
     }
 }

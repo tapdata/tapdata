@@ -6,7 +6,6 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.pdk.apis.javascript.core.ConnectorLog;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.FunctionSupport;
@@ -39,7 +38,7 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         if (super.hasNotSupport(javaScripter)) return null;
         return this::write;
     }
-    private ConcurrentHashMap<String, ScriptEngine> writeEnginePool = new ConcurrentHashMap<>(16);;
+    private ConcurrentHashMap<String, ScriptEngine> writeEnginePool = new ConcurrentHashMap<>(16);
     private void write(TapConnectorContext context, List<TapRecordEvent> tapRecordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws ScriptException {
         if (Objects.isNull(context)){
             throw new CoreException("TapConnectorContext must not be null or not be empty.");

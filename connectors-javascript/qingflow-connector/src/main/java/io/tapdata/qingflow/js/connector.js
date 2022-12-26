@@ -105,6 +105,16 @@ function batch_count(connectionConfig,nodeConfig,table){
     return 3;
 }
 
+/**@description token过期状态描述，由开发者针对数据源特性进行描述，描述为列表类型，支持多个或关系的描述，每个描述都是且的关系*/
+function expire_status(){
+    return [{"httpCode" : 401},{"header" : {"Code":401}},{"body" : {"code":200,"msg":"out of token"}}];
+}
+
+/**@description token 过期的操作方式，开发者需要手动实现token过期后获取新的access_token*/
+function update_token(connection){
+    var token = {"data":0};//feishuAPI.post("{{baseUrl}}/access_token");
+    return {"access_token":token.data};
+}
 // const feishuAPI = tapAPI.load();//使用默认路基以及导出文件中配置的参数
 // function batch_read(connection, node, offset, table, pageSize, batchReadSender){
 //     var tableNames = discover_schema(connection);

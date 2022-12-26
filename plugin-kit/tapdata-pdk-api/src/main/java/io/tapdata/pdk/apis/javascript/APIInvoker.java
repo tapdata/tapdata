@@ -31,4 +31,6 @@ public interface APIInvoker {
 							   int batchCount,
 							   AtomicBoolean task,
 							   BiConsumer<List<TapEvent>, Object> consumer);
+
+	public void iterateAllData(String urlOrName, String method, Object offset, APIIterateInterceptor interceptor);
 }

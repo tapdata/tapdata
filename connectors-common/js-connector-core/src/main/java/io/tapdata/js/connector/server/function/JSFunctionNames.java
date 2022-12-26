@@ -12,6 +12,8 @@ public enum JSFunctionNames {
     CONNECTION_TEST("connection_test","ConnectionTest",""),
     DISCOVER_SCHEMA("discover_schema","DiscoverSchema",""),
     TABLE_COUNT("table_count","TableCount",""),
+    EXPIRE_STATUS("expire_status","ExpireStatus",""),
+    UPDATE_TOKEN("update_token","UpdateToken",""),
     ;
     String jsName;
     String javaName;
