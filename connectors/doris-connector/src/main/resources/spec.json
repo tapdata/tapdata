@@ -204,6 +204,41 @@
           "x-index": 81
         }
       }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "writeByteBufferCapacity": {
+          "required": true,
+          "type": "int",
+          "title": "${writeByteBufferCapacity}",
+          "default": 256,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "node_writeByteBufferCapacity"
+        },
+        "writeFormat": {
+          "type": "string",
+          "title": "${writeFormat}",
+          "default": "json",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "feedbackLayout": "none"
+          },
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "Json",
+              "value": "json"
+            },
+            {
+              "label": "CSV Text",
+              "value": "csv"
+            }
+          ],
+          "x-index": 80
+        }
+      }
     }
   },
   "messages": {
@@ -218,6 +253,8 @@
       "addtionalString": "Other connection string parameters",
       "timeZone": "Timezone for Datetime",
       "timezoneTips": "Affect Type: DATE",
+      "writeByteBufferCapacity": "Write buffer capacity(KB)",
+      "writeFormat": "Write format",
       "doc": "docs/readme_zh_CN.md"
     },
     "zh_CN": {
@@ -230,6 +267,8 @@
       "addtionalString": "其他连接串参数",
       "timezone": "时间类型的时区",
       "timezoneTips": "影响类型: DATE",
+      "writeByteBufferCapacity": "写入缓冲区容量(KB)",
+      "writeFormat": "写入格式",
       "doc": "docs/readme_zh_CN.md"
     },
     "zh_TW": {
@@ -242,6 +281,8 @@
       "addtionalString": "其他连接串参数",
       "timezone": "时间类型的时区",
       "timezoneTips": "影響類型: DATE",
+      "writeByteBufferCapacity": "寫入緩沖區容量(KB)",
+      "writeFormat": "寫入格式",
       "doc": "docs/readme_zh_CN.md"
     }
   },

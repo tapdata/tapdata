@@ -13,6 +13,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.entity.InputStreamEntity;
@@ -21,7 +22,6 @@ import org.apache.http.util.EntityUtils;
 import org.springframework.util.Assert;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -59,12 +59,24 @@ public class DorisStreamLoader {
     private boolean loadBatchFirstRecord;
     private int size;
     private AtomicInteger lastEventFlag;
+    private MessageSerializer messageSerializer;
 
     public DorisStreamLoader(DorisContext dorisContext, CloseableHttpClient httpClient) {
         this.dorisContext = dorisContext;
         this.httpClient = httpClient;
 
-        this.recordStream = new RecordStream(Constants.CACHE_BUFFER_SIZE, Constants.CACHE_BUFFER_COUNT);
+        DataMap nodeConfig = dorisContext.getTapConnectionContext().getNodeConfig();
+        Integer writeByteBufferCapacity = null;
+        try {
+            writeByteBufferCapacity = nodeConfig.getInteger("writeByteBufferCapacity");
+        } catch (NumberFormatException ignored) {
+        }
+        if (null == writeByteBufferCapacity) {
+            writeByteBufferCapacity = Constants.CACHE_BUFFER_SIZE;
+        } else {
+            writeByteBufferCapacity = writeByteBufferCapacity * 1024;
+        }
+        this.recordStream = new RecordStream(writeByteBufferCapacity, Constants.CACHE_BUFFER_COUNT);
         this.executorService = new ThreadPoolExecutor(1, 1,
                 0L, TimeUnit.MILLISECONDS, new LinkedBlockingDeque<>());
 
@@ -72,15 +84,28 @@ public class DorisStreamLoader {
         this.size = 0;
 
         this.lastEventFlag = new AtomicInteger(0);
+        initMessageSerializer(dorisContext);
     }
 
-    public synchronized void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
+    private void initMessageSerializer(DorisContext dorisContext) {
+        DorisContext.WriteFormat writeFormat = dorisContext.getWriteFormat();
+        switch (writeFormat) {
+            case csv:
+                messageSerializer = new CsvSerializer();
+                break;
+            case json:
+                messageSerializer = new JsonSerializer();
+                break;
+        }
+    }
+
+    public synchronized void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
         TapLogger.info(TAG, "batch events length is: {}", tapRecordEvents.size());
         WriteListResult<TapRecordEvent> listResult = writeListResult();
         int index =0;
         boolean before_is_null =false;
         for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
-            byte[] bytes = MessageSerializer.serialize(table, tapRecordEvent);
+            byte[] bytes = messageSerializer.serialize(table, tapRecordEvent);
             if (needFlush(tapRecordEvent, bytes.length)) {
                 int lastFlag = this.lastEventFlag.get();
                 RespContent flushResult = flush();
@@ -96,7 +121,8 @@ public class DorisStreamLoader {
                 index++;
             }
             if (lastEventFlag.get() == 0) {
-                startLoad(table, this.dorisContext.getDorisConfig(), tapRecordEvent);
+                startLoad(table, tapRecordEvent);
+                recordStream.write(messageSerializer.batchStart());
             }
             writeRecord(bytes);
         }
@@ -132,13 +158,15 @@ public class DorisStreamLoader {
         if (loadBatchFirstRecord) {
             loadBatchFirstRecord = false;
         } else {
-            recordStream.write(Constants.LINE_DELIMITER_DEFAULT.getBytes(StandardCharsets.UTF_8));
+            recordStream.write(messageSerializer.lineEnd());
         }
         recordStream.write(record);
         size += 1;
     }
 
-    public void startLoad(final TapTable table, final DorisConfig config, final TapRecordEvent recordEvent) {
+    public void startLoad(final TapTable table, final TapRecordEvent recordEvent) {
+        DorisConfig config = dorisContext.getDorisConfig();
+        DorisContext.WriteFormat writeFormat = dorisContext.getWriteFormat();
         try {
             loadBatchFirstRecord = true;
             final String loadUrl = buildLoadUrl(config.getDorisHttp(), config.getDatabase(), table.getId());
@@ -159,6 +187,7 @@ public class DorisStreamLoader {
                     // 前端表单传出来的值和tdd json加载的值可能有差别，如前端传的pwd可能是null，tdd的是空字符串
                     .baseAuth(config.getUser(), config.getPassword())
                     .addCommonHeader()
+                    .addFormat(writeFormat)
                     .addColumns(columns)
                     .enableDelete()
                     .setEntity(entity);
@@ -193,6 +222,7 @@ public class DorisStreamLoader {
             return null;
         }
         try {
+            recordStream.write(messageSerializer.batchEnd());
             recordStream.endInput();
             TapLogger.info(TAG, "stream load stopped");
             Assert.notNull(pendingLoadFuture, "pendingLoadFuture of DorisStreamLoad should never be null");
