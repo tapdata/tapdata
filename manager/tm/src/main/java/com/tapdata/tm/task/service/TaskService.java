@@ -2623,7 +2623,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     List<DatabaseNode> nodes = taskDto.getDag().getSourceNode();
                    for (DatabaseNode databaseNode :nodes){
                        if("PostgreSQL".equalsIgnoreCase(databaseNode.getDatabaseType())&&
-                               DataSyncMq.OP_TYPE_DELETE.equals(opType)){
+                               DataSyncMq.OP_TYPE_DELETE.equals(opType) && MapUtils.isNotEmpty(taskDto.getAttrs())){
                           flag = true;
                        }
 
