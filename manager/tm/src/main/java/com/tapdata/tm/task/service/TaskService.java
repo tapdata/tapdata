@@ -1182,19 +1182,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public boolean judgeSlotException(List<MutiResponseMessage> mutiResponseMessageList) {
-        if (CollectionUtils.isEmpty(mutiResponseMessageList)) {
-            return false;
-        }
-        for (MutiResponseMessage mutiResponseMessage : mutiResponseMessageList) {
-            if ("Clear.Slot".equals(mutiResponseMessage.getCode())) {
-                return true;
-            }
-
-        }
-        return false;
-    }
-
     public List<MutiResponseMessage> batchRenew(List<ObjectId> taskIds, UserDetail user,
                                                 HttpServletRequest request, HttpServletResponse response) {
         List<MutiResponseMessage> responseMessages = new ArrayList<>();
