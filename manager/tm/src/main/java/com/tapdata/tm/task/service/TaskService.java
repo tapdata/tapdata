@@ -2710,18 +2710,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private String judgePostgreClearSlot(TaskDto taskDto, String opType) {
         Node node = getSourceNode(taskDto);
-        Map<String, Object> attrs=null;
-        String databaseType=null;
+        Map<String, Object> attrs = null;
+        String databaseType = null;
         if (node instanceof DatabaseNode) {
-            attrs =node.getAttrs();
+            attrs = node.getAttrs();
             databaseType = ((DatabaseNode) node).getDatabaseType();
         } else if (node instanceof TableNode) {
             attrs = node.getAttrs();
             databaseType = ((TableNode) node).getDatabaseType();
         }
-        //&& MapUtils.isNotEmpty(taskDto.getAttrs())
+
         if ("PostgreSQL".equalsIgnoreCase(databaseType) &&
-                DataSyncMq.OP_TYPE_DELETE.equals(opType) ) {
+                DataSyncMq.OP_TYPE_DELETE.equals(opType) && MapUtils.isNotEmpty(taskDto.getAttrs())) {
             return (String) attrs.get("connectionName");
         }
         return null;
