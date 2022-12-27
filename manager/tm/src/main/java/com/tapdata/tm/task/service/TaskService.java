@@ -753,7 +753,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (stateMachineResult.isOk()) {
             taskResetLogService.clearLogByTaskId(id.toHexString());
             if(sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE)){
-                throw new BizException("Clear.Slot",taskDto.getId());
+                TableNode tableNode = (TableNode)getSourceNode(taskDto);
+                throw new BizException("Clear.Slot",tableNode.getAttrs().get("connectionName"));
             }
         }
         //afterRemove(taskDto, user);
@@ -2623,7 +2624,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     List<DatabaseNode> nodes = taskDto.getDag().getSourceNode();
                    for (DatabaseNode databaseNode :nodes){
                        if("PostgreSQL".equalsIgnoreCase(databaseNode.getDatabaseType())&&
-                               DataSyncMq.OP_TYPE_DELETE.equals(opType)){
+                               DataSyncMq.OP_TYPE_DELETE.equals(opType) && MapUtils.isNotEmpty(taskDto.getAttrs())){
                           flag = true;
                        }
 
