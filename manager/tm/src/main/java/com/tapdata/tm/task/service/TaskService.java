@@ -752,9 +752,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         if (stateMachineResult.isOk()) {
             taskResetLogService.clearLogByTaskId(id.toHexString());
-            if(sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE)){
-                TableNode tableNode = (TableNode)getSourceNode(taskDto);
-                throw new BizException("Clear.Slot",tableNode.getAttrs().get("connectionName"));
+            String connectionName = sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+            if(StringUtils.isNotEmpty(connectionName)){
+                throw new BizException("Clear.Slot",connectionName);
             }
         }
         //afterRemove(taskDto, user);
@@ -1161,7 +1161,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 log.warn("delete task exception, task id = {}, e = {}", taskId, ThrowableUtils.getStackTraceByPn(e));
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
-                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                    if("Clear.Slot".equals((((BizException) e).getErrorCode()))){
+                        mutiResponseMessage.setMessage(e.getMessage());
+                    }else{
+                        mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                    }
                 } else {
                     try {
                         ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
@@ -1175,6 +1179,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             responseMessages.add(mutiResponseMessage);
         }
         return responseMessages;
+    }
+
+
+    public boolean judgeSlotException(List<MutiResponseMessage> mutiResponseMessageList) {
+        if (CollectionUtils.isEmpty(mutiResponseMessageList)) {
+            return false;
+        }
+        for (MutiResponseMessage mutiResponseMessage : mutiResponseMessageList) {
+            if ("Clear.Slot".equals(mutiResponseMessage.getCode())) {
+                return true;
+            }
+
+        }
+        return false;
     }
 
     public List<MutiResponseMessage> batchRenew(List<ObjectId> taskIds, UserDetail user,
@@ -2592,8 +2610,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //resetFlag(taskDto.getId(), user, "resetFlag");
     }
 
-    private boolean sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
-        boolean flag = false;
+    private String sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
+        String connectionName =null;
         if (checkPdkTask(taskDto, user)) {
 
             DataSyncMq mq = new DataSyncMq();
@@ -2621,14 +2639,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (StringUtils.isBlank(agentId)) {
                     //任务指定的agent已经停用，当前操作不给用。
                    // throw new BizException("Agent.DesignatedAgentNotAvailable");
-                    List<DatabaseNode> nodes = taskDto.getDag().getSourceNode();
-                   for (DatabaseNode databaseNode :nodes){
-                       if("PostgreSQL".equalsIgnoreCase(databaseNode.getDatabaseType())&&
-                               DataSyncMq.OP_TYPE_DELETE.equals(opType) && MapUtils.isNotEmpty(taskDto.getAttrs())){
-                          flag = true;
-                       }
-
-                   }
+                    connectionName =judgePostgreClearSlot(taskDto,opType);
 
                 }
 
@@ -2640,6 +2651,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     Worker worker = availableAgent.get(0);
                     taskDto.setAgentId(worker.getProcessId());
                 } else {
+                    connectionName =judgePostgreClearSlot(taskDto,opType);
                     taskDto.setAgentId(null);
                 }
             }
@@ -2692,7 +2704,27 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 afterRemove(taskDto, user);
             }
         }
-        return flag;
+        return connectionName;
+    }
+
+
+    private String judgePostgreClearSlot(TaskDto taskDto, String opType) {
+        Node node = getSourceNode(taskDto);
+        Map<String, Object> attrs=null;
+        String databaseType=null;
+        if (node instanceof DatabaseNode) {
+            attrs =node.getAttrs();
+            databaseType = ((DatabaseNode) node).getDatabaseType();
+        } else if (node instanceof TableNode) {
+            attrs = node.getAttrs();
+            databaseType = ((TableNode) node).getDatabaseType();
+        }
+        //&& MapUtils.isNotEmpty(taskDto.getAttrs())
+        if ("PostgreSQL".equalsIgnoreCase(databaseType) &&
+                DataSyncMq.OP_TYPE_DELETE.equals(opType) ) {
+            return (String) attrs.get("connectionName");
+        }
+        return null;
     }
 
 //    public boolean deleteById(TaskDto taskDto, UserDetail user) {

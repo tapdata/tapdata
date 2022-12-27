@@ -718,7 +718,11 @@ public class TaskController extends BaseController {
                                                                   HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
         List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskObjectIds, getLoginUser(), request, response);
-
+        if (taskService.judgeSlotException(responseMessages)) {
+            ResponseMessage<List<MutiResponseMessage>> responseMessage = success(responseMessages);
+            responseMessage.setCode("Clear.Slot");
+            return responseMessage;
+        }
         return success(responseMessages);
     }
 
