@@ -67,18 +67,4 @@ public class SelectDbTest extends CommonDbTest {
         }
         return true;
     }
-
-    @Override
-    protected List<String> supportVersions() {
-        return Lists.newArrayList("5.7", "8.0");
-    }
-
-    @Override
-    public void close() {
-        try {
-            jdbcContext.finish(uuid);
-        } catch (Exception ignored) {
-        }
-    }
-
 }

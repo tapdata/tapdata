@@ -54,7 +54,7 @@ public class SelectDbConnector extends ConnectorBase {
     private CopyIntoUtils copyIntoUtils;
     private CopyIntoUtils copyIntoKey;
     private SelectDbStreamLoader selectDbStreamLoader;
-    public static final int size = 30000;
+    public static final int size = 50000;
     private static final SelectDbDDLInstance DDLInstance = SelectDbDDLInstance.getInstance();
 
 
@@ -65,6 +65,7 @@ public class SelectDbConnector extends ConnectorBase {
         this.selectDbConfig = new SelectDbConfig().load(connectorContext.getConnectionConfig());
         this.selectDbTest = new SelectDbTest(selectDbConfig, testItem -> {
         }).initContext();
+
         if (EmptyKit.isNull(selectDbJdbcContext) || selectDbJdbcContext.isFinish()) {
             selectDbJdbcContext = (SelectDbJdbcContext) DataSourcePool.getJdbcContext(selectDbConfig, SelectDbJdbcContext.class, connectorContext.getId());
         }
@@ -185,7 +186,7 @@ public class SelectDbConnector extends ConnectorBase {
                 if (tapEventCollector == null) {
                     tapEventCollector = TapEventCollector.create()
                             .maxRecords(size)
-                            .idleSeconds(5)
+                            .idleSeconds(10)
                             .table(tapTable)
                             .writeListResultConsumer(writeListResultConsumer)
                             .eventCollected(this::uploadEvents);

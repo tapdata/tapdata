@@ -26,14 +26,15 @@ public class TapEventCollector {
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     private Long touch;
     private final AtomicBoolean isStarted = new AtomicBoolean(false);
+
     public void start() {
-        if(isStarted.compareAndSet(false, true)) {
+        if (isStarted.compareAndSet(false, true)) {
             monitorIdle();
         }
     }
 
     public void stop() {
-        if(future != null)
+        if (future != null)
             future.cancel(true);
     }
 
@@ -87,10 +88,10 @@ public class TapEventCollector {
                 future = scheduledExecutorService.scheduleWithFixedDelay(() -> {
                     try {
                         tryUpload(true);
-                    } catch(Throwable throwable) {
+                    } catch (Throwable throwable) {
                         TapLogger.error(TAG, "tryUpload failed in scheduler, {}", throwable.getMessage());
                     }
-                }, 1, 1, TimeUnit.SECONDS);
+                }, 1, 10, TimeUnit.SECONDS);
             }
         }
     }
@@ -126,13 +127,5 @@ public class TapEventCollector {
         }
         touch = System.currentTimeMillis();
         tryUpload(events.size() > maxRecords);
-    }
-
-    public int getMaxRecords() {
-        return maxRecords;
-    }
-
-    public int getIdleSeconds() {
-        return idleSeconds;
     }
 }

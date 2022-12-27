@@ -2,9 +2,12 @@
 ### **1. SelectDB Cloud installation instructions**
 Please follow the instructions below to ensure that the SelectDB database is successfully added and used in Tapdata.
 ### **2. Supported version**
-SelectDB 1.0
-
+#### **2.1 Supported kernel version**
+SelectDB Cloud 2.0.13 or later, the CopyInto function is unavailable and data cannot be synchronized. You can view the version and upgrade it in the SelectDB Cloud administration console.
+#### **2.2 Connection protocol versions are supported**
+Mysql5.7，Mysql8.0
 ###  **3. Prerequisites (as a goal)**
+#### **3.1 数据库权限**
 Grant full permissions to a database:
 ```
 GRANT ALL PRIVILEGES ON <DATABASE_NAME>.<TABLE_NAME> TO 'tapdata' IDENTIFIED BY 'password';
@@ -12,6 +15,16 @@ GRANT ALL PRIVILEGES ON <DATABASE_NAME>.<TABLE_NAME> TO 'tapdata' IDENTIFIED BY 
 For global permissions:
 ```
 GRANT PROCESS ON *.* TO 'tapdata' IDENTIFIED BY 'password';
+```
+#### **3.2 配置参数示例**
+```
+Connection name : Tapdata
+Connection Type : 39.108.5.66
+Host : 16604
+Database : TEST
+User : admin
+Password : admin
+SelectDBHttp : 39.108.5.66:42188
 ```
 ###  **4. Frequent fault**
 

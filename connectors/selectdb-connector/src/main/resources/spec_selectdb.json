@@ -85,7 +85,7 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "docs/postgres_en_US.md",
+      "doc": "docs/selectdb_en_US.md",
       "host": "Host",
       "port": "Port",
       "database": "database",
@@ -94,7 +94,7 @@
       "selectdbHttp": "selectDBHttp"
     },
     "zh_CN": {
-      "doc": "docs/postgres_zh_CN.md",
+      "doc": "docs/selectdb_zh_CN.md",
       "host": "地址",
       "port": "端口",
       "database": "数据库",
@@ -103,7 +103,7 @@
       "selectdbHttp": "HTTP地址"
     },
     "zh_TW": {
-      "doc": "docs/postgres_zh_TW.md",
+      "doc": "docs/selectdb_zh_TW.md",
       "host": "地址",
       "port": "端口",
       "database": "數據庫",
