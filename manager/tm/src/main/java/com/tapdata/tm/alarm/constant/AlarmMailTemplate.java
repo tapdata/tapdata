@@ -8,8 +8,7 @@ public class AlarmMailTemplate {
     public static final String TASK_STATUS_STOP_ERROR_TITLE = "【Tapdata Notification:Task error】{0}";
     public static final String TASK_STATUS_STOP_ERROR = "An error occurred in your data verification task. \n" +
             "    Task name: {0}\n" +
-            "    Error time：{1}\n" +
-            "    Error message: {2}";
+            "    Error time：{1}\n";
 
     public static final String TASK_STATUS_STOP_MANUAL_TITLE = "【Tapdata Notification:Task stopped】{0}";
     public static final String TASK_STATUS_STOP_MANUAL = "Your task has been stopped. \n" +
