@@ -54,7 +54,7 @@ public class SelectDbConnector extends ConnectorBase {
     private CopyIntoUtils copyIntoUtils;
     private CopyIntoUtils copyIntoKey;
     private SelectDbStreamLoader selectDbStreamLoader;
-    public static final int size = 10000;
+    public static final int size = 30000;
     private static final SelectDbDDLInstance DDLInstance = SelectDbDDLInstance.getInstance();
 
 
@@ -185,7 +185,7 @@ public class SelectDbConnector extends ConnectorBase {
                 if (tapEventCollector == null) {
                     tapEventCollector = TapEventCollector.create()
                             .maxRecords(size)
-                            .idleSeconds(1)
+                            .idleSeconds(5)
                             .table(tapTable)
                             .writeListResultConsumer(writeListResultConsumer)
                             .eventCollected(this::uploadEvents);
