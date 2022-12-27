@@ -117,12 +117,4 @@ public class RecordBuffer {
     public int currentBufferRemaining() {
         return null == currentWriteBuffer ? Constants.CACHE_BUFFER_SIZE : currentWriteBuffer.remaining();
     }
-
-    public int getWriteQueueSize() {
-        return writeQueue.size();
-    }
-
-    public int getReadQueueSize() {
-        return readQueue.size();
-    }
 }
