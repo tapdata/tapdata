@@ -1,8 +1,9 @@
-package io.tapdata.connector.mysql;
+package io.tapdata.connector.tencent.db.mysql;
 
 import com.mysql.cj.jdbc.StatementImpl;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.pool.HikariProxyStatement;
+import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.util.JdbcUtil;
 import io.tapdata.entity.logger.TapLogger;
@@ -104,7 +105,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 			additionalString = additionalString.substring(1);
 		}
 
-		String protocolType = String.valueOf(connectionConfig.get("protocolType"));
+		String protocolType = connectionConfig.get("protocolType") == null ? null : String.valueOf(connectionConfig.get("protocolType"));
 		if (EmptyKit.isEmpty(protocolType)) {
 			protocolType = type;
 		}

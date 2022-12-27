@@ -4,9 +4,11 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
@@ -14,12 +16,15 @@ import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -27,7 +32,10 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -94,11 +102,9 @@ public class TaskRestartSchedule {
             log.info("engineRestartNeedStartTask task size {}", all.size());
         }
 
-        List<String> userIds = all.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
-        List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
-        Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
-
-        all.forEach(taskDto -> {
+        Map<String, UserDetail> userDetailMap = getUserDetailMap(all);
+        Map<String, List<Worker>> userWorkerMap = this.getUserWorkMap();
+        for (TaskDto taskDto : all) {
             if (isCloud) {
                 String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
                 if ("offline".equals(status) || "online".equals(status)) {
@@ -108,14 +114,26 @@ public class TaskRestartSchedule {
             }
             UserDetail user = userDetailMap.get(taskDto.getUserId());
             if (user == null) {
-                return;
+                continue;
+            }
+
+            List<Worker> workerList = userWorkerMap.get(user.getUserId());
+            if (CollectionUtils.isEmpty(workerList)) {
+                continue;
             }
 
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
             if (stateMachineResult.isOk()) {
                 taskScheduleService.scheduling(taskDto, user);
             }
-        });
+        }
+    }
+
+    @NotNull
+    private Map<String, UserDetail> getUserDetailMap(List<TaskDto> all) {
+        List<String> userIds = all.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
+        List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
+        return userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
     }
 
     private long getHeartExpire() {
@@ -124,7 +142,7 @@ public class TaskRestartSchedule {
         if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
             heartExpire = Long.parseLong(settings.getValue().toString());
         } else {
-            heartExpire = 300000;
+            heartExpire = 300000L;
         }
         return heartExpire;
     }
@@ -136,33 +154,18 @@ public class TaskRestartSchedule {
      */
     @Scheduled(fixedDelay = 30 * 1000)
     @SchedulerLock(name ="schedulingTask_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
-    public void orverTimeTask() {
+    public void overTimeTask() {
         Thread.currentThread().setName("taskSchedule-schedulingTask");
-        try {
-            stoppingTask();
-        } catch (Exception e) {
-            log.warn("stopping overtime task retry failed");
-        }
-
-        try {
-            schedulingTask();
-        } catch (Exception e) {
-            log.warn("scheduling overtime task retry failed");
-        }
-
-        try {
-            waitRunTask();
-        } catch (Exception e) {
-            log.warn("wait run overtime task retry failed");
-        }
+        FunctionUtils.ignoreAnyError(this::stoppingTask);
+        FunctionUtils.ignoreAnyError(this::schedulingTask);
+        FunctionUtils.ignoreAnyError(this::waitRunTask);
     }
 
     public void stoppingTask() {
-        long heartExpire = 30000L;
-
+        long heartExpire = getHeartExpire();
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_STOPPING)
                 .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
-        List<TaskDto> all = taskService.findAll(new Query(criteria));
+        List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
             return;
@@ -171,89 +174,123 @@ public class TaskRestartSchedule {
         List<String> userList = all.stream().map(BaseDto::getUserId).collect(Collectors.toList());
         Map<String, UserDetail> userMap = userService.getUserMapByIdList(userList);
 
-
-        all.forEach(taskDto -> {
+        for (TaskDto taskDto : all) {
             int stopRetryTimes = taskDto.getStopRetryTimes();
-            if (stopRetryTimes > 10) {
-                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
-            } else {
-                taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(),  userMap.get(taskDto.getUserId()), false);
-                Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
-                taskService.updateById(taskDto.getId(), update, userMap.get(taskDto.getUserId()));
+            UserDetail userDetail = userMap.get(taskDto.getUserId());
+            if (Objects.isNull(userDetail)) {
+                continue;
             }
-        });
-    }
 
+            if (stopRetryTimes > 10) {
+                CompletableFuture.runAsync(() -> {
+                    String template = "The task is being stopped, the number of retries is {0}, it is recommended to try to force stop.";
+                    String msg = MessageFormat.format(template, taskDto.getStopRetryTimes());
+                    monitoringLogsService.startTaskErrorLog(taskDto, userDetail, msg, Level.WARN);
+                });
+                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
+            } else {
+                taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetail, false);
+                Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
+                taskService.updateById(taskDto.getId(), update, userDetail);
+            }
+        }
+    }
 
     public void schedulingTask() {
-        long heartExpire = 30000L;
-
+        long heartExpire = getHeartExpire();
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
-                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
-        List<TaskDto> all = taskService.findAll(new Query(criteria));
+                .and("scheduleDate").lt(System.currentTimeMillis() - heartExpire);
+        List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
             return;
         }
 
-        List<String> userList = all.stream().map(BaseDto::getUserId).collect(Collectors.toList());
-        Map<String, UserDetail> userMap = userService.getUserMapByIdList(userList);
+        Map<String, UserDetail> userMap = this.getUserDetailMap(all);
+        Map<String, List<Worker>> userWorkMap = this.getUserWorkMap();
 
-        Iterator<TaskDto> iterator = all.iterator();
-
-        Long now = System.currentTimeMillis();
-        while (iterator.hasNext()) {
-            TaskDto next = iterator.next();
-            UserDetail user = userMap.get(next.getUserId());
-            if (user != null) {
-                if (Objects.nonNull(next.getScheduleDate()) && (now - next.getScheduleDate() > heartExpire)) {
-                    stateMachineService.executeAboutTask(next, DataFlowEvent.OVERTIME, user);
-                    iterator.remove();
-                }
-            }
-        }
-
-
-        all.forEach(taskDto -> {
+        for (TaskDto taskDto : all) {
             UserDetail user = userMap.get(taskDto.getUserId());
-            try {
-                taskScheduleService.scheduling(taskDto, user);
-            } catch (Exception e) {
-                monitoringLogsService.startTaskErrorLog(taskDto, user, e);
-                throw e;
+            if (Objects.isNull(user)) {
+                continue;
             }
-        });
-    }
 
-
-    public void waitRunTask() {
-        long heartExpire = 30000L;
-
-        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN)
-                .and("scheduledTime").lt(new Date(System.currentTimeMillis() - heartExpire));
-        List<TaskDto> all = taskService.findAll(new Query(criteria));
-
-        if (CollectionUtils.isEmpty(all)) {
-            return;
-        }
-
-        List<String> userList = all.stream().map(BaseDto::getUserId).collect(Collectors.toList());
-        Map<String, UserDetail> userMap = userService.getUserMapByIdList(userList);
-        all.forEach(taskDto -> {
-            boolean start = true;
-            UserDetail user = userMap.get(taskDto.getUserId());
-            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
-            if (stateMachineResult.isFail()) {
-                start = false;
+            if (CollectionUtils.isEmpty(userWorkMap.get(user.getUserId()))) {
+                continue;
             }
-            if (start) {
+
+            CompletableFuture.runAsync(() -> {
+                String template = "The engine[{0}] takes over the task with a timeout of {1}ms.";
+                String msg = MessageFormat.format(template, taskDto.getAgentId(), heartExpire);
+                monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
+            });
+            StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
+            if (result.isOk()) {
                 try {
+                    CompletableFuture.runAsync(() -> {
+                        String template = "In the process of rescheduling tasks, the scheduling engine is {0}.";
+                        String msg = MessageFormat.format(template, taskDto.getAgentId());
+                        monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
+                    });
+
                     taskScheduleService.scheduling(taskDto, user);
                 } catch (Exception e) {
-                    monitoringLogsService.startTaskErrorLog(taskDto, user, e);
+                    monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
                     throw e;
                 }
             }
-        });
+        }
+    }
+
+    public void waitRunTask() {
+        long heartExpire = getHeartExpire();
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN)
+                .and("scheduleDate").lt(System.currentTimeMillis() - heartExpire);
+        List<TaskDto> all = taskService.findAll(Query.query(criteria));
+
+        if (CollectionUtils.isEmpty(all)) {
+            return;
+        }
+
+        Map<String, UserDetail> userMap = this.getUserDetailMap(all);
+        Map<String, List<Worker>> userWorkMap = this.getUserWorkMap();
+        for (TaskDto taskDto : all) {
+            UserDetail user = userMap.get(taskDto.getUserId());
+            if (Objects.isNull(user)) {
+                continue;
+            }
+            if (CollectionUtils.isEmpty(userWorkMap.get(user.getUserId()))) {
+                continue;
+            }
+
+            CompletableFuture.runAsync(() -> {
+                String template = "The engine[{0}] takes over the task with a timeout of {1}ms.";
+                String msg = MessageFormat.format(template, taskDto.getAgentId(), heartExpire);
+                monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
+            });
+            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
+            if (stateMachineResult.isOk()) {
+                try {
+                    CompletableFuture.runAsync(() -> {
+                        String template = "In the process of rescheduling tasks, the scheduling engine is {0}.";
+                        String msg = MessageFormat.format(template, taskDto.getAgentId());
+                        monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
+                    });
+
+                    taskScheduleService.scheduling(taskDto, user);
+                } catch (Exception e) {
+                    monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
+                    throw e;
+                }
+            }
+        }
+    }
+
+    private Map<String, List<Worker>> getUserWorkMap() {
+        List<Worker> workers = workerService.findAvailableAgentBySystem(Collections.emptyList());
+        AtomicReference<Map<String, List<Worker>>> userWorkerMap = new AtomicReference<>();
+        Optional.ofNullable(workers).ifPresent(list -> userWorkerMap.set(list.stream().collect(Collectors.groupingBy(Worker::getUserId))));
+
+        return userWorkerMap.get();
     }
 }

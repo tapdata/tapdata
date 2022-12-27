@@ -104,7 +104,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			preTableName = preNodeId;
 		}
 		if (needCache(tapdataEvent)) {
-			cache(tapdataEvent);
+			cache(tapdataEvent, preTableName);
 		}
 		MergeInfo mergeInfo = new MergeInfo();
 		MergeTableProperties currentMergeTableProperty = this.mergeTablePropertiesMap.get(preNodeId);
@@ -343,7 +343,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		return !OperationType.isDml(op);
 	}
 
-	private void cache(TapdataEvent tapdataEvent) {
+	private void cache(TapdataEvent tapdataEvent, String preTableName) {
 		String op = getOp(tapdataEvent);
 		OperationType operationType = OperationType.fromOp(op);
 		ConstructIMap<Document> hazelcastConstruct = getHazelcastConstruct(getPreNodeId(tapdataEvent));
@@ -354,14 +354,14 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				try {
 					upsertCache(tapdataEvent, mergeProperty, hazelcastConstruct);
 				} catch (Exception e) {
-					throw new RuntimeException(e.getMessage() + ";\nError: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
+					throw new RuntimeException("tableName: " + preTableName + ";\n " + e.getMessage() + ";\nError: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
 				}
 				break;
 			case DELETE:
 				try {
 					deleteCache(tapdataEvent, mergeProperty, hazelcastConstruct);
 				} catch (Exception e) {
-					throw new RuntimeException(e.getMessage() + ";\nError: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+					throw new RuntimeException("tableName: " + preTableName + ";\n " + e.getMessage() + ";\nError: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
 				}
 				break;
 			default:
