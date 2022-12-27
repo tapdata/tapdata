@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
@@ -22,16 +21,12 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.classification.dto.ClassificationDto;
 import com.tapdata.tm.classification.service.ClassificationService;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.DataSourceEnum;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
@@ -52,9 +47,6 @@ import com.tapdata.tm.libSupported.repository.LibSupportedsRepository;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.typemappings.constant.TypeMappingDirection;
-import com.tapdata.tm.typemappings.entity.TypeMappingsEntity;
-import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
@@ -62,6 +54,9 @@ import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.typemappings.constant.TypeMappingDirection;
+import com.tapdata.tm.typemappings.entity.TypeMappingsEntity;
+import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -72,7 +67,6 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -94,10 +88,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URL;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
@@ -1808,12 +1800,12 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	}
 
 	public Long countTaskByConnectionId(String connectionId, UserDetail userDetail) {
-		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true));
+		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(false));
 		query.fields().include("_id", "name", "syncType");
 		return taskService.count(query, userDetail);
 	}
 	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, UserDetail userDetail) {
-		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true));
+		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(false));
 		query.fields().include("_id", "name", "syncType");
 		query.limit(limit);
 		query.with(Sort.by(Sort.Direction.ASC, "_id"));
