@@ -897,7 +897,7 @@ public class RestTemplateOperator {
 		logger.error("Request {} fail, error code {}, error message {}, request id {}",
 				uri, responseBody.getCode(), responseBody.getMsg(), responseBody.getReqId());
 
-		if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument")) {
+		if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument", "Transition.Not.Supported")) {
 			throw new RestDoNotRetryException(uri, method, param, responseBody);
 		} else if ("110403".equals(responseBody.getCode())) {
 			throw new RestAuthException(uri, method, param, responseBody);
