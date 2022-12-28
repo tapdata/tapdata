@@ -1,13 +1,13 @@
 package io.tapdata.quickapi.server;
 
-import io.tapdata.pdk.apis.javascript.core.emun.TapApiTag;
+import io.tapdata.common.support.core.emun.TapApiTag;
 import io.tapdata.common.APIFactoryImpl;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.javascript.APIFactory;
-import io.tapdata.pdk.apis.javascript.APIInvoker;
-import io.tapdata.pdk.apis.javascript.entitys.APIResponse;
-import io.tapdata.pdk.apis.javascript.entitys.APIEntity;
+import io.tapdata.common.support.APIFactory;
+import io.tapdata.common.support.APIInvoker;
+import io.tapdata.common.support.entitys.APIResponse;
+import io.tapdata.common.support.entitys.APIEntity;
 import io.tapdata.quickapi.server.enums.QuickApiTestItem;
 
 import java.util.List;

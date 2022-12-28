@@ -4,9 +4,9 @@ import io.tapdata.common.postman.entity.ApiMap;
 import io.tapdata.common.postman.entity.params.Api;
 import io.tapdata.common.postman.enums.PostParam;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.pdk.apis.javascript.APIInvoker;
-import io.tapdata.pdk.apis.javascript.core.emun.TapApiTag;
-import io.tapdata.pdk.apis.javascript.entitys.APIResponse;
+import io.tapdata.common.support.APIInvoker;
+import io.tapdata.common.support.core.emun.TapApiTag;
+import io.tapdata.common.support.entitys.APIResponse;
 
 import java.util.HashMap;
 import java.util.List;

@@ -1,4 +1,4 @@
-package io.tapdata.pdk.apis.javascript.comom;
+package io.tapdata.common.support.comom;
 
 public class APIIterateError {
     public static APIIterateError error(){

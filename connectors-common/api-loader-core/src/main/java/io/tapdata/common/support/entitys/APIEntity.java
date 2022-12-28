@@ -1,4 +1,4 @@
-package io.tapdata.pdk.apis.javascript.entitys;
+package io.tapdata.common.support.entitys;
 
 public class APIEntity {
     String name;

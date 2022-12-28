@@ -1,4 +1,4 @@
-package io.tapdata.pdk.apis.javascript;
+package io.tapdata.common.support;
 
 import java.util.Map;
 

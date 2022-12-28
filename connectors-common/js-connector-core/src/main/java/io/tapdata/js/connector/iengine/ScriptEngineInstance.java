@@ -29,17 +29,18 @@ public class ScriptEngineInstance {
     }
 
     private void scriptInstance(){
+        this.script = LoadJavaScripter.loader("", JS_FLOODER);
+    }
+    public LoadJavaScripter script(){
+        return this.script;
+    }
+    public void loadScript(){
         try {
             ClassLoader classLoader = JSConnector.class.getClassLoader();
             Enumeration<URL> resources = classLoader.getResources(JS_FLOODER+"/");
-            this.script = LoadJavaScripter.loader("", JS_FLOODER);
-            //this.script = LoadJavaScripter.loader(jarFilePath, flooder);
             this.script.load(resources);
         }catch (Exception ignored){
 
         }
-    }
-    public LoadJavaScripter script(){
-        return this.script;
     }
 }

@@ -1,4 +1,4 @@
-package io.tapdata.pdk.apis.javascript.core;
+package io.tapdata.common.support.core;
 
 import io.tapdata.entity.logger.TapLogger;
 

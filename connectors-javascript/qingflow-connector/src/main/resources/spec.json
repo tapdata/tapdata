@@ -14,5 +14,47 @@
     },
     "connection": {
     }
+  },
+  "dataTypes": {
+    "String": {
+      "to" : "TapString",
+      "byte" : "1m"
+    },
+    "Number": {
+      "to" : "TapNumber",
+      "value" : [-1.7976931348623157E+38,1.7976931348623157E+38]
+    },
+    "Boolean": {
+      "to" : "TapBoolean"
+    },
+    "Null": {
+      "to" : "TapRaw",
+      "value" : null
+    },
+    "Undefined": {
+      "to" : "TapRaw",
+      "value" : null
+    },
+    "Symbol": {
+      "to": "TapRaw"
+    },
+    "Object": {
+      "to": "TapMap"
+    },
+    "Array": {
+      "to" : "TapArray"
+    },
+    "Function": {
+      "to": "TapMap"
+    },
+    "RegExp": {
+      "to": "TapString",
+      "byte" : 1024
+    },
+    "Date": {
+      "to": "TapDate",
+      "range":[ "0001-01-01 00:00:00" , "9999-12-31 12:59:59"],
+      "pattern": "yyyy-MM-dd HH:mm:ss"
+    }
   }
  }

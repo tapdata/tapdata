@@ -16,15 +16,14 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.javascript.APIInvoker;
-import io.tapdata.pdk.apis.javascript.APIIterateInterceptor;
-import io.tapdata.pdk.apis.javascript.APIResponseInterceptor;
-import io.tapdata.pdk.apis.javascript.comom.APIDocument;
-import io.tapdata.pdk.apis.javascript.comom.APIIterateError;
-import io.tapdata.pdk.apis.javascript.core.annotation.ApiType;
-import io.tapdata.pdk.apis.javascript.core.emun.TapApiTag;
-import io.tapdata.pdk.apis.javascript.entitys.APIEntity;
-import io.tapdata.pdk.apis.javascript.entitys.APIResponse;
+import io.tapdata.common.support.APIInvoker;
+import io.tapdata.common.support.APIIterateInterceptor;
+import io.tapdata.common.support.APIResponseInterceptor;
+import io.tapdata.common.support.comom.APIDocument;
+import io.tapdata.common.support.comom.APIIterateError;
+import io.tapdata.common.support.core.emun.TapApiTag;
+import io.tapdata.common.support.entitys.APIEntity;
+import io.tapdata.common.support.entitys.APIResponse;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,7 +32,6 @@ import java.util.stream.Collectors;
 
 import static io.tapdata.base.ConnectorBase.fromJson;
 
-@ApiType
 public class PostManAPIInvoker
         implements APIDocument<APIInvoker>, APIInvoker{
     private static final String TAG = PostManAPIInvoker.class.getSimpleName();
@@ -202,8 +200,10 @@ public class PostManAPIInvoker
         if (offset instanceof Map){
             param.putAll((Map<String, Object>) offset);
         }
-        APIResponse invoke = this.invoke(urlOrName, method, param, true);
-        Map<String, Object> result = invoke.result();
-        interceptor.iterate(result,offset, APIIterateError.error());
+        Map<String, Object> result ;
+        do{
+            APIResponse invoke = this.invoke(urlOrName, method, param, true);
+            result = invoke.result();
+        }while (interceptor.iterate(result, offset, APIIterateError.error()));
     }
 }

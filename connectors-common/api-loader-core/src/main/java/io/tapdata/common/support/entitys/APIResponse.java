@@ -1,4 +1,4 @@
-package io.tapdata.pdk.apis.javascript.entitys;
+package io.tapdata.common.support.entitys;
 
 import java.util.Map;
 

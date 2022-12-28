@@ -3,10 +3,9 @@ package io.tapdata.js.connector.server.sender;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.js.connector.base.Core;
 import io.tapdata.js.connector.base.ScriptCore;
-import io.tapdata.pdk.apis.javascript.APISender;
+import io.tapdata.common.support.APISender;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public class StreamReadSender implements APISender {
@@ -18,11 +17,12 @@ public class StreamReadSender implements APISender {
         return this;
     }
     @Override
-    public void send(List<Object> data, boolean hasNext, Object offsetState) {
+    public boolean send(List<Object> data, boolean hasNext, Object offsetState) {
         if(Objects.isNull(core)){
             TapLogger.warn(TAG,"ScriptCore can not be null or not be empty.");
-            return;
+            return false;
         }
         core.push(data, Core.MESSAGE_OPERATION_INSERT,offsetState);
+        return hasNext;
     }
 }

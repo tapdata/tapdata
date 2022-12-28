@@ -1,6 +1,6 @@
 package io.tapdata.common.postman;
 
-import io.tapdata.pdk.apis.javascript.comom.TapApiBase;
+import io.tapdata.common.support.comom.TapApiBase;
 import io.tapdata.common.postman.entity.ApiEvent;
 import io.tapdata.common.postman.entity.ApiInfo;
 import io.tapdata.common.postman.entity.ApiMap;

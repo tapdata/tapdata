@@ -2,7 +2,7 @@ package io.tapdata.common.postman.pageStage;
 
 import io.tapdata.common.postman.entity.ApiMap;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.pdk.apis.javascript.APIInvoker;
+import io.tapdata.common.support.APIInvoker;
 
 import java.util.List;
 import java.util.Map;

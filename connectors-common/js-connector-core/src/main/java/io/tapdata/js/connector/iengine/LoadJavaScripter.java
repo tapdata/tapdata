@@ -1,21 +1,15 @@
 package io.tapdata.js.connector.iengine;
 
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.script.ScriptFactory;
-import io.tapdata.entity.script.ScriptOptions;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.js.connector.enums.Constants;
-import io.tapdata.js.utils.ScriptUtil;
-import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-import io.tapdata.pdk.apis.javascript.core.ConnectorLog;
-import jdk.nashorn.api.scripting.ScriptObjectMirror;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarFile;
@@ -23,6 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 
+import static io.tapdata.base.ConnectorBase.fromJson;
 import static io.tapdata.base.ConnectorBase.toJson;
 
 
@@ -53,20 +48,22 @@ public class LoadJavaScripter {
 
     public static LoadJavaScripter loader(String jarFilePath,String flooder){
         LoadJavaScripter loadJavaScripter = new LoadJavaScripter();
-        return loadJavaScripter.params(jarFilePath,flooder);
+        return loadJavaScripter.params(jarFilePath,flooder).init();
     }
-
+    public LoadJavaScripter init(){
+        ScriptEngineManager engineManager = new ScriptEngineManager();
+        this.scriptEngine = engineManager.getEngineByName("javascript");
+//        this.scriptEngine = new ConnectorScriptEngine(null);
+//        ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class);
+//        this.scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().customEngine(ScriptFactory.TYPE_JAVASCRIPT, ConnectorScriptEngine.class));
+        return this;
+    }
     public ScriptEngine load(Enumeration<URL> resources){
         List<URL> list = new ArrayList<>();
         while (resources.hasMoreElements()){
             list.add(resources.nextElement());
         }
         try {
-            ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class);
-            this.scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().customEngine(ScriptFactory.TYPE_JAVASCRIPT, ConnectorScriptEngine.class));
-
-//            ScriptEngineManager engineManager = new ScriptEngineManager();
-//            this.scriptEngine = engineManager.getEngineByName("javascript");
             for (URL url : list) {
                 List<Map.Entry<InputStream,File>> files = javaScriptFiles(url);
                 for (Map.Entry<InputStream,File> file : files) {
@@ -75,6 +72,7 @@ public class LoadJavaScripter {
                     this.scriptEngine.eval("load('" + path + "');");
                 }
             }
+            this.getSupportFunctions();
             return this.scriptEngine;
         }catch (Exception error){
             throw new CoreException("Error java script code, message: " + error.getMessage());
@@ -94,7 +92,7 @@ public class LoadJavaScripter {
                 File file = entry.getValue();
                 if (this.fileIsConnectorJs(file)){
                     connectorFile = entry;
-                    this.getSupportFunctions(entry.getKey());
+                    //this.getSupportFunctions(entry.getKey());
                 }else {
                     fileList.add(entry);
                 }
@@ -110,26 +108,19 @@ public class LoadJavaScripter {
     }
 
     //获取connector.js内实现了的方法
-    private void getSupportFunctions(InputStream connectorJsStream) throws IOException {
-        Reader reader = null;
-        Writer writer = new StringWriter();
-        char[] buffer = new char[1024];
+    private void getSupportFunctions() {
         try {
-            reader = new BufferedReader(new InputStreamReader(connectorJsStream, StandardCharsets.UTF_8));
-            int n;
-            while ((n = reader.read(buffer)) != -1) {
-                writer.write(buffer, 0, n);
-            }
+            this.scriptEngine.eval("load('connectors-common/js-connector-core/src/main/java/io/tapdata/js/utils/evals.js');");
+            Object functionGet = this.invoker("functionGet");
+            Map<String,Object> functionList = (Map<String,Object>) fromJson(String.valueOf(functionGet));
+            functionList.entrySet().stream().filter(Objects::nonNull).forEach(fun->{
+                String funName = String.valueOf(fun.getValue());
+                this.supportFunctions.put(funName,funName);
+            });
+            this.supportFunctions = Collections.unmodifiableMap(this.supportFunctions);
         }catch (Exception ignored){
-        } finally {
-            if(Objects.nonNull(reader)){
-                reader.close();
-                writer.close();
-                connectorJsStream.close();
-            }
+
         }
-        String javaScript = writer.toString();
-        this.supportFunctions = ScriptUtil.keepScriptToMap(javaScript);
     }
     // var|let|const ... = function ...(){...}
     // (var|let|const)([ ]{1,n})(.*?)([ ]+)(=)([ ]+)(function[^\]{1,n}[ |\\n]+\\{[^\]+})
@@ -186,7 +177,7 @@ public class LoadJavaScripter {
         Invocable invocable = (Invocable) this.scriptEngine;
         try {
             Object invoke = invocable.invokeFunction(functionName, params);
-            if (invoke instanceof ScriptObjectMirror){
+            if (invoke instanceof Map || invoke instanceof Collection){
                 return toJson(invoke);
             }
             return invoke;
@@ -196,41 +187,21 @@ public class LoadJavaScripter {
         return null;
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public static void streamRead(List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
-        ScriptEngineManager engineManager = new ScriptEngineManager();
-        ScriptEngine scriptEngine = engineManager.getEngineByName("nashorn");
-        scriptEngine.eval("load('D:\\GavinData\\kitSpace\\tapdata\\plugin-kit\\tapdata-modules\\api-loader-module\\src\\main\\java\\io\\tapdata\\api\\apiJs\\connector.js');");
-        //scriptEngine.put("core", scriptCore);
-        //scriptEngine.put("log", new CustomLog());
-        AtomicReference<Throwable> scriptException = new AtomicReference<>();
-        Runnable runnable = () -> {
-            Invocable invocable = (Invocable) scriptEngine;
-            try {
-                invocable.invokeFunction("test");
-            } catch (Exception e) {
-                scriptException.set(e);
-            }
-        };
-        new Thread(runnable).start();
-    }
+//    public static void streamRead(List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
+//        ScriptEngineManager engineManager = new ScriptEngineManager();
+//        ScriptEngine scriptEngine = engineManager.getEngineByName("nashorn");
+//        scriptEngine.eval("load('D:\\GavinData\\kitSpace\\tapdata\\plugin-kit\\tapdata-modules\\api-loader-module\\src\\main\\java\\io\\tapdata\\api\\apiJs\\connector.js');");
+//        //scriptEngine.put("core", scriptCore);
+//        //scriptEngine.put("log", new CustomLog());
+//        AtomicReference<Throwable> scriptException = new AtomicReference<>();
+//        Runnable runnable = () -> {
+//            Invocable invocable = (Invocable) scriptEngine;
+//            try {
+//                invocable.invokeFunction("test");
+//            } catch (Exception e) {
+//                scriptException.set(e);
+//            }
+//        };
+//        new Thread(runnable).start();
+//    }
 }

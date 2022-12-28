@@ -1,6 +1,6 @@
 package io.tapdata.common.postman.entity.params;
 
-import io.tapdata.pdk.apis.javascript.core.emun.TapApiTag;
+import io.tapdata.common.support.core.emun.TapApiTag;
 
 import java.util.Objects;
 

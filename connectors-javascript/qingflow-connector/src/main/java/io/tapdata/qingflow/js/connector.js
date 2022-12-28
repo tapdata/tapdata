@@ -1,8 +1,10 @@
+var qingFlowAPI = tapAPI.loadAPI();
 function discover_schema(connectionConfig){
     var a = 10;
     var b = a + 10;
     var c = b++;
     var sum = a + b + c ;
+    tapLog.warn("","");
     //return ['Table1','Table2','Table3'];
     /**
      * return [
@@ -64,7 +66,7 @@ function batch_read(connectionConfig, nodeConfig, offset, table, pageSize, batch
     // });
     return "batch_read";
 }
-function write_record(connectionConfig, nodeConfig, table, records, consumer){
+function write_record(connectionConfig, nodeConfig, table, records){
     return "write_record";
 }
 function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender){
@@ -102,7 +104,7 @@ function table_count(connectionConfig){
 }
 
 function batch_count(connectionConfig,nodeConfig,table){
-    return 3;
+    return 2;
 }
 
 /**@description token过期状态描述，由开发者针对数据源特性进行描述，描述为列表类型，支持多个或关系的描述，每个描述都是且的关系*/

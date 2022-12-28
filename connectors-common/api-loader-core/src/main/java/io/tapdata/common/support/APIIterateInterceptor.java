@@ -1,6 +1,6 @@
-package io.tapdata.pdk.apis.javascript;
+package io.tapdata.common.support;
 
-import io.tapdata.pdk.apis.javascript.comom.APIIterateError;
+import io.tapdata.common.support.comom.APIIterateError;
 
 import java.util.Map;
 

@@ -3,7 +3,6 @@ package io.tapdata.js.connector.server.function.support;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.pdk.apis.javascript.core.ConnectorLog;
 import io.tapdata.js.connector.base.CustomEventMessage;
 import io.tapdata.js.connector.base.ScriptCore;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;

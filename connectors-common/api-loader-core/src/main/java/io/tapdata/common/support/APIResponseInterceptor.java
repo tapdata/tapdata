@@ -1,6 +1,6 @@
-package io.tapdata.pdk.apis.javascript;
+package io.tapdata.common.support;
 
-import io.tapdata.pdk.apis.javascript.entitys.APIResponse;
+import io.tapdata.common.support.entitys.APIResponse;
 
 import java.util.Map;
 

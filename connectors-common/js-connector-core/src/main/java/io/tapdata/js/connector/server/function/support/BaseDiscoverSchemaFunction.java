@@ -117,7 +117,9 @@ public class BaseDiscoverSchemaFunction extends FunctionBase {
                         TapLogger.warn(TAG,String.format("The declared table does not contain any field information. If necessary, please add field information to Table [%s].",tableId));
                     }else {
                         Map<String, Object> columnMap = (Map<String, Object>) fieldsMapObj;
-                        columnMap.entrySet().stream().filter(Objects::nonNull).forEach(column -> tapTable.add(this.field(column,tableId)));
+                        columnMap.entrySet().stream().filter(field ->
+                                Objects.nonNull(field) && Objects.nonNull(field.getKey())
+                        ).forEach(column -> tapTable.add(this.field(column)));
                     }
                     tapTable.setId(tableId);
                     tapTable.setName(tableId);
@@ -135,12 +137,9 @@ public class BaseDiscoverSchemaFunction extends FunctionBase {
         consumer.accept(tables);
     }
 
-    private TapField field(Map.Entry<String,Object> column, String tableId){
+    private TapField field(Map.Entry<String,Object> column){
         TapField field = new TapField();
         String fieldName = column.getKey();
-        if(Objects.isNull(fieldName)){
-            throw new CoreException(String.format("Table [%s]: field name must be not null or not be empty.",tableId));
-        }
         field.setName(fieldName);
         Object fieldInfoObj = column.getValue();
         if (Objects.nonNull(fieldInfoObj)){
@@ -151,13 +150,13 @@ public class BaseDiscoverSchemaFunction extends FunctionBase {
             Object fieldPrimaryKeyObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_PRIMARY_KEY);
             Object fieldAutoIncObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_AUTO_INC);
             Object fieldFieldCommentObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_COMMENT);
-            field.setComment(Objects.isNull(fieldFieldCommentObj)?null:String.valueOf(fieldFieldCommentObj));
+            field.setComment(Objects.isNull(fieldFieldCommentObj)? null:String.valueOf(fieldFieldCommentObj));
             try {
                 field.setAutoInc((Boolean) fieldAutoIncObj);
             }catch (Exception ignored){
             }
-            field.setDataType(Objects.isNull(fieldTypeObj)?null:String.valueOf(fieldTypeObj));
-            field.setDefaultValue(Objects.isNull(fieldDefaultObj)?null:String.valueOf(fieldDefaultObj));
+            field.setDataType(Objects.isNull(fieldTypeObj)? null:String.valueOf(fieldTypeObj));
+            field.setDefaultValue(Objects.isNull(fieldDefaultObj)? null:String.valueOf(fieldDefaultObj));
             try {
                 field.setNullable((Boolean) fieldNullAbleObj);
             }catch (Exception ignored){

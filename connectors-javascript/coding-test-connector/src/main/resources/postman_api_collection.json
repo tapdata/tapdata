@@ -1,0 +1,173 @@
+{
+	"info": {
+		"_postman_id": "aac3cd1c-84d8-4d55-bd15-50ef79b419b9",
+		"name": "TEST",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "TEST_SUB",
+			"item": [
+				{
+					"name": "TAP_TABLE[test](FROM_TO:data.issues)TEST_HTTP",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "A",
+								"value": "SSS",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"param\":\"{{key}}\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "www.baidu.com/{{TEST_SUB}}/:test?from=1&size=20",
+							"host": [
+								"www",
+								"baidu",
+								"com"
+							],
+							"path": [
+								"{{TEST_SUB}}",
+								":test"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "1",
+									"description": "TAP_PAGE_FROM"
+								},
+								{
+									"key": "size",
+									"value": "20",
+									"description": "TAP_PAGE_SIZE"
+								}
+							],
+							"variable": [
+								{
+									"key": "test",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "TAP_TABLE[Issues](PAGE_SIZE_PAGE_INDEX:Response.Data.List)获取事项列表",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "token {{access_token}}",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"Action\": \"DescribeIssueListWithPage\",\r\n    \"ProjectName\": \"tapdata\",\r\n    \"IssueType\": \"ALL\",\r\n    \"PageNumber\": 1,\r\n    \"PageSize\": 20\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}?PageNumber=1&PageSize=500",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"query": [
+								{
+									"key": "PageNumber",
+									"value": "1",
+									"description": "TAP_PAGE_FROM"
+								},
+								{
+									"key": "PageSize",
+									"value": "500",
+									"description": "TAP_PAGE_TO"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "查询事项自定义字段",
+					"request": {
+						"method": "GET",
+						"header": []
+					},
+					"response": []
+				},
+				{
+					"name": "OssAliYUN",
+					"request": {
+						"method": "GET",
+						"header": []
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "TEST_VAR",
+			"value": "1",
+			"type": "default"
+		},
+		{
+			"key": "TEST_SUB",
+			"value": "TEST_SUB"
+		},
+		{
+			"key": "baseUrl",
+			"value": "https://tapdata.coding.net/open-api",
+			"type": "default"
+		},
+		{
+			"key": "access_token",
+			"value": "15024b4fb38a5b9e143786d670005aa36c66e714",
+			"type": "default"
+		},
+		{
+			"key": "ISSUES_PAGE_NUMBER",
+			"value": "5",
+			"type": "default"
+		}
+	]
+}

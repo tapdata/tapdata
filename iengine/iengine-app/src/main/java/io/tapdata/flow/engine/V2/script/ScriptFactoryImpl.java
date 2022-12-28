@@ -48,7 +48,7 @@ public class ScriptFactoryImpl implements ScriptFactory {
                 Class<? extends ScriptEngine> engineClass = scriptOptions.getEngineCustomClass(type);
                 if(engineClass != null) {
                     try {
-                        return engineClass.getConstructor(ScriptOptions.class).newInstance();
+                        return engineClass.getConstructor(ScriptOptions.class).newInstance(scriptOptions);
                     } catch (Throwable e) {
                         throw new CoreException(TapAPIErrorCodes.ERROR_INSTANTIATE_ENGINE_CLASS_FAILED, e, "Instantiate engine class {} failed, {}", engineClass, e.getMessage());
                     }

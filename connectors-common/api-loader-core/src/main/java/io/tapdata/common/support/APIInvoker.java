@@ -1,10 +1,10 @@
-package io.tapdata.pdk.apis.javascript;
+package io.tapdata.common.support;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.javascript.entitys.APIEntity;
-import io.tapdata.pdk.apis.javascript.entitys.APIResponse;
+import io.tapdata.common.support.entitys.APIEntity;
+import io.tapdata.common.support.entitys.APIResponse;
 
 import java.util.List;
 import java.util.Map;

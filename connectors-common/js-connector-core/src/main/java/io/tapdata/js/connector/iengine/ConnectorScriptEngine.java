@@ -19,6 +19,11 @@ public class ConnectorScriptEngine implements ScriptEngine, Invocable {
         invocable = (Invocable) scriptEngine;
         ScriptEngineInit.create().init(this.scriptEngine);
     }
+    public ConnectorScriptEngine(ScriptEngine scriptEngine) {
+        this.scriptEngine = scriptEngine;
+        invocable = (Invocable) scriptEngine;
+        //ScriptEngineInit.create().init(this.scriptEngine);
+    }
     private String combineFunctions(String script) {
         return buildInScript + "\n" + script;
     }

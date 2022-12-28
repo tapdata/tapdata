@@ -1,5 +1,7 @@
 package io.tapdata.js.utils;
 
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -8,6 +10,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ScriptUtil {
+
     public static void main(String[] args) {
 //        ScriptEngineManager engineManager = new ScriptEngineManager();
 //        ScriptEngine scriptEngine = engineManager.getEngineByName("nashorn");
@@ -20,6 +23,10 @@ public class ScriptUtil {
 //        } catch (NoSuchMethodException e) {
 //            e.printStackTrace();
 //        }
+        String zhusi = "/**\n" +
+                "*    function aTest(){\n" +
+                "*      var a = 0;\n" +
+                "*    }/\n";
         String scriptFun1 = "function \n\n" +
                 " discover_schema (connection) {\n" +
                 "    return [\"Pet\", \"User\"];\n" +
@@ -34,7 +41,7 @@ public class ScriptUtil {
         String scriptFun4 = "var write_record = async function write_record(connection,table,size,consumer) {\n" +
                 "    return [\"Pet\", \"User\"];\n" +
                 "}";
-        Map<String, String> stringStringMap = keepScriptToMap(scriptFun1 + "\n" + scriptFun2 + "\n" + scriptFun3 + "\n" + scriptFun4);
+        Map<String, String> stringStringMap = keepScriptToMap(zhusi + scriptFun1 + "\n" + scriptFun2 + "\n" + scriptFun3 + "\n" + scriptFun4);
         stringStringMap.forEach((key, value) -> System.out.println(key));
     }
     public static final String REGEX1 = "(function[\\s]+)(.*?)([\\s]*\\()(.*?)([\\s|\\n]*\\{)(.*?)(})";
@@ -87,6 +94,30 @@ public class ScriptUtil {
     // (var|let|const)([ ]{1,n})(.*?)([ ]+)(=)([ ]+)(function[^\]{1,n}[ |\\n]+\\{[^\]+})
 
     // function xxx(){...}
-
-
+    public static String fileToString(String filePath) throws IOException {
+        if (Objects.isNull(filePath)) return null;
+        File file = new File(filePath);
+        if (!file.exists()) return null;
+        return fileToString(new FileInputStream(file));
+    }
+    public static String fileToString(InputStream connectorJsStream) throws IOException{
+        Reader reader = null;
+        Writer writer = new StringWriter();
+        char[] buffer = new char[1024];
+        try {
+            reader = new BufferedReader(new InputStreamReader(connectorJsStream, StandardCharsets.UTF_8));
+            int n;
+            while ((n = reader.read(buffer)) != -1) {
+                writer.write(buffer, 0, n);
+            }
+        }catch (Exception ignored){
+        } finally {
+            if(Objects.nonNull(reader)){
+                reader.close();
+                writer.close();
+                connectorJsStream.close();
+            }
+        }
+        return writer.toString();
+    }
 }

@@ -2,8 +2,8 @@ package io.tapdata.common;
 
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.pdk.apis.javascript.APIFactory;
-import io.tapdata.pdk.apis.javascript.APIInvoker;
+import io.tapdata.common.support.APIFactory;
+import io.tapdata.common.support.APIInvoker;
 
 import java.util.Map;
 import java.util.Objects;

@@ -10,6 +10,7 @@
 
 	<modules>
 		<module>qingflow-connector</module>
+		<module>coding-test-connector</module>
 	</modules>
 
 	<properties>

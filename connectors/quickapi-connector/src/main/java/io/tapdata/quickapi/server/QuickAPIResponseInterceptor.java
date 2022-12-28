@@ -1,10 +1,10 @@
 package io.tapdata.quickapi.server;
 
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.pdk.apis.javascript.APIInvoker;
-import io.tapdata.pdk.apis.javascript.entitys.APIResponse;
-import io.tapdata.pdk.apis.javascript.APIResponseInterceptor;
-import io.tapdata.pdk.apis.javascript.entitys.APIEntity;
+import io.tapdata.common.support.APIInvoker;
+import io.tapdata.common.support.entitys.APIResponse;
+import io.tapdata.common.support.APIResponseInterceptor;
+import io.tapdata.common.support.entitys.APIEntity;
 import io.tapdata.quickapi.common.QuickApiConfig;
 
 import java.util.List;

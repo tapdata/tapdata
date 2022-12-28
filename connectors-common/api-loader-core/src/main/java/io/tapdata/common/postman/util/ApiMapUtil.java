@@ -2,7 +2,7 @@ package io.tapdata.common.postman.util;
 
 import io.tapdata.common.postman.entity.ApiMap;
 import io.tapdata.common.postman.entity.params.Api;
-import io.tapdata.pdk.apis.javascript.core.emun.TapApiTag;
+import io.tapdata.common.support.core.emun.TapApiTag;
 
 import java.util.*;
 

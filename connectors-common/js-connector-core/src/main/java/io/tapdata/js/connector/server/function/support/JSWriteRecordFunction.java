@@ -60,12 +60,16 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         AtomicLong delete = new AtomicLong(0);
         List<Map<String, Object>> machiningEvents = machiningEvents(tapRecordEvents,table.getId(), insert, update, delete);
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
-        super.javaScripter.invoker(
-                JSFunctionNames.WriteRecordFunction.jsName(),
-                context.getConfigContext(),
-                context.getNodeConfig(),
-                machiningEvents
-        );
+        try {
+            super.javaScripter.invoker(
+                    JSFunctionNames.WriteRecordFunction.jsName(),
+                    context.getConfigContext(),
+                    context.getNodeConfig(),
+                    machiningEvents
+            );
+        }catch (Exception e){
+            throw new CoreException(String.format("Exceptions occurred when executing writeRecord to write data. The operations of adding %s, modifying %s, and deleting %s failed.",insert.get(),update.get(),delete.get()));
+        }
         writeListResultConsumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
     }
 
