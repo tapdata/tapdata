@@ -36,6 +36,21 @@
 		<module>json-connector</module>
 		<module>tdengine-connector</module>
 		<module>vika-connector</module>
+		<module>quickapi-connector</module>
+		<module>aliyun-adb-mysql-connector</module>
+		<module>aliyun-rds-mysql-connector</module>
+		<module>mysql-pxc-connector</module>
+		<module>tencent-db-mysql-connector</module>
+		<module>polar-db-mysql-connector</module>
+		<module>tencent-db-mongodb-connector</module>
+		<module>aliyun-mongodb-connector</module>
+		<module>aliyun-adb-postgres-connector</module>
+		<module>tencent-db-postgres-connector</module>
+		<module>aliyun-rds-postgres-connector</module>
+		<module>polar-db-postgres-connector</module>
+		<module>aws-rds-mysql-connector</module>
+		<module>tencent-db-mariadb-connector</module>
+		<module>aliyun-rds-mariadb-connector</module>
 	</modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>

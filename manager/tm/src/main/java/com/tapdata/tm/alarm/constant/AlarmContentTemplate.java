@@ -126,4 +126,6 @@ public class AlarmContentTemplate {
      */
     public static final String SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT = "任务[$taskName]所在Agent[{0}]已停止运行，当前已无可用Agent，将会影响任务正常运行，请尽快处理！告警时间：{1}";
 
+    public static final String SYSTEM_FLOW_EGINGE_DOWN_CLOUD = "任务[$taskName]所在Agent[{0}]已停止运行，将会影响任务正常运行，请尽快处理！告警时间：{1}";
+
 }

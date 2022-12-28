@@ -1,12 +1,13 @@
 package io.tapdata.connector.redis;
 
-import com.alibaba.fastjson.JSONObject;
-import io.tapdata.connector.constant.DeployModeEnum;
-import io.tapdata.connector.constant.RedisTestItem;
+import io.tapdata.connector.redis.constant.DeployModeEnum;
+import io.tapdata.connector.redis.constant.RedisTestItem;
 import io.tapdata.constant.DbTestItem;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.util.NetUtil;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
@@ -21,9 +22,9 @@ import static io.tapdata.base.ConnectorBase.testItem;
 public class RedisTest {
 
     private final static String PING_RES = "PONG";
+    private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class); //json util
 
     private final RedisConfig redisConfig;
-
     private final RedisContext redisContext;
 
     public RedisTest(RedisConfig redisConfig) throws Exception {
@@ -40,13 +41,13 @@ public class RedisTest {
             if (deployModeEnum == DeployModeEnum.STANDALONE) {
                 NetUtil.validateHostPortWithSocket(redisConfig.getHost(), redisConfig.getPort());
             } else {
-                final List<LinkedHashMap<String,Integer>> hostPorts = redisConfig.getSentinelAddress();
-                if (CollectionUtils.isEmpty(hostPorts)) {
+                final List<LinkedHashMap<String, Integer>> hostPorts = redisConfig.getSentinelAddress();
+                if (EmptyKit.isEmpty(hostPorts)) {
                     return testItem(RedisTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, "host/port cannot be empty.");
                 }
 
                 StringBuilder failedHostPort = new StringBuilder();
-                for (LinkedHashMap<String,Integer> hostPort : hostPorts) {
+                for (LinkedHashMap<String, Integer> hostPort : hostPorts) {
                     try {
                         NetUtil.validateHostPortWithSocket(String.valueOf(hostPort.get("host")), hostPort.get("port"));
                     } catch (Exception e) {
@@ -54,10 +55,10 @@ public class RedisTest {
                     }
                 }
                 if (StringUtils.isNotBlank(failedHostPort)) {
-                    return testItem(RedisTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, JSONObject.toJSONString(failedHostPort));
+                    return testItem(RedisTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, jsonParser.toJson(failedHostPort));
                 }
             }
-        }catch (IOException e) {
+        } catch (IOException e) {
             return testItem(DbTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, e.getMessage());
         }
         return testItem(RedisTestItem.HOST_PORT.getContent(), TestItem.RESULT_SUCCESSFULLY);
@@ -80,7 +81,5 @@ public class RedisTest {
         } catch (Exception ignored) {
         }
     }
-
-
 
 }

@@ -26,11 +26,18 @@ public class AnyTimeToDateTime {
         classHandlers.register(ZonedDateTime.class, DateTime::new);
     }
 
+    private static Object specialTypeHandler(Object obj) {
+        if(obj instanceof Number)
+            obj = ((Number) obj).longValue();
+        return obj;
+    }
+
     public static DateTime toDateTime(Object obj) {
-        return (DateTime) classHandlers.handle(obj);
+        return (DateTime) classHandlers.handle(specialTypeHandler(obj));
     }
 
     public static DateTime toDateTime(Object obj, Integer fraction) {
+        obj = specialTypeHandler(obj);
         if(fraction != null && obj instanceof Long) {
             return new DateTime((Long) obj, fraction);
         } else {

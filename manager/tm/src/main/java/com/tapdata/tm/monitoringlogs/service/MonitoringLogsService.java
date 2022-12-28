@@ -18,6 +18,7 @@ import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.repository.MonitoringLogsRepository;
 import com.tapdata.tm.monitoringlogs.vo.MonitoringLogCountVo;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
+import com.tapdata.tm.statemachine.enums.TaskState;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
@@ -105,33 +106,26 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             return null;
         }
 
-        TaskDto taskDto;
-        String type = param.getType();
-        if ("monitor".equals(type)) {
-            taskDto = taskService.findById(objectId);
-        } else if ("testRun".equals(type)) {
-            taskDto = taskService.findOne(Query.query(Criteria.where("testTaskId").is(taskId)));
-        } else {
-            return null;
-        }
-
         Criteria criteria = Criteria.where("taskId").is(taskId);
         if (StringUtils.isNotBlank(param.getTaskRecordId())) {
             criteria.and("taskRecordId").is(param.getTaskRecordId());
         }
 
-        if (!param.isStartEndValid()) {
-            log.error("Invalid value for start or end param:{}", JSON.toJSONString(param));
-            return new Page<>(0, new ArrayList<>());
-        }
-
         Long start = param.getStart();
 
-        // monitor log save will after task stopTime 5s, so add 10s;
-        Long end = param.getEnd();
-        end += 10000L;
-
-        criteria.and("timestamp").gte(start).lt(end);
+        String type = param.getType();
+        if ("monitor".equals(type)) {
+            if (!param.isStartEndValid()) {
+                log.error("Invalid value for start or end param:{}", JSON.toJSONString(param));
+                return new Page<>(0, new ArrayList<>());
+            }
+            // monitor log save will after task stopTime 5s, so add 10s;
+            Long end = param.getEnd();
+            end += 10000L;
+            criteria.and("timestamp").gte(start).lt(end);
+        } else if ("testRun".equals(type)) {
+            criteria.and("timestamp").gte(start);
+        }
 
         if (StringUtils.isNotEmpty(param.getNodeId())) {
             criteria.and("nodeId").is(param.getNodeId());
@@ -149,7 +143,6 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                     new Criteria("logTags").elemMatch(new Criteria("$regex").is(search))
             );
         }
-
 
         // log level filter
         List<String> levels = param.getLevels();
@@ -274,10 +267,18 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                 .timestamp(System.currentTimeMillis())
                 .level("INFO")
         ;
+        String message;
         //在什么时间(时间戳), 操作人(admin), 对任务执行了什么操作(启动任务), 任务从 待启动 变为 调度中 / 启动中, 时间花费多少(100ms)
-        String template = "{0} operator[{1}] task result[{2}] change status {3} to {4}, cost {5}ms";
-        String message = MessageFormat.format(template, user.getUsername(), event.getName(), stateMachineResult.getCode(),
-                stateMachineResult.getBefore(), stateMachineResult.getAfter(), cost);
+        if (TaskState.STOPPED.getName().equals(stateMachineResult.getAfter())) {
+            String template = "{0} operator[{1}] task result[{2}] change status {3} to {4}, cost {5}ms, agentId: {6}";
+            message = MessageFormat.format(template, user.getUsername(), event.getName(), stateMachineResult.getCode(),
+                    stateMachineResult.getBefore(), stateMachineResult.getAfter(), cost, taskDto.getAgentId());
+        } else {
+            String template = "{0} operator[{1}] task result[{2}] change status {3} to {4}, cost {5}ms";
+            message = MessageFormat.format(template, user.getUsername(), event.getName(), stateMachineResult.getCode(),
+                    stateMachineResult.getBefore(), stateMachineResult.getAfter(), cost);
+        }
+
         save(builder.message(message).build(), user);
     }
 
@@ -296,25 +297,27 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         save(builder.build(), user);
     }
 
-    public void startTaskErrorLog(TaskDto taskDto, UserDetail user, Exception e) {
+    public void startTaskErrorLog(TaskDto taskDto, UserDetail user, Object e, Level level) {
         MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
         builder.taskId(taskDto.getId().toHexString())
                 .taskName(taskDto.getName())
                 .taskRecordId(taskDto.getTaskRecordId())
                 .date(DateUtil.date())
                 .timestamp(System.currentTimeMillis())
-                .level("ERROR")
+                .level(level.name())
         ;
         String msg;
         if (e instanceof BizException) {
             msg = MessageUtil.getMessage(((BizException) e).getErrorCode());
+        } else if (e instanceof Exception) {
+            msg = ((Exception) e).getMessage();
+        } else if (e instanceof String) {
+            msg = (String) e;
         } else {
-            msg = e.getMessage();
+            msg = e.toString();
         }
 
-        String message = "task start error :"  + msg;
-
-        save(builder.message(message).build(), user);
+        save(builder.message(msg).build(), user);
     }
 
     public void agentAssignMonitoringLog(TaskDto taskDto, String assigned, Integer available, UserDetail user, Date now) {

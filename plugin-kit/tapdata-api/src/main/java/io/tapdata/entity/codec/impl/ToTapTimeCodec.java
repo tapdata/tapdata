@@ -24,8 +24,8 @@ public class ToTapTimeCodec implements ToTapValueCodec<TapTimeValue> {
         } else if (value instanceof Long) {
             long val = (Long) value;
             DateTime dateTime = new DateTime();
-            dateTime.setNano((int) ((val % 1000000) * 1000));
-            dateTime.setSeconds(val = val/1000000);
+            dateTime.setNano((int) ((val % 1000) * 1000000));
+            dateTime.setSeconds(val = val/1000);
             TapTimeValue dateTimeValue = new TapTimeValue(dateTime);
 
             boolean negative = val < 0;

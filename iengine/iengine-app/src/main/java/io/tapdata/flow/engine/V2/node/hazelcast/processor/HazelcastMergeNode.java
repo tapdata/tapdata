@@ -30,6 +30,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -103,7 +104,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			preTableName = preNodeId;
 		}
 		if (needCache(tapdataEvent)) {
-			cache(tapdataEvent);
+			cache(tapdataEvent, preTableName);
 		}
 		MergeInfo mergeInfo = new MergeInfo();
 		MergeTableProperties currentMergeTableProperty = this.mergeTablePropertiesMap.get(preNodeId);
@@ -342,7 +343,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		return !OperationType.isDml(op);
 	}
 
-	private void cache(TapdataEvent tapdataEvent) {
+	private void cache(TapdataEvent tapdataEvent, String preTableName) {
 		String op = getOp(tapdataEvent);
 		OperationType operationType = OperationType.fromOp(op);
 		ConstructIMap<Document> hazelcastConstruct = getHazelcastConstruct(getPreNodeId(tapdataEvent));
@@ -353,14 +354,14 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				try {
 					upsertCache(tapdataEvent, mergeProperty, hazelcastConstruct);
 				} catch (Exception e) {
-					throw new RuntimeException(e.getMessage() + ";\nError: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
+					throw new RuntimeException("tableName: " + preTableName + ";\n " + e.getMessage() + ";\nError: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
 				}
 				break;
 			case DELETE:
 				try {
 					deleteCache(tapdataEvent, mergeProperty, hazelcastConstruct);
 				} catch (Exception e) {
-					throw new RuntimeException(e.getMessage() + ";\nError: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+					throw new RuntimeException("tableName: " + preTableName + ";\n " + e.getMessage() + ";\nError: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
 				}
 				break;
 			default:
@@ -450,7 +451,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			}
 			values.add(String.valueOf(value));
 		}
-		return MD5Util.crypt(String.join("_", values), false);
+		return Base64.getEncoder().encodeToString(String.join("_", values).getBytes(StandardCharsets.UTF_8));
 	}
 
 	private String getJoinValueKeyByTarget(Map<String, Object> data, MergeTableProperties mergeProperty, MergeTableProperties lastMergeProperty) {
@@ -475,7 +476,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			}
 			values.add(String.valueOf(value));
 		}
-		return String.join("_", values);
+		return Base64.getEncoder().encodeToString(String.join("_", values).getBytes(StandardCharsets.UTF_8));
 	}
 
 	private List<String> getJoinKeys(List<Map<String, String>> joinKeys, JoinConditionType joinConditionType) {

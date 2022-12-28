@@ -4,13 +4,13 @@
 ### **2. 限制说明**
 Tapdata系统当前版本 Redis 仅支持作为目标，支持的数据源的类型为：Oracle、MySQL、MongoDB、PostgreSQL、SQL Server。
 
-|源端|目标端|支持情况|
-|:-----------:|:-----------:|:-----------:|
-Oracle| Redis |支持
-MySQL| Redis |支持
-MongoDB| Redis |支持
-PostgreSQL| Redis |支持
-SQL Server | Redis |支持
+|     源端     |  目标端  | 支持情况 |
+|:----------:|:-----:|:----:|
+|   Oracle   | Redis |  支持  |
+|   MySQL    | Redis |  支持  |
+|  MongoDB   | Redis |  支持  |
+| PostgreSQL | Redis |  支持  |
+| SQL Server | Redis |  支持  |
 
 ### **3. 支持版本**
 Redis 3.3
@@ -26,3 +26,25 @@ Redis 3.3
 ### **5. 连接测试项**
 - 检测host/IP 和 port
 - 检查账号和密码
+
+### **6. Redis目标数据结构说明**
+首先值的形式主要有Json和Text两种：
+```
+Json是将Record转化为Json串；
+Text会按字段的顺序将对应值用特定的连接符合并起来，如果内容也有该特定字符，会以转义字符将内容括起
+```
+- String
+> 选择 String 类型键值会以平铺的方式，需要输入键的表达式，如：prefix_${_id}_suffix，键对应的值为整条记录。
+- List
+> 选择 List 类型有两种方式：<br>
+> 一、可以整个表记录全部存储为一个键，List的每条值对应一条记录，且允许将第一条设为表头（固定以逗号分隔）；<br>
+> 二、可以将整个表记录按某些字段组成的键表达式分组然后平铺为多个List键值；
+- Hash
+> 选择 Hash 类型有两种方式：<br>
+> 一、可以整个表记录全部存储为一个键，Hash的每个键都按String类型处理；<br>
+> 二、整个表记录全部平铺为多个键值，每个键对应的Hash就是一条记录，每个字段对应各自的值；
+
+最后产品边界说明：<br>
+1、由于Redis存储方式的多样性，如果是多键方式的为了不误删数据不支持清理结构；<br>
+2、如果键的表达式中选择的字段可能对于源的before事件是不包含的，有可能对Update或Delete事件不支持，请谨慎选择键表达式；<br>
+3、最后如果以单键存储要特别注意Redis单键大小限制为512M。
