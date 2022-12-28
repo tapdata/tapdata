@@ -1,15 +1,13 @@
 package com.tapdata.tm.worker.controller;
 
 import com.google.gson.reflect.TypeToken;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
-import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.CheckTaskUsedAgentDto;
 import com.tapdata.tm.worker.dto.WorkerDto;
@@ -49,6 +47,7 @@ public class WorkerController extends BaseController {
     private final UserLogService userLogService;
     private SettingsService settingsService;
     private WorkerService workerService;
+
 
     public WorkerController(WorkerService workerService, UserLogService userLogService, SettingsService settingsService) {
         this.workerService = workerService;
@@ -303,6 +302,7 @@ public class WorkerController extends BaseController {
         }else if (update.containsKey("stopping") && update.getBoolean("stopping")){
             update.put("ping_time", System.currentTimeMillis() - 1000 * 60 * 5);
             operation = com.tapdata.tm.userLog.constant.Operation.STOP;
+
         }
         boolean isTcmRequest = update.containsKey("isTCM") && update.getBoolean("isTCM");
         if (isTcmRequest && operation != null) {
@@ -315,6 +315,9 @@ public class WorkerController extends BaseController {
                     userLogService.addUserLog(
                             Modular.AGENT, operation,
                             userDetail, worker.getTcmInfo().getAgentName());
+                    if(com.tapdata.tm.userLog.constant.Operation.STOP.equals(operation)) {
+                        workerService.sendStopWorkWs(worker.getTcmInfo().getAgentId(), userDetail);
+                    }
                 }
             } catch (Exception e) {
                 // Ignore record agent operation log error
@@ -344,6 +347,8 @@ public class WorkerController extends BaseController {
         countValue.put("count", count);
         return success(countValue);
     }
+
+
 
     /**
      * 进程调用该方法，上报各个进程的数据，ping_time 之类 的

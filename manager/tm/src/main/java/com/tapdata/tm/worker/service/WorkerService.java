@@ -5,12 +5,10 @@ import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.Settings.constant.SettingsEnum;
-import com.tapdata.tm.commons.task.dto.ParentTaskDto;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -18,9 +16,12 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
+import com.tapdata.tm.cluster.dto.UpdataStatusRequest;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
@@ -45,7 +46,6 @@ import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.BsonDocument;
 import org.bson.BsonValue;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -572,5 +572,15 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         return "online";
 
+    }
+
+    public void sendStopWorkWs(String agentId, UserDetail userDetail) {
+        UpdataStatusRequest updataStatusRequest = new UpdataStatusRequest();
+        ClusterStateDto clusterStateDto = clusterStateService.findOne(Query.query(Criteria.where("systemInfo.process_id").
+                is(agentId).and("status").is("running")));
+        updataStatusRequest.setOperation(clusterStateDto.getUuid());
+        updataStatusRequest.setOperation("stop");
+        updataStatusRequest.setServer("backend");
+        clusterStateService.updateStatus(updataStatusRequest, userDetail);
     }
 }
