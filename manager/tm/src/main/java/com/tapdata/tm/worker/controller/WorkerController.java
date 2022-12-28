@@ -316,7 +316,7 @@ public class WorkerController extends BaseController {
                             Modular.AGENT, operation,
                             userDetail, worker.getTcmInfo().getAgentName());
                     if(com.tapdata.tm.userLog.constant.Operation.STOP.equals(operation)) {
-                        workerService.sendStopWorkWs(worker.getTcmInfo().getAgentId(), userDetail);
+                        workerService.sendStopWorkWs(worker.getProcessId(), userDetail);
                     }
                 }
             } catch (Exception e) {

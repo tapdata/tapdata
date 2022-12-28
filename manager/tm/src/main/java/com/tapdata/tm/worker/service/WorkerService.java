@@ -574,10 +574,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     }
 
-    public void sendStopWorkWs(String agentId, UserDetail userDetail) {
+    public void sendStopWorkWs(String processId, UserDetail userDetail) {
         UpdataStatusRequest updataStatusRequest = new UpdataStatusRequest();
         ClusterStateDto clusterStateDto = clusterStateService.findOne(Query.query(Criteria.where("systemInfo.process_id").
-                is(agentId).and("status").is("running")));
+                is(processId).and("status").is("running")));
         updataStatusRequest.setUuid(clusterStateDto.getUuid());
         updataStatusRequest.setOperation("stop");
         updataStatusRequest.setServer("backend");
