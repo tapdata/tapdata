@@ -956,8 +956,9 @@ public class MeasurementServiceV2 {
             }
 
             String fullSyncStatus;
-            if (syncRate.compareTo(BigDecimal.ONE) == 0) {
+            if (syncRate.compareTo(BigDecimal.ONE) >= 0) {
                 fullSyncStatus = "DONE";
+                syncRate = BigDecimal.ONE;
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
                 fullSyncStatus = "NOT_START";
             } else {
