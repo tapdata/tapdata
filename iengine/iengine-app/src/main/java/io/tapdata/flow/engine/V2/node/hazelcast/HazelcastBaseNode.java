@@ -705,7 +705,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected boolean isRunning() {
-		return running.get() && !Thread.currentThread().isInterrupted();
+		return running.get() && !Thread.currentThread().isInterrupted() && isJetJobRunning();
 	}
 
 
