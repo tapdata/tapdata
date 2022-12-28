@@ -2955,8 +2955,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             update(query1, update, user);
         }
 
+        Update update = Update.update("stopRetryTimes", 0);
+        updateById(taskDto.getId(), update, user);
 
-        //sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
+
+        sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
 
         updateTaskRecordStatus(taskDto, pauseStatus, user);
     }
