@@ -43,6 +43,9 @@ public class CopyIntoUtils {
 
     public CopyIntoUtils(TapConnectionContext tapConnectionContext) {
         this.tapConnectionContext = tapConnectionContext;
+        setConfig(tapConnectionContext);
+    }
+    public static void setConfig(TapConnectionContext tapConnectionContext){
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         user = connectionConfig.getString("user");
         password = connectionConfig.getString("password");
@@ -80,6 +83,50 @@ public class CopyIntoUtils {
         String UNIQUE_KEY_SQL = "{\"sql\": \"copy into " +
                 database + "." +
                 table.getId() + " from @~(\\\"" +
+                uuidName + "\\\") PROPERTIES (\\\"copy.use_delete_sign\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\"" +
+                Constants.FIELD_DELIMITER_DEFAULT + "\\\")\"}";
+
+        RequestBody body = RequestBody.create(mediaType, primaryKeys ? DUPLICATE_KEY_SQL : UNIQUE_KEY_SQL);
+        String uploadLoadUrl = String.format(COMMIT_PATTERN, selectdbHttp);
+        final String authInfo = user + ":" + password;
+        byte[] encoded = Base64.encodeBase64(authInfo.getBytes(StandardCharsets.UTF_8));
+        Request request = new Request.Builder()
+                .url(uploadLoadUrl)
+                .method("POST", body)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Authorization", "Basic " + new String(encoded))
+                .build();
+        Response response = client.newCall(request).execute();
+        response.close();
+        TapLogger.info(TAG, "CopyInto successfully.");
+    }
+
+    public static void uploadTest(byte[] bytes) throws IOException {
+        if (selectdbHttp == null) {
+            throw new RuntimeException("load_url cannot be empty, or the host cannot connect.Please check your configuration.");
+        }
+        String uploadLoadUrl = String.format(UPLOAD_URL_PATTERN, selectdbHttp);
+        String uploadUuidName = UUID.randomUUID().toString() + "_" + System.currentTimeMillis() + ".csv";
+        uuidName = uploadUuidName;
+        String location = getUploadAddress(uploadLoadUrl, uuidName);
+        put(location, uuidName, bytes);
+    }
+
+    public static void copyIntoTest(String table) throws IOException {
+
+        OkHttpClient.Builder builder = new OkHttpClient().newBuilder();
+        builder.connectTimeout(15, TimeUnit.SECONDS);
+        builder.readTimeout(25, TimeUnit.SECONDS);
+        OkHttpClient client = builder.build();
+        MediaType mediaType = MediaType.parse("application/json");
+        String DUPLICATE_KEY_SQL = "{\"sql\": \"copy into " +
+                database + "." +
+                table + " from @~(\\\"" +
+                uuidName + "\\\") PROPERTIES (\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\"" +
+                Constants.FIELD_DELIMITER_DEFAULT + "\\\")\"}";
+        String UNIQUE_KEY_SQL = "{\"sql\": \"copy into " +
+                database + "." +
+                table + " from @~(\\\"" +
                 uuidName + "\\\") PROPERTIES (\\\"copy.use_delete_sign\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\"" +
                 Constants.FIELD_DELIMITER_DEFAULT + "\\\")\"}";
 

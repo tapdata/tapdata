@@ -63,9 +63,7 @@ public class SelectDbConnector extends ConnectorBase {
         this.copyIntoUtils = new CopyIntoUtils(connectorContext);
         this.selectDbContext = new SelectDbContext(connectorContext);
         this.selectDbConfig = new SelectDbConfig().load(connectorContext.getConnectionConfig());
-        this.selectDbTest = new SelectDbTest(selectDbConfig, testItem -> {
-        }).initContext();
-
+        this.selectDbTest = new SelectDbTest(selectDbConfig, testItem -> {}).initContext();
         if (EmptyKit.isNull(selectDbJdbcContext) || selectDbJdbcContext.isFinish()) {
             selectDbJdbcContext = (SelectDbJdbcContext) DataSourcePool.getJdbcContext(selectDbConfig, SelectDbJdbcContext.class, connectorContext.getId());
         }
@@ -267,6 +265,7 @@ public class SelectDbConnector extends ConnectorBase {
         selectDbConfig = new SelectDbConfig().load(connectionConfig);
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(selectDbConfig.getConnectionString());
+        CopyIntoUtils.setConfig(databaseContext);
 
         try (SelectDbTest selectDbTest = new SelectDbTest(selectDbConfig, consumer).initContext()) {
             selectDbTest.testOneByOne();

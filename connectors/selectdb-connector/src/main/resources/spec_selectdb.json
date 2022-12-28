@@ -91,7 +91,7 @@
       "database": "database",
       "user": "user",
       "password": "password",
-      "selectdbHttp": "selectDBHttp"
+      "selectDbHttp": "selectDBHttp"
     },
     "zh_CN": {
       "doc": "docs/selectdb_zh_CN.md",
@@ -100,7 +100,7 @@
       "database": "数据库",
       "user": "账号",
       "password": "密码",
-      "selectdbHttp": "HTTP地址"
+      "selectDbHttp": "HTTP地址"
     },
     "zh_TW": {
       "doc": "docs/selectdb_zh_TW.md",
@@ -109,7 +109,7 @@
       "database": "數據庫",
       "user": "賬號",
       "password": "密碼",
-      "selectdbHttp": "HTTP地址"
+      "selectDbHttp": "HTTP地址"
     }
   },
   "dataTypes": {

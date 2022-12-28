@@ -42,7 +42,7 @@ public class SelectDbConfig extends CommonDbConfig implements Serializable {
 
     public SelectDbConfig load(Map<String, Object> map) {
         SelectDbConfig config = (SelectDbConfig) super.load(map);
-        Object selectDbHttpObj = map.get("selectdbHttp");
+        Object selectDbHttpObj = map.get("selectDbHttp");
         return config.selectDbHttp(Objects.nonNull(selectDbHttpObj)?String.valueOf(selectDbHttpObj):"");
     }
 
