@@ -2956,7 +2956,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
 
-        //sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
+        sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
 
         updateTaskRecordStatus(taskDto, pauseStatus, user);
     }
