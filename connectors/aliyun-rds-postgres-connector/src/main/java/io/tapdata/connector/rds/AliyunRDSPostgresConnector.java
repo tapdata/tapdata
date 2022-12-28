@@ -8,7 +8,7 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
  * @Description
  * @create 2022-12-12 15:18
  **/
-@TapConnectorClass("aliyun-adb-postgres-spec.json")
-public class AliyunADBPostgresConnector extends PostgresConnector {
+@TapConnectorClass("aliyun-rds-postgres-spec.json")
+public class AliyunRDSPostgresConnector extends PostgresConnector {
 
 }

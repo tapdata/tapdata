@@ -1,9 +1,9 @@
 {
   "properties": {
-    "name": "Aliyun ADB PostgreSQL",
-    "icon": "icons/aliyun_adb_postgres.png",
+    "name": "PolarDB PostgreSQL",
+    "icon": "icons/polar_db_postgres.png",
     "doc" : "${doc}",
-    "id": "aliyun-adb-postgres"
+    "id": "polar-db-postgres"
   },
   "configOptions": {
     "capabilities":[
@@ -242,7 +242,7 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "docs/aliyun_adb_postgres_en_US.md",
+      "doc": "docs/polar_db_postgres_en_US.md",
       "host": "Host",
       "port": "Port",
       "database" : "database",
@@ -254,7 +254,7 @@
       "timezone": "timezone"
     },
     "zh_CN": {
-      "doc": "docs/aliyun_adb_postgres_zh_CN.md",
+      "doc": "docs/polar_db_postgres_zh_CN.md",
       "host": "地址",
       "port": "端口",
       "database" : "数据库",
@@ -266,7 +266,7 @@
       "timezone": "时区"
     },
     "zh_TW": {
-      "doc": "docs/aliyun_adb_postgres_zh_TW.md",
+      "doc": "docs/polar_db_postgres_zh_TW.md",
       "host": "地址",
       "port": "端口",
       "database" : "數據庫",
