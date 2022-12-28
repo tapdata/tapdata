@@ -14,11 +14,11 @@ public interface AsyncParallelWorker extends AsyncWorker {
 	AsyncQueueWorker job(String queueWorkerId, JobContext jobContext, Consumer<AsyncQueueWorker> consumer);
 	AsyncQueueWorker job(JobContext jobContext, Consumer<AsyncQueueWorker> consumer);
 	void setParallelWorkerStateListener(ParallelWorkerStateListener listener);
+	int getState();
 	void stop();
 
 	void start();
 
 	Collection<AsyncQueueWorker> runningQueueWorkers();
-	List<String> completedIds();
 	List<Container<JobContext, AsyncQueueWorker>> pendingQueueWorkers();
 }

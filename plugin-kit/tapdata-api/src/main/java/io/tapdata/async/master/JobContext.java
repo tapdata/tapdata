@@ -54,6 +54,9 @@ public abstract class JobContext {
 		this.asyncJob = asyncJob;
 		return this;
 	}
+	public static JobContext create() {
+		return create(null);
+	}
 	public static JobContext create(Object result) {
 		JobContext jobContext = ClassFactory.create(JobContext.class);
 		if(jobContext == null)

@@ -1,6 +1,6 @@
 package io.tapdata.mongodb;
 
-import io.tapdata.partition.splitter.TypeSplitter;
+import io.tapdata.pdk.apis.partition.splitter.TypeSplitter;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;

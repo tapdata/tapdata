@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 
 import java.util.List;
@@ -10,6 +11,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @author aplomb
  */
 public class ReadPartitionContext {
+	private TapTable table;
+	public ReadPartitionContext table(TapTable table) {
+		this.table = table;
+		return this;
+	}
 	private PDKSourceContext pdkSourceContext;
 
 	public static ReadPartitionContext create() {
@@ -41,5 +47,13 @@ public class ReadPartitionContext {
 
 	public void setPdkSourceContext(PDKSourceContext pdkSourceContext) {
 		this.pdkSourceContext = pdkSourceContext;
+	}
+
+	public TapTable getTable() {
+		return table;
+	}
+
+	public void setTable(TapTable table) {
+		this.table = table;
 	}
 }

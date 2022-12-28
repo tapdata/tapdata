@@ -35,11 +35,13 @@ public class AnyTimeToDateTime {
     }
 
     public static DateTime toDateTime(Object obj) {
-        return (DateTime) classHandlers.handle(specialTypeHandler(obj));
+        obj = specialTypeHandler(obj);
+        if(obj instanceof DateTime)
+            return (DateTime) obj;
+        return (DateTime) classHandlers.handle(obj);
     }
 
     public static DateTime toDateTime(Object obj, Integer fraction) {
-        obj = specialTypeHandler(obj);
         if(fraction != null && obj instanceof Long) {
             return new DateTime((Long) obj, fraction);
         } else {

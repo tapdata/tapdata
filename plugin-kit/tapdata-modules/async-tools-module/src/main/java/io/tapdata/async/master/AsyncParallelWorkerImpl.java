@@ -87,6 +87,11 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 		parallelWorkerStateListener = listener;
 	}
 
+	@Override
+	public int getState() {
+		return state.get();
+	}
+
 	private synchronized boolean changeState(int fromState, int toState, List<Integer> ignoreFromComparePossibleStates, boolean scheduleForLongIdle) {
 		boolean result = false;
 		if(ignoreFromComparePossibleStates == null) {
@@ -193,11 +198,6 @@ public class AsyncParallelWorkerImpl implements AsyncParallelWorker {
 	@Override
 	public Collection<AsyncQueueWorker> runningQueueWorkers() {
 		return runningQueueWorkers.values();
-	}
-
-	@Override
-	public List<String> completedIds() {
-		return null;
 	}
 
 	@Override

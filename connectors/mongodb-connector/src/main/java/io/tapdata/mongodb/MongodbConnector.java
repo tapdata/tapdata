@@ -25,6 +25,7 @@ import io.tapdata.mongodb.reader.MongodbStreamReader;
 import io.tapdata.mongodb.reader.MongodbV4StreamReader;
 import io.tapdata.mongodb.reader.v3.MongodbV3StreamReader;
 import io.tapdata.mongodb.writer.MongodbWriter;
+import io.tapdata.partition.SplitCompleteListener;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -34,10 +35,12 @@ import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionsFunction;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
+import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -583,12 +586,15 @@ public class MongodbConnector extends ConnectorBase {
 		return query;
 	}
 
-	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, Long maxRecordInPartition, List<ReadPartition> existingPartitions, int splitType, Consumer<ReadPartition> consumer) {
-		calculateDatabaseReadPartitions(connectorContext, table, maxRecordInPartition, existingPartitions, consumer)
+	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
+		options.getTypeSplitterMap().registerCustomSplitter(ObjectId.class, new ObjectIdSplitter());
+
+		calculateDatabaseReadPartitions(connectorContext, table, options.getMaxRecordInPartition(), options.getExistingPartitions(), options.getConsumer())
 				.countByPartitionFilter(this::countByPartitionFilter)
 				.queryFieldMinMaxValue(this::queryFieldMinMaxValue)
-				.countIsSlow(splitType != GetReadPartitionsFunction.SPLIT_TYPE_BY_COUNT)
-				.registerCustomSplitter(ObjectId.class, new ObjectIdSplitter())
+				.countIsSlow(options.getSplitType() != GetReadPartitionOptions.SPLIT_TYPE_BY_COUNT)
+				.typeSplitterMap(options.getTypeSplitterMap())
+				.splitCompleteListener(id -> options.getCompletedRunnable().run())
 				.startSplitting();
 	}
 

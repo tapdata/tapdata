@@ -34,7 +34,7 @@ public class AsyncMasterImpl implements AsyncMaster {
 	}
 
 	public AsyncQueueWorker createAsyncQueueWorker(String id) {
-		return createAsyncQueueWorker(id, true);
+		return createAsyncQueueWorker(id, false);
 	}
 
 	@Override
@@ -79,7 +79,7 @@ public class AsyncMasterImpl implements AsyncMaster {
 
 	@Override
 	public AsyncParallelWorker createAsyncParallelWorker(String id, int parallelCount) {
-		return createAsyncParallelWorker(id, parallelCount, true);
+		return createAsyncParallelWorker(id, parallelCount, false);
 	}
 
 	@Override

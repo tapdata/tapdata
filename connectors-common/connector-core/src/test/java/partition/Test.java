@@ -1,18 +1,15 @@
 package partition;
 
 import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.partition.splitter.BooleanSplitter;
-import io.tapdata.partition.splitter.DateTimeSplitter;
-import io.tapdata.partition.splitter.NumberSplitter;
-import io.tapdata.partition.splitter.StringSplitter;
+import io.tapdata.pdk.apis.partition.splitter.BooleanSplitter;
+import io.tapdata.pdk.apis.partition.splitter.DateTimeSplitter;
+import io.tapdata.pdk.apis.partition.splitter.NumberSplitter;
+import io.tapdata.pdk.apis.partition.splitter.StringSplitter;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 
-import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 
 import static io.tapdata.base.ConnectorBase.list;

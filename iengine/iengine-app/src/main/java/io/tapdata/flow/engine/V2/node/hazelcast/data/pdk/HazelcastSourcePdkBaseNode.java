@@ -204,6 +204,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return true;
 	}
 
+	//TODO Aplomb should NOT create stream offset at very beginning.
 	private void initBatchAndStreamOffset(TaskDto taskDto) {
 		if (syncProgress == null) {
 			syncProgress = new SyncProgress();

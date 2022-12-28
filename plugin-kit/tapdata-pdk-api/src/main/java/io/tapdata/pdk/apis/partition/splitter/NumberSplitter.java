@@ -1,9 +1,8 @@
-package io.tapdata.partition.splitter;
+package io.tapdata.pdk.apis.partition.splitter;
 
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
-import io.tapdata.util.NumberUtils;
 
 import java.util.ArrayList;
 import java.util.List;

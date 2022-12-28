@@ -1,4 +1,4 @@
-package io.tapdata.util;
+package io.tapdata.pdk.apis.partition.splitter;
 
 import io.tapdata.entity.error.CoreException;
 

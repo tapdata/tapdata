@@ -19,6 +19,8 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.ReadPartitionHandler;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.TapEventPartitionDispatcher;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
@@ -31,6 +33,7 @@ import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.*;
+import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -45,8 +48,11 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
+import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.sleep;
 
 /**
@@ -66,8 +72,13 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 	private ExecutorService snapshotRowSizeThreadPool;
 	private final AsyncMaster asyncMaster;
 	private AsyncQueueWorker initialSyncWorker;
+	private AsyncParallelWorker tableParallelWorker;
 	private AsyncQueueWorker streamReadWorker;
-	private AsyncParallelWorker partitionsReader;
+
+	private final Map<String, TapEventPartitionDispatcher> tableEventPartitionDispatcher = new ConcurrentHashMap<>();
+
+	private final List<AsyncParallelWorker> pendingStartPartitionsReaders = new ArrayList<>();
+	private final AtomicBoolean streamReadStarted = new AtomicBoolean(false);
 
 	public HazelcastSourcePdkDataNodeEx1(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -95,7 +106,7 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 	public void startSourceRunner() {
 		startAsyncJobs();
 	}
-	private JobContext handleBatchRead(JobContext jobContext) {
+	private JobContext handleBatchReadForTables(JobContext jobContext) {
 		ReadPartitionOptions readPartitionOptions = null;
 		Node<?> node = dataProcessorContext.getNode();
 		if(node instanceof DataParentNode) {
@@ -122,6 +133,15 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 			}
 //			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.RUNNING);
 
+			tableParallelWorker = asyncMaster.createAsyncParallelWorker("Tables_" + node.getId(), 1);
+
+			if(pdkSourceContext.isNeedCDC()) {
+				streamReadWorker = asyncMaster.createAsyncQueueWorker("StreamRead_tableSize_" + pdkSourceContext.getPendingInitialSyncTables().size())
+						.job(this::handleStreamRead)
+						.start(JobContext.create().context(
+								StreamReadContext.create().streamStage(false).tables(pdkSourceContext.getPendingInitialSyncTables())));
+			}
+
 			ReadPartitionOptions finalReadPartitionOptions = readPartitionOptions;
 			jobContext.foreach(pdkSourceContext.getPendingInitialSyncTables(), table -> {
 				if(finalReadPartitionOptions.getSplitType() == ReadPartitionOptions.SPLIT_TYPE_BY_COUNT) {
@@ -143,61 +163,102 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 //				logger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 				obsLogger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 				int eventBatchSize = 100;
-
-				executeDataFuncAspect(
-						GetReadPartitionsFuncAspect.class, () -> new GetReadPartitionsFuncAspect()
-								.connectorContext(getConnectorNode().getConnectorContext())
-								.dataProcessorContext(this.getDataProcessorContext())
-								.splitType(finalReadPartitionOptions.getSplitType())
-								.maxRecordInPartition(finalReadPartitionOptions.getMaxRecordInPartition())
-								.start()
-								.table(tapTable),
-						getReadPartitionsFuncAspect -> PDKInvocationMonitor.invoke(
-								getConnectorNode(), PDKMethod.SOURCE_GET_READ_PARTITIONS,
-								createPdkMethodInvoker().runnable(() ->
-										getReadPartitionsFunction.getReadPartitions(
-												getConnectorNode().getConnectorContext(),
-												tapTable,
-												finalReadPartitionOptions.getMaxRecordInPartition(),
-												null,
-												finalReadPartitionOptions.getSplitType(),
-												(readPartition) -> {
-													if (getReadPartitionsFuncAspect != null)
-														AspectUtils.accept(getReadPartitionsFuncAspect.state(GetReadPartitionsFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), readPartition);
-
-													partitionsReader.job(readPartition.getId(),
-															JobContext.create(null).context(ReadPartitionContext.create().pdkSourceContext(pdkSourceContext).readPartition(readPartition)),
-															asyncQueueWorker -> asyncQueueWorker.
-																	job("Start caching stream data for partition " + readPartition, this::handleStartCachingStreamData).
-																	job("Read partition " + readPartition, this::handleReadPartition).
-																	job("Start sending data from partition " + readPartition, this::handleSendingDataFromPartition).
-																	job("Finished partition " + readPartition, this::handleFinishedPartition));
-												}))
-						));
-
+				tableParallelWorker.job("table#" + table, JobContext.create(null), asyncQueueWorker ->
+						handleReadPartitionsForTable(pdkSourceContext, getReadPartitionsFunction, finalReadPartitionOptions, tapTable));
 				return null;
 			});
+			tableParallelWorker.setParallelWorkerStateListener((id, fromState, toState) -> {
+				if(toState == ParallelWorkerStateListener.STATE_LONG_IDLE) {
+					//All tables should finish initial sync now.
+					//Enter actual streamRead stage.
+				}
+			});
+			tableParallelWorker.start();
 		} else {
 			doSnapshot(pdkSourceContext.getPendingInitialSyncTables());
 		}
 		return null;
 	}
-	private JobContext handleFinishedPartition(JobContext jobContext) {
-		return null;
+
+	private void handleReadPartitionsForTable(PDKSourceContext pdkSourceContext, GetReadPartitionsFunction getReadPartitionsFunction, ReadPartitionOptions finalReadPartitionOptions, TapTable tapTable) {
+		AsyncParallelWorker partitionsReader = asyncMaster.createAsyncParallelWorker("PartitionsReader_" + tapTable.getId(), 8);
+		boolean addedIntoPending = false;
+		if(!streamReadStarted.get()) {
+			synchronized (pendingStartPartitionsReaders) {
+				if(!streamReadStarted.get()) {
+					pendingStartPartitionsReaders.add(partitionsReader);
+					addedIntoPending = true;
+				}
+			}
+		}
+		if(!addedIntoPending)
+			partitionsReader.start();
+		tableEventPartitionDispatcher.putIfAbsent(tapTable.getId(), new TapEventPartitionDispatcher(tapTable));
+		executeDataFuncAspect(
+				GetReadPartitionsFuncAspect.class, () -> new GetReadPartitionsFuncAspect()
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(this.getDataProcessorContext())
+						.splitType(finalReadPartitionOptions.getSplitType())
+						.maxRecordInPartition(finalReadPartitionOptions.getMaxRecordInPartition())
+						.start()
+						.table(tapTable),
+				getReadPartitionsFuncAspect -> PDKInvocationMonitor.invoke(
+						getConnectorNode(), PDKMethod.SOURCE_GET_READ_PARTITIONS,
+						createPdkMethodInvoker().runnable(() ->
+						{
+							TypeSplitterMap typeSplitterMap = new TypeSplitterMap();
+							getReadPartitionsFunction.getReadPartitions(
+									getConnectorNode().getConnectorContext(),
+									tapTable,
+									GetReadPartitionOptions.create().maxRecordInPartition(finalReadPartitionOptions.getMaxRecordInPartition())
+											.existingPartitions(null)
+											.splitType(finalReadPartitionOptions.getSplitType())
+											.typeSplitterMap(typeSplitterMap)
+											.consumer((readPartition -> {
+												if (getReadPartitionsFuncAspect != null)
+													AspectUtils.accept(getReadPartitionsFuncAspect.state(GetReadPartitionsFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), readPartition);
+
+												readPartition.typeSplitterMap(typeSplitterMap).table(tapTable);
+												ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(pdkSourceContext, tapTable, readPartition, typeSplitterMap);
+												partitionsReader.job(readPartition.getId(),
+														JobContext.create().context(ReadPartitionContext.create().pdkSourceContext(pdkSourceContext).table(tapTable).readPartition(readPartition)),
+														asyncQueueWorker -> asyncQueueWorker.
+																job("partitionExistOrNot", readPartitionHandler::handlePartitionExistOrNot).
+																job("startCachingStreamData", new AsyncJob() {
+																	@Override
+																	public JobContext run(JobContext jobContext) {
+																		JobContext context = readPartitionHandler.handleStartCachingStreamData(jobContext);
+																		Consumer<List<TapEvent>> consumer = (Consumer<List<TapEvent>>) context.getResult();
+																		if(consumer != null) {
+																			TapEventPartitionDispatcher dispatcher = tableEventPartitionDispatcher.get(tapTable.getId());
+																			if(dispatcher != null) {
+																				dispatcher.register(readPartition, consumer);
+																			}
+																		}
+																		return context;
+																	}
+																}).
+																job("readPartition", readPartitionHandler::handleReadPartition).
+																job("sendingDataFromPartition", readPartitionHandler::handleSendingDataFromPartition).
+																job("finishedPartition", readPartitionHandler::handleFinishedPartition));
+											}))
+											.completedRunnable(() -> {
+												while(!partitionsReader.runningQueueWorkers().isEmpty() || !partitionsReader.pendingQueueWorkers().isEmpty()) {
+													try {
+														Thread.sleep(500L);
+													} catch (InterruptedException e) {
+														throw new RuntimeException(e);
+													}
+												}
+												//partition split done and read partitions done, start entering CDC stage.
+												handleEnterCDCStage(partitionsReader, tapTable);
+											}));
+						})
+				));
 	}
 
-	private JobContext handleSendingDataFromPartition(JobContext jobContext) {
-		return null;
-	}
+	private void handleEnterCDCStage(AsyncParallelWorker partitionsReader, TapTable tapTable) {
 
-	private JobContext handleStartCachingStreamData(JobContext jobContext) {
-		ReadPartitionContext readPartitionContext = jobContext.getContext(ReadPartitionContext.class);
-
-		return null;
-	}
-
-	private JobContext handleReadPartition(JobContext jobContext) {
-		return null;
 	}
 
 
@@ -211,7 +272,7 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 			} else {
 				return jobContext;
 			}
-		}).job("batchRead", this::handleBatchRead, true);
+		}).job("batchRead", this::handleBatchReadForTables, true);
 //		return asyncMaster.createAsyncJobChain().job("need2InitialSync", jobContext -> {
 //			boolean bool =  need2InitialSync(syncProgress);
 //			if(bool) {
@@ -308,12 +369,12 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 				.sourcePdkDataNode(this)
 				.pendingInitialSyncTables(need2InitialSync(syncProgress) ? new ArrayList<>(tapTableMap.keySet()) : null)
 				.needCDC(need2CDC());
-		partitionsReader = asyncMaster.createAsyncParallelWorker("PartitionReader " + getNode().getId(), 8);
 		initialSyncWorker = asyncMaster.createAsyncQueueWorker("InitialSync " + getNode().getId())
 				.job(initialSyncJobChain()).start(JobContext.create(null).context(sourceContext)).setAsyncJobErrorListener(this::handleWorkerError);
 
-		streamReadWorker = asyncMaster.createAsyncQueueWorker("StreamRead " + getNode().getId())
-				.job(streamJobChain()).start(JobContext.create(null).context(sourceContext)).setAsyncJobErrorListener(this::handleWorkerError);
+//		partitionsReader = asyncMaster.createAsyncParallelWorker("PartitionReader " + getNode().getId(), 8);
+//		streamReadWorker = asyncMaster.createAsyncQueueWorker("StreamRead " + getNode().getId())
+//				.job(streamJobChain()).start(JobContext.create(null).context(sourceContext)).setAsyncJobErrorListener(this::handleWorkerError);
 
 //		AsyncQueueWorker loadMoreTablesWorker = asyncMaster.createAsyncQueueWorker("loadMoreTables");
 //		loadMoreTablesWorker.job("loadTables", jobContext -> {
@@ -598,6 +659,7 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
+		StreamReadContext streamReadContext = jobContext.getResult(StreamReadContext.class);
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		ConnectorNode connectorNode = getConnectorNode();
 		if (connectorNode == null) {
@@ -648,7 +710,17 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 //												MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
 												logger.info("Connector start stream read succeed: {}", connectorNode);
 												obsLogger.info("Connector start stream read succeed: {}", connectorNode);
-												partitionsReader.start();
+
+												//start pending partition reader workers as stream read is started.
+												synchronized (pendingStartPartitionsReaders) {
+													if(streamReadStarted.compareAndSet(false, true)) {
+														streamReadStarted.set(true);
+														for(AsyncParallelWorker worker : pendingStartPartitionsReaders) {
+															worker.start();
+														}
+														pendingStartPartitionsReaders.clear();
+													}
+												}
 											}
 										});
 

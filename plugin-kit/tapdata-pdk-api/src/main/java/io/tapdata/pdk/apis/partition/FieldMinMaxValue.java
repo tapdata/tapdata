@@ -1,6 +1,6 @@
 package io.tapdata.pdk.apis.partition;
 
-import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
+import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 
 import java.util.Date;
 
@@ -8,10 +8,7 @@ import java.util.Date;
  * @author aplomb
  */
 public class FieldMinMaxValue {
-	public static final String TYPE_NUMBER = "number"; // long, double, int, short, float, etc.
-	public static final String TYPE_STRING = "string"; // String
-	public static final String TYPE_BOOLEAN = "bool"; // Boolean
-	public static final String TYPE_DATE = "date"; // Date
+
 	private String fieldName;
 	public FieldMinMaxValue fieldName(String fieldName) {
 		this.fieldName = fieldName;
@@ -25,20 +22,7 @@ public class FieldMinMaxValue {
 	public FieldMinMaxValue detectType(Object value) {
 		if(value == null)
 			return this;
-		if(value instanceof Number) {
-			type = TYPE_NUMBER;
-		} else if(value instanceof String) {
-			type = TYPE_STRING;
-		} else if(value instanceof Boolean) {
-			type = TYPE_BOOLEAN;
-		} else {
-			Object dateObj = AnyTimeToDateTime.toDateTime(value);
-			if(dateObj != null) {
-				type = TYPE_DATE;
-			} else {
-				type = value.getClass().getName();
-			}
-		}
+		type = TypeSplitterMap.detectType(value);
 		return this;
 	}
 	private Object min;

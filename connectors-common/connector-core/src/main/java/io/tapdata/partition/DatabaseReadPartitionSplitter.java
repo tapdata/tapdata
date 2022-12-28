@@ -8,13 +8,13 @@ import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.ConnectorErrors;
-import io.tapdata.partition.splitter.*;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryFieldMinMaxValueFunction;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
+import io.tapdata.pdk.apis.partition.splitter.*;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,7 +27,7 @@ import java.util.function.Consumer;
  */
 public class DatabaseReadPartitionSplitter {
 	private static final String TAG = "Split";
-	private final Map<String, TypeSplitter> typeSplitterMap = new ConcurrentHashMap<>();
+	private TypeSplitterMap typeSplitterMap;
 	private String id;
 	public DatabaseReadPartitionSplitter id(String id) {
 		this.id = id;
@@ -42,16 +42,13 @@ public class DatabaseReadPartitionSplitter {
 
 	public DatabaseReadPartitionSplitter() {
 		id = "DatabaseReadPartitionSplitter_" + UUID.randomUUID();
-		typeSplitterMap.put(FieldMinMaxValue.TYPE_BOOLEAN, BooleanSplitter.INSTANCE);
-		typeSplitterMap.put(FieldMinMaxValue.TYPE_DATE, DateTimeSplitter.INSTANCE);
-		typeSplitterMap.put(FieldMinMaxValue.TYPE_NUMBER, NumberSplitter.INSTANCE);
-		typeSplitterMap.put(FieldMinMaxValue.TYPE_STRING, StringSplitter.INSTANCE);
 	}
 
-	public DatabaseReadPartitionSplitter registerCustomSplitter(Class<?> clazz, TypeSplitter typeSplitter) {
-		typeSplitterMap.put(clazz.getName(), typeSplitter);
+	public DatabaseReadPartitionSplitter typeSplitterMap(TypeSplitterMap typeSplitterMap) {
+		this.typeSplitterMap = typeSplitterMap;
 		return this;
 	}
+
 	private int splitPiecesForCountIsSlow = 200;
 	public DatabaseReadPartitionSplitter splitPiecesForCountIsSlow(int splitPiecesForCountIsSlow) {
 		this.splitPiecesForCountIsSlow = splitPiecesForCountIsSlow;
@@ -284,7 +281,7 @@ public class DatabaseReadPartitionSplitter {
 			return null;
 		}
 		String type = fieldMinMaxValue.getType();
-		TypeSplitter typeSplitter = typeSplitterMap.get(type);
+		TypeSplitter<?> typeSplitter = typeSplitterMap.get(type);
 		if(typeSplitter == null)
 			throw new CoreException(ConnectorErrors.MISSING_TYPE_SPLITTER, "Missing type splitter for type {}", type);
 		partitionCollector.state(PartitionCollector.STATE_MIN_MAX);
@@ -323,7 +320,7 @@ public class DatabaseReadPartitionSplitter {
 					}
 
 					String typeForPartition = fieldMinMaxValueForPartition.getType();
-					TypeSplitter typeSplitterForPartition = typeSplitterMap.get(typeForPartition);
+					TypeSplitter<?> typeSplitterForPartition = typeSplitterMap.get(typeForPartition);
 					if(typeSplitterForPartition == null)
 						throw new CoreException(ConnectorErrors.MISSING_TYPE_SPLITTER, "Missing type splitter for type {}", typeForPartition);
 
@@ -423,9 +420,6 @@ public class DatabaseReadPartitionSplitter {
 		return context;
 	}
 
-	public Map<String, TypeSplitter> getTypeSplitterMap() {
-		return typeSplitterMap;
-	}
 
 	public String getId() {
 		return id;

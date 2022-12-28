@@ -2,9 +2,11 @@ package partition;
 
 import io.tapdata.async.master.ParallelWorkerStateListener;
 import io.tapdata.entity.schema.*;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.partition.ReadPartition;
+import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.utils.test.AsyncTestBase;
 import org.junit.jupiter.api.Assertions;
@@ -45,6 +47,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(1, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -86,6 +89,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 		})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(1, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -120,6 +124,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(2, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -159,6 +164,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(2, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -209,6 +215,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(4, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -260,6 +267,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(3, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -300,17 +308,59 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(2, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
-					Assertions.assertNotNull(readPartition);
-					Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey());
-					Assertions.assertEquals("Tue Dec 13 00:08:24 CST 2022", readPartition.getPartitionFilter().getRightBoundary().getValue().toString());
+					$(() -> Assertions.assertNotNull(readPartition));
+					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator()));
+					$(() -> Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey()));
+					$(() -> Assertions.assertEquals("DateTime nano 123000000 seconds 1670861304 timeZone null", readPartition.getPartitionFilter().getRightBoundary().getValue().toString()));
 					ReadPartition readPartition1 = readPartitionList.get(1);
-					Assertions.assertEquals(QueryOperator.GTE, readPartition1.getPartitionFilter().getLeftBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition1.getPartitionFilter().getLeftBoundary().getKey());
-					Assertions.assertEquals("Tue Dec 13 00:08:24 CST 2022", readPartition1.getPartitionFilter().getLeftBoundary().getValue().toString());
+					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition1.getPartitionFilter().getLeftBoundary().getOperator()));
+					$(() -> Assertions.assertEquals("a", readPartition1.getPartitionFilter().getLeftBoundary().getKey()));
+					$(() -> Assertions.assertEquals("DateTime nano 123000000 seconds 1670861304 timeZone null", readPartition1.getPartitionFilter().getLeftBoundary().getValue().toString()));
+					completed();
+				})
+				.queryFieldMinMaxValue(new DateTimeFieldMinMaxHandler(records))
+				.countByPartitionFilter(new DateTimeFieldMinMaxHandler(records))
+				.maxRecordRatio(2)
+				.startSplitting();
+
+		waitCompleted(4);
+	}
+
+	@Test
+	public void testThreeRecordForDateTime1() throws Throwable {
+		TapNodeSpecification nodeSpecification = new TapNodeSpecification();
+		nodeSpecification.setId("test");
+		nodeSpecification.setGroup("group");
+		nodeSpecification.setVersion("1.1");
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
+
+		List<Map<String, Object>> records = new ArrayList<>();
+		records.add(map(entry("a", new DateTime(new Date(1670861303123L)))));
+		records.add(map(entry("a", new DateTime(new Date(1670861305123L)))));
+		records.add(map(entry("a", new DateTime(new Date(1670861306123L)))));
+
+		TestConnector testConnector = new TestConnector();
+		List<ReadPartition> readPartitionList = new ArrayList<>();
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
+					readPartitionList.add(readPartition);
+				})
+				.typeSplitterMap(new TypeSplitterMap())
+				.splitCompleteListener((id) -> {
+					$(() -> Assertions.assertEquals(2, readPartitionList.size()));
+					ReadPartition readPartition = readPartitionList.get(0);
+					$(() -> Assertions.assertNotNull(readPartition));
+					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator()));
+					$(() -> Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey()));
+					$(() -> Assertions.assertEquals("DateTime nano 123000000 seconds 1670861304 timeZone null", readPartition.getPartitionFilter().getRightBoundary().getValue().toString()));
+					ReadPartition readPartition1 = readPartitionList.get(1);
+					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition1.getPartitionFilter().getLeftBoundary().getOperator()));
+					$(() -> Assertions.assertEquals("a", readPartition1.getPartitionFilter().getLeftBoundary().getKey()));
+					$(() -> Assertions.assertEquals("DateTime nano 123000000 seconds 1670861304 timeZone null", readPartition1.getPartitionFilter().getLeftBoundary().getValue().toString()));
 					completed();
 				})
 				.queryFieldMinMaxValue(new DateTimeFieldMinMaxHandler(records))
@@ -344,6 +394,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(6, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -394,6 +445,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(2, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -444,6 +496,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(11, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -490,7 +543,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.maxRecordRatio(2)
 				.startSplitting();
 
-		waitCompleted(4);
+		waitCompleted(411111);
 	}
 
 	@Test
@@ -526,6 +579,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 2L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(6, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -605,6 +659,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 4L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(4, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -675,6 +730,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 4L, null, readPartition -> {
 					readPartitionList.add(readPartition);
 				})
+				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(16, readPartitionList.size()));
 					ReadPartition readPartition = readPartitionList.get(0);
@@ -712,6 +768,6 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.countIsSlow(true)
 				.startSplitting();
 
-		waitCompleted(4);
+		waitCompleted(411111111);
 	}
 }

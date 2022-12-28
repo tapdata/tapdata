@@ -1,4 +1,4 @@
-package io.tapdata.partition.splitter;
+package io.tapdata.pdk.apis.partition.splitter;
 
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;

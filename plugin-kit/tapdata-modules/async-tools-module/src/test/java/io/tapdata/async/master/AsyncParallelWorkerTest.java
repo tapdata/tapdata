@@ -17,7 +17,8 @@ public class AsyncParallelWorkerTest extends AsyncTestBase {
 	@AfterEach
 	public void tearDown() {
 		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		asyncMaster.destroyAsyncParallelWorker("Test");
+		AsyncParallelWorker parallelWorker = asyncMaster.destroyAsyncParallelWorker("Test");
+		Assertions.assertNull(parallelWorker);
 	}
 
 	@Test
@@ -89,4 +90,5 @@ public class AsyncParallelWorkerTest extends AsyncTestBase {
 		}).start();
 		waitCompleted(3);
 	}
+
 }

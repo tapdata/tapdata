@@ -30,6 +30,7 @@ import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
@@ -369,7 +370,15 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 							hazelcastNode = new HazelcastSampleSourcePdkDataNode(processorContext);
 						} else {
-							hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
+							ReadPartitionOptions readPartitionOptions = null;
+							if(node instanceof DataParentNode) {
+								readPartitionOptions = ((DataParentNode<?>) node).getReadPartitionOptions();
+							}
+							if(readPartitionOptions != null && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE) {
+								hazelcastNode = new HazelcastSourcePdkDataNodeEx1(processorContext);
+							} else {
+								hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
+							}
 						}
 					} else {
 						hazelcastNode = new HazelcastTaskSource(

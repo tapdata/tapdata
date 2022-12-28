@@ -15,6 +15,7 @@ import io.tapdata.storage.sequence.TapSequenceStorageImpl;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.rocksdb.CompressionType;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -87,6 +88,7 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 
 	private void handleInitializing(TapKVStorageImpl tapKVStorage, StateMachine<String, TapKVStorageImpl> stateMachine) {
 		final Options options = new Options();
+		options.setCompressionType(CompressionType.ZSTD_COMPRESSION);
 		options.setCreateIfMissing(true);
 		String basePath = FilenameUtils.concat(storageOptions.getRootPath(), "kv_rocksdb/");
 		dbDir = new File(FilenameUtils.concat(basePath, id));
