@@ -24,7 +24,7 @@ public class AgentUpdateSchedule {
     /**
      * @desc 执行扫描，每1分钟执行一次
      */
-    @Scheduled(cron = "0 */1 * * * ?")
+    @Scheduled(cron = "0/5 * * * * ?")
     public void execute() {
         log.debug("清理 clusterOperation");
         clusterOperationService.cleanOperation();
