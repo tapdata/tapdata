@@ -17,6 +17,9 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.concurrent.ConcurrentSkipListMap;
 
+import static io.tapdata.entity.simplify.TapSimplify.entry;
+import static io.tapdata.entity.simplify.TapSimplify.map;
+
 /**
  * @author aplomb
  */
@@ -26,19 +29,14 @@ public class ReadPartition implements Comparable<ReadPartition> {
 		this.partitionIndex = partitionIndex;
 		return this;
 	}
-	private TapTable table;
-	public ReadPartition table(TapTable table) {
-		this.table = table;
-		return this;
-	}
-	private TypeSplitterMap typeSplitterMap;
-	public ReadPartition typeSplitterMap(TypeSplitterMap typeSplitterMap) {
-		this.typeSplitterMap = typeSplitterMap;
-		return this;
-	}
 	private String id;
 	public ReadPartition id(String id) {
 		this.id = id;
+		return this;
+	}
+	private Map<String, Object> partitionValues;
+	public ReadPartition partitionValues(Map<String, Object> partitionValues) {
+		this.partitionValues = partitionValues;
 		return this;
 	}
 	private TapPartitionFilter partitionFilter;
@@ -174,5 +172,8 @@ public class ReadPartition implements Comparable<ReadPartition> {
 		map.put(r1, new Object());
 
 		NavigableSet<ReadPartition> readPartitions = map.keySet();
+
+		ReadPartition readPartition = map.floorKey(ReadPartition.create().partitionValues(map(entry("a", 3), entry("b", 59))));
+
 	}
 }

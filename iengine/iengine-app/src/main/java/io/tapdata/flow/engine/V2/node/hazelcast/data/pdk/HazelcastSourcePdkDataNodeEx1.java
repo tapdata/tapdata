@@ -218,7 +218,7 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 												if (getReadPartitionsFuncAspect != null)
 													AspectUtils.accept(getReadPartitionsFuncAspect.state(GetReadPartitionsFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), readPartition);
 
-												readPartition.typeSplitterMap(typeSplitterMap).table(tapTable);
+												readPartition.partitionIndex(tapTable.partitionIndex());
 												ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(pdkSourceContext, tapTable, readPartition, typeSplitterMap);
 												partitionsReader.job(readPartition.getId(),
 														JobContext.create().context(ReadPartitionContext.create().pdkSourceContext(pdkSourceContext).table(tapTable).readPartition(readPartition)),
