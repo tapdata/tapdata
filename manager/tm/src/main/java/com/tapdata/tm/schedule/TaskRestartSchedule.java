@@ -163,6 +163,7 @@ public class TaskRestartSchedule {
         long heartExpire = 30000L;
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_STOPPING)
+                .and("stopRetryTimes").lt(8)
                 .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
@@ -176,13 +177,9 @@ public class TaskRestartSchedule {
 
         all.forEach(taskDto -> {
             int stopRetryTimes = taskDto.getStopRetryTimes();
-            if (stopRetryTimes > 8) {
-                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
-            } else {
-                taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(),  userMap.get(taskDto.getUserId()), false);
-                Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
-                taskService.updateById(taskDto.getId(), update, userMap.get(taskDto.getUserId()));
-            }
+            taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(),  userMap.get(taskDto.getUserId()), false);
+            Update update = Update.update("stopRetryTimes", stopRetryTimes + 1).set("last_updated", taskDto.getLastUpdAt());
+            taskService.updateById(taskDto.getId(), update, userMap.get(taskDto.getUserId()));
         });
     }
 
