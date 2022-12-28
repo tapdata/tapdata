@@ -1337,6 +1337,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findAllDto(Query.query(criteria), userDetail);
     }
 
+    public List<MetadataInstancesDto> findByTaskId(String taskId, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("taskId").is(taskId);
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
     public List<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto) {
         Page<MetadataInstancesDto> page = findByNodeId(nodeId, fields, user, taskDto, null, 1, 0);
         return page.getItems();
@@ -1386,20 +1394,21 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     // todo 下面逻辑可能会出现问题，相当于copy一份原表名的模型，数据上存在"错误"，加入表A改名B 表B改名A
                     if (node instanceof TableRenameProcessNode) {
                         LinkedHashSet<TableRenameTableInfo> tableNames = ((TableRenameProcessNode) node).getTableNames();
-                        for (TableRenameTableInfo tableName : tableNames) {
-                            MetadataInstancesDto metadataInstancesDto = currentMap.get(tableName.getCurrentTableName());
-                            if (metadataInstancesDto != null) {
-                                MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
-                                MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
-                                BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto1);
-                                BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto2);
-                                metadataInstancesDto1.setOriginalName(tableName.getOriginTableName());
-                                metadataInstancesDto2.setOriginalName(tableName.getPreviousTableName());
-                                all.add(metadataInstancesDto1);
-                                all.add(metadataInstancesDto2);
+                        if (CollectionUtils.isNotEmpty(tableNames)) {
+                            for (TableRenameTableInfo tableName : tableNames) {
+                                MetadataInstancesDto metadataInstancesDto = currentMap.get(tableName.getCurrentTableName());
+                                if (metadataInstancesDto != null) {
+                                    MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+                                    MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+                                    BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto1);
+                                    BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto2);
+                                    metadataInstancesDto1.setOriginalName(tableName.getOriginTableName());
+                                    metadataInstancesDto2.setOriginalName(tableName.getPreviousTableName());
+                                    all.add(metadataInstancesDto1);
+                                    all.add(metadataInstancesDto2);
+                                }
                             }
                         }
-
                     }
                     metadatas.addAll(all);
                 } else if (Node.NodeCatalog.processor.equals(node.getCatalog())) {
@@ -1666,6 +1675,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         List<MetadataInstancesDto> items = list.getItems();
         for (MetadataInstancesDto item : items) {
             List<Field> fields = item.getFields();
+            if (null == fields) continue;
+
             List<String> deleteFieldNames = fields.stream().filter(Field::isDeleted).map(Field::getFieldName).collect(Collectors.toList());
             item.setFields(fields.stream().filter(f->!f.isDeleted()).collect(Collectors.toList()));
             List<TableIndex> indices = item.getIndices();

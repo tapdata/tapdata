@@ -125,10 +125,10 @@ public class RetryUtils extends CommonUtils {
 	}
 
 	private static void throwIfNeed(RetryOptions retryOptions, String message, Throwable errThrowable) {
-		if (null == retryOptions) {
-			return;
-		}
 		try {
+			if (null == retryOptions) {
+				throw errThrowable;
+			}
 			if (!retryOptions.isNeedRetry()) {
 				throw errThrowable;
 			}

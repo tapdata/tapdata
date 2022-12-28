@@ -1,39 +1,47 @@
 package io.tapdata.common;
 
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.kit.DbKit;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ExecuteResult;
 import io.tapdata.pdk.apis.entity.TapExecuteCommand;
+import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.apis.functions.TapSupplier;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 public class SqlExecuteCommandFunction {
 
+  private static DefaultSqlExecutor sqlExecutor = new DefaultSqlExecutor();
+
   public static void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, TapSupplier<Connection> connectionSupplier, Consumer<ExecuteResult> executeResultConsumer) {
 
-    ExecuteResult executeResult = new ExecuteResult();
-    try (Connection connection = connectionSupplier.get();
-         Statement sqlStatement = connection.createStatement()) {
-      boolean isQuery = sqlStatement.execute(tapExecuteCommand.getCommand());
-      if (isQuery) {
-        try (ResultSet resultSet = sqlStatement.getResultSet()) {
-          List<DataMap> dataMaps = DbKit.getDataFromResultSet(resultSet);
-          executeResult.setResults(dataMaps);
-        }
-      } else {
-        executeResult.setModifiedCount(sqlStatement.getUpdateCount());
+    ExecuteResult<?> executeResult;
+    try {
+      Map<String, Object> params = tapExecuteCommand.getParams();
+      String command = tapExecuteCommand.getCommand();
+      switch (command) {
+        case "execute":
+        case "executeQuery":
+          String sql = (String) params.get("sql");
+          executeResult = sqlExecutor.execute(sql, connectionSupplier);
+          break;
+        case "call":
+          String funcName = (String) params.get("funcName");
+          List<Map<String, Object>> callParams = (List<Map<String, Object>>) params.get("params");
+          executeResult = sqlExecutor.call(funcName, callParams, connectionSupplier);
+          break;
+        default:
+          executeResult = new ExecuteResult<>().error(new NotSupportedException(command));
       }
-      connection.commit();
-
-    } catch (Throwable e) {
-      executeResult.setError(e);
+    } catch (Exception e) {
+      executeResult = new ExecuteResult<>().error(e);
     }
     executeResultConsumer.accept(executeResult);
+  }
+
+  public static void setSqlExecutor(DefaultSqlExecutor sqlExecutor) {
+    SqlExecuteCommandFunction.sqlExecutor = sqlExecutor;
   }
 }

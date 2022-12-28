@@ -7,7 +7,6 @@ import com.tapdata.constant.UUIDGenerator;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.tm.commons.util.JsonUtil;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -26,14 +25,13 @@ import io.tapdata.schema.TapTableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.springframework.data.mongodb.core.query.Query;
 import org.voovan.tools.collection.CacheMap;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -74,7 +72,11 @@ public class ScriptExecutorsManager {
   }
 
   public ScriptExecutor getScriptExecutor(String connectionName) {
-    return this.cacheMap.get(connectionName);
+    ScriptExecutor scriptExecutor = this.cacheMap.get(connectionName);
+    if (scriptExecutor == null) {
+      throw new IllegalArgumentException("The specified connection source [" + connectionName + "] could not build the executor, please check");
+    }
+    return scriptExecutor;
   }
 
   private ScriptExecutor create(String connectionName) {
@@ -82,10 +84,14 @@ public class ScriptExecutorsManager {
             ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 
     if (connections == null) {
-      throw new RuntimeException("The specified connection source [" + connectionName + "] does not exist, please check");
+      throw new IllegalArgumentException("The specified connection source [" + connectionName + "] does not exist, please check");
     }
 
-    return new ScriptExecutor(connections, hazelcastInstance, this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId);
+    logger.info("create script executor for {}", connectionName);
+    obsLogger.info("create script executor for {}", connectionName);
+
+    return new ScriptExecutor(connections, clientMongoOperator, hazelcastInstance, obsLogger,
+            this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId);
   }
 
   public void close() {
@@ -93,8 +99,9 @@ public class ScriptExecutorsManager {
     this.cacheMap.clear();
   }
 
-  public class ScriptExecutor {
+  public static class ScriptExecutor {
 
+    private final Logger logger = LogManager.getLogger(ScriptExecutor.class);
     private final ConnectorNode connectorNode;
 
     private final String TAG;
@@ -102,9 +109,11 @@ public class ScriptExecutorsManager {
     private final String associateId;
     private final Supplier<ExecuteCommandFunction> executeCommandFunctionSupplier;
 
+    private final ObsLogger obsLogger;
 
-    public ScriptExecutor(Connections connections, HazelcastInstance hazelcastInstance, String TAG) {
+    public ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, ObsLogger obsLogger, String TAG) {
       this.TAG = TAG;
+      this.obsLogger = obsLogger;
 
       Map<String, Object> connectionConfig = connections.getConfig();
       DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
@@ -154,64 +163,61 @@ public class ScriptExecutorsManager {
      * @return
      */
     public long execute(Map<String, Object> executeObj) throws Throwable {
-
-      executeObj.put("command", "execute");
-      ExecuteResult executeResult = getExecuteResult(executeObj);
-      assert executeResult != null;
-      return executeResult.getModifiedCount();
+      ExecuteResult<Long> executeResult = new ExecuteResult<>();
+      pdkExecute("execute", executeObj, executeResult);
+      return executeResult.getResult();
     }
 
     public List<? extends Map<String, Object>> executeQuery(Map<String, Object> executeObj) throws Throwable {
-
-      executeObj.put("command", "executeQuery");
-      ExecuteResult executeResult = getExecuteResult(executeObj);
-      assert executeResult != null;
-      return executeResult.getResults();
+      ExecuteResult<List<Map<String, Object>>> executeResult = new ExecuteResult<>();
+      pdkExecute("executeQuery", executeObj, executeResult);
+      return executeResult.getResult();
     }
 
     public long count(Map<String, Object> executeObj) throws Throwable {
-
-      executeObj.put("command", "count");
-      ExecuteResult executeResult = getExecuteResult(executeObj);
-      assert executeResult != null;
-      return executeResult.getModifiedCount();
+      ExecuteResult<Long> executeResult = new ExecuteResult<>();
+      pdkExecute("count", executeObj, executeResult);
+      return executeResult.getResult();
     }
 
-    @Nullable
-    private ExecuteResult getExecuteResult(Map<String, Object> executeObj) throws Throwable {
+    public Object call(String funcName, List<Map<String, Object>> params) throws Throwable {
+      ExecuteResult<Long> executeResult = new ExecuteResult<>();
+      Map<String, Object> executeObj = new HashMap<>();
+      executeObj.put("funcName", funcName);
+      executeObj.put("params", params);
+      pdkExecute("call", executeObj, executeResult);
+      return executeResult.getResult();
+    }
+
+    private <T> void pdkExecute(String command, Map<String, Object> executeObj, ExecuteResult<T> executeResult) throws Throwable {
       ExecuteCommandFunction executeCommandFunction = this.executeCommandFunctionSupplier.get();
       if (executeCommandFunction == null) {
         TapNodeSpecification specification = this.connectorNode.getConnectorContext().getSpecification();
         String tag = specification.getName() + "-" + specification.getVersion();
         throw new RuntimeException("pdk [" + tag + "] not support execute command");
       }
+      TapExecuteCommand executeCommand = getTapExecuteCommand(command, executeObj);
+      executeCommandFunction.execute(this.connectorNode.getConnectorContext(), executeCommand, e -> {
 
-      AtomicReference<ExecuteResult> consumerBack = new AtomicReference<>();
+        if (e.getError() != null) {
+          executeResult.setError(e.getError());
+          return;
+        }
+        executeResult.setResult((T) e.getResult());
+      });
 
-      TapExecuteCommand executeCommand = getTapExecuteCommand(executeObj);
-      executeCommandFunction.execute(this.connectorNode.getConnectorContext(), executeCommand, consumerBack::set);
-
-      ExecuteResult executeResult = consumerBack.get();
-      if (executeResult != null && executeResult.getError() != null) {
-        throw new RuntimeException("script execute error", executeResult.getError());
+      if (executeResult == null || executeResult.getError() != null) {
+        throw new RuntimeException("script execute error", executeResult == null ? new NullPointerException() : executeResult.getError());
       }
-      return executeResult;
     }
 
     @NotNull
-    private TapExecuteCommand getTapExecuteCommand(Map<String, Object> executeObj) {
-      TapExecuteCommand executeCommand = TapExecuteCommand.create();
-      if (executeObj.containsKey("sql")) {
-        executeCommand.command((String) executeObj.get("sql"));
-      } else {
-        //mongo
-        executeCommand.command(JsonUtil.toJson(executeObj));
-      }
-      return executeCommand;
+    private TapExecuteCommand getTapExecuteCommand(String command, Map<String, Object> executeObj) {
+      return TapExecuteCommand.create().command(command).params(executeObj);
     }
 
 
-    void close() {
+    public void close() {
 
       CommonUtils.handleAnyError(() -> {
         Optional.ofNullable(connectorNode)

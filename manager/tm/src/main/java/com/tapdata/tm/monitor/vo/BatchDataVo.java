@@ -13,4 +13,6 @@ public class BatchDataVo {
     private String error;
     @Schema(description = "范型 例子TaskStatisticsVO等可观测性类")
     private Object data;
+
+    private Long cost;
 }

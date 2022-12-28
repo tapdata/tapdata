@@ -167,6 +167,7 @@ public class TaskEntity extends BaseEntity {
     private Long lastStartDate;
     private Date stopTime;
     private Long scheduleDate;
+    private Long stopedDate;
 
     private HashSet<String> heartbeatTasks;
 
@@ -228,6 +229,8 @@ public class TaskEntity extends BaseEntity {
     private boolean crontabExpressionFlag;
 
     private String testTaskId;
+    private String transformTaskId;
+    private int stopRetryTimes;
 
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
