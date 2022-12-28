@@ -23,8 +23,6 @@ import static io.tapdata.base.ConnectorBase.testItem;
 public class SelectDbTest extends CommonDbTest {
     protected static final String TAG = SelectDbTest.class.getSimpleName();
 
-    protected static final String CHECK_DATABASE_PRIVILEGES_SQL = "SHOW GRANTS FOR CURRENT_USER";
-
     protected TapConnectionContext tapConnectionContext;
     protected SelectDbJdbcContext selectDbJdbcContext;
 

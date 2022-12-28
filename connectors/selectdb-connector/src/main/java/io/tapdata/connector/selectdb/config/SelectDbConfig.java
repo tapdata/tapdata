@@ -22,7 +22,8 @@ public class SelectDbConfig extends CommonDbConfig implements Serializable {
     private String logPluginName = "selectdboutput";
     private int insertBatchSize = 1000;
     private String selectDbHttp;
-    public SelectDbConfig selectDbHttp(String selectDbHttp){
+
+    public SelectDbConfig selectDbHttp(String selectDbHttp) {
         this.selectDbHttp = selectDbHttp;
         return this;
     }
@@ -43,7 +44,7 @@ public class SelectDbConfig extends CommonDbConfig implements Serializable {
     public SelectDbConfig load(Map<String, Object> map) {
         SelectDbConfig config = (SelectDbConfig) super.load(map);
         Object selectDbHttpObj = map.get("selectDbHttp");
-        return config.selectDbHttp(Objects.nonNull(selectDbHttpObj)?String.valueOf(selectDbHttpObj):"");
+        return config.selectDbHttp(Objects.nonNull(selectDbHttpObj) ? String.valueOf(selectDbHttpObj) : "");
     }
 
     public String getDatabaseUrl() {
