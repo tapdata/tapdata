@@ -297,25 +297,27 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         save(builder.build(), user);
     }
 
-    public void startTaskErrorLog(TaskDto taskDto, UserDetail user, Exception e) {
+    public void startTaskErrorLog(TaskDto taskDto, UserDetail user, Object e, Level level) {
         MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
         builder.taskId(taskDto.getId().toHexString())
                 .taskName(taskDto.getName())
                 .taskRecordId(taskDto.getTaskRecordId())
                 .date(DateUtil.date())
                 .timestamp(System.currentTimeMillis())
-                .level("ERROR")
+                .level(level.name())
         ;
         String msg;
         if (e instanceof BizException) {
             msg = MessageUtil.getMessage(((BizException) e).getErrorCode());
+        } else if (e instanceof Exception) {
+            msg = ((Exception) e).getMessage();
+        } else if (e instanceof String) {
+            msg = (String) e;
         } else {
-            msg = e.getMessage();
+            msg = e.toString();
         }
 
-        String message = "task start error :"  + msg;
-
-        save(builder.message(message).build(), user);
+        save(builder.message(msg).build(), user);
     }
 
     public void agentAssignMonitoringLog(TaskDto taskDto, String assigned, Integer available, UserDetail user, Date now) {

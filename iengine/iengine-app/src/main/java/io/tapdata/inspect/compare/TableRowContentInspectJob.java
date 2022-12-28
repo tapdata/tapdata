@@ -112,10 +112,11 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 		otherFieldLimit = uniqueFieldLimit;
 
 		if (fullMatch) {
-			if (null != inspectTask.getSource().getColumns() && null != inspectTask.getTarget().getColumns()) {
-				compareFn = new DefaultCompare(inspectTask.getSource().getColumns(), inspectTask.getTarget().getColumns());
-			} else {
+			if (null == inspectTask.getSource().getColumns() || inspectTask.getSource().getColumns().isEmpty()
+					|| null == inspectTask.getTarget().getColumns() || inspectTask.getTarget().getColumns().isEmpty()) {
 				compareFn = new DefaultCompare();
+			} else {
+				compareFn = new DefaultCompare(inspectTask.getSource().getColumns(), inspectTask.getTarget().getColumns());
 			}
 		}
 

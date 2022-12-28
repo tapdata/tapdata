@@ -76,8 +76,8 @@ public class RedisConnector extends ConnectorBase {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         connectorFunctions.supportWriteRecord(this::writeRecord);
-        connectorFunctions.supportClearTable(this::clearTable);
-        connectorFunctions.supportDropTable(this::dropTable);
+//        connectorFunctions.supportClearTable(this::clearTable);
+//        connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateTable(this::createTable);
 
         // TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.

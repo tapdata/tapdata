@@ -133,7 +133,6 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
                             lastStatement.executeBatch();
                             break;
                         default:
-                            lastStatement.executeUpdate();
                             break;
                     }
 
@@ -243,7 +242,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
             lastStatement.setObject(i, beforeData.get(field));
             i++;
         }
-        lastStatement.addBatch();
+        lastStatement.executeUpdate();
     }
 
     protected void doDelete(LinkedHashSet<String> uniqueCondition, TapDeleteRecordEvent event) throws Exception {
@@ -253,7 +252,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
             lastStatement.setObject(i, data.get(field));
             i++;
         }
-        lastStatement.addBatch();
+        lastStatement.executeUpdate();
     }
 
     protected PreparedStatement getInsertStatement(TapTable tapTable, String statementKey, Map<String, Object> afterData) throws Exception {
