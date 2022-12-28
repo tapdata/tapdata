@@ -73,7 +73,7 @@
         },
         "selectDbHttp": {
           "type": "string",
-          "title": "${selectdbHttp}",
+          "title": "${selectDbHttp}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "required": true,

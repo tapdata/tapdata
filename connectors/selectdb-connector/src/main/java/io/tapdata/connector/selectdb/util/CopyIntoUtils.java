@@ -1,6 +1,7 @@
 package io.tapdata.connector.selectdb.util;
 
 import io.tapdata.connector.selectdb.streamload.Constants;
+import io.tapdata.connector.selectdb.streamload.HttpPutBuilder;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
