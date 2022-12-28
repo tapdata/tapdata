@@ -121,16 +121,17 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 		}
 		TapLogger.debug(TAG, "Execute insert sql: " + sql);
 		JdbcCache jdbcCache = getJdbcCache();
-		Statement statement = jdbcCache.getStatement();
-		while (isAlive()) {
-			try {
-				result = statement.executeUpdate(sql);
-				break;
-			} catch (SQLException e) {
-				if (e.getMessage().contains("Deadlock found when trying to get lock")) {
-					continue;
+		try (Statement statement = jdbcCache.getStatement()) {
+			while (isAlive()) {
+				try {
+					result = statement.executeUpdate(sql);
+					break;
+				} catch (SQLException e) {
+					if (e.getMessage().contains("Deadlock found when trying to get lock")) {
+						continue;
+					}
+					throw new RuntimeException("Execute insert sql failed: " + e.getMessage() + "\nSql: " + sql, e);
 				}
-				throw new RuntimeException("Execute insert sql failed: " + e.getMessage() + "\nSql: " + sql, e);
 			}
 		}
 //		jdbcCache.getConnection().commit();
@@ -146,17 +147,18 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 		String sql = appendLargeInsertOnDuplicateUpdateSql(tapConnectorContext, tapTable, tapRecordEvents);
 		TapLogger.debug(TAG, "Execute update sql: " + sql);
 		JdbcCache jdbcCache = getJdbcCache();
-		Statement statement = jdbcCache.getStatement();
-		while (isAlive()) {
-			try {
-				statement.execute(sql);
-				result = tapRecordEvents.size();
-				break;
-			} catch (SQLException e) {
-				if (e.getMessage().contains("Deadlock found when trying to get lock")) {
-					continue;
+		try (Statement statement = jdbcCache.getStatement()) {
+			while (isAlive()) {
+				try {
+					statement.execute(sql);
+					result = tapRecordEvents.size();
+					break;
+				} catch (SQLException e) {
+					if (e.getMessage().contains("Deadlock found when trying to get lock")) {
+						continue;
+					}
+					throw new RuntimeException("Execute update sql failed: " + e.getMessage() + "\nSql: " + sql, e);
 				}
-				throw new RuntimeException("Execute update sql failed: " + e.getMessage() + "\nSql: " + sql, e);
 			}
 		}
 //		getJdbcCache().getConnection().commit();
@@ -185,12 +187,13 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 		String sql = String.format(DELETE_FROM_SQL_TEMPLATE, database, tapTable.getId(), whereClause);
 		TapLogger.debug(TAG, "Execute delete sql: " + sql);
 		JdbcCache jdbcCache = getJdbcCache();
-		Statement statement = jdbcCache.getStatement();
 		int deleted;
-		try {
-			deleted = statement.executeUpdate(sql);
-		} catch (SQLException e) {
-			throw new RuntimeException("Execute delete sql failed: " + e.getMessage() + "\nSql: " + sql, e);
+		try (Statement statement = jdbcCache.getStatement()) {
+			try {
+				deleted = statement.executeUpdate(sql);
+			} catch (SQLException e) {
+				throw new RuntimeException("Execute delete sql failed: " + e.getMessage() + "\nSql: " + sql, e);
+			}
 		}
 //		getJdbcCache().getConnection().commit();
 		return deleted;
