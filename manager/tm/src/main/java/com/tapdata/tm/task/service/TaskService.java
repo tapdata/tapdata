@@ -2669,7 +2669,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
         //需要将重启标识清除
-        update(query, Update.update("isEdit", false).set("restartFlag", false).set("stopRetryTimes", 0), user);
+        Update set = Update.update("isEdit", false)
+                .set("restartFlag", false)
+                .set("stopRetryTimes", 0)
+                .set("lastStartDate", System.currentTimeMillis());
+        update(query, set, user);
         taskScheduleService.scheduling(taskDto, user);
     }
 
@@ -3117,13 +3121,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
                 run(taskDto, finalUserMap.get(taskDto.getUserId()));
-                //run(taskDto, finalUserMap.get(taskDto.getUserId()));
                 //启动过后，应该更新掉这个自动启动计划
                 Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
                 updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
             }
-
-
         }
     }
 
