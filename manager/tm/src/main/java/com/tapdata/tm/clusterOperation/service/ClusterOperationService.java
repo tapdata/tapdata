@@ -2,13 +2,13 @@ package com.tapdata.tm.clusterOperation.service;
 
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.clusterOperation.constant.AgentStatusEnum;
 import com.tapdata.tm.clusterOperation.dto.ClusterOperationDto;
 import com.tapdata.tm.clusterOperation.entity.ClusterOperationEntity;
 import com.tapdata.tm.clusterOperation.repository.ClusterOperationRepository;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.MD5Util;
 import com.tapdata.tm.ws.endpoint.WebSocketClusterServer;
@@ -22,7 +22,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.*;
 
 /**
@@ -134,11 +133,12 @@ public class ClusterOperationService extends BaseService<ClusterOperationDto, Cl
      */
     public void changeStatus(Map data) {
         log.info("in changeStatus  data:{}", JSON.toJSONString(data));
-        String receiveStatus = (String) data.get("status");
-        String id = (String) data.get("_id");
+        Object objectData = data.get("data");
+        Object receiveStatus = ((Map) objectData).get("status");
+        Object id = ((Map) objectData).get("_id");
         Integer status = ("true".equals(receiveStatus) ? 2 : 3);
 
-        Query query = Query.query(Criteria.where("id").is(id));
+        Query query = Query.query(Criteria.where("id").is(id.toString()));
         Update update = new Update();
         update.set("status", status);
         update(query, update);
