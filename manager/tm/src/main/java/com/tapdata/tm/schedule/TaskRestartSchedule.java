@@ -162,10 +162,10 @@ public class TaskRestartSchedule {
     }
 
     public void stoppingTask() {
-        long heartExpire = getHeartExpire();
+        long overTime = 30000L;
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_STOPPING)
                 .and("stopRetryTimes").lt(8)
-                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
+                .and("last_updated").lt(new Date(System.currentTimeMillis() - overTime));
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -197,9 +197,9 @@ public class TaskRestartSchedule {
     }
 
     public void schedulingTask() {
-        long heartExpire = getHeartExpire();
+        long overTime = 30000L;
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
-                .and("schedulingTime").lt(System.currentTimeMillis() - heartExpire);
+                .and("schedulingTime").lt(System.currentTimeMillis() - overTime);
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -219,71 +219,81 @@ public class TaskRestartSchedule {
                 continue;
             }
 
-            CompletableFuture.runAsync(() -> {
-                String template = "The engine[{0}] takes over the task with a timeout of {1}ms.";
-                String msg = MessageFormat.format(template, taskDto.getAgentId(), heartExpire);
-                monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
-            });
-            StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
-            if (result.isOk()) {
-                try {
-                    CompletableFuture.runAsync(() -> {
-                        String template = "In the process of rescheduling tasks, the scheduling engine is {0}.";
-                        String msg = MessageFormat.format(template, taskDto.getAgentId());
-                        monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
-                    });
 
-                    taskScheduleService.scheduling(taskDto, user);
-                } catch (Exception e) {
-                    monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
-                    throw e;
+            long heartExpire = getHeartExpire();
+
+            if (Objects.nonNull(taskDto.getSchedulingTime()) && (
+                    System.currentTimeMillis() - taskDto.getSchedulingTime().getTime() > heartExpire)) {
+
+                CompletableFuture.runAsync(() -> {
+                    String template = "The engine[{0}] takes over the task with a timeout of {1}ms.";
+                    String msg = MessageFormat.format(template, taskDto.getAgentId(), heartExpire);
+                    monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
+                });
+                StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
+                if (result.isOk()) {
+                    try {
+                        CompletableFuture.runAsync(() -> {
+                            String template = "In the process of rescheduling tasks, the scheduling engine is {0}.";
+                            String msg = MessageFormat.format(template, taskDto.getAgentId());
+                            monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
+                        });
+
+                    } catch (Exception e) {
+                        monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
+                        throw e;
+                    }
                 }
+            } else {
+                taskScheduleService.scheduling(taskDto, user);
             }
         }
     }
 
     public void waitRunTask() {
-        long heartExpire = getHeartExpire();
-        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN)
-                .and("scheduledTime").lt(System.currentTimeMillis() - heartExpire);
-        List<TaskDto> all = taskService.findAll(Query.query(criteria));
+        long overTime = 30000L;
+
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
+                .and("schedulingTime").lt(new Date(System.currentTimeMillis() - overTime));
+        List<TaskDto> all = taskService.findAll(new Query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
             return;
         }
 
-        Map<String, UserDetail> userMap = this.getUserDetailMap(all);
-        Map<String, List<Worker>> userWorkMap = this.getUserWorkMap();
-        for (TaskDto taskDto : all) {
-            UserDetail user = userMap.get(taskDto.getUserId());
-            if (Objects.isNull(user)) {
-                continue;
-            }
-            if (CollectionUtils.isEmpty(userWorkMap.get(user.getUserId()))) {
-                continue;
-            }
+        List<String> userList = all.stream().map(BaseDto::getUserId).collect(Collectors.toList());
+        Map<String, UserDetail> userMap = userService.getUserMapByIdList(userList);
 
-            CompletableFuture.runAsync(() -> {
-                String template = "The engine[{0}] takes over the task with a timeout of {1}ms.";
-                String msg = MessageFormat.format(template, taskDto.getAgentId(), heartExpire);
-                monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
-            });
-            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
-            if (stateMachineResult.isOk()) {
-                try {
-                    CompletableFuture.runAsync(() -> {
-                        String template = "In the process of rescheduling tasks, the scheduling engine is {0}.";
-                        String msg = MessageFormat.format(template, taskDto.getAgentId());
-                        monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
-                    });
+        Iterator<TaskDto> iterator = all.iterator();
 
-                    taskScheduleService.scheduling(taskDto, user);
-                } catch (Exception e) {
-                    monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
-                    throw e;
+        Long now = System.currentTimeMillis();
+        while (iterator.hasNext()) {
+            TaskDto next = iterator.next();
+            UserDetail user = userMap.get(next.getUserId());
+            if (user != null) {
+                if (Objects.nonNull(next.getSchedulingTime()) && (now - next.getSchedulingTime().getTime() > getHeartExpire())) {
+                    StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(next, DataFlowEvent.OVERTIME, user);
+                    if (stateMachineResult.isOk()) {
+                        try {
+                            CompletableFuture.runAsync(() -> {
+                                String template = "In the process of rescheduling tasks, the scheduling engine is {0}.";
+                                String msg = MessageFormat.format(template, next.getAgentId());
+                                monitoringLogsService.startTaskErrorLog(next, user, msg, Level.WARN);
+                            });
+                        } catch (Exception e) {
+                            monitoringLogsService.startTaskErrorLog(next, user, e, Level.ERROR);
+                            throw e;
+                        }
+                    }
+                    iterator.remove();
                 }
             }
         }
+
+
+        all.forEach(taskDto -> {
+            taskScheduleService.scheduling(taskDto, userMap.get(taskDto.getUserId()));
+        });
     }
 
     private Map<String, List<Worker>> getUserWorkMap() {
