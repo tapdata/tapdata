@@ -92,13 +92,22 @@ public class AlarmServiceImpl implements AlarmService {
             info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
             info.setLastOccurrenceTime(date);
             if (Objects.nonNull(one.getLastNotifyTime()) && Objects.isNull(info.getLastNotifyTime())) {
-                info.setLastNotifyTime(one.getLastNotifyTime());
+                AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric());
+                if (Objects.nonNull(alarmSettingDto)) {
+                    DateTime lastNotifyTime = DateUtil.offset(DateUtil.date(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
+                    info.setLastNotifyTime(lastNotifyTime);
+                } else {
+                    info.setLastNotifyTime(one.getLastNotifyTime());
+                }
+            } else {
+                info.setLastNotifyTime(date);
             }
 
             mongoTemplate.save(info);
         } else {
             info.setFirstOccurrenceTime(date);
             info.setLastOccurrenceTime(date);
+            info.setLastNotifyTime(date);
             mongoTemplate.insert(info);
         }
     }
@@ -162,9 +171,9 @@ public class AlarmServiceImpl implements AlarmService {
     @Override
     public void notifyAlarm() {
         Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE);
-        criteria.orOperator(Criteria.where("lastNotifyTime").is(null),
-                Criteria.where("lastNotifyTime").lt(DateUtil.date())
-                        .andOperator(Criteria.where("lastNotifyTime").gt(DateUtil.offsetSecond(DateUtil.date(), -30)))
+        criteria.andOperator(Criteria.where("lastNotifyTime").ne(null),
+                Criteria.where("lastNotifyTime").lt(DateUtil.date()),
+                Criteria.where("lastNotifyTime").gt(DateUtil.offsetSecond(DateUtil.date(), -30))
         );
         Query needNotifyQuery = new Query(criteria);
         List<AlarmInfo> alarmInfos = mongoTemplate.find(needNotifyQuery, AlarmInfo.class);
@@ -195,15 +204,6 @@ public class AlarmServiceImpl implements AlarmService {
 
             FunctionUtils.ignoreAnyError(() -> sendMessage(info, taskDto));
             FunctionUtils.ignoreAnyError(() -> sendMail(info, taskDto));
-
-            // update alarmInfo date
-            AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric());
-
-            if (ObjectUtils.allNotNull(alarmSettingDto)) {
-                DateTime lastNotifyTime = DateUtil.offset(DateUtil.date(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
-                info.setLastNotifyTime(lastNotifyTime);
-                mongoTemplate.save(info);
-            }
         }
     }
 
@@ -367,6 +367,7 @@ public class AlarmServiceImpl implements AlarmService {
                         .summary(StringUtils.replace(t.getSummary(), "$taskName", t.getName()))
                         .firstOccurrenceTime(t.getFirstOccurrenceTime())
                         .lastOccurrenceTime(t.getLastOccurrenceTime())
+                        .lastNotifyTime(t.getLastNotifyTime())
                         .taskId(t.getTaskId())
                         .metric(t.getMetric())
                         .syncType(taskDtoMap.get(t.getTaskId()).getSyncType())
@@ -409,6 +410,7 @@ public class AlarmServiceImpl implements AlarmService {
                     .summary(StringUtils.replace(t.getSummary(), "$taskName", t.getName()))
                     .firstOccurrenceTime(t.getFirstOccurrenceTime())
                     .lastOccurrenceTime(t.getLastOccurrenceTime())
+                    .lastNotifyTime(t.getLastNotifyTime())
                     .taskId(t.getTaskId())
                     .metric(t.getMetric())
                     .nodeId(t.getNodeId())
