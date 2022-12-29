@@ -651,7 +651,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		taskQuery.fields().include("_id", "name");
 		List<TaskDto> allDto = taskService.findAllDto(taskQuery, user);
 
-		if (CollectionUtils.isNotEmpty(allDto) || CollectionUtils.isNotEmpty(allDto)) {
+		if (CollectionUtils.isNotEmpty(allDto)) {
 			log.info("the connection referenced by other jobs, tasks = {}", allDto.size());
 			throw new BizException("Datasource.LinkJobs");
 		}

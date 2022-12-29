@@ -2599,6 +2599,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private String sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
         String connectionName =null;
+        boolean noAgent =false;
         if (checkPdkTask(taskDto, user)) {
 
             DataSyncMq mq = new DataSyncMq();
@@ -2624,6 +2625,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     }
                 }
                 if (StringUtils.isBlank(agentId)) {
+                    noAgent =true;
                     //任务指定的agent已经停用，当前操作不给用。
                    // throw new BizException("Agent.DesignatedAgentNotAvailable");
                     connectionName =judgePostgreClearSlot(taskDto,opType);
@@ -2638,6 +2640,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     Worker worker = availableAgent.get(0);
                     taskDto.setAgentId(worker.getProcessId());
                 } else {
+                    noAgent =true;
                     connectionName =judgePostgreClearSlot(taskDto,opType);
                     taskDto.setAgentId(null);
                 }
@@ -2690,6 +2693,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             } else {
                 afterRemove(taskDto, user);
             }
+        }
+        if (noAgent) {
+            afterRemove(taskDto, user);
         }
         return connectionName;
     }
