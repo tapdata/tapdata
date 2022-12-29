@@ -147,7 +147,7 @@ public class ClusterOperationService extends BaseService<ClusterOperationDto, Cl
         //  let serverOperation = msg.data.server + 'Operation';  是什么意思
         Query clusterStateQuery = Query.query(Criteria.where("id").is(id));
         Update clusterUpdate = new Update();
-        clusterUpdate.set("status", clusterUpdate);
+        clusterUpdate.set("status", status);
         clusterStateService.update(clusterStateQuery, clusterUpdate);
     }
 
