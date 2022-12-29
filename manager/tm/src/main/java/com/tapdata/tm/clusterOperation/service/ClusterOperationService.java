@@ -142,12 +142,12 @@ public class ClusterOperationService extends BaseService<ClusterOperationDto, Cl
         Update update = new Update();
         update.set("status", status);
         update(query, update);
+        Object server = ((Map) objectData).get("server");
 
-
-        //  let serverOperation = msg.data.server + 'Operation';  是什么意思
-        Query clusterStateQuery = Query.query(Criteria.where("id").is(id));
+        String queryData = server + "Operation";
+        Query clusterStateQuery = Query.query(Criteria.where(queryData + "._id").is(id));
         Update clusterUpdate = new Update();
-        clusterUpdate.set("status", status);
+        clusterUpdate.set(queryData + ".status", status);
         clusterStateService.update(clusterStateQuery, clusterUpdate);
     }
 
