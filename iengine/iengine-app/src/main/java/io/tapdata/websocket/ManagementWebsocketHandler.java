@@ -56,7 +56,7 @@ import static io.tapdata.websocket.WebSocketEventResult.Type.UNKNOWN_EVENT_RESUL
  * @author jackin
  */
 @Component("managementWebsocketHandler")
-@DependsOn("connectorManager")
+@DependsOn("tapdataTaskScheduler")
 public class ManagementWebsocketHandler implements WebSocketHandler {
 
 	public static final String WEBSOCKET_CODE_KEY = "websocketCode";

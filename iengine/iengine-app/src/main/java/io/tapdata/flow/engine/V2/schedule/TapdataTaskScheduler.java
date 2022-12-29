@@ -75,6 +75,19 @@ public class TapdataTaskScheduler {
 
 	public final static String SCHEDULE_START_TASK_NAME = "scheduleStartTask";
 	public final static String SCHEDULE_STOP_TASK_NAME = "scheduleStopTask";
+	private static Map<String, Object> taskLock = new ConcurrentHashMap<>();
+
+	private Object lockTask(String taskId) {
+		Object lock = taskLock.get(taskId);
+		if (null == lock) {
+			return taskLock.computeIfAbsent(taskId, s -> new int[0]);
+		}
+		return lock;
+	}
+
+	private void unlockTask(String taskId) {
+		taskLock.remove(taskId);
+	}
 
 	@PostConstruct
 	public void init() {
@@ -173,23 +186,31 @@ public class TapdataTaskScheduler {
 
 	private void handleTaskOperation(TaskOperation taskOperation) {
 		taskOperationThreadPool.submit(() -> {
+			String taskId = null;
 			try {
 				if (taskOperation instanceof StartTaskOperation) {
 					StartTaskOperation startTaskOperation = (StartTaskOperation) taskOperation;
 					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
-					synchronized (startTaskOperation.getTaskDto().getId().toHexString().intern()) {
+					taskId = startTaskOperation.getTaskDto().getId().toHexString();
+					Object lock = lockTask(taskId);
+					synchronized (lock) {
 						taskOpCountDown.countDown();
 						startTask(startTaskOperation.getTaskDto());
 					}
 				} else if (taskOperation instanceof StopTaskOperation) {
 					StopTaskOperation stopTaskOperation = (StopTaskOperation) taskOperation;
 					Thread.currentThread().setName(String.format("Stop-Task-Operation-Handler-%s", stopTaskOperation.getTaskId()));
-					synchronized (stopTaskOperation.getTaskId().intern()) {
+					taskId = stopTaskOperation.getTaskId();
+					Object lock = lockTask(taskId);
+					synchronized (lock) {
 						taskOpCountDown.countDown();
 						stopTask(stopTaskOperation.getTaskId());
 					}
 				}
 			} finally {
+				if (StringUtils.isNotBlank(taskId)) {
+					unlockTask(taskId);
+				}
 				if (taskOpCountDown.getCount() > 0) {
 					taskOpCountDown.countDown();
 				}
@@ -276,6 +297,11 @@ public class TapdataTaskScheduler {
 			return;
 		}
 		try {
+			String checkTaskCanStart = checkTaskCanStart(taskId);
+			if (StringUtils.isNotBlank(checkTaskCanStart)) {
+				logger.warn(checkTaskCanStart);
+				return;
+			}
 			Log4jUtil.setThreadContext(taskDto);
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
@@ -288,6 +314,16 @@ public class TapdataTaskScheduler {
 		} finally {
 			ThreadContext.clearAll();
 		}
+	}
+
+	private String checkTaskCanStart(String taskId) {
+		Query query = Query.query(where("_id").is(taskId));
+		query.fields().include("status").include("_id").include("name");
+		TaskDto taskDto = clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+		if (!taskDto.getStatus().equals(TaskDto.STATUS_WAIT_RUN)) {
+			return String.format("Found task[%s(%s)] status is %s, will not start this task", taskDto.getName(), taskDto.getId().toHexString(), taskDto.getStatus());
+		}
+		return "";
 	}
 
 	/**

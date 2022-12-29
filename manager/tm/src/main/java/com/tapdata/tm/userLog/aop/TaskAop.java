@@ -122,7 +122,7 @@ public class TaskAop {
     }
 
     private void updateTaskStartTime(TaskDto taskDto) {
-        if (ObjectUtils.allNotNull(taskDto.getStartTime(), taskDto.getLastStartDate())) {
+        if (ObjectUtils.allNotNull(taskDto.getStartTime())) {
             return;
         }
 
@@ -132,9 +132,6 @@ public class TaskAop {
         Update update = new Update();
         if (taskDto.getStartTime() == null) {
             update.set("startTime", now);
-        }
-        if (taskDto.getLastStartDate() == null) {
-            update.set("lastStartDate", now.getTime());
         }
 
         taskService.update(query, update);
