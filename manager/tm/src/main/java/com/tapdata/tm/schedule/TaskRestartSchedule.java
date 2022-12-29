@@ -164,6 +164,7 @@ public class TaskRestartSchedule {
     public void stoppingTask() {
         long heartExpire = getHeartExpire();
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_STOPPING)
+                .and("stopRetryTimes").lt(8)
                 .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
@@ -181,13 +182,12 @@ public class TaskRestartSchedule {
                 continue;
             }
 
-            if (stopRetryTimes > 10) {
+            if (stopRetryTimes >= 7) {
                 CompletableFuture.runAsync(() -> {
                     String template = "The task is being stopped, the number of retries is {0}, it is recommended to try to force stop.";
                     String msg = MessageFormat.format(template, taskDto.getStopRetryTimes());
                     monitoringLogsService.startTaskErrorLog(taskDto, userDetail, msg, Level.WARN);
                 });
-                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
             } else {
                 taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetail, false);
                 Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
@@ -199,7 +199,7 @@ public class TaskRestartSchedule {
     public void schedulingTask() {
         long heartExpire = getHeartExpire();
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
-                .and("scheduleDate").lt(System.currentTimeMillis() - heartExpire);
+                .and("schedulingTime").lt(System.currentTimeMillis() - heartExpire);
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -245,7 +245,7 @@ public class TaskRestartSchedule {
     public void waitRunTask() {
         long heartExpire = getHeartExpire();
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN)
-                .and("scheduleDate").lt(System.currentTimeMillis() - heartExpire);
+                .and("scheduledTime").lt(System.currentTimeMillis() - heartExpire);
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
