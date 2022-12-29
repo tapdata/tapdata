@@ -94,10 +94,10 @@ public class AlarmServiceImpl implements AlarmService {
             if (Objects.nonNull(one.getLastNotifyTime()) && Objects.isNull(info.getLastNotifyTime())) {
                 AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric());
                 if (Objects.nonNull(alarmSettingDto)) {
-                    DateTime lastNotifyTime = DateUtil.offset(DateUtil.date(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
-                    info.setLastNotifyTime(lastNotifyTime);
-                } else {
-                    info.setLastNotifyTime(one.getLastNotifyTime());
+                    DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
+                    if (date.after(lastNotifyTime)) {
+                        info.setLastNotifyTime(date);
+                    }
                 }
             } else {
                 info.setLastNotifyTime(date);
@@ -465,7 +465,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void closeWhenTaskRunning(String taskId) {
-        Update update = Update.update("status", AlarmStatusEnum.CLOESE).unset("lastNotifyTime");
+        Update update = Update.update("status", AlarmStatusEnum.CLOESE);
         mongoTemplate.updateMulti(Query.query(Criteria.where("taskId").is(taskId)), update, AlarmInfo.class);
     }
 
