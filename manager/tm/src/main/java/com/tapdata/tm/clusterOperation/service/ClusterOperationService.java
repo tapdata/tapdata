@@ -145,7 +145,8 @@ public class ClusterOperationService extends BaseService<ClusterOperationDto, Cl
         Object server = ((Map) objectData).get("server");
 
         String queryData = server + "Operation";
-        Query clusterStateQuery = Query.query(Criteria.where(queryData + "._id").is(id));
+        ObjectId objectId = new ObjectId(id.toString());
+        Query clusterStateQuery = Query.query(Criteria.where(queryData + "._id").is(objectId));
         Update clusterUpdate = new Update();
         clusterUpdate.set(queryData + ".status", status);
         clusterStateService.update(clusterStateQuery, clusterUpdate);
