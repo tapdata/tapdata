@@ -267,4 +267,11 @@ public class DateTime {
     public void setTimeZone(TimeZone timeZone) {
         this.timeZone = timeZone;
     }
+
+
+    public static void main(String[] args) {
+        DateTime dateTime =  new  DateTime(1669695379255L);
+        dateTime.getNano();
+        dateTime.getSeconds();
+    }
 }
