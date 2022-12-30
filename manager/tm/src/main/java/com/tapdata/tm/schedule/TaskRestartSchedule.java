@@ -74,7 +74,7 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 10 * 1000, fixedDelay = 5000)
+    @Scheduled(initialDelay = 150 * 1000, fixedDelay = 5000)
     @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
         Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
