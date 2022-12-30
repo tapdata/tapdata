@@ -188,7 +188,7 @@ public class TaskRestartSchedule {
         long heartExpire = 30000L;
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
-                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
+                .and("schedulingTime").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -205,7 +205,7 @@ public class TaskRestartSchedule {
             TaskDto next = iterator.next();
             UserDetail user = userMap.get(next.getUserId());
             if (user != null) {
-                if (Objects.nonNull(next.getScheduleDate()) && (now - next.getScheduleDate() > heartExpire)) {
+                if (Objects.nonNull(next.getSchedulingTime()) && (now - next.getSchedulingTime().getTime() > getHeartExpire())) {
                     stateMachineService.executeAboutTask(next, DataFlowEvent.OVERTIME, user);
                     iterator.remove();
                 }
