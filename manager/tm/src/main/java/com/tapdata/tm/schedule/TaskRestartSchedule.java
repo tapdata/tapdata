@@ -253,8 +253,8 @@ public class TaskRestartSchedule {
     public void waitRunTask() {
         long overTime = 30000L;
 
-        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
-                .and("schedulingTime").lt(new Date(System.currentTimeMillis() - overTime));
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN)
+                .and("scheduledTime").lt(new Date(System.currentTimeMillis() - overTime));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -263,36 +263,15 @@ public class TaskRestartSchedule {
 
         List<String> userList = all.stream().map(BaseDto::getUserId).collect(Collectors.toList());
         Map<String, UserDetail> userMap = userService.getUserMapByIdList(userList);
-
-        Iterator<TaskDto> iterator = all.iterator();
-
-        Long now = System.currentTimeMillis();
-        while (iterator.hasNext()) {
-            TaskDto next = iterator.next();
-            UserDetail user = userMap.get(next.getUserId());
-            if (user != null) {
-                if (Objects.nonNull(next.getSchedulingTime()) && (now - next.getSchedulingTime().getTime() > getHeartExpire())) {
-                    StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(next, DataFlowEvent.OVERTIME, user);
-                    if (stateMachineResult.isOk()) {
-                        try {
-                            CompletableFuture.runAsync(() -> {
-                                String template = "In the process of rescheduling tasks, the scheduling engine is {0}.";
-                                String msg = MessageFormat.format(template, next.getAgentId());
-                                monitoringLogsService.startTaskErrorLog(next, user, msg, Level.WARN);
-                            });
-                        } catch (Exception e) {
-                            monitoringLogsService.startTaskErrorLog(next, user, e, Level.ERROR);
-                            throw e;
-                        }
-                    }
-                    iterator.remove();
-                }
-            }
-        }
-
-
         all.forEach(taskDto -> {
-            taskScheduleService.scheduling(taskDto, userMap.get(taskDto.getUserId()));
+            boolean start = true;
+            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
+            if (stateMachineResult.isFail()) {
+                start = false;
+            }
+            if (start) {
+                taskScheduleService.scheduling(taskDto, userMap.get(taskDto.getUserId()));
+            }
         });
     }
 
