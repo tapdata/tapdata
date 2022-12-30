@@ -87,10 +87,31 @@ public class RecordBuffer {
         } while (wPos != buf.length);
     }
 
-    public int read(byte[] buf) throws InterruptedException {
+    public int read() throws InterruptedException {
+        getCurrentReadBufferIfNeed();
+        // add empty buffer as end flag
+        if (currentReadBuffer.limit() == 0) {
+            recycleBuffer(currentReadBuffer);
+            currentReadBuffer = null;
+            assert readQueue.size() == 0;
+            return -1;
+        }
+        int _byte = currentReadBuffer.get();
+        if (currentReadBuffer.remaining() == 0) {
+            recycleBuffer(currentReadBuffer);
+            currentReadBuffer = null;
+        }
+        return _byte;
+    }
+
+    private void getCurrentReadBufferIfNeed() throws InterruptedException {
         if (currentReadBuffer == null) {
             currentReadBuffer = readQueue.take();
         }
+    }
+
+    public int read(byte[] buf) throws InterruptedException {
+        getCurrentReadBufferIfNeed();
         // add empty buffer as end flag
         if (currentReadBuffer.limit() == 0) {
             recycleBuffer(currentReadBuffer);

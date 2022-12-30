@@ -129,6 +129,8 @@ public class HttpPutBuilder {
         Assert.notNull(httpEntity, "httpEntity of HttpPutBuilder should never be null");
         HttpPut put = new HttpPut(url);
         header.forEach(put::setHeader);
+        put.removeHeaders(HttpHeaders.CONTENT_LENGTH);
+        put.removeHeaders(HttpHeaders.TRANSFER_ENCODING);
         put.setEntity(httpEntity);
         return put;
     }

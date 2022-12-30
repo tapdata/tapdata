@@ -7,6 +7,7 @@ package io.tapdata.connector.doris.streamload;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Record Stream for writing record.
@@ -16,7 +17,11 @@ public class RecordStream extends InputStream {
 
     @Override
     public int read() throws IOException {
-        return 0;
+        try {
+            return recordBuffer.read();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public RecordStream(int bufferSize, int bufferCount) {
@@ -54,5 +59,13 @@ public class RecordStream extends InputStream {
 
     public boolean canWrite(int length) {
         return recordBuffer.currentBufferRemaining() > length;
+    }
+
+    @Override
+    public String toString() {
+        if (null == recordBuffer.currentWriteBuffer) {
+            return "";
+        }
+        return new String(recordBuffer.currentWriteBuffer.array(), StandardCharsets.UTF_8);
     }
 }

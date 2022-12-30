@@ -1,8 +1,8 @@
 package io.tapdata.connector.doris.streamload;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.tapdata.connector.doris.DorisContext;
 import io.tapdata.connector.doris.bean.DorisConfig;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.tapdata.connector.doris.streamload.exception.DorisRuntimeException;
 import io.tapdata.connector.doris.streamload.exception.StreamLoadException;
 import io.tapdata.connector.doris.streamload.rest.models.RespContent;
@@ -13,9 +13,11 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
@@ -25,11 +27,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.UUID;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -67,9 +66,11 @@ public class DorisStreamLoader {
 
         DataMap nodeConfig = dorisContext.getTapConnectionContext().getNodeConfig();
         Integer writeByteBufferCapacity = null;
-        try {
-            writeByteBufferCapacity = nodeConfig.getInteger("writeByteBufferCapacity");
-        } catch (NumberFormatException ignored) {
+        if (null != nodeConfig) {
+            try {
+                writeByteBufferCapacity = nodeConfig.getInteger("writeByteBufferCapacity");
+            } catch (NumberFormatException ignored) {
+            }
         }
         if (null == writeByteBufferCapacity) {
             writeByteBufferCapacity = Constants.CACHE_BUFFER_SIZE;
@@ -172,7 +173,7 @@ public class DorisStreamLoader {
             final String loadUrl = buildLoadUrl(config.getDorisHttp(), config.getDatabase(), table.getId());
             final String prefix = buildPrefix(table.getId());
 
-            String label = prefix + "_" + recordEvent.getTime();
+            String label = prefix + "_" + recordEvent.getTime() + "-" + UUID.randomUUID();
             List<String> columns = new ArrayList<>();
             for (Map.Entry<String, TapField> entry : table.getNameFieldMap().entrySet()) {
                 columns.add(entry.getKey());
@@ -189,11 +190,13 @@ public class DorisStreamLoader {
                     .addCommonHeader()
                     .addFormat(writeFormat)
                     .addColumns(columns)
+                    .setLabel(label)
                     .enableDelete()
                     .setEntity(entity);
             pendingLoadFuture = executorService.submit(() -> {
-                TapLogger.info(TAG, "start execute load, headers: {}", putBuilder.header);
-                return httpClient.execute(putBuilder.build());
+                HttpPut httpPut = putBuilder.build();
+                TapLogger.info(TAG, "start execute load, url: {}, headers: {}", loadUrl, putBuilder.header);
+                return httpClient.execute(httpPut);
             });
             lastEventFlag.set(OperationType.getOperationFlag(recordEvent));
         } catch (Exception e) {
@@ -223,12 +226,14 @@ public class DorisStreamLoader {
         }
         try {
             recordStream.write(messageSerializer.batchEnd());
+            TapLogger.info(TAG, "Flush stream: " + recordStream);
             recordStream.endInput();
             TapLogger.info(TAG, "stream load stopped");
             Assert.notNull(pendingLoadFuture, "pendingLoadFuture of DorisStreamLoad should never be null");
             lastEventFlag.set(0);
             size = 0;
             RespContent respContent = handlePreCommitResponse(pendingLoadFuture.get());
+            TapLogger.info(TAG, "Execute stream load response: " + respContent);
             pendingLoadFuture = null;
             return respContent;
         } catch (Exception e) {
@@ -239,6 +244,10 @@ public class DorisStreamLoader {
 
     public void shutdown() {
         this.stopLoad();
+        try {
+            this.httpClient.close();
+        } catch (Exception ignored) {
+        }
     }
 
     private String buildLoadUrl(final String dorisHttp, final String database, final String tableName) {
