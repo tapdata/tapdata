@@ -165,9 +165,9 @@ public class MeasurementServiceV2 {
             Number value = data.get(key);
             if (requestMap.containsKey(key)
                     && Objects.nonNull(requestMap.get(key))
-                    && requestMap.get(key).longValue() == 0L
+                    && requestMap.get(key).doubleValue() == 0
                     && Objects.nonNull(value)
-                    && value.longValue() > 0L) {
+                    && value.doubleValue() > 0) {
                 requestSample.getVs().put(key, value);
             } else if (!requestMap.containsKey(key) && data.containsKey(key)) {
                 requestSample.getVs().put(key, value);
