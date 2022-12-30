@@ -597,4 +597,9 @@ public class AlarmServiceImpl implements AlarmService {
     public void delAlarm(String taskId) {
         mongoTemplate.remove(Query.query(Criteria.where("taskId").is(taskId)), AlarmInfo.class);
     }
+
+    @Override
+    public List<AlarmInfo> query(Query query) {
+        return mongoTemplate.find(query, AlarmInfo.class);
+    }
 }
