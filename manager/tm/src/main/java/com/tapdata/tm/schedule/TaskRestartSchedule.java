@@ -4,7 +4,6 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -80,7 +79,7 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 10 * 1000, fixedDelay = 5000)
+    @Scheduled(initialDelay = 150 * 1000, fixedDelay = 5000)
     @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
         Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
