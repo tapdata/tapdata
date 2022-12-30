@@ -31,7 +31,9 @@ fi
 
 start_result="成功"
 
-server=`head -3 config.yaml |grep server|awk -F '"' '{print $2}'`
+if [[ -z $server ]]; then
+  server=`head -3 config.yaml |grep server|awk -F '"' '{print $2}'`
+fi
 curl $server --max-time 3 2>&1 > /dev/null
 if [[ $? -ne 0 ]]; then
     echo "curl server timeout, skip testing..."
