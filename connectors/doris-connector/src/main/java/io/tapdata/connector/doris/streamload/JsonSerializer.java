@@ -9,9 +9,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -21,7 +19,7 @@ import java.util.Map;
  **/
 public class JsonSerializer implements MessageSerializer {
 
-	public static final String LINE_END = ",\n";
+	public static final String LINE_END = ",";
 	private ObjectMapper objectMapper;
 
 	public JsonSerializer() {
@@ -74,7 +72,7 @@ public class JsonSerializer implements MessageSerializer {
 			Object value = record.get(field);
 			linkedRecord.put(field, value);
 		}
-		linkedRecord.put(Constants.DORIS_DELETE_SIGN, delete ? "1" : "0");
+//		linkedRecord.put(Constants.DORIS_DELETE_SIGN, delete ? 1 : 0);
 		return objectMapper.writeValueAsString(linkedRecord);
 	}
 }
