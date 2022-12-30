@@ -223,7 +223,6 @@ public class MysqlJdbcContext implements AutoCloseable {
 					statementImpl.enableStreamingResults();
 				}
 			}
-			statement.setFetchSize(1000);
 			try (
 					ResultSet resultSet = statement.executeQuery(sql)
 			) {

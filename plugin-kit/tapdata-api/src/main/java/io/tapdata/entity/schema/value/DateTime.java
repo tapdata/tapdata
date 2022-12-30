@@ -2,6 +2,7 @@ package io.tapdata.entity.schema.value;
 
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.text.DecimalFormat;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -163,12 +164,30 @@ public class DateTime {
                 dateTime.seconds = Long.parseLong(scaleArr[0]) * 60 + Long.parseLong(scaleArr[1]);
                 break;
             case 3:
-                dateTime.seconds = Long.parseLong(scaleArr[0]) * 60 *60 + Long.parseLong(scaleArr[1]) * 60 + Long.parseLong(scaleArr[2]);
+                dateTime.seconds = Long.parseLong(scaleArr[0]) * 60 * 60 + Long.parseLong(scaleArr[1]) * 60 + Long.parseLong(scaleArr[2]);
                 break;
             default:
                 throw new IllegalArgumentException("DateTime constructor illegal timeStr: " + timeStr);
         }
         return dateTime;
+    }
+
+    public String toTimeStr() {
+        DecimalFormat decimalFormat = new DecimalFormat("00");
+        int hour;
+        if (seconds >= 0) {
+            hour = (int) (seconds / (60 * 60));
+        } else {
+            hour = (int) ((seconds + 1) / (60 * 60)) - 1;
+        }
+        long realSecond = seconds - hour * 3600L;
+        int minute = (int) (realSecond % (60 * 60) / 60);
+        int second = (int) (realSecond % 60);
+        String timeStr = decimalFormat.format(hour) + ":" + decimalFormat.format(minute) + ":" + decimalFormat.format(second);
+        if (nano != 0) {
+            timeStr += ("" + (double) Math.abs(nano) / 1000000000L).substring(1);
+        }
+        return timeStr;
     }
 
     public Instant toInstant() {

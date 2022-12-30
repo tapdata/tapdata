@@ -1,4 +1,4 @@
-package io.tapdata.connector.postgres.converters;
+package io.tapdata.connector.mysql.converters;
 
 import io.debezium.spi.converter.CustomConverter;
 import io.debezium.spi.converter.RelationalColumn;
@@ -21,13 +21,21 @@ public class TimeConverter implements CustomConverter<SchemaBuilder, RelationalC
     public void converterFor(RelationalColumn column,
                              ConverterRegistration<SchemaBuilder> registration) {
 
-        if ("time".equals(column.typeName())) {
+        if ("time".equalsIgnoreCase(column.typeName())) {
             registration.register(timeSchema, x -> {
                 if (EmptyKit.isNull(x)) {
                     return null;
                 }
                 Duration duration = (Duration) x;
-                return duration.getSeconds() * 1000000 + duration.getNano() / 1000;
+                long seconds = duration.getSeconds();
+                long nanos = duration.getNano();
+                if (seconds < 0) {
+                    int second = (int) (seconds * (-1)) % 60;
+                    int minute = (int) ((seconds * (-1)) % 3600) / 60;
+                    return (seconds + 2 * 60 * minute + 2 * second - (nanos != 0 ? 2 : 0)) * 1000000 + nanos / 1000;
+                } else {
+                    return seconds * 1000000 + nanos / 1000;
+                }
             });
         }
     }
