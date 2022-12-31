@@ -155,7 +155,13 @@ public class DateTime {
         } else {
             dateTime.nano = 0;
         }
-        scaleArr = scaleArr[0].split(":");
+        boolean negative = false;
+        if (scaleArr[0].startsWith("-")) {
+            negative = true;
+            scaleArr = scaleArr[0].substring(1).split(":");
+        } else {
+            scaleArr = scaleArr[0].split(":");
+        }
         switch (scaleArr.length) {
             case 1:
                 dateTime.seconds = Long.parseLong(scaleArr[0]);
@@ -169,25 +175,31 @@ public class DateTime {
             default:
                 throw new IllegalArgumentException("DateTime constructor illegal timeStr: " + timeStr);
         }
+        if (negative) {
+            dateTime.seconds *= -1;
+            dateTime.nano *= -1;
+        }
         return dateTime;
     }
 
     public String toTimeStr() {
         DecimalFormat decimalFormat = new DecimalFormat("00");
-        int hour;
-        if (seconds >= 0) {
-            hour = (int) (seconds / (60 * 60));
+        long realSecond;
+        boolean negative = false;
+        if (seconds < 0 || nano < 0) {
+            realSecond = seconds * (-1);
+            negative = true;
         } else {
-            hour = (int) ((seconds + 1) / (60 * 60)) - 1;
+            realSecond = seconds;
         }
-        long realSecond = seconds - hour * 3600L;
+        int hour = (int) (realSecond / (60 * 60));
         int minute = (int) (realSecond % (60 * 60) / 60);
         int second = (int) (realSecond % 60);
         String timeStr = decimalFormat.format(hour) + ":" + decimalFormat.format(minute) + ":" + decimalFormat.format(second);
         if (nano != 0) {
             timeStr += ("" + (double) Math.abs(nano) / 1000000000L).substring(1);
         }
-        return timeStr;
+        return (negative ? "-" : "") + timeStr;
     }
 
     public Instant toInstant() {
@@ -289,7 +301,7 @@ public class DateTime {
 
 
     public static void main(String[] args) {
-        DateTime dateTime =  new  DateTime(1669695379255L);
+        DateTime dateTime = new DateTime(1669695379255L);
         dateTime.getNano();
         dateTime.getSeconds();
     }
