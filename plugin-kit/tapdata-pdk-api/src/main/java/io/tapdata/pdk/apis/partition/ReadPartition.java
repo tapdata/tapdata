@@ -3,6 +3,7 @@ package io.tapdata.pdk.apis.partition;
 import io.tapdata.async.master.JobContext;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.error.TapAPIErrorCodes;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexEx;
 import io.tapdata.entity.schema.TapIndexField;
@@ -24,6 +25,7 @@ import static io.tapdata.entity.simplify.TapSimplify.map;
  * @author aplomb
  */
 public class ReadPartition implements Comparable<ReadPartition> {
+	private static final String TAG = ReadPartition.class.getSimpleName();
 	private TapIndexEx partitionIndex;
 	public ReadPartition partitionIndex(TapIndexEx partitionIndex) {
 		this.partitionIndex = partitionIndex;
@@ -72,94 +74,94 @@ public class ReadPartition implements Comparable<ReadPartition> {
 
 	@Override
 	public int compareTo(ReadPartition o) {
-		TapIndexEx indexEx = partitionIndex;
-		//partition keys
-		if(partitionFilter == null || o.partitionFilter == null)
-			throw new CoreException(TapAPIErrorCodes.ERROR_PARTITION_FILTER_NULL, "partitionFilter can not be null while compare from {} to {}", this, o);
-		int compare = 0;
-		DataMap match = partitionFilter.getMatch();
-		DataMap match1 = o.partitionFilter.getMatch();
-
-		QueryOperator leftBoundary = partitionFilter.getLeftBoundary();
-		QueryOperator leftBoundary1 = o.partitionFilter.getLeftBoundary();
-
-		QueryOperator rightBoundary = partitionFilter.getRightBoundary();
-		QueryOperator rightBoundary1 = o.partitionFilter.getRightBoundary();
-
-		List<TapIndexField> fieldList = indexEx.getIndexFields();
-		for(TapIndexField field : fieldList) {
-			Object matchValue = match.get(field.getName());
-			Object matchValue1 = match1.get(field.getName());
-			if(matchValue instanceof Comparable && matchValue1 instanceof Comparable) {
-				compare = ((Comparable) matchValue).compareTo(matchValue1);
-				if(compare == 0)
-					continue;
-				return compare;
-			}
-
-			if(leftBoundary != null && leftBoundary.getKey().equals(field.getName())) {
-				Object leftValue = leftBoundary.getValue();
-				if(matchValue1 != null) {
-					if(leftValue instanceof Comparable) {
-						int c = ((Comparable) leftValue).compareTo(matchValue1);
-						switch (leftBoundary.getOperator()) {
-							case QueryOperator.GT:
-								return c < 0 ? -1 : 1;
-							case QueryOperator.GTE:
-								if(c != 0) {
-									return c < 0 ? -1 : 1;
-								}
-								break;
-							case QueryOperator.LT:
-							case QueryOperator.LTE:
-								throw new CoreException(TapAPIErrorCodes.ILLEGAL_OPERATOR_FOR_LEFT_BOUNDARY, "left boundary should only have gt or gte, {}", leftBoundary);
-						}
-					}
-				} else if(rightBoundary1 != null && rightBoundary1.getKey().equals(field.getName())) {
-					Object rightValue1 = rightBoundary1.getValue();
-					if(leftValue instanceof Comparable) {
-						int c = ((Comparable) leftValue).compareTo(rightValue1);
-
-					}
-				}
-			}
-			if(rightBoundary != null && rightBoundary.getKey().equals(field.getName())) {
-
-			}
-			if(leftBoundary1.getKey().equals(field.getName())) {
-
-			}
-		}
-
-		if(match != null && match1 == null)
-			return 1;
-		else if(match == null)
-			return -1;
-
-		if(match != null && match1 != null) {
-			if(match.size() > match1.size())
-				return 1;
-			else if(match.size() < match1.size())
-				return -1;
-			else {
-				for(Map.Entry<String, Object> entry : match.entrySet()) {
-					String key = entry.getKey();
-					Object value = entry.getValue();
-					Object value1 = match1.get(key);
-					if(value1 == null)
+		if (partitionIndex == null && o.partitionIndex == null)
+			throw new CoreException(TapAPIErrorCodes.ERROR_ILLEGAL_PARAMETERS, "at least exist one partitionIndex for readPartition {} compare {}", this, o);
+		List<TapIndexField> indexFields = partitionIndex != null ? partitionIndex.getIndexFields() : o.partitionIndex.getIndexFields();
+		for (TapIndexField indexField : indexFields) {
+			Object curMatchValue = null;
+			Object curRightBValue = null;
+			if (partitionFilter.getMatch() != null)
+				curMatchValue = partitionFilter.getMatch().getObject(indexField.getName());
+			if (curMatchValue == null) {
+				QueryOperator curRightBoundary = partitionFilter.getRightBoundary();
+				if (curRightBoundary != null) {
+					curRightBValue = curRightBoundary.getValue();
+				} else {
+					if (partitionFilter.getLeftBoundary() == null)
+						return -1;
+					else
 						return 1;
-					if(value instanceof Comparable && value1 instanceof Comparable) {
-						compare = ((Comparable) value).compareTo(value1);
+				}
+			}
+			Object oMatchValue = null;
+			Object oRightBValue = null;
+			if (o.partitionFilter.getMatch() != null)
+				oMatchValue = o.partitionFilter.getMatch().getObject(indexField.getName());
+			if (oMatchValue == null) {
+				QueryOperator oRightBoundary = o.partitionFilter.getRightBoundary();
+				if (oRightBoundary != null) {
+					oRightBValue = oRightBoundary.getValue();
+				} else {
+					if (o.partitionFilter.getLeftBoundary() == null)
+						return 1;
+					else
+						return -1;
+				}
+			}
+			if (curMatchValue != null) {
+				if (oMatchValue != null) {
+					if (curMatchValue instanceof Comparable && oMatchValue instanceof Comparable) {
+						int compareResult = ((Comparable) curMatchValue).compareTo(oMatchValue);
+						if (compareResult == 0) {
+							continue;
+						} else {
+							return compareResult;
+						}
+					} else {
+						System.out.println("can not compare rightBoundary, rightBoundary.value must be Comparable");
+						return 0;
 					}
-					if(compare != 0)
-						return compare;
-//					TypeSplitter typeSplitter = typeSplitterMap.get(TypeSplitterMap.detectType(value));
-//					compare = typeSplitter.compare(value, value1);
+				} else {
+					if (curMatchValue instanceof Comparable && oRightBValue instanceof Comparable) {
+						int compareResult = ((Comparable) curMatchValue).compareTo(oRightBValue);
+						if (compareResult == 0) {
+							return 1;
+						} else {
+							return compareResult;
+						}
+					} else {
+						TapLogger.warn(TAG, "can not compare rightBoundary, rightBoundary.value must be Comparable, curMatchValue {}, oRightBValue {}", curMatchValue, oRightBValue);
+						return 0;
+					}
+				}
+			} else {
+				if (oMatchValue != null) {
+					if (curRightBValue instanceof Comparable && oMatchValue instanceof Comparable) {
+						int compareResult = ((Comparable) curRightBValue).compareTo(oMatchValue);
+						if (compareResult == 0) {
+							return -1;
+						} else {
+							return compareResult;
+						}
+					} else {
+						TapLogger.warn(TAG, "can not compare rightBoundary, rightBoundary.value must be Comparable, curRightBValue {}, oMatchValue {}", curRightBValue, oMatchValue);
+						return 0;
+					}
+				} else {
+					if (curRightBValue instanceof Comparable && oRightBValue instanceof Comparable) {
+						int compareResult = ((Comparable) curRightBValue).compareTo(oRightBValue);
+						if (compareResult == 0) {
+							continue;
+						} else {
+							return compareResult;
+						}
+					} else {
+						TapLogger.warn(TAG, "can not compare rightBoundary, rightBoundary.value must be Comparable, curRightBValue {}, oRightBValue {}", curRightBValue, oRightBValue);
+						return 0;
+					}
 				}
 			}
 		}
-//		QueryOperator leftBoundary = partitionFilter.getLeftBoundary();
-//		QueryOperator leftBoundary1 = o.partitionFilter.getLeftBoundary();
 		return 0;
 	}
 

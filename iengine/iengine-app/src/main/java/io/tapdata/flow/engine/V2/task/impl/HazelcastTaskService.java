@@ -362,6 +362,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withConfigurationCenter(config)
 								.withSourceConn(connection)
 								.withConnectionConfig(connection.getConfig())
+								.withConnections(connection)
 								.withDatabaseType(databaseType)
 								.withTapTableMap(tapTableMap)
 								.withTaskConfig(taskConfig)
@@ -373,7 +374,11 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 							ReadPartitionOptions readPartitionOptions = null;
 							if(node instanceof DataParentNode) {
 								readPartitionOptions = ((DataParentNode<?>) node).getReadPartitionOptions();
+
+								readPartitionOptions = new ReadPartitionOptions(); //temp code for testing
+								((DataParentNode<?>) node).setReadPartitionOptions(readPartitionOptions);
 							}
+
 							if(readPartitionOptions != null && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE) {
 								hazelcastNode = new HazelcastSourcePdkDataNodeEx1(processorContext);
 							} else {

@@ -5,23 +5,18 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.modules.api.storage.TapKVStorage;
-import io.tapdata.modules.api.storage.TapSequenceStorage;
 import io.tapdata.modules.api.storage.TapStorageFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.state.StateMachine;
 import io.tapdata.storage.TapStorageImpl;
 import io.tapdata.storage.errors.StorageErrors;
-import io.tapdata.storage.sequence.TapSequenceStorageImpl;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.rocksdb.CompressionType;
-import org.rocksdb.Options;
-import org.rocksdb.RocksDB;
-import org.rocksdb.RocksDBException;
+import org.rocksdb.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.function.BiFunction;
 
 /**
  * @author aplomb
@@ -61,9 +56,51 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 
 	@Override
 	public void remove(Object key) {
-
+		try {
+			db.delete(objectSerializable.fromObject(key));
+		} catch (RocksDBException e) {
+			throw new CoreException(StorageErrors.KV_STORAGE_DELETE_FAILED, e, "Delete key {} failed, {}", key, e.getMessage());
+		}
+	}
+	@Override
+	public Object removeAndGet(Object key) {
+		try {
+			byte[] keyBytes = objectSerializable.fromObject(key);
+			byte[] dataBytes = db.get(keyBytes);
+			Object data = null;
+			if(dataBytes != null) {
+				data = objectSerializable.toObject(dataBytes);
+				db.delete(keyBytes);
+			}
+			return data;
+		} catch (RocksDBException e) {
+			throw new CoreException(StorageErrors.KV_STORAGE_DELETE_FAILED, e, "Delete key {} failed, {}", key, e.getMessage());
+		}
 	}
 
+	@Override
+	public void foreach(BiFunction<Object, Object, Boolean> iterateFunc) {
+		foreach(iterateFunc, true);
+	}
+
+	@Override
+	public void foreach(BiFunction<Object, Object, Boolean> iterateFunc, boolean asc) {
+		try(RocksIterator iterator = db.newIterator()) {
+			if(asc) {
+				for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
+					Boolean result = iterateFunc.apply(objectSerializable.toObject(iterator.key()), objectSerializable.toObject(iterator.value()));
+					if(result != null && !result)
+						break;
+				}
+			} else {
+				for (iterator.seekToLast(); iterator.isValid(); iterator.prev()) {
+					Boolean result = iterateFunc.apply(objectSerializable.toObject(iterator.key()), objectSerializable.toObject(iterator.value()));
+					if(result != null && !result)
+						break;
+				}
+			}
+		}
+	}
 	@Override
 	public synchronized void init(String id, TapStorageFactory.StorageOptions storageOptions) {
 		if(stateMachine == null) {
@@ -74,7 +111,14 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 							.configState(STATE_NONE, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_DESTROYED))
 							.configState(STATE_INITIALIZING, stateMachine.execute(this::handleInitializing).nextStates(STATE_INITIALIZED, STATE_DESTROYED))
 							.configState(STATE_INITIALIZED, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_DESTROYED))
-							.configState(STATE_DESTROYED, stateMachine.execute().nextStates());
+							.configState(STATE_DESTROYED, stateMachine.execute().nextStates())
+							.errorOccurred((throwable, fromState, toState, tapSequenceStorage, stateMachine) -> {
+								if(throwable instanceof CoreException) {
+									throw (CoreException) throwable;
+								} else {
+									throw new CoreException(StorageErrors.UNKNOWN_ERROR_IN_STATE_MACHINE, throwable, "Error occurred in state machine {}, {}", stateMachine, throwable.getMessage());
+								}
+							});
 				}
 			}
 		}

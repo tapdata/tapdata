@@ -5,6 +5,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.modules.api.async.master.AsyncErrors;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -29,7 +30,19 @@ public class JobContextImpl extends JobContext {
 				break;
 		}
 	}
-
+	public <T> void foreach(Iterator<T> iterator, Function<T, Boolean> function) {
+		if(iterator == null || function == null)
+			return;
+		while(iterator.hasNext()) {
+			T t = iterator.next();
+			checkJobStoppedOrNot();
+			Boolean result = function.apply(t);
+			checkJobStoppedOrNot();
+			if(result != null && !result) {
+				break;
+			}
+		}
+	}
 	@Override
 	public void foreach(int maxCount, Function<Integer, Boolean> function) {
 		foreach(0, maxCount, function);

@@ -29,12 +29,14 @@ public class AnyTimeToDateTime {
     private static Object specialTypeHandler(Object obj) {
         if(obj instanceof Number)
             obj = ((Number) obj).longValue();
-        else if(obj instanceof DateTime)
-            return (DateTime) obj;
+//        else if(obj instanceof DateTime)
+//            return (DateTime) obj;
         return obj;
     }
 
     public static DateTime toDateTime(Object obj) {
+        if(obj == null)
+            return null;
         obj = specialTypeHandler(obj);
         if(obj instanceof DateTime)
             return (DateTime) obj;

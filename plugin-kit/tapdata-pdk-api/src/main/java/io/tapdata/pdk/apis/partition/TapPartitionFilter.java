@@ -37,11 +37,23 @@ public class TapPartitionFilter extends TapFilter {
 	}
 
 	public TapPartitionFilter match(String key, Object value) {
+		if(key == null)
+			return this;
 		if(match == null)
 			match = DataMap.create();
 		match.put(key, value);
 		return this;
 	}
+
+	public TapPartitionFilter match(Map<String, Object> map) {
+		if(map == null)
+			return this;
+		if(match == null)
+			match = DataMap.create();
+		map.putAll(map);
+		return this;
+	}
+
 
 	public QueryOperator getLeftBoundary() {
 		return leftBoundary;

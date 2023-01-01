@@ -8,6 +8,7 @@ import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.modules.api.storage.TapSequenceStorage;
 import io.tapdata.modules.api.storage.TapStorageFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.state.StateErrorOccurredExecutor;
 import io.tapdata.pdk.core.utils.state.StateMachine;
 import io.tapdata.storage.TapStorageImpl;
 import io.tapdata.storage.errors.StorageErrors;
@@ -48,6 +49,13 @@ public class TapSequenceStorageImpl extends TapStorageImpl implements TapSequenc
 							.configState(STATE_INITIALIZED, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_WRITE_DONE_START_ITERATE, STATE_DESTROYED))
 							.configState(STATE_WRITE_DONE_START_ITERATE, stateMachine.execute(this::handleWriteDone).nextStates(STATE_INITIALIZING, STATE_DESTROYED))
 							.configState(STATE_DESTROYED, stateMachine.execute().nextStates())
+							.errorOccurred((throwable, fromState, toState, tapSequenceStorage, stateMachine) -> {
+								if(throwable instanceof CoreException) {
+									throw (CoreException) throwable;
+								} else {
+									throw new CoreException(StorageErrors.UNKNOWN_ERROR_IN_STATE_MACHINE, throwable, "Error occurred in state machine {}, {}", stateMachine, throwable.getMessage());
+								}
+							})
 					;
 				}
 			}

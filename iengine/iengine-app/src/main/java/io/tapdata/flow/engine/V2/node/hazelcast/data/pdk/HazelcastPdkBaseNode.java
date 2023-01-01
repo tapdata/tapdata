@@ -96,7 +96,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		};
 	}
 
-	protected PDKMethodInvoker createPdkMethodInvoker() {
+	public PDKMethodInvoker createPdkMethodInvoker() {
 		PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create()
 				.logTag(TAG)
 				.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
@@ -106,7 +106,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		return pdkMethodInvoker;
 	}
 
-	protected void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
+	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
 		if(null == pdkMethodInvoker) return;
 		pdkMethodInvokerList.remove(pdkMethodInvoker);
 	}
@@ -237,7 +237,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		}
 	}
 
-	protected ConnectorNode getConnectorNode() {
+	public ConnectorNode getConnectorNode() {
 		return ConnectorNodeService.getInstance().getConnectorNode(associateId);
 	}
 

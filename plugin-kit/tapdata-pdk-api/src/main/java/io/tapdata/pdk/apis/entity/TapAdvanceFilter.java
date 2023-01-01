@@ -21,6 +21,11 @@ public class TapAdvanceFilter extends TapFilter {
         return new TapAdvanceFilter();
     }
 
+    public TapAdvanceFilter batchSize(Integer batchSize) {
+        this.batchSize = batchSize;
+        return this;
+    }
+
     public TapAdvanceFilter projection(Projection projection) {
         this.projection = projection;
         return this;
@@ -36,6 +41,8 @@ public class TapAdvanceFilter extends TapFilter {
     }
 
     public TapAdvanceFilter op(QueryOperator operator) {
+        if(operator == null)
+            return this;
         if(operators == null) {
             operators = new ArrayList<>();
         }
@@ -94,5 +101,13 @@ public class TapAdvanceFilter extends TapFilter {
 
     public void setProjection(Projection projection) {
         this.projection = projection;
+    }
+
+    public Integer getBatchSize() {
+        return batchSize;
+    }
+
+    public void setBatchSize(Integer batchSize) {
+        this.batchSize = batchSize;
     }
 }

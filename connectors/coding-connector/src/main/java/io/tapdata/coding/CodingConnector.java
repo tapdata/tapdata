@@ -19,6 +19,10 @@ import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.LastData;
 import io.tapdata.entity.schema.TapTable;
@@ -30,6 +34,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 

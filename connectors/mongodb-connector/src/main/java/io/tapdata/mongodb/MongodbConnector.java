@@ -724,7 +724,6 @@ public class MongodbConnector extends ConnectorBase {
 
 	private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable table, Consumer<FilterResults> consumer) {
 		MongoCollection<Document> collection = getMongoCollection(table.getId());
-		FilterResults filterResults = new FilterResults();
 		List<Bson> bsonList = new ArrayList<>();
 		DataMap match = tapAdvanceFilter.getMatch();
 		if (match != null) {
@@ -752,10 +751,6 @@ public class MongodbConnector extends ConnectorBase {
 			}
 		}
 
-		Integer limit = tapAdvanceFilter.getLimit();
-		if (limit == null)
-			limit = 1000;
-
 		Bson query;
 		if (bsonList.isEmpty())
 			query = new Document();
@@ -781,8 +776,12 @@ public class MongodbConnector extends ConnectorBase {
 			}
 		}
 
-		FindIterable<Document> iterable = collection.find(query).limit(limit).projection(projectionDoc);
+		FindIterable<Document> iterable = collection.find(query).projection(projectionDoc);
 
+		Integer limit = tapAdvanceFilter.getLimit();
+		if(limit != null) {
+			iterable.limit(limit);
+		}
 		Integer skip = tapAdvanceFilter.getSkip();
 		if (skip != null) {
 			iterable.skip(skip);
@@ -805,12 +804,22 @@ public class MongodbConnector extends ConnectorBase {
 				iterable.sort(Sorts.descending(descKeys));
 			}
 		}
+		FilterResults filterResults = new FilterResults();
+		Integer batchSize = tapAdvanceFilter.getBatchSize();
+		if(batchSize == null) {
+			batchSize = 1000;
+		}
 		try (final MongoCursor<Document> mongoCursor = iterable.iterator()) {
 			while (mongoCursor.hasNext()) {
 				filterResults.add(mongoCursor.next());
+				if(filterResults.resultSize() >= batchSize) {
+					consumer.accept(filterResults);
+					filterResults = new FilterResults();
+				}
 			}
 		}
-		consumer.accept(filterResults);
+		if(filterResults.resultSize() > 0)
+			consumer.accept(filterResults);
 	}
 
 	/**

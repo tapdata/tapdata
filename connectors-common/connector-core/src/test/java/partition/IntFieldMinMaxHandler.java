@@ -18,7 +18,11 @@ public class IntFieldMinMaxHandler extends FieldMinMaxHandler {
 	public boolean match(QueryOperator queryOperator, Map<String, Object> record) {
 		int operator = queryOperator.getOperator();
 		Integer recordValue = (Integer) record.get(queryOperator.getKey());
+		if(recordValue == null)
+			recordValue = Integer.MIN_VALUE;
 		Integer queryValue = (Integer) queryOperator.getValue();
+		if(queryValue == null)
+			queryValue = Integer.MIN_VALUE;
 		switch (operator) {
 			case QueryOperator.LT:
 				return recordValue < queryValue;
@@ -35,7 +39,11 @@ public class IntFieldMinMaxHandler extends FieldMinMaxHandler {
 	@Override
 	protected boolean largerThan(Object a, Object b) {
 		Integer aInt = (Integer) a;
+		if(aInt == null)
+			aInt = Integer.MIN_VALUE;
 		Integer bInt = (Integer) b;
+		if(bInt == null)
+			bInt = Integer.MIN_VALUE;
 		return aInt > bInt;
 	}
 

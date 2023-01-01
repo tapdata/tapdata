@@ -9,8 +9,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
@@ -36,6 +37,32 @@ public class TapStorageFactoryTest {
 		DataMap theValue1 = (DataMap) kvStorage.get(data1);
 		Assertions.assertNotNull(theValue1);
 		Assertions.assertEquals("aaaaaaaa", theValue1.get("Value"));
+
+		kvStorage.remove(data1);
+		theValue1 = (DataMap) kvStorage.get(data1);
+		Assertions.assertNull(theValue1);
+
+		data1 = DataMap.create().kv("Key", "1234567");
+		value1 = DataMap.create().kv("Value", "aaaaaaaa");
+		DataMap data2 = DataMap.create().kv("Key", "1234568");
+		DataMap value2 = DataMap.create().kv("Value", "aaaaaaaa1");
+		kvStorage.put(data1, value1);
+		kvStorage.put(data2, value2);
+
+		Map<DataMap, DataMap> map = new LinkedHashMap<>();
+		kvStorage.foreach((key, value) -> {
+			map.put((DataMap) key, (DataMap) value);
+			return null;
+		});
+
+		Map<DataMap, DataMap> descMap = new LinkedHashMap<>();
+		kvStorage.foreach((key, value) -> {
+			descMap.put((DataMap) key, (DataMap) value);
+			return null;
+		}, false);
+		Assertions.assertEquals(2, map.size());
+		Assertions.assertEquals("aaaaaaaa1", descMap.values().stream().findFirst().get().get("Value"));
+		Assertions.assertEquals("aaaaaaaa", map.values().stream().findFirst().get().get("Value"));
 
 		kvStorage.clear();
 		Assertions.assertNull(kvStorage.get(data1));

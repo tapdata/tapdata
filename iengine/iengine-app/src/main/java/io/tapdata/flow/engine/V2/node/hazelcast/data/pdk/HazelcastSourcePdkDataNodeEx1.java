@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.async.master.*;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -61,7 +62,7 @@ import static io.tapdata.entity.simplify.TapSimplify.sleep;
  **/
 public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 	private static final String TAG = HazelcastSourcePdkDataNodeEx1.class.getSimpleName();
-	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNodeEx1.class);
+	public final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNodeEx1.class);
 
 	private static final int ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD = 100;
 
@@ -219,7 +220,7 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 													AspectUtils.accept(getReadPartitionsFuncAspect.state(GetReadPartitionsFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), readPartition);
 
 												readPartition.partitionIndex(tapTable.partitionIndex());
-												ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(pdkSourceContext, tapTable, readPartition, typeSplitterMap);
+												ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(pdkSourceContext, tapTable, readPartition, this);
 												partitionsReader.job(readPartition.getId(),
 														JobContext.create().context(ReadPartitionContext.create().pdkSourceContext(pdkSourceContext).table(tapTable).readPartition(readPartition)),
 														asyncQueueWorker -> asyncQueueWorker.
@@ -228,12 +229,9 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 																	@Override
 																	public JobContext run(JobContext jobContext) {
 																		JobContext context = readPartitionHandler.handleStartCachingStreamData(jobContext);
-																		Consumer<List<TapEvent>> consumer = (Consumer<List<TapEvent>>) context.getResult();
-																		if(consumer != null) {
-																			TapEventPartitionDispatcher dispatcher = tableEventPartitionDispatcher.get(tapTable.getId());
-																			if(dispatcher != null) {
-																				dispatcher.register(readPartition, consumer);
-																			}
+																		TapEventPartitionDispatcher dispatcher = tableEventPartitionDispatcher.get(tapTable.getId());
+																		if(dispatcher != null) {
+																			dispatcher.register(readPartition, readPartitionHandler);
 																		}
 																		return context;
 																	}
@@ -258,7 +256,12 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 	}
 
 	private void handleEnterCDCStage(AsyncParallelWorker partitionsReader, TapTable tapTable) {
+		partitionsReader.stop();
 
+		TapEventPartitionDispatcher eventPartitionDispatcher = tableEventPartitionDispatcher.get(tapTable.getId());
+		if(eventPartitionDispatcher != null) {
+			eventPartitionDispatcher.readPartitionFinished();
+		}
 	}
 
 
@@ -370,7 +373,7 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 				.pendingInitialSyncTables(need2InitialSync(syncProgress) ? new ArrayList<>(tapTableMap.keySet()) : null)
 				.needCDC(need2CDC());
 		initialSyncWorker = asyncMaster.createAsyncQueueWorker("InitialSync " + getNode().getId())
-				.job(initialSyncJobChain()).start(JobContext.create(null).context(sourceContext)).setAsyncJobErrorListener(this::handleWorkerError);
+				.job(initialSyncJobChain()).start(JobContext.create(null).context(sourceContext), true).setAsyncJobErrorListener(this::handleWorkerError);
 
 //		partitionsReader = asyncMaster.createAsyncParallelWorker("PartitionReader " + getNode().getId(), 8);
 //		streamReadWorker = asyncMaster.createAsyncQueueWorker("StreamRead " + getNode().getId())
@@ -698,7 +701,7 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 							pdkMethodInvoker.runnable(
 									() -> {
 										this.streamReadFuncAspect = streamReadFuncAspect;
-										StreamReadConsumer streamReadConsumer = StreamReadConsumer.create(this::handleStreamEventsReceived).stateListener((oldState, newState) -> {
+										StreamReadConsumer streamReadConsumer = StreamReadConsumer.create(this::handleStreamEventsReceivedDuringPartition).stateListener((oldState, newState) -> {
 											if (StreamReadConsumer.STATE_STREAM_READ_ENDED != newState) {
 												PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
 											}
@@ -748,7 +751,38 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
-	private void handleStreamEventsReceived(List<TapEvent> events, Object offsetObj) {
+	private void handleStreamEventsReceivedDuringPartition(List<TapEvent> events, Object offset) {
+		Map<String, List<TapEvent>> tableEvents = new LinkedHashMap<>();
+		List<TapEvent> otherEvents = new ArrayList<>();
+		for(TapEvent event : events) {
+			if(event instanceof TapBaseEvent) {
+				String table = ((TapBaseEvent) event).getTableId();
+				TapEventPartitionDispatcher eventPartitionDispatcher = tableEventPartitionDispatcher.get(table);
+				if(eventPartitionDispatcher != null) {
+					List<TapEvent> eventList = tableEvents.get(table);
+					if(eventList == null)
+						eventList = tableEvents.computeIfAbsent(table, k -> new ArrayList<>());
+					eventList.add(event);
+				}
+			} else {
+				otherEvents.add(event);
+			}
+		}
+		for(Map.Entry<String, List<TapEvent>> entry : tableEvents.entrySet()) {
+			TapEventPartitionDispatcher eventPartitionDispatcher = tableEventPartitionDispatcher.get(entry.getKey());
+			if(eventPartitionDispatcher.isReadPartitionFinished()) {
+				handleStreamEventsReceived(entry.getValue(), offset);
+			} else {
+				eventPartitionDispatcher.receivedTapEvents(entry.getValue());
+			}
+		}
+		if(!otherEvents.isEmpty())
+			handleStreamEventsReceived(otherEvents, offset);
+		//save offset
+		syncProgress.setStreamOffsetObj(offset);
+	}
+
+	public void handleStreamEventsReceived(List<TapEvent> events, Object offsetObj) {
 		try {
 //			while (isRunning()) {
 //				try {
@@ -781,7 +815,7 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 
 				if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 					tapdataEvents.forEach(this::enqueue);
-					syncProgress.setStreamOffsetObj(offsetObj);
+//					syncProgress.setStreamOffsetObj(offsetObj);
 					if (streamReadFuncAspect != null)
 						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
 				}

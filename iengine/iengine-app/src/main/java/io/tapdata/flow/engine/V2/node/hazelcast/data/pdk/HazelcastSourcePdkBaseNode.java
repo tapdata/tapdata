@@ -523,7 +523,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	abstract void startSourceRunner();
 
 	@NotNull
-	protected List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events) {
+	public List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events) {
 		return wrapTapdataEvent(events, SyncStage.INITIAL_SYNC, null);
 	}
 
@@ -698,7 +698,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return tapdataEvent;
 	}
 
-	protected void enqueue(TapdataEvent tapdataEvent) {
+	public void enqueue(TapdataEvent tapdataEvent) {
 		try {
 			if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
 				String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
