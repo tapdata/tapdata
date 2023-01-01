@@ -87,7 +87,11 @@ public class ScriptExecutorsManager {
       throw new IllegalArgumentException("The specified connection source [" + connectionName + "] does not exist, please check");
     }
 
-    return new ScriptExecutor(connections, hazelcastInstance, this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId);
+    logger.info("create script executor for {}", connectionName);
+    obsLogger.info("create script executor for {}", connectionName);
+
+    return new ScriptExecutor(connections, clientMongoOperator, hazelcastInstance, obsLogger,
+            this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId);
   }
 
   public void close() {
@@ -95,8 +99,9 @@ public class ScriptExecutorsManager {
     this.cacheMap.clear();
   }
 
-  public class ScriptExecutor {
+  public static class ScriptExecutor {
 
+    private final Logger logger = LogManager.getLogger(ScriptExecutor.class);
     private final ConnectorNode connectorNode;
 
     private final String TAG;
@@ -104,9 +109,11 @@ public class ScriptExecutorsManager {
     private final String associateId;
     private final Supplier<ExecuteCommandFunction> executeCommandFunctionSupplier;
 
+    private final ObsLogger obsLogger;
 
-    public ScriptExecutor(Connections connections, HazelcastInstance hazelcastInstance, String TAG) {
+    public ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, ObsLogger obsLogger, String TAG) {
       this.TAG = TAG;
+      this.obsLogger = obsLogger;
 
       Map<String, Object> connectionConfig = connections.getConfig();
       DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
@@ -210,7 +217,7 @@ public class ScriptExecutorsManager {
     }
 
 
-    void close() {
+    public void close() {
 
       CommonUtils.handleAnyError(() -> {
         Optional.ofNullable(connectorNode)

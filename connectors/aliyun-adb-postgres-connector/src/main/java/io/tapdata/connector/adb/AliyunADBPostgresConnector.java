@@ -1,4 +1,4 @@
-package io.tapdata.connector.adb;
+package io.tapdata.connector.rds;
 
 import io.tapdata.connector.postgres.PostgresConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;

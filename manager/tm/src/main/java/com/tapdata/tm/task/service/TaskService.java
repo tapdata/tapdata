@@ -99,7 +99,9 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -2493,6 +2495,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .unset("stopRetryTimes")
                     .unset("currentEventTimestamp")
                     .unset("scheduleDate")
+                    .unset("stopedDate")
                     .set("needCreateRecord", taskDto.isNeedCreateRecord());
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
@@ -2666,7 +2669,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
         //需要将重启标识清除
-        update(query, Update.update("isEdit", false).set("restartFlag", false).set("stopRetryTimes", 0), user);
+        Update set = Update.update("isEdit", false)
+                .set("restartFlag", false)
+                .set("stopRetryTimes", 0)
+                .set("lastStartDate", System.currentTimeMillis());
+        update(query, set, user);
         taskScheduleService.scheduling(taskDto, user);
     }
 
@@ -2748,7 +2755,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return;
         }
 
-        String pauseStatus = TaskDto.STATUS_STOPPING;
+        Update stopUpdate = Update.update("stopedDate", System.currentTimeMillis());
+        updateById(taskDto.getId(), stopUpdate, user);
+
         StateMachineResult stateMachineResult;
         if (force) {
             stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.FORCE_STOP, user);
@@ -2770,8 +2779,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             update(query1, update, user);
         }
 
+        Update update = Update.update("stopRetryTimes", 0);
+        updateById(taskDto.getId(), update, user);
 
-        //sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
+        sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
     }
 
     public void sendStoppingMsg(String taskId, String agentId, UserDetail user, boolean force) {
@@ -2802,14 +2813,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public String running(ObjectId id, UserDetail user) {
 
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId", "startTime");
+        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId", "startTime", "scheduleDate");
         //将子任务状态改成运行中
         if (!TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-        Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
 
+        FunctionUtils.ignoreAnyError(() -> {
+            String template = "Engine takeover task successful, cost {0}ms.";
+            String msg = MessageFormat.format(template, System.currentTimeMillis() - taskDto.getScheduleDate());
+            monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
+        });
+
+        Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
         Update update = Update.update("scheduleDate", null);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RUNNING, user);
@@ -2867,7 +2884,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String stopped(ObjectId id, UserDetail user) {
         //判断子任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId");
+        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId", "stopedDate");
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);
 
@@ -2875,7 +2892,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
-            Update update = Update.update("stopRetryTimes", 0);
+            FunctionUtils.ignoreAnyError(() -> {
+                String template = "Task has been stopped, total cost {0}ms.";
+                String msg = MessageFormat.format(template, System.currentTimeMillis() - taskDto.getStopedDate());
+                monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
+            });
+
+            Update update = Update.update("stopRetryTimes", 0).unset("stopedDate");
             updateById(id, update, user);
         }
         return id.toHexString();
@@ -3101,13 +3124,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
                 run(taskDto, finalUserMap.get(taskDto.getUserId()));
-                //run(taskDto, finalUserMap.get(taskDto.getUserId()));
                 //启动过后，应该更新掉这个自动启动计划
                 Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
                 updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
             }
-
-
         }
     }
 
