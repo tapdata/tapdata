@@ -19,7 +19,9 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -144,7 +146,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 						pdkStateMap,
 						globalStateMap,
 						connectorCapabilities,
-						() -> Log4jUtil.setThreadContext(taskDto)
+						() -> Log4jUtil.setThreadContext(taskDto),
+						InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext)
 				)
 		);
 		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));

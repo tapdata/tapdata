@@ -32,4 +32,8 @@ public interface AsyncQueueWorker extends AsyncWorker {
 	AsyncQueueWorker start(JobContext jobContext, long delayMilliSeconds, long periodMilliSeconds);
 
 	AsyncQueueWorker stop();
+
+	AsyncQueueWorker threadBefore(Runnable runnable);
+
+	AsyncQueueWorker threadAfter(Runnable runnable);
 }

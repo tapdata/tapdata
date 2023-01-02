@@ -44,6 +44,8 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 //	@Bean
 //	private DeadThreadPoolCleaner deadThreadPoolCleaner;
 	private final Map<String, Class<? extends AsyncJob>> asyncJobMap;
+	private Runnable threadBefore;
+	private Runnable threadAfter;
 
 	public AsyncQueueWorkerImpl(String id, Map<String, Class<? extends AsyncJob>> asyncJobMap) {
 		this.id = id;
@@ -212,6 +214,18 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 		return this;
 	}
 
+	@Override
+	public AsyncQueueWorker threadBefore(Runnable runnable) {
+		this.threadBefore = runnable;
+		return this;
+	}
+
+	@Override
+	public AsyncQueueWorker threadAfter(Runnable runnable) {
+		this.threadAfter = runnable;
+		return this;
+	}
+
 	private void startPrivate() {
 		if (!asyncJobChain.asyncJobLinkedMap.isEmpty() && changeState(state.get(), STATE_RUNNING, list(STATE_IDLE, STATE_LONG_IDLE), false)) {
 			if(startOnCurrentThread) {
@@ -265,6 +279,8 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	@Override
 	public void run() {
 		try {
+			if(threadBefore != null)
+				threadBefore.run();
 			String first;
 			JobContext lastJobContext = null;
 			String jumpTo = null;
@@ -343,6 +359,8 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 			}
 		} finally {
 			changeState(STATE_RUNNING, STATE_IDLE, null, true);
+			if(threadAfter != null)
+				threadAfter.run();
 			startPrivate();
 		}
 	}

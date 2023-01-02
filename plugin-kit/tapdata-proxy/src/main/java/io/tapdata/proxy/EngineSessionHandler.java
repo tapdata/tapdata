@@ -39,6 +39,12 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 
 	@Bean
 	private ProxySubscriptionService proxySubscriptionService;
+
+	@Override
+	public Result onRequest(IncomingRequest incomingRequest) {
+		return super.onRequest(incomingRequest);
+	}
+
 	@Bean
 	private MessageEntityService messageEntityService;
 	@Bean

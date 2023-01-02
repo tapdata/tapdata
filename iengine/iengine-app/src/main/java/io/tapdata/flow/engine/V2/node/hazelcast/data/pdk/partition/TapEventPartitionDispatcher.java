@@ -7,18 +7,14 @@ import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.schema.TapIndexEx;
-import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
@@ -30,9 +26,11 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 
 	private AtomicBoolean readPartitionFinished = new AtomicBoolean(false);
 
-	public TapEventPartitionDispatcher(TapTable table) {
+	private ObsLogger obsLogger;
+	public TapEventPartitionDispatcher(TapTable table, ObsLogger obsLogger) {
 		super(table);
 
+		this.obsLogger = obsLogger;
 		typeHandlers.register(TapInsertRecordEvent.class, this::handleInsertRecordEvent);
 		typeHandlers.register(TapUpdateRecordEvent.class, this::handleUpdateRecordEvent);
 		typeHandlers.register(TapDeleteRecordEvent.class, this::handleDeleteRecordEvent);
@@ -53,7 +51,15 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 		ReadPartition readPartition = readPartitionConsumerMap.ceilingKey(ReadPartition.create().partitionFilter(TapPartitionFilter.create().match(key)));
 		if(readPartition == null)
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "Partition not found for value {}", key);
-		readPartitionConsumerMap.get(readPartition).writeIntoKVStorage(key, after);
+		obsLogger.info("Table {} InsertRecord key {} assigned into partition {}", table.getId(), key, readPartition);
+		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
+		synchronized (readPartitionHandler) {
+			if(readPartitionHandler.isFinished()) {
+				readPartitionHandler.passThrough(insertRecordEvent);
+			} else {
+				readPartitionHandler.writeIntoKVStorage(key, after);
+			}
+		}
 		return null;
 	}
 
@@ -64,16 +70,23 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 		ReadPartition readPartition = readPartitionConsumerMap.ceilingKey(ReadPartition.create().partitionFilter(TapPartitionFilter.create().match(key)));
 		if(readPartition == null)
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "Partition not found for value {}", key);
+		obsLogger.info("Table {} UpdateRecord key {} assigned into partition {}", table.getId(), key, readPartition);
 		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
-		Map<String, Object> existData = readPartitionHandler.getExistDataFromKVMap(key);//(Map<String, Object>) kvStorage.get(key);
-		Map<String, Object> finalMap;
-		if(existData != null) {
-			existData.putAll(after);
-			finalMap = existData;
-		} else {
-			finalMap = after;
+		synchronized (readPartitionHandler) {
+			if(readPartitionHandler.isFinished()) {
+				readPartitionHandler.passThrough(updateRecordEvent);
+			} else {
+				Map<String, Object> existData = readPartitionHandler.getExistDataFromKVMap(key);//(Map<String, Object>) kvStorage.get(key);
+				Map<String, Object> finalMap;
+				if(existData != null) {
+					existData.putAll(after);
+					finalMap = existData;
+				} else {
+					finalMap = after;
+				}
+				readPartitionHandler.writeIntoKVStorage(key, finalMap);
+			}
 		}
-		readPartitionHandler.writeIntoKVStorage(key, finalMap);
 		return null;
 	}
 
@@ -83,8 +96,15 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 		ReadPartition readPartition = readPartitionConsumerMap.ceilingKey(ReadPartition.create().partitionFilter(TapPartitionFilter.create().match(key)));
 		if(readPartition == null)
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "Partition not found for value {}", key);
+		obsLogger.info("Table {} DeleteRecord key {} assigned into partition {}", table.getId(), key, readPartition);
 		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
-		readPartitionHandler.deleteFromKVStorage(key);
+		synchronized (readPartitionHandler) {
+			if(readPartitionHandler.isFinished()) {
+				readPartitionHandler.passThrough(deleteRecordEvent);
+			} else {
+				readPartitionHandler.deleteFromKVStorage(key);
+			}
+		}
 		return null;
 	}
 
@@ -104,5 +124,9 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 
 	public boolean isReadPartitionFinished() {
 		return readPartitionFinished.get();
+	}
+
+	public ConcurrentSkipListMap<ReadPartition, ReadPartitionHandler> getReadPartitionConsumerMap() {
+		return readPartitionConsumerMap;
 	}
 }

@@ -23,6 +23,7 @@ import io.tapdata.entity.simplify.pretty.TypeHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNodeEx1;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.PDKSourceContext;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.ReadPartitionContext;
 import io.tapdata.modules.api.storage.TapKVStorage;
 import io.tapdata.modules.api.storage.TapSequenceStorage;
 import io.tapdata.modules.api.storage.TapStorageFactory;
@@ -38,13 +39,14 @@ import io.tapdata.pdk.core.utils.LoggerUtils;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static io.tapdata.entity.simplify.TapSimplify.insertRecordEvent;
-import static io.tapdata.entity.simplify.TapSimplify.map;
+import static io.tapdata.entity.simplify.TapSimplify.*;
 
 /**
  * @author aplomb
@@ -63,6 +65,8 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 	private volatile TapSequenceStorage sequenceStorage;
 	private final HazelcastSourcePdkDataNodeEx1 sourcePdkDataNode;
 	private final Integer batchSize = 2000;
+
+	private final AtomicBoolean finished = new AtomicBoolean(false);
 
 	public ReadPartitionHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePdkDataNodeEx1 sourcePdkDataNode) {
 		super(tapTable);
@@ -92,14 +96,6 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 			kvStorage.remove(key);
 	}
 
-
-	public JobContext handlePartitionExistOrNot(JobContext jobContext) {
-		//TODO check partition id has finished or not from TM.
-		if(false)
-			return JobContext.create(null).jumpToId("finishedPartition");
-		return null;
-	}
-
 	public JobContext handleStartCachingStreamData(JobContext jobContext1) {
 		if(kvStorage == null) {
 			synchronized (this) {
@@ -107,16 +103,12 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 					storageFactory.deleteKVStorage(kvStorageDuringSendingId);
 					storageFactory.deleteKVStorage(kvStorageId);
 					kvStorage = storageFactory.getKVStorage(kvStorageId);
+					sourcePdkDataNode.getObsLogger().info("Prepared kv storage file {} for partition {}", kvStorageId, readPartition);
 				}
 			}
 		}
 
 		return null;
-	}
-
-	private void receivedCDCEvents(List<TapEvent> tapEvents) {
-		for(TapEvent event : tapEvents)
-			typeHandlers.handle(event);
 	}
 
 	public JobContext handleReadPartition(JobContext jobContext) {
@@ -125,11 +117,14 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 				if(sequenceStorage == null) {
 					storageFactory.deleteSequenceStorage(sequenceStorageId);
 					sequenceStorage = storageFactory.getSequenceStorage(sequenceStorageId);
+					sourcePdkDataNode.getObsLogger().info("Prepared sequence storage file {} for partition {}", sequenceStorageId, readPartition);
 				}
 			}
 		}
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = sourcePdkDataNode.getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
 		if(queryByAdvanceFilterFunction != null) {
+			long time = System.currentTimeMillis();
+			LongAdder counter = new LongAdder();
 			TapPartitionFilter partitionFilter = readPartition.getPartitionFilter();
 			TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create()
 					.match(partitionFilter.getMatch())
@@ -143,6 +138,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 								() -> queryByAdvanceFilterFunction.query(sourcePdkDataNode.getConnectorNode().getConnectorContext(), tapAdvanceFilter, table, filterResults -> {
 									Optional.ofNullable(filterResults.getResults()).ifPresent(results -> {
 										for (Map<String, Object> result : results) {
+											counter.increment();
 											sequenceStorage.add(reviseData(result));
 										}
 									});
@@ -150,6 +146,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 						));
 			} finally {
 				sourcePdkDataNode.removePdkMethodInvoker(pdkMethodInvoker);
+				sourcePdkDataNode.getObsLogger().info("Stored the readPartition {} into local {}, takes {}, total {}", readPartition, sequenceStorageId, (System.currentTimeMillis() - time), counter.longValue());
 			}
 
 		}
@@ -159,48 +156,51 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 	}
 
 	public JobContext handleSendingDataFromPartition(JobContext jobContext) {
+		ReadPartitionContext readPartitionContext = jobContext.getContext(ReadPartitionContext.class);
 		if(kvStorageDuringSending == null) {
 			synchronized (this) {
 				if(kvStorageDuringSending == null) {
 					kvStorageDuringSending = storageFactory.getKVStorage(kvStorageDuringSendingId);
+					sourcePdkDataNode.getObsLogger().info("Prepared kv storage during sending file {} for partition {}", kvStorageDuringSendingId, readPartition);
 				}
 			}
 		}
-
-		sourcePdkDataNode.executeDataFuncAspect(BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
-				.eventBatchSize(batchSize)
-				.connectorContext(sourcePdkDataNode.getConnectorNode().getConnectorContext())
-				.offsetState(null)
-				.dataProcessorContext(sourcePdkDataNode.getDataProcessorContext())
-				.start()
-				.table(table), batchReadFuncAspect -> {
-
-			List<TapEvent> events = new ArrayList<>();
-			Iterator<Object> iterator = sequenceStorage.iterator();
-			AtomicReference<List<TapEvent>> reference = new AtomicReference<>(events);
-			jobContext.foreach(iterator, o -> {
-				Map<String, Object> record = (Map<String, Object>) o;
-				Map<String, Object> key = getKeyFromData(record);
-				Map<String, Object> dataFromCDC = (Map<String, Object>) kvStorage.removeAndGet(key);
-				if(dataFromCDC != null) {
-					record.putAll(dataFromCDC);
-				}
-				reference.get().add(insertRecordEvent(record, table.getId()));
-				if(reference.get().size() >= batchSize) {
-					enqueueTapEvents(batchReadFuncAspect, reference.get());
-					reference.set(new ArrayList<>());
-				}
-				return null;
-			});
-			enqueueTapEvents(batchReadFuncAspect, reference.get());
-
-			List<TapEvent> newInsertEvents = new ArrayList<>();
-			kvStorage.foreach((key, value) -> {
-				newInsertEvents.add(insertRecordEvent((Map<String, Object>) value, table.getId()));
-				return null;
-			});
-			enqueueTapEvents(batchReadFuncAspect, newInsertEvents);
+		BatchReadFuncAspect batchReadFuncAspect = readPartitionContext.getBatchReadFuncAspect();
+		List<TapEvent> events = new ArrayList<>();
+		Iterator<Object> iterator = sequenceStorage.iterator();
+		long time = System.currentTimeMillis();
+		LongAdder counter = new LongAdder();
+		AtomicReference<List<TapEvent>> reference = new AtomicReference<>(events);
+		jobContext.foreach(iterator, o -> {
+			Map<String, Object> record = (Map<String, Object>) o;
+			Map<String, Object> key = getKeyFromData(record);
+			Map<String, Object> dataFromCDC = (Map<String, Object>) kvStorage.removeAndGet(key);
+			if(dataFromCDC != null) {
+				record.putAll(dataFromCDC);
+			}
+			reference.get().add(insertRecordEvent(record, table.getId()));
+			counter.increment();
+			if(reference.get().size() >= batchSize) {
+				enqueueTapEvents(batchReadFuncAspect, reference.get());
+				reference.set(new ArrayList<>());
+			}
+			return null;
 		});
+		enqueueTapEvents(batchReadFuncAspect, reference.get());
+
+		List<TapEvent> newInsertEvents = new ArrayList<>();
+		AtomicReference<List<TapEvent>> newInsertReference = new AtomicReference<>(newInsertEvents);
+		kvStorage.foreach((key, value) -> {
+			newInsertReference.get().add(insertRecordEvent((Map<String, Object>) value, table.getId()));
+			counter.increment();
+			if(newInsertReference.get().size() >= batchSize) {
+				enqueueTapEvents(batchReadFuncAspect, newInsertReference.get());
+				newInsertReference.set(new ArrayList<>());
+			}
+			return null;
+		});
+		enqueueTapEvents(batchReadFuncAspect, newInsertReference.get());
+		sourcePdkDataNode.getObsLogger().info("Send {} events to next node for read partition {} takes {}", counter.longValue(), readPartition, (System.currentTimeMillis() - time));
 		return null;
 	}
 
@@ -228,20 +228,58 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 	}
 
 	public JobContext handleFinishedPartition(JobContext jobContext) {
-		List<TapEvent> list = new ArrayList<>();
-		kvStorageDuringSending.foreach((key, value) -> {
-			list.add(insertRecordEvent((Map<String, Object>) value, table.getId()));
-			return null;
-		});
-		sourcePdkDataNode.handleStreamEventsReceived(list, null);
-
+		synchronized (this) {
+			if(finished.compareAndSet(false, true)) {
+				long time = System.currentTimeMillis();
+				LongAdder counter = new LongAdder();
+				List<TapEvent> list = new ArrayList<>();
+				AtomicReference<List<TapEvent>> eventListReference = new AtomicReference<>(list);
+				kvStorageDuringSending.foreach((key, value) -> {
+					eventListReference.get().add(insertRecordEvent((Map<String, Object>) value, table.getId()));
+					counter.increment();
+					if(eventListReference.get().size() >= batchSize) {
+						sourcePdkDataNode.handleStreamEventsReceived(eventListReference.get(), null);
+						eventListReference.set(new ArrayList<>());
+					}
+					return null;
+				});
+				sourcePdkDataNode.handleStreamEventsReceived(eventListReference.get(), null);
+				sourcePdkDataNode.getObsLogger().info("Read partition {} finished, takes {}, event(during sending) count {}", readPartition, (System.currentTimeMillis() - time), counter.longValue());
+			}
+		}
+		PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).get(table.getId());
+		if(partitionTableOffset == null) {
+			partitionTableOffset = new PartitionTableOffset();
+			((Map<String, PartitionTableOffset>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).put(table.getId(), partitionTableOffset);
+		}
+		Set<String> completedPartitions = partitionTableOffset.getCompletedPartitions();
+		if(completedPartitions == null) {
+			completedPartitions = new HashSet<>();
+			completedPartitions.add(readPartition.getId());
+			partitionTableOffset.setCompletedPartitions(completedPartitions);
+		} else {
+			completedPartitions.add(readPartition.getId());
+		}
 		storageFactory.deleteKVStorage(kvStorageDuringSendingId);
 		storageFactory.deleteKVStorage(kvStorageId);
 		storageFactory.deleteSequenceStorage(sequenceStorageId);
 		return null;
 	}
 
+	public void passThrough(TapEvent event) {
+		if(finished.get())
+			sourcePdkDataNode.handleStreamEventsReceived(list(event), null);
+	}
+
 	public Map<String, Object> getExistDataFromKVMap(Map<String, Object> key) {
 		return (Map<String, Object>) kvStorage.get(key);
+	}
+
+	public boolean isFinished() {
+		return finished.get();
+	}
+
+	public void finish() {
+		finished.set(true);
 	}
 }

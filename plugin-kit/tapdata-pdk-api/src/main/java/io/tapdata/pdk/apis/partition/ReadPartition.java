@@ -36,11 +36,6 @@ public class ReadPartition implements Comparable<ReadPartition> {
 		this.id = id;
 		return this;
 	}
-	private Map<String, Object> partitionValues;
-	public ReadPartition partitionValues(Map<String, Object> partitionValues) {
-		this.partitionValues = partitionValues;
-		return this;
-	}
 	private TapPartitionFilter partitionFilter;
 	public ReadPartition partitionFilter(TapPartitionFilter partitionFilter) {
 		this.partitionFilter = partitionFilter;
@@ -175,7 +170,8 @@ public class ReadPartition implements Comparable<ReadPartition> {
 
 		NavigableSet<ReadPartition> readPartitions = map.keySet();
 
-		ReadPartition readPartition = map.floorKey(ReadPartition.create().partitionValues(map(entry("a", 3), entry("b", 59))));
 
 	}
+
+
 }

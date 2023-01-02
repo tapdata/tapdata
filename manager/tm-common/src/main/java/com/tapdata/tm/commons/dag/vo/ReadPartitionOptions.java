@@ -1,7 +1,6 @@
 package com.tapdata.tm.commons.dag.vo;
 
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
-import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionsFunction;
 
 /**
  * @author aplomb
@@ -27,5 +26,10 @@ public class ReadPartitionOptions {
 
 	public void setMaxRecordInPartition(long maxRecordInPartition) {
 		this.maxRecordInPartition = maxRecordInPartition;
+	}
+
+	@Override
+	public String toString() {
+		return "ReadPartitionOptions maxRecordInPartition " + maxRecordInPartition + " splitType " + (splitType == SPLIT_TYPE_BY_COUNT ? "by count" : "by min/max");
 	}
 }

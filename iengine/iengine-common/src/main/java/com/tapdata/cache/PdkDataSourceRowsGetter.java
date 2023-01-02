@@ -11,7 +11,9 @@ import com.tapdata.tm.commons.dag.Node;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -63,7 +65,8 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
             connectionConfig,
             pdkTableMap,
             pdkStateMap,
-            globalStateMap
+            globalStateMap,
+            InstanceFactory.instance(LogFactory.class).getLog()
     );
 
     try {

@@ -762,5 +762,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		SHARE_CDC,
 	}
 
-
+	public SyncProgress getSyncProgress() {
+		return syncProgress;
+	}
 }

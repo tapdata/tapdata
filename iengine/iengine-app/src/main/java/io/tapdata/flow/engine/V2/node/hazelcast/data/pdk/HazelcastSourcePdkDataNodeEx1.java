@@ -15,11 +15,15 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.async.master.*;
+import io.tapdata.entity.aspect.AspectManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionErrorCodes;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionTableOffset;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.ReadPartitionHandler;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.TapEventPartitionDispatcher;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
@@ -34,6 +38,7 @@ import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.*;
+import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -52,6 +57,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.sleep;
@@ -63,7 +69,7 @@ import static io.tapdata.entity.simplify.TapSimplify.sleep;
 public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 	private static final String TAG = HazelcastSourcePdkDataNodeEx1.class.getSimpleName();
 	public final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNodeEx1.class);
-
+	public final Object streamReadLock = new int[0];
 	private static final int ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD = 100;
 
 	private ShareCdcReader shareCdcReader;
@@ -121,7 +127,9 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 		snapshotProgressManager = new SnapshotProgressManager(dataProcessorContext.getTaskDto(), clientMongoOperator,
 				getConnectorNode(), dataProcessorContext.getTapTableMap());
 
+
 		PDKSourceContext pdkSourceContext = jobContext.getContext(PDKSourceContext.class);
+		obsLogger.info("Start initial sync for tables {} with readPartitionOptions {}", pdkSourceContext.getPendingInitialSyncTables(), readPartitionOptions);
 
 		if(readPartitionOptions.getSplitType() == ReadPartitionOptions.SPLIT_TYPE_BY_COUNT)
 			doCount(pdkSourceContext.getPendingInitialSyncTables());
@@ -135,13 +143,6 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 //			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.RUNNING);
 
 			tableParallelWorker = asyncMaster.createAsyncParallelWorker("Tables_" + node.getId(), 1);
-
-			if(pdkSourceContext.isNeedCDC()) {
-				streamReadWorker = asyncMaster.createAsyncQueueWorker("StreamRead_tableSize_" + pdkSourceContext.getPendingInitialSyncTables().size())
-						.job(this::handleStreamRead)
-						.start(JobContext.create().context(
-								StreamReadContext.create().streamStage(false).tables(pdkSourceContext.getPendingInitialSyncTables())));
-			}
 
 			ReadPartitionOptions finalReadPartitionOptions = readPartitionOptions;
 			jobContext.foreach(pdkSourceContext.getPendingInitialSyncTables(), table -> {
@@ -157,6 +158,11 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 //					logger.info("Table " + table + " is detected that it has been removed, the snapshot read will be skipped");
 					obsLogger.info("Table " + table + " is detected that it has been removed, the snapshot read will be skipped");
 					this.removeTables.remove(table);
+					return null;
+				}
+				TapEventPartitionDispatcher eventPartitionDispatcher = tableEventPartitionDispatcher.get(table);
+				if(eventPartitionDispatcher != null && eventPartitionDispatcher.isReadPartitionFinished()) {
+					obsLogger.info("Table {} has read finished, no need batch read any more. ", table);
 					return null;
 				}
 				TapTable tapTable = dataProcessorContext.getTapTableMap().get(table);
@@ -180,7 +186,7 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 		}
 		return null;
 	}
-
+	private final Integer batchSize = 2000;
 	private void handleReadPartitionsForTable(PDKSourceContext pdkSourceContext, GetReadPartitionsFunction getReadPartitionsFunction, ReadPartitionOptions finalReadPartitionOptions, TapTable tapTable) {
 		AsyncParallelWorker partitionsReader = asyncMaster.createAsyncParallelWorker("PartitionsReader_" + tapTable.getId(), 8);
 		boolean addedIntoPending = false;
@@ -192,9 +198,14 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 				}
 			}
 		}
-		if(!addedIntoPending)
+		if(!addedIntoPending) {
+			obsLogger.info("Stream read started already, now start read partitions for table {}", tapTable.getId());
 			partitionsReader.start();
-		tableEventPartitionDispatcher.putIfAbsent(tapTable.getId(), new TapEventPartitionDispatcher(tapTable));
+		} else {
+			obsLogger.info("Stream read not started yet, read partitions for table {} will not start until stream read started. ", tapTable.getId());
+		}
+		AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
+		tableEventPartitionDispatcher.putIfAbsent(tapTable.getId(), new TapEventPartitionDispatcher(tapTable, obsLogger));
 		executeDataFuncAspect(
 				GetReadPartitionsFuncAspect.class, () -> new GetReadPartitionsFuncAspect()
 						.connectorContext(getConnectorNode().getConnectorContext())
@@ -207,55 +218,121 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 						getConnectorNode(), PDKMethod.SOURCE_GET_READ_PARTITIONS,
 						createPdkMethodInvoker().runnable(() ->
 						{
-							TypeSplitterMap typeSplitterMap = new TypeSplitterMap();
-							getReadPartitionsFunction.getReadPartitions(
-									getConnectorNode().getConnectorContext(),
-									tapTable,
-									GetReadPartitionOptions.create().maxRecordInPartition(finalReadPartitionOptions.getMaxRecordInPartition())
-											.existingPartitions(null)
-											.splitType(finalReadPartitionOptions.getSplitType())
-											.typeSplitterMap(typeSplitterMap)
-											.consumer((readPartition -> {
-												if (getReadPartitionsFuncAspect != null)
-													AspectUtils.accept(getReadPartitionsFuncAspect.state(GetReadPartitionsFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), readPartition);
+							BatchReadFuncAspect batchReadFuncAspect = new BatchReadFuncAspect()
+									.eventBatchSize(batchSize)
+									.connectorContext(getConnectorNode().getConnectorContext())
+									.offsetState(null)
+									.dataProcessorContext(dataProcessorContext)
+									.start()
+									.table(tapTable);
 
-												readPartition.partitionIndex(tapTable.partitionIndex());
-												ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(pdkSourceContext, tapTable, readPartition, this);
-												partitionsReader.job(readPartition.getId(),
-														JobContext.create().context(ReadPartitionContext.create().pdkSourceContext(pdkSourceContext).table(tapTable).readPartition(readPartition)),
-														asyncQueueWorker -> asyncQueueWorker.
-																job("partitionExistOrNot", readPartitionHandler::handlePartitionExistOrNot).
-																job("startCachingStreamData", new AsyncJob() {
-																	@Override
-																	public JobContext run(JobContext jobContext) {
-																		JobContext context = readPartitionHandler.handleStartCachingStreamData(jobContext);
-																		TapEventPartitionDispatcher dispatcher = tableEventPartitionDispatcher.get(tapTable.getId());
-																		if(dispatcher != null) {
-																			dispatcher.register(readPartition, readPartitionHandler);
-																		}
-																		return context;
-																	}
-																}).
-																job("readPartition", readPartitionHandler::handleReadPartition).
-																job("sendingDataFromPartition", readPartitionHandler::handleSendingDataFromPartition).
-																job("finishedPartition", readPartitionHandler::handleFinishedPartition));
-											}))
-											.completedRunnable(() -> {
-												while(!partitionsReader.runningQueueWorkers().isEmpty() || !partitionsReader.pendingQueueWorkers().isEmpty()) {
-													try {
-														Thread.sleep(500L);
-													} catch (InterruptedException e) {
-														throw new RuntimeException(e);
+							aspectManager.executeAspect(batchReadFuncAspect);
+
+							List<ReadPartition> readPartitionList = new ArrayList<>();
+							Runnable completedRunnable = () -> {
+								obsLogger.info("Partitions has been split for table {}, wait until all partitions has been read.", tapTable.getId());
+								Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+								PartitionTableOffset partitionTableOffset = null;
+								if(batchOffsetObj instanceof Map) {
+									partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
+									if(partitionTableOffset == null) {
+										partitionTableOffset = new PartitionTableOffset();
+										partitionTableOffset.partitions(readPartitionList);
+										((Map<String, PartitionTableOffset>) batchOffsetObj).put(tapTable.getId(), partitionTableOffset);
+									} else {
+										partitionTableOffset.partitions(readPartitionList);
+									}
+								}
+								while(!partitionsReader.runningQueueWorkers().isEmpty() || !partitionsReader.pendingQueueWorkers().isEmpty()) {
+									try {
+										Thread.sleep(500L);
+									} catch (InterruptedException e) {
+										throw new RuntimeException(e);
+									}
+								}
+								if(partitionTableOffset != null) {
+									partitionTableOffset.setTableCompleted(true);
+									partitionTableOffset.setPartitions(null);
+									partitionTableOffset.setCompletedPartitions(null);
+								}
+
+								aspectManager.executeAspect(batchReadFuncAspect.state(DataFunctionAspect.STATE_END));
+								//partition split done and read partitions done, start entering CDC stage.
+								handleEnterCDCStage(partitionsReader, tapTable);
+							};
+
+							Consumer<ReadPartition> partitionConsumer = readPartition -> {
+								readPartitionList.add(readPartition);
+								if (getReadPartitionsFuncAspect != null)
+									AspectUtils.accept(getReadPartitionsFuncAspect.state(GetReadPartitionsFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), readPartition);
+
+								readPartition.partitionIndex(tapTable.partitionIndex());
+								ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(pdkSourceContext, tapTable, readPartition, this);
+								partitionsReader.job(readPartition.getId(),
+										JobContext.create().context(ReadPartitionContext.create().pdkSourceContext(pdkSourceContext).table(tapTable).readPartition(readPartition).batchReadFuncAspect(batchReadFuncAspect)),
+										asyncQueueWorker -> asyncQueueWorker.
+												job("startCachingStreamData", jobContext -> {
+													JobContext context = readPartitionHandler.handleStartCachingStreamData(jobContext);
+													TapEventPartitionDispatcher dispatcher = tableEventPartitionDispatcher.get(tapTable.getId());
+													if(dispatcher != null) {
+														dispatcher.register(readPartition, readPartitionHandler);
 													}
-												}
-												//partition split done and read partitions done, start entering CDC stage.
-												handleEnterCDCStage(partitionsReader, tapTable);
-											}));
+													return context;
+												}).
+												job("readPartition", readPartitionHandler::handleReadPartition).
+												job("sendingDataFromPartition", readPartitionHandler::handleSendingDataFromPartition).
+												job("finishedPartition", readPartitionHandler::handleFinishedPartition));
+							};
+							//Recover from TM
+							List<ReadPartition> recoveredPartitions = null;
+							Set<String> completedPartitionIds = null;
+							Boolean tableCompleted = null;
+							Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+							if(batchOffsetObj instanceof Map) {
+								PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
+								if(partitionTableOffset != null) {
+									recoveredPartitions = partitionTableOffset.getPartitions();
+									completedPartitionIds = partitionTableOffset.getCompletedPartitions();
+									tableCompleted = partitionTableOffset.getTableCompleted();
+								}
+							}
+
+							if(tableCompleted != null && tableCompleted) {
+								//Table has been read completed, ignore this table.
+							} else if(recoveredPartitions != null && !recoveredPartitions.isEmpty()) {
+								//Read partition has been split, recover reading partitions.
+								for(ReadPartition readPartition : recoveredPartitions) {
+									if(completedPartitionIds != null && completedPartitionIds.contains(readPartition.getId())) {
+										obsLogger.info("Read partition {} has read completed");
+										continue;
+									}
+									partitionConsumer.accept(readPartition);
+								}
+								completedRunnable.run();
+							} else {
+								//Can not recover from TM, split read partitions through PDK function.
+								TypeSplitterMap typeSplitterMap = new TypeSplitterMap();
+								getReadPartitionsFunction.getReadPartitions(
+										getConnectorNode().getConnectorContext(),
+										tapTable,
+										GetReadPartitionOptions.create().maxRecordInPartition(finalReadPartitionOptions.getMaxRecordInPartition())
+												.existingPartitions(null)
+												.splitType(finalReadPartitionOptions.getSplitType())
+												.typeSplitterMap(typeSplitterMap)
+												.consumer((partitionConsumer))
+												.completedRunnable(completedRunnable));
+							}
+							if(recoveredPartitions == null || recoveredPartitions.isEmpty()) {
+
+							} else {
+
+							}
 						})
 				));
 	}
 
 	private void handleEnterCDCStage(AsyncParallelWorker partitionsReader, TapTable tapTable) {
+		obsLogger.info("All partitions has been read for table {}, stream records can pass directly to next node, without through its partition.", tapTable.getId());
 		partitionsReader.stop();
 
 		TapEventPartitionDispatcher eventPartitionDispatcher = tableEventPartitionDispatcher.get(tapTable.getId());
@@ -264,57 +341,6 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
-
-	public AsyncJobChain initialSyncJobChain() {
-		return asyncMaster.createAsyncJobChain().job("needInitialSync", jobContext -> {
-			PDKSourceContext pdkSourceContext = jobContext.getContext(PDKSourceContext.class);
-			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
-
-			if(pdkSourceContext.isNeedInitialSync()) {
-				return jobContext.jumpToId("batchRead");
-			} else {
-				return jobContext;
-			}
-		}).job("batchRead", this::handleBatchReadForTables, true);
-//		return asyncMaster.createAsyncJobChain().job("need2InitialSync", jobContext -> {
-//			boolean bool =  need2InitialSync(syncProgress);
-//			if(bool) {
-//				return JobContext.create(null);
-//			} else {
-//				return JobContext.create(null).jumpToId("needCDC");
-//			}
-//		}).externalJob("getReadPartitions", jobContext -> {
-//			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-//			doSnapshot(new ArrayList<>(tapTableMap.keySet()));
-////			jobChain.remove()
-//			return JobContext.create(null);
-//		}).externalJob("batchReadMore", jobContext -> {
-//			if (CollectionUtils.isNotEmpty(newTables)) {
-//				doSnapshot(newTables);
-//			}
-//			return null;
-//		}).job("needCDC", jobContext -> {
-//			boolean bool = need2CDC();
-//			if(bool) {
-//				return JobContext.create(null).jumpToId("streamRead");
-//			} else {
-//				return JobContext.create(null);
-//			}
-//		}).externalJob("streamRead", jobContext -> {
-//			return null;
-//		}, true);
-	}
-	public AsyncJobChain streamJobChain() {
-		return asyncMaster.createAsyncJobChain().job("needCDC", jobContext -> {
-			PDKSourceContext pdkSourceContext = jobContext.getContext(PDKSourceContext.class);
-			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
-
-			if(pdkSourceContext.isNeedCDC()) {
-				return jobContext.jumpToId("streamRead");
-			}
-			return jobContext;
-		}).job("streamRead", this::handleStreamRead, true);
-	}
 	private JobContext handleStreamRead(JobContext jobContext) {
 		try {
 			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_START));
@@ -372,8 +398,75 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 				.sourcePdkDataNode(this)
 				.pendingInitialSyncTables(need2InitialSync(syncProgress) ? new ArrayList<>(tapTableMap.keySet()) : null)
 				.needCDC(need2CDC());
-		initialSyncWorker = asyncMaster.createAsyncQueueWorker("InitialSync " + getNode().getId())
-				.job(initialSyncJobChain()).start(JobContext.create(null).context(sourceContext), true).setAsyncJobErrorListener(this::handleWorkerError);
+		if(sourceContext.isNeedInitialSync()) {
+			//Recover read partitions from TM
+			List<ReadPartition>	recoveredPartitions = null;
+			Set<String> completedPartitionIds = null;
+			Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+			if(batchOffsetObj instanceof Map) {
+				Map<String, Object> batchOffset = (Map<String, Object>) batchOffsetObj;
+				for(Map.Entry<String, Object> entry : batchOffset.entrySet()) {
+					if(entry.getValue() instanceof PartitionTableOffset) {
+						PartitionTableOffset partitionTableOffset = (PartitionTableOffset) entry.getValue();
+						recoveredPartitions = partitionTableOffset.getPartitions();
+						completedPartitionIds = partitionTableOffset.getCompletedPartitions();
+						Boolean tableCompleted = partitionTableOffset.getTableCompleted();
+
+						if(tableCompleted != null && tableCompleted) {
+							TapEventPartitionDispatcher eventPartitionDispatcher = tableEventPartitionDispatcher.get(entry.getKey());
+							if(eventPartitionDispatcher == null) {
+								tableEventPartitionDispatcher.computeIfAbsent(entry.getKey(), table -> {
+									TapTable tapTable = tapTableMap.get(table);
+									if(tapTable == null)
+										throw new CoreException(PartitionErrorCodes.TAP_TABLE_NOT_FOUND, "TapTable {} not found while recovering partitions", table);
+									TapEventPartitionDispatcher dispatcher = new TapEventPartitionDispatcher(tapTable, obsLogger);
+									dispatcher.readPartitionFinished();
+									obsLogger.info("Table {} read partition finished", table);
+									return dispatcher;
+								});
+							}
+						} else if(recoveredPartitions != null) {
+							TapEventPartitionDispatcher eventPartitionDispatcher = tableEventPartitionDispatcher.get(entry.getKey());
+							TapTable tapTable = tapTableMap.get(entry.getKey());
+							if(tapTable == null)
+								throw new CoreException(PartitionErrorCodes.TAP_TABLE_NOT_FOUND, "TapTable {} not found while recovering partitions", tapTable.getId());
+							if(eventPartitionDispatcher == null) {
+								eventPartitionDispatcher = tableEventPartitionDispatcher.computeIfAbsent(entry.getKey(), table -> {
+									TapEventPartitionDispatcher dispatcher = new TapEventPartitionDispatcher(tapTable, obsLogger);
+//										ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(sourceContext, tapTable, readPartition, this);
+//										readPartitionHandler.finish();
+//										obsLogger.info("Table {} partition {} has finished", table, readPartition);
+//										dispatcher.register(readPartition, readPartitionHandler);
+									return dispatcher;
+								});
+							}
+							for(ReadPartition readPartition : recoveredPartitions) {
+								if(completedPartitionIds != null && completedPartitionIds.contains(readPartition.getId())) {
+									ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(sourceContext, tapTable, readPartition, this);
+									readPartitionHandler.finish();
+									obsLogger.info("Table {} partition {} has finished", entry.getKey(), readPartition);
+									eventPartitionDispatcher.register(readPartition, readPartitionHandler);
+								} else {
+									ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(sourceContext, tapTable, readPartition, this);
+									obsLogger.info("Table {} partition {} has recovered", entry.getKey(), readPartition);
+									eventPartitionDispatcher.register(readPartition, readPartitionHandler);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			initialSyncWorker = asyncMaster.createAsyncQueueWorker("InitialSync " + getNode().getId())
+					.job("batchRead", this::handleBatchReadForTables).start(JobContext.create(null).context(sourceContext)).setAsyncJobErrorListener(this::handleWorkerError);
+		}
+
+		if(sourceContext.isNeedCDC()) {
+			streamReadWorker = asyncMaster.createAsyncQueueWorker("StreamRead_tableSize_" + sourceContext.getPendingInitialSyncTables().size())
+					.job(this::handleStreamRead)
+					.start(JobContext.create().context(
+							StreamReadContext.create().streamStage(false).tables(sourceContext.getPendingInitialSyncTables())), true).setAsyncJobErrorListener(this::handleWorkerError);
+		}
 
 //		partitionsReader = asyncMaster.createAsyncParallelWorker("PartitionReader " + getNode().getId(), 8);
 //		streamReadWorker = asyncMaster.createAsyncQueueWorker("StreamRead " + getNode().getId())
@@ -894,6 +987,15 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 
 	@Override
 	public void doClose() throws Exception {
+		if(initialSyncWorker != null) {
+			initialSyncWorker.stop();
+		}
+		if(tableParallelWorker != null) {
+			tableParallelWorker.stop();
+		}
+		if(streamReadWorker != null) {
+			streamReadWorker.stop();
+		}
 		try {
 			CommonUtils.handleAnyError(() -> {
 				if (null != shareCdcReader) {

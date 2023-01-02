@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
+import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 
@@ -33,6 +34,12 @@ public class ReadPartitionContext {
 		return this;
 	}
 
+	private BatchReadFuncAspect batchReadFuncAspect;
+	public ReadPartitionContext batchReadFuncAspect(BatchReadFuncAspect batchReadFuncAspect) {
+		this.batchReadFuncAspect = batchReadFuncAspect;
+		return this;
+	}
+
 	public ReadPartition getReadPartition() {
 		return readPartition;
 	}
@@ -55,5 +62,13 @@ public class ReadPartitionContext {
 
 	public void setTable(TapTable table) {
 		this.table = table;
+	}
+
+	public BatchReadFuncAspect getBatchReadFuncAspect() {
+		return batchReadFuncAspect;
+	}
+
+	public void setBatchReadFuncAspect(BatchReadFuncAspect batchReadFuncAspect) {
+		this.batchReadFuncAspect = batchReadFuncAspect;
 	}
 }

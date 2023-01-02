@@ -8,7 +8,9 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.entity.ExecuteResult;
@@ -118,7 +120,8 @@ public class ScriptExecutorsManager {
               connectionConfig,
               pdkTableMap,
               pdkStateMap,
-              globalStateMap
+              globalStateMap,
+              InstanceFactory.instance(LogFactory.class).getLog()
       );
 
       try {

@@ -9,8 +9,10 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.inspect.*;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.inspect.cdc.InspectCdcUtils;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -374,7 +376,8 @@ public abstract class InspectTask implements Runnable {
 				connection.getConfig(),
 				tapTableMap,
 				new PdkStateMap(connection.getId(), HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
-				PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
+				PdkStateMap.globalStateMap(HazelcastUtil.getInstance()),
+				InstanceFactory.instance(LogFactory.class).getLog()
 		);
 	}
 
