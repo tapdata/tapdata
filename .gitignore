@@ -116,3 +116,4 @@ tap_table_ehcache/
 CacheObserveLogs/
 /node_modules/
 /plugin-kit/tapdata-modules/tapdata-storage-module/tap_storage_test/
+partition_storage/
