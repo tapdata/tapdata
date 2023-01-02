@@ -853,6 +853,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 }
             }
 
+            // 更新增量同步时间配置
+            if (null != taskDto.getSyncPoints()) {
+                for (TaskDto.SyncPoint sp : taskDto.getSyncPoints()) {
+                    if (null == sp.getNodeId()) continue;
+                    sp.setNodeId(oldnewNodeIdMap.get(sp.getNodeId()));
+                }
+            }
+
             List<Edge> edges = dag.getEdges();
             for (Edge edge : edges) {
                 edge.setId(UUID.randomUUID().toString());
