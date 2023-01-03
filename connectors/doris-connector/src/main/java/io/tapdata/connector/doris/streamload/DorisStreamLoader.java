@@ -87,6 +87,7 @@ public class DorisStreamLoader {
 
 	private void initMessageSerializer(DorisContext dorisContext) {
 		DorisContext.WriteFormat writeFormat = dorisContext.getWriteFormat();
+		TapLogger.info(TAG, "Doris stream load run with {} format", writeFormat);
 		switch (writeFormat) {
 			case csv:
 				messageSerializer = new CsvSerializer();
