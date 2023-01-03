@@ -715,6 +715,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		//将数据源连接的名称修改成为名称后面+_copy
 		String connectionName = entity.getName() + " - Copy";
 		entity.setLastUpdAt(new Date());
+		entity.setStatus("testing");
 
 		while (true) {
 			try {
