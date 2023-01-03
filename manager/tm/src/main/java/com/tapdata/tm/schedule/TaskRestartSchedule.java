@@ -4,7 +4,6 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -80,7 +79,7 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 10 * 1000, fixedDelay = 5000)
+    @Scheduled(initialDelay = 150 * 1000, fixedDelay = 5000)
     @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
         Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
@@ -162,9 +161,10 @@ public class TaskRestartSchedule {
     }
 
     public void stoppingTask() {
-        long heartExpire = getHeartExpire();
+        long overTime = 30000L;
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_STOPPING)
-                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
+                .and("stopRetryTimes").lt(8)
+                .and("last_updated").lt(new Date(System.currentTimeMillis() - overTime));
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -181,13 +181,12 @@ public class TaskRestartSchedule {
                 continue;
             }
 
-            if (stopRetryTimes > 10) {
+            if (stopRetryTimes >= 7) {
                 CompletableFuture.runAsync(() -> {
                     String template = "The task is being stopped, the number of retries is {0}, it is recommended to try to force stop.";
                     String msg = MessageFormat.format(template, taskDto.getStopRetryTimes());
                     monitoringLogsService.startTaskErrorLog(taskDto, userDetail, msg, Level.WARN);
                 });
-                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
             } else {
                 taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetail, false);
                 Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
@@ -197,9 +196,9 @@ public class TaskRestartSchedule {
     }
 
     public void schedulingTask() {
-        long heartExpire = getHeartExpire();
+        long overTime = 30000L;
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
-                .and("scheduleDate").lt(System.currentTimeMillis() - heartExpire);
+                .and("schedulingTime").lt(System.currentTimeMillis() - overTime);
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -219,33 +218,41 @@ public class TaskRestartSchedule {
                 continue;
             }
 
-            CompletableFuture.runAsync(() -> {
-                String template = "The engine[{0}] takes over the task with a timeout of {1}ms.";
-                String msg = MessageFormat.format(template, taskDto.getAgentId(), heartExpire);
-                monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
-            });
-            StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
-            if (result.isOk()) {
-                try {
-                    CompletableFuture.runAsync(() -> {
-                        String template = "In the process of rescheduling tasks, the scheduling engine is {0}.";
-                        String msg = MessageFormat.format(template, taskDto.getAgentId());
-                        monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
-                    });
 
-                    taskScheduleService.scheduling(taskDto, user);
-                } catch (Exception e) {
-                    monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
-                    throw e;
+            long heartExpire = getHeartExpire();
+
+            if (Objects.nonNull(taskDto.getSchedulingTime()) && (
+                    System.currentTimeMillis() - taskDto.getSchedulingTime().getTime() > heartExpire)) {
+
+                CompletableFuture.runAsync(() -> {
+                    String template = "The engine[{0}] takes over the task with a timeout of {1}ms.";
+                    String msg = MessageFormat.format(template, taskDto.getAgentId(), heartExpire);
+                    monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
+                });
+                StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
+                if (result.isOk()) {
+                    try {
+                        CompletableFuture.runAsync(() -> {
+                            String template = "In the process of rescheduling tasks, the scheduling engine is {0}.";
+                            String msg = MessageFormat.format(template, taskDto.getAgentId());
+                            monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
+                        });
+
+                    } catch (Exception e) {
+                        monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
+                        throw e;
+                    }
                 }
+            } else {
+                taskScheduleService.scheduling(taskDto, user);
             }
         }
     }
 
     public void waitRunTask() {
-        long heartExpire = getHeartExpire();
+        long heartExpire = 30000L;
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN)
-                .and("scheduleDate").lt(System.currentTimeMillis() - heartExpire);
+                .and("scheduledTime").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {

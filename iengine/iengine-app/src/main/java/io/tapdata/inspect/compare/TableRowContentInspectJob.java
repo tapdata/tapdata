@@ -218,9 +218,12 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 
 						String sourceVal = sourceCursor.getSortValue(sourceRecord);
 						String targetVal = targetCursor.getSortValue(targetRecord);
-						sourceVal = sourceVal == null ? "" : sourceVal;
-						targetVal = targetVal == null ? "" : targetVal;
-						int compare = sourceVal.compareTo(targetVal);
+						int compare;
+						if (null == sourceVal) {
+							compare = (null == targetVal) ? 0 : 1;
+						} else {
+							compare = (null == targetVal) ? -1 : sourceVal.compareTo(targetVal);
+						}
 
 						if (fullMatch && compare == 0) {
 							String res = compareRecord(current, sourceVal, targetVal, sourceRecord, targetRecord, compareFn);
@@ -232,8 +235,8 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 									otherFieldLimit--;
 									InspectDetail detail = new InspectDetail();
 
-									detail.setSource(diffRecordTypeConvert(sourceRecord));
-									detail.setTarget(diffRecordTypeConvert(targetRecord));
+									detail.setSource(diffRecordTypeConvert(sourceRecord, inspectTask.getSource().getColumns()));
+									detail.setTarget(diffRecordTypeConvert(targetRecord, inspectTask.getTarget().getColumns()));
 									detail.setType("otherFields");
 									detail.setMessage(res);
 
@@ -255,7 +258,7 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 							if (uniqueFieldLimit > 0) {
 								uniqueFieldLimit--;
 								InspectDetail detail = new InspectDetail();
-								detail.setSource(diffRecordTypeConvert(sourceRecord));
+								detail.setSource(diffRecordTypeConvert(sourceRecord, inspectTask.getSource().getColumns()));
 								detail.setType("uniqueField");
 
 								inspectDetails.add(detail);
@@ -269,7 +272,7 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 								if (uniqueFieldLimit > 0) {
 									uniqueFieldLimit--;
 									InspectDetail detail = new InspectDetail();
-									detail.setTarget(diffRecordTypeConvert(targetRecord));
+									detail.setTarget(diffRecordTypeConvert(targetRecord, inspectTask.getTarget().getColumns()));
 									detail.setType("uniqueField");
 									inspectDetails.add(detail);
 								}

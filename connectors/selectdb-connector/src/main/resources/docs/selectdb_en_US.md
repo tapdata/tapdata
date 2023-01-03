@@ -48,7 +48,6 @@ Password : admin
 Unknown error 1044 If the permissions have been granted but the test connection cannot be passed through tapdata, you
 can check and fix it by following the steps below
 
-```
 SELECT host,user,Grant_priv,Super_priv FROM Doris.user where user='username';
 //Check whether the value of Grant priv is Y
 //If not, run the following command

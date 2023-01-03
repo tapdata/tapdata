@@ -78,36 +78,41 @@ public abstract class InspectJob implements Runnable {
 				.collect(Collectors.toList());
 	}
 
-	protected static Map<String, Object> diffRecordTypeConvert(Map<String, Object> record) {
+	protected static Map<String, Object> diffRecordTypeConvert(Map<String, Object> record, List<String> columns) {
 		if (MapUtils.isEmpty(record)) {
 			return record;
 		}
 
 		Object value;
+		Map<String, Object> result = new LinkedHashMap<>();
 		for (Map.Entry<String, Object> entry : record.entrySet()) {
+			if (null != columns && !columns.isEmpty() && !columns.contains(entry.getKey())) continue;
+
 			value = entry.getValue();
 			if (value instanceof Instant) {
-				record.put(entry.getKey(), value.toString());
+				result.put(entry.getKey(), value.toString());
 			} else if (value instanceof Date) {
-				record.put(entry.getKey(), ((Date) value).toInstant().toString());
+				result.put(entry.getKey(), ((Date) value).toInstant().toString());
 			} else if (value instanceof MysqlJson) {
-				record.put(entry.getKey(), value.toString());
+				result.put(entry.getKey(), value.toString());
 			} else if (value instanceof Map || value instanceof Array || value instanceof Collection) {
 				try {
 					JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-					record.put(entry.getKey(), JSONUtil.obj2Json(value));
+					result.put(entry.getKey(), JSONUtil.obj2Json(value));
 					JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 				} catch (JsonProcessingException e) {
 					e.printStackTrace();
 				}
 			} else if (value instanceof ObjectId) {
-				record.put(entry.getKey(), ((ObjectId) value).toHexString());
+				result.put(entry.getKey(), ((ObjectId) value).toHexString());
 			} else if (value instanceof DateTime) {
-				record.put(entry.getKey(), ((DateTime) value).toInstant().toString());
+				result.put(entry.getKey(), ((DateTime) value).toInstant().toString());
+			} else {
+				result.put(entry.getKey(), entry.getValue());
 			}
 		}
 
-		return record;
+		return result;
 	}
 
 }
