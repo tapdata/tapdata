@@ -115,22 +115,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         } else {
             taskService.update(query1, waitRunUpdate, user);
         }
-        //发送websocket消息，提醒flowengin启动
-        DataSyncMq dataSyncMq = new DataSyncMq();
-        dataSyncMq.setTaskId(taskDto.getId().toHexString());
-        dataSyncMq.setOpType(DataSyncMq.OP_TYPE_START);
-        dataSyncMq.setType(MessageType.DATA_SYNC.getType());
-
-        Map<String, Object> data;
-        String json = JsonUtil.toJsonUseJackson(dataSyncMq);
-        data = JsonUtil.parseJsonUseJackson(json, Map.class);
-        MessageQueueDto queueDto = new MessageQueueDto();
-        queueDto.setReceiver(taskDto.getAgentId());
-        queueDto.setData(data);
-        queueDto.setType("pipe");
-
-        log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
-        messageQueueService.sendMessage(queueDto);
+        sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user);
 
         if (taskDto.isNeedCreateRecord()) {
             TaskEntity taskSnapshot = new TaskEntity();
@@ -149,6 +134,25 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())),
                     Update.update("scheduleDate", System.currentTimeMillis()));
         }
+    }
+
+    public void sendStartMsg(String taskId, String agentId, UserDetail user) {
+        //发送websocket消息，提醒flowengin启动
+        DataSyncMq dataSyncMq = new DataSyncMq();
+        dataSyncMq.setTaskId(taskId);
+        dataSyncMq.setOpType(DataSyncMq.OP_TYPE_START);
+        dataSyncMq.setType(MessageType.DATA_SYNC.getType());
+
+        Map<String, Object> data;
+        String json = JsonUtil.toJsonUseJackson(dataSyncMq);
+        data = JsonUtil.parseJsonUseJackson(json, Map.class);
+        MessageQueueDto queueDto = new MessageQueueDto();
+        queueDto.setReceiver(agentId);
+        queueDto.setData(data);
+        queueDto.setType("pipe");
+
+        log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
+        messageQueueService.sendMessage(queueDto);
     }
 
     /**
