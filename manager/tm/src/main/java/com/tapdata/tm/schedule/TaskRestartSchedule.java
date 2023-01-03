@@ -252,7 +252,7 @@ public class TaskRestartSchedule {
     public void waitRunTask() {
         long heartExpire = 30000L;
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN)
-                .and("scheduledTime").lt(System.currentTimeMillis() - heartExpire);
+                .and("scheduledTime").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
