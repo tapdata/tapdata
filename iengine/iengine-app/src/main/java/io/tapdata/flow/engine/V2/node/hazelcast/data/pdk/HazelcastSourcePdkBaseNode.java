@@ -1,9 +1,9 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
-import com.tapdata.entity.task.NodeUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
@@ -589,11 +589,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
 		} else if (tapEvent instanceof TapDDLEvent) {
 			logger.info("Source node received an ddl event: " + tapEvent);
+			obsLogger.info("Source node received an ddl event: " + tapEvent);
+
+			obsLogger.info("ddlFilter enable data: " + JSON.toJSONString(ddlFilter));
+
 			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
 				logger.warn("DDL events are filtered: " + tapEvent);
 				obsLogger.warn("DDL events are filtered: " + tapEvent);
 				return null;
 			}
+
 			tapdataEvent = new TapdataEvent();
 			tapdataEvent.setTapEvent(tapEvent);
 			tapdataEvent.setSyncStage(syncStage);
