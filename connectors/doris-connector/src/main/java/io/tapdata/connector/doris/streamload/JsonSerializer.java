@@ -72,7 +72,7 @@ public class JsonSerializer implements MessageSerializer {
 			Object value = record.get(field);
 			linkedRecord.put(field, value);
 		}
-//		linkedRecord.put(Constants.DORIS_DELETE_SIGN, delete ? 1 : 0);
+		linkedRecord.put(Constants.DORIS_DELETE_SIGN, delete ? 1 : 0);
 		return objectMapper.writeValueAsString(linkedRecord);
 	}
 }

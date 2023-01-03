@@ -52,12 +52,10 @@ public class CsvSerializer implements MessageSerializer {
             StringJoiner joiner = new StringJoiner(Constants.FIELD_DELIMITER_DEFAULT);
             final Map<String, TapField> tapFieldMap = table.getNameFieldMap();
             for (final Map.Entry<String, TapField> entry : tapFieldMap.entrySet()) {
-                if(values.containsKey(entry.getKey())) {
-                     value = values.getOrDefault(entry.getKey(), Constants.NULL_VALUE);
-                    // value get from the value map may be null
-                    if (value == null) {
-                        value = Constants.NULL_VALUE;
-                    }
+                value = values.getOrDefault(entry.getKey(), Constants.NULL_VALUE);
+                // value get from the value map may be null
+                if (value == null) {
+                    value = Constants.NULL_VALUE;
                 }
                 joiner.add(value.toString());
             }

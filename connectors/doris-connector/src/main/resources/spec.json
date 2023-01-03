@@ -212,7 +212,7 @@
           "required": true,
           "type": "int",
           "title": "${writeByteBufferCapacity}",
-          "default": 256,
+          "default": 1024,
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "node_writeByteBufferCapacity"
