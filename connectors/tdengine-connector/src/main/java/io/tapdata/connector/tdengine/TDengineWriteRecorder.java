@@ -1,12 +1,14 @@
 package io.tapdata.connector.tdengine;
 
 import io.tapdata.common.WriteRecorder;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.lang3.time.DateFormatUtils;
 
 import java.sql.Connection;
@@ -54,7 +56,7 @@ public class TDengineWriteRecorder extends WriteRecorder {
     }
 
     @Override
-    public void addUpdateBatch(Map<String, Object> after) throws SQLException {
+    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
 
     }
 
