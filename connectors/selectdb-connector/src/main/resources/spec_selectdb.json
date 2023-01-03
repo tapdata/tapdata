@@ -46,6 +46,14 @@
           "apiServerKey": "database_port",
           "x-index": 2
         },
+        "selectDbHttp": {
+          "required": true,
+          "type": "string",
+          "title": "${selectDbHttp}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 3
+        },
         "database": {
           "required": true,
           "type": "string",
@@ -53,31 +61,25 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_name",
-          "x-index": 3
+          "x-index": 4
         },
         "user": {
+          "required": true,
           "type": "string",
           "title": "${user}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_username",
-          "x-index": 6
+          "x-index": 5
         },
         "password": {
+          "required": true,
           "type": "string",
           "title": "${password}",
           "x-decorator": "FormItem",
           "x-component": "Password",
           "apiServerKey": "database_password",
-          "x-index": 7
-        },
-        "selectDbHttp": {
-          "type": "string",
-          "title": "${selectDbHttp}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "required": true,
-          "x-index": 30
+          "x-index": 6
         }
       }
     }
@@ -86,30 +88,30 @@
     "default": "en_US",
     "en_US": {
       "doc": "docs/selectdb_en_US.md",
-      "host": "Host",
-      "port": "Port",
+      "host": "FE Host",
+      "port": "JDBC Port",
+      "selectDbHttp": "Http Host",
       "database": "database",
       "user": "user",
-      "password": "password",
-      "selectDbHttp": "selectDBHttp"
+      "password": "password"
     },
     "zh_CN": {
       "doc": "docs/selectdb_zh_CN.md",
-      "host": "地址",
-      "port": "端口",
+      "host": "FE地址",
+      "port": "JDBC端口",
+      "selectDbHttp": "Http接口地址",
       "database": "数据库",
       "user": "账号",
-      "password": "密码",
-      "selectDbHttp": "HTTP地址"
+      "password": "密码"
     },
     "zh_TW": {
       "doc": "docs/selectdb_zh_TW.md",
-      "host": "地址",
-      "port": "端口",
+      "host": "FE地址",
+      "port": "JDBC端口",
+      "selectDbHttp": "Http接口地址",
       "database": "數據庫",
       "user": "賬號",
-      "password": "密碼",
-      "selectDbHttp": "HTTP地址"
+      "password": "密碼"
     }
   },
   "dataTypes": {

@@ -23,12 +23,12 @@ GRANT PROCESS ON *.* TO 'tapdata' IDENTIFIED BY 'password';
 #### **3.2 配置参数示例**
 ```
 连接名称：Tapdata
-地址：39.108.5.66
-端口；16604
+FE地址：39.108.5.66
+JDBC端口：16604
+HTTP地址：39.108.5.66:42188
 数据库：TEST
 账号：admin
 密码：admin
-HTTP地址：39.108.5.66:42188
 ```
 ###  **4. 常见错误**
 
