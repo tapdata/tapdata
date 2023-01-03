@@ -1,7 +1,7 @@
 {
   "properties": {
     "name": "CodingTest",
-    "icon": "icons/logo.png",
+    "icon": "icon/coding.png",
     "doc" : "${doc}",
     "id": "codingtest"
   },
@@ -13,6 +13,126 @@
       }
     },
     "connection": {
+      "pdkExpansion": [],
+      "node": {
+      },
+      "connection": {
+        "type": "object",
+        "properties": {
+          "teamName": {
+            "type": "String",
+            "title": "${teamName}",
+            "x-decorator": "FormItem",
+            "x-component": "Input",
+            "apiServerKey": "database_host",
+            "x-index": 10,
+            "required": true
+          },
+          "token": {
+            "type": "String",
+            "title": "${token}",
+            "x-decorator": "FormItem",
+            "x-component": "Input",
+            "apiServerKey": "database_host",
+            "x-index": 20,
+            "required": true
+          },
+          "projectName": {
+            "title": "${projectName}",
+            "type": "string",
+            "required": true,
+            "x-decorator": "FormItem",
+            "x-component": "AsyncSelect",
+            "x-component-props": {
+              "method": "{{loadCommandList}}",
+              "params": "{{ {$values: $values, command: \"DescribeUserProjects\"} }}"
+            },
+            "x-index": 30,
+            "x-reactions": [
+              {
+                "dependencies": ["teamName", "token"],
+                "fulfill": {
+                  "state": {
+                    "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
+                  }
+                }
+              }
+            ]
+          },
+          "connectionMode": {
+            "type": "String",
+            "default": "DocumentMode",
+            "title": "${connectionMode}",
+            "x-decorator": "FormItem",
+            "x-component": "Select",
+            "enum": [
+              {
+                "label": "${document}",
+                "value": "DocumentMode"
+              }
+            ],
+            "x-index": 40,
+            "required": false
+          },
+          "streamReadType": {
+            "type": "String",
+            "default": "WebHook",
+            "title": "${streamReadType}",
+            "x-decorator": "FormItem",
+            "x-component": "Select",
+            "enum": [
+              {
+                "label": "${webHookRead}",
+                "value": "WebHook"
+              },
+              {
+                "label": "${pollingRead}",
+                "value": "Polling"
+              }
+            ],
+            "x-index": 50,
+            "required": false
+          },
+          "hookButton": {
+            "type": "void",
+            "title": "${hookButton}",
+            "x-decorator": "FormItem",
+            "x-component-props": {
+              "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
+            },
+            "x-reactions": {
+              "dependencies": ["streamReadType"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] === \"WebHook\" ? \"visible\" : \"hidden\"}}"
+                }
+              }
+            },
+            "x-content": "hookButton",
+            "x-component": "Button",
+            "x-index": 60
+          },
+          "hookText": {
+            "type": "string",
+            "title": " ",
+            "x-decorator": "FormItem",
+            "x-decorator-props": {
+              "colon": false
+            },
+            "x-reactions": {
+              "dependencies": ["streamReadType"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] === \"WebHook\" ? \"visible\" : \"hidden\"}}"
+                }
+              }
+            },
+            "x-component": "Input",
+            "x-index": 70,
+            "actionOnCopy" : "NEW_WEB_HOOK_URL"
+          }
+        }
+      }
     }
   },
   "dataTypes": {

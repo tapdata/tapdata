@@ -1,10 +1,9 @@
 package io.tapdata.common.postman.util;
 
 
+import io.tapdata.common.postman.enums.PostParam;
 import io.tapdata.common.postman.enums.Symbol;
-import io.tapdata.common.core.emun.TapApiTag;
-import io.tapdata.common.support.postman.enums.PostParam;
-import io.tapdata.common.support.postman.enums.Symbol;
+import io.tapdata.common.support.core.emun.TapApiTag;
 
 import java.util.*;
 

@@ -26,4 +26,9 @@ public class BatchReadSender implements APISender {
         core.push(data, Core.MESSAGE_OPERATION_INSERT,offsetState);
         return hasNext;
     }
+
+    @Override
+    public boolean send(List<Object> data, boolean hasNext, Object offsetState, boolean cacheAgoRecord) {
+        return this.send(data, hasNext, offsetState);
+    }
 }

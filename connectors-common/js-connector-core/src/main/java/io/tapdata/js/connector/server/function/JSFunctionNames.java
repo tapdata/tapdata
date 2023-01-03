@@ -14,6 +14,8 @@ public enum JSFunctionNames {
     TABLE_COUNT("table_count","TableCount",""),
     EXPIRE_STATUS("expire_status","ExpireStatus",""),
     UPDATE_TOKEN("update_token","UpdateToken",""),
+
+    SCANNING_CAPABILITIES_IN_JAVA_SCRIPT("_scanning_capabilities_in_java_script","scanningCapabilitiesInJavaScript",""),
     ;
     String jsName;
     String javaName;

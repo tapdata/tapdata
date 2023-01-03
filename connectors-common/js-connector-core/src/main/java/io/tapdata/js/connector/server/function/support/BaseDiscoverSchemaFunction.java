@@ -76,8 +76,7 @@ public class BaseDiscoverSchemaFunction extends FunctionBase {
     }
 
     public void invoker(TapConnectionContext connectionContext, Consumer<List<TapTable>> consumer) throws Throwable {
-        String discoverSchemaFunction = this.javaScripter.supportFunctions(JSFunctionNames.DISCOVER_SCHEMA.jsName());
-        if (Objects.isNull(discoverSchemaFunction)){
+        if (!this.javaScripter.functioned(functionName.jsName())){
             TapLogger.info(TAG,"Not found 'discover_schema' which the implementation of a named function, cannot load and scan tables.");
             return;
         }

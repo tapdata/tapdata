@@ -1,9 +1,14 @@
 package io.tapdata.js.connector.iengine;
 
+import com.oracle.truffle.api.source.Source;
+import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.js.connector.enums.Constants;
+import io.tapdata.js.utils.ScriptUtil;
 
-import javax.script.Invocable;
+import javax.script.Bindings;
+import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import java.io.File;
@@ -11,34 +16,50 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 
 import static io.tapdata.base.ConnectorBase.fromJson;
-import static io.tapdata.base.ConnectorBase.toJson;
 
 
 public class LoadJavaScripter {
+    private static final String TAG = LoadJavaScripter.class.getSimpleName();
+
+
+    public static final String NASHORN_ENGINE = "nashorn";
+    public static final String GRAAL_ENGINE = "graal.js";
+
 
     private String jarFilePath ;
     private String flooder;
     private ScriptEngine scriptEngine;
+    private static final String EVAL_ID = ScriptEngine.FILENAME;
     public ScriptEngine scriptEngine(){
         return this.scriptEngine;
     }
+    private String ENGINE_TYPE = NASHORN_ENGINE;
 
     //UnModify Map
-    private Map<String,String> supportFunctions;
-    public String supportFunctions(String functionName){
-        if (Objects.isNull(this.supportFunctions)) return null;
-        return this.supportFunctions.get(functionName);
-    }
-    public Map<String,String> supportFunctions(){
-        return this.supportFunctions;
-    }
+    /**
+     * @deprecated
+     * */
+//    private Map<String,String> supportFunctions;
+    /**
+     * @deprecated
+     * */
+//    public String supportFunctions(String functionName){
+//        if (Objects.isNull(this.supportFunctions)) return null;
+//        return this.supportFunctions.get(functionName);
+//    }
+    /**
+     * @deprecated
+     * */
+//    public Map<String,String> supportFunctions(){
+//        return this.supportFunctions;
+//    }
 
     public LoadJavaScripter params(String jarFilePath,String flooder){
         this.jarFilePath = jarFilePath;
@@ -52,7 +73,9 @@ public class LoadJavaScripter {
     }
     public LoadJavaScripter init(){
         ScriptEngineManager engineManager = new ScriptEngineManager();
-        this.scriptEngine = engineManager.getEngineByName("javascript");
+        this.scriptEngine = engineManager.getEngineByName(ENGINE_TYPE);//
+        //GraalJSEngineFactory graalJSEngineFactory = new GraalJSEngineFactory();
+        //scriptEngine = graalJSEngineFactory.getScriptEngine();
 //        this.scriptEngine = new ConnectorScriptEngine(null);
 //        ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class);
 //        this.scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().customEngine(ScriptFactory.TYPE_JAVASCRIPT, ConnectorScriptEngine.class));
@@ -64,15 +87,49 @@ public class LoadJavaScripter {
             list.add(resources.nextElement());
         }
         try {
+            ScriptEngineManager engineManager = new ScriptEngineManager();
+            ScriptEngine itemScriptEngine = engineManager.getEngineByName("nashorn");
+
+          //  this.scriptEngine.getContext().setAttribute("js-nashorn-compat", "true", ScriptContext.GLOBAL_SCOPE);
+//            this.scriptEngine.eval("load('"+EngineEvalResources.SCANNING_CAPABILITIES_RESOURCE+"');");
             for (URL url : list) {
                 List<Map.Entry<InputStream,File>> files = javaScriptFiles(url);
                 for (Map.Entry<InputStream,File> file : files) {
                     String path = file.getValue().getPath().replaceAll("\\\\","/");
                     //this.scriptEngine.eval(new FileReader(path));
-                    this.scriptEngine.eval("load('" + path + "');");
+                    //this.scriptEngine.eval("onload('" + path + "');");
+//                    this.scriptEngine.eval("eval(load('" + path + "'))");
+                    scriptEngine.eval("load('"+path+"');");
+
+//                    SimpleBindings simpleBindings = new SimpleBindings();
+//                    scriptEngine.getBindings(ScriptContext.GLOBAL_SCOPE).put(ScriptEngine.FILENAME, path);
+//                    simpleBindings.putAll(scriptEngine.getBindings(ScriptContext.GLOBAL_SCOPE));
+//                    scriptEngine.eval(new InputStreamReader(file.getKey()),simpleBindings);
+                    //this.scriptEngine.getContext().setAttribute(ScriptEngine.FILENAME, path, ScriptContext.GLOBAL_SCOPE);
+                    //this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()),this.scriptEngine().getContext());
+                    //Context polyglotContext = ((GraalJSScriptEngine) this.scriptEngine).getPolyglotContext();
+
+//                    Engine engine = Engine.newBuilder().option("js.load-from-url","true").allowExperimentalOptions(true).build();
+//                    Context context = Context.newBuilder().allowAllAccess(true).allowHostClassLoading(true).allowIO(true).engine(engine).build();;
+                    //Value js = polyglotContext.eval(Source.create("js", "load('"+path+"');"));
+//                    Source mysource = Source.newBuilder("js","load('"+path+"')","rongdemo").build();
+//                  context.eval(mysource);
+
+//                    this.scriptEngine.eval(mysource.getReader());
+//                    Value callapp = context.getBindings("js").getMember("testString");
+//                    System.out.println(callapp.execute());
+                    //scriptEngine.eval("import * from '/resource:"+path+"';");
+//                    scriptEngine.eval(new InputStreamReader(file.getKey()));
                 }
             }
-            this.getSupportFunctions();
+            //ScriptContext context = itemScriptEngine.getContext();
+            //this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
+//            try {
+//                this.scriptEngine.eval(EngineEvalResources.js);
+//            } catch (ScriptException ignored) {
+//
+//            }
+            //this.getSupportFunctions();
             return this.scriptEngine;
         }catch (Exception error){
             throw new CoreException("Error java script code, message: " + error.getMessage());
@@ -107,28 +164,40 @@ public class LoadJavaScripter {
         return fileList;
     }
 
-    //获取connector.js内实现了的方法
-    private void getSupportFunctions() {
-        try {
-            this.scriptEngine.eval("load('connectors-common/js-connector-core/src/main/java/io/tapdata/js/utils/evals.js');");
-            Object functionGet = this.invoker("functionGet");
-            Map<String,Object> functionList = (Map<String,Object>) fromJson(String.valueOf(functionGet));
-            functionList.entrySet().stream().filter(Objects::nonNull).forEach(fun->{
-                String funName = String.valueOf(fun.getValue());
-                this.supportFunctions.put(funName,funName);
-            });
-            this.supportFunctions = Collections.unmodifiableMap(this.supportFunctions);
-        }catch (Exception ignored){
+    /**
+     * @deprecated 获取connector.js内实现了的方法
+     **/
+//    private void getSupportFunctions() {
+//        try {
+//            GraalJSScriptEngine context = (GraalJSScriptEngine)this.scriptEngine.getFactory().getScriptEngine();
+//            Context polyglotContext = context.getPolyglotContext();
+//            Value js = polyglotContext.getBindings("js");
+//            Value tapFunctions = js.getMember("tapFunctions");
+//            Map as = tapFunctions.as(Map.class);
 
-        }
-    }
-    // var|let|const ... = function ...(){...}
-    // (var|let|const)([ ]{1,n})(.*?)([ ]+)(=)([ ]+)(function[^\]{1,n}[ |\\n]+\\{[^\]+})
 
-    // function xxx(){...}
-    // (function[ ]{1,n}[^\]{1,n}[ ]+([^\]+)[ |\\n]+\\{[^\]+})
+            //((Map)((Function)this.scriptEngine.get("discover_schema")).apply(null)).size()
 
-    // .*(TAP_TABLE\[[^\]]+).*
+//ConnectorBase.fromJsonArray(((Function)this.scriptEngine.get("write_record")).apply(null).toString())
+//((Function)this.scriptEngine.get("testArrMap")).apply(null);
+//((Function)this.scriptEngine.get("testArrMap")).apply(null).toString().replaceFirst("\\(2\\)","")
+//ConnectorBase.fromJsonArray(((Function)this.scriptEngine.get("testArrMap")).apply(null).toString().replaceFirst("\\(([0-9]+)\\)",""))
+
+//            ConnectorBase.fromJsonArray("(1)[{id: 2, name: 'kit'}, {id: 1}]".replaceFirst("\\(([0-9]+)\\)",""))
+            //Object functionGet = this.invoker(JSFunctionNames.SCANNING_CAPABILITIES_IN_JAVA_SCRIPT.jsName());
+//            Object funArr = this.scriptEngine.get("tapFunctions");
+//            Map<String,Object> functionList = (Map<String,Object>) fromJson(String.valueOf(funArr));
+
+//            functionList.stream().filter(Objects::nonNull).forEach(fun->{
+//                String funName = String.valueOf(fun);
+//                this.supportFunctions.put(funName,funName);
+//            });
+
+//            this.supportFunctions = Collections.unmodifiableMap(this.supportFunctions);
+//        }catch (Exception ignored){
+//
+//        }
+//    }
 
     private List<Map.Entry<InputStream,File>> getAllFileFromJar(String path){
         List<Map.Entry<InputStream,File>> fileList = new ArrayList<>();
@@ -146,7 +215,6 @@ public class LoadJavaScripter {
         return fileList;
     }
 
-    //@SneakyThrows
     public static Stream<Map.Entry<ZipEntry, InputStream>> readJarFile(JarFile jarFile, String prefix) {
         Stream<Map.Entry<ZipEntry, InputStream>> readingStream =
             jarFile.stream().filter(entry -> !entry.isDirectory() && entry.getName().startsWith(prefix))
@@ -169,39 +237,155 @@ public class LoadJavaScripter {
     private boolean fileIsConnectorJs(File file){
         return Objects.nonNull(file) && Constants.CONNECTOR_JS_NAME.equals(file.getName());
     }
-
-
-    public Object invoker(String functionName,Object ... params){
-        AtomicReference<Throwable> scriptException = new AtomicReference<>();
-        if (Objects.isNull(this.scriptEngine)) return null;
-        Invocable invocable = (Invocable) this.scriptEngine;
-        try {
-            Object invoke = invocable.invokeFunction(functionName, params);
-            if (invoke instanceof Map || invoke instanceof Collection){
-                return toJson(invoke);
-            }
-            return invoke;
-        } catch (Exception e) {
-            scriptException.set(e);
-        }
+    public Object arg(String argName){
         return null;
     }
 
-//    public static void streamRead(List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
-//        ScriptEngineManager engineManager = new ScriptEngineManager();
-//        ScriptEngine scriptEngine = engineManager.getEngineByName("nashorn");
-//        scriptEngine.eval("load('D:\\GavinData\\kitSpace\\tapdata\\plugin-kit\\tapdata-modules\\api-loader-module\\src\\main\\java\\io\\tapdata\\api\\apiJs\\connector.js');");
-//        //scriptEngine.put("core", scriptCore);
-//        //scriptEngine.put("log", new CustomLog());
-//        AtomicReference<Throwable> scriptException = new AtomicReference<>();
-//        Runnable runnable = () -> {
-//            Invocable invocable = (Invocable) scriptEngine;
-//            try {
-//                invocable.invokeFunction("test");
-//            } catch (Exception e) {
-//                scriptException.set(e);
-//            }
-//        };
-//        new Thread(runnable).start();
+    public boolean functioned(String functionName){
+        if (Objects.isNull(functionName)) return false;
+        if (Objects.isNull(this.scriptEngine)) return false;
+        Object functionObj = this.scriptEngine.get(functionName);
+        return functionObj instanceof Function;
+    }
+    private void binding(String key,Object name,int scope){
+        Bindings bindings = this.scriptEngine.getBindings(scope);
+        bindings.put(key,name);
+    }
+    public void bindingGlobal(String key,Object binder){
+        this.binding(key,binder,ScriptContext.GLOBAL_SCOPE);
+    }
+    public void bindingEngine(String key,Object binder){
+        this.binding(key,binder,ScriptContext.ENGINE_SCOPE);
+    }
+
+    public Object invoker(String functionName,Object ... params){
+        switch (ENGINE_TYPE){
+            case NASHORN_ENGINE: return invokerNashorn(functionName,params);
+            case GRAAL_ENGINE: return invokerGraal(functionName,params);
+        }
+        return null;
+    }
+    public Object invokerNashorn(String functionName,Object ... params){
+        if (Objects.isNull(functionName)) return null;
+        //AtomicReference<Throwable> scriptException = new AtomicReference<>();
+        if (Objects.isNull(this.scriptEngine)) return null;
+        Function<Object[], Object> polyglotMapAndFunction;
+        try {
+            //Invocable invocable = (Invocable) this.scriptEngine;
+//            Object apply = invocable.invokeFunction(functionName, params);
+            polyglotMapAndFunction = (Function<Object[], Object>)this.scriptEngine.get(functionName);
+
+            Object apply = polyglotMapAndFunction.apply(params);
+            if (Objects.isNull(apply)) {return null;}
+            else if (apply instanceof Map || apply instanceof Collection){
+                try {
+                    String toString = apply.toString();
+                    if (toString.matches("\\(([0-9]+)\\)\\[.*]")){
+                        toString = toString.replaceFirst("\\(([0-9]+)\\)","");
+                    }
+                    return ConnectorBase.fromJsonArray(toString);
+                }catch (Exception e){
+                    try {
+                        String string = apply.toString();
+                        return "{}".equals(string)?new HashMap<>():fromJson(string);
+                    }catch (Exception error) {
+                        TapLogger.warn(TAG, "function named " + functionName + " exec failed, function return value is: " + apply.toString() + "error cast java Object.");
+                        return null;
+                    }
+                }
+            }else {
+                return apply;
+            }
+            //((Map)((Function)this.scriptEngine.get("discover_schema")).apply(null)).size()
+            //ConnectorBase.fromJsonArray(((Function)this.scriptEngine.get("write_record")).apply(null).toString())
+            //((Function)this.scriptEngine.get("testArrMap")).apply(null);
+            //((Function)this.scriptEngine.get("testArrMap")).apply(null).toString().replaceFirst("\\(2\\)","")
+            //ConnectorBase.fromJsonArray(((Function)this.scriptEngine.get("testArrMap")).apply(null).toString().replaceFirst("\\(([0-9]+)\\)",""))
+            //ConnectorBase.fromJsonArray("(1)[{id: 2, name: 'kit'}, {id: 1}]".replaceFirst("\\(([0-9]+)\\)",""))
+
+
+
+            //PolyglotMapAndFunction polyglotMapAndFunction = (PolyglotMapAndFunction)this.scriptEngine.get("batch_read");
+            //PolyglotMap ployglotMap = (PolyglotMap) polyglotMapAndFunction.apply(null);
+            //ployglotMap.get("0")e iterator = context1.getBindings(ScriptEngine.FILENAME).getIterator();
+            //Object invoke = invocable.invokeFunction(functionName, params);
+
+            //ARRAY
+            //ConnectorBase.fromJsonArray(((Function)this.scriptEngine.get("discover_schema")).apply(null).toString())
+
+            //Map
+        } catch (Exception e) {
+            //scriptException.set(e);
+            TapLogger.warn(TAG,"Not function named "+functionName+" can be found.");
+            return null;
+        }
+    }
+    public Object invokerGraal(String functionName,Object ... params){
+        if (Objects.isNull(functionName)) return null;
+        //AtomicReference<Throwable> scriptException = new AtomicReference<>();
+        if (Objects.isNull(this.scriptEngine)) return null;
+        Function<Object[], Object> polyglotMapAndFunction;
+        try {
+            //Invocable invocable = (Invocable) this.scriptEngine;
+//            Object apply = invocable.invokeFunction(functionName, params);
+            polyglotMapAndFunction = (Function<Object[], Object>)this.scriptEngine.get(functionName);
+
+            Object apply = polyglotMapAndFunction.apply(params);
+            if (Objects.isNull(apply)) {return null;}
+            else if (apply instanceof Map || apply instanceof Collection){
+                try {
+                    String toString = apply.toString();
+                    if (toString.matches("\\(([0-9]+)\\)\\[.*]")){
+                        toString = toString.replaceFirst("\\(([0-9]+)\\)","");
+                    }
+                    return ConnectorBase.fromJsonArray(toString);
+                }catch (Exception e){
+                    try {
+                        String string = apply.toString();
+                        return "{}".equals(string)?new HashMap<>():fromJson(string);
+                    }catch (Exception error) {
+                        TapLogger.warn(TAG, "function named " + functionName + " exec failed, function return value is: " + apply.toString() + "error cast java Object.");
+                        return null;
+                    }
+                }
+            }else {
+                return apply;
+            }
+            //((Map)((Function)this.scriptEngine.get("discover_schema")).apply(null)).size()
+            //ConnectorBase.fromJsonArray(((Function)this.scriptEngine.get("write_record")).apply(null).toString())
+            //((Function)this.scriptEngine.get("testArrMap")).apply(null);
+            //((Function)this.scriptEngine.get("testArrMap")).apply(null).toString().replaceFirst("\\(2\\)","")
+            //ConnectorBase.fromJsonArray(((Function)this.scriptEngine.get("testArrMap")).apply(null).toString().replaceFirst("\\(([0-9]+)\\)",""))
+            //ConnectorBase.fromJsonArray("(1)[{id: 2, name: 'kit'}, {id: 1}]".replaceFirst("\\(([0-9]+)\\)",""))
+
+
+
+            //PolyglotMapAndFunction polyglotMapAndFunction = (PolyglotMapAndFunction)this.scriptEngine.get("batch_read");
+            //PolyglotMap ployglotMap = (PolyglotMap) polyglotMapAndFunction.apply(null);
+            //ployglotMap.get("0")e iterator = context1.getBindings(ScriptEngine.FILENAME).getIterator();
+            //Object invoke = invocable.invokeFunction(functionName, params);
+
+            //ARRAY
+            //ConnectorBase.fromJsonArray(((Function)this.scriptEngine.get("discover_schema")).apply(null).toString())
+
+            //Map
+        } catch (Exception e) {
+            //scriptException.set(e);
+            TapLogger.warn(TAG,"Not function named "+functionName+" can be found.");
+            return null;
+        }
+    }
+//    private Map<String,Object> toMap(Object objMap){
+//        List<Object> functionList = new ArrayList<>();
+//        Object obj = null;
+//        int index = 0;
+//        Map<String,Object> map = ((Map<String,Object>)objMap);
+//        do{
+//            obj = map.get(""+ index);
+//            index++;
+//            if (Objects.nonNull(obj)){
+//                functionList.add(obj);
+//            }else break;
+//        }while(true);
 //    }
 }

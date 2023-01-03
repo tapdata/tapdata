@@ -2,10 +2,7 @@ package io.tapdata.js.utils;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -119,5 +116,13 @@ public class ScriptUtil {
             }
         }
         return writer.toString();
+    }
+    public static InputStream appendStream(InputStream stream,String...appender){
+        List<InputStream> inputStreams = new ArrayList<>();
+        inputStreams.add(stream);
+        for (String item : appender) {
+            inputStreams.add(new ByteArrayInputStream(("\n\n"+item).getBytes(StandardCharsets.UTF_8)));
+        }
+        return new SequenceInputStream(Collections.enumeration(inputStreams));
     }
 }

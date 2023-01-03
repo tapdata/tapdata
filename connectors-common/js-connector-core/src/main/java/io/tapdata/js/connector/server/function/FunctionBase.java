@@ -9,7 +9,7 @@ public class FunctionBase {
     protected LoadJavaScripter javaScripter;
     public boolean hasNotSupport(LoadJavaScripter javaScripter){
         this.javaScripter = javaScripter;
-        return Objects.isNull(javaScripter.supportFunctions(functionName.jsName()));
+        return !this.javaScripter.functioned(functionName.jsName());
     }
     public FunctionBase javaScripter(LoadJavaScripter javaScripter){
         this.javaScripter = javaScripter;

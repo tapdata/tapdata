@@ -65,7 +65,7 @@
 					"response": []
 				},
 				{
-					"name": "TAP_TABLE[Issues](PAGE_SIZE_PAGE_INDEX:Response.Data.List)获取事项列表",
+					"name": "GetIssuesList",
 					"request": {
 						"method": "POST",
 						"header": [

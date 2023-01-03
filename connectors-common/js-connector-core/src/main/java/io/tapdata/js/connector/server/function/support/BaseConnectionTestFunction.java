@@ -45,9 +45,8 @@ public class BaseConnectionTestFunction extends FunctionBase {
     public static final String TEST_RESULT_CODE_KEY = "CODE";
     public static final String TEST_RESULT_MSG_KEY = "RESULT";
     public ConnectionOptions test(TapConnectionContext context, Consumer<TestItem> consumer){
-        String connectionTestSupport = super.javaScripter.supportFunctions(JSFunctionNames.CONNECTION_TEST.jsName());
         ConnectionOptions options = new ConnectionOptions();
-        if (Objects.nonNull(connectionTestSupport)){
+        if (this.javaScripter.functioned(functionName.jsName())){
             if (Objects.isNull(context)){
                 consumer.accept(testItem(TestItem.ITEM_CONNECTION,TestItem.RESULT_FAILED,"TapConnectorContext must not be null or not be empty."));
                 return options;

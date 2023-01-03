@@ -21,7 +21,7 @@ public class ScriptEngineInstance {
                 }
             }
         }
-        return instance;
+        return instance ;//= new ScriptEngineInstance();
     }
 
     private ScriptEngineInstance(){

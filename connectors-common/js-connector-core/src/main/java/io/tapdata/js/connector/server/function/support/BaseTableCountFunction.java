@@ -31,8 +31,7 @@ public class BaseTableCountFunction extends FunctionBase {
     }
 
     public int get(TapConnectionContext connectionContext){
-        String tableCountName = this.javaScripter.supportFunctions(JSFunctionNames.TABLE_COUNT.jsName());
-        if (Objects.nonNull(tableCountName)) {
+        if (this.javaScripter.functioned(functionName.jsName())) {
             Object invoker = this.javaScripter.invoker(JSFunctionNames.TABLE_COUNT.jsName(), connectionContext);
             if (Objects.nonNull(invoker)){
                 try {
@@ -43,8 +42,7 @@ public class BaseTableCountFunction extends FunctionBase {
             }
             return 0;
         }
-        String discoverSchemaFunction = this.javaScripter.supportFunctions(JSFunctionNames.DISCOVER_SCHEMA.jsName());
-        if (Objects.isNull(discoverSchemaFunction)){
+        if (this.javaScripter.functioned(functionName.jsName())){
             TapLogger.info(TAG,"Not found 'discover_schema' which the implementation of a named function, cannot load and scan tables.");
             return 0;
         }

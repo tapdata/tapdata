@@ -1,39 +1,92 @@
-var codingAPI = tapAPI.loadAPI();
+var coding_schema = ['Issues'];
+var codingAPI;
 function discover_schema(connectionConfig){
-    return ['Issues'];
+    debugger;
+    return coding_schema;
 }
 function batch_read(connectionConfig, nodeConfig, offset, table, pageSize, batchReadSender){
-    if(!offset) offset = {"pageFrom": 1,"pageSize": pageSize};
-    codingAPI.iterateAllData("TAP_TABLE[Issues](PAGE_SIZE_PAGE_INDEX:Response.Data.List)获取事项列表", offset, (result, offset, error) => {
-        offset.pageFrom = offset.pageFrom  + 1;
-        batchReadSender.send(result.data, result.hasNext, offsetState);
+    codingAPI = tapAPI.loadAPI();
+    offset.id = "0";
+    if(!offset) offset = {"PageNumber": 1,"PageSize": pageSize};
+    codingAPI.iterateAllData("GetIssuesList", offset, (result, offsetNext, error) => {
+        offsetNext.PageNumber = offsetNext.PageNumber  + 1;
+        batchReadSender.send(result.data, result.hasNext, offsetNext);
     });
-    return "batch_read";
-}
-function write_record(connectionConfig, nodeConfig, table, records){
-    return "write_record";
 }
 function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender){
-    offset = !offset ? {"startData":new Date(),"page": 1,"size": pageSize} : {"startData":offset.timestamp,"page": 1,"size": pageSize};
-    codingAPI.iterateAllData("TAP_TABLE[Issues](PAGE_SIZE_PAGE_INDEX:Response.Data.List)获取事项列表", offset, (result, offset, error) => {
-        offset.page = offset.page + 1;
-        streamReadSender.send(result.data, result.hasNext, offsetState);
+    codingAPI = tapAPI.loadAPI();
+    offset = !offset ? {"startData":new Date(),"PageNumber": 1,"PageSize": pageSize} : {"startData":offset.timestamp,"PageNumber": 1,"PageSize": pageSize};
+    codingAPI.iterateAllData("GetIssuesList", offset, (result, offsetNext, error) => {
+        offsetNext.PageNumber = offsetNext.PageNumber + 1;
+        streamReadSender.send(result.data, result.hasNext, offsetNext,true);
     });
 }
 function connection_test(connectionConfig){
+    codingAPI = tapAPI.loadAPI();
+    var issuesList = codingAPI.invoke("GetIssuesList");
     return [{
-        "TEST":"hello",
-        "CODE": 1,
-        "RESULT":""
+        "TEST":" Check whether the interface call passes of Issues List API.",
+        "CODE": issuesList? 1 : -1,
+        "RESULT": issuesList? "Pass" : "Not pass"
     }];
 }
 function batch_count(connectionConfig,nodeConfig,table){
-    return 2;
+    codingAPI = tapAPI.loadAPI();
+    var issuesList = codingAPI.invoke("GetIssuesList");
+    return issuesList ? 0 : issuesList.Response.Data.TotalCount;
 }
-function expire_status(){
-    return [{"httpCode" : 401},{"header" : {"Code":401}},{"body" : {"code":200,"msg":"out of token"}}];
+// function write_record(connectionConfig, nodeConfig, table, records){
+//     return {
+//         "data":{
+//             "id":100,
+//             "name":"gavin",
+//             "type":{
+//                 "id":10,
+//                 "default":false,
+//                 "name":"write_record"
+//             }
+//         }
+//     };
+// }
+function testString(){
+    log.warn("error");
+    return "String";
 }
-function update_token(connection){
-    codingAPI.post("{{baseUrl}}/access_token");
-    return {"access_token":token.data};
+function testChar(){
+    return 'a';
+}
+function emptyArr(){
+    return [];
+}
+function emptyMap(){
+    return {};
+}
+function testMap(){
+    return {"key":10,"value":"va","arr":["a",10,"hhse"]};
+}
+function testBool(){
+    return false;
+}
+function testNumber(){
+    return 10;
+}
+function testFolat(){
+    return 12.6;
+}
+function testNull(){
+    return null;
+}
+function testVoid(){
+
+}
+function testArrMap(){
+    return [
+        {
+            id:2,
+            name:"kit"
+        },
+        {
+            "id":1
+        }
+    ];
 }
