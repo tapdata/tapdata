@@ -6,7 +6,6 @@ import io.tapdata.common.FileConnector;
 import io.tapdata.common.FileOffset;
 import io.tapdata.common.util.MatchUtil;
 import io.tapdata.connector.csv.config.CsvConfig;
-import io.tapdata.connector.csv.writer.AbstractCsvRecordWriter;
 import io.tapdata.connector.csv.writer.DateCsvRecordWriter;
 import io.tapdata.connector.csv.writer.RecordCsvRecordWriter;
 import io.tapdata.connector.csv.writer.UniqueCsvRecordWriter;
@@ -41,8 +40,6 @@ import java.util.stream.Collectors;
 @TapConnectorClass("spec_csv.json")
 public class CsvConnector extends FileConnector {
 
-    private AbstractCsvRecordWriter csvRecordWriter;
-
     @Override
     protected void initConnection(TapConnectionContext connectorContext) throws Exception {
         fileConfig = new CsvConfig();
@@ -51,8 +48,8 @@ public class CsvConnector extends FileConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        if (EmptyKit.isNotNull(csvRecordWriter)) {
-            csvRecordWriter.releaseResource();
+        if (EmptyKit.isNotNull(fileRecordWriter)) {
+            fileRecordWriter.releaseResource();
         }
         super.onStop(connectionContext);
     }
@@ -182,16 +179,17 @@ public class CsvConnector extends FileConnector {
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        if (EmptyKit.isNull(csvRecordWriter)) {
+        if (EmptyKit.isNull(fileRecordWriter)) {
             String fileNameExpression = fileConfig.getFileNameExpression();
             if (EmptyKit.isBlank(fileNameExpression) || (!fileNameExpression.contains("${date:") && !fileNameExpression.contains("${record."))) {
-                csvRecordWriter = new UniqueCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
+                fileRecordWriter = new UniqueCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
             } else if (fileNameExpression.contains("${date:")) {
-                csvRecordWriter = new DateCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
+                fileRecordWriter = new DateCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
             } else {
-                csvRecordWriter = new RecordCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
+                fileRecordWriter = new RecordCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
             }
+            fileRecordWriter.setConnectorId(connectorContext.getId());
         }
-        csvRecordWriter.write(tapRecordEvents, writeListResultConsumer);
+        fileRecordWriter.write(tapRecordEvents, writeListResultConsumer);
     }
 }

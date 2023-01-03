@@ -19,8 +19,8 @@ public class UniqueCsvRecordWriter extends AbstractCsvRecordWriter {
 
     @Override
     public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Exception {
-        String fileNameExpression = csvConfig.getFileNameExpression();
-        String uniquePath = correctPath(csvConfig.getWriteFilePath()) + (EmptyKit.isBlank(fileNameExpression) ? "tapdata.csv" : fileNameExpression);
+        String fileNameExpression = fileConfig.getFileNameExpression();
+        String uniquePath = correctPath(fileConfig.getWriteFilePath()) + (EmptyKit.isBlank(fileNameExpression) ? "tapdata.csv" : fileNameExpression);
         writeOneFile(tapRecordEvents, writeListResultConsumer, uniquePath);
     }
 

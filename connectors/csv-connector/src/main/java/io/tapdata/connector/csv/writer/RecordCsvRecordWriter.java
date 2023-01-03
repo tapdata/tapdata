@@ -18,6 +18,6 @@ public class RecordCsvRecordWriter extends AbstractCsvRecordWriter {
 
     @Override
     public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Exception {
-        writeMultiFiles(tapRecordEvents, writeListResultConsumer, correctPath(csvConfig.getWriteFilePath()) + csvConfig.getFileNameExpression());
+        writeMultiFiles(tapRecordEvents, writeListResultConsumer, correctPath(fileConfig.getWriteFilePath()) + fileConfig.getFileNameExpression());
     }
 }

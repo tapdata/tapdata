@@ -18,15 +18,15 @@ public class DateCsvRecordWriter extends AbstractCsvRecordWriter {
 
     @Override
     public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Exception {
-        String fileNameExpression = csvConfig.getFileNameExpression();
+        String fileNameExpression = fileConfig.getFileNameExpression();
         String newWriteDateString = replaceDateSign(fileNameExpression);
         if (!newWriteDateString.equals(writeDateString)) {
-            csvFileWriterMap.forEach((k, v) -> v.close());
-            csvFileWriterMap.clear();
+            fileWriterMap.forEach((k, v) -> v.close());
+            fileWriterMap.clear();
             kvMap.clear();
             writeDateString = newWriteDateString;
         }
-        String datePath = correctPath(csvConfig.getWriteFilePath()) + newWriteDateString;
+        String datePath = correctPath(fileConfig.getWriteFilePath()) + newWriteDateString;
         if (!fileNameExpression.contains("${record.")) {
             writeOneFile(tapRecordEvents, writeListResultConsumer, datePath);
         } else {

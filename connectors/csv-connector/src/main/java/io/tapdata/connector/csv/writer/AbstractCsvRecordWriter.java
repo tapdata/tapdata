@@ -1,5 +1,6 @@
 package io.tapdata.connector.csv.writer;
 
+import io.tapdata.common.AbstractFileRecordWriter;
 import io.tapdata.connector.csv.config.CsvConfig;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -11,35 +12,15 @@ import io.tapdata.file.TapFileStorage;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
-import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
-public abstract class AbstractCsvRecordWriter {
-
-    protected TapFileStorage storage;
-    protected CsvConfig csvConfig;
-    protected TapTable tapTable;
-    protected KVMap<Object> kvMap;
-    protected List<String> fieldList;
-    protected Map<String, CsvFileWriter> csvFileWriterMap;
-    protected String writeDateString;
-    protected Map<String, Long> lastWriteMap;
+public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
 
     public AbstractCsvRecordWriter(TapFileStorage storage, CsvConfig csvConfig, TapTable tapTable, KVMap<Object> kvMap) {
-        csvFileWriterMap = new ConcurrentHashMap<>();
-        this.storage = storage;
-        this.csvConfig = csvConfig;
-        this.tapTable = tapTable;
-        this.kvMap = kvMap;
-        this.fieldList = tapTable.getNameFieldMap().entrySet().stream().sorted(Comparator.comparing(v ->
-                EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(Map.Entry::getKey).collect(Collectors.toList());
-        lastWriteMap = (Map<String, Long>) kvMap.get("tapdata_csv_last_write");
-        if (EmptyKit.isNull(lastWriteMap)) {
-            lastWriteMap = new HashMap<>();
-        }
+        super(storage, csvConfig, tapTable, kvMap);
     }
 
     protected void writeOneFile(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, String uniquePath) throws Exception {
@@ -65,7 +46,7 @@ public abstract class AbstractCsvRecordWriter {
         }
         lastWriteMap.put(uniquePath, System.currentTimeMillis());
         csvFileWriter.flush();
-        kvMap.put("tapdata_csv_last_write", lastWriteMap);
+        kvMap.put("tapdata_file_last_write", lastWriteMap);
         writeListResultConsumer.accept(listResult
                 .insertedCount(insert)
                 .modifiedCount(update)
@@ -101,13 +82,13 @@ public abstract class AbstractCsvRecordWriter {
                 delete++;
             }
         }
-        csvFileWriterMap.forEach((k, v) -> {
+        fileWriterMap.forEach((k, v) -> {
             v.flush();
             if (System.currentTimeMillis() - lastWriteMap.get(k) > 3 * 60 * 1000) {
                 v.close();
             }
         });
-        kvMap.put("tapdata_csv_last_write", lastWriteMap);
+        kvMap.put("tapdata_file_last_write", lastWriteMap);
         writeListResultConsumer.accept(listResult
                 .insertedCount(insert)
                 .modifiedCount(update)
@@ -116,32 +97,26 @@ public abstract class AbstractCsvRecordWriter {
 
     protected CsvFileWriter getCsvFileWriterAndInit(String uniquePath) throws Exception {
         CsvFileWriter csvFileWriter;
-        if (csvFileWriterMap.containsKey(uniquePath)) {
-            csvFileWriter = csvFileWriterMap.get(uniquePath);
+        if (fileWriterMap.containsKey(uniquePath)) {
+            csvFileWriter = (CsvFileWriter) fileWriterMap.get(uniquePath);
             if (csvFileWriter.isClosed()) {
                 csvFileWriter.init();
             }
         } else {
-            csvFileWriter = new CsvFileWriter(storage, uniquePath, csvConfig.getFileEncoding());
-            csvFileWriterMap.put(uniquePath, csvFileWriter);
+            csvFileWriter = new CsvFileWriter(storage, uniquePath, fileConfig.getFileEncoding());
+            fileWriterMap.put(uniquePath, csvFileWriter);
         }
         if (!lastWriteMap.containsKey(uniquePath) || EmptyKit.isNull(lastWriteMap.get(uniquePath))) {
-            for (int i = 0; i < csvConfig.getHeaderLine() - 1; i++) {
+            for (int i = 0; i < fileConfig.getHeaderLine() - 1; i++) {
                 csvFileWriter.getCsvWriter().writeNext(null);
             }
-            if (EmptyKit.isBlank(csvConfig.getHeader())) {
+            if (EmptyKit.isBlank(fileConfig.getHeader())) {
                 csvFileWriter.getCsvWriter().writeNext(fieldList.toArray(new String[0]));
             } else {
-                csvFileWriter.getCsvWriter().writeNext(csvConfig.getHeader().split(","));
+                csvFileWriter.getCsvWriter().writeNext(fileConfig.getHeader().split(","));
             }
         }
         return csvFileWriter;
-    }
-
-    public abstract void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Exception;
-
-    protected String correctPath(String path) {
-        return path.endsWith("/") ? path : (path + "/");
     }
 
     protected String[] getStringArray(Map<String, Object> data, List<String> fieldList, String op) {
@@ -149,46 +124,5 @@ public abstract class AbstractCsvRecordWriter {
         res = Arrays.copyOf(res, fieldList.size() + 1);
         res[fieldList.size()] = op;
         return res;
-    }
-
-    protected String replaceDateSign(String fileNameExpression) {
-        StringBuilder res = new StringBuilder();
-        Date date = new Date();
-        String subStr = fileNameExpression;
-        while (subStr.contains("${date:")) {
-            res.append(subStr, 0, subStr.indexOf("${date:"));
-            subStr = subStr.substring(subStr.indexOf("${date:") + 7);
-            SimpleDateFormat simpleDateFormat = new SimpleDateFormat(subStr.substring(0, subStr.indexOf("}")));
-            res.append(simpleDateFormat.format(date));
-            subStr = subStr.substring(subStr.indexOf("}") + 1);
-        }
-        res.append(subStr);
-        return res.toString();
-    }
-
-    protected List<String> getKeyFieldList(List<String> fieldList) {
-        List<String> keyFieldList = new ArrayList<>();
-        String expression = csvConfig.getFileNameExpression();
-        if (EmptyKit.isBlank(expression)) {
-            return keyFieldList;
-        }
-        for (String field : fieldList) {
-            if (expression.contains("${record." + field + "}")) {
-                keyFieldList.add(field);
-            }
-        }
-        return keyFieldList;
-    }
-
-    protected String getFileNameFromValue(String expression, Map<String, Object> value) {
-        String key = expression;
-        for (String field : fieldList) {
-            key = key.replaceAll("\\$\\{record." + field + "}", String.valueOf(value.get(field)));
-        }
-        return key;
-    }
-
-    public void releaseResource() {
-        csvFileWriterMap.forEach((k, v) -> v.close());
     }
 }
