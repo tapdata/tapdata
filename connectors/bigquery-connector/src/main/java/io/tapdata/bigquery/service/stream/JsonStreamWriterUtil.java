@@ -1,8 +1,12 @@
 package io.tapdata.bigquery.service.stream;
 
+import com.google.api.gax.core.GoogleCredentialsProvider;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.storage.v1.*;
 import io.tapdata.entity.error.CoreException;
 
+import java.io.ByteArrayInputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -34,18 +38,20 @@ public class JsonStreamWriterUtil {
     }
     private static JsonStreamWriterUtil util;
     private static final Map<String ,JsonStreamWriter> jsonStreamWriterMap = new HashMap<>();
-    public static JsonStreamWriter getWriteStreamMap(String tableName){
+    public JsonStreamWriter getWriteStreamMap(String tableName){
         return Optional.ofNullable(jsonStreamWriterMap.get(tableName))
-                .orElse(new JsonStreamWriterUtil().createWriteStream(tableName));
+                .orElse(util.createWriteStream(tableName));
     }
 
+    String credentialsJson = "";
     public JsonStreamWriter createWriteStream(String table) {
-        if (Objects.isNull(projectId)) throw new CoreException("Project id must not be null or not be empty.");
-        if (Objects.isNull(dataSet)) throw new CoreException("DataSet must not be null or not be empty.");
+        if (Objects.isNull(util.projectId)) throw new CoreException("Project id must not be null or not be empty.");
+        if (Objects.isNull(util.dataSet)) throw new CoreException("DataSet must not be null or not be empty.");
         try {
+            GoogleCredentials credentials = ServiceAccountCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes("utf8")));
             BigQueryWriteClient bqClient = BigQueryWriteClient.create();
             WriteStream stream = WriteStream.newBuilder().setType(WriteStream.Type.COMMITTED).build();
-            TableName tableName = TableName.of(this.projectId(),this.dataSet(), table);
+            TableName tableName = TableName.of(util.projectId(),util.dataSet(), table);
             CreateWriteStreamRequest createwriteStreamRequest = CreateWriteStreamRequest.newBuilder()
                     .setParent(tableName.toString()).setWriteStream(stream)
                     .build();

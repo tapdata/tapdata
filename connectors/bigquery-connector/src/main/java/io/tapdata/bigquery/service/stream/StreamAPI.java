@@ -5,6 +5,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -24,8 +25,8 @@ public class StreamAPI {
             firstObjArr.put(firstTableJsonObj);
         }
         JSONObject firstTableJsonObj = new JSONObject();
-        firstTableJsonObj.put("ID", 147584765);
-        firstTableJsonObj.put("TYPE_BOOLEAN", "true");
+        firstTableJsonObj.put("_id", 147584765);
+        //firstTableJsonObj.put("T_BIGINT", "true");
         firstObjArr.put(firstTableJsonObj);
     }
 
@@ -42,15 +43,18 @@ public class StreamAPI {
     }
 
     public static void main(String[] args) {
-        StreamAPI api = new StreamAPI();
-        JSONArray jsonArr = new JSONArray();
-        ArrayList<TapRecordEvent> objects = new ArrayList<>();
 
-        api.updateRequestMetadataOperations(jsonArr,objects);
-        try {
-            api.insertIntoBigQuery("All_Type_test",jsonArr);
-        } catch (Exception e) {
-            e.printStackTrace();
+    }
+
+
+    public WriteStream writeStream(String projectId, String dataSet, String table){
+        try (BigQueryWriteClient bigQueryWriteClient = BigQueryWriteClient.create()) {
+            TableName parent = TableName.of(projectId, dataSet, table);
+            WriteStream writeStream = WriteStream.newBuilder().build();
+            return bigQueryWriteClient.createWriteStream(parent, writeStream);
+        } catch (IOException e) {
+            //e.printStackTrace();
         }
+        return null;
     }
 }
