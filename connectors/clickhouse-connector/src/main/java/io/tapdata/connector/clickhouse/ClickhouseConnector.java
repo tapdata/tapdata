@@ -235,7 +235,7 @@ public class ClickhouseConnector extends ConnectorBase {
         }
 
         // 关联键排序
-        primaryKeys = tapTable.primaryKeys(false);
+        primaryKeys = tapTable.primaryKeys(true);
         if (EmptyKit.isNotEmpty(primaryKeys)) {
             sql.append(" ORDER BY (").append(TapTableWriter.sqlQuota(",", primaryKeys)).append(")");
         } else {

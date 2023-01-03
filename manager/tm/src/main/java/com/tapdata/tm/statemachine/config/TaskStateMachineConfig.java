@@ -125,7 +125,7 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 		Date date = new Date();
 		switch (status) {
 			case TaskDto.STATUS_WAIT_RUN:  //  scheduled对应startTime和scheduledTime
-				update.set("startTime", date).set("scheduledTime", date);
+				update.set("scheduledTime", date);
 				break;
 			case TaskDto.STATUS_STOPPING:  // stopping对应stoppingTime
 				update.set("stoppingTime", date);
@@ -141,6 +141,9 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 				break;
 			case TaskDto.STATUS_COMPLETE:  //  error对应errorTime和finishTime
 				update.set("stopTime", date).set("finishTime", date);
+				break;
+			case TaskDto.STATUS_SCHEDULING:  //  error对应errorTime和finishTime
+				update.set("schedulingTime", date);
 				break;
 			default:
 				break;

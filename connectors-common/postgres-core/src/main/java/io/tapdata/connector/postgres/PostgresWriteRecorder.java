@@ -240,11 +240,7 @@ public class PostgresWriteRecorder extends WriteRecorder {
             return;
         }
         Map<String, Object> lastBefore = new HashMap<>();
-        if (EmptyKit.isNotEmpty(before)) {
-            lastBefore.putAll(before);
-        } else {
-            uniqueCondition.forEach(k -> lastBefore.put(k, after.get(k)));
-        }
+        uniqueCondition.forEach(v -> lastBefore.put(v, before.containsKey(v) ? before.get(v) : after.get(v)));
         if (updatePolicy.equals(ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS)) {
             insertUpdate(after, lastBefore);
         } else {

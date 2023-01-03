@@ -99,7 +99,9 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -540,7 +542,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         try {
             start(taskDto, user, "11");
         } catch (Exception e) {
-            monitoringLogsService.startTaskErrorLog(taskDto, user, e);
+            monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
             throw e;
         }
         return findById(taskDto.getId(), user);
@@ -684,9 +686,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         updateById(taskDto, user);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.CONFIRM, user);
-        if (stateMachineResult.isOk()){
-            updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
-        }
 
         return taskDto;
     }
@@ -851,6 +850,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     ((MergeTableNode) node).setMergeProperties(mergeTableProperties);
                 } else if (node instanceof MigrateFieldRenameProcessorNode) {
 
+                }
+            }
+
+            // 更新增量同步时间配置
+            if (null != taskDto.getSyncPoints()) {
+                for (TaskDto.SyncPoint sp : taskDto.getSyncPoints()) {
+                    if (null == sp.getNodeId()) continue;
+                    sp.setNodeId(oldnewNodeIdMap.get(sp.getNodeId()));
                 }
             }
 
@@ -1081,7 +1088,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 start(task, user, "11");
             } catch (Exception e) {
                 log.warn("start task exception, task id = {}, e = {}", task.getId(), ThrowableUtils.getStackTraceByPn(e));
-                monitoringLogsService.startTaskErrorLog(task, user, e);
+                monitoringLogsService.startTaskErrorLog(task, user, e, Level.ERROR);
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
                     mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
@@ -2231,7 +2238,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         continue;
                     }
                 }
-
+                repository.getMongoOperations().updateFirst(new Query(Criteria.where("_id").is(taskDto.getId())), Update.update("status", TaskDto.STATUS_EDIT), TaskEntity.class);
                 confirmById(taskDto, user, true, true);
             }
         }
@@ -2493,7 +2500,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .unset("startTime")
                     .unset("lastStartDate")
                     .unset("stopTime")
+                    .unset("stopRetryTimes")
                     .unset("currentEventTimestamp")
+                    .unset("scheduleDate")
+                    .unset("stopedDate")
                     .set("needCreateRecord", taskDto.isNeedCreateRecord());
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
@@ -2585,7 +2595,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         try {
             start(taskDto, user, "11");
         } catch (Exception e) {
-            monitoringLogsService.startTaskErrorLog(taskDto, user, e);
+            monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
             throw e;
         }
     }
@@ -2667,8 +2677,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
         //需要将重启标识清除
-        update(query, Update.update("isEdit", false).set("restartFlag", false), user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULING, user);
+        Update set = Update.update("isEdit", false)
+                .set("restartFlag", false)
+                .set("stopRetryTimes", 0)
+                .set("lastStartDate", System.currentTimeMillis());
+        update(query, set, user);
         taskScheduleService.scheduling(taskDto, user);
     }
 
@@ -2750,7 +2763,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return;
         }
 
-        String pauseStatus = TaskDto.STATUS_STOPPING;
+        Update stopUpdate = Update.update("stopedDate", System.currentTimeMillis());
+        updateById(taskDto.getId(), stopUpdate, user);
+
         StateMachineResult stateMachineResult;
         if (force) {
             stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.FORCE_STOP, user);
@@ -2772,10 +2787,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             update(query1, update, user);
         }
 
+        Update update = Update.update("stopRetryTimes", 0);
+        updateById(taskDto.getId(), update, user);
 
-        //sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
-
-        updateTaskRecordStatus(taskDto, pauseStatus, user);
+        sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
     }
 
     public void sendStoppingMsg(String taskId, String agentId, UserDetail user, boolean force) {
@@ -2806,18 +2821,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public String running(ObjectId id, UserDetail user) {
 
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId", "startTime");
+        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId", "startTime", "scheduleDate");
         //将子任务状态改成运行中
         if (!TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
+
+        FunctionUtils.ignoreAnyError(() -> {
+            String template = "Engine takeover task successful, cost {0}ms.";
+            String msg = MessageFormat.format(template, System.currentTimeMillis() - taskDto.getScheduleDate());
+            monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
+        });
+
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-
-        Date now = DateUtil.date();
         Update update = Update.update("scheduleDate", null);
-
-        monitoringLogsService.startTaskMonitoringLog(taskDto, user, now);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RUNNING, user);
         if (stateMachineResult.isFail()) {
@@ -2826,7 +2844,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         update(query1, update, user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING, user);
         return id.toHexString();
     }
 
@@ -2845,7 +2862,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR, user);
 
         return id.toHexString();
 
@@ -2865,7 +2881,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_COMPLETE, user);
 
         return id.toHexString();
     }
@@ -2877,15 +2892,23 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String stopped(ObjectId id, UserDetail user) {
         //判断子任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId");
+        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId", "stopedDate");
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);
 
         if (stateMachineResult.isFail()) {
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
+        } else {
+            FunctionUtils.ignoreAnyError(() -> {
+                String template = "Task has been stopped, total cost {0}ms.";
+                String msg = MessageFormat.format(template, System.currentTimeMillis() - taskDto.getStopedDate());
+                monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
+            });
+
+            Update update = Update.update("stopRetryTimes", 0).unset("stopedDate");
+            updateById(id, update, user);
         }
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP, user);
         return id.toHexString();
     }
 
@@ -3109,13 +3132,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
                 run(taskDto, finalUserMap.get(taskDto.getUserId()));
-                //run(taskDto, finalUserMap.get(taskDto.getUserId()));
                 //启动过后，应该更新掉这个自动启动计划
                 Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
                 updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
             }
-
-
         }
     }
 

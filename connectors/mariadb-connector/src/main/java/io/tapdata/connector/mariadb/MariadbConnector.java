@@ -10,6 +10,7 @@ import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -53,7 +54,7 @@ public class MariadbConnector extends ConnectorBase {
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
-        tapConnectionContext.getSpecification().setId("mysql");
+		tapConnectionContext.getConnectionConfig().put("protocolType", "mysql");
         this.mysqlJdbcContext = new MysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
@@ -332,7 +333,7 @@ public class MariadbConnector extends ConnectorBase {
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
-        databaseContext.getSpecification().setId("mysql");
+		databaseContext.getConnectionConfig().put("protocolType", "mysql");
         CommonDbConfig commonDbConfig = new CommonDbConfig();
         commonDbConfig.set__connectionType(databaseContext.getConnectionConfig().getString("__connectionType"));
         try (

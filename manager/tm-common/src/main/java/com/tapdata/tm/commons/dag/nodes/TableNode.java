@@ -1,23 +1,20 @@
 package com.tapdata.tm.commons.dag.nodes;
 
-import com.tapdata.tm.commons.dag.*;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
+import com.tapdata.tm.commons.dag.NodeType;
+import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.event.WriteEvent;
-import com.tapdata.tm.commons.exception.DDLException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.JoinTable;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
-import io.tapdata.entity.event.ddl.entity.ValueChange;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.pdk.apis.entity.QueryOperator;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
@@ -48,7 +45,7 @@ public class TableNode extends DataNode {
     private String increasesql;
     /** */
     @EqField
-    private Boolean isFilter = true;
+    private Boolean isFilter = false;
 
     /** 全量读取方式，读取全量，自定义sql */
     @EqField
@@ -151,6 +148,12 @@ public class TableNode extends DataNode {
 
     private Map<String, Object> nodeConfig;
 
+    /** 自定义sql条件 */
+    @EqField
+    List<QueryOperator> conditions;
+    /** 自定义sql条件 */
+    @EqField
+    private Integer  limit;
     public TableNode() {
         super("table");
     }

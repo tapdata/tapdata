@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast;
 
+import cn.hutool.core.date.StopWatch;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
@@ -492,11 +493,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	@Override
 	public final void close() throws Exception {
+		StopWatch sw = new StopWatch();
 		try {
+			sw.start();
 			running.set(false);
 			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
 			CommonUtils.handleAnyError(this::doClose, err -> {
-				obsLogger.warn(String.format("Close node failed: %s | Node: %s[%s] | Type: %s", err.getMessage(), getNode().getName(), getNode().getId(), this.getClass().getName()));
+				obsLogger.warn(String.format("Close node failed: %s | Node: %s[%s] | Type: %s" , err.getMessage(), getNode().getName(), getNode().getId(), this.getClass().getName()));
 			});
 			CommonUtils.ignoreAnyError(() -> {
 				if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
@@ -508,7 +511,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} finally {
 			ThreadContext.clearAll();
 			super.close();
-			obsLogger.info(String.format("Node %s[%s] close complete", getNode().getName(), getNode().getId()));
+			sw.stop();
+			obsLogger.info(String.format("Node %s[%s] close complete, cost %d ms", getNode().getName(), getNode().getId(), sw.getTotalTimeMillis()));
 		}
 	}
 
@@ -704,7 +708,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected boolean isRunning() {
-		return running.get() && !Thread.currentThread().isInterrupted();
+		return running.get() && !Thread.currentThread().isInterrupted() && isJetJobRunning();
 	}
 
 

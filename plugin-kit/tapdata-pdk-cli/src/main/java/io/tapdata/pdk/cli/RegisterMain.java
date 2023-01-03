@@ -45,7 +45,13 @@ public class RegisterMain {
         BigQuery(BASE_PATH + "connectors/dist/bigquery-connector-v1.0-SNAPSHOT.jar", "all", "bigquery"),
 		Vika(BASE_PATH + "connectors/dist/vika-connector-v1.0-SNAPSHOT.jar", "all", "vika"),
         TDengine(BASE_PATH + "connectors/dist/tdengine-connector-v1.0-SNAPSHOT.jar", "all", "tdengine"),
+        QuickApi(BASE_PATH + "connectors/dist/quickapi-connector-v1.0-SNAPSHOT.jar", "all", "quickapi"),
         Aliyun_ADB(BASE_PATH + "connectors/dist/aliyun-adb-mysql-connector-v1.0-SNAPSHOT.jar", "all", "aliyun-adb-mysql"),
+        Aliyun_RDS(BASE_PATH + "connectors/dist/aliyun-rds-mysql-connector-v1.0-SNAPSHOT.jar", "all", "aliyun-rds-mysql"),
+        MYSQL_PXC(BASE_PATH + "connectors/dist/mysql-pxc-connector-v1.0-SNAPSHOT.jar", "all", "mysql-pxc"),
+        TENCENT_DB_MYSQL(BASE_PATH + "connectors/dist/tencent-db-mysql-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mysql"),
+		SelectDB(BASE_PATH + "connectors/dist/selectdb-connector-v1.0-SNAPSHOT.jar", "all", "selectdb"),
+
         ;
 
         private final String path;

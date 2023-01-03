@@ -1,7 +1,7 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.mongodb.client.result.UpdateResult;
+import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
@@ -25,6 +26,7 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskCollectionObjService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -42,7 +44,9 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
@@ -88,6 +92,11 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         }
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+        FunctionUtils.ignoreAnyError(() -> {
+            String template = "Scheduling calculation results: {0}, all agent data: {1}.";
+            String msg = MessageFormat.format(template, calculationEngineVo.getProcessId() , JSON.toJSONString(calculationEngineVo.getThreadLog()));
+            monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
+        });
         if (StringUtils.isBlank(taskDto.getAgentId())) {
             scheduleFailed(taskDto, user);
         }
@@ -110,9 +119,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return;
         } else {
-
-            UpdateResult waitRunResult = taskService.update(query1, waitRunUpdate, user);
-            taskService.updateTaskRecordStatus(taskDto, TaskDto.STATUS_WAIT_RUN, user);
+            taskService.update(query1, waitRunUpdate, user);
         }
         //发送websocket消息，提醒flowengin启动
         DataSyncMq dataSyncMq = new DataSyncMq();
@@ -135,8 +142,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             TaskEntity taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
             disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), now));
-        } else {
-            taskService.updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
         }
 
         //数据发现的任务收集

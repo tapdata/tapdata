@@ -167,6 +167,7 @@ public class TaskEntity extends BaseEntity {
     private Long lastStartDate;
     private Date stopTime;
     private Long scheduleDate;
+    private Long stopedDate;
 
     private HashSet<String> heartbeatTasks;
 
@@ -184,6 +185,7 @@ public class TaskEntity extends BaseEntity {
 
     //private Date startTime;
     private Date scheduledTime;
+    private Date schedulingTime;
     private Date stoppingTime;
     private Date runningTime;
     private Date errorTime;

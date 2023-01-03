@@ -2,7 +2,7 @@ package io.tapdata.connector.mariadb;
 
 import io.tapdata.common.CommonDbConfig;
 import io.tapdata.connector.mysql.MysqlConnectionTest;
-import io.tapdata.connector.mysql.MysqlJdbcContext;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;

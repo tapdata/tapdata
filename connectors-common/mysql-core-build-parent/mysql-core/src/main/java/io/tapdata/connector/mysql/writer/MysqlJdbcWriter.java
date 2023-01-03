@@ -1,8 +1,8 @@
 package io.tapdata.connector.mysql.writer;
 
 import io.debezium.util.HexConverter;
-import io.tapdata.connector.mysql.MysqlJdbcContext;
 import io.tapdata.connector.mysql.util.JdbcUtil;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
@@ -348,7 +348,6 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 		private final Map<String, PreparedStatement> updateMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
 		private final Map<String, PreparedStatement> deleteMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
 		private final Map<String, PreparedStatement> checkExistsMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
-		private final List<Statement> statementList = new ArrayList<>();
 
 		public JdbcCache(Connection connection) {
 			this.connection = connection;
@@ -374,9 +373,7 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 			if (null == connection)
 				throw new IllegalArgumentException("Cannot create sql statement when connection is null");
 			if (!connection.isValid(5)) throw new RuntimeException("Connection is invalid");
-			Statement statement = connection.createStatement();
-			statementList.add(statement);
-			return statement;
+			return connection.createStatement();
 		}
 
 		public Connection getConnection() {
@@ -388,7 +385,6 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 			this.updateMap.clear();
 			this.deleteMap.clear();
 			this.checkExistsMap.clear();
-			statementList.forEach(JdbcUtil::closeQuietly);
 		}
 	}
 }

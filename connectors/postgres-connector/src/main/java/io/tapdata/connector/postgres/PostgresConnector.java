@@ -195,8 +195,7 @@ public class PostgresConnector extends ConnectorBase {
             return "null";
         });
 
-        codecRegistry.registerToTapValue(PgArray.class, (value, tapType) -> new TapStringValue(value.toString()));
-
+        codecRegistry.registerToTapValue(PgArray.class, (value, tapType) -> new TapStringValue(toJson(value)));
         codecRegistry.registerToTapValue(PgSQLXML.class, (value, tapType) -> {
             try {
                 return new TapStringValue(((PgSQLXML) value).getString());
@@ -204,29 +203,25 @@ public class PostgresConnector extends ConnectorBase {
                 throw new RuntimeException(e);
             }
         });
-
         codecRegistry.registerToTapValue(PGbox.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGcircle.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGline.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGlseg.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGpath.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGobject.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGpoint.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGpolygon.class, (value, tapType) -> new TapStringValue(value.toString()));
-
+        codecRegistry.registerToTapValue(UUID.class, (value, tapType) -> new TapStringValue(value.toString()));
         codecRegistry.registerToTapValue(PGInterval.class, (value, tapType) -> {
-            int hours = ((PGInterval) value).getHours();
-            int minutes = ((PGInterval) value).getMinutes();
-            double seconds = ((PGInterval) value).getSeconds();
-            String time = hours + ":" + minutes + ":" + seconds;
-            return new TapStringValue(time);
+            //P1Y1M1DT12H12M12.312312S
+            PGInterval pgInterval = (PGInterval) value;
+            String interval = "P" + pgInterval.getYears() + "Y" +
+                    pgInterval.getMonths() + "M" +
+                    pgInterval.getDays() + "DT" +
+                    pgInterval.getHours() + "H" +
+                    pgInterval.getMinutes() + "M" +
+                    pgInterval.getSeconds() + "S";
+            return new TapStringValue(interval);
         });
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());

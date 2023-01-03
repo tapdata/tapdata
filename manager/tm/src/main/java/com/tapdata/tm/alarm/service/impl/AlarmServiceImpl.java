@@ -7,6 +7,8 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Maps;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
@@ -32,12 +34,14 @@ import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -53,6 +57,7 @@ import org.springframework.stereotype.Service;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -69,6 +74,7 @@ public class AlarmServiceImpl implements AlarmService {
     private AlarmSettingService alarmSettingService;
     private MessageService messageService;
     private SettingsService settingsService;
+    private UserService userService;
 
     @Override
     public void save(AlarmInfo info) {
@@ -86,13 +92,22 @@ public class AlarmServiceImpl implements AlarmService {
             info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
             info.setLastOccurrenceTime(date);
             if (Objects.nonNull(one.getLastNotifyTime()) && Objects.isNull(info.getLastNotifyTime())) {
-                info.setLastNotifyTime(one.getLastNotifyTime());
+                AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric());
+                if (Objects.nonNull(alarmSettingDto)) {
+                    DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
+                    if (date.after(lastNotifyTime)) {
+                        info.setLastNotifyTime(date);
+                    }
+                }
+            } else {
+                info.setLastNotifyTime(date);
             }
 
             mongoTemplate.save(info);
         } else {
             info.setFirstOccurrenceTime(date);
             info.setLastOccurrenceTime(date);
+            info.setLastNotifyTime(date);
             mongoTemplate.insert(info);
         }
     }
@@ -128,7 +143,7 @@ public class AlarmServiceImpl implements AlarmService {
 
         if (Objects.nonNull(nodeId)) {
             for (Node node : taskDto.getDag().getNodes()) {
-                if (node.getId().equals(nodeId)) {
+                if (node.getId().equals(nodeId) && CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
                     alarmSettingDtos.addAll(node.getAlarmSettings());
                     break;
                 }
@@ -139,12 +154,6 @@ public class AlarmServiceImpl implements AlarmService {
         return alarmSettingDtos;
     }
 
-    private AlarmSettingDto getAlarmSettingByKey(TaskDto taskDto, String nodeId, AlarmKeyEnum key) {
-        List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
-        Assert.notEmpty(alarmSettingDtos);
-        return alarmSettingDtos.stream().filter(t -> key.equals(t.getKey())).findAny().orElse(null);
-    }
-
     @Override
     @Nullable
     @SuppressWarnings("unchecked")
@@ -153,9 +162,7 @@ public class AlarmServiceImpl implements AlarmService {
             Map<String, List<AlarmRuleDto>> ruleMap = Maps.newHashMap();
             ruleMap.put(taskDto.getId().toHexString(), Optional.ofNullable(taskDto.getAlarmRules()).orElse(Collections.emptyList()));
 
-            taskDto.getDag().getNodes().forEach(node -> {
-                ruleMap.put(node.getId(), Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList()));
-            });
+            taskDto.getDag().getNodes().forEach(node -> ruleMap.put(node.getId(), Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList())));
             return ruleMap;
         }
         return null;
@@ -164,7 +171,10 @@ public class AlarmServiceImpl implements AlarmService {
     @Override
     public void notifyAlarm() {
         Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE);
-        criteria.orOperator(Criteria.where("lastNotifyTime").is(null), Criteria.where("lastNotifyTime").lte(DateUtil.date()));
+        criteria.andOperator(Criteria.where("lastNotifyTime").ne(null),
+                Criteria.where("lastNotifyTime").lt(DateUtil.date()),
+                Criteria.where("lastNotifyTime").gt(DateUtil.offsetSecond(DateUtil.date(), -30))
+        );
         Query needNotifyQuery = new Query(criteria);
         List<AlarmInfo> alarmInfos = mongoTemplate.find(needNotifyQuery, AlarmInfo.class);
 
@@ -177,21 +187,24 @@ public class AlarmServiceImpl implements AlarmService {
         if (CollectionUtils.isEmpty(tasks)) {
             return;
         }
-        Map<String, TaskDto> taskDtoMap = tasks.stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
+        Map<String, TaskDto> taskDtoMap = tasks.stream()
+                .filter(t -> !t.is_deleted())
+                .collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
 
-        alarmInfos.forEach(info -> {
+        List<String> userIds = tasks.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
+        List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
+        Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
+
+        for (AlarmInfo info : alarmInfos) {
             TaskDto taskDto = taskDtoMap.get(info.getTaskId());
-
-            CompletableFuture.runAsync(() -> sendMessage(info, taskDto));
-
-            if (info.getLastNotifyTime() == null) {
-                CompletableFuture.runAsync(() -> {
-                    sendMail(info, taskDto);
-                });
+            if (Objects.isNull(taskDto)) {
+                CompletableFuture.runAsync(() -> close(new String[]{info.getId().toHexString()}, userDetailMap.get(taskDto.getUserId())));
+                continue;
             }
 
-        });
-
+            FunctionUtils.ignoreAnyError(() -> sendMessage(info, taskDto));
+            FunctionUtils.ignoreAnyError(() -> sendMail(info, taskDto));
+        }
     }
 
     private void sendMessage(AlarmInfo info, TaskDto taskDto) {
@@ -217,13 +230,6 @@ public class AlarmServiceImpl implements AlarmService {
             messageEntity.setUserId(taskDto.getUserId());
             messageEntity.setRead(false);
             messageService.addMessage(messageEntity);
-
-            // update alarmInfo date
-            AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric());
-            AlarmSettingDto setting = getAlarmSettingByKey(taskDto, info.getNodeId(), info.getMetric());
-            DateTime lastNotifyTime = DateUtil.offset(DateUtil.date(), parseDateUnit(setting.getUnit()), alarmSettingDto.getInterval());
-            info.setLastNotifyTime(lastNotifyTime);
-            mongoTemplate.save(info);
         }
     }
 
@@ -275,7 +281,10 @@ public class AlarmServiceImpl implements AlarmService {
             }
 
             if (Objects.nonNull(title)) {
-                MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), title, content);
+                Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
+                AtomicReference<String> mailTitle = new AtomicReference<>(title);
+                Optional.ofNullable(prefix).ifPresent(pre -> mailTitle.updateAndGet(v -> pre.getValue() + v));
+                MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
             }
         }
     }
@@ -358,6 +367,7 @@ public class AlarmServiceImpl implements AlarmService {
                         .summary(StringUtils.replace(t.getSummary(), "$taskName", t.getName()))
                         .firstOccurrenceTime(t.getFirstOccurrenceTime())
                         .lastOccurrenceTime(t.getLastOccurrenceTime())
+                        .lastNotifyTime(t.getLastNotifyTime())
                         .taskId(t.getTaskId())
                         .metric(t.getMetric())
                         .syncType(taskDtoMap.get(t.getTaskId()).getSyncType())
@@ -400,6 +410,7 @@ public class AlarmServiceImpl implements AlarmService {
                     .summary(StringUtils.replace(t.getSummary(), "$taskName", t.getName()))
                     .firstOccurrenceTime(t.getFirstOccurrenceTime())
                     .lastOccurrenceTime(t.getLastOccurrenceTime())
+                    .lastNotifyTime(t.getLastNotifyTime())
                     .taskId(t.getTaskId())
                     .metric(t.getMetric())
                     .nodeId(t.getNodeId())
@@ -454,7 +465,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void closeWhenTaskRunning(String taskId) {
-        Update update = Update.update("status", AlarmStatusEnum.CLOESE).unset("lastNotifyTime");
+        Update update = Update.update("status", AlarmStatusEnum.CLOESE);
         mongoTemplate.updateMulti(Query.query(Criteria.where("taskId").is(taskId)), update, AlarmInfo.class);
     }
 
@@ -585,5 +596,10 @@ public class AlarmServiceImpl implements AlarmService {
     @Override
     public void delAlarm(String taskId) {
         mongoTemplate.remove(Query.query(Criteria.where("taskId").is(taskId)), AlarmInfo.class);
+    }
+
+    @Override
+    public List<AlarmInfo> query(Query query) {
+        return mongoTemplate.find(query, AlarmInfo.class);
     }
 }

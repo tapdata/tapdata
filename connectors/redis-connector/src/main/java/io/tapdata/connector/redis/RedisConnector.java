@@ -15,7 +15,6 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapDateValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -77,8 +76,8 @@ public class RedisConnector extends ConnectorBase {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         connectorFunctions.supportWriteRecord(this::writeRecord);
-        connectorFunctions.supportClearTable(this::clearTable);
-        connectorFunctions.supportDropTable(this::dropTable);
+//        connectorFunctions.supportClearTable(this::clearTable);
+//        connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateTable(this::createTable);
 
         // TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
@@ -119,21 +118,16 @@ public class RedisConnector extends ConnectorBase {
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
-        DataMap nodeConfig = tapConnectorContext.getNodeConfig();
-        String keyName = tapClearTableEvent.getTableId();
-        if (nodeConfig != null) {
-            keyName = (String) nodeConfig.get("cachePrefix");
-        }
-        try (Jedis jedis = redisContext.getJedis()) {
-            jedis.del(keyName);
-        }
+        cleanOneKey(redisConfig.getKeyTableName());
     }
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
-        DataMap nodeConfig = tapConnectorContext.getNodeConfig();
-        String keyName = tapDropTableEvent.getTableId();
-        if (nodeConfig != null) {
-            keyName = (String) nodeConfig.get("cachePrefix");
+        cleanOneKey(redisConfig.getKeyTableName());
+    }
+
+    private void cleanOneKey(String keyName) {
+        if (EmptyKit.isBlank(keyName)) {
+            return;
         }
         try (Jedis jedis = redisContext.getJedis()) {
             jedis.del(keyName);
