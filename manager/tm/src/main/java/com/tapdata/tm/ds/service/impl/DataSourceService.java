@@ -1802,13 +1802,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 	public Long countTaskByConnectionId(String connectionId, UserDetail userDetail) {
 		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
-				.orOperator(Criteria.where("is_deleted").ne(true),Criteria.where("status").ne("delete_failed")));
+				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		return taskService.count(query, userDetail);
 	}
 	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, UserDetail userDetail) {
 		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
-				.orOperator(Criteria.where("is_deleted").ne(true),Criteria.where("status").ne("delete_failed")));
+				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		query.limit(limit);
 		query.with(Sort.by(Sort.Direction.ASC, "_id"));
