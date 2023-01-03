@@ -110,7 +110,21 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 					try {
 						json = (String) documentToJsonMethod.invoke(obj);
 					} catch (IllegalAccessException | InvocationTargetException e) {
-						throw new RuntimeException(e);
+//						throw new RuntimeException(e);
+						if(!documentToJsonMethod.getDeclaringClass().equals(obj.getClass())) {
+							try {
+								documentToJsonMethod = obj.getClass().getMethod("toJson");
+							} catch (Throwable throwable) {
+								throwable.printStackTrace();
+							}
+							try {
+								json = (String) documentToJsonMethod.invoke(obj);
+							} catch (IllegalAccessException | InvocationTargetException ex) {
+								throw new RuntimeException(ex);
+							}
+						} else {
+							throw new RuntimeException(e);
+						}
 					}
 					dos.writeByte(TYPE_MONGODB_DOCUMENT);
 					byte[] data = json.getBytes(StandardCharsets.UTF_8);

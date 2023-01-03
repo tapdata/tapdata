@@ -22,10 +22,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionErrorCodes;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionTableOffset;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.ReadPartitionHandler;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.TapEventPartitionDispatcher;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.*;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
@@ -57,7 +54,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.sleep;
@@ -66,9 +62,9 @@ import static io.tapdata.entity.simplify.TapSimplify.sleep;
  * @author jackin
  * @date 2022/2/22 2:33 PM
  **/
-public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
-	private static final String TAG = HazelcastSourcePdkDataNodeEx1.class.getSimpleName();
-	public final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNodeEx1.class);
+public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBaseNode {
+	private static final String TAG = HazelcastSourcePartitionReadDataNode.class.getSimpleName();
+	public final Logger logger = LogManager.getLogger(HazelcastSourcePartitionReadDataNode.class);
 	public final Object streamReadLock = new int[0];
 	private static final int ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD = 100;
 
@@ -87,7 +83,7 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 	private final List<AsyncParallelWorker> pendingStartPartitionsReaders = new ArrayList<>();
 	private final AtomicBoolean streamReadStarted = new AtomicBoolean(false);
 
-	public HazelcastSourcePdkDataNodeEx1(DataProcessorContext dataProcessorContext) {
+	public HazelcastSourcePartitionReadDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		sourceStateAspect = new SourceStateAspect().dataProcessorContext(dataProcessorContext);
 		asyncMaster = InstanceFactory.instance(AsyncMaster.class);
@@ -229,60 +225,8 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 							aspectManager.executeAspect(batchReadFuncAspect);
 
 							List<ReadPartition> readPartitionList = new ArrayList<>();
-							Runnable completedRunnable = () -> {
-								obsLogger.info("Partitions has been split for table {}, wait until all partitions has been read.", tapTable.getId());
-								Object batchOffsetObj = syncProgress.getBatchOffsetObj();
-								PartitionTableOffset partitionTableOffset = null;
-								if(batchOffsetObj instanceof Map) {
-									partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
-									if(partitionTableOffset == null) {
-										partitionTableOffset = new PartitionTableOffset();
-										partitionTableOffset.partitions(readPartitionList);
-										((Map<String, PartitionTableOffset>) batchOffsetObj).put(tapTable.getId(), partitionTableOffset);
-									} else {
-										partitionTableOffset.partitions(readPartitionList);
-									}
-								}
-								while(!partitionsReader.runningQueueWorkers().isEmpty() || !partitionsReader.pendingQueueWorkers().isEmpty()) {
-									try {
-										Thread.sleep(500L);
-									} catch (InterruptedException e) {
-										throw new RuntimeException(e);
-									}
-								}
-								if(partitionTableOffset != null) {
-									partitionTableOffset.setTableCompleted(true);
-									partitionTableOffset.setPartitions(null);
-									partitionTableOffset.setCompletedPartitions(null);
-								}
-
-								aspectManager.executeAspect(batchReadFuncAspect.state(DataFunctionAspect.STATE_END));
-								//partition split done and read partitions done, start entering CDC stage.
-								handleEnterCDCStage(partitionsReader, tapTable);
-							};
-
-							Consumer<ReadPartition> partitionConsumer = readPartition -> {
-								readPartitionList.add(readPartition);
-								if (getReadPartitionsFuncAspect != null)
-									AspectUtils.accept(getReadPartitionsFuncAspect.state(GetReadPartitionsFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), readPartition);
-
-								readPartition.partitionIndex(tapTable.partitionIndex());
-								ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(pdkSourceContext, tapTable, readPartition, this);
-								partitionsReader.job(readPartition.getId(),
-										JobContext.create().context(ReadPartitionContext.create().pdkSourceContext(pdkSourceContext).table(tapTable).readPartition(readPartition).batchReadFuncAspect(batchReadFuncAspect)),
-										asyncQueueWorker -> asyncQueueWorker.
-												job("startCachingStreamData", jobContext -> {
-													JobContext context = readPartitionHandler.handleStartCachingStreamData(jobContext);
-													TapEventPartitionDispatcher dispatcher = tableEventPartitionDispatcher.get(tapTable.getId());
-													if(dispatcher != null) {
-														dispatcher.register(readPartition, readPartitionHandler);
-													}
-													return context;
-												}).
-												job("readPartition", readPartitionHandler::handleReadPartition).
-												job("sendingDataFromPartition", readPartitionHandler::handleSendingDataFromPartition).
-												job("finishedPartition", readPartitionHandler::handleFinishedPartition));
-							};
+							Runnable completedRunnable = new PartitionsCompletedRunnable(tapTable, partitionsReader, aspectManager, batchReadFuncAspect, readPartitionList, this);
+							Consumer<ReadPartition> partitionConsumer = new PartitionConsumer(pdkSourceContext, tapTable, partitionsReader, getReadPartitionsFuncAspect, batchReadFuncAspect, readPartitionList, tableEventPartitionDispatcher, this);
 							//Recover from TM
 							List<ReadPartition> recoveredPartitions = null;
 							Set<String> completedPartitionIds = null;
@@ -322,16 +266,11 @@ public class HazelcastSourcePdkDataNodeEx1 extends HazelcastSourcePdkBaseNode {
 												.consumer((partitionConsumer))
 												.completedRunnable(completedRunnable));
 							}
-							if(recoveredPartitions == null || recoveredPartitions.isEmpty()) {
-
-							} else {
-
-							}
 						})
 				));
 	}
 
-	private void handleEnterCDCStage(AsyncParallelWorker partitionsReader, TapTable tapTable) {
+	public void handleEnterCDCStage(AsyncParallelWorker partitionsReader, TapTable tapTable) {
 		obsLogger.info("All partitions has been read for table {}, stream records can pass directly to next node, without through its partition.", tapTable.getId());
 		partitionsReader.stop();
 

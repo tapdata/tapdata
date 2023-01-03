@@ -2,26 +2,13 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.entity.TapdataEvent;
-import com.tapdata.tm.autoinspect.entity.CompareRecord;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.async.master.JobContext;
-import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.control.ControlEvent;
-import io.tapdata.entity.event.ddl.TapDDLEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.TapIndexEx;
-import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.*;
-import io.tapdata.entity.simplify.pretty.TypeHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNodeEx1;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.PDKSourceContext;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.ReadPartitionContext;
 import io.tapdata.modules.api.storage.TapKVStorage;
@@ -32,19 +19,14 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
-import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 
@@ -63,12 +45,12 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 	private volatile TapKVStorage kvStorage;
 	private volatile TapKVStorage kvStorageDuringSending;
 	private volatile TapSequenceStorage sequenceStorage;
-	private final HazelcastSourcePdkDataNodeEx1 sourcePdkDataNode;
+	private final HazelcastSourcePartitionReadDataNode sourcePdkDataNode;
 	private final Integer batchSize = 2000;
 
 	private final AtomicBoolean finished = new AtomicBoolean(false);
 
-	public ReadPartitionHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePdkDataNodeEx1 sourcePdkDataNode) {
+	public ReadPartitionHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePartitionReadDataNode sourcePdkDataNode) {
 		super(tapTable);
 		this.readPartition = readPartition;
 		this.pdkSourceContext = pdkSourceContext;

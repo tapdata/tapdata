@@ -38,22 +38,28 @@ public abstract class ConnectorBase implements TapConnector {
 	private static final SimpleDateFormat tapDateTimeFormat = new SimpleDateFormat();
 	private static final String TAG = ConnectorBase.class.getSimpleName();
 
-	private volatile DatabaseReadPartitionSplitter databaseReadPartitionSplitter;
+//	private volatile DatabaseReadPartitionSplitter databaseReadPartitionSplitter;
 	protected DatabaseReadPartitionSplitter calculateDatabaseReadPartitions(TapConnectorContext connectorContext, TapTable table, Long maxRecordInPartition, List<ReadPartition> existingPartitions, Consumer<ReadPartition> consumer) {
-		if(databaseReadPartitionSplitter == null) {
-			synchronized (this) {
-				if(databaseReadPartitionSplitter == null) {
-					databaseReadPartitionSplitter = new DatabaseReadPartitionSplitter()
-							.context(connectorContext)
-							.table(table)
-							.maxRecordInPartition(maxRecordInPartition)
-							.consumer(consumer)
-							.existingPartitions(existingPartitions)
-					;
-				}
-			}
-		}
-		return databaseReadPartitionSplitter;
+//		if(databaseReadPartitionSplitter == null) {
+//			synchronized (this) {
+//				if(databaseReadPartitionSplitter == null) {
+//					databaseReadPartitionSplitter = new DatabaseReadPartitionSplitter()
+//							.context(connectorContext)
+//							.table(table)
+//							.maxRecordInPartition(maxRecordInPartition)
+//							.consumer(consumer)
+//							.existingPartitions(existingPartitions)
+//					;
+//				}
+//			}
+//		}
+		return new DatabaseReadPartitionSplitter()
+				.context(connectorContext)
+				.table(table)
+				.maxRecordInPartition(maxRecordInPartition)
+				.consumer(consumer)
+				.existingPartitions(existingPartitions)
+				;
 	}
 
 	public static void interval(Runnable runnable, int seconds) {

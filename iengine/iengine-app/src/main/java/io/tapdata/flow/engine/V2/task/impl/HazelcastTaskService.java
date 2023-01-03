@@ -380,7 +380,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 							}
 
 							if(readPartitionOptions != null && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE) {
-								hazelcastNode = new HazelcastSourcePdkDataNodeEx1(processorContext);
+								hazelcastNode = new HazelcastSourcePartitionReadDataNode(processorContext);
 							} else {
 								hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
 							}
