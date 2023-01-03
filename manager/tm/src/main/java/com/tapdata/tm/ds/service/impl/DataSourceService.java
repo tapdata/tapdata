@@ -646,7 +646,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		}
 
 		log.debug("query data source related task");
-		Criteria taskCriteria = Criteria.where("is_deleted").is(false).orOperator(Criteria.where("dag.nodes.connectionId").is(id), Criteria.where("dag.nodes.connectionIds").in(id));
+		Criteria taskCriteria = Criteria.where("is_deleted").is(false).and("status").ne("delete_failed").orOperator(Criteria.where("dag.nodes.connectionId").is(id), Criteria.where("dag.nodes.connectionIds").in(id));
 		Query taskQuery = new Query(taskCriteria);
 		taskQuery.fields().include("_id", "name");
 		List<TaskDto> allDto = taskService.findAllDto(taskQuery, user);
@@ -1801,12 +1801,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	}
 
 	public Long countTaskByConnectionId(String connectionId, UserDetail userDetail) {
-		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true));
+		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+				.orOperator(Criteria.where("is_deleted").ne(true),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		return taskService.count(query, userDetail);
 	}
 	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, UserDetail userDetail) {
-		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true));
+		Query query = new Query(Criteria.where("dag.nodes.connectionId")
+				.orOperator(Criteria.where("is_deleted").ne(true),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		query.limit(limit);
 		query.with(Sort.by(Sort.Direction.ASC, "_id"));
