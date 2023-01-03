@@ -313,11 +313,12 @@ public class TapdataTaskScheduler {
 			return;
 		}
 		try {
-			String checkTaskCanStart = checkTaskCanStart(taskId);
-			if (StringUtils.isNotBlank(checkTaskCanStart)) {
-				logger.warn(checkTaskCanStart);
-				return;
-			}
+			// todo 后续处理
+//			String checkTaskCanStart = checkTaskCanStart(taskId);
+//			if (StringUtils.isNotBlank(checkTaskCanStart)) {
+//				logger.warn(checkTaskCanStart);
+//				return;
+//			}
 			Log4jUtil.setThreadContext(taskDto);
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
