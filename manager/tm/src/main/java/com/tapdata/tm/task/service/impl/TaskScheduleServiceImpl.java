@@ -26,6 +26,7 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskCollectionObjService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -91,9 +92,9 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         }
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
-        CompletableFuture.runAsync(() -> {
-            String template = "Scheduling calculation results {0}.";
-            String msg = MessageFormat.format(template, JSON.toJSONString(calculationEngineVo));
+        FunctionUtils.ignoreAnyError(() -> {
+            String template = "Scheduling calculation results: {0}, all agent data: {1}.";
+            String msg = MessageFormat.format(template, calculationEngineVo.getProcessId() , JSON.toJSONString(calculationEngineVo.getThreadLog()));
             monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
         });
         if (StringUtils.isBlank(taskDto.getAgentId())) {
