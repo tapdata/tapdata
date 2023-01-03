@@ -128,7 +128,7 @@ public abstract class WriteRecorder {
         }
         //in some datasource, before of events is always empty, so before is unreliable
         Map<String, Object> lastBefore = new HashMap<>();
-        uniqueCondition.forEach(v -> lastBefore.put(v, before.containsKey(v) ? before.get(v) : after.get(v)));
+        uniqueCondition.forEach(v -> lastBefore.put(v, (EmptyKit.isNotEmpty(before) && before.containsKey(v)) ? before.get(v) : after.get(v)));
         justUpdate(after, lastBefore);
         preparedStatement.addBatch();
     }
