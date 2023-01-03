@@ -38,6 +38,11 @@ public class HttpPutBuilder {
         return this;
     }
 
+    public HttpPutBuilder addHeader(String key, String value) {
+        header.put(key, value);
+        return this;
+    }
+
     public HttpPutBuilder addFormat(DorisContext.WriteFormat writeFormat) {
         header.put("format", writeFormat.name());
         switch (writeFormat) {
@@ -129,8 +134,6 @@ public class HttpPutBuilder {
         Assert.notNull(httpEntity, "httpEntity of HttpPutBuilder should never be null");
         HttpPut put = new HttpPut(url);
         header.forEach(put::setHeader);
-        put.removeHeaders(HttpHeaders.CONTENT_LENGTH);
-        put.removeHeaders(HttpHeaders.TRANSFER_ENCODING);
         put.setEntity(httpEntity);
         return put;
     }
