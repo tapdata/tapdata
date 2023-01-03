@@ -56,6 +56,11 @@ public class TypeSplitterMap {
 		return this;
 	}
 
+	public TypeSplitterMap registerSplitter(String type, TypeSplitter<?> typeSplitter) {
+		typeSplitterMap.put(type, typeSplitter);
+		return this;
+	}
+
 	public TypeSplitter<?> get(String type) {
 		return typeSplitterMap.get(type);
 	}

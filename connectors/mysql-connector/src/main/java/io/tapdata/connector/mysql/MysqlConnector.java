@@ -28,9 +28,13 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
+import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
+import io.tapdata.pdk.apis.partition.splitter.StringCaseInsensitiveSplitter;
+import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -123,6 +127,21 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
         connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
+        connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
+    }
+
+    private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
+        calculateDatabaseReadPartitions(connectorContext, table, options.getMaxRecordInPartition(), options.getExistingPartitions(), options.getConsumer())
+//                .countByPartitionFilter(this::countByPartitionFilter)
+                .queryFieldMinMaxValue(this::minMaxValue)
+                .countIsSlow(options.getSplitType() != GetReadPartitionOptions.SPLIT_TYPE_BY_COUNT)
+                .typeSplitterMap(options.getTypeSplitterMap().registerSplitter(TypeSplitterMap.TYPE_STRING, StringCaseInsensitiveSplitter.INSTANCE))
+                .splitCompleteListener(id -> options.getCompletedRunnable().run())
+                .startSplitting();
+    }
+
+    private void partitionRead(TapConnectorContext connectorContext, TapTable table, ReadPartition readPartition, int eventBatchSize, Consumer<List<TapEvent>> consumer) {
+
     }
 
     private FieldMinMaxValue minMaxValue(TapConnectorContext tapConnectorContext, TapTable tapTable, TapPartitionFilter tapPartitionFilter, String fieldName) {

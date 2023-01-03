@@ -109,8 +109,11 @@ public class DatabaseReadPartitionSplitter {
 	}
 
 	public void startSplitting() {
-		if(countByPartitionFilter == null)
-			throw new CoreException(ConnectorErrors.MISSING_COUNT_BY_PARTITION_FILTER, "Missing countByPartitionFilter while startSplitting");
+		if(countByPartitionFilter == null) {
+			context.getLog().info("countByPartitionFilter function is not implemented, consider countIsSlow = true, will only use min/max for splitting.");
+			countIsSlow = true;
+		}
+//			throw new CoreException(ConnectorErrors.MISSING_COUNT_BY_PARTITION_FILTER, "Missing countByPartitionFilter while startSplitting");
 		if(queryFieldMinMaxValue == null)
 			throw new CoreException(ConnectorErrors.MISSING_QUERY_FIELD_MIN_MAX_VALUE, "Missing queryFieldMinMaxValue while startSplitting");
 		if(table == null)
@@ -272,7 +275,7 @@ public class DatabaseReadPartitionSplitter {
 
 		TapIndexField indexField = indexFields.get(splitProgress.getCurrentFieldPos());
 		FieldMinMaxValue fieldMinMaxValue = queryFieldMinMaxValue.minMaxValue(context, table, partitionFilter, indexField.getName());
-		if(fieldMinMaxValue == null) {
+		if(fieldMinMaxValue == null || fieldMinMaxValue.getMin() == null || fieldMinMaxValue.getMax() == null) {
 			partitionCollector.addPartition(partitionFilter, 0L);
 			partitionCollector.state(PartitionCollector.STATE_DONE);
 			context.getLog().info("Partition {} can not find min/max value which means no record in table.", partitionFilter);
@@ -309,7 +312,7 @@ public class DatabaseReadPartitionSplitter {
 					}
 
 					FieldMinMaxValue fieldMinMaxValueForPartition = queryFieldMinMaxValue.minMaxValue(context, table, eachPartitionFilter, indexField.getName());
-					if(fieldMinMaxValueForPartition == null) {
+					if(fieldMinMaxValueForPartition == null || fieldMinMaxValueForPartition.getMin() == null || fieldMinMaxValueForPartition.getMax() == null) {
 						newPartitionFilters.add(eachPartitionFilter);
 						minMaxPartitionMap.put(eachPartitionFilter, 0L);
 						return true;
@@ -342,7 +345,7 @@ public class DatabaseReadPartitionSplitter {
 				context.getLog().info(id + " " + partitionFilter + ": Partition count {} for {}", partitionCount, eachPartitionFilter);
 			} else if(!minMaxPartitionMap.containsKey(eachPartitionFilter)){
 				FieldMinMaxValue fieldMinMaxValueForPartition = queryFieldMinMaxValue.minMaxValue(context, table, eachPartitionFilter, indexField.getName());
-				if(fieldMinMaxValueForPartition == null) {
+				if(fieldMinMaxValueForPartition == null || fieldMinMaxValueForPartition.getMin() == null || fieldMinMaxValueForPartition.getMax() == null) {
 					minMaxPartitionMap.put(eachPartitionFilter, 0L);
 				} else {
 					minMaxPartitionMap.put(eachPartitionFilter, -1L);

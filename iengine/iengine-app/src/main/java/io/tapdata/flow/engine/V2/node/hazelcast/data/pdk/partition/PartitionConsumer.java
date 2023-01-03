@@ -3,6 +3,8 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.GetReadPartitionsFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.async.master.AsyncJob;
+import io.tapdata.async.master.AsyncJobErrorListener;
 import io.tapdata.async.master.AsyncParallelWorker;
 import io.tapdata.async.master.JobContext;
 import io.tapdata.entity.schema.TapTable;
@@ -58,6 +60,7 @@ public class PartitionConsumer implements Consumer<ReadPartition> {
 						}).
 						job("readPartition", readPartitionHandler::handleReadPartition).
 						job("sendingDataFromPartition", readPartitionHandler::handleSendingDataFromPartition).
-						job("finishedPartition", readPartitionHandler::handleFinishedPartition));
+						job("finishedPartition", readPartitionHandler::handleFinishedPartition))
+				.setAsyncJobErrorListener((id, asyncJob, throwable) -> sourcePdkDataNodeEx1.errorHandle(throwable, throwable.getMessage()));
 	}
 }

@@ -54,7 +54,6 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
 
     protected CountByPartitionFilterFunction countByPartitionFilterFunction;
     protected GetReadPartitionsFunction getReadPartitionsFunction;
-    protected PartitionReadFunction partitionReadFunction;
     protected QueryFieldMinMaxValueFunction queryFieldMinMaxValueFunction;
 
     public ConnectorFunctions supportCountByPartitionFilterFunction(CountByPartitionFilterFunction function) {
@@ -63,10 +62,6 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
     }
     public ConnectorFunctions supportGetReadPartitionsFunction(GetReadPartitionsFunction function) {
         getReadPartitionsFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportPartitionReadFunction(PartitionReadFunction function) {
-        this.partitionReadFunction = function;
         return this;
     }
     public ConnectorFunctions supportQueryFieldMinMaxValueFunction(QueryFieldMinMaxValueFunction function) {
@@ -381,10 +376,6 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
 
     public GetReadPartitionsFunction getGetReadPartitionsFunction() {
         return getReadPartitionsFunction;
-    }
-
-    public PartitionReadFunction getPartitionReadFunction() {
-        return partitionReadFunction;
     }
 
     public QueryFieldMinMaxValueFunction getQueryFieldMinMaxValueFunction() {

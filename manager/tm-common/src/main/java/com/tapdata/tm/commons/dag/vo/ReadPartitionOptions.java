@@ -11,7 +11,7 @@ public class ReadPartitionOptions {
 	public static final int SPLIT_TYPE_BY_MINMAX = GetReadPartitionOptions.SPLIT_TYPE_BY_MINMAX;
 	private int splitType = SPLIT_TYPE_BY_COUNT;
 
-	private long maxRecordInPartition = 500_000;
+	private long maxRecordInPartition = 20;//500_000;
 	public int getSplitType() {
 		return splitType;
 	}

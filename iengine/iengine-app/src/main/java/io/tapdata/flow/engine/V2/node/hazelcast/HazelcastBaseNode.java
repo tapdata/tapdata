@@ -630,7 +630,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		this.milestoneService = MilestoneFactory.getJetEdgeMilestoneService(processorBaseContext.getTaskDto(), httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(), httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter(), node, vertexName, vertexNames, null, vertexType);
 	}
 
-	protected synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {
+	public synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {
 		NodeException currentEx;
 		if (throwable instanceof NodeException) {
 			currentEx = (NodeException) throwable;

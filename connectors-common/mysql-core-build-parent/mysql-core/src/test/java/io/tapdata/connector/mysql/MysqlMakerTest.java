@@ -1,5 +1,6 @@
 package io.tapdata.connector.mysql;
 
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -23,7 +24,7 @@ public class MysqlMakerTest {
 				.match("gender", "m");
 		DataMap connConfig = DataMap.create();
 		connConfig.put("database", "test");
-		TapConnectorContext tapConnectorContext = new TapConnectorContext(new TapNodeSpecification(), connConfig, DataMap.create());
+		TapConnectorContext tapConnectorContext = new TapConnectorContext(new TapNodeSpecification(), connConfig, DataMap.create(), new TapLog());
 		TapTable tapTable = new TapTable("USERS");
 		MysqlMaker mysqlMaker = new MysqlMaker();
 		String sql = mysqlMaker.selectSql(tapConnectorContext, tapTable, tapPartitionFilter);

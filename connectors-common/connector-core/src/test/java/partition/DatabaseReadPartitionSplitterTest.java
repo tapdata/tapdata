@@ -1,6 +1,7 @@
 package partition;
 
 import io.tapdata.async.master.ParallelWorkerStateListener;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.*;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -29,7 +30,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
 
 		List<Map<String, Object>> records = new ArrayList<>();
@@ -71,7 +72,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
 
 		List<Map<String, Object>> records = new ArrayList<>();
@@ -112,7 +113,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
 
 		List<Map<String, Object>> records = new ArrayList<>();
@@ -151,7 +152,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
 
 		List<Map<String, Object>> records = new ArrayList<>();
@@ -192,7 +193,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
 
 		List<Map<String, Object>> records = new ArrayList<>();
@@ -254,7 +255,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
 
 		List<Map<String, Object>> records = new ArrayList<>();
@@ -295,7 +296,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
 
 		List<Map<String, Object>> records = new ArrayList<>();
@@ -336,7 +337,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
 
 		List<Map<String, Object>> records = new ArrayList<>();
@@ -377,7 +378,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
 
 		List<Map<String, Object>> records = new ArrayList<>();
@@ -432,7 +433,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table").add(new TapField("a", "varchar")).add(new TapIndex().indexField(new TapIndexField().name("a").fieldAsc(true)));
 
 		List<Map<String, Object>> records = new ArrayList<>();
@@ -469,7 +470,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table")
 				.add(field("a", "varchar"))
 				.add(field("b", "varchar"))
@@ -552,7 +553,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table")
 				.add(field("a", "varchar"))
 				.add(field("b", "varchar"))
@@ -632,7 +633,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table")
 				.add(field("a", "varchar"))
 				.add(field("b", "varchar"))
@@ -703,7 +704,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		nodeSpecification.setId("test");
 		nodeSpecification.setGroup("group");
 		nodeSpecification.setVersion("1.1");
-		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null);
+		TapConnectorContext connectorContext = new TapConnectorContext(nodeSpecification, null, null, new TapLog());
 		TapTable table = new TapTable("table")
 				.add(field("a", "varchar"))
 				.add(field("b", "varchar"))

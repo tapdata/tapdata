@@ -107,10 +107,18 @@ public class StringSplitter implements TypeSplitter<String> {
 //	}
 	public static StringSplitter INSTANCE = new StringSplitter();
 
+	public boolean caseInsensitive() {
+		return false;
+	}
+
 	@Override
 	public List<TapPartitionFilter> split(TapPartitionFilter boundaryPartitionFilter, FieldMinMaxValue fieldMinMaxValue, int maxSplitPieces) {
 		String min = (String) fieldMinMaxValue.getMin();
 		String max = (String) fieldMinMaxValue.getMax();
+		if(caseInsensitive()) {
+			min = min.toUpperCase();
+			max = max.toUpperCase();
+		}
 		char[] minChars = min.toCharArray();
 		char[] maxChars = max.toCharArray();
 		int maxLength = Math.max(minChars.length, maxChars.length);

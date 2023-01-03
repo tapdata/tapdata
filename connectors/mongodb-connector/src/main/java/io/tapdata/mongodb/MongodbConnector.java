@@ -432,7 +432,6 @@ public class MongodbConnector extends ConnectorBase {
 
 		connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
 		connectorFunctions.supportCountByPartitionFilterFunction(this::countByPartitionFilter);
-		connectorFunctions.supportPartitionReadFunction(this::partitionRead);
 		connectorFunctions.supportQueryFieldMinMaxValueFunction(this::queryFieldMinMaxValue);
 //        connectorFunctions.supportStreamOffset((connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer) -> streamOffset(connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer));
 		connectorFunctions.supportExecuteCommandFunction(this::executeCommand);
@@ -534,10 +533,6 @@ public class MongodbConnector extends ConnectorBase {
 			newSort.put(entry.getKey(), -value);
 		}
 		return newSort;
-	}
-
-	private void partitionRead(TapConnectorContext connectorContext, TapTable table, ReadPartition readPartition, int eventBatchSize, Consumer<List<TapEvent>> consumer) {
-
 	}
 
 	private long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapPartitionFilter partitionFilter) {
