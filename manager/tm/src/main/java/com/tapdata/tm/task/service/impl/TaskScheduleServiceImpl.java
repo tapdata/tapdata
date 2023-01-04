@@ -106,12 +106,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
         Update waitRunUpdate = Update.update("agentId", taskDto.getAgentId()).set("last_updated", now);
-        boolean needCreateRecord = false;
-        if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
-            taskDto.setTaskRecordId(new ObjectId().toHexString());
-            waitRunUpdate.set(TaskDto.LASTTASKRECORDID, taskDto.getTaskRecordId());
-            needCreateRecord = true;
-        }
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_SUCCESS, user);
 
@@ -138,7 +132,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
-        if (needCreateRecord) {
+        if (taskDto.isNeedCreateRecord()) {
             TaskEntity taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
             disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), now));
