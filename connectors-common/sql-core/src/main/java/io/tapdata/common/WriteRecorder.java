@@ -30,6 +30,7 @@ public abstract class WriteRecorder {
     protected String version;
     protected String insertPolicy;
     protected String updatePolicy;
+    protected List<String> afterKeys;
 
     protected PreparedStatement preparedStatement = null;
     protected final AtomicLong atomicLong = new AtomicLong(0); //record counter
@@ -122,13 +123,21 @@ public abstract class WriteRecorder {
     public abstract void addInsertBatch(Map<String, Object> after) throws SQLException;
 
     //(most often) update data
-    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before) throws SQLException {
+    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
             return;
         }
+        if (EmptyKit.isEmpty(afterKeys)) {
+            afterKeys = new ArrayList<>(after.keySet());
+        }
+        if (!afterKeys.equals(new ArrayList<>(after.keySet()))) {
+            executeBatch(listResult);
+            preparedStatement = null;
+            afterKeys = new ArrayList<>(after.keySet());
+        }
         //in some datasource, before of events is always empty, so before is unreliable
         Map<String, Object> lastBefore = new HashMap<>();
-        uniqueCondition.forEach(v -> lastBefore.put(v, before.containsKey(v) ? before.get(v) : after.get(v)));
+        uniqueCondition.forEach(v -> lastBefore.put(v, (EmptyKit.isNotEmpty(before) && before.containsKey(v)) ? before.get(v) : after.get(v)));
         justUpdate(after, lastBefore);
         preparedStatement.addBatch();
     }
