@@ -31,9 +31,13 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 	private volatile StateMachine<String, TapKVStorageImpl> stateMachine;
 	private RocksDB db;
 	private File dbDir;
+	private Runnable initHandler;
 
 	@Override
 	public void put(Object key, Object value) {
+		if(stateMachine == null)
+			initHandler.run();
+
 		if(!stateMachine.getCurrentState().equals(STATE_INITIALIZED))
 			throw new CoreException(StorageErrors.ITERATE_ON_WRONG_STATE, "Iterate on wrong state {}, expect state {}", stateMachine.getCurrentState(), STATE_INITIALIZED);
 		try {
@@ -45,6 +49,9 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 
 	@Override
 	public Object get(Object key) {
+		if(stateMachine == null)
+			initHandler.run();
+
 		if(!stateMachine.getCurrentState().equals(STATE_INITIALIZED))
 			throw new CoreException(StorageErrors.ITERATE_ON_WRONG_STATE, "Iterate on wrong state {}, expect state {}", stateMachine.getCurrentState(), STATE_INITIALIZED);
 		try {
@@ -56,6 +63,9 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 
 	@Override
 	public void remove(Object key) {
+		if(stateMachine == null)
+			initHandler.run();
+
 		try {
 			db.delete(objectSerializable.fromObject(key));
 		} catch (RocksDBException e) {
@@ -64,6 +74,9 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 	}
 	@Override
 	public Object removeAndGet(Object key) {
+		if(stateMachine == null)
+			initHandler.run();
+
 		try {
 			byte[] keyBytes = objectSerializable.fromObject(key);
 			byte[] dataBytes = db.get(keyBytes);
@@ -80,11 +93,17 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 
 	@Override
 	public void foreach(BiFunction<Object, Object, Boolean> iterateFunc) {
+		if(stateMachine == null)
+			initHandler.run();
+
 		foreach(iterateFunc, true);
 	}
 
 	@Override
 	public void foreach(BiFunction<Object, Object, Boolean> iterateFunc, boolean asc) {
+		if(stateMachine == null)
+			initHandler.run();
+
 		try(RocksIterator iterator = db.newIterator()) {
 			if(asc) {
 				for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
@@ -103,31 +122,33 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 	}
 	@Override
 	public synchronized void init(String id, TapStorageFactory.StorageOptions storageOptions) {
-		if(stateMachine == null) {
-			synchronized (this) {
-				if(stateMachine == null) {
-					stateMachine = new StateMachine<>(this.getClass().getSimpleName() + "_" + id + "_" + storageOptions, STATE_NONE, this);
-					stateMachine
-							.configState(STATE_NONE, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_DESTROYED))
-							.configState(STATE_INITIALIZING, stateMachine.execute(this::handleInitializing).nextStates(STATE_INITIALIZED, STATE_DESTROYED))
-							.configState(STATE_INITIALIZED, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_DESTROYED))
-							.configState(STATE_DESTROYED, stateMachine.execute().nextStates())
-							.errorOccurred((throwable, fromState, toState, tapSequenceStorage, stateMachine) -> {
-								if(throwable instanceof CoreException) {
-									throw (CoreException) throwable;
-								} else {
-									throw new CoreException(StorageErrors.UNKNOWN_ERROR_IN_STATE_MACHINE, throwable, "Error occurred in state machine {}, {}", stateMachine, throwable.getMessage());
-								}
-							});
+		initHandler = () -> {
+			if(stateMachine == null) {
+				synchronized (this) {
+					if(stateMachine == null) {
+						stateMachine = new StateMachine<>(this.getClass().getSimpleName() + "_" + id + "_" + storageOptions, STATE_NONE, this);
+						stateMachine
+								.configState(STATE_NONE, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_DESTROYED))
+								.configState(STATE_INITIALIZING, stateMachine.execute(this::handleInitializing).nextStates(STATE_INITIALIZED, STATE_DESTROYED))
+								.configState(STATE_INITIALIZED, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_DESTROYED))
+								.configState(STATE_DESTROYED, stateMachine.execute().nextStates())
+								.errorOccurred((throwable, fromState, toState, tapSequenceStorage, stateMachine) -> {
+									if(throwable instanceof CoreException) {
+										throw (CoreException) throwable;
+									} else {
+										throw new CoreException(StorageErrors.UNKNOWN_ERROR_IN_STATE_MACHINE, throwable, "Error occurred in state machine {}, {}", stateMachine, throwable.getMessage());
+									}
+								});
+						if(stateMachine.getCurrentState().equals(STATE_NONE)) {
+							initState(id, storageOptions);
+						} else {
+							throw new CoreException(StorageErrors.INITIALIZE_ON_WRONG_STATE, "KV storage id {} initialize on wrong state {}, should be \"none\" state", id, stateMachine.getCurrentState());
+						}
+						stateMachine.gotoState(STATE_INITIALIZING, FormatUtils.format("KV storage id {} start initializing", id));
+					}
 				}
 			}
-		}
-		if(stateMachine.getCurrentState().equals(STATE_NONE)) {
-			initState(id, storageOptions);
-		} else {
-			throw new CoreException(StorageErrors.INITIALIZE_ON_WRONG_STATE, "KV storage id {} initialize on wrong state {}, should be \"none\" state", id, stateMachine.getCurrentState());
-		}
-		stateMachine.gotoState(STATE_INITIALIZING, FormatUtils.format("KV storage id {} start initializing", id));
+		};
 	}
 
 	private void handleInitializing(TapKVStorageImpl tapKVStorage, StateMachine<String, TapKVStorageImpl> stateMachine) {
@@ -150,6 +171,9 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 
 	@Override
 	public synchronized void clear() {
+		if(stateMachine == null)
+			initHandler.run();
+
 		if(!stateMachine.getCurrentState().equals(STATE_INITIALIZED))
 			throw new CoreException(StorageErrors.ITERATE_ON_WRONG_STATE, "Iterate on wrong state {}, expect state {}", stateMachine.getCurrentState(), STATE_INITIALIZED);
 		db.close();
@@ -161,11 +185,11 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 	public synchronized void destroy() {
 //		if(!stateMachine.getCurrentState().equals(STATE_INITIALIZED))
 //			throw new CoreException(StorageErrors.ITERATE_ON_WRONG_STATE, "Iterate on wrong state {}, expect state {}", stateMachine.getCurrentState(), STATE_INITIALIZED);
-		if (!stateMachine.getCurrentState().equals(STATE_DESTROYED)) {
+		if (stateMachine != null && !stateMachine.getCurrentState().equals(STATE_DESTROYED)) {
 			stateMachine.gotoState(STATE_DESTROYED, FormatUtils.format("Force destroy, id {}, options {}", id, storageOptions));
 			db.close();
-			release();
 		}
+		release();
 	}
 
 	private void release() {

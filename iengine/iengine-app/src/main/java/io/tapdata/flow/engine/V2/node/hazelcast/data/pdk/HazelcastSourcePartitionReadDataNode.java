@@ -59,8 +59,8 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.sleep;
 
 /**
- * @author jackin
- * @date 2022/2/22 2:33 PM
+ * @author Aplomb
+ *
  **/
 public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBaseNode {
 	private static final String TAG = HazelcastSourcePartitionReadDataNode.class.getSimpleName();
@@ -926,17 +926,18 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 
 	@Override
 	public void doClose() throws Exception {
-		obsLogger.info("task {} closed", dataProcessorContext.getTaskDto().getId().toHexString());
-		if(initialSyncWorker != null) {
-			initialSyncWorker.stop();
-		}
-		if(tableParallelWorker != null) {
-			tableParallelWorker.stop();
-		}
-		if(streamReadWorker != null) {
-			streamReadWorker.stop();
-		}
 		try {
+			obsLogger.info("task {} closed", dataProcessorContext.getTaskDto().getId().toHexString());
+			if (initialSyncWorker != null) {
+				initialSyncWorker.stop();
+			}
+			if (tableParallelWorker != null) {
+				tableParallelWorker.stop();
+			}
+			if (streamReadWorker != null) {
+				streamReadWorker.stop();
+			}
+
 			CommonUtils.handleAnyError(() -> {
 				if (null != shareCdcReader) {
 					shareCdcReader.close();

@@ -36,37 +36,39 @@ public class TapSequenceStorageImpl extends TapStorageImpl implements TapSequenc
 	private CompressorOutputStream compressedOS;
 	private DataOutputStream dataOS;
 	private File dbFile;
-
+	private Runnable initHandler;
 	@Override
 	public synchronized void init(String id, TapStorageFactory.StorageOptions storageOptions) {
-		if(stateMachine == null) {
-			synchronized (this) {
-				if(stateMachine == null) {
-					stateMachine = new StateMachine<>(this.getClass().getSimpleName() + "_" + id + "_" + storageOptions, STATE_NONE, this);
-					stateMachine
-							.configState(STATE_NONE, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_DESTROYED))
-							.configState(STATE_INITIALIZING, stateMachine.execute(this::handleInitializing).nextStates(STATE_INITIALIZED, STATE_DESTROYED))
-							.configState(STATE_INITIALIZED, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_WRITE_DONE_START_ITERATE, STATE_DESTROYED))
-							.configState(STATE_WRITE_DONE_START_ITERATE, stateMachine.execute(this::handleWriteDone).nextStates(STATE_INITIALIZING, STATE_DESTROYED))
-							.configState(STATE_DESTROYED, stateMachine.execute().nextStates())
-							.errorOccurred((throwable, fromState, toState, tapSequenceStorage, stateMachine) -> {
-								if(throwable instanceof CoreException) {
-									throw (CoreException) throwable;
-								} else {
-									throw new CoreException(StorageErrors.UNKNOWN_ERROR_IN_STATE_MACHINE, throwable, "Error occurred in state machine {}, {}", stateMachine, throwable.getMessage());
-								}
-							})
-					;
+		initHandler = () -> {
+			if(stateMachine == null) {
+				synchronized (this) {
+					if(stateMachine == null) {
+						stateMachine = new StateMachine<>(this.getClass().getSimpleName() + "_" + id + "_" + storageOptions, STATE_NONE, this);
+						stateMachine
+								.configState(STATE_NONE, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_DESTROYED))
+								.configState(STATE_INITIALIZING, stateMachine.execute(this::handleInitializing).nextStates(STATE_INITIALIZED, STATE_DESTROYED))
+								.configState(STATE_INITIALIZED, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_WRITE_DONE_START_ITERATE, STATE_DESTROYED))
+								.configState(STATE_WRITE_DONE_START_ITERATE, stateMachine.execute(this::handleWriteDone).nextStates(STATE_INITIALIZING, STATE_DESTROYED))
+								.configState(STATE_DESTROYED, stateMachine.execute().nextStates())
+								.errorOccurred((throwable, fromState, toState, tapSequenceStorage, stateMachine) -> {
+									if(throwable instanceof CoreException) {
+										throw (CoreException) throwable;
+									} else {
+										throw new CoreException(StorageErrors.UNKNOWN_ERROR_IN_STATE_MACHINE, throwable, "Error occurred in state machine {}, {}", stateMachine, throwable.getMessage());
+									}
+								})
+						;
+					}
+					if(stateMachine.getCurrentState().equals(STATE_NONE)) {
+						initState(id, storageOptions);
+					} else {
+						throw new CoreException(StorageErrors.INITIALIZE_ON_WRONG_STATE, "Sequence storage id {} initialize on wrong state {}, should be \"none\" state", id, stateMachine.getCurrentState());
+					}
+
+					stateMachine.gotoState(STATE_INITIALIZING, FormatUtils.format("Sequence storage id {} start initializing", id));
 				}
 			}
-		}
-		if(stateMachine.getCurrentState().equals(STATE_NONE)) {
-			initState(id, storageOptions);
-		} else {
-			throw new CoreException(StorageErrors.INITIALIZE_ON_WRONG_STATE, "Sequence storage id {} initialize on wrong state {}, should be \"none\" state", id, stateMachine.getCurrentState());
-		}
-
-		stateMachine.gotoState(STATE_INITIALIZING, FormatUtils.format("Sequence storage id {} start initializing", id));
+		};
 	}
 
 	private void handleWriteDone(TapSequenceStorageImpl sequenceStorage, StateMachine<String, TapSequenceStorageImpl> stateMachine) {
@@ -76,6 +78,8 @@ public class TapSequenceStorageImpl extends TapStorageImpl implements TapSequenc
 	//	private SingleThreadBlockingQueue<Object> writeQueue;
 	@Override
 	public void add(Object data) {
+		if(stateMachine == null)
+			initHandler.run();
 //		writeQueue.offer(data);
 		if(!stateMachine.getCurrentState().equals(STATE_INITIALIZED))
 			throw new CoreException(StorageErrors.ADD_OBJECT_ON_WRONG_STATE, "Write object {} on wrong state {}, expect state {}", data, stateMachine.getCurrentState(), STATE_INITIALIZED);
@@ -93,6 +97,9 @@ public class TapSequenceStorageImpl extends TapStorageImpl implements TapSequenc
 
 	@Override
 	public Iterator<Object> iterator() {
+		if(stateMachine == null)
+			initHandler.run();
+
 		//TODO can read full data only after close stream. So only support add data then iterate, can not add after iterate.
 		//TODO should use MemoryMapFile with zstd compression to reimplement this. Then no such limit any more.
 		if(stateMachine.getCurrentState().equals(STATE_INITIALIZED)) {
@@ -124,16 +131,19 @@ public class TapSequenceStorageImpl extends TapStorageImpl implements TapSequenc
 
 	@Override
 	public synchronized void clear() {
+		if(stateMachine == null)
+			initHandler.run();
+
 		release();
 		stateMachine.gotoState(STATE_INITIALIZING, FormatUtils.format("Re-initializing after clear, id {}, options {}", id, storageOptions));
 	}
 
 	@Override
 	public synchronized void destroy() {
-		if (!stateMachine.getCurrentState().equals(STATE_DESTROYED)) {
+		if (stateMachine != null && !stateMachine.getCurrentState().equals(STATE_DESTROYED)) {
 			stateMachine.gotoState(STATE_DESTROYED, FormatUtils.format("Force destroy, id {}, options {}", id, storageOptions));
-			release();
 		}
+		release();
 	}
 
 	private void release() {

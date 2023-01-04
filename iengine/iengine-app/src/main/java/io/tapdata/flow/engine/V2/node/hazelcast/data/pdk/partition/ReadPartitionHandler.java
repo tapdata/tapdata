@@ -85,7 +85,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 					storageFactory.deleteKVStorage(kvStorageDuringSendingId);
 					storageFactory.deleteKVStorage(kvStorageId);
 					kvStorage = storageFactory.getKVStorage(kvStorageId);
-					sourcePdkDataNode.getObsLogger().info("Prepared kv storage file {} for partition {}", kvStorageId, readPartition);
+//					sourcePdkDataNode.getObsLogger().info("Prepared kv storage file {} for partition {}", kvStorageId, readPartition);
 				}
 			}
 		}
@@ -99,7 +99,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 				if(sequenceStorage == null) {
 					storageFactory.deleteSequenceStorage(sequenceStorageId);
 					sequenceStorage = storageFactory.getSequenceStorage(sequenceStorageId);
-					sourcePdkDataNode.getObsLogger().info("Prepared sequence storage file {} for partition {}", sequenceStorageId, readPartition);
+//					sourcePdkDataNode.getObsLogger().info("Prepared sequence storage file {} for partition {}", sequenceStorageId, readPartition);
 				}
 			}
 		}
@@ -143,7 +143,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 			synchronized (this) {
 				if(kvStorageDuringSending == null) {
 					kvStorageDuringSending = storageFactory.getKVStorage(kvStorageDuringSendingId);
-					sourcePdkDataNode.getObsLogger().info("Prepared kv storage during sending file {} for partition {}", kvStorageDuringSendingId, readPartition);
+//					sourcePdkDataNode.getObsLogger().info("Prepared kv storage during sending file {} for partition {}", kvStorageDuringSendingId, readPartition);
 				}
 			}
 		}

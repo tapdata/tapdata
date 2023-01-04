@@ -337,6 +337,8 @@ public class DatabaseReadPartitionSplitter {
 		}
 		partitionCollector.state(PartitionCollector.STATE_SPLIT);
 
+		context.getLog().info(id + " start collect all partitions with possible count");
+		long time = System.currentTimeMillis();
 		AtomicReference<PartitionCollector> partitionCollectorRef = new AtomicReference<>(partitionCollector);
 		jobContext.foreach(partitionFilters, eachPartitionFilter -> {
 			long partitionCount = -1;
@@ -390,6 +392,7 @@ public class DatabaseReadPartitionSplitter {
 			return true;
 		});
 		partitionCollectorRef.get().state(PartitionCollector.STATE_DONE);
+		context.getLog().info(id + " collected all partitions with possible count, takes {}", (System.currentTimeMillis() - time));
 		return null;
 	}
 
