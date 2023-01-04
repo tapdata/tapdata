@@ -926,6 +926,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 
 	@Override
 	public void doClose() throws Exception {
+		obsLogger.info("task {} closed", dataProcessorContext.getTaskDto().getId().toHexString());
 		if(initialSyncWorker != null) {
 			initialSyncWorker.stop();
 		}
