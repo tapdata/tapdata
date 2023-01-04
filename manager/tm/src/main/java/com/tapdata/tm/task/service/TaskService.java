@@ -101,7 +101,6 @@ import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -3150,7 +3149,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
-                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING));
+                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
