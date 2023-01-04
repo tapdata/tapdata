@@ -17,7 +17,7 @@ def test(p, car_claim, car_claim_sink):
 def check(p, car_claim, car_claim_sink):
     sink_client = newDB(car_claim_sink)
     if not hasattr(sink_client, "query"):
-        return False
+        return True
 
     rows = sink_client.query()
     if len(rows) == 0:

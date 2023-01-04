@@ -3072,7 +3072,7 @@ class DataSource:
         logger.info("datasource valid finished, will check table schema now, please wait for a while ...")
         start_time = time.time()
 
-        for _ in range(24):
+        for _ in range(96):
             try:
                 time.sleep(5)
                 res = DataSourceApi().get(self.id)

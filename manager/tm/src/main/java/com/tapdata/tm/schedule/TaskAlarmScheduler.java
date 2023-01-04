@@ -3,6 +3,7 @@ package com.tapdata.tm.schedule;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
@@ -29,6 +30,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.commons.util.ThrowableUtils;
@@ -54,6 +56,7 @@ import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -168,6 +171,8 @@ public class TaskAlarmScheduler {
                 .collect(Collectors.toMap(WorkerDto::getProcessId, Function.identity(), (e1, e2) -> e1));
         if (stopEgineMap.isEmpty()) {
             return;
+        } else {
+            log.error("taskAgentAlarm stopEgineMap data:{}", JSON.toJSONString(stopEgineMap));
         }
 
         Set<String> agentIds = stopEgineMap.keySet();
@@ -186,28 +191,33 @@ public class TaskAlarmScheduler {
                 workerList = workerList.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
             }
 
+            String orginAgentId = data.getAgentId();
+            AtomicReference<String> summary = new AtomicReference<>();
             if (CollectionUtils.isEmpty(workerList)) {
-                String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT, data.getAgentId(), DateUtil.now());
+                String finalOrginAgentId = orginAgentId;
+                FunctionUtils.isTureOrFalse(isCloud).trueOrFalseHandle(
+                        () -> summary.set(MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CLOUD, finalOrginAgentId, DateUtil.now())),
+                        () -> summary.set(MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT, finalOrginAgentId, DateUtil.now()))
+                );
+
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(data.getId().toHexString())
-                        .name(data.getName()).summary(summary).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(orginAgentId).taskId(data.getId().toHexString())
+                        .name(data.getName()).summary(summary.get()).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
                         .build();
                 alarmService.save(alarmInfo);
             } else {
-                String orginAgentId = data.getAgentId();
-                data.setAgentId(null);
-
-                String summary;
                 if (isCloud) {
-                    summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CLOUD, orginAgentId, DateUtil.now());
+                    summary.set(MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CLOUD, orginAgentId, DateUtil.now()));
                 } else {
+                    data.setAgentId(null);
                     CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(data, userDetailMap.get(data.getUserId()), "task", data.getName());
-                    summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT, orginAgentId, workerList.size(), calculationEngineVo.getProcessId(), DateUtil.now());
+                    summary.set(MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT, orginAgentId, workerList.size(), calculationEngineVo.getProcessId(), DateUtil.now()));
+                    orginAgentId = calculationEngineVo.getProcessId();
                 }
 
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(orginAgentId).taskId(data.getId().toHexString())
-                        .name(data.getName()).summary(summary).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
+                        .name(data.getName()).summary(summary.get()).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
                         .build();
                 alarmService.save(alarmInfo);
 
@@ -327,7 +337,7 @@ public class TaskAlarmScheduler {
 
             AtomicInteger delay = new AtomicInteger(0);
             long count = samples.stream().filter(ss -> {
-                int current = (int) ss.getVs().getOrDefault(avgName, 0);
+                int current = Math.abs((int) ss.getVs().getOrDefault(avgName, 0));
                 boolean b;
                 if (alarmRuleDto.getEqualsFlag() == -1) {
                     b = current <= alarmRuleDto.getMs();
@@ -405,7 +415,7 @@ public class TaskAlarmScheduler {
 
             AtomicInteger delay = new AtomicInteger(0);
             long count = taskSamples.stream().filter(ss -> {
-                int replicateLag = (int) ss.getVs().getOrDefault("replicateLag", 0);
+                int replicateLag = Math.abs((int) ss.getVs().getOrDefault("replicateLag", 0));
 
                 boolean b;
                 if (alarmRuleDto.getEqualsFlag() == -1) {

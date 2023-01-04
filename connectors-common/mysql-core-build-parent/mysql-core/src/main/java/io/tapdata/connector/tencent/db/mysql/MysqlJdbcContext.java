@@ -1,12 +1,14 @@
-package io.tapdata.connector.mysql;
+package io.tapdata.connector.tencent.db.mysql;
 
 import com.mysql.cj.jdbc.StatementImpl;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.pool.HikariProxyStatement;
+import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.util.JdbcUtil;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import org.apache.commons.lang3.StringUtils;
 
@@ -103,8 +105,12 @@ public class MysqlJdbcContext implements AutoCloseable {
 			additionalString = additionalString.substring(1);
 		}
 
+		String protocolType = connectionConfig.get("protocolType") == null ? null : String.valueOf(connectionConfig.get("protocolType"));
+		if (EmptyKit.isEmpty(protocolType)) {
+			protocolType = type;
+		}
 		Map<String, String> properties = new HashMap<>();
-		StringBuilder sbURL = new StringBuilder("jdbc:").append(type).append("://").append(host).append(":").append(port).append("/").append(databaseName);
+		StringBuilder sbURL = new StringBuilder("jdbc:").append(protocolType).append("://").append(host).append(":").append(port).append("/").append(databaseName);
 
 		if (StringUtils.isNotBlank(additionalString)) {
 			String[] additionalStringSplit = additionalString.split("&");
@@ -217,7 +223,6 @@ public class MysqlJdbcContext implements AutoCloseable {
 					statementImpl.enableStreamingResults();
 				}
 			}
-			statement.setFetchSize(1000);
 			try (
 					ResultSet resultSet = statement.executeQuery(sql)
 			) {

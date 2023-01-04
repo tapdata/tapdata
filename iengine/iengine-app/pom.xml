@@ -55,6 +55,12 @@
             <artifactId>deduction-module</artifactId>
             <version>0.5.2-SNAPSHOT</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.tapdata</groupId>
+            <artifactId>custom-sql-filter-module</artifactId>
+            <version>0.5.2-SNAPSHOT</version>
+        </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>service-skeleton-module</artifactId>

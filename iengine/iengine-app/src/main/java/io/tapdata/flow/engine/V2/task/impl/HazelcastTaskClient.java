@@ -74,6 +74,10 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		return HazelcastStatusMappingEnum.fromJobStatus(job.getStatus());
 	}
 
+	public JobStatus getJetStatus() {
+		return job.getStatus();
+	}
+
 	@Override
 	public TaskDto getTask() {
 		return taskDto;

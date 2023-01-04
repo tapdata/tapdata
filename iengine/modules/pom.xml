@@ -16,7 +16,7 @@
         <module>test-run-module</module>
         <module>deduction-module</module>
         <module>proxy-client-module</module>
-<!--        <module>engine-source-module</module>-->
+        <module>custom-sql-filter-module</module>
     </modules>
     <dependencies>
         <dependency>

@@ -59,8 +59,8 @@ import java.util.function.Consumer;
  **/
 public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
-	public static final int DEFAULT_TARGET_BATCH_INTERVAL_MS = 1000;
-	public static final int DEFAULT_TARGET_BATCH = 500;
+	public static final int DEFAULT_TARGET_BATCH_INTERVAL_MS = 2000;
+	public static final int DEFAULT_TARGET_BATCH = 3000;
 	private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	protected String tableName;
@@ -564,7 +564,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				clientMongoOperator.insertOne(syncProgressJsonMap, collection);
 			} catch (Exception e) {
-				throw new RuntimeException("Save to snapshot failed, collection: " + collection + ", object: " + this.syncProgressMap + "errors: " + e.getMessage(), e);
+				logger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}, error stack: {}.", collection, this.syncProgressMap, e.getMessage(), Log4jUtil.getStackString(e));
+				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, this.syncProgressMap, e.getMessage());
+				return false;
 			}
 			if (uploadDagService.get()) {
 				// Upload DAG
