@@ -873,7 +873,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         if (CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
 
 
-            List<MetadataInstancesDto> logicMetas = new ArrayList<>();
+            List<MetadataInstancesDto> sourceMetas = new ArrayList<>();
             if (saveHistory) {
                 for (MetadataInstancesDto insertMetaDataDto : insertMetaDataDtos) {
                     String qualifiedName = insertMetaDataDto.getQualifiedName();
@@ -886,13 +886,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         metadataInstancesDto.setSourceType(com.tapdata.tm.commons.schema.bean.SourceTypeEnum.SOURCE.name());
                         metadataInstancesDto.setCreateSource("auto");
                         metadataInstancesDto.setTaskId(null);
-                        logicMetas.add(metadataInstancesDto);
+                        metadataInstancesDto.setId(null);
+                        sourceMetas.add(metadataInstancesDto);
                         //qualifiedNames.add(oldQualifiedName);
                     }
                 }
             }
 
-            insertMetaDataDtos.addAll(logicMetas);
+            insertMetaDataDtos.addAll(sourceMetas);
 
 
             //动态新增表做的兼容处理

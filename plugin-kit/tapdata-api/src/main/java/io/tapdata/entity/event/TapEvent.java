@@ -131,7 +131,10 @@ public abstract class TapEvent implements Serializable {
 
     @Override
     public String toString() {
-        return super.toString() + ": " + InstanceFactory.instance(JsonParser.class).toJson(this);
+        TapEvent cloneEvent = (TapEvent) this.clone();
+        // Filter info map when to json, will cause stackOverFlowError
+        cloneEvent.setInfo(null);
+        return super.toString() + ": " + InstanceFactory.instance(JsonParser.class).toJson(cloneEvent);
 //        return "TapEvent{" +
 //                "time=" + time +
 //                ", info=" + info +

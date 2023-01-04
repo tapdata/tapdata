@@ -56,6 +56,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -658,6 +659,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+					if (null == metadata.getId()) {
+						metadata.setId(new ObjectId());
+					}
 					insertMetadata.add(metadata);
 					logger.info("Create new table schema transform finished: " + tapTable);
 					obsLogger.info("Create new table schema transform finished: " + tapTable);
@@ -690,12 +694,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				tapEvent.addInfo(DAG_DATA_SERVICE_INFO_KEY, dagDataService);
 				tapEvent.addInfo(TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY, errorMessage);
 			} catch (Throwable e) {
-				throw errorHandle(e, "Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage());
+				throw new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
 			}
 		}
 		if (null == tapdataEvent) {
-			RuntimeException runtimeException = new RuntimeException("Found event type does not support: " + tapEvent.getClass().getSimpleName());
-			throw errorHandle(runtimeException, "Found event type does not support: " + tapEvent.getClass().getSimpleName());
+			throw new RuntimeException("Found event type does not support: " + tapEvent.getClass().getSimpleName());
 		}
 		return tapdataEvent;
 	}
