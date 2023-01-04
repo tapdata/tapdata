@@ -202,7 +202,7 @@ public class TaskRestartSchedule {
     public void schedulingTask() {
         long overTime = 30000L;
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
-                .and("schedulingTime").lt(System.currentTimeMillis() - overTime);
+                .and("schedulingTime").lt(new Date(System.currentTimeMillis() - overTime));
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
