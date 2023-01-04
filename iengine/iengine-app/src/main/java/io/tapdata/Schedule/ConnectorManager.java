@@ -538,7 +538,7 @@ public class ConnectorManager {
 					restRetryTime,
 					() -> {
 						return 2000L;
-					}, 1000, 3000, 3000
+					}, 1000, 30000, 30000
 			), configCenter);
 			pingClientMongoOperator.setCloudRegion(jobTags);
 		} catch (Exception e) {

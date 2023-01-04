@@ -74,7 +74,7 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 10 * 1000, fixedDelay = 5000)
+    @Scheduled(initialDelay = 150 * 1000, fixedDelay = 5000)
     @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
         Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
@@ -103,8 +103,12 @@ public class TaskRestartSchedule {
         all.forEach(taskDto -> {
             if (isCloud) {
                 String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
-                if ("offline".equals(status) || "online".equals(status)) {
+                if ("offline".equals(status) ) {
                     log.debug("The cloud version does not need this rescheduling");
+                    return;
+                }
+                if ("online".equals(status)) {
+                    taskScheduleService.sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
                     return;
                 }
             }
@@ -163,6 +167,7 @@ public class TaskRestartSchedule {
         long heartExpire = 30000L;
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_STOPPING)
+                .and("stopRetryTimes").lt(8)
                 .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
@@ -176,13 +181,9 @@ public class TaskRestartSchedule {
 
         all.forEach(taskDto -> {
             int stopRetryTimes = taskDto.getStopRetryTimes();
-            if (stopRetryTimes > 8) {
-                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userMap.get(taskDto.getUserId()));
-            } else {
-                taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(),  userMap.get(taskDto.getUserId()), false);
-                Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
-                taskService.updateById(taskDto.getId(), update, userMap.get(taskDto.getUserId()));
-            }
+            taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(),  userMap.get(taskDto.getUserId()), false);
+            Update update = Update.update("stopRetryTimes", stopRetryTimes + 1).set("last_updated", taskDto.getLastUpdAt());
+            taskService.updateById(taskDto.getId(), update, userMap.get(taskDto.getUserId()));
         });
     }
 
@@ -191,7 +192,7 @@ public class TaskRestartSchedule {
         long heartExpire = 30000L;
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
-                .and("last_updated").lt(new Date(System.currentTimeMillis() - heartExpire));
+                .and("schedulingTime").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(new Query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -208,7 +209,7 @@ public class TaskRestartSchedule {
             TaskDto next = iterator.next();
             UserDetail user = userMap.get(next.getUserId());
             if (user != null) {
-                if (Objects.nonNull(next.getScheduleDate()) && (now - next.getScheduleDate() > heartExpire)) {
+                if (Objects.nonNull(next.getSchedulingTime()) && (now - next.getSchedulingTime().getTime() > getHeartExpire())) {
                     stateMachineService.executeAboutTask(next, DataFlowEvent.OVERTIME, user);
                     iterator.remove();
                 }

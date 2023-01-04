@@ -773,7 +773,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         if (stateMachineResult.isOk()) {
             taskResetLogService.clearLogByTaskId(id.toHexString());
-            sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+            String connectionName = sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+            if(StringUtils.isNotEmpty(connectionName)){
+                throw new BizException("Clear.Slot",connectionName);
+            }
         }
         //afterRemove(taskDto, user);
 
@@ -1179,7 +1182,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 log.warn("delete task exception, task id = {}, e = {}", taskId, ThrowableUtils.getStackTraceByPn(e));
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
-                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                    if("Clear.Slot".equals((((BizException) e).getErrorCode()))){
+                        mutiResponseMessage.setMessage(e.getMessage());
+                    }else{
+                        mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                    }
                 } else {
                     try {
                         ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
@@ -1194,6 +1201,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         return responseMessages;
     }
+
 
     public List<MutiResponseMessage> batchRenew(List<ObjectId> taskIds, UserDetail user,
                                                 HttpServletRequest request, HttpServletResponse response) {
@@ -2143,11 +2151,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    value += (int) vs.get("inputInsertTotal");
-                    value += (int) vs.get("inputOthersTotal");
-                    value += (int) vs.get("inputDdlTotal");
-                    value += (int) vs.get("inputUpdateTotal");
-                    value += (int) vs.get("inputDeleteTotal");
+                    value += Long.parseLong(String.valueOf(vs.get("inputInsertTotal")));
+                    value += Long.parseLong(String.valueOf(vs.get("inputOthersTotal")));
+                    value += Long.parseLong(String.valueOf(vs.get("inputDdlTotal")));
+                    value += Long.parseLong(String.valueOf(vs.get("inputUpdateTotal")));
+                    value += Long.parseLong(String.valueOf(vs.get("inputDeleteTotal")));
                 }
                 LocalDate localDate = k.minusDays(1L);
                 Long lastNum = inputNumMap.get(localDate);
@@ -2610,7 +2618,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //resetFlag(taskDto.getId(), user, "resetFlag");
     }
 
-    private void sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
+    private String sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
+        String connectionName =null;
+        boolean noAgent =false;
         if (checkPdkTask(taskDto, user)) {
 
             DataSyncMq mq = new DataSyncMq();
@@ -2636,8 +2646,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     }
                 }
                 if (StringUtils.isBlank(agentId)) {
+                    noAgent =true;
                     //任务指定的agent已经停用，当前操作不给用。
-                    throw new BizException("Agent.DesignatedAgentNotAvailable");
+                   // throw new BizException("Agent.DesignatedAgentNotAvailable");
+                    connectionName =judgePostgreClearSlot(taskDto,opType);
 
                 }
 
@@ -2649,6 +2661,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     Worker worker = availableAgent.get(0);
                     taskDto.setAgentId(worker.getProcessId());
                 } else {
+                    noAgent =true;
+                    connectionName =judgePostgreClearSlot(taskDto,opType);
                     taskDto.setAgentId(null);
                 }
             }
@@ -2694,6 +2708,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //                log.info((DataSyncMq.OP_TYPE_RESET.equals(opType) ? "reset" : "delete") + "Task reset timeout.");
 //                throw new BizException(DataSyncMq.OP_TYPE_RESET.equals(opType) ? "Task.ResetTimeout" : "Task.DeleteTimeout");
 //            }
+            if (noAgent) {
+                afterRemove(taskDto, user);
+            }
         } else {
             if (DataSyncMq.OP_TYPE_RESET.equals(opType)) {
                 afterRenew(taskDto, user);
@@ -2701,6 +2718,27 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 afterRemove(taskDto, user);
             }
         }
+        return connectionName;
+    }
+
+
+    private String judgePostgreClearSlot(TaskDto taskDto, String opType) {
+        Node node = getSourceNode(taskDto);
+        Map<String, Object> attrs = null;
+        String databaseType = null;
+        if (node instanceof DatabaseNode) {
+            attrs = node.getAttrs();
+            databaseType = ((DatabaseNode) node).getDatabaseType();
+        } else if (node instanceof TableNode) {
+            attrs = node.getAttrs();
+            databaseType = ((TableNode) node).getDatabaseType();
+        }
+
+        if ("PostgreSQL".equalsIgnoreCase(databaseType) &&
+                DataSyncMq.OP_TYPE_DELETE.equals(opType) && MapUtils.isNotEmpty(taskDto.getAttrs())) {
+            return (String) attrs.get("connectionName");
+        }
+        return null;
     }
 
 //    public boolean deleteById(TaskDto taskDto, UserDetail user) {
@@ -2944,8 +2982,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             update(query1, update, user);
         }
 
+        Update update = Update.update("stopRetryTimes", 0);
+        updateById(taskDto.getId(), update, user);
 
-        //sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
+
+        sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user, force);
 
         updateTaskRecordStatus(taskDto, pauseStatus, user);
     }

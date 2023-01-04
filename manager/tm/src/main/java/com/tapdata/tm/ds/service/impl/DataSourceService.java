@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
@@ -32,6 +31,7 @@ import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
@@ -62,6 +62,9 @@ import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.typemappings.constant.TypeMappingDirection;
+import com.tapdata.tm.typemappings.entity.TypeMappingsEntity;
+import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -94,7 +97,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URL;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -654,12 +656,12 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		}
 
 		log.debug("query data source related task");
-		Criteria taskCriteria = Criteria.where("is_deleted").is(false).orOperator(Criteria.where("dag.nodes.connectionId").is(id), Criteria.where("dag.nodes.connectionIds").in(id));
+		Criteria taskCriteria = Criteria.where("is_deleted").is(false).and("status").ne("delete_failed").orOperator(Criteria.where("dag.nodes.connectionId").is(id), Criteria.where("dag.nodes.connectionIds").in(id));
 		Query taskQuery = new Query(taskCriteria);
 		taskQuery.fields().include("_id", "name");
 		List<TaskDto> allDto = taskService.findAllDto(taskQuery, user);
 
-		if (CollectionUtils.isNotEmpty(allDto) || CollectionUtils.isNotEmpty(allDto)) {
+		if (CollectionUtils.isNotEmpty(allDto)) {
 			log.info("the connection referenced by other jobs, tasks = {}", allDto.size());
 			throw new BizException("Datasource.LinkJobs");
 		}
@@ -723,6 +725,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		//将数据源连接的名称修改成为名称后面+_copy
 		String connectionName = entity.getName() + " - Copy";
 		entity.setLastUpdAt(new Date());
+		entity.setStatus("testing");
 
 		while (true) {
 			try {
@@ -1808,12 +1811,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	}
 
 	public Long countTaskByConnectionId(String connectionId, UserDetail userDetail) {
-		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true));
+		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		return taskService.count(query, userDetail);
 	}
 	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, UserDetail userDetail) {
-		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true));
+		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		query.limit(limit);
 		query.with(Sort.by(Sort.Direction.ASC, "_id"));

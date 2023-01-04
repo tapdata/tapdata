@@ -50,4 +50,28 @@ public class TaskControllerAop {
                             JsonUtil.toJson(result.getMessages()) + ").");
         }
     }
+
+    @Pointcut("execution(* com.tapdata.tm.task.controller.TaskController.copy(..))")
+    public void copyTaskPointcut() {
+
+    }
+
+    @Around("copyTaskPointcut()")
+    public Object beforeCopyTask(ProceedingJoinPoint joinPoint) throws Throwable {
+
+        TaskController taskController = (TaskController) joinPoint.getTarget();
+        UserDetail loginUser = taskController.getLoginUser();
+
+        CheckPaidPlanRes result = paidPlanService.checkPaidPlan(loginUser);
+
+        log.debug("Check paid plan for user {}, valid {}", loginUser.getExternalUserId(), result);
+        if (result.isValid()) {
+            Object[] args = joinPoint.getArgs();
+            return joinPoint.proceed(args);
+        } else {
+            throw new BizException("InvalidPaidPlan",
+                    "Invalid paid plan, please check and subscribe paid plan(" +
+                            JsonUtil.toJson(result.getMessages()) + ").");
+        }
+    }
 }

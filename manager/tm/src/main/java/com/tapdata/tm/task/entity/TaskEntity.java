@@ -184,6 +184,7 @@ public class TaskEntity extends BaseEntity {
 
     //private Date startTime;
     private Date scheduledTime;
+    private Date schedulingTime;
     private Date stoppingTime;
     private Date runningTime;
     private Date errorTime;

@@ -718,7 +718,6 @@ public class TaskController extends BaseController {
                                                                   HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
         List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskObjectIds, getLoginUser(), request, response);
-
         return success(responseMessages);
     }
 
