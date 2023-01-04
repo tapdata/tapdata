@@ -404,13 +404,9 @@
       "to": "TapDate"
     },
     "interval": {
-      "range": [
-        "-99:59:59",
-        "99:59:59"
-      ],
-      "pattern": "HH:mm:ss",
+      "preferByte": 100,
       "queryOnly": true,
-      "to": "TapTime"
+      "to": "TapString"
     },
     "timestamp[($fraction)] without time zone": {
       "range": [
@@ -473,31 +469,38 @@
       "to": "TapTime"
     },
     "point": {
-      "to": "TapBinary",
+      "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "line": {
-      "to": "TapBinary",
+      "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "lseg": {
-      "to": "TapBinary",
+      "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "box": {
-      "to": "TapBinary",
+      "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "path": {
-      "to": "TapBinary",
+      "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "polygon": {
-      "to": "TapBinary",
+      "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "circle": {
-      "to": "TapBinary",
+      "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "cidr": {
@@ -512,6 +515,7 @@
     },
     "macaddr": {
       "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "uuid": {
@@ -529,15 +533,17 @@
     },
     "tsvector": {
       "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "tsquery": {
       "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "oid": {
-      "to": "TapString",
-      "preferByte": 255,
+      "to": "TapNumber",
+      "bit": 64,
       "queryOnly": true
     },
     "regproc": {
@@ -547,30 +553,37 @@
     },
     "regprocedure": {
       "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "regoper": {
       "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "regoperator": {
       "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "regclass": {
       "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "regtype": {
       "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "regconfig": {
       "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     },
     "regdictionary": {
       "to": "TapString",
+      "preferByte": 255,
       "queryOnly": true
     }
   }

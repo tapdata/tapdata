@@ -45,7 +45,23 @@ public class RegisterMain {
         BigQuery(BASE_PATH + "connectors/dist/bigquery-connector-v1.0-SNAPSHOT.jar", "all", "bigquery"),
 		Vika(BASE_PATH + "connectors/dist/vika-connector-v1.0-SNAPSHOT.jar", "all", "vika"),
         TDengine(BASE_PATH + "connectors/dist/tdengine-connector-v1.0-SNAPSHOT.jar", "all", "tdengine"),
-        Aliyun_ADB(BASE_PATH + "connectors/dist/aliyun-adb-mysql-connector-v1.0-SNAPSHOT.jar", "all", "aliyun-adb-mysql"),
+        QuickApi(BASE_PATH + "connectors/dist/quickapi-connector-v1.0-SNAPSHOT.jar", "all", "quickapi"),
+        Aliyun_ADB_MYSQL(BASE_PATH + "connectors/dist/aliyun-adb-mysql-connector-v1.0-SNAPSHOT.jar", "all", "aliyun-adb-mysql"),
+        Aliyun_ADB_POSTGRES(BASE_PATH + "connectors/dist/aliyun-adb-postgres-connector-v1.0-SNAPSHOT.jar", "all", "aliyun-adb-postgres"),
+        Aliyun_MONGODB(BASE_PATH + "connectors/dist/aliyun-mongodb-connector-v1.0-SNAPSHOT.jar", "all", "aliyun-db-mongodb"),
+        Aliyun_RDS_MARIADB(BASE_PATH + "connectors/dist/aliyun-rds-mariadb-connector-v1.0-SNAPSHOT.jar", "all", "aliyun-rds-mariadb"),
+        Aliyun_RDS_MYSQL(BASE_PATH + "connectors/dist/aliyun-rds-mysql-connector-v1.0-SNAPSHOT.jar", "all", "aliyun-rds-mysql"),
+        Aliyun_RDS_POSTGRES(BASE_PATH + "connectors/dist/aliyun-rds-postgres-connector-v1.0-SNAPSHOT.jar", "all", "aliyun-rds-postgres"),
+        AWS_RDS_MYSQL(BASE_PATH + "connectors/dist/aws-rds-mysql-connector-v1.0-SNAPSHOT.jar", "all", "aws-rds-mysql"),
+        MYSQL_PXC(BASE_PATH + "connectors/dist/mysql-pxc-connector-v1.0-SNAPSHOT.jar", "all", "mysql-pxc"),
+        POLAR_DB_MYSQL(BASE_PATH + "connectors/dist/polar-db-mysql-connector-v1.0-SNAPSHOT.jar", "all", "polar-db-mysql"),
+        POLAR_DB_POSTGRES(BASE_PATH + "connectors/dist/polar-db-postgres-connector-v1.0-SNAPSHOT.jar", "all", "polar-db-postgres"),
+        TENCENT_DB_MYSQL(BASE_PATH + "connectors/dist/tencent-db-mysql-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mysql"),
+        TENCENT_DB_MARIADB(BASE_PATH + "connectors/dist/tencent-db-mariadb-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mariadb"),
+        TENCENT_DB_MONGODB(BASE_PATH + "connectors/dist/tencent-db-mongodb-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mongodb"),
+        TENCENT_DB_POSTGRES(BASE_PATH + "connectors/dist/tencent-db-postgres-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-postgres"),
+		SelectDB(BASE_PATH + "connectors/dist/selectdb-connector-v1.0-SNAPSHOT.jar", "all", "selectdb"),
+
         ;
 
         private final String path;

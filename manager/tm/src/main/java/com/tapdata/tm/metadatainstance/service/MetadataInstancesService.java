@@ -946,7 +946,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         if (CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
 
 
-            List<MetadataInstancesDto> logicMetas = new ArrayList<>();
+            List<MetadataInstancesDto> sourceMetas = new ArrayList<>();
             if (saveHistory) {
                 for (MetadataInstancesDto insertMetaDataDto : insertMetaDataDtos) {
                     String qualifiedName = insertMetaDataDto.getQualifiedName();
@@ -959,13 +959,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         metadataInstancesDto.setSourceType(com.tapdata.tm.commons.schema.bean.SourceTypeEnum.SOURCE.name());
                         metadataInstancesDto.setCreateSource("auto");
                         metadataInstancesDto.setTaskId(null);
-                        logicMetas.add(metadataInstancesDto);
+                        metadataInstancesDto.setId(null);
+                        sourceMetas.add(metadataInstancesDto);
                         //qualifiedNames.add(oldQualifiedName);
                     }
                 }
             }
 
-            insertMetaDataDtos.addAll(logicMetas);
+            insertMetaDataDtos.addAll(sourceMetas);
 
 
             //动态新增表做的兼容处理
@@ -1467,20 +1468,21 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     // todo 下面逻辑可能会出现问题，相当于copy一份原表名的模型，数据上存在"错误"，加入表A改名B 表B改名A
                     if (node instanceof TableRenameProcessNode) {
                         LinkedHashSet<TableRenameTableInfo> tableNames = ((TableRenameProcessNode) node).getTableNames();
-                        for (TableRenameTableInfo tableName : tableNames) {
-                            MetadataInstancesDto metadataInstancesDto = currentMap.get(tableName.getCurrentTableName());
-                            if (metadataInstancesDto != null) {
-                                MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
-                                MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
-                                BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto1);
-                                BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto2);
-                                metadataInstancesDto1.setOriginalName(tableName.getOriginTableName());
-                                metadataInstancesDto2.setOriginalName(tableName.getPreviousTableName());
-                                all.add(metadataInstancesDto1);
-                                all.add(metadataInstancesDto2);
+                        if (CollectionUtils.isNotEmpty(tableNames)) {
+                            for (TableRenameTableInfo tableName : tableNames) {
+                                MetadataInstancesDto metadataInstancesDto = currentMap.get(tableName.getCurrentTableName());
+                                if (metadataInstancesDto != null) {
+                                    MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+                                    MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+                                    BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto1);
+                                    BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto2);
+                                    metadataInstancesDto1.setOriginalName(tableName.getOriginTableName());
+                                    metadataInstancesDto2.setOriginalName(tableName.getPreviousTableName());
+                                    all.add(metadataInstancesDto1);
+                                    all.add(metadataInstancesDto2);
+                                }
                             }
                         }
-
                     }
                     metadatas.addAll(all);
                 } else if (Node.NodeCatalog.processor.equals(node.getCatalog())) {

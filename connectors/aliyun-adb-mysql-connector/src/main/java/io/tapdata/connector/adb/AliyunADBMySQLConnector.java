@@ -20,7 +20,7 @@ public class AliyunADBMySQLConnector extends MysqlConnector {
 
 	@Override
 	public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
-		tapConnectionContext.getSpecification().setId("mysql");
+		tapConnectionContext.getConnectionConfig().put("protocolType", "mysql");
 		super.onStart(tapConnectionContext);
 	}
 
@@ -32,7 +32,7 @@ public class AliyunADBMySQLConnector extends MysqlConnector {
 
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) {
-		databaseContext.getSpecification().setId("mysql");
+		databaseContext.getConnectionConfig().put("protocolType", "mysql");
 		return super.connectionTest(databaseContext, consumer);
 	}
 }

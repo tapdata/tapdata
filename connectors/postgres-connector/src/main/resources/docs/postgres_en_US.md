@@ -174,3 +174,45 @@ alter table <schema>.mytable add column last_udpate timestamp default now();
 create trigger trg_uptime before update on <schema>.mytable for each row execute procedure
     update_lastmodified_column();
 ```
+### **5. Full type field support**
+- smallint
+- integer
+- bigint
+- numeric
+- real
+- double precision
+- character
+- character varying
+- text
+- bytea
+- bit
+- bit varying
+- boolean
+- date
+- interval
+- timestamp
+- timestamp with time zone
+- point
+- line
+- lseg
+- box
+- path
+- polygon
+- circle
+- cidr
+- inet
+- macaddr
+- uuid
+- xml
+- json
+- tsvector (cdc not supported, no error)
+- tsquery (cdc not supported, no error)
+- oid
+- regproc (cdc not supported, no error)
+- regprocedure (cdc not supported, no error)
+- regoper (cdc not supported, no error)
+- regoperator (cdc not supported, no error)
+- regclass (cdc not supported, no error)
+- regtype (cdc not supported, no error)
+- regconfig (cdc not supported, no error)
+- regdictionary (cdc not supported, no error)

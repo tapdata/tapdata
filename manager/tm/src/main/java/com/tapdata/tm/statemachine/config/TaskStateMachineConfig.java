@@ -168,7 +168,7 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 			case TaskDto.STATUS_COMPLETE:  //  error对应errorTime和finishTime
 				update.set("stopTime", date).set("finishTime", date);
 				break;
-			case TaskDto.STATUS_SCHEDULING:
+			case TaskDto.STATUS_SCHEDULING:  //  error对应errorTime和finishTime
 				update.set("schedulingTime", date);
 				break;
 			default:

@@ -15,6 +15,7 @@ import io.tapdata.connector.mysql.entity.MysqlStreamOffset;
 import io.tapdata.connector.mysql.util.MysqlBinlogPositionUtil;
 import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.connector.mysql.util.StringCompressUtil;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -252,6 +253,9 @@ public class MysqlReader implements Closeable {
 					.with("max.batch.size", batchSize)
 					.with(MySqlConnectorConfig.SERVER_ID, randomServerId())
 					.with("time.precision.mode", "adaptive_time_microseconds")
+//					.with("converters", "time")
+//					.with("time.type", "io.tapdata.connector.mysql.converters.TimeConverter")
+//					.with("time.schema.name", "io.debezium.mysql.type.Time")
 					.with("snapshot.locking.mode", "none");
 			List<String> dbTableNames = tables.stream().map(t -> database + "." + t).collect(Collectors.toList());
 			builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, database);

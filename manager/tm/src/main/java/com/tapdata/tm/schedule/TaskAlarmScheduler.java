@@ -337,7 +337,7 @@ public class TaskAlarmScheduler {
 
             AtomicInteger delay = new AtomicInteger(0);
             long count = samples.stream().filter(ss -> {
-                int current = (int) ss.getVs().getOrDefault(avgName, 0);
+                int current = Math.abs((int) ss.getVs().getOrDefault(avgName, 0));
                 boolean b;
                 if (alarmRuleDto.getEqualsFlag() == -1) {
                     b = current <= alarmRuleDto.getMs();
@@ -415,7 +415,7 @@ public class TaskAlarmScheduler {
 
             AtomicInteger delay = new AtomicInteger(0);
             long count = taskSamples.stream().filter(ss -> {
-                int replicateLag = (int) ss.getVs().getOrDefault("replicateLag", 0);
+                int replicateLag = Math.abs((int) ss.getVs().getOrDefault("replicateLag", 0));
 
                 boolean b;
                 if (alarmRuleDto.getEqualsFlag() == -1) {

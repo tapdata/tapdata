@@ -64,7 +64,10 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			}
 		} else {
 			// compare base on t1's columns
-			List<String> columns = t1.keySet().stream().sorted().collect(Collectors.toList());
+			Set<String> sets = new LinkedHashSet<>();
+			sets.addAll(t1.keySet());
+			sets.addAll(t2.keySet());
+			List<String> columns = sets.stream().sorted().collect(Collectors.toList());
 			differentFields = columns.parallelStream().map(key -> {
 				Object val1 = t1.get(key);
 				Object val2 = t2.get(key);

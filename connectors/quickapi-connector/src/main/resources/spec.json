@@ -1,0 +1,158 @@
+{
+  "properties": {
+    "name": "QuickAPI",
+    "icon": "icons/quickapi.png",
+    "doc" : "${doc}",
+    "id": "quickapi"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "connection": {
+      "type": "object",
+      "properties": {
+        "apiType": {
+          "type": "String",
+          "default": "POST_MAN",
+          "title": "${apiType}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "PostMan",
+              "value": "POST_MAN"
+            }
+          ],
+          "x-index": 10,
+          "required": false,
+          "x-display": "hidden"
+        },
+        "jsonTxt": {
+          "type": "String",
+          "title": "${jsonTxt}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-component-props": {
+            "type": "textarea"
+          },
+          "x-index": 20,
+          "required": true
+        },
+        "expireStatus": {
+          "title": "${expireStatus}",
+          "type": "String",
+          "required": false,
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-component-props": {
+            "type": "textarea"
+          },
+          "x-index": 30,
+          "x-reactions": [
+            {
+              "dependencies": ["jsonTxt"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        },
+        "tokenParams": {
+          "type": "String",
+          "title": "${tokenParams}",
+          "x-decorator": "FormItem",
+          "x-index": 40,
+          "x-component": "Input",
+          "x-component-props": {
+            "type": "textarea"
+          },
+          "x-reactions": [
+            {
+              "dependencies": ["expireStatus"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ],
+          "required": false
+        },
+        "hookButton": {
+          "type": "void",
+          "title": "${hookButton}",
+          "x-decorator": "FormItem",
+          "x-component-props": {
+            "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
+          },
+          "x-reactions": {
+            "dependencies": ["jsonTxt"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          },
+          "x-content": "hookButton",
+          "x-component": "Button",
+          "x-index": 50
+        },
+        "hookText": {
+          "type": "string",
+          "title": " ",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-reactions": {
+            "dependencies": ["jsonTxt"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          },
+          "x-component": "Input",
+          "x-index": 60,
+          "actionOnCopy" : "NEW_WEB_HOOK_URL"
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/quickapi_en_US.md",
+      "apiType": "Commissioning platform",
+      "jsonTxt": "API Txt(JSON)",
+      "expireStatus": "Expiration Status Desc",
+      "tokenParams": "Token parameter specification",
+      "hookButton": "Generate Service URL"
+    },
+    "zh_CN": {
+      "doc": "docs/quickapi_zh_CN.md",
+      "apiType": "调试平台",
+      "jsonTxt": "JSON格式API文本",
+      "expireStatus": "过期状态描述",
+      "tokenParams": "Token 参数指定",
+      "hookButton": "生成服务URL"
+    },
+    "zh_TW": {
+      "doc": "docs/quickapi_zh_TW.md",
+      "apiType": "調試平臺",
+      "jsonTxt": "JSON格式API文字",
+      "expireStatus": "過期狀態描述",
+      "tokenParams": "Token 參數指定",
+      "hookButton": "生成服務URL"
+    }
+  },
+  "dataTypes": {
+
+  }
+}

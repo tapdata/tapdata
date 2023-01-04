@@ -1025,7 +1025,7 @@ public class TaskController extends BaseController {
     public ResponseMessage<Page<TaskRecordListVo>> records(@PathVariable(value = "id") String taskId,
                                                            @RequestParam(defaultValue = "1") Integer page,
                                                            @RequestParam(defaultValue = "20") Integer size) {
-        return success(taskRecordService.queryRecords(taskId, page, size));
+        return success(taskRecordService.queryRecords(new TaskRecordDto(taskId, page, size)));
     }
 
     @Operation(summary = "任务日志设置")

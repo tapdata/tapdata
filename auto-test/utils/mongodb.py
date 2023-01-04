@@ -80,3 +80,9 @@ class MongoDBUtil:
         if table is None:
             table = self.table
         return list(self.mongo_client[self.db][table].find(condition).limit(limit))
+
+    def count(self, condition={}, table=None):
+        if table is None:
+            table = self.table
+        return len(list(self.mongo_client[self.db][table].find(condition)))
+

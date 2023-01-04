@@ -428,6 +428,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
             //不是二次校验
             inspectDto.setByFirstCheckId("");
         }
+        inspectDto.setAgentId(null); // 执行前先清除，重新分配 Agent
         workerService.scheduleTaskToEngine(inspectDto, user);
         Date now = new Date();
         inspectDto.setPing_time(now.getTime());

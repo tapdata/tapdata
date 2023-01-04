@@ -4,13 +4,13 @@
 ### **2. 限制说明**
 Tapdata系统当前版本 Redis 仅支持作为目标，支持的数据源的类型为：Oracle、MySQL、MongoDB、PostgreSQL、SQL Server。
 
-|源端|目标端|支持情况|
-|:-----------:|:-----------:|:-----------:|
-Oracle| Redis |支持
-MySQL| Redis |支持
-MongoDB| Redis |支持
-PostgreSQL| Redis |支持
-SQL Server | Redis |支持
+|     源端     |  目标端  | 支持情况 |
+|:----------:|:-----:|:----:|
+|   Oracle   | Redis |  支持  |
+|   MySQL    | Redis |  支持  |
+|  MongoDB   | Redis |  支持  |
+| PostgreSQL | Redis |  支持  |
+| SQL Server | Redis |  支持  |
 
 ### **3. 支持版本**
 Redis 3.3
@@ -26,3 +26,25 @@ Redis 3.3
 ### **5. 连接测试项**
 - 检测host/IP 和 port
 - 检查账号和密码
+
+### **6. Redis目標資料結構說明**
+首先值的形式主要有Json和Text兩種：
+```
+Json是將Record轉化為Json串；
+Text會按欄位的順序將對應值用特定的連接符合並起來，如果內容也有該特定字元，會以轉義字元將內容括起
+```
+- String
+>選擇String類型鍵值會以平鋪的管道，需要輸入鍵的運算式，如：prefix_${_id}_suffix，鍵對應的值為整條記錄。
+- List
+>選擇List類型有兩種方式：<br>
+>一、可以整個錶記錄全部存儲為一個鍵，List的每條值對應一條記錄，且允許將第一條設為表頭（固定以逗號分隔）；<br>
+>二、可以將整個錶記錄按某些欄位組成的鍵運算式分組然後平鋪為多個List鍵值；
+- Hash
+>選擇Hash類型有兩種方式：<br>
+>一、可以整個錶記錄全部存儲為一個鍵，Hash的每個鍵都按String類型處理；<br>
+>二、整個錶記錄全部平鋪為多個鍵值，每個鍵對應的Hash就是一條記錄，每個欄位對應各自的值；
+
+最後產品邊界說明：<br>
+1、由於Redis存儲管道的多樣性，如果是多鍵管道的為了不誤刪數據不支持清理結構；<br>
+2、如果鍵的運算式中選擇的欄位可能對於源的before事件是不包含的，有可能對Update或Delete事件不支持，請謹慎選擇鍵運算式；<br>
+3、最後如果以單鍵存儲要特別注意Redis單鍵大小限制為512M。

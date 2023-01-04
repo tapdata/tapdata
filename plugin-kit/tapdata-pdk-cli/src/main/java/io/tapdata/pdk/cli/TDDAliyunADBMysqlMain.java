@@ -3,9 +3,9 @@ package io.tapdata.pdk.cli;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 /**
- * @author samuel
+ * @author jackin
  * @Description
- * @create 2022-04-27 19:37
+ * @create 2022-12-15 11:50
  **/
 public class TDDAliyunADBMysqlMain {
 	public static void main(String... args) {
