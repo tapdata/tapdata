@@ -45,11 +45,11 @@
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/com.google.cloud/google-cloud-bigquery -->
-        <!--        <dependency>-->
-        <!--            <groupId>com.google.cloud</groupId>-->
-        <!--            <artifactId>google-cloud-bigquery</artifactId>-->
-        <!--            <version>2.16.1</version>-->
-        <!--        </dependency>-->
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-bigquery</artifactId>
+            <version>2.16.1</version>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
@@ -85,6 +85,24 @@
             <type>pom</type>
             <scope>import</scope>
         </dependency>
+
+<!--        <dependency>-->
+<!--            <groupId>io.streamnative</groupId>-->
+<!--            <artifactId>pulsar-client-original</artifactId>-->
+<!--            <scope>test</scope>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>org.apache.pulsar</groupId>-->
+<!--            <artifactId>pulsar-functions-local-runner-original</artifactId>-->
+<!--            <version>2.9.3</version>-->
+<!--            <scope>test</scope>-->
+<!--            <exclusions>-->
+<!--                <exclusion>-->
+<!--                    <groupId>org.apache.logging.log4j</groupId>-->
+<!--                    <artifactId>log4j-slf4j-impl</artifactId>-->
+<!--                </exclusion>-->
+<!--            </exclusions>-->
+<!--        </dependency>-->
     </dependencies>
 
     <dependencyManagement>

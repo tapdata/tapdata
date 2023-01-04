@@ -6,6 +6,8 @@ import io.tapdata.bigquery.service.bigQuery.TableCreate;
 import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.bigquery.service.command.Command;
 import io.tapdata.bigquery.service.stage.tapvalue.ValueHandel;
+import io.tapdata.bigquery.service.stream.handle.BigQueryStream;
+import io.tapdata.bigquery.service.stream.handle.TapEventCollector;
 import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
 import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -13,6 +15,7 @@ import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.cache.Entry;
@@ -28,7 +31,6 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
-
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -39,6 +41,9 @@ public class BigQueryConnector extends ConnectorBase {
 	private final Object streamReadLock = new Object();
 	private WriteRecord writeRecord;
 	private ValueHandel valueHandel;//= ValueHandel.create();
+	private TapEventCollector tapEventCollector;
+	BigQueryStream stream;
+	public static final int STREAM_SIZE = 50000;
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -54,6 +59,7 @@ public class BigQueryConnector extends ConnectorBase {
 					}
 				}
 			});
+			stream = BigQueryStream.streamWrite((TapConnectorContext)connectionContext);
 		}
 	}
 
@@ -66,6 +72,10 @@ public class BigQueryConnector extends ConnectorBase {
 		try {
 			Optional.ofNullable(this.writeRecord).ifPresent(WriteRecord::onDestroy);
 		} catch (Exception ignored) {
+		}
+
+		if(Objects.nonNull(tapEventCollector)) {
+			tapEventCollector.stop();
 		}
 	}
 
@@ -114,12 +124,42 @@ public class BigQueryConnector extends ConnectorBase {
 		}
 	}
 
-	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
+	private void writeRecord(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
+		this.writeRecordStream(context, events, table, consumer);
+	}
+
+	private void uploadEvents(Consumer<WriteListResult<TapRecordEvent>> consumer, List<TapRecordEvent> events, TapTable table) {
+		try {
+			consumer.accept(stream.writeRecord(events, table));
+		} catch (Exception e) {
+			TapLogger.error(TAG, "" + e.getMessage());
+		}
+	}
+	private void writeRecordStream(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
+		if (tapEventCollector == null) {
+			synchronized (this) {
+				if (tapEventCollector == null) {
+					tapEventCollector = TapEventCollector.create()
+							.maxRecords(STREAM_SIZE)
+							.idleSeconds(10)
+							.table(table)
+							.writeListResultConsumer(consumer)
+							.eventCollected(this::uploadEvents);
+					tapEventCollector.start();
+				}
+			}
+		}
+		tapEventCollector.addTapEvents(events);
+	}
+
+	/**
+	 * @deprecated
+	 * */
+	private void writeRecordDML(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
 		if (null == this.writeRecord){
-//            this.valueHandel = new ValueHandel();
-            this.writeRecord = WriteRecord.create(connectorContext);
-        }
-	    this.writeRecord.writeBatch(tapRecordEvents, tapTable, writeListResultConsumer);
+			this.writeRecord = WriteRecord.create(connectorContext);
+		}
+		this.writeRecord.writeBatch(tapRecordEvents, tapTable, writeListResultConsumer);
 	}
 
 

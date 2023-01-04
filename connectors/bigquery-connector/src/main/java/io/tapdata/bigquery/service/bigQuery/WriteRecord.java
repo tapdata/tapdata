@@ -3,6 +3,7 @@ package io.tapdata.bigquery.service.bigQuery;
 import cn.hutool.core.codec.Base64;
 import io.tapdata.bigquery.service.stage.tapvalue.ValueHandel;
 import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
+import io.tapdata.bigquery.util.bigQueryUtil.SqlValueConvert;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -443,32 +444,8 @@ public class WriteRecord extends BigQueryStart{
      * JSON :  INSERT INTO mydataset.table1 VALUES(1, JSON '{"name": "Alice", "age": 30}');
      *
      * */
-    public final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss.SSSSSS";
-    final static String DATE_FORMAT = "yyyy-MM-dd";
-    final static String TIME_FORMAT = "HH:mm:ss";
-    final static String YEAR_FORMAT = "yyyy-MM-dd";
     public String sqlValue(Object value,TapField field){
-        TapType tapType = field.getTapType();
-        //return TapValueForBigQuery.sqlValue(value,tapType.getClass());
-//        if (null == this.valueHandel){
-//            this.valueHandel = ValueHandel.create();
-//        }
-//        return this.valueHandel.sqlValue(value,null == tapType? null:tapType.getClass());
-//        tapType.getClass().getSimpleName();
-
-        switch(tapType.getClass().getSimpleName()){
-            case "TapString" : return FieldChecker.simpleStringValue(value);
-            case "TapArray": return FieldChecker.toJsonValue(value);
-            case "TapBinary": return null == value ? "NULL":" FROM_BASE64('"+ Base64.encode(String.valueOf(value)) +"') ";
-            case "TapBoolean": return FieldChecker.simpleValue(value);
-            case "TapDateTime": return FieldChecker.simpleDateValue(value,DATE_TIME_FORMAT);
-            case "TapDate": return FieldChecker.simpleDateValue(value,DATE_FORMAT);
-            case "TapTime": return FieldChecker.simpleDateValue(value,TIME_FORMAT);
-            case "TapMap": return FieldChecker.toJsonValue(value);
-            case "TapNumber": return FieldChecker.simpleValue(value);
-            case "TapYear": return FieldChecker.simpleYearValue(value);
-            default:return ""+value;
-        }
+        return SqlValueConvert.sqlValue(value,field);
     }
 
     /**
