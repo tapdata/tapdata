@@ -228,7 +228,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 														};
 														if (getNode() instanceof TableNode) {
 															TableNode tableNode = (TableNode) dataProcessorContext.getNode();
-															if (tableNode.getIsFilter() && CollectionUtils.isNotEmpty(tableNode.getConditions())) {
+															if (tableNode.getIsCustomFilter() && CollectionUtils.isNotEmpty(tableNode.getConditions())) {
 																TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
 																queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 																	List<TapEvent> tempList = new ArrayList<>();

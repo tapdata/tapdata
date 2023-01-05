@@ -320,7 +320,7 @@ public class TapdataTaskScheduler {
 		Query query = Query.query(where("_id").is(taskId));
 		query.fields().include("status").include("_id").include("name");
 		TaskDto taskDto = clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-		if (!taskDto.getStatus().equals(TaskDto.STATUS_WAIT_RUN)) {
+		if (!taskDto.getStatus().equals(TaskDto.STATUS_WAIT_RUN) && !taskDto.getStatus().equals(TaskDto.STATUS_RUNNING)) {
 			return String.format("Found task[%s(%s)] status is %s, will not start this task", taskDto.getName(), taskDto.getId().toHexString(), taskDto.getStatus());
 		}
 		return "";
