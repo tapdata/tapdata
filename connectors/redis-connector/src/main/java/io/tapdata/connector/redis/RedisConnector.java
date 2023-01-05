@@ -120,17 +120,6 @@ public class RedisConnector extends ConnectorBase {
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
 
-        DataMap nodeConfig = tapConnectorContext.getNodeConfig();
-        String keyName = tapClearTableEvent.getTableId();
-        if(nodeConfig !=null) {
-            keyName = (String) nodeConfig.get("cachePrefix");
-        }
-        Jedis jedis = redisContext.getJedis();
-        try {
-            jedis.del(keyName);
-        }finally {
-            jedis.close();
-        }
     }
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) throws Throwable {
