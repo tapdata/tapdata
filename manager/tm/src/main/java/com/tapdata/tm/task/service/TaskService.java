@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
@@ -2610,8 +2611,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
         Update update = Update.update("lastStartDate", System.currentTimeMillis());
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
-            update.set("taskRecordId", new ObjectId().toHexString());
+            String taskRecordId = new ObjectId().toHexString();
+            update.set("taskRecordId", taskRecordId);
+            taskDto.setTaskRecordId(taskRecordId);
             taskDto.setNeedCreateRecord(true);
+        }
+        if (Objects.isNull(taskDto.getStartTime())) {
+            DateTime date = DateUtil.date();
+            update.set("startTime", date);
+            taskDto.setStartTime(date);
         }
         update(Query.query(Criteria.where("_id").is(taskDto.getId().toHexString())), update);
 
