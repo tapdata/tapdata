@@ -382,6 +382,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return create(taskDto, user);
         }
 
+        // supplement migrate_field_rename_processor fieldMapping data
+        supplementMigrateFieldMapping(taskDto, user);
+        taskSaveService.syncTaskSetting(taskDto, user);
+
         if (oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
             //throw new BizException("Task.OldVersion");
         }
@@ -667,11 +671,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @return
      */
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask) {
-
-        // supplement migrate_field_rename_processor fieldMapping data
-        supplementMigrateFieldMapping(taskDto, user);
-        taskSaveService.syncTaskSetting(taskDto, user);
-
         DAG dag = taskDto.getDag();
 
         if (!taskDto.getShareCache()) {
