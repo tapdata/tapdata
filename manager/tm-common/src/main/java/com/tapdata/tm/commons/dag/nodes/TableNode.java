@@ -47,6 +47,9 @@ public class TableNode extends DataNode {
     @EqField
     private Boolean isFilter = false;
 
+    @EqField
+    private Boolean isCustomFilter = false;
+
     /** 全量读取方式，读取全量，自定义sql */
     @EqField
     private String totalReadMethod;
