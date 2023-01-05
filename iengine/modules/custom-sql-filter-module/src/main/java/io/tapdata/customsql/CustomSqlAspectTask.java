@@ -50,7 +50,7 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
             case BatchReadFuncAspect.STATE_START:
                 if(!(aspect.getDataProcessorContext().getNode() instanceof TableNode)) return null;
                 TableNode tableNode = (TableNode) aspect.getDataProcessorContext().getNode();
-                if (!tableNode.getIsCustomFilter() || CollectionUtils.isEmpty(tableNode.getConditions())) {
+                if (CollectionUtils.isEmpty(tableNode.getConditions()) || !(tableNode.getIsCustomFilter() || tableNode.getIsFilter())) {
                     return null;
                 }
                 aspect.streamingProcessCompleteConsumers(events -> {
