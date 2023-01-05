@@ -228,7 +228,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 														};
 														if (getNode() instanceof TableNode) {
 															TableNode tableNode = (TableNode) dataProcessorContext.getNode();
-															if (tableNode.getIsCustomFilter() && CollectionUtils.isNotEmpty(tableNode.getConditions())) {
+															if (tableNode.getIsFilter() && CollectionUtils.isNotEmpty(tableNode.getConditions())) {
 																TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
 																queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 																	List<TapEvent> tempList = new ArrayList<>();
@@ -444,7 +444,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getStreamOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
 			cdcDelayCalculation.addHeartbeatTable(tables);
-			int batchSize = dataProcessorContext.getTaskDto().getReadBatchSize();
+			int batchSize = 1;
 			String streamReadFunctionName = null;
 			if (rawDataCallbackFilterFunctionV2 != null)
 				streamReadFunctionName = rawDataCallbackFilterFunctionV2.getClass().getSimpleName();
