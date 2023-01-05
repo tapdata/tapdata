@@ -33,7 +33,7 @@ def prepare_data():
                 for table, table_data in data.items():
                     logger.info("loading data to datasource: {}, table: {}, count: {}", source, table, len(table_data))
                     db_client.load(data=table_data, drop=True, table=table)
-                    break
+                break
             except Exception as e:
                 print(e)
                 continue
