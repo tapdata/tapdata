@@ -1,6 +1,5 @@
 package io.tapdata.bigquery.service.bigQuery;
 
-import cn.hutool.core.codec.Base64;
 import io.tapdata.bigquery.service.stage.tapvalue.ValueHandel;
 import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
 import io.tapdata.bigquery.util.bigQueryUtil.SqlValueConvert;
@@ -11,7 +10,6 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.*;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
@@ -53,7 +51,7 @@ public class WriteRecord extends BigQueryStart{
     public final String tab = " ";
     public final String empty = "";
     public final String BEGIN_TRANSACTION = " BEGIN TRANSACTION; ";
-    public final String COMMIT_TRANSACTION = "  COMMIT TRANSACTION; ";
+    public final String COMMIT_TRANSACTION = " COMMIT TRANSACTION; ";
 
     public final int BATCH_WRITE_COUNT = 5;//批量写入数
 

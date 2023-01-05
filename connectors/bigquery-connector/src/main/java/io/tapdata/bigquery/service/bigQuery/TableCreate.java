@@ -30,6 +30,24 @@ public class TableCreate extends BigQueryStart {
     private static final String TAG = TableCreate.class.getSimpleName();
     public static final String FIELD_NAME_REG = "^[a-z|A-Z|_]([a-z|A-Z|0-9|_]{0,299})$";
 
+    //private float partitionExpirationDays = 0.5f;
+    private String expirationTimestamp ;//= "TIMESTAMP \"2025-01-01 00:00:00 UTC\"";
+
+    //public TableCreate partitionExpirationDays(float partitionExpirationDays){
+    //    this.partitionExpirationDays = partitionExpirationDays;
+    //    return this;
+    //}
+    public TableCreate expirationTimestamp(String expirationTimestamp){
+        this.expirationTimestamp = expirationTimestamp;
+        return this;
+    }
+    //public float partitionExpirationDays(){
+    //    return this.partitionExpirationDays ;
+    //}
+    public String expirationTimestamp(){
+        return this.expirationTimestamp;
+    }
+
     public TableCreate(TapConnectionContext connectorContext) {
         super(connectorContext);
     }
@@ -149,6 +167,12 @@ public class TableCreate extends BigQueryStart {
             comment = comment.replaceAll("'", "\\'");
             sql.append(" description = '").append(comment).append("' ");
         }
+        if (Objects.nonNull(this.expirationTimestamp)){
+            sql.append(", expiration_timestamp = ").append(this.expirationTimestamp).append(" ");
+        }
+//        if (this.partitionExpirationDays>0){
+//            sql.append(", partition_expiration_days = ").append(this.partitionExpirationDays).append(" ");
+//        }
         //if has next option please split by comment [,]
         sql.append(" );");
 

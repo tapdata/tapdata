@@ -11,6 +11,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -25,7 +26,11 @@ public class BigQueryStream extends BigQueryStart {
 
     WriteCommittedStream stream;
     TapTable tapTable;
-
+    MergeHandel merge ;
+    public BigQueryStream merge(MergeHandel merge){
+        this.merge = merge;
+        return this;
+    }
     public TapTable tapTable(){
         return this.tapTable;
     }
@@ -48,13 +53,28 @@ public class BigQueryStream extends BigQueryStart {
         AtomicInteger insert = new AtomicInteger();
         AtomicInteger update = new AtomicInteger();
         AtomicInteger delete = new AtomicInteger();
+        stream = WriteCommittedStream.writer(super.config().projectId(),super.config().tableSet(),table.getId(),super.config().serviceAccount());
+        if (this.config.isMixedUpdates()){
+            //混合模式写入数据
+            synchronized (merge.mergeLock()){
+                append(merge.temporaryEvent(events),insert,update,delete);
+            }
+        }else {
+            //append-only 模式
+            append(events,insert,update,delete);
+        }
+        result.setInsertedCount(insert.get());
+        result.setModifiedCount(update.get());
+        result.setRemovedCount(delete.get());
+        return result;
+    }
 
+    private void append(List<TapRecordEvent> events,AtomicInteger insert,AtomicInteger update,AtomicInteger delete) throws Descriptors.DescriptorValidationException, InterruptedException, IOException {
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {
             throw new CoreException("TapTable not any fields.");
         }
-        stream = WriteCommittedStream.writer(super.config().projectId(),super.config().tableSet(),table.getId(),super.config().serviceAccount());
-
+        KVMap<Object> stateMap = ((TapConnectorContext) this.connectorContext).getStateMap();
         stream.append(events.stream().filter(Objects::nonNull).map(event->{
             Map<String,Object> record = new HashMap<>();
             if (event instanceof TapInsertRecordEvent){
@@ -69,6 +89,10 @@ public class BigQueryStream extends BigQueryStart {
             }else {
 
             }
+            Object mergeKeyId = record.get(MergeHandel.MERGE_KEY_ID);
+            if (Objects.nonNull(mergeKeyId)){
+                stateMap.put(MergeHandel.MERGE_KEY_ID,mergeKeyId);
+            }
             Map<String,Object> recordMap = new HashMap<>();
             for (Map.Entry<String, TapField> entry : nameFieldMap.entrySet()) {
                 String key = entry.getKey();
@@ -78,10 +102,5 @@ public class BigQueryStream extends BigQueryStart {
             }
             return recordMap.isEmpty()?null:recordMap;
         }).filter(Objects::nonNull).collect(Collectors.toList()));
-
-        result.setInsertedCount(insert.get());
-        result.setModifiedCount(update.get());
-        result.setRemovedCount(delete.get());
-        return result;
     }
 }

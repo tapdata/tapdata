@@ -5,23 +5,15 @@ import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.bigquery.QueryJobConfiguration;
-import com.google.cloud.bigquery.TableResult;
 import com.google.protobuf.Descriptors;
-import io.tapdata.bigquery.service.stream.StreamAPI;
 import io.tapdata.bigquery.service.stream.WriteCommittedStream;
-import io.tapdata.bigquery.service.stream.WriteToDefaultStream;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.core.utils.CommonUtils;
-import org.json.JSONArray;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -117,12 +109,8 @@ class WriteRecordTest {
         //WriteToDefaultStream writer = new WriteToDefaultStream();
 //        WriteToDefaultStream.writeToDefaultStream("vibrant-castle-366614","SchemaoOfJoinSet","test1");
 
-        WriteCommittedStream.writer(
-                "vibrant-castle-366614",
-                "SchemaoOfJoinSet",
-                credentialsJson,
-                "test1"
-        ).writeCommittedStream();
+        WriteCommittedStream.writer("vibrant-castle-366614", "SchemaoOfJoinSet", credentialsJson, "test1")
+                .writeCommittedStream();
     }
 
     @Test

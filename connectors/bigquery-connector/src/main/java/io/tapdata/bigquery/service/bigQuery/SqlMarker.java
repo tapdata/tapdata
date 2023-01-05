@@ -8,6 +8,7 @@ import io.tapdata.entity.logger.TapLogger;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class SqlMarker{
@@ -17,7 +18,7 @@ public class SqlMarker{
     BigQuery bigQuery;
     private SqlMarker(String credentialsJson){
         try {
-            GoogleCredentials credentials = ServiceAccountCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes("utf8")));
+            GoogleCredentials credentials = ServiceAccountCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8)));
             this.credentials = credentials;
             bigQuery();
         } catch (IOException e) {
@@ -29,7 +30,6 @@ public class SqlMarker{
         this.credentials = credentials;
         bigQuery();
     }
-
     public static SqlMarker create(String credentialsJson){
         return new SqlMarker(credentialsJson);
     }

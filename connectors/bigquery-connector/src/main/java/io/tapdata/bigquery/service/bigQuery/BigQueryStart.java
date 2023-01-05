@@ -7,11 +7,13 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
+import java.util.Objects;
+
 
 public abstract class BigQueryStart {
-    ContextConfig config;
-    TapConnectionContext connectorContext;
-    SqlMarker sqlMarker;
+    protected ContextConfig config;
+    protected TapConnectionContext connectorContext;
+    protected SqlMarker sqlMarker;
     public BigQueryStart(TapConnectionContext connectorContext) {
         this.connectorContext = connectorContext;
         this.config = config();
@@ -40,7 +42,7 @@ public abstract class BigQueryStart {
 
     public ContextConfig config(){
         ContextConfig contextConfig = ContextConfig.create();
-        if (null == this.connectorContext) return contextConfig;
+        if (Objects.isNull(this.connectorContext)) return contextConfig;
         DataMap connectionConfig = this.connectorContext.getConnectionConfig();
 
         String serviceAccount = connectionConfig.getString("serviceAccount");
@@ -63,6 +65,28 @@ public abstract class BigQueryStart {
         if (null == tableSet || "".equals(tableSet)){
             throw new CoreException("Credentials is must not be null or not be empty.");
         }
+       DataMap nodeConfig = this.connectorContext.getNodeConfig();
+       if (Objects.nonNull(nodeConfig)){
+           String writeMode = nodeConfig.getString("writeMode");
+           if (null == writeMode || "".equals(writeMode)){
+               throw new CoreException("WriteMode is must not be null or not be empty.");
+           }
+           contextConfig.writeMode(writeMode);
+           if ("MIXED_UPDATES".equals(writeMode)) {
+               String cursorSchema = nodeConfig.getString("cursorSchema");
+               if (null == cursorSchema || "".equals(cursorSchema)) {
+                   throw new CoreException("WriteMode is MIXED_UPDATES and CursorSchema is must not be null or not be empty.");
+               }
+               contextConfig.cursorSchema(cursorSchema);
+               String mergeDelay = nodeConfig.getString("mergeDelay");
+               if (null == mergeDelay) {
+                   throw new CoreException("WriteMode is MIXED_UPDATES and MergeDelay is must not be null or not be empty.");
+               }
+               contextConfig.mergeDelay(Long.valueOf(mergeDelay));
+           }
+       }
+
+
 
         return contextConfig.serviceAccount(serviceAccount).tableSet(tableSet);
     }
