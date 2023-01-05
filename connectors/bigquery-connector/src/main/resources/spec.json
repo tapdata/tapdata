@@ -40,7 +40,7 @@
             "dependencies": ["writeMode"],
             "fulfill": {
               "state": {
-                "display": "{{$deps[0] === 'MIXED_UPDATES'? \"visible\" : \"hidden\"}}"
+                "display": "{{$deps[0] == 'MIXED_UPDATES'? \"visible\" : \"hidden\"}}"
               }
             }
           }
@@ -55,7 +55,7 @@
             "dependencies": ["writeMode"],
             "fulfill": {
               "state": {
-                "display": "{{$deps[0] === 'MIXED_UPDATES' ? \"visible\" : \"hidden\"}}"
+                "display": "{{$deps[0] == 'MIXED_UPDATES' ? \"visible\" : \"hidden\"}}"
               }
             }
           }

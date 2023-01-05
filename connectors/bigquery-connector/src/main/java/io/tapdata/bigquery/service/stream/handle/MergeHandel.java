@@ -7,6 +7,7 @@ import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.error.CoreException;
 
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -241,7 +242,7 @@ public class MergeHandel extends BigQueryStart {
      * 清空临时表
      * */
     private static final String CLEAN_TABLE_SQL = "DELETE FROM `%s`.`%s`.`%s` WHERE id <= %s;";
-    private void cleanTemporaryTable(){
+    public void cleanTemporaryTable(){
         if (Checker.isEmpty(this.config)){
             throw new CoreException("Connection config is null or empty.");
         }
@@ -265,6 +266,22 @@ public class MergeHandel extends BigQueryStart {
             this.sqlMarker.executeOnce(String.format(CLEAN_TABLE_SQL,projectId,tableSet,temporaryTableId,newestRecordId));
         }catch (Exception e){
             throw new CoreException("Failed to empty temporary table, table name is " + temporaryTableId + ", " + e.getMessage());
+        }
+    }
+    private final static String DROP_TABLE_SQL = "DROP TABLE IF EXISTS `%s`.`%s`.`%s`;";
+    public boolean dropTemporaryTable(){
+        if (Checker.isEmpty(temporaryTableId)){
+            throw new CoreException("Drop event error,table name must be null or be empty.");
+        }
+        try {
+            BigQueryResult bigQueryResult = this.sqlMarker.executeOnce(
+                    String.format(DROP_TABLE_SQL
+                            , this.config.projectId()
+                            , this.config.tableSet()
+                            , temporaryTableId));
+            return Checker.isNotEmpty(bigQueryResult) && Checker.isNotEmpty(bigQueryResult.getTotalRows()) && bigQueryResult.getTotalRows()>0;
+        }catch (Exception e){
+            throw e;
         }
     }
 

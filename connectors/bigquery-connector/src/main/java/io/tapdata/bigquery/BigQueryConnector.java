@@ -110,11 +110,17 @@ public class BigQueryConnector extends ConnectorBase {
     private void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) {
 		TableCreate tableCreate = TableCreate.create(connectorContext);
 		tableCreate.dropTable(dropTableEvent);
+		if( Objects.nonNull(merge) && merge.config().isMixedUpdates() ) {
+			merge.dropTemporaryTable();
+		}
     }
 
     private void clearTable(TapConnectorContext connectorContext, TapClearTableEvent clearTableEvent) {
 		TableCreate tableCreate = TableCreate.create(connectorContext);
 		tableCreate.cleanTable(clearTableEvent);
+		if(Objects.nonNull(merge)&&merge.config().isMixedUpdates()) {
+			merge.cleanTemporaryTable();
+		}
     }
 
     private CreateTableOptions createTableV2(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) {
@@ -122,6 +128,9 @@ public class BigQueryConnector extends ConnectorBase {
 		CreateTableOptions createTableOptions = CreateTableOptions.create().tableExists(tableCreate.isExist(createTableEvent));
 		if (!createTableOptions.getTableExists()){
 			tableCreate.createSchema(createTableEvent);
+		}
+		if(Objects.nonNull(merge)&&merge.config().isMixedUpdates()) {
+			merge.createTemporaryTable(createTableEvent.getTable());
 		}
 		return createTableOptions;
     }
