@@ -7,7 +7,6 @@ import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import test.core.Core;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -20,7 +19,7 @@ import java.util.function.Consumer;
  * Author:Skeet
  * Date: 2023/1/5
  **/
-public class TapFileStorageImplTest extends Core {
+public class TapFileStorageImplTest {
     private String filePath = "example111" + UUID.randomUUID().toString().replace("-", "") + System.currentTimeMillis() + "/";
     private String filePath2 = "example222" + UUID.randomUUID().toString().replace("-", "") + System.currentTimeMillis() + "/";
     private Map<String, Object> config;
