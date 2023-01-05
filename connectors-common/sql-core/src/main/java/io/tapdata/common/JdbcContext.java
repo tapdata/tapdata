@@ -1,10 +1,13 @@
 package io.tapdata.common;
 
 import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.pool.HikariProxyConnection;
+import com.zaxxer.hikari.pool.ProxyConnection;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 
+import java.lang.reflect.Proxy;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +49,12 @@ public abstract class JdbcContext {
      * @throws SQLException SQLException
      */
     public Connection getConnection() throws SQLException {
-        return hikariDataSource.getConnection();
+		final Connection connectionProxy = (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(),
+				new Class[]{Connection.class},
+				new JdbcConnectionProxy(hikariDataSource.getConnection()));
+
+		;
+        return connectionProxy;
     }
 
     public boolean testValid() {
