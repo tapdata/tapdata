@@ -13,6 +13,7 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -160,6 +161,7 @@ public class Application {
 			}
 
 			AspectUtils.executeAspect(ApplicationStartAspect.class, ApplicationStartAspect::new);
+			BeanUtil.getBean(TapdataTaskScheduler.class).stopTaskIfNeed();
 		} catch (Exception e) {
 			String err = "Run flow engine application failed, err: " + e.getMessage();
 			logger.error(err, e);

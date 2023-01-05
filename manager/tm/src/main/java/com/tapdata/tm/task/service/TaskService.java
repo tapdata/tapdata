@@ -3350,5 +3350,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return chart6Map;
     }
 
-
+    public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {
+        Query query = Query.query(Criteria.where("agentId").is(agentId).and("status").is(TaskDto.STATUS_STOPPING));
+        query.fields().include("_id");
+        List<TaskDto> needStopTasks = findAllDto(query, userDetail);
+        for (TaskDto needStopTask : needStopTasks) {
+            stopped(needStopTask.getId(), userDetail);
+        }
+    }
 }
