@@ -3,18 +3,24 @@ package io.tapdata.flow.engine.V2.script;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.JobUtil;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.processor.LoggingOutputStream;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import io.tapdata.Application;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.error.NotSupportedException;
+import org.apache.logging.log4j.Level;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import javax.script.*;
+import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.net.URLClassLoader;
 import java.util.List;
@@ -40,14 +46,25 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
         JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
         ScriptEngine scriptEngine;
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        String contextTaskId = Log4jUtil.getContextTaskId();
+
+        LoggingOutputStream out = new LoggingOutputStream(new TapScriptLogger(contextTaskId), Level.INFO);
+        LoggingOutputStream err = new LoggingOutputStream(new TapScriptLogger(contextTaskId), Level.ERROR);
         try {
             //need to change as engine classLoader
             Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
             if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
                 scriptEngine = GraalJSScriptEngine
-                        .create(null,
+                        .create(Engine.newBuilder()
+                                        .allowExperimentalOptions(true)
+                                        .option("engine.WarnInterpreterOnly", "false")
+                                        .out(out)
+                                        .err(err)
+                                        .build(),
                                 Context.newBuilder("js")
                                         .allowAllAccess(true)
+                                        .out(out)
+                                        .err(err)
                                         .allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
                                                 .targetTypeMapping(Value.class, Object.class
                                                         , v -> v.hasArrayElements() && v.hasMembers()
@@ -55,6 +72,10 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
                                                 ).build()
                                         )
                         );
+                SimpleScriptContext scriptContext = new SimpleScriptContext();
+                scriptContext.setWriter(new OutputStreamWriter(out));
+                scriptContext.setErrorWriter(new OutputStreamWriter(err));
+                scriptEngine.setContext(scriptContext);
             } else {
                 scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
             }
@@ -62,6 +83,7 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
             //return pdk classLoader
             Thread.currentThread().setContextClassLoader(classLoader);
         }
+        scriptEngine.put("log", new TapScriptLogger(contextTaskId));
         return scriptEngine;
     }
 

@@ -101,7 +101,6 @@ import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -2609,6 +2608,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        Update update = Update.update("lastStartDate", System.currentTimeMillis());
+        if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
+            update.set("taskRecordId", new ObjectId().toHexString());
+            taskDto.setNeedCreateRecord(true);
+        }
+        update(Query.query(Criteria.where("_id").is(taskDto.getId().toHexString())), update);
+
         checkDagAgentConflict(taskDto, false);
         if (!taskDto.getShareCache()) {
                 Map<String, List<Message>> validateMessage = taskDto.getDag().validate();
@@ -2679,8 +2685,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //需要将重启标识清除
         Update set = Update.update("isEdit", false)
                 .set("restartFlag", false)
-                .set("stopRetryTimes", 0)
-                .set("lastStartDate", System.currentTimeMillis());
+                .set("stopRetryTimes", 0);
         update(query, set, user);
         taskScheduleService.scheduling(taskDto, user);
     }
@@ -3144,7 +3149,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
-                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING));
+                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {

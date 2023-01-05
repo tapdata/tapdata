@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.bean.SyncTaskStatusDto;
+import com.tapdata.tm.task.bean.TaskRecordDto;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskRecordService;
@@ -62,7 +63,11 @@ public class TaskRecordServiceImpl implements TaskRecordService {
     }
 
     @Override
-    public Page<TaskRecordListVo> queryRecords(String taskId, Integer page, Integer size) {
+    public Page<TaskRecordListVo> queryRecords(TaskRecordDto dto) {
+        String taskId = dto.getTaskId();
+        Integer page = dto.getPage();
+        Integer size = dto.getSize();
+
         Query query = new Query(Criteria.where("taskId").is(taskId));
         long count = mongoTemplate.count(query, TaskRecord.class);
         if (count == 0) {
