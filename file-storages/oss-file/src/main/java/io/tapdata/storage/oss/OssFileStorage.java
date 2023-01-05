@@ -110,18 +110,13 @@ public class OssFileStorage implements TapFileStorage {
 
     @Override
     public boolean delete(String path) throws Exception {
-
-        List<String> deletedObjects = ossClient.deleteObjects(new DeleteObjectsRequest(ossConfig.getBucket())
-                .withKeys((List<String>) ossClient.listObjects(ossConfig.getBucket(), path))
-                .withEncodingType("url")).getDeletedObjects();
         try {
-            for (String obj : deletedObjects) {
-                URLDecoder.decode(obj, "UTF-8");
-            }
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
+            ossClient.deleteObject(ossConfig.getBucket(), path);
+            return true;
+        } catch (OSSException  e) {
+            return false;
         }
-        return false;
+
     }
 
     @Override

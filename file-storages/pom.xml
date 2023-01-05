@@ -16,6 +16,7 @@
         <module>nfs-file</module>
         <module>s3fs-file</module>
 		<module>oss-file</module>
+		<module>file-tests</module>
 	</modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
