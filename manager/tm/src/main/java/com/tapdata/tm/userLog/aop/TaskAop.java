@@ -11,7 +11,6 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.ObjectUtils;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.After;
 import org.aspectj.lang.annotation.Aspect;
@@ -23,8 +22,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
-import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Aspect
@@ -122,17 +121,12 @@ public class TaskAop {
     }
 
     private void updateTaskStartTime(TaskDto taskDto) {
-        if (ObjectUtils.allNotNull(taskDto.getStartTime())) {
+        if (Objects.nonNull(taskDto.getStartTime())) {
             return;
         }
 
         Query query = new Query(Criteria.where("_id").is(taskDto.getId()));
-
-        Date now = DateUtil.date();
-        Update update = new Update();
-        if (taskDto.getStartTime() == null) {
-            update.set("startTime", now);
-        }
+        Update update = Update.update("startTime", DateUtil.date());
 
         taskService.update(query, update);
     }
