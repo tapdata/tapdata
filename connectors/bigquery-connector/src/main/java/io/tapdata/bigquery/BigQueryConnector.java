@@ -87,7 +87,9 @@ public class BigQueryConnector extends ConnectorBase {
 			tapEventCollector.stop();
 		}
 		running.set(false);
-		merge.stop();
+		if (Objects.nonNull(merge)) {
+			merge.stop();
+		}
 	}
 
 	@Override
