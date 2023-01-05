@@ -240,7 +240,7 @@ public class MergeHandel extends BigQueryStart {
     /**
      * 清空临时表
      * */
-    private static String CLEAN_TABLE_SQL = "DELETE FROM `%s`.`%s`.`%s` WHERE id <= %s;";
+    private static final String CLEAN_TABLE_SQL = "DELETE FROM `%s`.`%s`.`%s` WHERE id <= %s;";
     private void cleanTemporaryTable(){
         if (Checker.isEmpty(this.config)){
             throw new CoreException("Connection config is null or empty.");
@@ -343,9 +343,9 @@ public class MergeHandel extends BigQueryStart {
                 whereSql.add("tab." + MERGE_KEY_DATA_BEFORE + "." +key+ " = merge_tab."+key);
             });
         }
-        return new SQLBuilder(whereSql.toString(),insertKeySql.toString(),insertValueSql.toString(),updateSql.toString());
+        return new SQLBuilder(whereSql.toString(), insertKeySql.toString(), insertValueSql.toString(), updateSql.toString());
     }
-    class SQLBuilder{
+    static class SQLBuilder{
         String whereSql;
         String insertKeySql;
         String insertValueSql;

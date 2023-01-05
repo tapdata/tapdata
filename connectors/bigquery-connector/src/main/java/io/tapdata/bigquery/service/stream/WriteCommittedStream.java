@@ -15,6 +15,7 @@ import com.google.protobuf.Descriptors.DescriptorValidationException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -141,9 +142,38 @@ public class WriteCommittedStream {
         JSONObject jsonObject = new JSONObject();
         map.forEach(jsonObject::put);
         jsonArr.put(jsonObject);
-        writer.append(jsonArr, offset);
-        offset += jsonArr.length();
       }
+      writer.append(jsonArr, offset);
+      offset += jsonArr.length();
+    }catch(ExecutionException e){
+      //TapLogger.info(TAG,"Error to use stream api write records: "+e.getMessage());
+    }
+    writer.cleanup(client);
+  }
+  public void appendJSON(List<Map<String,Object>> record) throws IOException, DescriptorValidationException, InterruptedException {
+    if (Objects.isNull(record) || record.isEmpty()) return;
+    long offset = 0;
+    try {
+      JSONArray jsonArr = new JSONArray();
+      for (Map<String, Object> map : record) {
+        if (Objects.isNull(map)) continue;
+        JSONObject jsonObject = new JSONObject();
+        map.forEach((key,value)->{
+          if (value instanceof Map){
+            JSONObject jsonObjects = new JSONObject();
+            Map<String,Object> objectMap = (Map<String,Object>)value;
+            objectMap.forEach(jsonObjects::put);
+            jsonObject.put(key,jsonObjects);
+          }else if (value instanceof Collection){
+            jsonObject.put(key,value);
+          }else {
+            jsonObject.put(key,value);
+          }
+        });
+        jsonArr.put(jsonObject);
+      }
+      writer.append(jsonArr, offset);
+      offset += jsonArr.length();
     }catch(ExecutionException e){
       //TapLogger.info(TAG,"Error to use stream api write records: "+e.getMessage());
     }
@@ -236,7 +266,7 @@ public class WriteCommittedStream {
       }
 
       public void onSuccess(AppendRowsResponse response) {
-        TapLogger.info(TAG,String.format("Append %d success ", response.getAppendResult().getOffset().getValue()));
+        //TapLogger.info(TAG,String.format("Append %d success ", response.getAppendResult().getOffset().getValue()));
         done();
       }
 

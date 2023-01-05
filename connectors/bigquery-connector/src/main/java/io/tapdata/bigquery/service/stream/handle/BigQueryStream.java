@@ -57,11 +57,11 @@ public class BigQueryStream extends BigQueryStart {
         if (this.config.isMixedUpdates()){
             //混合模式写入数据
             synchronized (merge.mergeLock()){
-                append(merge.temporaryEvent(events),insert,update,delete);
+                stream.appendJSON(records(merge.temporaryEvent(events),insert,update,delete));
             }
         }else {
             //append-only 模式
-            append(events,insert,update,delete);
+            stream.append(records(events,insert,update,delete));
         }
         result.setInsertedCount(insert.get());
         result.setModifiedCount(update.get());
@@ -69,13 +69,14 @@ public class BigQueryStream extends BigQueryStart {
         return result;
     }
 
-    private void append(List<TapRecordEvent> events,AtomicInteger insert,AtomicInteger update,AtomicInteger delete) throws Descriptors.DescriptorValidationException, InterruptedException, IOException {
+
+    private List<Map<String,Object>> records(List<TapRecordEvent> events,AtomicInteger insert,AtomicInteger update,AtomicInteger delete){
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {
             throw new CoreException("TapTable not any fields.");
         }
         KVMap<Object> stateMap = ((TapConnectorContext) this.connectorContext).getStateMap();
-        stream.append(events.stream().filter(Objects::nonNull).map(event->{
+        return events.stream().filter(Objects::nonNull).map(event->{
             Map<String,Object> record = new HashMap<>();
             if (event instanceof TapInsertRecordEvent){
                 insert.getAndIncrement();
@@ -101,6 +102,6 @@ public class BigQueryStream extends BigQueryStart {
                 recordMap.put(key,value);
             }
             return recordMap.isEmpty()?null:recordMap;
-        }).filter(Objects::nonNull).collect(Collectors.toList()));
+        }).filter(Objects::nonNull).collect(Collectors.toList());
     }
 }

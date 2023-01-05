@@ -162,33 +162,32 @@ class WriteRecordTest {
     @Test
     public void writeSql() throws InterruptedException, IOException, Descriptors.DescriptorValidationException {
         List<Map<String,Object>> map = new ArrayList<>();
-        Map<String,Object> map1 = new HashMap<>();
-        map1.put("id","1111122");
-        map1.put("age",110);
-        map1.put("name","1222222");
-        map1.put("note","2333332");
-        map.add(map1);
+        for (int i = 0; i < 5000; i++) {
+            Map<String,Object> map1 = new HashMap<>();
+            map1.put("id",System.nanoTime());
+            map1.put("type","U");
 
-        Map<String,Object> map2 = new HashMap<>();
-        map2.put("id","11111211");
-        map2.put("age",1011);
-        map2.put("name","2222222");
-        map2.put("note","3333332");
-        map.add(map2);
+            Map<String,Object> record = new HashMap();
+            record.put("id",i);
+            record.put("name","gavin-tt"+i);
+
+            map1.put("record1",record);
+            map.add(map1);
+        }
 
         WriteCommittedStream.writer(
                 "vibrant-castle-366614",
                 "SchemaoOfJoinSet",
-                "many",
+                "mergeTest",
                 credentialsJson
-        ).append(map);
+        ).appendJSON(map);
 
-        String sqlStr = "update `vibrant-castle-366614`.`SchemaoOfJoinSet`.`many` set name = 'new name'" +
-                " where id='1111122' and age = 110 and name='1222222' and note='2333332'" ;
-        paper();
-        long star = System.currentTimeMillis();
-        BigQueryResult bigQueryResult = sqlMarker.executeOnce(sqlStr);
-        long end = System.currentTimeMillis();
-        System.out.println( end - star);
+//        String sqlStr = "update `vibrant-castle-366614`.`SchemaoOfJoinSet`.`many` set name = 'new name'" +
+//                " where id='1111122' and age = 110 and name='1222222' and note='2333332'" ;
+//        paper();
+//        long star = System.currentTimeMillis();
+//        BigQueryResult bigQueryResult = sqlMarker.executeOnce(sqlStr);
+//        long end = System.currentTimeMillis();
+//        System.out.println( end - star);
     }
 }
