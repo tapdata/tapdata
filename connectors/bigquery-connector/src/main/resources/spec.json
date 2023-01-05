@@ -35,31 +35,14 @@
           "x-component": "Input",
           "apiServerKey": "database_host",
           "x-index": 20,
-          "required": false,
-          "x-reactions": {
-            "dependencies": ["writeMode"],
-            "fulfill": {
-              "state": {
-                "display": "{{$deps[0] == 'MIXED_UPDATES'? \"visible\" : \"hidden\"}}"
-              }
-            }
-          }
+          "required": false
         },
         "mergeDelay": {
           "title": "${mergeDelay}",
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "x-index": 30,
-          "required": false,
-          "x-reactions": {
-            "dependencies": ["writeMode"],
-            "fulfill": {
-              "state": {
-                "display": "{{$deps[0] == 'MIXED_UPDATES' ? \"visible\" : \"hidden\"}}"
-              }
-            }
-          }
-        }
+          "required": false
       }
     },
     "connection": {
