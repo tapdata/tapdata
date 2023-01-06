@@ -7,6 +7,7 @@ import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -39,6 +40,7 @@ public class TapFileStorageImplTest {
     }
 
     @Test
+    @Disabled
     public void testTapFileStorage() throws Exception {
         //加载config.json， 是FileStorage实现需要的配置参数
         String jsonPath = "D:\\work\\tapdata\\tapdata\\file-storages\\file-tests\\src\\test\\resources\\config\\oss.json";
