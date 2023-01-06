@@ -92,7 +92,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
   protected void doInit(@NotNull Context context) throws Exception {
     super.doInit(context);
     Node node = getNode();
-    this.scriptExecutorsManager = new ScriptExecutorsManager(obsLogger, clientMongoOperator, jetContext.hazelcastInstance(),
+    this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
             node.getTaskId(), node.getId());
     ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
 
@@ -118,7 +118,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
             logger.warn("Use the first node as the default script executor, please use it with caution.");
             obsLogger.warn("Use the first node as the default script executor, please use it with caution.");
           }
-          return new ScriptExecutorsManager.ScriptExecutor(connections, clientMongoOperator, jetContext.hazelcastInstance(), obsLogger, TAG);
+          return new ScriptExecutorsManager.ScriptExecutor(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger), TAG);
         }
       }
     }

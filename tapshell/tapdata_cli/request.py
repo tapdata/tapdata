@@ -31,7 +31,7 @@ class Api:
 
     def response_json(self, res: requests.Response):
         if res.status_code < 200 or res.status_code >= 300:
-            logger.warn("{}", res.text)
+            logger.warn("{}, {}", res.status_code, res.text)
             logger.warn("request failed url: {}", res.url)
             return False
         else:
