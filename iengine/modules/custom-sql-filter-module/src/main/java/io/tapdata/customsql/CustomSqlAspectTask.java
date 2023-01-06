@@ -50,7 +50,7 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
             case BatchReadFuncAspect.STATE_START:
                 if(!(aspect.getDataProcessorContext().getNode() instanceof TableNode)) return null;
                 TableNode tableNode = (TableNode) aspect.getDataProcessorContext().getNode();
-                if (!tableNode.getIsCustomFilter() || CollectionUtils.isEmpty(tableNode.getConditions())) {
+                if (!tableNode.getIsFilter() || CollectionUtils.isEmpty(tableNode.getConditions())) {
                     return null;
                 }
                 aspect.streamingProcessCompleteConsumers(events -> {
@@ -73,11 +73,13 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
                                     }
                                     TapDeleteRecordEvent tapDeleteRecordEvent =
                                             TapSimplify.deleteDMLEvent(before, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
+                                    tapRecordEvent.clone(tapDeleteRecordEvent);
                                     events.get(index).setTapEvent(tapDeleteRecordEvent);
                                 }else {
                                     Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
                                     TapInsertRecordEvent insertRecordEvent =
                                             TapSimplify.insertRecordEvent(after, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
+                                    tapRecordEvent.clone(insertRecordEvent);
                                     events.get(index).setTapEvent(insertRecordEvent);
                                 }
                                 result =true;

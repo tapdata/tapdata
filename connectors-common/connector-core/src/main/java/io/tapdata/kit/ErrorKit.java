@@ -1,11 +1,14 @@
 package io.tapdata.kit;
 
+import io.tapdata.entity.logger.TapLogger;
+
 public class ErrorKit {
 
     public static void ignoreAnyError(AnyError runnable) {
         try {
             runnable.run();
-        } catch (Throwable ignored) {
+        } catch (Throwable e) {
+            TapLogger.warn("ErrorKit", "Ignore error: {}", e);
         }
     }
 

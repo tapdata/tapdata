@@ -9,8 +9,6 @@ import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
-import io.tapdata.aspect.TaskStopAspect;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
@@ -250,6 +248,14 @@ public class TapdataTaskScheduler {
 				break;
 			}
 		}
+	}
+
+	public void stopTaskIfNeed() {
+		if (StringUtils.isBlank(instanceNo)) {
+			return;
+		}
+		logger.info("Stop task which agent id is {} and status is {}", instanceNo, TaskDto.STATUS_STOPPING);
+		clientMongoOperator.postOne(null, ConnectorConstant.TASK_COLLECTION+"/stopTaskByAgentId/"+instanceNo, Object.class);
 	}
 
 	/**

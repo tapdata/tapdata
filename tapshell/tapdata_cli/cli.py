@@ -3076,6 +3076,7 @@ class DataSource:
             try:
                 time.sleep(5)
                 res = DataSourceApi().get(self.id)
+                print(res)
                 if res["data"] is None:
                     break
                 if res["data"]["loadFieldsStatus"] == "invalid":
@@ -3088,7 +3089,7 @@ class DataSource:
                 tableCount = res["data"].get("tableCount", 1)
                 logger.info("table schema check percent is: {}%", int(loadCount / tableCount * 100), wrap=False)
             except Exception as e:
-                break
+                print(e)
         logger.info("datasource table schema check finished, cost time: {} seconds", int(time.time() - start_time))
         return res
 
