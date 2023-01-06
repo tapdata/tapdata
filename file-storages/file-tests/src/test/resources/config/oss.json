@@ -1,6 +1,6 @@
 {
-  "accessKey": "LTAI5tFKau2VABhdDkmrwsop" ,
-  "secretKey": "7SVsIASAVy6knpxIEctq7nXniHSLEE",
+  "accessKey": "LTAI5tFKau2VABhdDkmrw" ,
+  "secretKey": "7SVsIASAVy6knpxIEctq7nXniHS",
   "endpoint": "http://oss-cn-shenzhen.aliyuncs.com",
   "bucket": "file-storages-test",
   "_storageClass" : "io.tapdata.storage.oss.OssFileStorage"
