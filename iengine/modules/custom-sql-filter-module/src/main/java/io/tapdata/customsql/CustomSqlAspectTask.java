@@ -73,11 +73,13 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
                                     }
                                     TapDeleteRecordEvent tapDeleteRecordEvent =
                                             TapSimplify.deleteDMLEvent(before, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
+                                    tapRecordEvent.clone(tapDeleteRecordEvent);
                                     events.get(index).setTapEvent(tapDeleteRecordEvent);
                                 }else {
                                     Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
                                     TapInsertRecordEvent insertRecordEvent =
                                             TapSimplify.insertRecordEvent(after, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
+                                    tapRecordEvent.clone(insertRecordEvent);
                                     events.get(index).setTapEvent(insertRecordEvent);
                                 }
                                 result =true;

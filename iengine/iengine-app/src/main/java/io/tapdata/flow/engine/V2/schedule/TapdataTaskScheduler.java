@@ -9,8 +9,6 @@ import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
-import io.tapdata.aspect.TaskStopAspect;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
@@ -252,6 +250,14 @@ public class TapdataTaskScheduler {
 		}
 	}
 
+	public void stopTaskIfNeed() {
+		if (StringUtils.isBlank(instanceNo)) {
+			return;
+		}
+		logger.info("Stop task which agent id is {} and status is {}", instanceNo, TaskDto.STATUS_STOPPING);
+		clientMongoOperator.postOne(null, ConnectorConstant.TASK_COLLECTION+"/stopTaskByAgentId/"+instanceNo, Object.class);
+	}
+
 	/**
 	 * 调度编排任务方法
 	 */
@@ -320,7 +326,7 @@ public class TapdataTaskScheduler {
 		Query query = Query.query(where("_id").is(taskId));
 		query.fields().include("status").include("_id").include("name");
 		TaskDto taskDto = clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-		if (!taskDto.getStatus().equals(TaskDto.STATUS_WAIT_RUN)) {
+		if (!taskDto.getStatus().equals(TaskDto.STATUS_WAIT_RUN) && !taskDto.getStatus().equals(TaskDto.STATUS_RUNNING)) {
 			return String.format("Found task[%s(%s)] status is %s, will not start this task", taskDto.getName(), taskDto.getId().toHexString(), taskDto.getStatus());
 		}
 		return "";
