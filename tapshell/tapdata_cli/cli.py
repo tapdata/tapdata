@@ -2608,6 +2608,7 @@ class Job:
             logger.warn("save job fail")
             return False
         res = req.put("/Task/batchStart", params={"taskIds": self.id}).json()
+        print(res)
         if res["code"] != "ok":
             return False
 
@@ -2655,7 +2656,12 @@ class Job:
                 }
             }
         }
-        res = req.post("/measurement/query/v2", json=payload).json()
+        for i in range(5):
+            try:
+                res = req.post("/measurement/query/v2", json=payload).json()
+                break
+            except Exception as e:
+                time.sleep(1)
         job_stats = JobStats()
         if len(res["data"]["samples"]["totalData"]) > 0:
             stats = res["data"]["samples"]["totalData"][0]
@@ -3066,10 +3072,11 @@ class DataSource:
         logger.info("datasource valid finished, will check table schema now, please wait for a while ...")
         start_time = time.time()
 
-        for _ in range(24):
+        for _ in range(96):
             try:
                 time.sleep(5)
                 res = DataSourceApi().get(self.id)
+                print(res)
                 if res["data"] is None:
                     break
                 if res["data"]["loadFieldsStatus"] == "invalid":
@@ -3082,7 +3089,7 @@ class DataSource:
                 tableCount = res["data"].get("tableCount", 1)
                 logger.info("table schema check percent is: {}%", int(loadCount / tableCount * 100), wrap=False)
             except Exception as e:
-                break
+                print(e)
         logger.info("datasource table schema check finished, cost time: {} seconds", int(time.time() - start_time))
         return res
 

@@ -135,6 +135,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 			final JetDag jetDag = task2HazelcastDAG(taskDto);
 
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).info("The engine receives "+ taskDto.getName() +" task data from TM and will continue to run tasks by jet");
+
 			JobConfig jobConfig = new JobConfig();
 			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);

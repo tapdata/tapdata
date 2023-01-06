@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.config.security.UserDetail;
+import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.List;
 import java.util.Map;
@@ -38,4 +39,6 @@ public interface AlarmService {
     void connectAlarm(String nodeName, String connectId, String response_body, boolean pass);
 
     void delAlarm(String taskId);
+
+    List<AlarmInfo> query(Query query);
 }

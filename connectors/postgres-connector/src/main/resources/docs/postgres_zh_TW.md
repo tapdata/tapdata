@@ -174,3 +174,45 @@ alter table <schema>.mytable add column last_udpate timestamp default now();
 create trigger trg_uptime before update on <schema>.mytable for each row execute procedure
     update_lastmodified_column();
 ```
+### **5. 全類型欄位支持**
+- smallint
+- integer
+- bigint
+- numeric
+- real
+- double precision
+- character
+- character varying
+- text
+- bytea
+- bit
+- bit varying
+- boolean
+- date
+- interval
+- timestamp
+- timestamp with time zone
+- point
+- line
+- lseg
+- box
+- path
+- polygon
+- circle
+- cidr
+- inet
+- macaddr
+- uuid
+- xml
+- json
+- tsvector (增量不支持不報錯)
+- tsquery (增量不支持不報錯)
+- oid
+- regproc (增量不支持不報錯)
+- regprocedure (增量不支持不報錯)
+- regoper (增量不支持不報錯)
+- regoperator (增量不支持不報錯)
+- regclass (增量不支持不報錯)
+- regtype (增量不支持不報錯)
+- regconfig (增量不支持不報錯)
+- regdictionary (增量不支持不報錯)

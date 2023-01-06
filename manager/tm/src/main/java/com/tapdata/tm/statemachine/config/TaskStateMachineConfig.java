@@ -61,6 +61,7 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 				.transition(TaskState.RUNNING, TaskState.ERROR, DataFlowEvent.ERROR)
 				.transition(TaskState.RUNNING, TaskState.STOPPING, DataFlowEvent.STOP)
 				.transition(TaskState.RUNNING, TaskState.STOPPED, DataFlowEvent.FORCE_STOP)
+				.transition(TaskState.RUNNING, TaskState.RUNNING, DataFlowEvent.RUNNING)
 				.transition(TaskState.ERROR, TaskState.ERROR, DataFlowEvent.CONFIRM)
 				.transition(TaskState.ERROR, TaskState.SCHEDULING, DataFlowEvent.START)
 				.transition(TaskState.ERROR, TaskState.RENEWING, DataFlowEvent.RENEW)
@@ -125,7 +126,7 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 		Date date = new Date();
 		switch (status) {
 			case TaskDto.STATUS_WAIT_RUN:  //  scheduled对应startTime和scheduledTime
-				update.set("startTime", date).set("scheduledTime", date);
+				update.set("scheduledTime", date);
 				break;
 			case TaskDto.STATUS_STOPPING:  // stopping对应stoppingTime
 				update.set("stoppingTime", date);
@@ -141,6 +142,9 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 				break;
 			case TaskDto.STATUS_COMPLETE:  //  error对应errorTime和finishTime
 				update.set("stopTime", date).set("finishTime", date);
+				break;
+			case TaskDto.STATUS_SCHEDULING:  //  error对应errorTime和finishTime
+				update.set("schedulingTime", date);
 				break;
 			default:
 				break;

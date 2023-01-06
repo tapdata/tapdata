@@ -265,7 +265,16 @@
               "label": "Json",
               "value": "Json"
             }
-          ]
+          ],
+          "x-reactions": {
+            "dependencies": [".valueType",".oneKey"],
+            "fulfill": {
+              "run": "{{$self.value = 'Json'}}",
+              "schema": {
+                "x-component-props.options": "{{$deps[0] === 'Hash' && !$deps[1] ? [$self.dataSource[1]] : $self.dataSource}}"
+              }
+            }
+          }
         },
         "valueJoinString": {
           "type": "string",

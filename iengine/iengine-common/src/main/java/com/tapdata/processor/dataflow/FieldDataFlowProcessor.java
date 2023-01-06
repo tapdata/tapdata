@@ -134,12 +134,12 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 				// field process may cause field name change, so we should call for both after and before
 				// so that it cat be get by mapping
 				Map<String, Object> before = message.getBefore();
-				if (before != null) {
+				if (MapUtils.isNotEmpty(before)) {
 					FieldProcessUtil.filedProcess(before, fieldProcesses, fieldsNameTransform);
 					message.setBefore(before);
 				}
 				Map<String, Object> after = message.getAfter();
-				if (after != null) {
+				if (MapUtils.isNotEmpty(after)) {
 					FieldProcessUtil.filedProcess(after, fieldProcesses, fieldsNameTransform);
 					message.setAfter(after);
 				}

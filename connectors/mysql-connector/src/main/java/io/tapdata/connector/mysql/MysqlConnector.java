@@ -7,8 +7,10 @@ import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
+import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -93,7 +95,7 @@ public class MysqlConnector extends ConnectorBase {
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
-
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTimeStr());
         codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
             if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
                 tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));

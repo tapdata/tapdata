@@ -2,6 +2,7 @@ package io.tapdata.connector.mysql;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
@@ -17,13 +18,13 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static io.tapdata.entity.simplify.TapSimplify.index;
+import static io.tapdata.entity.simplify.TapSimplify.indexField;
 
 /**
  * @author samuel
@@ -35,24 +36,10 @@ public class MysqlSchemaLoader {
     private static final String SELECT_TABLES = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
     private static final String TABLE_NAME_IN = " AND TABLE_NAME IN(%s)";
     private static final String SELECT_COLUMNS = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME %s";
-    private final static String SELECT_ALL_INDEX_SQL = "select *\n" +
-            "from (select i.TABLE_NAME,\n" +
-            "             i.INDEX_NAME,\n" +
-            "             i.INDEX_TYPE,\n" +
-            "             i.COLLATION,\n" +
-            "             i.NON_UNIQUE,\n" +
-            "             i.COLUMN_NAME,\n" +
-            "             i.SEQ_IN_INDEX,\n" +
-            "             (select k.CONSTRAINT_NAME\n" +
-            "              from INFORMATION_SCHEMA.KEY_COLUMN_USAGE k\n" +
-            "              where k.TABLE_SCHEMA = '%s'\n" +
-            "                and k.TABLE_NAME = i.TABLE_NAME\n" +
-            "                and i.COLUMN_NAME = k.COLUMN_NAME) CONSTRAINT_NAME\n" +
-            "      from INFORMATION_SCHEMA.STATISTICS i\n" +
-            "\n" +
-            "      where i.TABLE_SCHEMA = '%s'\n" +
-            "        and i.TABLE_NAME %s ) t\n" +
-            "where t.CONSTRAINT_NAME is null";
+    private final static String SELECT_ALL_INDEX_SQL = "select TABLE_NAME,INDEX_NAME,INDEX_TYPE,COLLATION,NON_UNIQUE,COLUMN_NAME,SEQ_IN_INDEX\n" +
+            "from INFORMATION_SCHEMA.STATISTICS\n" +
+            "where TABLE_SCHEMA = '%s'\n" +
+            "and TABLE_NAME %s order by INDEX_NAME,SEQ_IN_INDEX";
 
 
     private TapConnectionContext tapConnectionContext;
@@ -61,45 +48,6 @@ public class MysqlSchemaLoader {
     public MysqlSchemaLoader(MysqlJdbcContext mysqlJdbcContext) {
         this.mysqlJdbcContext = mysqlJdbcContext;
         this.tapConnectionContext = mysqlJdbcContext.getTapConnectionContext();
-    }
-
-    public void discoverSchema1(List<String> filterTable, Consumer<List<TapTable>> consumer, int tableSize) throws Throwable {
-        if (null == consumer) {
-            throw new IllegalArgumentException("Consumer cannot be null");
-        }
-        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-        String database = connectionConfig.getString("database");
-        List<TapTable> tempList = new ArrayList<>();
-        String sql = String.format(SELECT_TABLES, database);
-        if (CollectionUtils.isNotEmpty(filterTable)) {
-            filterTable = filterTable.stream().map(t -> "'" + t + "'").collect(Collectors.toList());
-            String tableNameIn = String.join(",", filterTable);
-            sql += String.format(TABLE_NAME_IN, tableNameIn);
-        }
-        mysqlJdbcContext.query(sql, tableRs -> {
-            while (tableRs.next()) {
-                TapTable tapTable = TapSimplify.table(tableRs.getString("TABLE_NAME"));
-                try {
-                    discoverFields(tapConnectionContext, tapTable);
-                } catch (Exception e) {
-                    TapLogger.error(TAG, "Discover columns failed, error msg: " + e.getMessage() + "\n" + TapSimplify.getStackString(e));
-                }
-                try {
-                    discoverIndexes(tapConnectionContext, tapTable);
-                } catch (Throwable e) {
-                    TapLogger.error(TAG, "Discover indexes failed, error msg: " + e.getMessage() + "\n" + TapSimplify.getStackString(e));
-                }
-                tempList.add(tapTable);
-                if (tempList.size() == tableSize) {
-                    consumer.accept(tempList);
-                    tempList.clear();
-                }
-            }
-            if (CollectionUtils.isNotEmpty(tempList)) {
-                consumer.accept(tempList);
-                tempList.clear();
-            }
-        });
     }
 
     public void discoverSchema(List<String> filterTable, Consumer<List<TapTable>> consumer, int tableSize) throws Throwable {
@@ -126,28 +74,22 @@ public class MysqlSchemaLoader {
                 List<DataMap> columnList = queryAllColumns(database, tableNames);
                 List<DataMap> indexList = queryAllIndexes(database, tableNames);
 
-                Map<String, List<DataMap>> columnMap = Maps.newHashMap();
-                if (CollectionUtils.isNotEmpty(columnList)) {
-                    columnMap = columnList.stream().collect(Collectors.groupingBy(t -> t.getString("TABLE_NAME")));
-                }
-                Map<String, List<DataMap>> indexMap = Maps.newHashMap();
-                if (CollectionUtils.isNotEmpty(indexList)) {
-                    indexMap = indexList.stream().collect(Collectors.groupingBy(t -> t.getString("TABLE_NAME")));
-                }
-
-                Map<String, List<DataMap>> finalColumnMap = columnMap;
-                Map<String, List<DataMap>> finalIndexMap = indexMap;
+                Map<String, List<DataMap>> columnMap = columnList.stream().collect(Collectors.groupingBy(t -> t.getString("TABLE_NAME")));
+                Map<String, List<DataMap>> indexMap = indexList.stream().collect(Collectors.groupingBy(t -> t.getString("TABLE_NAME")));
 
                 List<TapTable> tempList = new ArrayList<>();
                 tables.forEach(table -> {
                     TapTable tapTable = TapSimplify.table(table);
-
-                    discoverFields(finalColumnMap.get(table), tapTable, instance, dataTypesMap);
-                    discoverIndexes(finalIndexMap.get(table), tapTable);
+                    if (columnMap.containsKey(table)) {
+                        discoverFields(columnMap.get(table), tapTable, instance, dataTypesMap);
+                    }
+                    if (indexMap.containsKey(table)) {
+                        tapTable.setIndexList(discoverIndexes(indexMap.get(table), table));
+                    }
                     tempList.add(tapTable);
                 });
 
-                if (CollectionUtils.isNotEmpty(columnList)) {
+                if (CollectionUtils.isNotEmpty(tempList)) {
                     consumer.accept(tempList);
                     tempList.clear();
                 }
@@ -155,41 +97,6 @@ public class MysqlSchemaLoader {
 
         } catch (Exception e) {
             throw new Exception(e);
-        }
-    }
-
-    private void discoverFields(TapConnectionContext connectionContext, TapTable tapTable) throws Throwable {
-        AtomicInteger primaryPos = new AtomicInteger(1);
-        DataMap connectionConfig = connectionContext.getConnectionConfig();
-        String database = connectionConfig.getString("database");
-        TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
-        try {
-            String tableName = new StringJoiner("=").add("'").add(tapTable.getId()).add("'").toString();
-            mysqlJdbcContext.query(String.format(SELECT_COLUMNS, database, tableName), columnRs -> {
-                while (columnRs.next()) {
-                    String columnName = columnRs.getString("COLUMN_NAME");
-                    String columnType = columnRs.getString("COLUMN_TYPE");
-                    TapField field = TapSimplify.field(columnName, columnType);
-                    tableFieldTypesGenerator.autoFill(field, connectionContext.getSpecification().getDataTypesMap());
-
-                    int ordinalPosition = columnRs.getInt("ORDINAL_POSITION");
-                    field.pos(ordinalPosition);
-
-                    String isNullable = columnRs.getString("IS_NULLABLE");
-                    field.nullable(isNullable.equals("YES"));
-
-                    Object columnKey = columnRs.getObject("COLUMN_KEY");
-                    if (columnKey instanceof String && columnKey.equals("PRI")) {
-                        field.primaryKeyPos(primaryPos.getAndIncrement());
-                    }
-
-                    String columnDefault = columnRs.getString("COLUMN_DEFAULT");
-                    field.defaultValue(columnDefault);
-                    tapTable.add(field);
-                }
-            });
-        } catch (Exception e) {
-            throw new Exception("Load column metadata error, table: " + database + "." + tapTable.getName() + "; Reason: " + e.getMessage(), e);
         }
     }
 
@@ -247,7 +154,7 @@ public class MysqlSchemaLoader {
         List<DataMap> indexList = TapSimplify.list();
 
         String inTableName = new StringJoiner(tableNames).add("IN ('").add("')").toString();
-        String sql = String.format(SELECT_ALL_INDEX_SQL, database, database, inTableName);
+        String sql = String.format(SELECT_ALL_INDEX_SQL, database, inTableName);
         try {
             mysqlJdbcContext.query(sql, resultSet -> {
                 List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
@@ -261,69 +168,24 @@ public class MysqlSchemaLoader {
         return indexList;
     }
 
-    public List<TapIndex> discoverIndexes(String database, String tableName) throws Throwable {
-        List<TapIndex> indexes = new ArrayList<>();
-        mysqlJdbcContext.query(String.format(SELECT_ALL_INDEX_SQL, database, database, tableName), indexRs -> {
-            while (indexRs.next()) {
-                String indexName = indexRs.getString("INDEX_NAME");
-                TapIndex tapIndex = indexes.stream().filter(i -> i.getName().equals(indexName)).findFirst().orElse(null);
-                if (null == tapIndex) {
-                    tapIndex = new TapIndex();
-                    tapIndex.setName(indexName);
-                    int nonUnique = indexRs.getInt("NON_UNIQUE");
-                    tapIndex.setUnique(nonUnique == 1);
-                    tapIndex.setPrimary(false);
-                    indexes.add(tapIndex);
-                }
-                List<TapIndexField> indexFields = tapIndex.getIndexFields();
-                if (null == indexFields) {
-                    indexFields = new ArrayList<>();
-                    tapIndex.setIndexFields(indexFields);
-                }
-                TapIndexField tapIndexField = new TapIndexField();
-                tapIndexField.setName(indexRs.getString("COLUMN_NAME"));
-                String collation = indexRs.getString("COLLATION");
-                tapIndexField.setFieldAsc("A".equals(collation));
-                indexFields.add(tapIndexField);
-            }
-        });
-        return indexes;
+    public List<TapIndex> discoverIndexes(String database, String tableName) {
+        return discoverIndexes(queryAllIndexes(database, tableName), tableName);
     }
 
-    private void discoverIndexes(TapConnectionContext tapConnectionContext, TapTable tapTable) throws Throwable {
-        tapTable.setIndexList(discoverIndexes(tapConnectionContext.getConnectionConfig().getString("database"), tapTable.getId()));
+    public List<TapIndex> discoverIndexes(List<DataMap> indexList, String tableName) {
+        List<TapIndex> tapIndexList = TapSimplify.list();
+        Map<String, List<DataMap>> indexMap = indexList.stream().filter(idx -> tableName.equals(idx.getString("TABLE_NAME")))
+                .collect(Collectors.groupingBy(idx -> idx.getString("INDEX_NAME"), LinkedHashMap::new, Collectors.toList()));
+        indexMap.forEach((key, value) -> tapIndexList.add(makeTapIndex(key, value)));
+        return tapIndexList;
     }
 
-    public void discoverIndexes(List<DataMap> indexList, TapTable tapTable) {
-        List<TapIndex> indexes = new ArrayList<>();
-
-        if (CollectionUtils.isEmpty(indexList)) {
-            return;
-        }
-        indexList.forEach(dataMap -> {
-            String indexName = dataMap.getString("INDEX_NAME");
-            TapIndex tapIndex = indexes.stream().filter(i -> i.getName().equals(indexName)).findFirst().orElse(null);
-            if (null == tapIndex) {
-                tapIndex = new TapIndex();
-                tapIndex.setName(indexName);
-                int nonUnique = Integer.parseInt(dataMap.getString("NON_UNIQUE"));
-                tapIndex.setUnique(nonUnique == 1);
-                tapIndex.setPrimary(false);
-                indexes.add(tapIndex);
-            }
-            List<TapIndexField> indexFields = tapIndex.getIndexFields();
-            if (null == indexFields) {
-                indexFields = new ArrayList<>();
-                tapIndex.setIndexFields(indexFields);
-            }
-            TapIndexField tapIndexField = new TapIndexField();
-            tapIndexField.setName(dataMap.getString("COLUMN_NAME"));
-            String collation = dataMap.getString("COLLATION");
-            tapIndexField.setFieldAsc("A".equals(collation));
-            indexFields.add(tapIndexField);
-        });
-        tapTable.setIndexList(indexes);
-
+    private TapIndex makeTapIndex(String key, List<DataMap> value) {
+        TapIndex index = index(key);
+        value.forEach(v -> index.indexField(indexField(v.getString("COLUMN_NAME")).fieldAsc("A".equals(v.getString("COLLATION")))));
+        index.setUnique(value.stream().anyMatch(v ->  "0".equals(v.getString("NON_UNIQUE"))));
+        index.setPrimary(value.stream().anyMatch(v -> "PRIMARY".equals(v.getString("INDEX_NAME"))));
+        return index;
     }
 
     private List<String> queryAllTables(String database, List<String> filterTable) {
