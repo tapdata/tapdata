@@ -52,7 +52,9 @@ public class TapFileStorageImplTest {
                 .build();
 
 //********************************************saveFile****************************************************
-
+        /**
+         * 测试SaveFile功能，当测试CanReplace为true时，上传同名但不同内容的文件，结果应该是后上传的同名文件替换掉先上传的文件
+         * **/
         //测试CanReplace为true时上传同名文件的结果
         TapFile tapFile1 = tapFileStorage.saveFile(filePath + "exampleobject1.txt", new ByteArrayInputStream(content1.getBytes()), true);
         Assertions.assertNotNull(tapFile1);
@@ -96,6 +98,9 @@ public class TapFileStorageImplTest {
         Assertions.assertNotNull(tapFile4);
 
 //********************************************getFilesInDirectory****************************************************
+        /**
+         * 测试getFilesInDirectory功能，遍历当前上传到存储空间的所有文件，如果有存在，期望返回True;
+         * **/
         List<TapFile> allFiles = new ArrayList<>();
         tapFileStorage.getFilesInDirectory(filePath, Collections.singletonList("*.txt"), null, true, 2, new Consumer<List<TapFile>>() {
             @Override
@@ -104,8 +109,8 @@ public class TapFileStorageImplTest {
             }
         });
         boolean foundIt1 = false;
-        for(TapFile file : allFiles) {
-            if(file.getPath().equals(filePath + "exampleobject1.txt")) {
+        for (TapFile file : allFiles) {
+            if (file.getPath().equals(filePath + "exampleobject1.txt")) {
                 foundIt1 = true;
                 break;
             }
@@ -114,7 +119,9 @@ public class TapFileStorageImplTest {
         Assertions.assertTrue(foundIt1);
 
 //********************************************readFile***********************************************************
-
+        /**
+         *测试readFile功能，根据上传文件的路径，期望结果是上传到存储空间的文件和上传之前的content一致
+         * **/
         tapFileStorage.readFile(filePath + "exampleobject1.txt", inputStream -> {
 
             try {
@@ -127,7 +134,9 @@ public class TapFileStorageImplTest {
         });
 
 //********************************************isDirectoryExist************************************************************
-
+        /**
+         * 测试isDirectoryExist功能，期望结果是文件存在，且内容和上传之前的content是一致的。
+         * **/
         tapFileStorage.isDirectoryExist((String) config.get("filePath"));
         tapFileStorage.readFile(filePath + "exampleobject1.txt", inputStream -> {
 
@@ -143,6 +152,9 @@ public class TapFileStorageImplTest {
         });
 //********************************************move************************************************************
 
+        /**
+         * 测试move功能，期望结果是move之后，新的文件路径有move之后的文件，旧的文件路径里文件应该null的;
+         * **/
         tapFileStorage.move(filePath + "exampleobject1.txt", filePath2 + "exampleobject1.txt");
         TapFile newFiel = tapFileStorage.getFile(filePath2 + "exampleobject1.txt");
         Assertions.assertNotNull(newFiel);
@@ -151,6 +163,9 @@ public class TapFileStorageImplTest {
 
 //********************************************delete************************************************************
 
+        /**
+         * 测试delete功能，期望结果是，被删除的文件，遍历结果为空;
+         * **/
         tapFileStorage.delete(filePath2 + "exampleobject1.txt");
         tapFileStorage.delete(filePath + "exampleobject2.txt");
         List<TapFile> allFiles2 = new ArrayList<>();
@@ -161,13 +176,29 @@ public class TapFileStorageImplTest {
             }
         });
         boolean foundIt2 = false;
-        for(TapFile file : allFiles2) {
-            if(file.getPath().equals(filePath + "exampleobject1.txt")) {
+        for (TapFile file : allFiles2) {
+            if (file.getPath().equals(filePath + "exampleobject1.txt")) {
                 foundIt2 = true;
                 break;
             }
         }
         Assertions.assertFalse(foundIt2);
+
+        List<TapFile> allFiles3 = new ArrayList<>();
+        tapFileStorage.getFilesInDirectory(filePath2, Collections.singletonList("*.txt"), null, true, 2, new Consumer<List<TapFile>>() {
+            @Override
+            public void accept(List<TapFile> tapFiles) {
+                allFiles3.addAll(tapFiles);
+            }
+        });
+        boolean foundIt3 = false;
+        for (TapFile file : allFiles3) {
+            if (file.getPath().equals(filePath2 + "exampleobject1.txt")) {
+                foundIt3 = true;
+                break;
+            }
+        }
+        Assertions.assertFalse(foundIt3);
     }
 
 }
