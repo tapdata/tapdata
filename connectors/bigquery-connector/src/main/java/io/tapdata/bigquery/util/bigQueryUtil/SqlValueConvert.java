@@ -4,6 +4,10 @@ import cn.hutool.core.codec.Base64;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.type.TapType;
 
+import java.util.Objects;
+
+import static io.tapdata.base.ConnectorBase.*;
+
 public class SqlValueConvert {
     /**
      * JSON :  INSERT INTO mydataset.table1 VALUES(1, JSON '{"name": "Alice", "age": 30}');
@@ -27,6 +31,23 @@ public class SqlValueConvert {
             case "TapNumber": return FieldChecker.simpleValue(value);
             case "TapYear": return FieldChecker.simpleYearValue(value);
             default:return ""+value;
+        }
+    }
+    public static Object streamJsonArrayValue(Object value, TapField field){
+        if (Objects.isNull(value)) return null;
+        TapType tapType = field.getTapType();
+        switch(tapType.getClass().getSimpleName()){
+            case "TapString" : return String.valueOf(value);
+            case "TapArray": return toJson(value);
+            case "TapBinary":
+            case "TapBoolean": return value;
+            case "TapDateTime": return FieldChecker.simpleDateValue(value,DATE_TIME_FORMAT,false);
+            case "TapDate": return FieldChecker.simpleDateValue(value,DATE_FORMAT,false);
+            case "TapTime": return FieldChecker.simpleDateValue(value,TIME_FORMAT,false);
+            case "TapMap": return toJson(value);
+            case "TapNumber": return value;
+            case "TapYear": return FieldChecker.simpleYearValue(value);
+            default:return value;
         }
     }
 }

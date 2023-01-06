@@ -162,26 +162,33 @@ class WriteRecordTest {
     @Test
     public void writeSql() throws InterruptedException, IOException, Descriptors.DescriptorValidationException {
         List<Map<String,Object>> map = new ArrayList<>();
-        for (int i = 0; i < 5000; i++) {
+        for (int i = 0; i < 10; i++) {
             Map<String,Object> map1 = new HashMap<>();
-            map1.put("id",System.nanoTime());
-            map1.put("type","U");
+            map1.put("merge_id",new Long(265567961112397L));
+            map1.put("record_event_time",System.nanoTime());
+            map1.put("record_table_id",System.nanoTime());
+            map1.put("merge_type","U");
 
-            Map<String,Object> record = new HashMap();
-            record.put("id",i);
-            record.put("name","gavin-tt"+i);
+//            Map<String,Object> record = new HashMap();
+//            record.put("id",i);
+//            record.put("name","gavin-tt"+i);
+            map1.put("merge_data_before",new HashMap<String,Object>(){{
+                put("id","e09bacfb-35b0-4f3a-b5d6-afda8ea9ac00");
+                put("title","WeUAlJmc");
+                put("created","2023-01-06 16:13:27.000000");
+            }});
+            //map1.put("merge_data_before","{\"id\":\"1sjnk\",\"title\":\"uw\"}");
 
-            map1.put("record1",record);
+            //map1.put("record1",record);
             map.add(map1);
         }
-
-        WriteCommittedStream.writer(
+        WriteCommittedStream writer = WriteCommittedStream.writer(
                 "vibrant-castle-366614",
                 "SchemaoOfJoinSet",
-                "mergeTest",
+                "temp_bigData_27aa42fc_6f26_4b26_9b3d_282834bd6014",
                 credentialsJson
-        ).appendJSON(map);
-
+        );
+        writer.appendJSON(map);
 //        String sqlStr = "update `vibrant-castle-366614`.`SchemaoOfJoinSet`.`many` set name = 'new name'" +
 //                " where id='1111122' and age = 110 and name='1222222' and note='2333332'" ;
 //        paper();
@@ -190,4 +197,23 @@ class WriteRecordTest {
 //        long end = System.currentTimeMillis();
 //        System.out.println( end - star);
     }
+
+    @Test
+    public void f(){
+        String sql = "Select CONCAT( 'drop table `vibrant-castle-366614`.`SchemaoOfJoinSet`.`', table_name, '`;' ) as sql\n" +
+                "\n" +
+                "FROM `vibrant-castle-366614`.`SchemaoOfJoinSet`.INFORMATION_SCHEMA.TABLES\n" +
+                "Where table_name LIKE 'temp_bigData_%';";
+        paper();
+        BigQueryResult bigQueryResult = sqlMarker.executeOnce(sql);
+
+        List<Map<String, Object>> result = bigQueryResult.result();
+        StringJoiner joiner = new StringJoiner("\n");
+        result.stream().forEach(map->{
+            joiner.add(String.valueOf(map.get("sql")));
+        });
+        System.out.println(joiner.toString());
+        sqlMarker.executeOnce(joiner.toString());
+    }
+
 }

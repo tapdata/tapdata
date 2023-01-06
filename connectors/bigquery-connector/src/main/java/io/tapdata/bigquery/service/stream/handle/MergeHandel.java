@@ -88,9 +88,9 @@ public class MergeHandel extends BigQueryStart {
     /**
      * 创建临时表
      * */
-    public TapTable createTemporaryTable(TapTable table){
+    public TapTable createTemporaryTable(TapTable table,String tableId){
         TableCreate tableCreate = TableCreate.create(this.connectorContext);
-        TapTable temporaryTable = table(temporaryTableId)
+        TapTable temporaryTable = table(tableId)
                 .add(field(MERGE_KEY_ID,JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
                 .add(field(MERGE_KEY_TYPE,JAVA_String).tapType(tapString().bytes(10L)))
                 .add(field(MERGE_KEY_DATA_BEFORE, JAVA_Map).tapType(tapMap()))
@@ -98,14 +98,14 @@ public class MergeHandel extends BigQueryStart {
                 .add(field(MERGE_KEY_EVENT_TIME,JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
                 .add(field(MERGE_KEY_TABLE_ID,JAVA_String).tapType(tapString().bytes(1024L)));
         TapCreateTableEvent event = new TapCreateTableEvent();
-        event.setTableId(temporaryTableId);
+        event.setTableId(tableId);
         event.setTable(temporaryTable);
         event.setReferenceTime(System.currentTimeMillis());
         if (tableCreate.isExist(event)){
             TapLogger.info(TAG,"Temporary table ["+temporaryTableId+"] already exists");
             return table;
         }
-        createSchema(table);
+        createSchema(table,tableId);
         return table;
     }
 
@@ -116,7 +116,7 @@ public class MergeHandel extends BigQueryStart {
      *     b BOOL
      *   >
      * */
-    private void createSchema(TapTable table){
+    private void createSchema(TapTable table,String tableId){
         if (Checker.isEmpty(this.config)){
             throw new CoreException("Connection config is null or empty.");
         }
@@ -132,7 +132,7 @@ public class MergeHandel extends BigQueryStart {
         if (io.tapdata.bigquery.util.tool.Checker.isEmptyCollection(nameFieldMap)){
             throw new CoreException("Tap table schema null or empty.");
         }
-        String tableSetName = "`"+tableSet+"`.`"+temporaryTableId+"`";
+        String tableSetName = "`"+tableSet+"`.`"+tableId+"`";
 
         //StringBuilder sql = new StringBuilder(" DROP TABLE IF EXISTS ");
         //sql.append(tableSetName)
@@ -145,7 +145,7 @@ public class MergeHandel extends BigQueryStart {
                 .append(" (")
                 .append(MERGE_KEY_ID).append(" INT64 OPTIONS(description=\"An optional INTEGER field\"),")
                 .append(MERGE_KEY_EVENT_TIME).append(" INT64 OPTIONS(description=\"An optional INTEGER field\"),")
-                .append(MERGE_KEY_TABLE_ID).append(" INT64 OPTIONS(description=\"An optional INTEGER field\"),")
+                .append(MERGE_KEY_TABLE_ID).append(" STRING OPTIONS(description=\"An optional INTEGER field\"),")
                 .append(MERGE_KEY_TYPE).append(" STRING OPTIONS(description=\"I/U/D, is TapEventType\"),");
 
         StringBuilder structSql = new StringBuilder();
@@ -185,7 +185,7 @@ public class MergeHandel extends BigQueryStart {
            .append(MERGE_KEY_DATA_AFTER).append(" STRUCT<").append(structSql).append(">");
 
         String comment = table.getComment();
-        //@TODO
+
         sql.append(" ) ");
         String collateSpecification = "";//默认排序规则
         if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(collateSpecification)){
@@ -269,7 +269,7 @@ public class MergeHandel extends BigQueryStart {
         }
     }
     private final static String DROP_TABLE_SQL = "DROP TABLE IF EXISTS `%s`.`%s`.`%s`;";
-    public boolean dropTemporaryTable(){
+    public boolean dropTemporaryTable(String temporaryTableId){
         if (Checker.isEmpty(temporaryTableId)){
             throw new CoreException("Drop event error,table name must be null or be empty.");
         }
@@ -299,10 +299,12 @@ public class MergeHandel extends BigQueryStart {
                         KVMap<Object> stateMap = ((TapConnectorContext) this.connectorContext).getStateMap();
                         Object mergeKeyId = stateMap.get(MergeHandel.MERGE_KEY_ID);
                         SQLBuilder builder = mergeSql(mainTable);
+                        String projectAndSetId = config().projectId()+"."+config().tableSet()+".";
                         String sql = String.format(
                                 MERGE_SQL,
-                                mainTable.getId(),
-                                temporaryTableId,
+                                projectAndSetId + mainTable.getId(),
+                                projectAndSetId + temporaryTableId,
+                                Objects.isNull(mergeKeyId)?0:mergeKeyId,
                                 builder.whereSql(),
                                 builder.insertKeySql(),
                                 builder.insertValueSql(),
@@ -314,17 +316,18 @@ public class MergeHandel extends BigQueryStart {
                         TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
                     }
                 }
-            }, 60, mergeDelaySeconds, TimeUnit.SECONDS);
+            }, 10, mergeDelaySeconds, TimeUnit.SECONDS);
         }
     }
 
     public static final String MERGE_SQL =
             " MERGE `%s` merge_tab USING( " +
-            "    SELECT * EXCEPT(row_num) FROM ( " +
-            "        SELECT *, ROW_NUMBER() OVER(PARTITION BY delta."+MERGE_KEY_TYPE+" ORDER BY delta."+MERGE_KEY_ID+" DESC) AS row_num " +
-            "        FROM `%s` delta " +
-            "    ) " +
-            "    WHERE row_num = 1 " +
+            "SELECT * FROM `%s` targeted WHERE targeted." +MERGE_KEY_ID +"<=%s"+
+//            "    SELECT * EXCEPT(row_num) FROM ( " +
+//            "        SELECT *, ROW_NUMBER() OVER(PARTITION BY delta."+MERGE_KEY_TYPE+" ORDER BY delta."+MERGE_KEY_ID+" DESC) AS row_num " +
+//            "        FROM `%s` delta " +
+//            "    ) " +
+//            "    WHERE row_num = 1 " +
             " ) tab ON %s " + //merge_tab.id = tab.id
             " WHEN NOT MATCHED AND tab."+MERGE_KEY_TYPE+" in(\""+MERGE_VALUE_TYPE_INSERT+"\",\""+MERGE_VALUE_TYPE_UPDATE+"\") THEN " +
             "   INSERT (%s) VALUES (%s) " + //id ,username, change_id       tab.id,tab.username,tab.change_id

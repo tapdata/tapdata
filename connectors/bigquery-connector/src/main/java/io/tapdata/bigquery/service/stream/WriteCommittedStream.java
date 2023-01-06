@@ -9,23 +9,24 @@ import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.storage.v1.*;
 import com.google.cloud.bigquery.storage.v1.Exceptions.StorageException;
 import com.google.cloud.bigquery.storage.v1.stub.BigQueryWriteStubSettings;
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Phaser;
 import javax.annotation.concurrent.GuardedBy;
 
+import io.grpc.LoadBalancerRegistry;
+import io.grpc.internal.PickFirstLoadBalancerProvider;
 import io.tapdata.bigquery.service.stream.handle.BigQueryStream;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.cache.KVMap;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -36,8 +37,16 @@ public class WriteCommittedStream {
   private String dataSet;
   private String tableName;
 
+  KVMap<Object> stateMap;
+
+
   BigQueryWriteClient client;
   DataWriter writer;
+    Long streamOffset;
+    public WriteCommittedStream streamOffset(Long streamOffset){
+        this.streamOffset = streamOffset;
+        return this;
+    }
   public String projectId(){
     return this.projectId;
   }
@@ -65,6 +74,10 @@ public class WriteCommittedStream {
   public WriteCommittedStream credentialsJson(String credentialsJson){
     this.credentialsJson = credentialsJson;
     return this;
+  }
+  public WriteCommittedStream stateMap(KVMap<Object> stateMap){
+      this.stateMap = stateMap;
+      return this;
   }
   public static WriteCommittedStream writer(String projectId,String dataSet,String tableName,String credentialsJson) throws DescriptorValidationException, InterruptedException, IOException {
     WriteCommittedStream writeCommittedStream = new WriteCommittedStream()
@@ -103,7 +116,6 @@ public class WriteCommittedStream {
       // batched up to the maximum request size:
       // https://cloud.google.com/bigquery/quotas#write-api-limits
       long start = System.currentTimeMillis();
-      long offset = 0;
       for (int i = 0; i < 5000; i++) {
         // Create a JSON object that is compatible with the table schema.
         JSONArray jsonArr = new JSONArray();
@@ -115,8 +127,14 @@ public class WriteCommittedStream {
           record.put("type", 12.6);
           jsonArr.put(record);
         }
-        writer.append(jsonArr, offset);
-        offset += jsonArr.length();
+          Object streamOffset = stateMap.get("stream_offset");
+          if (Objects.isNull(streamOffset)){
+              streamOffset = 0;
+          }
+          long offset = (Long)streamOffset;
+          writer.append(jsonArr, offset);
+          offset += jsonArr.length();
+          stateMap.put("stream_offset",offset);
       }
       System.out.println(System.currentTimeMillis() - start);
     } catch (ExecutionException e) {
@@ -128,7 +146,7 @@ public class WriteCommittedStream {
     }
 
     // Final cleanup for the stream.
-    writer.cleanup(client);
+    //writer.cleanup(client);
     //System.out.println("Appended records successfully.");
   }
 
@@ -152,32 +170,59 @@ public class WriteCommittedStream {
   }
   public void appendJSON(List<Map<String,Object>> record) throws IOException, DescriptorValidationException, InterruptedException {
     if (Objects.isNull(record) || record.isEmpty()) return;
-    long offset = 0;
-    try {
-      JSONArray jsonArr = new JSONArray();
-      for (Map<String, Object> map : record) {
-        if (Objects.isNull(map)) continue;
-        JSONObject jsonObject = new JSONObject();
-        map.forEach((key,value)->{
-          if (value instanceof Map){
-            JSONObject jsonObjects = new JSONObject();
-            Map<String,Object> objectMap = (Map<String,Object>)value;
-            objectMap.forEach(jsonObjects::put);
-            jsonObject.put(key,jsonObjects);
-          }else if (value instanceof Collection){
-            jsonObject.put(key,value);
-          }else {
-            jsonObject.put(key,value);
+//    try {
+//      List<JSONArray> jsonArr = new ArrayList<>();
+      List<List<Map<String,Object>>> partition = Lists.partition(record, 5000);
+        //JSONArray jsonArr = new JSONArray();
+      partition.forEach(recordPartition->{
+          JSONArray json = new JSONArray();
+          for (Map<String, Object> map : recordPartition) {
+              if (Objects.isNull(map)) continue;
+              JSONObject jsonObject = new JSONObject();
+              map.forEach((key,value)->{
+                  if (value instanceof Map){
+                      JSONObject jsonObjects = new JSONObject();
+                      Map<String,Object> objectMap = (Map<String,Object>)value;
+                      objectMap.forEach(jsonObjects::put);
+                      jsonObject.put(key,jsonObjects);
+                  }else if (value instanceof Collection){
+                      jsonObject.put(key,value);
+                  }else {
+                      jsonObject.put(key,value);
+                  }
+              });
+              json.put(jsonObject);
           }
-        });
-        jsonArr.put(jsonObject);
-      }
-      writer.append(jsonArr, offset);
-      offset += jsonArr.length();
-    }catch(ExecutionException e){
-      //TapLogger.info(TAG,"Error to use stream api write records: "+e.getMessage());
-    }
-    writer.cleanup(client);
+          try {
+              writer.append(json, streamOffset);
+              streamOffset += json.length();
+          } catch (Exception e) {
+              TapLogger.error(TAG,"Stream API write record error,data offset is : " + streamOffset +"，data :" +json.toString());
+              return;
+          }
+          //jsonArr.add(json);
+      });
+//        jsonArr.forEach(item->{
+//            try {
+//                writer.append(item, streamOffset);
+//                streamOffset += item.length();
+//            } catch (Exception e) {
+//                TapLogger.error(TAG,"Stream API Write error,data offset is : " + streamOffset +"，data :" +item.toString());
+//                return;
+//            }
+//        });
+
+//      Object streamOffset = stateMap.get("stream_offset");
+//      if (Objects.isNull(streamOffset)){
+//          streamOffset = 0L;
+//      }
+//      long offset = (Long)streamOffset;
+//      offset += jsonArr.length();
+//      stateMap.put("stream_offset",offset);
+//    }catch(ExecutionException e){
+//      TapLogger.error(TAG,"Error to use stream api write records: "+e.getMessage());
+//    }
+    //writer.cleanup(client);
   }
 
   // A simple wrapper object showing how the stateful stream writer should be used.
@@ -204,7 +249,8 @@ public class WriteCommittedStream {
               .setParent(parentTable.toString())
               .setWriteStream(stream)
               .build();
-      WriteStream writeStream = client.createWriteStream(createWriteStreamRequest);
+        LoadBalancerRegistry.getDefaultRegistry().register(new PickFirstLoadBalancerProvider());
+        WriteStream writeStream = client.createWriteStream(createWriteStreamRequest);
 
       // Use the JSON stream writer to send records in JSON format.
       // For more information about JsonStreamWriter, see:

@@ -43,6 +43,7 @@
           "x-component": "InputNumber",
           "x-index": 30,
           "required": false
+        }
       }
     },
     "connection": {

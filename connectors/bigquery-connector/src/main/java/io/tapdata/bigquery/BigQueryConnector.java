@@ -1,5 +1,6 @@
 package io.tapdata.bigquery;
 
+import com.google.protobuf.Descriptors;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.bigquery.entity.ContextConfig;
 import io.tapdata.bigquery.service.bigQuery.BigQueryConnectionTest;
@@ -22,6 +23,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.cache.Entry;
 import io.tapdata.entity.utils.cache.Iterator;
+import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -33,6 +35,7 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -46,9 +49,11 @@ public class BigQueryConnector extends ConnectorBase {
 	private ValueHandel valueHandel;//= ValueHandel.create();
 	private TapEventCollector tapEventCollector;
 	BigQueryStream stream;
-	public static final int STREAM_SIZE = 50000;
+	public static final int STREAM_SIZE = 20000;
 	MergeHandel merge ;
 	AtomicBoolean running = new AtomicBoolean(true);
+    Long streamOffset = 0L;
+
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
         this.writeRecord = WriteRecord.create(connectionContext);
@@ -63,13 +68,15 @@ public class BigQueryConnector extends ConnectorBase {
 					}
 				}
 			});
-			stream = BigQueryStream.streamWrite((TapConnectorContext)connectionContext);
 			ContextConfig config = writeRecord.config();
 			merge = MergeHandel.merge(connectionContext).running(running);
-			if (Objects.nonNull(config)){
-				merge.mergeDelaySeconds(config.mergeDelay())
-					.temporaryTableId(config.tempCursorSchema());
-			}
+            if (Objects.nonNull(config)){
+                merge.mergeDelaySeconds(config.mergeDelay())
+                        .temporaryTableId(config.tempCursorSchema());
+            }
+            stream = BigQueryStream.streamWrite((TapConnectorContext)connectionContext)
+                    .merge(merge)
+                    .streamOffset(streamOffset);
 		}
 	}
 
@@ -111,7 +118,16 @@ public class BigQueryConnector extends ConnectorBase {
 		TableCreate tableCreate = TableCreate.create(connectorContext);
 		tableCreate.dropTable(dropTableEvent);
 		if( Objects.nonNull(merge) && merge.config().isMixedUpdates() ) {
-			merge.dropTemporaryTable();
+            if (connectorContext instanceof TapConnectorContext){
+                TapConnectorContext context = (TapConnectorContext)connectorContext;
+                KVMap<Object> stateMap = context.getStateMap();
+                Object tempCursorSchema = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
+                if(Objects.isNull(tempCursorSchema)){
+                    TapLogger.info(TAG,"Cache Schema has created ,named is "+tempCursorSchema);
+                }
+                merge.dropTemporaryTable(String.valueOf(tempCursorSchema));
+
+            }
 		}
     }
 
@@ -129,8 +145,8 @@ public class BigQueryConnector extends ConnectorBase {
 		if (!createTableOptions.getTableExists()){
 			tableCreate.createSchema(createTableEvent);
 		}
-		if(Objects.nonNull(merge)&&merge.config().isMixedUpdates()) {
-			merge.createTemporaryTable(createTableEvent.getTable());
+		if(Objects.nonNull(merge) && merge.config().isMixedUpdates()) {
+			merge.createTemporaryTable(createTableEvent.getTable(),tableCreate.config().tempCursorSchema());
 		}
 		return createTableOptions;
     }
@@ -146,11 +162,14 @@ public class BigQueryConnector extends ConnectorBase {
 		}
 	}
 
-	private void writeRecord(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
-		this.writeRecordStream(context, events, table, consumer);
-		if (writeRecord.config().isMixedUpdates()){
-			merge.mergeTemporaryTableToMainTable(table);
-		}
+	private void writeRecord(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
+        if (Objects.isNull(stream.writeCommittedStream())) {
+            this.stream.createWriteCommittedStream();
+        }
+        this.writeRecordStream(context, events, table, consumer);
+        if (writeRecord.config().isMixedUpdates()){
+            merge.mergeTemporaryTableToMainTable(table);
+        }
 	}
 	private void uploadEvents(Consumer<WriteListResult<TapRecordEvent>> consumer, List<TapRecordEvent> events, TapTable table) {
 		try {
@@ -173,7 +192,7 @@ public class BigQueryConnector extends ConnectorBase {
 				}
 			}
 		}
-		tapEventCollector.addTapEvents(events);
+		tapEventCollector.addTapEvents(events,table,writeRecord.config().isMixedUpdates());
 	}
 
 	/**

@@ -3,14 +3,21 @@ package io.tapdata.bigquery.service.bigQuery;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.bigquery.entity.ContextConfig;
+import io.tapdata.bigquery.service.stream.handle.BigQueryStream;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.Objects;
+import java.util.UUID;
 
 
 public abstract class BigQueryStart {
+    public static final String TAG = BigQueryStart.class.getSimpleName();
+
     protected ContextConfig config;
     protected TapConnectionContext connectorContext;
     protected SqlMarker sqlMarker;
@@ -78,6 +85,17 @@ public abstract class BigQueryStart {
                    throw new CoreException("WriteMode is MIXED_UPDATES and CursorSchema is must not be null or not be empty.");
                }
                contextConfig.cursorSchema(cursorSchema);
+               if (connectorContext instanceof TapConnectorContext){
+                   TapConnectorContext context = (TapConnectorContext)connectorContext;
+                   KVMap<Object> stateMap = context.getStateMap();
+                   Object tempCursorSchema = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
+                   if(Objects.isNull(tempCursorSchema)){
+                       tempCursorSchema = cursorSchema + "_" + UUID.randomUUID().toString().replaceAll("-","_");
+                       stateMap.put(ContextConfig.TEMP_CURSOR_SCHEMA_NAME,tempCursorSchema);
+                       TapLogger.info(TAG,"Cache Schema has created ,named is "+tempCursorSchema);
+                   }
+                   contextConfig.tempCursorSchema(String.valueOf(tempCursorSchema));
+               }
                String mergeDelay = nodeConfig.getString("mergeDelay");
                if (null == mergeDelay) {
                    throw new CoreException("WriteMode is MIXED_UPDATES and MergeDelay is must not be null or not be empty.");

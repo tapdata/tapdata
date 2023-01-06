@@ -15,6 +15,8 @@
 
     <properties>
         <java.version>8</java.version>
+        <akka.version>2.7.0</akka.version>
+        <scala.binary.version>2.13</scala.binary.version>
     </properties>
 
     <dependencies>
@@ -103,6 +105,21 @@
 <!--                </exclusion>-->
 <!--            </exclusions>-->
 <!--        </dependency>-->
+        <dependency>
+            <groupId>com.lightbend.akka</groupId>
+            <artifactId>akka-stream-alpakka-google-cloud-bigquery-storage_${scala.binary.version}</artifactId>
+            <version>5.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-stream_${scala.binary.version}</artifactId>
+            <version>${akka.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-discovery_${scala.binary.version}</artifactId>
+            <version>${akka.version}</version>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>
