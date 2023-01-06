@@ -25,8 +25,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static io.tapdata.base.ConnectorBase.fromJson;
-import static io.tapdata.base.ConnectorBase.toJson;
+import static io.tapdata.base.ConnectorBase.*;
 
 @ApiType
 public class PostManAnalysis
@@ -249,8 +248,22 @@ public class PostManAnalysis
     public APIResponse http(Request request) throws IOException {
         OkHttpClient client = new OkHttpClient().newBuilder().build();
         Response response = client.newCall(request).execute();
+
+        String bodyStr = response.body().string();
+        Map<String, Object> map = null;
+        try {
+            map = (Map<String, Object>) fromJson(bodyStr);
+        }catch (Exception e){
+            map = new HashMap<>();
+            try {
+                List<Map<String,Object>> data = (List<Map<String,Object>>)fromJsonArray(bodyStr);
+                map.put("data",data);
+            }catch (Exception e1){
+                map.put("data",bodyStr);
+            }
+        }
         return APIResponse.create().httpCode(response.code())
-                .result((Map<String, Object>) fromJson(response.body().string()))
+                .result(map)
                 .headers(getHeaderMap(response.headers()));
     }
 
