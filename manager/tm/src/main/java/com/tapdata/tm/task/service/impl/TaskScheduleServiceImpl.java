@@ -106,12 +106,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
         Update waitRunUpdate = Update.update("agentId", taskDto.getAgentId()).set("last_updated", now);
-        boolean needCreateRecord = false;
-        if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
-            taskDto.setTaskRecordId(new ObjectId().toHexString());
-            waitRunUpdate.set(TaskDto.LASTTASKRECORDID, taskDto.getTaskRecordId());
-            needCreateRecord = true;
-        }
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_SUCCESS, user);
 
@@ -121,24 +115,9 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         } else {
             taskService.update(query1, waitRunUpdate, user);
         }
-        //发送websocket消息，提醒flowengin启动
-        DataSyncMq dataSyncMq = new DataSyncMq();
-        dataSyncMq.setTaskId(taskDto.getId().toHexString());
-        dataSyncMq.setOpType(DataSyncMq.OP_TYPE_START);
-        dataSyncMq.setType(MessageType.DATA_SYNC.getType());
+        sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user);
 
-        Map<String, Object> data;
-        String json = JsonUtil.toJsonUseJackson(dataSyncMq);
-        data = JsonUtil.parseJsonUseJackson(json, Map.class);
-        MessageQueueDto queueDto = new MessageQueueDto();
-        queueDto.setReceiver(taskDto.getAgentId());
-        queueDto.setData(data);
-        queueDto.setType("pipe");
-
-        log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
-        messageQueueService.sendMessage(queueDto);
-
-        if (needCreateRecord) {
+        if (taskDto.isNeedCreateRecord()) {
             TaskEntity taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
             disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), now));
@@ -155,6 +134,25 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())),
                     Update.update("scheduleDate", System.currentTimeMillis()));
         }
+    }
+
+    public void sendStartMsg(String taskId, String agentId, UserDetail user) {
+        //发送websocket消息，提醒flowengin启动
+        DataSyncMq dataSyncMq = new DataSyncMq();
+        dataSyncMq.setTaskId(taskId);
+        dataSyncMq.setOpType(DataSyncMq.OP_TYPE_START);
+        dataSyncMq.setType(MessageType.DATA_SYNC.getType());
+
+        Map<String, Object> data;
+        String json = JsonUtil.toJsonUseJackson(dataSyncMq);
+        data = JsonUtil.parseJsonUseJackson(json, Map.class);
+        MessageQueueDto queueDto = new MessageQueueDto();
+        queueDto.setReceiver(agentId);
+        queueDto.setData(data);
+        queueDto.setType("pipe");
+
+        log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
+        messageQueueService.sendMessage(queueDto);
     }
 
     /**
