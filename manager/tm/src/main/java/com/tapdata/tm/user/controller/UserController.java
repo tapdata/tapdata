@@ -311,7 +311,7 @@ public class UserController extends BaseController {
         if (user.getAccountStatus() == 2) {
             return failed("110500", user.isEmailVerified() ? "WAITING_APPROVE" : "EMAIL_NON_VERIFLED");
         } else if (user.getAccountStatus() == 0) {
-            return failed("110500", "ACCOUNT_DISABLED");
+            return failed("Account.disabled");
         }
         boolean timesOverFive = user.getLoginTimes() != null && user.getLoginTimes() >= 5;
         boolean timeInTenMin = user.getLoginTime() != null
