@@ -1,6 +1,8 @@
 package io.tapdata.bigquery.service.bigQuery;
 
-import com.google.cloud.bigquery.*;
+import com.google.cloud.bigquery.BigQueryException;
+import com.google.cloud.bigquery.Dataset;
+import com.google.cloud.bigquery.DatasetId;
 import io.tapdata.bigquery.enums.BigQueryTestItem;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;

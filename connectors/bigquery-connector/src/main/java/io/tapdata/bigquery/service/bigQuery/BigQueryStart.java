@@ -3,7 +3,6 @@ package io.tapdata.bigquery.service.bigQuery;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.bigquery.entity.ContextConfig;
-import io.tapdata.bigquery.service.stream.handle.BigQueryStream;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;

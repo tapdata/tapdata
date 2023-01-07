@@ -6,7 +6,7 @@ import io.tapdata.entity.schema.type.TapType;
 
 import java.util.Objects;
 
-import static io.tapdata.base.ConnectorBase.*;
+import static io.tapdata.base.ConnectorBase.toJson;
 
 public class SqlValueConvert {
     /**

@@ -14,30 +14,41 @@ import io.tapdata.bigquery.service.stream.handle.TapEventCollector;
 import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
 import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.schema.value.TapArrayValue;
+import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.schema.value.TapYearValue;
 import io.tapdata.entity.utils.cache.Entry;
 import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.WriteListResult;
-import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 @TapConnectorClass("spec.json")
@@ -52,12 +63,20 @@ public class BigQueryConnector extends ConnectorBase {
 	public static final int STREAM_SIZE = 20000;
 	MergeHandel merge ;
 	AtomicBoolean running = new AtomicBoolean(true);
-    Long streamOffset = 0L;
+
+
+    private final AtomicLong streamOffset = new AtomicLong(0);
+    public static final String STREAM_OFFSET_KEY_NAME = "STREAM_API_OFFSET";
+
+	private ScheduledFuture<?> future;
+	private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
         this.writeRecord = WriteRecord.create(connectionContext);
 		if (connectionContext instanceof TapConnectorContext) {
+			TapConnectorContext context = (TapConnectorContext)connectionContext;
+
 			isConnectorStarted(connectionContext, connectorContext -> {
 				Iterator<Entry<TapTable>> iterator = connectorContext.getTableMap().iterator();
 				while (iterator.hasNext()) {
@@ -74,9 +93,41 @@ public class BigQueryConnector extends ConnectorBase {
                 merge.mergeDelaySeconds(config.mergeDelay())
                         .temporaryTableId(config.tempCursorSchema());
             }
-            stream = BigQueryStream.streamWrite((TapConnectorContext)connectionContext)
+            stream = BigQueryStream.streamWrite(context)
                     .merge(merge)
                     .streamOffset(streamOffset);
+
+            //定期更新stream API 每批提交的数据绑定的offset 到 stateMap
+			if (writeRecord.config().isMixedUpdates()) {
+				streamOffset.set(this.getOffsetFromStateMap(context));
+				if ( Objects.isNull(future)){
+					future = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+						try {
+							this.saveOffsetToStateMap(context);
+						} catch (Throwable throwable) {
+							TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
+						}
+					}, 10, 600, TimeUnit.SECONDS);
+				}
+			}
+		}
+	}
+	private void saveOffsetToStateMap(TapConnectorContext context){
+		KVMap<Object> stateMap = context.getStateMap();
+		if (Objects.isNull(stateMap)){
+			throw new CoreException("Task's state map can not be null or not be empty.");
+		}
+		stateMap.put(STREAM_OFFSET_KEY_NAME,streamOffset.get());
+	}
+	private long getOffsetFromStateMap(TapConnectorContext context){
+		KVMap<Object> stateMap = context.getStateMap();
+		if (Objects.isNull(stateMap)){
+			throw new CoreException("Task's state map can not be null or not be empty.");
+		}
+		try {
+			return (Long) stateMap.get(STREAM_OFFSET_KEY_NAME);
+		}catch (Exception e){
+			return 0L;
 		}
 	}
 
@@ -97,6 +148,12 @@ public class BigQueryConnector extends ConnectorBase {
 		if (Objects.nonNull(merge)) {
 			merge.stop();
 		}
+		if (Objects.nonNull(future)) {
+			future.cancel(true);
+			if (connectionContext instanceof TapConnectorContext){
+				this.saveOffsetToStateMap((TapConnectorContext) connectionContext);
+			}
+		}
 	}
 
 	@Override
@@ -114,20 +171,16 @@ public class BigQueryConnector extends ConnectorBase {
 		;
 	}
 
-    private void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) {
-		TableCreate tableCreate = TableCreate.create(connectorContext);
+    private void dropTable(TapConnectorContext context, TapDropTableEvent dropTableEvent) {
+		TableCreate tableCreate = TableCreate.create(context);
 		tableCreate.dropTable(dropTableEvent);
 		if( Objects.nonNull(merge) && merge.config().isMixedUpdates() ) {
-            if (connectorContext instanceof TapConnectorContext){
-                TapConnectorContext context = (TapConnectorContext)connectorContext;
-                KVMap<Object> stateMap = context.getStateMap();
-                Object tempCursorSchema = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
-                if(Objects.isNull(tempCursorSchema)){
-                    TapLogger.info(TAG,"Cache Schema has created ,named is "+tempCursorSchema);
-                }
-                merge.dropTemporaryTable(String.valueOf(tempCursorSchema));
-
-            }
+			KVMap<Object> stateMap = context.getStateMap();
+			Object tempCursorSchema = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
+			if(Objects.isNull(tempCursorSchema)){
+				TapLogger.info(TAG,"Cache Schema has created ,named is "+tempCursorSchema);
+			}
+			merge.dropTemporaryTable(String.valueOf(tempCursorSchema));
 		}
     }
 

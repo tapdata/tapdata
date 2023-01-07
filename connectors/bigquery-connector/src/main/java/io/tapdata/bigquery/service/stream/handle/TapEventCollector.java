@@ -133,7 +133,7 @@ public class TapEventCollector {
     }
 
     private void transform(List<TapRecordEvent> eventList,TapTable table,boolean isMixedUpdates){
-//        if (!isMixedUpdates) return;
+        //if (!isMixedUpdates) return;
         LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
         if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {
             throw new CoreException("TapTable not any fields.");
@@ -153,12 +153,15 @@ public class TapEventCollector {
                     }
                 });
                 insertRecordEvent.after(recordMap);
-            }else if(event instanceof TapUpdateRecordEvent){
-                //record = ((TapUpdateRecordEvent)event).getAfter();
-            }else if(event instanceof TapDeleteRecordEvent){
-                //record = ((TapDeleteRecordEvent)event).getBefore();
-            }else {
             }
+            //else if(event instanceof TapUpdateRecordEvent){
+            //    record = ((TapUpdateRecordEvent)event).getAfter();
+            //}
+            //else if(event instanceof TapDeleteRecordEvent){
+            //    record = ((TapDeleteRecordEvent)event).getBefore();
+            //}
+            //else {
+            //}
         }
     }
 }

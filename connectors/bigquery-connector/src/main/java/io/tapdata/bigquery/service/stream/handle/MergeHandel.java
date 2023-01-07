@@ -5,9 +5,7 @@ import io.tapdata.bigquery.service.bigQuery.BigQueryStart;
 import io.tapdata.bigquery.service.bigQuery.TableCreate;
 import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.error.CoreException;
-
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -44,7 +42,17 @@ public class MergeHandel extends BigQueryStart {
     public static final String MERGE_VALUE_TYPE_INSERT = "I";
     public static final String MERGE_VALUE_TYPE_UPDATE = "U";
     public static final String MERGE_VALUE_TYPE_DELETE = "D";
-    String temporaryTableId;
+
+    private String temporaryTableId;
+    private final Object mergeLock = new Object();
+
+    public static final String DELIMITER = "," ;
+    private long mergeDelaySeconds = 2*60*60;
+
+    AtomicBoolean running = new AtomicBoolean(false);
+    private ScheduledFuture<?> future;
+    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+
     public String temporaryTableId(){
         return this.temporaryTableId;
     }
@@ -52,31 +60,24 @@ public class MergeHandel extends BigQueryStart {
         this.temporaryTableId = temporaryTableId;
         return this;
     }
-    private final Object mergeLock = new Object();
-    public Object mergeLock(){
-        return this.mergeLock;
-    }
-
-    public static final String DELIMITER = "," ;
-    private long mergeDelaySeconds = 2*60*60;
-    public MergeHandel mergeDelaySeconds(long mergeDelaySeconds){
-        this.mergeDelaySeconds = mergeDelaySeconds;
-        return this;
-    }
-
-    AtomicBoolean running = new AtomicBoolean(false);
     public MergeHandel running(AtomicBoolean run){
         this.running = run;
         return this;
     }
-    private ScheduledFuture<?> future;
-    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
-
-    public void stop() {
-        if (Objects.nonNull(future))
-            future.cancel(true);
+    public MergeHandel mergeDelaySeconds(long mergeDelaySeconds){
+        this.mergeDelaySeconds = mergeDelaySeconds;
+        return this;
+    }
+    public Object mergeLock(){
+        return this.mergeLock;
     }
 
+    public void stop() {
+        if (Objects.nonNull(future)) {
+            future.cancel(true);
+            this.mergeTableOnce();
+        }
+    }
     private MergeHandel(TapConnectionContext connectorContext) {
         super(connectorContext);
     }
@@ -134,11 +135,6 @@ public class MergeHandel extends BigQueryStart {
         }
         String tableSetName = "`"+tableSet+"`.`"+tableId+"`";
 
-        //StringBuilder sql = new StringBuilder(" DROP TABLE IF EXISTS ");
-        //sql.append(tableSetName)
-        //        .append("; CREATE TABLE IF NOT EXISTS ")
-        //        .append(tableSetName)
-        //        .append(" (");
         StringBuilder sql = new StringBuilder();//" DROP TABLE IF EXISTS ")
         sql.append("CREATE TABLE")
                 .append(tableSetName)
@@ -185,7 +181,6 @@ public class MergeHandel extends BigQueryStart {
            .append(MERGE_KEY_DATA_AFTER).append(" STRUCT<").append(structSql).append(">");
 
         String comment = table.getComment();
-
         sql.append(" ) ");
         String collateSpecification = "";//默认排序规则
         if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(collateSpecification)){
@@ -268,6 +263,7 @@ public class MergeHandel extends BigQueryStart {
             throw new CoreException("Failed to empty temporary table, table name is " + temporaryTableId + ", " + e.getMessage());
         }
     }
+
     private final static String DROP_TABLE_SQL = "DROP TABLE IF EXISTS `%s`.`%s`.`%s`;";
     public boolean dropTemporaryTable(String temporaryTableId){
         if (Checker.isEmpty(temporaryTableId)){
@@ -281,37 +277,24 @@ public class MergeHandel extends BigQueryStart {
                             , temporaryTableId));
             return Checker.isNotEmpty(bigQueryResult) && Checker.isNotEmpty(bigQueryResult.getTotalRows()) && bigQueryResult.getTotalRows()>0;
         }catch (Exception e){
-            throw e;
+            throw new CoreException(String.format("Drop temporary table error,table name is: %s, error is: %s.",temporaryTableId,e.getMessage()));
         }
     }
 
     /**
      * 合并零时表到主表 - 混合模式
      * */
+    TapTable mainTable;
     public void mergeTemporaryTableToMainTable(TapTable mainTable){
+        if (Objects.isNull(mainTable)){
+            throw new CoreException("TableTable must not be null or not be empty.");
+        }
+        this.mainTable = mainTable;
         if (Objects.isNull(future)) {
             future = scheduledExecutorService.scheduleWithFixedDelay(() -> {
                 synchronized (mergeLock){
                     try {
-                        //if (!running.get()){
-                        //    stop();
-                        //}
-                        KVMap<Object> stateMap = ((TapConnectorContext) this.connectorContext).getStateMap();
-                        Object mergeKeyId = stateMap.get(MergeHandel.MERGE_KEY_ID);
-                        SQLBuilder builder = mergeSql(mainTable);
-                        String projectAndSetId = config().projectId()+"."+config().tableSet()+".";
-                        String sql = String.format(
-                                MERGE_SQL,
-                                projectAndSetId + mainTable.getId(),
-                                projectAndSetId + temporaryTableId,
-                                Objects.isNull(mergeKeyId)?0:mergeKeyId,
-                                builder.whereSql(),
-                                builder.insertKeySql(),
-                                builder.insertValueSql(),
-                                Objects.isNull(mergeKeyId)?0:mergeKeyId,
-                                builder.updateSql());
-                        this.sqlMarker.executeOnce(sql);
-                        this.cleanTemporaryTable();
+                        this.mergeTableOnce();
                     } catch (Throwable throwable) {
                         TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
                     }
@@ -319,15 +302,34 @@ public class MergeHandel extends BigQueryStart {
             }, 10, mergeDelaySeconds, TimeUnit.SECONDS);
         }
     }
+    private void mergeTableOnce(){
+        KVMap<Object> stateMap = ((TapConnectorContext) this.connectorContext).getStateMap();
+        Object mergeKeyId = stateMap.get(MergeHandel.MERGE_KEY_ID);
+        SQLBuilder builder = mergeSql(mainTable);
+        String projectAndSetId = config().projectId()+"."+config().tableSet()+".";
+        Object finalMergeKeyId = Objects.isNull(mergeKeyId) ? 0 : mergeKeyId;
+        String sql = String.format(
+                MERGE_SQL,
+                projectAndSetId + mainTable.getId(),
+                projectAndSetId + temporaryTableId,
+                finalMergeKeyId,
+                builder.whereSql(),
+                builder.insertKeySql(),
+                builder.insertValueSql(),
+                finalMergeKeyId,
+                builder.updateSql());
+        this.sqlMarker.executeOnce(sql);
+        this.cleanTemporaryTable();
+    }
 
     public static final String MERGE_SQL =
             " MERGE `%s` merge_tab USING( " +
             "SELECT * FROM `%s` targeted WHERE targeted." +MERGE_KEY_ID +"<=%s"+
-//            "    SELECT * EXCEPT(row_num) FROM ( " +
-//            "        SELECT *, ROW_NUMBER() OVER(PARTITION BY delta."+MERGE_KEY_TYPE+" ORDER BY delta."+MERGE_KEY_ID+" DESC) AS row_num " +
-//            "        FROM `%s` delta " +
-//            "    ) " +
-//            "    WHERE row_num = 1 " +
+            //"    SELECT * EXCEPT(row_num) FROM ( " +
+            //"        SELECT *, ROW_NUMBER() OVER(PARTITION BY delta."+MERGE_KEY_TYPE+" ORDER BY delta."+MERGE_KEY_ID+" DESC) AS row_num " +
+            //"        FROM `%s` delta " +
+            //"    ) " +
+            //"    WHERE row_num = 1 " +
             " ) tab ON %s " + //merge_tab.id = tab.id
             " WHEN NOT MATCHED AND tab."+MERGE_KEY_TYPE+" in(\""+MERGE_VALUE_TYPE_INSERT+"\",\""+MERGE_VALUE_TYPE_UPDATE+"\") THEN " +
             "   INSERT (%s) VALUES (%s) " + //id ,username, change_id       tab.id,tab.username,tab.change_id
@@ -365,6 +367,7 @@ public class MergeHandel extends BigQueryStart {
         }
         return new SQLBuilder(whereSql.toString(), insertKeySql.toString(), insertValueSql.toString(), updateSql.toString());
     }
+
     static class SQLBuilder{
         String whereSql;
         String insertKeySql;

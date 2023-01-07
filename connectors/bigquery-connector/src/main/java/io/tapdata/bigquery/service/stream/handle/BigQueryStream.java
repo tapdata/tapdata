@@ -3,13 +3,10 @@ package io.tapdata.bigquery.service.stream.handle;
 import com.google.protobuf.Descriptors;
 import io.tapdata.bigquery.service.bigQuery.BigQueryStart;
 import io.tapdata.bigquery.service.stream.WriteCommittedStream;
-import io.tapdata.bigquery.util.bigQueryUtil.SqlValueConvert;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -20,7 +17,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class BigQueryStream extends BigQueryStart {
     public static final String TAG = BigQueryStream.class.getSimpleName();
@@ -29,8 +26,8 @@ public class BigQueryStream extends BigQueryStart {
     public static final Map<String,WriteCommittedStream> streamMap = new ConcurrentHashMap<>();
     TapTable tapTable;
     MergeHandel merge ;
-    Long streamOffset;
-    public BigQueryStream streamOffset(Long streamOffset){
+    AtomicLong streamOffset;
+    public BigQueryStream streamOffset(AtomicLong streamOffset){
         this.streamOffset = streamOffset;
         return this;
     }
@@ -102,17 +99,17 @@ public class BigQueryStream extends BigQueryStart {
             if (event instanceof TapInsertRecordEvent){
                 insert.getAndIncrement();
                 record = ((TapInsertRecordEvent)event).getAfter();
-            }else if(event instanceof TapUpdateRecordEvent){
+            }
+            else if(event instanceof TapUpdateRecordEvent){
                 update.getAndIncrement();
                 //record = ((TapUpdateRecordEvent)event).getAfter();
-            }else if(event instanceof TapDeleteRecordEvent){
+            }
+            else if(event instanceof TapDeleteRecordEvent){
                 delete.getAndIncrement();
                 //record = ((TapDeleteRecordEvent)event).getBefore();
-            }else {
-
             }
             mergeKeyId = record.get(MergeHandel.MERGE_KEY_ID);
-            if (Objects.nonNull(record)){
+            if (!record.isEmpty()){
                 list.add(record);
             }
         }
@@ -120,29 +117,5 @@ public class BigQueryStream extends BigQueryStart {
             stateMap.put(MergeHandel.MERGE_KEY_ID,mergeKeyId);
         }
         return list;
-
-//        return events.stream().filter(Objects::nonNull).map(event->{
-//            Map<String,Object> record = new HashMap<>();
-//            if (event instanceof TapInsertRecordEvent){
-//                insert.getAndIncrement();
-//                record = ((TapInsertRecordEvent)event).getAfter();
-//            }else if(event instanceof TapUpdateRecordEvent){
-//                update.getAndIncrement();
-//                //record = ((TapUpdateRecordEvent)event).getAfter();
-//            }else if(event instanceof TapDeleteRecordEvent){
-//                delete.getAndIncrement();
-//                //record = ((TapDeleteRecordEvent)event).getBefore();
-//            }else {
-//
-//            }
-//            Object mergeKeyId = record.get(MergeHandel.MERGE_KEY_ID);
-//            if (Objects.nonNull(mergeKeyId)){
-//                stateMap.put(MergeHandel.MERGE_KEY_ID,mergeKeyId);
-//            }
-//            Map<String,Object> recordMap = new HashMap<>();
-//            Map<String, Object> finalRecord = record;
-//            nameFieldMap.forEach((key, f)->recordMap.put(key,SqlValueConvert.streamJsonArrayValue(finalRecord.get(key),f)));
-//            return record.isEmpty()?null:record;
-//        }).collect(Collectors.toList());
     }
 }

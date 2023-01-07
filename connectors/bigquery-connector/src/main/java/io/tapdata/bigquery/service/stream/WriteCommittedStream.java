@@ -8,27 +8,28 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.storage.v1.*;
 import com.google.cloud.bigquery.storage.v1.Exceptions.StorageException;
-import com.google.cloud.bigquery.storage.v1.stub.BigQueryWriteStubSettings;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Phaser;
-import javax.annotation.concurrent.GuardedBy;
-
 import io.grpc.LoadBalancerRegistry;
 import io.grpc.internal.PickFirstLoadBalancerProvider;
-import io.tapdata.bigquery.service.stream.handle.BigQueryStream;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.cache.KVMap;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import javax.annotation.concurrent.GuardedBy;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Phaser;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class WriteCommittedStream {
   public static final String TAG = WriteCommittedStream.class.getSimpleName();
@@ -42,8 +43,8 @@ public class WriteCommittedStream {
 
   BigQueryWriteClient client;
   DataWriter writer;
-    Long streamOffset;
-    public WriteCommittedStream streamOffset(Long streamOffset){
+  AtomicLong streamOffset;
+    public WriteCommittedStream streamOffset(AtomicLong streamOffset){
         this.streamOffset = streamOffset;
         return this;
     }
@@ -110,6 +111,10 @@ public class WriteCommittedStream {
       throw new CoreException("Big query connector direct fail exception, connector not handle this exception");
     }
   }
+
+  /**
+   * @deprecated
+   * */
   public void writeCommittedStream() throws DescriptorValidationException, IOException, InterruptedException {
     try {
       // Write two batches of fake data to the stream, each with 10 JSON records.  Data may be
@@ -152,7 +157,6 @@ public class WriteCommittedStream {
 
   public void append(List<Map<String,Object>> record) throws IOException, DescriptorValidationException, InterruptedException {
     if (Objects.isNull(record) || record.isEmpty()) return;
-    long offset = 0;
     try {
       JSONArray jsonArr = new JSONArray();
       for (Map<String, Object> map : record) {
@@ -161,8 +165,10 @@ public class WriteCommittedStream {
         map.forEach(jsonObject::put);
         jsonArr.put(jsonObject);
       }
-      writer.append(jsonArr, offset);
-      offset += jsonArr.length();
+      long offsetState = streamOffset.get();
+      writer.append(jsonArr, offsetState);
+      offsetState += jsonArr.length();
+      streamOffset.addAndGet(offsetState);
     }catch(ExecutionException e){
       //TapLogger.info(TAG,"Error to use stream api write records: "+e.getMessage());
     }
@@ -170,10 +176,7 @@ public class WriteCommittedStream {
   }
   public void appendJSON(List<Map<String,Object>> record) throws IOException, DescriptorValidationException, InterruptedException {
     if (Objects.isNull(record) || record.isEmpty()) return;
-//    try {
-//      List<JSONArray> jsonArr = new ArrayList<>();
       List<List<Map<String,Object>>> partition = Lists.partition(record, 5000);
-        //JSONArray jsonArr = new JSONArray();
       partition.forEach(recordPartition->{
           JSONArray json = new JSONArray();
           for (Map<String, Object> map : recordPartition) {
@@ -194,35 +197,15 @@ public class WriteCommittedStream {
               json.put(jsonObject);
           }
           try {
-              writer.append(json, streamOffset);
-              streamOffset += json.length();
+              long offsetState = streamOffset.get();
+              writer.append(json, offsetState);
+              offsetState += json.length();
+              streamOffset.addAndGet(offsetState);
           } catch (Exception e) {
               TapLogger.error(TAG,"Stream API write record error,data offset is : " + streamOffset +"，data :" +json.toString());
-              return;
           }
-          //jsonArr.add(json);
       });
-//        jsonArr.forEach(item->{
-//            try {
-//                writer.append(item, streamOffset);
-//                streamOffset += item.length();
-//            } catch (Exception e) {
-//                TapLogger.error(TAG,"Stream API Write error,data offset is : " + streamOffset +"，data :" +item.toString());
-//                return;
-//            }
-//        });
-
-//      Object streamOffset = stateMap.get("stream_offset");
-//      if (Objects.isNull(streamOffset)){
-//          streamOffset = 0L;
-//      }
-//      long offset = (Long)streamOffset;
-//      offset += jsonArr.length();
-//      stateMap.put("stream_offset",offset);
-//    }catch(ExecutionException e){
-//      TapLogger.error(TAG,"Error to use stream api write records: "+e.getMessage());
-//    }
-    //writer.cleanup(client);
+      //writer.cleanup(client);
   }
 
   // A simple wrapper object showing how the stateful stream writer should be used.
