@@ -20,7 +20,12 @@ public abstract class TapStorageImpl implements TapStorage {
 	protected ObjectSerializable objectSerializable;
 	protected String id;
 	protected TapStorageFactory.StorageOptions storageOptions;
+	protected ClassLoader classLoader;
 
+	@Override
+	public void setClassLoader(ClassLoader classLoader) {
+		this.classLoader = classLoader;
+	}
 	protected void initState(String id, TapStorageFactory.StorageOptions storageOptions) {
 		this.id = id;
 		if(StringUtils.isBlank(this.id)) {

@@ -378,9 +378,14 @@ public class MysqlConnector extends ConnectorBase {
         FilterResults filterResults = new FilterResults();
         filterResults.setFilter(tapAdvanceFilter);
         try {
+            int batchSize = MAX_FILTER_RESULT_SIZE;
+            if(tapAdvanceFilter.getBatchSize() != null && tapAdvanceFilter.getBatchSize() > 0) {
+                batchSize = tapAdvanceFilter.getBatchSize();
+            }
+            int finalBatchSize = batchSize;
             this.mysqlReader.readWithFilter(tapConnectorContext, tapTable, tapAdvanceFilter, n -> !isAlive(), data -> {
                 filterResults.add(data);
-                if (filterResults.getResults().size() == MAX_FILTER_RESULT_SIZE) {
+                if (filterResults.getResults().size() == finalBatchSize) {
                     consumer.accept(filterResults);
                     filterResults.getResults().clear();
                 }

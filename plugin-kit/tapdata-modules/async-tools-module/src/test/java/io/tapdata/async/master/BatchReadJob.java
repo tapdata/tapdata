@@ -8,7 +8,7 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
  * @author aplomb
  */
 @AsyncJobClass("batchRead")
-public class BatchReadJob implements AsyncJob {
+public class BatchReadJob implements Job {
 
 	@Override
 	public JobContext run(JobContext jobContext) {

@@ -575,13 +575,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 					Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
-					Map<String, Object> newMap = new HashMap<>();
-					try {
-						MapUtil.deepCloneMap(batchOffsetObj, newMap);
-					} catch (IllegalAccessException | InstantiationException e) {
-						throw new RuntimeException("Deep clone batch offset map failed: " + e.getMessage(), e);
-					}
-					tapdataEvent.setBatchOffset(newMap);
+//					Map<String, Object> newMap = new HashMap<>();
+//					try {
+//						MapUtil.deepCloneMap(batchOffsetObj, newMap);
+//					} catch (IllegalAccessException | InstantiationException e) {
+//						throw new RuntimeException("Deep clone batch offset map failed: " + e.getMessage(), e);
+//					}
+					tapdataEvent.setBatchOffset(batchOffsetObj);
 				}
 			} else if (SyncStage.CDC == syncStage) {
 				tapdataEvent.setStreamOffset(offsetObj);

@@ -3,13 +3,11 @@ package io.tapdata.storage.sequence;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.modules.api.storage.TapStorageFactory;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.storage.errors.StorageErrors;
 import io.tapdata.storage.factory.TapStorageFactoryImpl;
 import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import java.io.*;
@@ -29,11 +27,13 @@ public class SequenceIterator implements Iterator<Object>, Closeable {
 	private String id;
 	private TapStorageFactory.StorageOptions storageOptions;
 	private File dbFile;
-	public SequenceIterator(String id, TapStorageFactory.StorageOptions storageOptions, File dbFile, ObjectSerializable objectSerializable) {
+	private ObjectSerializable.ToObjectOptions toObjectOptions;
+	public SequenceIterator(String id, TapStorageFactory.StorageOptions storageOptions, File dbFile, ObjectSerializable objectSerializable, ClassLoader classLoader) {
 		this.id = id;
 		this.storageOptions = storageOptions;
 		this.dbFile = dbFile;
 		this.objectSerializable = objectSerializable;
+		toObjectOptions = new ObjectSerializable.ToObjectOptions().classLoader(classLoader);
 	}
 	public void ensureInit() {
 		if(fileInputStream == null && compressorInputStream == null && dataInputStream == null) {
@@ -80,7 +80,7 @@ public class SequenceIterator implements Iterator<Object>, Closeable {
 		} catch (IOException e) {
 			throw new CoreException(StorageErrors.NEXT_READ_FULLY_FAILED, e, "Sequence iterator next failed, nextLength {}, error {}", nextLength, e.getMessage());
 		}
-		return objectSerializable.toObject(data);
+		return objectSerializable.toObject(data, toObjectOptions);
 	}
 
 	@Override

@@ -13,6 +13,7 @@ import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.partition.splitter.TypeSplitter;
 import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -24,7 +25,7 @@ import static io.tapdata.entity.simplify.TapSimplify.map;
 /**
  * @author aplomb
  */
-public class ReadPartition implements Comparable<ReadPartition> {
+public class ReadPartition implements Comparable<ReadPartition>, Serializable {
 	private static final String TAG = ReadPartition.class.getSimpleName();
 	private TapIndexEx partitionIndex;
 	public ReadPartition partitionIndex(TapIndexEx partitionIndex) {

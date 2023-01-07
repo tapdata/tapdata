@@ -11,31 +11,31 @@ import java.util.function.Function;
 /**
  * @author aplomb
  */
-public class AsyncJobChainImpl implements AsyncJobChain {
-	final Map<String, AsyncJob> asyncJobLinkedMap = Collections.synchronizedMap(new LinkedHashMap<>());
+public class AsyncJobChainImpl implements JobChain {
+	final Map<String, JobBase> asyncJobLinkedMap = Collections.synchronizedMap(new LinkedHashMap<>());
 	final Set<String> pendingJobIds = Collections.synchronizedSet(new HashSet<>());
-	private final Map<String, Class<? extends AsyncJob>> asyncJobMap;
+	private final Map<String, Class<? extends Job>> asyncJobMap;
 	private final TapUtils tapUtils;
-	public AsyncJobChainImpl(Map<String, Class<? extends AsyncJob>> asyncJobMap) {
+	public AsyncJobChainImpl(Map<String, Class<? extends Job>> asyncJobMap) {
 		this.asyncJobMap = asyncJobMap;
 		tapUtils = InstanceFactory.instance(TapUtils.class);
 	}
 
-	public Map<String, AsyncJob> cloneChain() {
+	public Map<String, JobBase> cloneChain() {
 		return Collections.synchronizedMap(new LinkedHashMap<>(asyncJobLinkedMap));
 	}
 
 	@Override
-	public AsyncJobChain job(AsyncJob asyncJob) {
+	public JobChain job(Job asyncJob) {
 		return job(UUID.randomUUID().toString(), asyncJob);
 	}
 
 	@Override
-	public AsyncJobChain job(String id, AsyncJob asyncJob) {
+	public JobChain job(String id, Job asyncJob) {
 		return job(id, asyncJob, false);
 	}
 	@Override
-	public AsyncJobChain job(String id, AsyncJob asyncJob, boolean pending) {
+	public JobChain job(String id, Job asyncJob, boolean pending) {
 		asyncJobLinkedMap.put(id, asyncJob);
 		if(pending) {
 			pendingJobIds.add(id);
@@ -44,17 +44,17 @@ public class AsyncJobChainImpl implements AsyncJobChain {
 	}
 
 	@Override
-	public AsyncJobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer) {
+	public JobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer) {
 		return externalJob(id, jobContextConsumer, false);
 	}
 	@Override
-	public AsyncJobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
+	public JobChain externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
 		return externalJob(id, null, jobContextConsumer, pending);
 	}
 	@Override
-	public AsyncJobChain externalJob(String id, AsyncJob asyncJob, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
+	public JobChain externalJob(String id, Job asyncJob, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
 		if(asyncJob == null) {
-			Class<? extends AsyncJob> jobClass = asyncJobMap.get(id);
+			Class<? extends Job> jobClass = asyncJobMap.get(id);
 			if(jobClass == null)
 				throw new CoreException(AsyncErrors.MISSING_JOB_CLASS_FOR_TYPE, "Job class is missing for type {}", id);
 			try {
@@ -63,11 +63,25 @@ public class AsyncJobChainImpl implements AsyncJobChain {
 				throw new CoreException(AsyncErrors.INITIATE_JOB_CLASS_FAILED, "Initiate job class {} failed, {}", jobClass, tapUtils.getStackTrace(e));
 			}
 		}
-		AsyncJob finalAsyncJob = asyncJob;
+		Job finalAsyncJob = asyncJob;
 		job(id, jobContext -> {
 			JobContext context = finalAsyncJob.run(jobContext);
 			return jobContextConsumer.apply(context);
 		}, pending);
+		return this;
+	}
+
+	@Override
+	public JobChain asyncJob(String id, AsyncJob asyncJob) {
+		return asyncJob(id, asyncJob, false);
+	}
+
+	@Override
+	public JobChain asyncJob(String id, AsyncJob asyncJob, boolean pending) {
+		asyncJobLinkedMap.put(id, asyncJob);
+		if(pending) {
+			pendingJobIds.add(id);
+		}
 		return this;
 	}
 
@@ -77,30 +91,30 @@ public class AsyncJobChainImpl implements AsyncJobChain {
 	}
 
 	@Override
-	public AsyncJob remove(String id) {
+	public JobBase remove(String id) {
 		return asyncJobLinkedMap.remove(id);
 	}
 
 	@Override
-	public Set<Map.Entry<String, AsyncJob>> asyncJobs() {
+	public Set<Map.Entry<String, JobBase>> asyncJobs() {
 		return asyncJobLinkedMap.entrySet();
 	}
 
 	public static void main(String[] args) {
 		AsyncJobChainImpl asyncJobChain = new AsyncJobChainImpl(null);
-		asyncJobChain.job("a", new AsyncJob() {
+		asyncJobChain.job("a", new Job() {
 			@Override
 			public JobContext run(JobContext previousJobContext) {
 				return null;
 			}
 		});
-		asyncJobChain.job("b", new AsyncJob() {
+		asyncJobChain.job("b", new Job() {
 			@Override
 			public JobContext run(JobContext previousJobContext) {
 				return null;
 			}
 		});
-		asyncJobChain.job("c", new AsyncJob() {
+		asyncJobChain.job("c", new Job() {
 			@Override
 			public JobContext run(JobContext previousJobContext) {
 				return null;
@@ -108,7 +122,7 @@ public class AsyncJobChainImpl implements AsyncJobChain {
 		});
 		System.out.println("map " + asyncJobChain.asyncJobLinkedMap);
 		asyncJobChain.remove("a");
-		asyncJobChain.job("a", new AsyncJob() {
+		asyncJobChain.job("a", new Job() {
 			@Override
 			public JobContext run(JobContext previousJobContext) {
 				return null;

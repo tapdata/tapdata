@@ -20,19 +20,9 @@ public abstract class JobContext {
 	public abstract <K, V> void foreach(Map<K, V> map, Function<Map.Entry<K, V>, Boolean> entryFunction);
 	public abstract void runOnce(Runnable runnable);
 
-	private AsyncQueueWorker asyncQueueWorker;
-	public JobContext asyncQueueWorker(AsyncQueueWorker asyncQueueWorker) {
+	private QueueWorker asyncQueueWorker;
+	public JobContext asyncQueueWorker(QueueWorker asyncQueueWorker) {
 		this.asyncQueueWorker = asyncQueueWorker;
-		return this;
-	}
-	protected final AtomicBoolean alive = new AtomicBoolean(false);
-	public JobContext alive() {
-		alive.compareAndSet(false, true);
-		return this;
-	}
-
-	public JobContext resetAlive() {
-		alive.set(false);
 		return this;
 	}
 
@@ -51,8 +41,8 @@ public abstract class JobContext {
 		return this;
 	}
 
-	protected AsyncJob asyncJob;
-	public JobContext asyncJob(AsyncJob asyncJob) {
+	protected JobBase asyncJob;
+	public JobContext asyncJob(JobBase asyncJob) {
 		this.asyncJob = asyncJob;
 		return this;
 	}
@@ -129,16 +119,12 @@ public abstract class JobContext {
 		this.context = context;
 	}
 
-	public AsyncJob getAsyncJob() {
+	public JobBase getAsyncJob() {
 		return asyncJob;
 	}
 
-	public void setAsyncJob(AsyncJob asyncJob) {
+	public void setAsyncJob(Job asyncJob) {
 		this.asyncJob = asyncJob;
-	}
-
-	public boolean isAlive() {
-		return alive.get();
 	}
 
 	public boolean isStopped() {
@@ -153,7 +139,7 @@ public abstract class JobContext {
 		this.stopReason = stopReason;
 	}
 
-	public AsyncQueueWorker getAsyncQueueWorker() {
+	public QueueWorker getAsyncQueueWorker() {
 		return asyncQueueWorker;
 	}
 }

@@ -1,6 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import io.tapdata.async.master.AsyncParallelWorker;
+import io.tapdata.async.master.ParallelWorker;
 
 import java.util.List;
 
@@ -8,7 +8,7 @@ import java.util.List;
  * @author aplomb
  */
 public class StreamReadContext {
-	private AsyncParallelWorker partitionsReader;
+	private ParallelWorker partitionsReader;
 //	public StreamReadContext partitionsReader(AsyncParallelWorker partitionsReader) {
 //		this.partitionsReader = partitionsReader;
 //		return this;

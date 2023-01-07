@@ -2,6 +2,7 @@ package io.tapdata.async.master;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.Container;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.modules.api.async.master.*;
@@ -12,6 +13,7 @@ import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -21,33 +23,29 @@ import static io.tapdata.async.master.QueueWorkerStateListener.*;
 /**
  * @author aplomb
  */
-public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
+public class AsyncQueueWorkerImpl implements QueueWorker, Runnable {
 	private static final String TAG = AsyncQueueWorkerImpl.class.getSimpleName();
 	private final String id;
 	private final AsyncJobChainImpl asyncJobChain;
 	private final ThreadPoolExecutor threadPoolExecutor;
 	private JobContext initialJobContext;
-	private AsyncJobErrorListener asyncJobErrorListener;
+	private JobErrorListener asyncJobErrorListener;
 	private QueueWorkerStateListener queueWorkerStateListener;
 	private final TapUtils tapUtils;
 	private final AtomicInteger state = new AtomicInteger(STATE_NONE);
-	private String runningId;
 
 	private JobContext currentJobContext;
 
 	private boolean startOnCurrentThread = false;
-	private ScheduledFuture<?> longIdleScheduleFuture;
-	private Long delayMilliSeconds;
-	private Long periodMilliSeconds;
+//	private ScheduledFuture<?> longIdleScheduleFuture;
 	private final ExecutorsManager executorsManager;
-	private ScheduledFuture<?> periodScheduleFuture;
 //	@Bean
 //	private DeadThreadPoolCleaner deadThreadPoolCleaner;
-	private final Map<String, Class<? extends AsyncJob>> asyncJobMap;
+	private final Map<String, Class<? extends Job>> asyncJobMap;
 	private Runnable threadBefore;
 	private Runnable threadAfter;
 
-	public AsyncQueueWorkerImpl(String id, Map<String, Class<? extends AsyncJob>> asyncJobMap) {
+	public AsyncQueueWorkerImpl(String id, Map<String, Class<? extends Job>> asyncJobMap) {
 		this.id = id;
 		this.asyncJobMap = asyncJobMap;
 		asyncJobChain = new AsyncJobChainImpl(this.asyncJobMap);
@@ -64,11 +62,18 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	}
 
 	@Override
-	public AsyncQueueWorker job(AsyncJobChain asyncJobChain) {
+	public QueueWorker job(JobChain asyncJobChain) {
 		if(asyncJobChain != null) {
-			Set<Map.Entry<String, AsyncJob>> asyncJobCollection = asyncJobChain.asyncJobs();
-			for(Map.Entry<String, AsyncJob> entry : asyncJobCollection) {
-				this.asyncJobChain.job(entry.getKey(), entry.getValue(), asyncJobChain.isPending(entry.getKey()));
+			Set<Map.Entry<String, JobBase>> asyncJobCollection = asyncJobChain.asyncJobs();
+			for(Map.Entry<String, JobBase> entry : asyncJobCollection) {
+				JobBase jobBase = entry.getValue();
+				if(jobBase instanceof Job) {
+					this.asyncJobChain.job(entry.getKey(), (Job) entry.getValue(), asyncJobChain.isPending(entry.getKey()));
+				} else if(jobBase instanceof AsyncJob){
+					this.asyncJobChain.asyncJob(entry.getKey(), (AsyncJob) entry.getValue(), asyncJobChain.isPending(entry.getKey()));
+				} else {
+					throw new CoreException(AsyncErrors.UNKNOWN_JOB, "Unknown job {}", jobBase);
+				}
 			}
 			if (state.get() > STATE_NONE && state.get() < STATE_STOPPED)
 				startPrivate();
@@ -77,16 +82,16 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	}
 
 	@Override
-	public AsyncQueueWorker job(AsyncJob asyncJob) {
+	public QueueWorker job(Job asyncJob) {
 		return job(UUID.randomUUID().toString(), asyncJob);
 	}
 
 	@Override
-	public AsyncQueueWorker job(String id, AsyncJob asyncJob) {
+	public QueueWorker job(String id, Job asyncJob) {
 		return job(id, asyncJob, false);
 	}
 	@Override
-	public AsyncQueueWorker job(String id, AsyncJob asyncJob, boolean pending) {
+	public QueueWorker job(String id, Job asyncJob, boolean pending) {
 		asyncJobChain.job(id, asyncJob, pending);
 		if (!pending && state.get() > STATE_NONE && state.get() < STATE_STOPPED)
 			startPrivate();
@@ -94,28 +99,69 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	}
 
 	@Override
-	public AsyncQueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer) {
+	public QueueWorker finished() {
+		asyncJobChain.job((LastJob) jobContext -> null);
+		return this;
+	}
+	@Override
+	public QueueWorker finished(String id, Job job) {
+		asyncJobChain.job(id, (LastJob) job::run);
+		return this;
+	}
+	@Override
+	public QueueWorker finished(Job job) {
+		asyncJobChain.job((LastJob) job::run);
+		return this;
+	}
+
+	@Override
+	public QueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer) {
 		return externalJob(id, jobContextConsumer, false);
 	}
 
 	@Override
-	public AsyncQueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
+	public QueueWorker externalJob(String id, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
 		return externalJob(id, null, jobContextConsumer, pending);
 	}
 	@Override
-	public AsyncQueueWorker externalJob(String id, AsyncJob asyncJob, Function<JobContext, JobContext> jobContextConsumer) {
+	public QueueWorker externalJob(String id, Job asyncJob, Function<JobContext, JobContext> jobContextConsumer) {
 		return externalJob(id, asyncJob, jobContextConsumer, false);
 	}
 
 	@Override
-	public AsyncQueueWorker externalJob(String id, AsyncJob asyncJob, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
+	public QueueWorker externalJob(String id, Job asyncJob, Function<JobContext, JobContext> jobContextConsumer, boolean pending) {
 		asyncJobChain.externalJob(id, asyncJob, jobContextConsumer, pending);
 		if (!pending && state.get() > STATE_NONE && state.get() < STATE_STOPPED)
 			startPrivate();
 		return this;
 	}
 
-	public synchronized AsyncQueueWorker cancelAll(String reason) {
+	@Override
+	public QueueWorker asyncJob(AsyncJob asyncJob, boolean pending) {
+		asyncJob(UUID.randomUUID().toString(), asyncJob, false);
+		return this;
+	}
+	@Override
+	public QueueWorker asyncJob(AsyncJob asyncJob) {
+		asyncJob(UUID.randomUUID().toString(), asyncJob, false);
+		return this;
+	}
+
+	@Override
+	public QueueWorker asyncJob(String id, AsyncJob asyncJob) {
+		asyncJob(id, asyncJob, false);
+		return this;
+	}
+
+	@Override
+	public QueueWorker asyncJob(String id, AsyncJob asyncJob, boolean pending) {
+		asyncJobChain.asyncJob(id, asyncJob, pending);
+		if (!pending && state.get() > STATE_NONE && state.get() < STATE_STOPPED)
+			startPrivate();
+		return this;
+	}
+
+	public synchronized QueueWorker cancelAll(String reason) {
 		asyncJobChain.asyncJobLinkedMap.clear();
 		if(currentJobContext != null) {
 			currentJobContext.stop(reason);
@@ -123,18 +169,18 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 		return this;
 	}
 	@Override
-	public synchronized AsyncQueueWorker cancelAll() {
+	public synchronized QueueWorker cancelAll() {
 		return cancelAll("Canceled");
 	}
 
 	@Override
-	public synchronized AsyncQueueWorker cancel(String id) {
+	public synchronized QueueWorker cancel(String id) {
 		return cancel(id, false);
 	}
 
 	@Override
-	public synchronized AsyncQueueWorker cancel(String id, boolean immediately) {
-		AsyncJob asyncJob = asyncJobChain.remove(id);
+	public synchronized QueueWorker cancel(String id, boolean immediately) {
+		JobBase asyncJob = asyncJobChain.remove(id);
 		if(asyncJob == null) {
 			String currentId = currentJobContext.getId();
 			if(currentId != null && currentId.equals(id)) {
@@ -151,31 +197,26 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	}
 
 	@Override
-	public String runningJobId() {
-		return runningId;
-	}
-
-	@Override
-	public AsyncQueueWorker setAsyncJobErrorListener(AsyncJobErrorListener listener) {
+	public QueueWorker setAsyncJobErrorListener(JobErrorListener listener) {
 		asyncJobErrorListener = listener;
 		return this;
 	}
 
 	@Override
-	public AsyncQueueWorker setQueueWorkerStateListener(QueueWorkerStateListener listener) {
+	public QueueWorker setQueueWorkerStateListener(QueueWorkerStateListener listener) {
 		queueWorkerStateListener = listener;
 		return this;
 	}
 
 	@Override
-	public AsyncQueueWorker start(JobContext jobContext) {
+	public QueueWorker start(JobContext jobContext) {
 		start(jobContext, false);
 		return this;
 	}
 
 	@Override
-	public AsyncQueueWorker start(JobContext jobContext, boolean startOnCurrentThread) {
-		if(changeState(STATE_NONE, STATE_IDLE, null, false)) {
+	public QueueWorker start(JobContext jobContext, boolean startOnCurrentThread) {
+		if(changeState(state.get(), STATE_RUNNING, list(STATE_NONE), false)) {
 			this.startOnCurrentThread = startOnCurrentThread;
 			initialJobContext = jobContext;
 			startPrivate();
@@ -186,57 +227,33 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 	}
 
 	@Override
-	public AsyncQueueWorker start(JobContext jobContext, long delayMilliSeconds, long periodMilliSeconds) {
-		if(delayMilliSeconds < 0 || periodMilliSeconds < 50)
-			throw new CoreException(AsyncErrors.ILLEGAL_ARGUMENTS, "Illegal arguments for delayMilliSeconds {} periodMilliSeconds {} to start AsyncQueueWorker {}", delayMilliSeconds, periodMilliSeconds, id);
-		if(changeState(STATE_NONE, STATE_IDLE, null, false)) {
-			initialJobContext = jobContext;
-			this.delayMilliSeconds = delayMilliSeconds;
-			this.periodMilliSeconds = periodMilliSeconds;
-			startPrivate();
-		} else {
-			TapLogger.warn(TAG, "AsyncQueueWorker {} started already, can not start again, state {}", id, state.get());
-		}
-		return this;
-	}
-
-	@Override
-	public AsyncQueueWorker stop() {
+	public QueueWorker stop() {
 		if(state.get() != STATE_STOPPED) {
 			changeState(state.get(), STATE_STOPPED, Collections.EMPTY_LIST, false);
 			cancelAll("Stopped");
-			if(periodScheduleFuture != null) {
-				periodScheduleFuture.cancel(true);
-				periodScheduleFuture = null;
-			}
 			threadPoolExecutor.shutdownNow();
 		}
 		return this;
 	}
 
 	@Override
-	public AsyncQueueWorker threadBefore(Runnable runnable) {
+	public QueueWorker threadBefore(Runnable runnable) {
 		this.threadBefore = runnable;
 		return this;
 	}
 
 	@Override
-	public AsyncQueueWorker threadAfter(Runnable runnable) {
+	public QueueWorker threadAfter(Runnable runnable) {
 		this.threadAfter = runnable;
 		return this;
 	}
 
 	private void startPrivate() {
-		if (!asyncJobChain.asyncJobLinkedMap.isEmpty() && changeState(state.get(), STATE_RUNNING, list(STATE_IDLE, STATE_LONG_IDLE), false)) {
-			if(startOnCurrentThread) {
+		if (!asyncJobChain.asyncJobLinkedMap.isEmpty()) {
+			if (startOnCurrentThread) {
 				this.run();
 			} else {
-				if(delayMilliSeconds != null && periodMilliSeconds != null && periodScheduleFuture == null) {
-					periodScheduleFuture = executorsManager.getScheduledExecutorService().scheduleWithFixedDelay(this::run, delayMilliSeconds, periodMilliSeconds, TimeUnit.MILLISECONDS);
-				}
-				if(periodScheduleFuture == null) {
-					threadPoolExecutor.execute(this);
-				}
+				threadPoolExecutor.execute(this);
 			}
 		}
 	}
@@ -257,27 +274,144 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 				}
 			}
 		}
-		if(result) {
-			if(toState != STATE_IDLE) {
-				if(longIdleScheduleFuture != null) {
-					longIdleScheduleFuture.cancel(true);
-					longIdleScheduleFuture = null;
-				}
-			} else if(scheduleForLongIdle) { //result && toState == STATE_IDLE
-				if(longIdleScheduleFuture != null) {
-					longIdleScheduleFuture.cancel(true);
-					longIdleScheduleFuture = null;
-				}
-				longIdleScheduleFuture = executorsManager.getScheduledExecutorService().schedule(() -> {
-					changeState(STATE_IDLE, STATE_LONG_IDLE, null, false);
-				}, 1, TimeUnit.SECONDS);
-			}
-		}
+//		if(result) {
+//			if(toState != STATE_IDLE) {
+//				if(longIdleScheduleFuture != null) {
+//					longIdleScheduleFuture.cancel(true);
+//					longIdleScheduleFuture = null;
+//				}
+//			} else if(scheduleForLongIdle) { //result && toState == STATE_IDLE
+//				if(longIdleScheduleFuture != null) {
+//					longIdleScheduleFuture.cancel(true);
+//					longIdleScheduleFuture = null;
+//				}
+//				longIdleScheduleFuture = executorsManager.getScheduledExecutorService().schedule(() -> {
+//					changeState(STATE_IDLE, STATE_LONG_IDLE, null, false);
+//				}, 1, TimeUnit.SECONDS);
+//			}
+//		}
 		return result;
 	}
 
 	@Override
 	public void run() {
+		Container<JobBase, JobContext> container = popJob();
+		if(container != null) {
+			if(threadBefore != null)
+				threadBefore.run();
+			JobBase asyncJob = container.getT();
+			currentJobContext = container.getP();
+			if(asyncJob instanceof Job) {
+				Job job = (Job) asyncJob;
+				boolean realError = false;
+				try {
+					JobContext theJobContext = job.run(currentJobContext);
+					configNextJobContext(theJobContext);
+				} catch(Throwable throwable) {
+					realError = true;
+					if(throwable instanceof CoreException) {
+						CoreException coreException = (CoreException) throwable;
+						if(coreException.getCode() == AsyncErrors.ASYNC_JOB_STOPPED) {
+							realError = false;
+						}
+					}
+					if(realError) {
+						TapLogger.error(TAG, "Execute job id {} asyncJob {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable));
+						if(asyncJobErrorListener != null) {
+							try {
+								asyncJobErrorListener.errorOccurred(currentJobContext.getId(), job, throwable);
+							} catch (Throwable throwable1) {
+								TapLogger.error(TAG, "Execute job's errorOccurred id {} asyncJob {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable1));
+							}
+							return;
+						}
+					}
+				} finally {
+					if(asyncJob instanceof LastJob) {
+						changeState(STATE_RUNNING, STATE_FINISHED, null, false);
+						threadPoolExecutor.shutdownNow();
+					} else {
+//						changeState(STATE_RUNNING, STATE_IDLE, null, true);
+						if(!realError)
+							startPrivate();
+					}
+				}
+			} else if(asyncJob instanceof AsyncJob) {
+				AsyncJob theAsyncJob = (AsyncJob) asyncJob;
+				AtomicBoolean executed = new AtomicBoolean(false);
+				theAsyncJob.run(currentJobContext, (jobContext, throwable) -> {
+					if(executed.compareAndSet(false, true)) {
+						boolean realError = false;
+						if(throwable != null) {
+							realError = true;
+							if(throwable instanceof CoreException) {
+								CoreException coreException = (CoreException) throwable;
+								if(coreException.getCode() == AsyncErrors.ASYNC_JOB_STOPPED) {
+									realError = false;
+								}
+							}
+							if(realError) {
+								TapLogger.error(TAG, "Execute job id {} asyncJob {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable));
+								if(asyncJobErrorListener != null) {
+									try {
+										asyncJobErrorListener.errorOccurred(currentJobContext.getId(), theAsyncJob, throwable);
+									} catch (Throwable throwable1) {
+										TapLogger.error(TAG, "Execute job's errorOccurred id {} asyncJob {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable1));
+									}
+								}
+							}
+						} else {
+							configNextJobContext(jobContext);
+						}
+//						changeState(STATE_RUNNING, STATE_IDLE, null, true);
+						if(!realError)
+							startPrivate();
+					}
+				});
+			}
+		} /*else {
+			changeState(STATE_RUNNING, STATE_IDLE, null, true);
+		}*/
+	}
+
+	private Container<JobBase, JobContext> popJob() {
+		String first;
+		String jumpTo = null;
+//		JobContext currentJobContext = null;
+		if(initialJobContext != null) {
+			currentJobContext = initialJobContext;
+			initialJobContext = null;
+		}
+		Map<String, JobBase> asyncJobLinkedMap;
+		asyncJobLinkedMap = asyncJobChain.asyncJobLinkedMap;
+		synchronized (this) {
+			while((first = asyncJobLinkedMap.keySet().stream().findFirst().orElse(null)) != null) {
+				JobBase asyncJob;
+				asyncJob = asyncJobLinkedMap.remove(first);
+				if (asyncJob == null)
+					return null;
+				if (currentJobContext != null) {
+					jumpTo = currentJobContext.getJumpToId();
+					if (jumpTo != null)
+						asyncJobChain.pendingJobIds.remove(jumpTo);
+				}
+				if (asyncJobChain.pendingJobIds.contains(first))
+					continue;
+				if (jumpTo != null && !jumpTo.equals(first))
+					continue;
+				if (currentJobContext == null) {
+					currentJobContext = new JobContextImpl().asyncQueueWorker(this);
+				}
+				currentJobContext.resetStop();
+				currentJobContext.asyncJob(asyncJob);
+				currentJobContext.id(first);
+//				runningId = first;
+				return new Container<>(asyncJob, currentJobContext);
+			}
+		}
+		return null;
+	}
+	/*public void run1() {
 		try {
 			if(threadBefore != null)
 				threadBefore.run();
@@ -288,14 +422,14 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 				currentJobContext = initialJobContext;
 				initialJobContext = null;
 			}
-			Map<String, AsyncJob> asyncJobLinkedMap;
+			Map<String, JobBase> asyncJobLinkedMap;
 			if(periodScheduleFuture != null) {
 				asyncJobLinkedMap = asyncJobChain.cloneChain();
 			} else {
 				asyncJobLinkedMap = asyncJobChain.asyncJobLinkedMap;
 			}
 			while((first = asyncJobLinkedMap.keySet().stream().findFirst().orElse(null)) != null) {
-				AsyncJob asyncJob;
+				JobBase asyncJob;
 				synchronized (this) {
 					asyncJob = asyncJobLinkedMap.remove(first);
 					if(asyncJob == null)
@@ -319,42 +453,67 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 				}
 				if(jumpTo != null && !jumpTo.equals(first))
 					continue;
-				try {
-					lastJobContext = currentJobContext;
-					JobContext theJobContext = asyncJob.run(currentJobContext);
-					if(theJobContext == null) {
-						theJobContext = new JobContextImpl().asyncQueueWorker(this).context(currentJobContext.getContext());
-					} else  {
-						if(theJobContext.getContext() == null || (currentJobContext.getContext() != null && !theJobContext.getContext().equals(currentJobContext.getContext()))) {
-							theJobContext.setContext(currentJobContext.getContext());
-						}
-					}
-					currentJobContext = theJobContext;
-				} catch(Throwable throwable) {
-					boolean realError = true;
-					if(throwable instanceof CoreException) {
-						CoreException coreException = (CoreException) throwable;
-						if(coreException.getCode() == AsyncErrors.ASYNC_JOB_STOPPED) {
-							realError = false;
-						}
-					}
-					if(realError) {
-						TapLogger.error(TAG, "Execute job id {} asyncJob {} failed, {}", first, asyncJob, tapUtils.getStackTrace(throwable));
-						if(asyncJobErrorListener != null) {
-							try {
-								asyncJobErrorListener.errorOccurred(first, asyncJob, throwable);
-							} catch (Throwable throwable1) {
-								TapLogger.error(TAG, "Execute job's errorOccurred id {} asyncJob {} failed, {}", first, asyncJob, tapUtils.getStackTrace(throwable1));
+				lastJobContext = currentJobContext;
+				if(asyncJob instanceof Job) {
+					Job job = (Job) asyncJob;
+					try {
+						JobContext theJobContext = job.run(currentJobContext);
+						configNextJobContext(theJobContext);
+					} catch(Throwable throwable) {
+						boolean realError = true;
+						if(throwable instanceof CoreException) {
+							CoreException coreException = (CoreException) throwable;
+							if(coreException.getCode() == AsyncErrors.ASYNC_JOB_STOPPED) {
+								realError = false;
 							}
-							break;
-						} else {
-							throw throwable;
 						}
+						if(realError) {
+							TapLogger.error(TAG, "Execute job id {} asyncJob {} failed, {}", first, asyncJob, tapUtils.getStackTrace(throwable));
+							if(asyncJobErrorListener != null) {
+								try {
+									asyncJobErrorListener.errorOccurred(first, job, throwable);
+								} catch (Throwable throwable1) {
+									TapLogger.error(TAG, "Execute job's errorOccurred id {} asyncJob {} failed, {}", first, asyncJob, tapUtils.getStackTrace(throwable1));
+								}
+								break;
+							} else {
+								throw throwable;
+							}
+						}
+					} finally {
+						lastJobContext.resetAlive();
+						lastJobContext.stop("Completed");
+						runningId = null;
 					}
-				} finally {
-					lastJobContext.resetAlive();
-					lastJobContext.stop("Completed");
-					runningId = null;
+				} else if(asyncJob instanceof AsyncJob) {
+					AsyncJob theAsyncJob = (AsyncJob) asyncJob;
+					String finalFirst = first;
+					theAsyncJob.run(currentJobContext, (jobContext, throwable) -> {
+						if(throwable != null) {
+							boolean realError = true;
+							if(throwable instanceof CoreException) {
+								CoreException coreException = (CoreException) throwable;
+								if(coreException.getCode() == AsyncErrors.ASYNC_JOB_STOPPED) {
+									realError = false;
+								}
+							}
+							if(realError) {
+								TapLogger.error(TAG, "Execute job id {} asyncJob {} failed, {}", finalFirst, asyncJob, tapUtils.getStackTrace(throwable));
+								if(asyncJobErrorListener != null) {
+									try {
+										asyncJobErrorListener.errorOccurred(finalFirst, theAsyncJob, throwable);
+									} catch (Throwable throwable1) {
+										TapLogger.error(TAG, "Execute job's errorOccurred id {} asyncJob {} failed, {}", finalFirst, asyncJob, tapUtils.getStackTrace(throwable1));
+									}
+									break;
+								} else {
+									throw throwable;
+								}
+							}
+						} else {
+							configNextJobContext(jobContext);
+						}
+					});
 				}
 			}
 		} finally {
@@ -363,6 +522,17 @@ public class AsyncQueueWorkerImpl implements AsyncQueueWorker, Runnable {
 				threadAfter.run();
 			startPrivate();
 		}
+	}*/
+
+	private void configNextJobContext(JobContext theJobContext) {
+		if(theJobContext == null) {
+			theJobContext = new JobContextImpl().asyncQueueWorker(this).context(currentJobContext.getContext());
+		} else  {
+			if(theJobContext.getContext() == null || (currentJobContext.getContext() != null && !theJobContext.getContext().equals(currentJobContext.getContext()))) {
+				theJobContext.setContext(currentJobContext.getContext());
+			}
+		}
+		currentJobContext = theJobContext;
 	}
 
 	public int getState() {

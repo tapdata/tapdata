@@ -1,23 +1,25 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
+import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author aplomb
  */
-public class PartitionTableOffset {
+public class PartitionTableOffset implements Serializable {
 	private List<ReadPartition> partitions;
 	public PartitionTableOffset partitions(List<ReadPartition> partitions) {
 		this.partitions = partitions;
 		return this;
 	}
 
-	private Set<String> completedPartitions;
-	public PartitionTableOffset completedPartitions(Set<String> completedPartitions) {
+	private Map<String, Long> completedPartitions;
+	public PartitionTableOffset completedPartitions(Map<String, Long> completedPartitions) {
 		this.completedPartitions = completedPartitions;
 		return this;
 	}
@@ -33,10 +35,10 @@ public class PartitionTableOffset {
 		return this;
 	}
 
-	public void partitionCompleted(String partitionId) {
+	public void partitionCompleted(String partitionId, long total) {
 		if(completedPartitions == null)
-			completedPartitions = new HashSet<>();
-		completedPartitions.add(partitionId);
+			completedPartitions = new ConcurrentHashMap<>();
+		completedPartitions.put(partitionId, total);
 	}
 
 	public List<ReadPartition> getPartitions() {
@@ -47,11 +49,11 @@ public class PartitionTableOffset {
 		this.partitions = partitions;
 	}
 
-	public Set<String> getCompletedPartitions() {
+	public Map<String, Long> getCompletedPartitions() {
 		return completedPartitions;
 	}
 
-	public void setCompletedPartitions(Set<String> completedPartitions) {
+	public void setCompletedPartitions(Map<String, Long> completedPartitions) {
 		this.completedPartitions = completedPartitions;
 	}
 
@@ -70,4 +72,5 @@ public class PartitionTableOffset {
 	public void setTableCompleted(Boolean tableCompleted) {
 		this.tableCompleted = tableCompleted;
 	}
+
 }

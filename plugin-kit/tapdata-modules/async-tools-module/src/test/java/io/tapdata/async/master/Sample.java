@@ -13,10 +13,10 @@ import java.util.Map;
  */
 public class Sample {
 	public static void main(String[] args) {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
 
 
-		AsyncParallelWorker parallelWorker = asyncMaster.createAsyncParallelWorker("test", 2);
+		ParallelWorker parallelWorker = asyncMaster.createAsyncParallelWorker("test", 2);
 		parallelWorker.job("1", JobContext.create(""), asyncQueueWorker -> asyncQueueWorker.job("", jobContext -> null));
 		parallelWorker.job("2", JobContext.create(""), asyncQueueWorker -> asyncQueueWorker.job("", jobContext -> null));
 		parallelWorker.job("3", JobContext.create(""), asyncQueueWorker -> asyncQueueWorker.job("", jobContext -> null));
@@ -27,8 +27,8 @@ public class Sample {
 
 
 
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("");
-		AsyncJobChain asyncJobChain = asyncMaster.createAsyncJobChain();
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("");
+		JobChain asyncJobChain = asyncMaster.createAsyncJobChain();
 		asyncJobChain.externalJob("batchRead", jobContext -> {
 			return jobContext;
 		}).job("batchRead1", (jobContext) -> {

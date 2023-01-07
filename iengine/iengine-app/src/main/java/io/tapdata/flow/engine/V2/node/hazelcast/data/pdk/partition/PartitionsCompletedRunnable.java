@@ -2,7 +2,9 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.DataFunctionAspect;
-import io.tapdata.async.master.AsyncParallelWorker;
+import io.tapdata.async.master.AsyncJobCompleted;
+import io.tapdata.async.master.ParallelWorker;
+import io.tapdata.async.master.ParallelWorkerStateListener;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
@@ -16,22 +18,25 @@ import java.util.Map;
  */
 public class PartitionsCompletedRunnable implements Runnable {
 	private TapTable tapTable;
-	private AsyncParallelWorker partitionsReader;
+	private ParallelWorker partitionsReader;
 	private AspectManager aspectManager;
 	private BatchReadFuncAspect batchReadFuncAspect;
 	private List<ReadPartition> readPartitionList;
 	private HazelcastSourcePartitionReadDataNode sourcePdkDataNodeEx1;
-	public PartitionsCompletedRunnable(TapTable tapTable, AsyncParallelWorker partitionsReader, AspectManager aspectManager, BatchReadFuncAspect batchReadFuncAspect, List<ReadPartition> readPartitionList, HazelcastSourcePartitionReadDataNode sourcePdkDataNodeEx1) {
+	private AsyncJobCompleted jobCompleted;
+	public PartitionsCompletedRunnable(TapTable tapTable, ParallelWorker partitionsReader, AspectManager aspectManager, BatchReadFuncAspect batchReadFuncAspect, List<ReadPartition> readPartitionList, HazelcastSourcePartitionReadDataNode sourcePdkDataNodeEx1, AsyncJobCompleted jobCompleted) {
 		this.tapTable = tapTable;
 		this.partitionsReader = partitionsReader;
 		this.aspectManager = aspectManager;
 		this.batchReadFuncAspect = batchReadFuncAspect;
 		this.readPartitionList = readPartitionList;
 		this.sourcePdkDataNodeEx1 = sourcePdkDataNodeEx1;
+		this.jobCompleted = jobCompleted;
+
 	}
 	@Override
 	public void run() {
-		sourcePdkDataNodeEx1.getObsLogger().info("Partitions has been split for table {}, wait until all partitions has been read.", tapTable.getId());
+		sourcePdkDataNodeEx1.getObsLogger().info("Partitions has been split for table {}, wait until all partitions has been read. readPartitionList {}", tapTable.getId(), readPartitionList.size());
 		Object batchOffsetObj = sourcePdkDataNodeEx1.getSyncProgress().getBatchOffsetObj();
 		PartitionTableOffset partitionTableOffset = null;
 		if(batchOffsetObj instanceof Map) {
@@ -44,13 +49,17 @@ public class PartitionsCompletedRunnable implements Runnable {
 				partitionTableOffset.partitions(readPartitionList);
 			}
 		}
-		while(!partitionsReader.runningQueueWorkers().isEmpty() || !partitionsReader.pendingQueueWorkers().isEmpty()) {
-			try {
-				Thread.sleep(500L);
-			} catch (InterruptedException e) {
-				throw new RuntimeException(e);
-			}
+		partitionsReader.finished(this::handleStateChanged);
+//		partitionsReader.setParallelWorkerStateListener(this::handleStateChanged);
+	}
+
+	private void handleStateChanged() {
+		Object batchOffsetObj = sourcePdkDataNodeEx1.getSyncProgress().getBatchOffsetObj();
+		PartitionTableOffset partitionTableOffset = null;
+		if(batchOffsetObj instanceof Map) {
+			partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
 		}
+
 		if(partitionTableOffset != null) {
 			partitionTableOffset.setTableCompleted(true);
 			partitionTableOffset.setPartitions(null);
@@ -60,5 +69,6 @@ public class PartitionsCompletedRunnable implements Runnable {
 		aspectManager.executeAspect(batchReadFuncAspect.state(DataFunctionAspect.STATE_END));
 		//partition split done and read partitions done, start entering CDC stage.
 		sourcePdkDataNodeEx1.handleEnterCDCStage(partitionsReader, tapTable);
+		jobCompleted.completed(null, null);
 	}
 }

@@ -108,8 +108,9 @@ public class TapSequenceStorageImpl extends TapStorageImpl implements TapSequenc
 		if(!stateMachine.getCurrentState().equals(STATE_WRITE_DONE_START_ITERATE))
 			throw new CoreException(StorageErrors.ITERATE_ON_WRONG_STATE, "Iterate on wrong state {}, expect state {}", stateMachine.getCurrentState(), STATE_WRITE_DONE_START_ITERATE);
 
-		return new SequenceIterator(id, storageOptions, dbFile, objectSerializable);
+		return new SequenceIterator(id, storageOptions, dbFile, objectSerializable, classLoader);
 	}
+
 
 //	private void handleInitialized(TapSequenceStorageImpl sequenceStorage, StateMachine<String, TapSequenceStorageImpl> stateMachine) {
 //
@@ -143,6 +144,7 @@ public class TapSequenceStorageImpl extends TapStorageImpl implements TapSequenc
 		if (stateMachine != null && !stateMachine.getCurrentState().equals(STATE_DESTROYED)) {
 			stateMachine.gotoState(STATE_DESTROYED, FormatUtils.format("Force destroy, id {}, options {}", id, storageOptions));
 		}
+		initHandler = null;
 		release();
 	}
 

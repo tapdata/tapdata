@@ -1,6 +1,6 @@
 package io.tapdata.engine.source;
 
-import io.tapdata.async.master.AsyncJob;
+import io.tapdata.async.master.Job;
 import io.tapdata.async.master.JobContext;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.PDKSourceContext;
 import io.tapdata.observable.logging.ObsLogger;
@@ -8,7 +8,7 @@ import io.tapdata.observable.logging.ObsLogger;
 /**
  * @author aplomb
  */
-public abstract class SourceAsyncJob implements AsyncJob {
+public abstract class SourceAsyncJob implements Job {
 	protected PDKSourceContext pdkSourceContext;
 	protected ObsLogger obsLogger;
 	@Override

@@ -5,7 +5,7 @@ package io.tapdata.modules.api.storage;
  */
 public interface TapStorage {
 	void init(String id, TapStorageFactory.StorageOptions storageOptions);
-
+	void setClassLoader(ClassLoader classLoader);
 	void clear();
 	void destroy();
 }

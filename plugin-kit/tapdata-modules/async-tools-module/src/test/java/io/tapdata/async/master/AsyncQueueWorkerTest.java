@@ -1,5 +1,6 @@
 package io.tapdata.async.master;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.core.utils.test.AsyncTestBase;
@@ -12,7 +13,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 
@@ -22,17 +22,17 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 public class AsyncQueueWorkerTest extends AsyncTestBase {
 	@AfterEach
 	public void tearDown() {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
 		asyncMaster.destroyAsyncQueueWorker("Test");
 	}
 	@Test
 	public void testAsyncQueueWorkerWithError() {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
 		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
 			System.out.println("id " + id + " from " + fromState + " to " + toState);
 		});
-		AtomicReference<AsyncJob> errorAsyncJob = new AtomicReference<>();
+		AtomicReference<JobBase> errorAsyncJob = new AtomicReference<>();
 		AtomicReference<Throwable> theThrowable = new AtomicReference<>();
 		AtomicReference<String> errorId = new AtomicReference<>();
 		asyncQueueWorker.setAsyncJobErrorListener((id, asyncJob, throwable) -> {
@@ -58,8 +58,8 @@ public class AsyncQueueWorkerTest extends AsyncTestBase {
 
 	@Test
 	public void testAsyncQueueWorkerLoop() {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
 		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
 			System.out.println("id " + id + " from " + fromState + " to " + toState);
 		});
@@ -125,8 +125,8 @@ public class AsyncQueueWorkerTest extends AsyncTestBase {
 
 	@Test
 	public void testAsyncQueueWorkerLoopAsync() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
 		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
 			System.out.println("id " + id + " from " + fromState + " to " + toState);
 		});
@@ -182,8 +182,8 @@ public class AsyncQueueWorkerTest extends AsyncTestBase {
 
 	@Test
 	public void testCancelFirst() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
 		AtomicInteger counter = new AtomicInteger(0);
 		JobContext initialContext = JobContext.create("initial").context("Context");
 		asyncQueueWorker.job("job1", jobContext -> {
@@ -218,8 +218,8 @@ public class AsyncQueueWorkerTest extends AsyncTestBase {
 
 	@Test
 	public void testCancelMiddle() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
 		AtomicInteger counter = new AtomicInteger(0);
 		JobContext initialContext = JobContext.create("initial").context("Context");
 		AtomicBoolean job2ShouldNotExecute = new AtomicBoolean(false);
@@ -256,8 +256,8 @@ public class AsyncQueueWorkerTest extends AsyncTestBase {
 
 	@Test
 	public void testCancelAll() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
 		AtomicInteger counter = new AtomicInteger(0);
 		JobContext initialContext = JobContext.create("initial").context("Context");
 		AtomicBoolean job1ShouldNotExecute = new AtomicBoolean(false);
@@ -302,8 +302,8 @@ public class AsyncQueueWorkerTest extends AsyncTestBase {
 
 	@Test
 	public void testJumpTo() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
 		AtomicInteger counter = new AtomicInteger(0);
 		JobContext initialContext = JobContext.create("initial").context("Context");
 		AtomicBoolean job2ShouldNotExecute = new AtomicBoolean(false);
@@ -322,155 +322,9 @@ public class AsyncQueueWorkerTest extends AsyncTestBase {
 	}
 
 	@Test
-	public void testEnterLeaveLongIdleState() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
-		AtomicBoolean enterLongIdle = new AtomicBoolean(false);
-		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
-			System.out.println("id " + id + " from " + fromState + " to " + toState);
-			if(!enterLongIdle.get() && fromState == QueueWorkerStateListener.STATE_IDLE && toState == QueueWorkerStateListener.STATE_LONG_IDLE) {
-				enterLongIdle.set(true);
-				asyncQueueWorker.job("aaa", jobContext -> {
-					return null;
-				});
-			} else if(enterLongIdle.get() && fromState == QueueWorkerStateListener.STATE_RUNNING && toState == QueueWorkerStateListener.STATE_IDLE) {
-				completed();
-			}
-		});
-		JobContext initialContext = JobContext.create("initial").context("Context");
-		asyncQueueWorker.job("job1", jobContext -> {
-			return JobContext.create("Hello world");
-		}).job("job2", jobContext -> {
-			return null;
-		}).job("job3", jobContext -> {
-			return null;
-		});
-		asyncQueueWorker.start(initialContext);
-		waitCompleted(6);
-	}
-	@Test
-	public void testSchedule() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
-		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
-//			System.out.println("id " + id + " from " + fromState + " to " + toState);
-		});
-		AtomicReference<AsyncJob> errorAsyncJob = new AtomicReference<>();
-		AtomicReference<Throwable> theThrowable = new AtomicReference<>();
-		AtomicReference<String> errorId = new AtomicReference<>();
-		asyncQueueWorker.setAsyncJobErrorListener((id, asyncJob, throwable) -> {
-			errorId.set(id);
-			errorAsyncJob.set(asyncJob);
-			theThrowable.set(throwable);
-			completed();
-		});
-		AtomicInteger counter = new AtomicInteger(0);
-		JobContext initialContext = JobContext.create("initial");
-		asyncQueueWorker.job("job1", previousJobContext -> {
-//			$(() -> Assertions.assertEquals("initial", previousJobContext.getResult()));
-			counter.incrementAndGet();
-			System.out.println("job1 " + Thread.currentThread());
-			return JobContext.create("Hello world");
-		}).job("job2", previousJobContext -> {
-			System.out.println("job2 " + Thread.currentThread());
-			throw new NullPointerException("npe");
-//			return null;
-		});
-		asyncQueueWorker.start(initialContext, 0, 5000);
-//		Assertions.assertEquals("job2", errorId.get());
-//		Assertions.assertNotNull(errorAsyncJob.get());
-//		Assertions.assertEquals("npe", theThrowable.get().getMessage());
-		waitCompleted(6);
-	}
-
-	@Test
-	public void testScheduleJobs() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
-		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
-//			System.out.println("id " + id + " from " + fromState + " to " + toState);
-		});
-		asyncQueueWorker.setAsyncJobErrorListener((id, asyncJob, throwable) -> {
-
-		});
-		AtomicInteger counter = new AtomicInteger(0);
-		JobContext initialContext = JobContext.create("initial");
-		asyncQueueWorker.job("job1", previousJobContext -> {
-//			$(() -> Assertions.assertEquals("initial", previousJobContext.getResult()));
-			counter.incrementAndGet();
-			System.out.println("job1 " + Thread.currentThread());
-			return JobContext.create("Hello world");
-		}).job("job2", previousJobContext -> {
-			counter.incrementAndGet();
-			System.out.println("job2 " + Thread.currentThread());
-			return null;
-		});
-		asyncQueueWorker.start(initialContext, 0, 500);
-		asyncQueueWorker.job("job3", jobContext -> {
-			counter.incrementAndGet();
-			System.out.println("job3 " + Thread.currentThread());
-			return null;
-		});
-		new Thread(() -> {
-			try {
-				Thread.sleep(700L);
-			} catch (InterruptedException e) {
-				throw new RuntimeException(e);
-			}
-			$(() -> Assertions.assertEquals(6, counter.get()));
-			completed();
-		}).start();
-
-		waitCompleted(6);
-	}
-
-	@Test
-	public void testScheduleJump() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
-		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
-//			System.out.println("id " + id + " from " + fromState + " to " + toState);
-		});
-		asyncQueueWorker.setAsyncJobErrorListener((id, asyncJob, throwable) -> {
-
-		});
-		AtomicInteger counter = new AtomicInteger(0);
-		JobContext initialContext = JobContext.create("initial");
-		asyncQueueWorker.job("job1", previousJobContext -> {
-//			$(() -> Assertions.assertEquals("initial", previousJobContext.getResult()));
-			counter.incrementAndGet();
-			System.out.println("job1 " + Thread.currentThread());
-			return JobContext.create("Hello world").jumpToId("job3");
-		}).job("job2", previousJobContext -> {
-			counter.incrementAndGet();
-			System.out.println("job2 " + Thread.currentThread());
-			$(Assertions::fail);
-			return null;
-		});
-		asyncQueueWorker.start(initialContext, 0, 500);
-		asyncQueueWorker.job("job3", jobContext -> {
-			counter.incrementAndGet();
-			System.out.println("job3 " + Thread.currentThread());
-			return null;
-		});
-		new Thread(() -> {
-			try {
-				Thread.sleep(700L);
-			} catch (InterruptedException e) {
-				throw new RuntimeException(e);
-			}
-			$(() -> Assertions.assertEquals(4, counter.get()));
-			completed();
-		}).start();
-
-		waitCompleted(6);
-	}
-
-
-	@Test
 	public void testExternalJob() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
 		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
 			System.out.println("id " + id + " from " + fromState + " to " + toState);
 		});
@@ -498,8 +352,8 @@ public class AsyncQueueWorkerTest extends AsyncTestBase {
 
 	@Test
 	public void testPendingJobWithoutJump() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
 		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
 			System.out.println("id " + id + " from " + fromState + " to " + toState);
 		});
@@ -533,8 +387,8 @@ public class AsyncQueueWorkerTest extends AsyncTestBase {
 
 	@Test
 	public void testPendingJob() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncQueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
 		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
 			System.out.println("id " + id + " from " + fromState + " to " + toState);
 		});
@@ -566,5 +420,133 @@ public class AsyncQueueWorkerTest extends AsyncTestBase {
 
 		waitCompleted(6);
 	}
+	@Test
+	public void testAnotherAsyncJob() throws Throwable {
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
+			System.out.println("id " + id + " from " + fromState + " to " + toState);
+		});
+		asyncQueueWorker.setAsyncJobErrorListener((id, asyncJob, throwable) -> {
 
+		});
+		AtomicInteger counter = new AtomicInteger(0);
+		JobContext initialContext = JobContext.create("initial");
+		asyncQueueWorker.job("job1", previousJobContext -> {
+//			$(() -> Assertions.assertEquals("initial", previousJobContext.getResult()));
+			counter.incrementAndGet();
+			System.out.println("job1 " + Thread.currentThread());
+			return JobContext.create("Hello world").jumpToId("pendingJob1");
+		}).asyncJob("pendingJob1", (jobContext, jobCompleted) -> {
+			try {
+				Thread.sleep(100L);
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+			counter.incrementAndGet();
+			jobCompleted.completed(null, null);
+		}, true).job("pendingJob2", jobContext -> {
+			$(Assertions::fail);
+			return null;
+		}, true).externalJob("batchRead", previousJobContext -> {
+			counter.incrementAndGet();
+			System.out.println("job2 " + Thread.currentThread());
+			$(() -> Assertions.assertEquals(1, ((TapInsertRecordEvent)((List)previousJobContext.getResult()).get(0)).getAfter().get("a")));
+			$(() -> Assertions.assertEquals(3, counter.get()));
+			completed();
+			return null;
+		});
+		asyncQueueWorker.start(initialContext);
+
+		waitCompleted(6);
+	}
+
+	@Test
+	public void testAnotherAsyncJobError() throws Throwable {
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
+			System.out.println("id " + id + " from " + fromState + " to " + toState);
+		});
+		asyncQueueWorker.setAsyncJobErrorListener((id, asyncJob, throwable) -> {
+			System.out.println("error " + throwable.getMessage());
+			$(() -> Assertions.assertEquals("aaaa", throwable.getMessage()));
+			completed();
+		});
+		AtomicInteger counter = new AtomicInteger(0);
+		JobContext initialContext = JobContext.create("initial");
+		asyncQueueWorker.job("job1", previousJobContext -> {
+//			$(() -> Assertions.assertEquals("initial", previousJobContext.getResult()));
+			counter.incrementAndGet();
+			System.out.println("job1 " + Thread.currentThread());
+			return JobContext.create("Hello world").jumpToId("pendingJob1");
+		}).asyncJob("pendingJob1", (jobContext, jobCompleted) -> {
+			try {
+				Thread.sleep(100L);
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+			counter.incrementAndGet();
+			jobCompleted.completed(null, new CoreException("aaaa"));
+		}, true).job("pendingJob2", jobContext -> {
+			$(Assertions::fail);
+			return null;
+		}, true).externalJob("batchRead", previousJobContext -> {
+			$(Assertions::fail);
+			return null;
+		});
+		asyncQueueWorker.start(initialContext);
+
+		waitCompleted(6);
+	}
+
+	@Test
+	public void testLastJob() throws Throwable {
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		QueueWorker asyncQueueWorker = asyncMaster.createAsyncQueueWorker("Test");
+		asyncQueueWorker.setQueueWorkerStateListener((id, fromState, toState) -> {
+			System.out.println("id " + id + " from " + fromState + " to " + toState);
+		});
+		asyncQueueWorker.setAsyncJobErrorListener((id, asyncJob, throwable) -> {
+			System.out.println("error " + throwable.getMessage());
+
+		});
+		AtomicInteger counter = new AtomicInteger(0);
+		JobContext initialContext = JobContext.create("initial");
+		asyncQueueWorker.job("job1", previousJobContext -> {
+//			$(() -> Assertions.assertEquals("initial", previousJobContext.getResult()));
+			counter.incrementAndGet();
+			System.out.println("job1 " + Thread.currentThread());
+			return JobContext.create("Hello world").jumpToId("pendingJob1");
+		}).asyncJob("pendingJob1", (jobContext, jobCompleted) -> {
+			try {
+				Thread.sleep(100L);
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+			counter.incrementAndGet();
+			jobCompleted.completed(null, null);
+		}, true).finished(jobContext -> {
+			System.out.println("job1 " + Thread.currentThread());
+			new Thread(() -> {
+				try {
+					Thread.sleep(100L);
+				} catch (InterruptedException e) {
+					throw new RuntimeException(e);
+				}
+				Assertions.assertEquals(QueueWorkerStateListener.STATE_FINISHED, asyncQueueWorker.getState());
+				completed();
+			}).start();
+			return null;
+		}).job("pendingJob2", jobContext -> {
+			$(Assertions::fail);
+			return null;
+		}, true).externalJob("batchRead", previousJobContext -> {
+			$(Assertions::fail);
+			return null;
+		});
+		asyncQueueWorker.start(initialContext);
+
+		waitCompleted(6);
+	}
 }

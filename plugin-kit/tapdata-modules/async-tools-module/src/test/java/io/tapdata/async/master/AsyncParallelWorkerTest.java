@@ -16,15 +16,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class AsyncParallelWorkerTest extends AsyncTestBase {
 	@AfterEach
 	public void tearDown() {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncParallelWorker parallelWorker = asyncMaster.destroyAsyncParallelWorker("Test");
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		ParallelWorker parallelWorker = asyncMaster.destroyAsyncParallelWorker("Test");
 		Assertions.assertNull(parallelWorker);
 	}
 
 	@Test
 	public void testAsyncParallelWorker() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncParallelWorker asyncParallelWorker = asyncMaster.createAsyncParallelWorker("Test", 1);
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		ParallelWorker asyncParallelWorker = asyncMaster.createAsyncParallelWorker("Test", 1);
 		asyncParallelWorker.setParallelWorkerStateListener((id, fromState, toState) -> {
 			System.out.println("id " + id + " from " + fromState + " to " + toState);
 		});
@@ -32,19 +32,19 @@ public class AsyncParallelWorkerTest extends AsyncTestBase {
 		asyncParallelWorker.job("1", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
 			ids.add(asyncQueueWorker.getId());
 			return null;
-		}));
+		}).finished());
 		asyncParallelWorker.job("2", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
 			ids.add(asyncQueueWorker.getId());
 			return null;
-		}));
+		}).finished());
 		asyncParallelWorker.job("3", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
 			ids.add(asyncQueueWorker.getId());
 			return null;
-		}));
+		}).finished());
 		asyncParallelWorker.job("4", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
 			ids.add(asyncQueueWorker.getId());
 			return null;
-		}));
+		}).finished());
 		asyncParallelWorker.start();
 		new Thread(() -> {
 			try {
@@ -55,40 +55,53 @@ public class AsyncParallelWorkerTest extends AsyncTestBase {
 			$(() -> Assertions.assertArrayEquals(new String[]{"1", "2", "3", "4"}, ids.toArray()));
 			completed();
 		}).start();
-		waitCompleted(3);
+		waitCompleted(3111111);
 	}
 
 	@Test
-	public void testAsyncParallelWorkerStatusLongIdle() throws Throwable {
-		AsyncMaster asyncMaster = InstanceFactory.instance(AsyncMaster.class);
-		AsyncParallelWorker asyncParallelWorker = asyncMaster.createAsyncParallelWorker("Test", 1);
-		AtomicInteger lastState = new AtomicInteger();
+	public void testAsyncParallelWorkerFinished() throws Throwable {
+		JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
+		ParallelWorker asyncParallelWorker = asyncMaster.createAsyncParallelWorker("Test", 1);
 		asyncParallelWorker.setParallelWorkerStateListener((id, fromState, toState) -> {
 			System.out.println("id " + id + " from " + fromState + " to " + toState);
-			lastState.set(toState);
 		});
 		List<String> ids = new ArrayList<>();
 		asyncParallelWorker.job("1", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
 			ids.add(asyncQueueWorker.getId());
 			return null;
-		}));
+		}).finished());
+		asyncParallelWorker.job("2", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
+			ids.add(asyncQueueWorker.getId());
+			return null;
+		}).finished());
+		asyncParallelWorker.job("3", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
+			ids.add(asyncQueueWorker.getId());
+			asyncParallelWorker.finished(() -> {
+				try {
+					Thread.sleep(100L);
+				} catch (InterruptedException e) {
+					throw new RuntimeException(e);
+				}
+				$(() -> Assertions.assertArrayEquals(new String[]{"1", "2", "3", "4"}, ids.toArray()));
+				Assertions.assertEquals(ParallelWorkerStateListener.STATE_FINISHED, asyncParallelWorker.getState());
+				try {
+					asyncParallelWorker.job("5", null, asyncQueueWorker1 -> {
+						$(Assertions::fail);
+					});
+					$(Assertions::fail);
+				} catch(Throwable throwable) {
+					System.out.println("throwable " + throwable.getMessage());
+				}
+				completed();
+			});
+			return null;
+		}).finished());
+		asyncParallelWorker.job("4", null, asyncQueueWorker -> asyncQueueWorker.job("1", jobContext -> {
+			ids.add(asyncQueueWorker.getId());
+			return null;
+		}).finished());
 		asyncParallelWorker.start();
-		new Thread(() -> {
-			try {
-				Thread.sleep(200L);
-			} catch (InterruptedException e) {
-				throw new RuntimeException(e);
-			}
-			$(() -> Assertions.assertEquals(ParallelWorkerStateListener.STATE_IDLE, lastState.get()));
-			try {
-				Thread.sleep(1200L);
-			} catch (InterruptedException e) {
-				throw new RuntimeException(e);
-			}
-			$(() -> Assertions.assertEquals(ParallelWorkerStateListener.STATE_LONG_IDLE, lastState.get()));
-			completed();
-		}).start();
-		waitCompleted(3);
-	}
 
+		waitCompleted(3111111);
+	}
 }

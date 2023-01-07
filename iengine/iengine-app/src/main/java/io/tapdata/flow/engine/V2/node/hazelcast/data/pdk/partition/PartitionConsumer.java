@@ -3,9 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.GetReadPartitionsFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.async.master.AsyncJob;
-import io.tapdata.async.master.AsyncJobErrorListener;
-import io.tapdata.async.master.AsyncParallelWorker;
+import io.tapdata.async.master.ParallelWorker;
 import io.tapdata.async.master.JobContext;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
@@ -23,13 +21,13 @@ import java.util.function.Consumer;
 public class PartitionConsumer implements Consumer<ReadPartition> {
 	private PDKSourceContext pdkSourceContext;
 	private TapTable tapTable;
-	private AsyncParallelWorker partitionsReader;
+	private ParallelWorker partitionsReader;
 	private GetReadPartitionsFuncAspect getReadPartitionsFuncAspect;
 	private BatchReadFuncAspect batchReadFuncAspect;
 	private List<ReadPartition> readPartitionList;
 	private Map<String, TapEventPartitionDispatcher> tableEventPartitionDispatcher;
 	private HazelcastSourcePartitionReadDataNode sourcePdkDataNodeEx1;
-	public PartitionConsumer(PDKSourceContext pdkSourceContext, TapTable tapTable, AsyncParallelWorker partitionsReader, GetReadPartitionsFuncAspect getReadPartitionsFuncAspect, BatchReadFuncAspect batchReadFuncAspect, List<ReadPartition> readPartitionList, Map<String, TapEventPartitionDispatcher> tableEventPartitionDispatcher, HazelcastSourcePartitionReadDataNode sourcePdkDataNodeEx1) {
+	public PartitionConsumer(PDKSourceContext pdkSourceContext, TapTable tapTable, ParallelWorker partitionsReader, GetReadPartitionsFuncAspect getReadPartitionsFuncAspect, BatchReadFuncAspect batchReadFuncAspect, List<ReadPartition> readPartitionList, Map<String, TapEventPartitionDispatcher> tableEventPartitionDispatcher, HazelcastSourcePartitionReadDataNode sourcePdkDataNodeEx1) {
 		this.partitionsReader = partitionsReader;
 		this.pdkSourceContext = pdkSourceContext;
 		this.readPartitionList = readPartitionList;
@@ -41,6 +39,7 @@ public class PartitionConsumer implements Consumer<ReadPartition> {
 	}
 	@Override
 	public void accept(ReadPartition readPartition) {
+		sourcePdkDataNodeEx1.getObsLogger().info("Found partition {} to read", readPartition);
 		readPartitionList.add(readPartition);
 		if (getReadPartitionsFuncAspect != null)
 			AspectUtils.accept(getReadPartitionsFuncAspect.state(GetReadPartitionsFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), readPartition);
@@ -60,7 +59,7 @@ public class PartitionConsumer implements Consumer<ReadPartition> {
 						}).
 						job("readPartition", readPartitionHandler::handleReadPartition).
 						job("sendingDataFromPartition", readPartitionHandler::handleSendingDataFromPartition).
-						job("finishedPartition", readPartitionHandler::handleFinishedPartition))
+						finished("finishedPartition", readPartitionHandler::handleFinishedPartition))
 				.setAsyncJobErrorListener((id, asyncJob, throwable) -> sourcePdkDataNodeEx1.errorHandle(throwable, throwable.getMessage()));
 	}
 }

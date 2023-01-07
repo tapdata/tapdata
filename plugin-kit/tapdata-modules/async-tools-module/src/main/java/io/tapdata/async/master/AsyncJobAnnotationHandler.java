@@ -13,8 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class AsyncJobAnnotationHandler extends ClassAnnotationHandler {
 	private static final String TAG = AsyncJobAnnotationHandler.class.getSimpleName();
-	private Map<String, Class<? extends AsyncJob>> asyncJobMap = new ConcurrentHashMap<>();
-	private Map<String, Class<? extends AsyncJob>> newAsyncJobMap;
+	private Map<String, Class<? extends Job>> asyncJobMap = new ConcurrentHashMap<>();
+	private Map<String, Class<? extends Job>> newAsyncJobMap;
 
 	@Override
 	public void handle(Set<Class<?>> classes) throws CoreException {
@@ -24,12 +24,12 @@ public class AsyncJobAnnotationHandler extends ClassAnnotationHandler {
 			for (Class<?> clazz : classes) {
 				AsyncJobClass asyncJobClass = clazz.getAnnotation(AsyncJobClass.class);
 				if (asyncJobClass != null) {
-					if (!AsyncJob.class.isAssignableFrom(clazz)) {
-						TapLogger.error(TAG, "AsyncJob {} don't implement {}, will be ignored", clazz, AsyncJob.class);
+					if (!Job.class.isAssignableFrom(clazz)) {
+						TapLogger.error(TAG, "AsyncJob {} don't implement {}, will be ignored", clazz, Job.class);
 						continue;
 					}
 					//noinspection unchecked
-					Class<? extends AsyncJob> jobClass = (Class<? extends AsyncJob>) clazz;
+					Class<? extends Job> jobClass = (Class<? extends Job>) clazz;
 					String jobType = asyncJobClass.value();
 
 					//Check class can be initialized for non-args constructor
@@ -47,7 +47,7 @@ public class AsyncJobAnnotationHandler extends ClassAnnotationHandler {
 						continue;
 					}
 
-					Class<? extends AsyncJob> current = newAsyncJobMap.putIfAbsent(jobType, jobClass);
+					Class<? extends Job> current = newAsyncJobMap.putIfAbsent(jobType, jobClass);
 					if(current != null) {
 						TapLogger.warn(TAG, "AsyncJob type {} has jobClass {} already, new jobClass {} will be ignored", jobType, current, jobClass);
 						continue;
@@ -68,7 +68,7 @@ public class AsyncJobAnnotationHandler extends ClassAnnotationHandler {
 		}
 	}
 
-	public Map<String, Class<? extends AsyncJob>> getAsyncJobMap() {
+	public Map<String, Class<? extends Job>> getAsyncJobMap() {
 		return asyncJobMap;
 	}
 

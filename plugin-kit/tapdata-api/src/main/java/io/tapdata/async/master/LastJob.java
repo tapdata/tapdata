@@ -3,6 +3,5 @@ package io.tapdata.async.master;
 /**
  * @author aplomb
  */
-public abstract class AsyncJobImpl implements Job {
-
+public interface LastJob extends Job {
 }
