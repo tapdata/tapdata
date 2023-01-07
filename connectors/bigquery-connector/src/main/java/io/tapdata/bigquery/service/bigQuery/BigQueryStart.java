@@ -53,35 +53,35 @@ public abstract class BigQueryStart {
 
         String serviceAccount = connectionConfig.getString("serviceAccount");
         if (null == serviceAccount || "".equals(serviceAccount)){
-            throw new CoreException("Credentials is must not be null or not be empty.");
+            throw new CoreException("Credentials cannot be empty.");
         }
         try {
             JSONObject parse = JSONUtil.parseObj(serviceAccount);
             Object projectId = parse.get("project_id");
             if (null == projectId ){
-                throw new CoreException("Credentials is must not be null or not be empty.");
+                throw new CoreException("Credentials cannot be empty.");
             }
             contextConfig.projectId(String.valueOf(projectId));
         }catch (Exception e){
-            throw new CoreException("Credentials is must not be null or not be empty, can not get project id.");
+            throw new CoreException("Credentials cannot be empty, can not get project id.");
         }
 
 
         String tableSet = connectionConfig.getString("tableSet");
         if (null == tableSet || "".equals(tableSet)){
-            throw new CoreException("Credentials is must not be null or not be empty.");
+            throw new CoreException("Credentials cannot be empty.");
         }
        DataMap nodeConfig = this.connectorContext.getNodeConfig();
-       if (Objects.nonNull(nodeConfig)){
+       if (connectorContext instanceof TapConnectorContext && Objects.nonNull(nodeConfig)){
            String writeMode = nodeConfig.getString("writeMode");
            if (null == writeMode || "".equals(writeMode)){
-               throw new CoreException("WriteMode is must not be null or not be empty.");
+               throw new CoreException("WriteMode cannot be empty.");
            }
            contextConfig.writeMode(writeMode);
            if ("MIXED_UPDATES".equals(writeMode)) {
                String cursorSchema = nodeConfig.getString("cursorSchema");
                if (null == cursorSchema || "".equals(cursorSchema)) {
-                   throw new CoreException("WriteMode is MIXED_UPDATES and CursorSchema is must not be null or not be empty.");
+                   throw new CoreException("WriteMode is MIXED_UPDATES and CursorSchema cannot be empty.");
                }
                contextConfig.cursorSchema(cursorSchema);
                if (connectorContext instanceof TapConnectorContext){
@@ -97,7 +97,7 @@ public abstract class BigQueryStart {
                }
                String mergeDelay = nodeConfig.getString("mergeDelay");
                if (null == mergeDelay) {
-                   throw new CoreException("WriteMode is MIXED_UPDATES and MergeDelay is must not be null or not be empty.");
+                   throw new CoreException("WriteMode is MIXED_UPDATES and MergeDelay cannot be empty.");
                }
                contextConfig.mergeDelay(Long.valueOf(mergeDelay));
            }
