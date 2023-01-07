@@ -325,7 +325,7 @@ public class MergeHandel extends BigQueryStart {
                         TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
                     }
                 }
-            }, 10, this.mergeDelaySeconds, TimeUnit.SECONDS);
+            }, 60, this.mergeDelaySeconds, TimeUnit.SECONDS);
         }
     }
 

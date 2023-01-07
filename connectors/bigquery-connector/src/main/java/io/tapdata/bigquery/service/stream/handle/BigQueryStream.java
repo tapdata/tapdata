@@ -48,16 +48,17 @@ public class BigQueryStream extends BigQueryStart {
     }
 
     public BigQueryStream createWriteCommittedStream() throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
+        String tableName = super.config.isMixedUpdates()?super.config().tempCursorSchema():tapTable.getName();
         if (Objects.isNull(stream)) {
             String key = super.config().projectId() +
                     "_" + super.config().tableSet() +
-                    "_" + super.config().tempCursorSchema() +
+                    "_" + tableName +
                     "_" + super.config().serviceAccount();
             stream = Optional.ofNullable(streamMap.get(key))
                     .orElse(WriteCommittedStream.writer(
                             super.config().projectId(),
                             super.config().tableSet(),
-                            super.config().tempCursorSchema(),
+                            tableName,
                             super.config().serviceAccount())
                     );
             if (connectorContext instanceof TapConnectorContext){
@@ -83,25 +84,21 @@ public class BigQueryStream extends BigQueryStart {
 
     public WriteListResult<TapRecordEvent> writeRecord(List<TapRecordEvent> events, TapTable table) throws IOException, Descriptors.DescriptorValidationException, InterruptedException {
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
-        AtomicInteger insert = new AtomicInteger();
-        AtomicInteger update = new AtomicInteger();
-        AtomicInteger delete = new AtomicInteger();
         this.tapTable = table;
         if (this.config.isMixedUpdates()){
             //混合模式写入数据
             synchronized (this.merge.mergeLock()){
-                this.stream.appendJSON(this.records(this.merge.temporaryEvent(events), insert, update, delete));
+                this.stream.appendJSON(this.records(this.merge.temporaryEvent(events), result));
             }
         }else {
             //append-only 模式
-            this.stream.append(records(events, insert, update, delete));
+            this.stream.append(this.records(events, result));
         }
-        return result.insertedCount(insert.get())
-                .modifiedCount(update.get())
-                .removedCount(delete.get());
+        return result;
     }
 
-    private List<Map<String,Object>> records(List<TapRecordEvent> events,AtomicInteger insert,AtomicInteger update,AtomicInteger delete){
+    private List<Map<String,Object>> records(List<TapRecordEvent> events,WriteListResult<TapRecordEvent> result){
+        int insert = 0,update = 0, delete = 0;
         KVMap<Object> stateMap = ((TapConnectorContext) this.connectorContext).getStateMap();
         List<Map<String,Object>> list = new ArrayList<>();
         Object mergeKeyId = null;
@@ -109,15 +106,15 @@ public class BigQueryStream extends BigQueryStart {
             if (Objects.isNull(event)) continue;
             Map<String,Object> record = new HashMap<>();
             if (event instanceof TapInsertRecordEvent){
-                insert.getAndIncrement();
+                insert++;
                 record = ((TapInsertRecordEvent)event).getAfter();
             }
             else if(event instanceof TapUpdateRecordEvent){
-                update.getAndIncrement();
+                update++;
                 //record = ((TapUpdateRecordEvent)event).getAfter();
             }
             else if(event instanceof TapDeleteRecordEvent){
-                delete.getAndIncrement();
+                delete++;
                 //record = ((TapDeleteRecordEvent)event).getBefore();
             }
             mergeKeyId = record.get(MergeHandel.MERGE_KEY_ID);
@@ -125,6 +122,7 @@ public class BigQueryStream extends BigQueryStart {
                 list.add(record);
             }
         }
+        result.removedCount(delete).modifiedCount(update).insertedCount(insert);
         if (Objects.nonNull(mergeKeyId)){
             stateMap.put(MergeHandel.MERGE_KEY_ID,mergeKeyId);
         }

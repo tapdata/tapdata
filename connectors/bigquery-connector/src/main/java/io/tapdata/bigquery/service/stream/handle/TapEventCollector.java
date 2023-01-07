@@ -86,7 +86,7 @@ public class TapEventCollector {
                     } catch (Throwable throwable) {
                         TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
                     }
-                }, 1, 10, TimeUnit.SECONDS);
+                }, 1, 5, TimeUnit.SECONDS);
             }
         }
     }

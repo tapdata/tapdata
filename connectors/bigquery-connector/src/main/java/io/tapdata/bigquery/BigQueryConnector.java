@@ -53,7 +53,7 @@ import java.util.function.Consumer;
 @TapConnectorClass("spec.json")
 public class BigQueryConnector extends ConnectorBase {
 	private static final String TAG = BigQueryConnector.class.getSimpleName();
-	private static final int STREAM_SIZE = 25000;
+	private static final int STREAM_SIZE = 60000;
 	private static final String STREAM_OFFSET_KEY_NAME = "STREAM_API_OFFSET";
 
 	private WriteRecord writeRecord;
@@ -198,7 +198,7 @@ public class BigQueryConnector extends ConnectorBase {
 				}
 			}, 10, 300, TimeUnit.SECONDS);
 		}
-		this.stream.streamOffset(this.streamOffset);
+		this.stream.streamOffset(this.streamOffset).tapTable(table);
 		if (Objects.isNull(this.stream.writeCommittedStream())) {
             this.stream.createWriteCommittedStream();
         }
@@ -220,7 +220,7 @@ public class BigQueryConnector extends ConnectorBase {
 				if (Objects.isNull(this.tapEventCollector)) {
 					this.tapEventCollector = TapEventCollector.create()
 							.maxRecords(BigQueryConnector.STREAM_SIZE)
-							.idleSeconds(10)
+							.idleSeconds(5)
 							.table(table)
 							.writeListResultConsumer(consumer)
 							.eventCollected(this::uploadEvents);

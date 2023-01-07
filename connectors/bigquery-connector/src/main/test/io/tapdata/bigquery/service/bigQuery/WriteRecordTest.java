@@ -23,7 +23,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WriteRecordTest {
     String sql = " `vibrant-castle-366614.tableSet001.table1` ";
-    String str = "";
+    String str = "{\n" +
+            "  \"type\": \"service_account\",\n" +
+            "  \"project_id\": \"vibrant-castle-366614\",\n" +
+            "  \"private_key_id\": \"2f6d726b6c549949d49fe007370f0f7b2fd35814\",\n" +
+            "  \"private_key\": \"-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC1qBsZ/4D8+XDy\\nrrK+5Xro5/zRnYQVpPj4g8hFt0olfAeOBTK/z9Vy9NDwPfpPc1fGP8bo3O+Uyqco\\nEjv3QRGDyPyN/H64+1zvf5UfGI0KspgaqeXyG07Bm1giqIM9g7Ew+pjK/uXOsRij\\n9Fo9cRs+wSs88fa4YKS93Lh2XwuYCDjUfsOKF5ftn1RYzNhcXfCBPqkCArhFdkaH\\nfLlFEVP4kXBaij0HcRSzRFy+Jk1sSaDR6oSbjXLwYhS60vHAUsTQ481OagC/x1cZ\\nf9697q+pIGlkukRXMoY7tfW2EUd4QuPOWFMqWsOsYSQ1243Jk7nfaGXcENATxO+m\\nIZ4QlaV1AgMBAAECggEADyIZso5s3NDxo4tW4WeqrUZ48wQlTHb5isfSYlnE998f\\nnf7kMxiJq/xQf63ExuOmrKGu3MKzGXknIxkfHRey8YCdPD2MV7VmZklW+fKIpXCA\\nErs+qG8Knj8RFj9ll4qmCJzdJ7lubvalRTCxEoH0BsP+6c0v2ZJWMb72hbNLUEyS\\n9E7HEuX7ja7XevK/Nrholb9kIQYonkQdl9ONlJIDMjjs+fFrNBuyzcWCK/vRWIo+\\nZWoTBX+zO/faaOxVBCbxbhHCA5kdF8sQZBRGIIL1kvNCjGK51oXok3igOMOWNPqD\\n3qmlIFbFimKVBapDqVlWidSBJNhoXG8dh7zoSSHqzQKBgQDtVtDLRJYVKfI0hV3u\\n8mdNKrllTZXiWM86BPotq/jeYz45qyxiTDw79NGOFtc/tZyHYtBlHIBxBi8pBCCT\\nlJZgr+dJwPU0iTtV54ghBIidl64VicV1ZVi7o3mwZbvcNvAvjN7YT6/3oH7HveNw\\nxbCovByQzG3LQXV9y/BogwYrSwKBgQDD8IIoRSTOGZMX1VRVZMrEPze7IMXZK88t\\nVcVL7qQHSePbmdNuKGaNrvHZQjtINvQLviKm7sETL4dJxLqPicg6EY0N1/0WkXk5\\nhKY44Zgs9KIRmghxy5XYGLvi9/jQXnBQY4n2rIhqzmgWB3/jtAzVwKOcOv/Jl5Uj\\nudluaYY6PwKBgEgBXck9nrb/Cd+LUstKubJ8stCcMEwCm6RDnE887H0z6M4AM7AC\\n5wddqDIOlfFbPQkKHqV+dy1TLf2opeWAX/sngukqZHoy5FCUtQUnZfdB7GvWZ5TN\\nUZVj7GhrBQqzlD0o5PcFfiKHi883uggdwhH/OD9p9imDS40F0YMztSxvAoGBALuY\\nV2Vq3dQdlEErVDT17VR7GkalGAfW8+J5zg3nC1CXI/sqic1cDOP17UOPL+byBjH/\\n9nlQ+bX+uU6ddejbh8Jg72Wjt4KWATRaljK7etD/3vNvQEqDGpHtDGY/+A63fFzb\\nEEoF4g4wVGNTBtThm7BDYeHAcwl1garU0yHtEkBNAoGAQ7lGtLO/QvT4fxTRJd0q\\nQf//BOxzi6JRxPsPmhFC54VMnXdLvTckYLEmeK4GKCPX3WXpTd7rMCJA0k3GzVrU\\nmT4tJyJWATgX1+twfsLJK+hjaaAWvraoAmT7MVQbD5H7GZDm53SGaYUx1qDPYF5X\\n6336nxO6BNx15DWeun1Nqrg=\\n-----END PRIVATE KEY-----\\n\",\n" +
+            "  \"client_email\": \"acountbygavin@vibrant-castle-366614.iam.gserviceaccount.com\",\n" +
+            "  \"client_id\": \"111681922313258447427\",\n" +
+            "  \"auth_uri\": \"https://accounts.google.com/o/oauth2/auth\",\n" +
+            "  \"token_uri\": \"https://oauth2.googleapis.com/token\",\n" +
+            "  \"auth_provider_x509_cert_url\": \"https://www.googleapis.com/oauth2/v1/certs\",\n" +
+            "  \"client_x509_cert_url\": \"https://www.googleapis.com/robot/v1/metadata/x509/acountbygavin%40vibrant-castle-366614.iam.gserviceaccount.com\"\n" +
+            "}";
     TapConnectorContext context;
     WriteRecord writeRecord;
     SqlMarker sqlMarker;

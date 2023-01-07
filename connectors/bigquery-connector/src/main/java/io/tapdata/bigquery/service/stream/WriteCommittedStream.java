@@ -101,15 +101,19 @@ public class WriteCommittedStream {
 
     }
 
-    private WriteCommittedStream init() throws IOException, DescriptorValidationException, InterruptedException {
+    private WriteCommittedStream init() {
         GoogleCredentials googleCredentials = getGoogleCredentials(this.credentialsJson);
-        BigQueryWriteSettings settings =
-                BigQueryWriteSettings.newBuilder().setCredentialsProvider(() -> googleCredentials).build();
-        this.client = BigQueryWriteClient.create(settings);
-        TableName parentTable = TableName.of(this.projectId, this.dataSet, this.tableName);
-        // One time initialization.
-        this.writer = new DataWriter();
-        this.writer.initialize(parentTable, this.client, this.credentialsJson);
+        try {
+            BigQueryWriteSettings settings =
+                    BigQueryWriteSettings.newBuilder().setCredentialsProvider(() -> googleCredentials).build();
+            this.client = BigQueryWriteClient.create(settings);
+            TableName parentTable = TableName.of(this.projectId, this.dataSet, this.tableName);
+            // One time initialization.
+            this.writer = new DataWriter();
+            this.writer.initialize(parentTable, this.client, this.credentialsJson);
+        }catch (Exception e){
+            TapLogger.error(TAG,String.format("Unable to create Stream connection, exception information: %s.",e.getMessage()));
+        }
         return this;
     }
 
@@ -121,29 +125,32 @@ public class WriteCommittedStream {
         }
     }
 
-    public void append(List<Map<String, Object>> record) throws IOException, DescriptorValidationException {
+    public void append(List<Map<String, Object>> record) {
         if (Objects.isNull(record) || record.isEmpty()) return;
-        try {
+        List<List<Map<String, Object>>> partition = Lists.partition(record, 5000);
+        partition.forEach(recordPartition -> {
             JSONArray jsonArr = new JSONArray();
-            for (Map<String, Object> map : record) {
+            for (Map<String, Object> map : recordPartition) {
                 if (Objects.isNull(map)) continue;
                 JSONObject jsonObject = new JSONObject();
                 map.forEach(jsonObject::put);
                 jsonArr.put(jsonObject);
             }
-            long offsetState = this.streamOffset.get();
-            this.writer.append(jsonArr, offsetState);
-            this.streamOffset.set(jsonArr.length());
-        } catch (ExecutionException e) {
-            TapLogger.error(TAG, "Stream API write record (Append_only) error, data offset is : " + this.streamOffset);
-        }
+            try {
+                long offsetState = this.streamOffset.get();
+                this.writer.append(jsonArr, offsetState);
+                this.streamOffset.addAndGet(jsonArr.length());
+            } catch (Exception e) {
+                TapLogger.error(TAG, "Stream API write record (Append_only) error, data offset is : " + this.streamOffset);
+            }
+        });
     }
 
     public void appendJSON(List<Map<String, Object>> record) {
         if (Objects.isNull(record) || record.isEmpty()) return;
         List<List<Map<String, Object>>> partition = Lists.partition(record, 5000);
+        JSONArray json = new JSONArray();
         partition.forEach(recordPartition -> {
-            JSONArray json = new JSONArray();
             for (Map<String, Object> map : recordPartition) {
                 if (Objects.isNull(map)) continue;
                 JSONObject jsonObject = new JSONObject();
@@ -161,14 +168,14 @@ public class WriteCommittedStream {
                 });
                 json.put(jsonObject);
             }
-            try {
-                long offsetState = this.streamOffset.get();
-                this.writer.append(json, offsetState);
-                this.streamOffset.addAndGet(json.length());
-            } catch (Exception e) {
-                TapLogger.error(TAG, "Stream API write record (Mixed updates) error,data offset is : " + this.streamOffset + "，data :" + json.toString());
-            }
         });
+        try {
+            long offsetState = this.streamOffset.get();
+            this.writer.append(json, offsetState);
+            this.streamOffset.addAndGet(json.length());
+        } catch (Exception e) {
+            TapLogger.error(TAG, "Stream API write record (Mixed updates) error,data offset is : " + this.streamOffset );
+        }
     }
 
     public void close() {
