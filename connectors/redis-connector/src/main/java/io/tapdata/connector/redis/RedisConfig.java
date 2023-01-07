@@ -24,7 +24,7 @@ public class RedisConfig {
     private String keyExpression;
     private String valueData;
     private String valueJoinString;
-    private String valueTransferredString;
+    private String valueTransferredString = "";
     private long expireTime;
     private Boolean resetExpire;
     private String keyTableName;
