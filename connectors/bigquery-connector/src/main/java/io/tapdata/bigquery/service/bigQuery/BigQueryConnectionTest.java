@@ -33,9 +33,13 @@ public class BigQueryConnectionTest extends BigQueryStart {
     }
     
     public TestItem testTableSet(){
-        String tableSet = this.config.tableSet();
-        String serviceAccount = this.config.serviceAccount();
-        return datasetExists(tableSet,SqlMarker.create(serviceAccount));
+        try {
+            String tableSet = this.config.tableSet();
+            String serviceAccount = this.config.serviceAccount();
+            return datasetExists(tableSet, SqlMarker.create(serviceAccount));
+        }catch (Exception e){
+            return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(),TestItem.RESULT_FAILED,String.format("Unable to get dataset, failure information:%s.",e.getMessage()));
+        }
     }
 
     public TestItem datasetExists(String datasetName,SqlMarker sqlMarker) {
@@ -47,11 +51,15 @@ public class BigQueryConnectionTest extends BigQueryStart {
     }
 
     public TestItem test(String datasetName,SqlMarker sqlMarker) throws BigQueryException{
-        Dataset dataset = sqlMarker.query().getDataset(DatasetId.of(datasetName));
-        if (dataset != null) {
-            return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(),TestItem.RESULT_SUCCESSFULLY,"Dataset already exists.");
-        } else {
-            return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(),TestItem.RESULT_FAILED,"Dataset not found.");
+        try {
+            Dataset dataset = sqlMarker.query().getDataset(DatasetId.of(datasetName));
+            if (dataset != null) {
+                return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(), TestItem.RESULT_SUCCESSFULLY, "Dataset already exists.");
+            } else {
+                return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(), TestItem.RESULT_FAILED, "Dataset not found.");
+            }
+        } catch(Exception e){
+            return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(),TestItem.RESULT_FAILED,String.format("Unable to get dataset, failure information:%s.",e.getMessage()));
         }
     }
 }
