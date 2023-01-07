@@ -32,290 +32,257 @@ import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class WriteCommittedStream {
-  public static final String TAG = WriteCommittedStream.class.getSimpleName();
-  String credentialsJson ;
-  private String projectId;
-  private String dataSet;
-  private String tableName;
+    public static final String TAG = WriteCommittedStream.class.getSimpleName();
+    private String dataSet;
+    private String tableName;
+    private String projectId;
+    private DataWriter writer;
+    private String credentialsJson;
+    private KVMap<Object> stateMap;
+    private AtomicLong streamOffset;
+    private BigQueryWriteClient client;
 
-  KVMap<Object> stateMap;
-
-
-  BigQueryWriteClient client;
-  DataWriter writer;
-  AtomicLong streamOffset;
-    public WriteCommittedStream streamOffset(AtomicLong streamOffset){
+    public WriteCommittedStream streamOffset(AtomicLong streamOffset) {
         this.streamOffset = streamOffset;
         return this;
     }
-  public String projectId(){
-    return this.projectId;
-  }
-  public String dataSet(){
-    return this.dataSet;
-  }
-  public String tableName(){
-    return this.tableName;
-  }
-  public String credentialsJson(){
-    return this.credentialsJson;
-  }
-  public WriteCommittedStream projectId(String projectId){
-    this.projectId = projectId;
-    return this;
-  }
-  public WriteCommittedStream dataSet(String dataSet){
-    this.dataSet = dataSet;
-    return this;
-  }
-  public WriteCommittedStream tableName(String tableName) throws DescriptorValidationException, InterruptedException, IOException {
-    this.tableName = tableName;
-    return this;
-  }
-  public WriteCommittedStream credentialsJson(String credentialsJson){
-    this.credentialsJson = credentialsJson;
-    return this;
-  }
-  public WriteCommittedStream stateMap(KVMap<Object> stateMap){
-      this.stateMap = stateMap;
-      return this;
-  }
-  public static WriteCommittedStream writer(String projectId,String dataSet,String tableName,String credentialsJson) throws DescriptorValidationException, InterruptedException, IOException {
-    WriteCommittedStream writeCommittedStream = new WriteCommittedStream()
-            .projectId(projectId)
-            .dataSet(dataSet)
-            .tableName(tableName)
-            .credentialsJson(credentialsJson);
-    return writeCommittedStream.init();
-  }
 
-  private WriteCommittedStream(){
-
-  }
-  private WriteCommittedStream init() throws IOException, DescriptorValidationException, InterruptedException {
-    GoogleCredentials googleCredentials = getGoogleCredentials(credentialsJson);
-    BigQueryWriteSettings settings =
-            BigQueryWriteSettings.newBuilder().setCredentialsProvider(() -> googleCredentials).build();
-    client = BigQueryWriteClient.create(settings);
-    TableName parentTable = TableName.of(projectId, dataSet, tableName);
-    // One time initialization.
-    writer = new DataWriter();
-    writer.initialize(parentTable, client, credentialsJson);
-    return this;
-  }
-
-  private GoogleCredentials getGoogleCredentials(String credentialsJson) {
-    try {
-      return GoogleCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8)));
-    } catch (IOException e) {
-      throw new CoreException("Big query connector direct fail exception, connector not handle this exception");
+    public String projectId() {
+        return this.projectId;
     }
-  }
 
-  /**
-   * @deprecated
-   * */
-  public void writeCommittedStream() throws DescriptorValidationException, IOException, InterruptedException {
-    try {
-      // Write two batches of fake data to the stream, each with 10 JSON records.  Data may be
-      // batched up to the maximum request size:
-      // https://cloud.google.com/bigquery/quotas#write-api-limits
-      long start = System.currentTimeMillis();
-      for (int i = 0; i < 5000; i++) {
-        // Create a JSON object that is compatible with the table schema.
-        JSONArray jsonArr = new JSONArray();
-        for (int j = 0; j < 10; j++) {
-          JSONObject record = new JSONObject();
-          record.put("_id", "20230104"+i+j);
-          record.put("id", "20230104"+i+j);
-          record.put("name", "SSS");
-          record.put("type", 12.6);
-          jsonArr.put(record);
+    public String dataSet() {
+        return this.dataSet;
+    }
+
+    public String tableName() {
+        return this.tableName;
+    }
+
+    public String credentialsJson() {
+        return this.credentialsJson;
+    }
+
+    public WriteCommittedStream projectId(String projectId) {
+        this.projectId = projectId;
+        return this;
+    }
+
+    public WriteCommittedStream dataSet(String dataSet) {
+        this.dataSet = dataSet;
+        return this;
+    }
+
+    public WriteCommittedStream tableName(String tableName) throws DescriptorValidationException, InterruptedException, IOException {
+        this.tableName = tableName;
+        return this;
+    }
+
+    public WriteCommittedStream credentialsJson(String credentialsJson) {
+        this.credentialsJson = credentialsJson;
+        return this;
+    }
+
+    public WriteCommittedStream stateMap(KVMap<Object> stateMap) {
+        this.stateMap = stateMap;
+        return this;
+    }
+
+    public static WriteCommittedStream writer(String projectId, String dataSet, String tableName, String credentialsJson) throws DescriptorValidationException, InterruptedException, IOException {
+        WriteCommittedStream writeCommittedStream = new WriteCommittedStream()
+                .projectId(projectId)
+                .dataSet(dataSet)
+                .tableName(tableName)
+                .credentialsJson(credentialsJson);
+        return writeCommittedStream.init();
+    }
+
+    private WriteCommittedStream() {
+
+    }
+
+    private WriteCommittedStream init() throws IOException, DescriptorValidationException, InterruptedException {
+        GoogleCredentials googleCredentials = getGoogleCredentials(this.credentialsJson);
+        BigQueryWriteSettings settings =
+                BigQueryWriteSettings.newBuilder().setCredentialsProvider(() -> googleCredentials).build();
+        this.client = BigQueryWriteClient.create(settings);
+        TableName parentTable = TableName.of(this.projectId, this.dataSet, this.tableName);
+        // One time initialization.
+        this.writer = new DataWriter();
+        this.writer.initialize(parentTable, this.client, this.credentialsJson);
+        return this;
+    }
+
+    private GoogleCredentials getGoogleCredentials(String credentialsJson) {
+        try {
+            return GoogleCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8)));
+        } catch (IOException e) {
+            throw new CoreException("Big query connector direct fail exception, connector not handle this exception");
         }
-          Object streamOffset = stateMap.get("stream_offset");
-          if (Objects.isNull(streamOffset)){
-              streamOffset = 0;
-          }
-          long offset = (Long)streamOffset;
-          writer.append(jsonArr, offset);
-          offset += jsonArr.length();
-          stateMap.put("stream_offset",offset);
-      }
-      System.out.println(System.currentTimeMillis() - start);
-    } catch (ExecutionException e) {
-      e.printStackTrace();
-      // If the wrapped exception is a StatusRuntimeException, check the state of the operation.
-      // If the state is INTERNAL, CANCELLED, or ABORTED, you can retry. For more information, see:
-      // https://grpc.github.io/grpc-java/javadoc/io/grpc/StatusRuntimeException.html
-      //System.out.println("Failed to append records. \n" + e);
     }
 
-    // Final cleanup for the stream.
-    //writer.cleanup(client);
-    //System.out.println("Appended records successfully.");
-  }
-
-  public void append(List<Map<String,Object>> record) throws IOException, DescriptorValidationException, InterruptedException {
-    if (Objects.isNull(record) || record.isEmpty()) return;
-    try {
-      JSONArray jsonArr = new JSONArray();
-      for (Map<String, Object> map : record) {
-        if (Objects.isNull(map)) continue;
-        JSONObject jsonObject = new JSONObject();
-        map.forEach(jsonObject::put);
-        jsonArr.put(jsonObject);
-      }
-      long offsetState = streamOffset.get();
-      writer.append(jsonArr, offsetState);
-      offsetState += jsonArr.length();
-      streamOffset.addAndGet(offsetState);
-    }catch(ExecutionException e){
-      //TapLogger.info(TAG,"Error to use stream api write records: "+e.getMessage());
-    }
-    writer.cleanup(client);
-  }
-  public void appendJSON(List<Map<String,Object>> record) throws IOException, DescriptorValidationException, InterruptedException {
-    if (Objects.isNull(record) || record.isEmpty()) return;
-      List<List<Map<String,Object>>> partition = Lists.partition(record, 5000);
-      partition.forEach(recordPartition->{
-          JSONArray json = new JSONArray();
-          for (Map<String, Object> map : recordPartition) {
-              if (Objects.isNull(map)) continue;
-              JSONObject jsonObject = new JSONObject();
-              map.forEach((key,value)->{
-                  if (value instanceof Map){
-                      JSONObject jsonObjects = new JSONObject();
-                      Map<String,Object> objectMap = (Map<String,Object>)value;
-                      objectMap.forEach(jsonObjects::put);
-                      jsonObject.put(key,jsonObjects);
-                  }else if (value instanceof Collection){
-                      jsonObject.put(key,value);
-                  }else {
-                      jsonObject.put(key,value);
-                  }
-              });
-              json.put(jsonObject);
-          }
-          try {
-              long offsetState = streamOffset.get();
-              writer.append(json, offsetState);
-              offsetState += json.length();
-              streamOffset.addAndGet(offsetState);
-          } catch (Exception e) {
-              TapLogger.error(TAG,"Stream API write record error,data offset is : " + streamOffset +"，data :" +json.toString());
-          }
-      });
-      //writer.cleanup(client);
-  }
-
-  // A simple wrapper object showing how the stateful stream writer should be used.
-  private static class DataWriter {
-
-    private JsonStreamWriter streamWriter;
-    // Track the number of in-flight requests to wait for all responses before shutting down.
-    private final Phaser inflightRequestCount = new Phaser(1);
-
-    private final Object lock = new Object();
-
-    @GuardedBy("lock")
-    private RuntimeException error = null;
-
-    void initialize(TableName parentTable, BigQueryWriteClient client,String credentialsJson)
-        throws IOException, DescriptorValidationException, InterruptedException {
-      // Initialize a write stream for the specified table.
-      // For more information on WriteStream.Type, see:
-      // https://googleapis.dev/java/google-cloud-bigquerystorage/latest/com/google/cloud/bigquery/storage/v1/WriteStream.Type.html
-      WriteStream stream = WriteStream.newBuilder().setType(WriteStream.Type.COMMITTED).build();
-
-      CreateWriteStreamRequest createWriteStreamRequest =
-          CreateWriteStreamRequest.newBuilder()
-              .setParent(parentTable.toString())
-              .setWriteStream(stream)
-              .build();
-        LoadBalancerRegistry.getDefaultRegistry().register(new PickFirstLoadBalancerProvider());
-        WriteStream writeStream = client.createWriteStream(createWriteStreamRequest);
-
-      // Use the JSON stream writer to send records in JSON format.
-      // For more information about JsonStreamWriter, see:
-      // https://googleapis.dev/java/google-cloud-bigquerystorage/latest/com/google/cloud/bigquery/storage/v1/JsonStreamWriter.html
-
-      GoogleCredentials credentials =
-              ServiceAccountCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8)));
-      streamWriter = JsonStreamWriter
-                  .newBuilder(writeStream.getName(), writeStream.getTableSchema())
-                  .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
-                  .build();
-    }
-
-    public void append(JSONArray data, long offset)
-        throws DescriptorValidationException, IOException, ExecutionException {
-      synchronized (this.lock) {
-        // If earlier appends have failed, we need to reset before continuing.
-        if (this.error != null) {
-          throw this.error;
+    public void append(List<Map<String, Object>> record) throws IOException, DescriptorValidationException {
+        if (Objects.isNull(record) || record.isEmpty()) return;
+        try {
+            JSONArray jsonArr = new JSONArray();
+            for (Map<String, Object> map : record) {
+                if (Objects.isNull(map)) continue;
+                JSONObject jsonObject = new JSONObject();
+                map.forEach(jsonObject::put);
+                jsonArr.put(jsonObject);
+            }
+            long offsetState = this.streamOffset.get();
+            this.writer.append(jsonArr, offsetState);
+            this.streamOffset.set(jsonArr.length());
+        } catch (ExecutionException e) {
+            TapLogger.error(TAG, "Stream API write record (Append_only) error, data offset is : " + this.streamOffset);
         }
-      }
-      // Append asynchronously for increased throughput.
-      ApiFuture<AppendRowsResponse> future = streamWriter.append(data, offset);
-      ApiFutures.addCallback(
-          future, new DataWriter.AppendCompleteCallback(this), MoreExecutors.directExecutor());
-      // Increase the count of in-flight requests.
-      inflightRequestCount.register();
     }
 
-    public void cleanup(BigQueryWriteClient client) {
-      // Wait for all in-flight requests to complete.
-      inflightRequestCount.arriveAndAwaitAdvance();
+    public void appendJSON(List<Map<String, Object>> record) {
+        if (Objects.isNull(record) || record.isEmpty()) return;
+        List<List<Map<String, Object>>> partition = Lists.partition(record, 5000);
+        partition.forEach(recordPartition -> {
+            JSONArray json = new JSONArray();
+            for (Map<String, Object> map : recordPartition) {
+                if (Objects.isNull(map)) continue;
+                JSONObject jsonObject = new JSONObject();
+                map.forEach((key, value) -> {
+                    if (value instanceof Map) {
+                        JSONObject jsonObjects = new JSONObject();
+                        Map<String, Object> objectMap = (Map<String, Object>) value;
+                        objectMap.forEach(jsonObjects::put);
+                        jsonObject.put(key, jsonObjects);
+                    } else if (value instanceof Collection) {
+                        jsonObject.put(key, value);
+                    } else {
+                        jsonObject.put(key, value);
+                    }
+                });
+                json.put(jsonObject);
+            }
+            try {
+                long offsetState = this.streamOffset.get();
+                this.writer.append(json, offsetState);
+                this.streamOffset.addAndGet(json.length());
+            } catch (Exception e) {
+                TapLogger.error(TAG, "Stream API write record (Mixed updates) error,data offset is : " + this.streamOffset + "，data :" + json.toString());
+            }
+        });
+    }
 
-      // Close the connection to the server.
-      streamWriter.close();
+    public void close() {
+        if (Objects.nonNull(this.writer))
+            this.writer.cleanup(this.client);
+    }
 
-      // Verify that no error occurred in the stream.
-      synchronized (this.lock) {
-        if (this.error != null) {
-          throw this.error;
+    // A simple wrapper object showing how the stateful stream writer should be used.
+    private static class DataWriter {
+        private JsonStreamWriter streamWriter;
+        // Track the number of in-flight requests to wait for all responses before shutting down.
+        private final Phaser inflightRequestCount = new Phaser(1);
+
+        private final Object lock = new Object();
+
+        @GuardedBy("lock")
+        private RuntimeException error = null;
+
+        void initialize(TableName parentTable, BigQueryWriteClient client, String credentialsJson)
+                throws IOException, DescriptorValidationException, InterruptedException {
+            // Initialize a write stream for the specified table.
+            // For more information on WriteStream.Type, see:
+            // https://googleapis.dev/java/google-cloud-bigquerystorage/latest/com/google/cloud/bigquery/storage/v1/WriteStream.Type.html
+            WriteStream stream = WriteStream.newBuilder().setType(WriteStream.Type.COMMITTED).build();
+
+            CreateWriteStreamRequest createWriteStreamRequest =
+                    CreateWriteStreamRequest.newBuilder()
+                            .setParent(parentTable.toString())
+                            .setWriteStream(stream)
+                            .build();
+            LoadBalancerRegistry.getDefaultRegistry().register(new PickFirstLoadBalancerProvider());
+            WriteStream writeStream = client.createWriteStream(createWriteStreamRequest);
+
+            // Use the JSON stream writer to send records in JSON format.
+            // For more information about JsonStreamWriter, see:
+            // https://googleapis.dev/java/google-cloud-bigquerystorage/latest/com/google/cloud/bigquery/storage/v1/JsonStreamWriter.html
+
+            GoogleCredentials credentials =
+                    ServiceAccountCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8)));
+            this.streamWriter = JsonStreamWriter
+                    .newBuilder(writeStream.getName(), writeStream.getTableSchema())
+                    .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
+                    .build();
         }
-      }
 
-      // Finalize the stream.
-      FinalizeWriteStreamResponse finalizeResponse =
-          client.finalizeWriteStream(streamWriter.getStreamName());
-    }
-
-    public String getStreamName() {
-      return streamWriter.getStreamName();
-    }
-
-    static class AppendCompleteCallback implements ApiFutureCallback<AppendRowsResponse> {
-
-      private final DataWriter parent;
-
-      public AppendCompleteCallback(DataWriter parent) {
-        this.parent = parent;
-      }
-
-      public void onSuccess(AppendRowsResponse response) {
-        //TapLogger.info(TAG,String.format("Append %d success ", response.getAppendResult().getOffset().getValue()));
-        done();
-      }
-
-      public void onFailure(Throwable throwable) {
-        synchronized (this.parent.lock) {
-          if (this.parent.error == null) {
-            StorageException storageException = Exceptions.toStorageException(throwable);
-            this.parent.error =
-                (storageException != null) ? storageException : new RuntimeException(throwable);
-          }
+        public void append(JSONArray data, long offset)
+                throws DescriptorValidationException, IOException, ExecutionException {
+            synchronized (this.lock) {
+                // If earlier appends have failed, we need to reset before continuing.
+                if (this.error != null) {
+                    throw this.error;
+                }
+            }
+            // Append asynchronously for increased throughput.
+            ApiFuture<AppendRowsResponse> future = this.streamWriter.append(data, offset);
+            ApiFutures.addCallback(
+                    future, new DataWriter.AppendCompleteCallback(this), MoreExecutors.directExecutor());
+            // Increase the count of in-flight requests.
+            this.inflightRequestCount.register();
         }
-        TapLogger.error(TAG,"Error: "+throwable.getMessage());
-        done();
-        throw new CoreException("Error: "+throwable.getMessage());
-      }
 
-      private void done() {
-        // Reduce the count of in-flight requests.
-        this.parent.inflightRequestCount.arriveAndDeregister();
-      }
+        public void cleanup(BigQueryWriteClient client) {
+            // Wait for all in-flight requests to complete.
+            this.inflightRequestCount.arriveAndAwaitAdvance();
+
+            // Close the connection to the server.
+            this.streamWriter.close();
+
+            // Verify that no error occurred in the stream.
+            synchronized (this.lock) {
+                if (this.error != null) {
+                    throw this.error;
+                }
+            }
+
+            // Finalize the stream.
+            FinalizeWriteStreamResponse finalizeResponse =
+                    client.finalizeWriteStream(this.streamWriter.getStreamName());
+        }
+
+        public String getStreamName() {
+            return this.streamWriter.getStreamName();
+        }
+
+        static class AppendCompleteCallback implements ApiFutureCallback<AppendRowsResponse> {
+
+            private final DataWriter parent;
+
+            public AppendCompleteCallback(DataWriter parent) {
+                this.parent = parent;
+            }
+
+            public void onSuccess(AppendRowsResponse response) {
+                //TapLogger.info(TAG,String.format("Append %d success ", response.getAppendResult().getOffset().getValue()));
+                done();
+            }
+
+            public void onFailure(Throwable throwable) {
+                synchronized (this.parent.lock) {
+                    if (this.parent.error == null) {
+                        StorageException storageException = Exceptions.toStorageException(throwable);
+                        this.parent.error =
+                                (storageException != null) ? storageException : new RuntimeException(throwable);
+                    }
+                }
+                TapLogger.warn(TAG, "Warn: " + throwable.getMessage());
+                done();
+                throw new CoreException("Error: " + throwable.getMessage());
+            }
+
+            private void done() {
+                // Reduce the count of in-flight requests.
+                this.parent.inflightRequestCount.arriveAndDeregister();
+            }
+        }
     }
-  }
 }

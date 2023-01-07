@@ -16,41 +16,41 @@ public class BigQueryConnectionTest extends BigQueryStart {
         super(connectorContext);
     }
 
-    public static BigQueryConnectionTest create(TapConnectionContext connectorContext){
+    public static BigQueryConnectionTest create(TapConnectionContext connectorContext) {
         return new BigQueryConnectionTest(connectorContext);
     }
 
-    public TestItem testServiceAccount(){
+    public TestItem testServiceAccount() {
         String serviceAccount = this.config.serviceAccount();
         try {
             String tableSet = this.config.tableSet();
             SqlMarker sqlMarker = SqlMarker.create(serviceAccount);
-            test(tableSet,sqlMarker);
-            return testItem(BigQueryTestItem.TEST_SERVICE_ACCOUNT.getTxt(),TestItem.RESULT_SUCCESSFULLY,"Your credentials is available that. ");
-        }catch (Exception e){
-            return testItem(BigQueryTestItem.TEST_SERVICE_ACCOUNT.getTxt(),TestItem.RESULT_FAILED,e.getMessage());
+            test(tableSet, sqlMarker);
+            return testItem(BigQueryTestItem.TEST_SERVICE_ACCOUNT.getTxt(), TestItem.RESULT_SUCCESSFULLY, "Your credentials is available that. ");
+        } catch (Exception e) {
+            return testItem(BigQueryTestItem.TEST_SERVICE_ACCOUNT.getTxt(), TestItem.RESULT_FAILED, e.getMessage());
         }
     }
-    
-    public TestItem testTableSet(){
+
+    public TestItem testTableSet() {
         try {
             String tableSet = this.config.tableSet();
             String serviceAccount = this.config.serviceAccount();
             return datasetExists(tableSet, SqlMarker.create(serviceAccount));
-        }catch (Exception e){
-            return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(),TestItem.RESULT_FAILED,String.format("Unable to get dataset, failure information:%s.",e.getMessage()));
+        } catch (Exception e) {
+            return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(), TestItem.RESULT_FAILED, String.format("Unable to get dataset, failure information: %s.", e.getMessage()));
         }
     }
 
-    public TestItem datasetExists(String datasetName,SqlMarker sqlMarker) {
+    public TestItem datasetExists(String datasetName, SqlMarker sqlMarker) {
         try {
             return test(datasetName, sqlMarker);
         } catch (BigQueryException e) {
-            return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(),TestItem.RESULT_FAILED,"Something went wrong. " + e.getMessage());
+            return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(), TestItem.RESULT_FAILED, "Something went wrong. " + e.getMessage());
         }
     }
 
-    public TestItem test(String datasetName,SqlMarker sqlMarker) throws BigQueryException{
+    public TestItem test(String datasetName, SqlMarker sqlMarker) throws BigQueryException {
         try {
             Dataset dataset = sqlMarker.query().getDataset(DatasetId.of(datasetName));
             if (dataset != null) {
@@ -58,8 +58,8 @@ public class BigQueryConnectionTest extends BigQueryStart {
             } else {
                 return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(), TestItem.RESULT_FAILED, "Dataset not found.");
             }
-        } catch(Exception e){
-            return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(),TestItem.RESULT_FAILED,String.format("Unable to get dataset, failure information:%s.",e.getMessage()));
+        } catch (Exception e) {
+            return testItem(BigQueryTestItem.TEST_TABLE_SET.getTxt(), TestItem.RESULT_FAILED, String.format("Unable to get dataset, failure information: %s.", e.getMessage()));
         }
     }
 }

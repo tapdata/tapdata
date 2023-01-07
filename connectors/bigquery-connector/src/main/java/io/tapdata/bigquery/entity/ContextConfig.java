@@ -1,7 +1,5 @@
 package io.tapdata.bigquery.entity;
 
-import java.util.UUID;
-
 public class ContextConfig {
     public static final String TEMP_CURSOR_SCHEMA_NAME = "tempCursorSchema";
     private String serviceAccount;
@@ -49,11 +47,9 @@ public class ContextConfig {
 
     public ContextConfig cursorSchema(String cursorSchema){
         this.cursorSchema = cursorSchema;
-        //this.tempCursorSchema = cursorSchema + "_" + UUID.randomUUID().toString().replaceAll("-","_");
         return this;
     }public ContextConfig tempCursorSchema(String tempCursorSchema){
         this.tempCursorSchema = tempCursorSchema;
-        //this.tempCursorSchema = cursorSchema + "_" + UUID.randomUUID().toString().replaceAll("-","_");
         return this;
     }
     public String cursorSchema(){

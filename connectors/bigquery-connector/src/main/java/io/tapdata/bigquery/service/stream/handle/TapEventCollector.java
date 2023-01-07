@@ -18,26 +18,30 @@ import java.util.function.Consumer;
 
 public class TapEventCollector {
     private static final String TAG = TapEventCollector.class.getSimpleName();
-    private List<TapRecordEvent> events = new CopyOnWriteArrayList<>();
-    private List<TapRecordEvent> pendingUploadEvents;
 
-    private boolean isUploading = false;
-
-    private final Object lock = new int[0];
-    private ScheduledFuture<?> future;
-    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     private Long touch;
+    private TapTable table;
+    private int idleSeconds = 5;
+    private int maxRecords = 1000;
+    private ScheduledFuture<?> future;
+    private boolean isUploading = false;
+    private EventCollected eventCollected;
+    private final Object lock = new int[0];
+    private List<TapRecordEvent> pendingUploadEvents;
+    private Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer;
     private final AtomicBoolean isStarted = new AtomicBoolean(false);
+    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+    private List<TapRecordEvent> events = new CopyOnWriteArrayList<>();
 
     public void start() {
-        if (isStarted.compareAndSet(false, true)) {
+        if (this.isStarted.compareAndSet(false, true)) {
             monitorIdle();
         }
     }
 
     public void stop() {
-        if (future != null)
-            future.cancel(true);
+        if (Objects.nonNull(this.future))
+            this.future.cancel(true);
     }
 
     public interface EventCollected {
@@ -48,36 +52,25 @@ public class TapEventCollector {
         return new TapEventCollector();
     }
 
-    private TapTable table;
-
     public TapEventCollector table(TapTable table) {
         this.table = table;
         return this;
     }
-
-    private int idleSeconds = 5;
 
     public TapEventCollector idleSeconds(int idleSeconds) {
         this.idleSeconds = idleSeconds;
         return this;
     }
 
-    private int maxRecords = 1000;
-
     public TapEventCollector maxRecords(int maxRecords) {
         this.maxRecords = maxRecords;
-
         return this;
     }
-
-    private EventCollected eventCollected;
 
     public TapEventCollector eventCollected(EventCollected eventCollected) {
         this.eventCollected = eventCollected;
         return this;
     }
-
-    private Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer;
 
     public TapEventCollector writeListResultConsumer(Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
         this.writeListResultConsumer = writeListResultConsumer;
@@ -85,11 +78,11 @@ public class TapEventCollector {
     }
 
     public void monitorIdle() {
-        synchronized (lock) {
-            if (future == null) {
-                future = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+        synchronized (this.lock) {
+            if (Objects.nonNull(future)) {
+                this.future = this.scheduledExecutorService.scheduleWithFixedDelay(() -> {
                     try {
-                        tryUpload(true);
+                        this.tryUpload(true);
                     } catch (Throwable throwable) {
                         TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
                     }
@@ -99,37 +92,37 @@ public class TapEventCollector {
     }
 
     private synchronized void tryUpload(boolean forced) {
-        if (!isUploading && pendingUploadEvents != null) {
-            TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, touch != null ? System.currentTimeMillis() - touch : 0, pendingUploadEvents.size());
+        if (!this.isUploading && this.pendingUploadEvents != null) {
+            TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
             uploadEvents();
-        } else if ((pendingUploadEvents == null && !events.isEmpty()) && (forced || (touch != null && System.currentTimeMillis() - touch > idleSeconds * 1000L))) {
-            pendingUploadEvents = events;
-            events = new CopyOnWriteArrayList<>();
-            TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, touch != null ? System.currentTimeMillis() - touch : 0, pendingUploadEvents.size());
+        } else if ((this.pendingUploadEvents == null && !this.events.isEmpty()) && (forced || (this.touch != null && System.currentTimeMillis() - this.touch > this.idleSeconds * 1000L))) {
+            this.pendingUploadEvents = this.events;
+            this.events = new CopyOnWriteArrayList<>();
+            TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
             uploadEvents();
         }
     }
 
     private void uploadEvents() {
-        isUploading = true;
+        this.isUploading = true;
         try {
-            if (pendingUploadEvents != null) {
-                if (eventCollected != null)
-                    eventCollected.collected(writeListResultConsumer, pendingUploadEvents, table);
-                pendingUploadEvents = null;
+            if (this.pendingUploadEvents != null) {
+                if (this.eventCollected != null)
+                    this.eventCollected.collected(this.writeListResultConsumer, this.pendingUploadEvents, this.table);
+                this.pendingUploadEvents = null;
             }
         } finally {
-            isUploading = false;
+            this.isUploading = false;
         }
     }
 
     public void addTapEvents(List<TapRecordEvent> eventList,TapTable table,boolean isMixedUpdates) {
         if (eventList != null && !eventList.isEmpty()) {
             this.transform(eventList, table, isMixedUpdates);
-            events.addAll(eventList);
+            this.events.addAll(eventList);
         }
-        touch = System.currentTimeMillis();
-        tryUpload(events.size() > maxRecords);
+        this.touch = System.currentTimeMillis();
+        tryUpload(this.events.size() > this.maxRecords);
     }
 
     private void transform(List<TapRecordEvent> eventList,TapTable table,boolean isMixedUpdates){
