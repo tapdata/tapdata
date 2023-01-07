@@ -133,12 +133,9 @@ public class MysqlConnector extends ConnectorBase {
     }
 
     private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
-        calculateDatabaseReadPartitions(connectorContext, table, options.getMaxRecordInPartition(), options.getExistingPartitions(), options.getConsumer())
-//                .countByPartitionFilter(this::countByPartitionFilter)
+        calculateDatabaseReadPartitions(connectorContext, table, options)
                 .queryFieldMinMaxValue(this::minMaxValue)
-                .countIsSlow(options.getSplitType() != GetReadPartitionOptions.SPLIT_TYPE_BY_COUNT)
                 .typeSplitterMap(options.getTypeSplitterMap().registerSplitter(TypeSplitterMap.TYPE_STRING, StringCaseInsensitiveSplitter.INSTANCE))
-                .splitCompleteListener(id -> options.getCompletedRunnable().run())
                 .startSplitting();
     }
 

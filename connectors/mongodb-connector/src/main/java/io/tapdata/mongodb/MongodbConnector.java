@@ -585,12 +585,9 @@ public class MongodbConnector extends ConnectorBase {
 	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
 		options.getTypeSplitterMap().registerCustomSplitter(ObjectId.class, new ObjectIdSplitter());
 
-		calculateDatabaseReadPartitions(connectorContext, table, options.getMaxRecordInPartition(), options.getExistingPartitions(), options.getConsumer())
+		calculateDatabaseReadPartitions(connectorContext, table, options)
 				.countByPartitionFilter(this::countByPartitionFilter)
 				.queryFieldMinMaxValue(this::queryFieldMinMaxValue)
-				.countIsSlow(options.getSplitType() != GetReadPartitionOptions.SPLIT_TYPE_BY_COUNT)
-				.typeSplitterMap(options.getTypeSplitterMap())
-				.splitCompleteListener(id -> options.getCompletedRunnable().run())
 				.startSplitting();
 	}
 

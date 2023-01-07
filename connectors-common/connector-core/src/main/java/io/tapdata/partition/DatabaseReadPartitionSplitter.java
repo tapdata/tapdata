@@ -1,3 +1,7 @@
+
+
+
+
 package io.tapdata.partition;
 
 import io.tapdata.async.master.*;
@@ -28,18 +32,18 @@ public class DatabaseReadPartitionSplitter {
 	private TypeSplitterMap typeSplitterMap;
 	private String id;
 	private ScheduledExecutorService handleReadPartitionScheduler;
-	private ScheduledFuture<?> partitionFuture;
+//	private ScheduledFuture<?> partitionFuture;
 
 	public DatabaseReadPartitionSplitter id(String id) {
 		this.id = id;
 		return this;
 	}
 	private long maxRecordWithRatioInPartition;
-	private ParallelWorker parallelWorker;
+//	private ParallelWorker parallelWorker;
 //	private QueueWorker readPartitionTimerTask;
 
 	private final PartitionCollector rootPartitionCollector = new PartitionCollector();
-	private PartitionCollector currentPartitionCollector;
+//	private PartitionCollector currentPartitionCollector;
 
 	public DatabaseReadPartitionSplitter() {
 		id = "DatabaseReadPartitionSplitter_" + UUID.randomUUID();
@@ -151,46 +155,44 @@ public class DatabaseReadPartitionSplitter {
 			SplitContext splitContext = SplitContext.create().indexFields(partitionIndex.getIndexFields()).total(count);
 			SplitProgress splitProgress = SplitProgress.create().partitionFilter(TapPartitionFilter.create()).currentFieldPos(0).count(count);
 
-			if(currentPartitionCollector == null) {
-				currentPartitionCollector = rootPartitionCollector;
-			}
+//			if(currentPartitionCollector == null) {
+//				currentPartitionCollector = rootPartitionCollector;
+//			}
 
 			handleReadPartitionScheduler = Executors.newSingleThreadScheduledExecutor();
-			if(partitionFuture != null)
-				partitionFuture.cancel(true);
-			partitionFuture = handleReadPartitionScheduler.scheduleWithFixedDelay(this::handleReadPartitions,  1000L, 1000L, TimeUnit.MILLISECONDS);
+//			if(partitionFuture != null)
+//				partitionFuture.cancel(true);
+//			partitionFuture = handleReadPartitionScheduler.scheduleWithFixedDelay(this::handleReadPartitions,  1000L, 1000L, TimeUnit.MILLISECONDS);
 
-//			readPartitionTimerTask = asyncMaster.createAsyncQueueWorker("readPartitionTimerTask", false);
-//			readPartitionTimerTask.job(this::handleReadPartitions).start(JobContext.create(null), 1000L, 1000L);
-			parallelWorker = asyncMaster.createAsyncParallelWorker(id, countNumOfThread);
-//			parallelWorker.setParallelWorkerStateListener((id, fromState, toState) -> {
-//				if(toState == ParallelWorkerStateListener.STATE_LONG_IDLE) {
-//					if(partitionFuture != null)
-//						partitionFuture.cancel(true);
-//					//noinspection ResultOfMethodCallIgnored
-//					handleReadPartitions();
-//					if(splitCompleteListener != null)
-//						splitCompleteListener.completed(id);
-//					context.getLog().info(id + ": Split job done because worker has entered LONG IDLE state");
-//				}
-//			});
-			parallelWorker.job(JobContext.create(splitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob).finished());
-			parallelWorker.start();
+//			parallelWorker = asyncMaster.createAsyncParallelWorker(id, countNumOfThread);
+//			parallelWorker.job(JobContext.create(splitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob).finished());
+//			parallelWorker.start();
+
+			handleJob(JobContext.create(splitProgress).context(splitContext));
+			handleReadPartitions();
+
+//			if(partitionFuture != null)
+//				partitionFuture.cancel(true);
+			//noinspection ResultOfMethodCallIgnored
+//			handleReadPartitions();
+			if(splitCompleteListener != null)
+				splitCompleteListener.completed(id);
+			context.getLog().info(id + ": Split job done because worker has finished");
 		}
 	}
 
 	private synchronized void handleReadPartitions() {
-		if(currentPartitionCollector != null && currentPartitionCollector.getState() == PartitionCollector.STATE_DONE) {
-			handleReadPartitionPrivate(currentPartitionCollector, null, null);
-			parallelWorker.finished(() -> {
-				if(partitionFuture != null)
-					partitionFuture.cancel(true);
-				//noinspection ResultOfMethodCallIgnored
-				handleReadPartitions();
-				if(splitCompleteListener != null)
-					splitCompleteListener.completed(id);
-				context.getLog().info(id + ": Split job done because worker has finished");
-			});
+		if(rootPartitionCollector.getState() == PartitionCollector.STATE_DONE) {
+			handleReadPartitionPrivate(rootPartitionCollector, null, null);
+//			parallelWorker.finished(() -> {
+//				if(partitionFuture != null)
+//					partitionFuture.cancel(true);
+//				//noinspection ResultOfMethodCallIgnored
+//				handleReadPartitions();
+//				if(splitCompleteListener != null)
+//					splitCompleteListener.completed(id);
+//				context.getLog().info(id + ": Split job done because worker has finished");
+//			});
 		}
 	}
 
@@ -249,7 +251,7 @@ public class DatabaseReadPartitionSplitter {
 				handleReadPartitionPrivate(nextIndex, null, null);
 			}
 			currentPartitionCollector = currentPartitionCollector.getSibling();
-			this.currentPartitionCollector = currentPartitionCollector;
+//			this.currentPartitionCollector = currentPartitionCollector;
 		}
 		if(!gatherFilters.isEmpty()) {
 			ReadPartition readPartition1 = getReadPartition(gatherFilters, total);
@@ -283,7 +285,7 @@ public class DatabaseReadPartitionSplitter {
 		context.getLog().info(id + " " + partitionFilter + ": start splitting");
 		long count = splitProgress.getCount();
 		List<TapIndexField> indexFields = splitContext.getIndexFields();
-		long splitPieces = 200; //split 200 pieces by default. When count is < 0, default pieces will be used.
+		long splitPieces = 100; //split 200 pieces by default. When count is < 0, default pieces will be used.
 		if(count >= 0) {
 			splitPieces = count / maxRecordInPartition + ((count % maxRecordInPartition) == 0 ? 0 : 1);
 			context.getLog().info(id + " " + partitionFilter + ": Split into {} pieces", splitPieces);
@@ -386,7 +388,8 @@ public class DatabaseReadPartitionSplitter {
 					if(indexFields.size() > pos) { // split into next index position.
 						newPartitionCollector.nextIndex(new PartitionCollector()).state(PartitionCollector.STATE_DONE);
 						SplitProgress newSplitProgress = SplitProgress.create().partitionCollector(newPartitionCollector.getNextIndex()).partitionFilter(eachPartitionFilter).currentFieldPos(splitProgress.getCurrentFieldPos() + 1).count(partitionCount);
-						parallelWorker.job(JobContext.create(newSplitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob).finished());
+//						parallelWorker.job(JobContext.create(newSplitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob).finished());
+						handleJob(JobContext.create(newSplitProgress).context(splitContext));
 					} else { // no more next index, make it a partition.
 						newPartitionCollector.addPartition(eachPartitionFilter, partitionCount);
 						newPartitionCollector.state(PartitionCollector.STATE_DONE);
@@ -394,7 +397,8 @@ public class DatabaseReadPartitionSplitter {
 				} else { // still can be split in current index position. min != max case.
 					newPartitionCollector.nextSplit(new PartitionCollector()).state(PartitionCollector.STATE_DONE);
 					SplitProgress newSplitProgress = SplitProgress.create().partitionCollector(newPartitionCollector.getNextSplit()).partitionFilter(eachPartitionFilter).currentFieldPos(splitProgress.getCurrentFieldPos()).count(partitionCount);
-					parallelWorker.job(JobContext.create(newSplitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob).finished());
+//					parallelWorker.job(JobContext.create(newSplitProgress).context(splitContext), asyncQueueWorker -> asyncQueueWorker.job(this::handleJob).finished());
+					handleJob(JobContext.create(newSplitProgress).context(splitContext));
 				}
 
 				PartitionCollector siblingCollector = new PartitionCollector().state(PartitionCollector.STATE_COUNT);
@@ -467,3 +471,4 @@ public class DatabaseReadPartitionSplitter {
 		return splitPiecesForCountIsSlow;
 	}
 }
+

@@ -17,6 +17,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.utils.TypeConverter;
 
@@ -39,7 +40,7 @@ public abstract class ConnectorBase implements TapConnector {
 	private static final String TAG = ConnectorBase.class.getSimpleName();
 
 //	private volatile DatabaseReadPartitionSplitter databaseReadPartitionSplitter;
-	protected DatabaseReadPartitionSplitter calculateDatabaseReadPartitions(TapConnectorContext connectorContext, TapTable table, Long maxRecordInPartition, List<ReadPartition> existingPartitions, Consumer<ReadPartition> consumer) {
+	protected DatabaseReadPartitionSplitter calculateDatabaseReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
 //		if(databaseReadPartitionSplitter == null) {
 //			synchronized (this) {
 //				if(databaseReadPartitionSplitter == null) {
@@ -56,9 +57,12 @@ public abstract class ConnectorBase implements TapConnector {
 		return new DatabaseReadPartitionSplitter()
 				.context(connectorContext)
 				.table(table)
-				.maxRecordInPartition(maxRecordInPartition)
-				.consumer(consumer)
-				.existingPartitions(existingPartitions)
+				.maxRecordInPartition(options.getMaxRecordInPartition())
+				.consumer(options.getConsumer())
+				.countIsSlow(options.getSplitType() != GetReadPartitionOptions.SPLIT_TYPE_BY_COUNT)
+				.existingPartitions(options.getExistingPartitions())
+				.typeSplitterMap(options.getTypeSplitterMap())
+				.splitCompleteListener(id -> options.getCompletedRunnable().run())
 				;
 	}
 

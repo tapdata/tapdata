@@ -109,7 +109,7 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 					String json;
 					try {
 						json = (String) documentToJsonMethod.invoke(obj);
-					} catch (IllegalAccessException | InvocationTargetException e) {
+					} catch (Throwable e) {
 //						throw new RuntimeException(e);
 						if(!documentToJsonMethod.getDeclaringClass().equals(obj.getClass())) {
 							try {
@@ -119,7 +119,7 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 							}
 							try {
 								json = (String) documentToJsonMethod.invoke(obj);
-							} catch (IllegalAccessException | InvocationTargetException ex) {
+							} catch (Throwable ex) {
 								throw new RuntimeException(ex);
 							}
 						} else {
