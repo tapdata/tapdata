@@ -142,7 +142,7 @@ public class RedisConnector extends ConnectorBase {
             case ZSET:
                 return;
         }
-        if (!redisConfig.getListHead() || !redisConfig.getOneKey()) {
+        if (!redisConfig.getListHead()) {
             return;
         }
         try (Jedis jedis = redisContext.getJedis()) {
