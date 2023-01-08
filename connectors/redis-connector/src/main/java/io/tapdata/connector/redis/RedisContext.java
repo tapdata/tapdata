@@ -21,8 +21,8 @@ import java.util.Set;
 public class RedisContext {
 
     private static final String TAG = RedisContext.class.getSimpleName();
-    private static final int MAX_TOTAL = 32;
-    private static final int MAX_IDLE = 1;
+    private static final int MAX_TOTAL = 100;
+    private static final int MAX_IDLE = 20;
     private static final int MAX_WAIT_MILLIS = -1;
     private static final boolean TEST_ON_BORROW = true;
     private static final boolean TEST_ON_CREATE = false;
