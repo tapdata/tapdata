@@ -9,6 +9,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 
 import java.util.List;
@@ -47,7 +48,7 @@ public class TestConnector extends ConnectorBase {
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
 		return 0;
 	}
-	public DatabaseReadPartitionSplitter calculateDatabaseReadPartitions(TapConnectorContext connectorContext, TapTable table, Long maxRecordInPartition, List<ReadPartition> existingPartitions, Consumer<ReadPartition> consumer) {
-		return super.calculateDatabaseReadPartitions(connectorContext, table, maxRecordInPartition, existingPartitions, consumer);
+	public DatabaseReadPartitionSplitter calculateDatabaseReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions getReadPartitionOptions) {
+		return super.calculateDatabaseReadPartitions(connectorContext, table, getReadPartitionOptions);
 	}
 }

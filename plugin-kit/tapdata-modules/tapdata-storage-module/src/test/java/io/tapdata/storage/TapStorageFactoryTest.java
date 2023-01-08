@@ -7,6 +7,7 @@ import io.tapdata.modules.api.storage.TapSequenceStorage;
 import io.tapdata.modules.api.storage.TapStorageFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
@@ -20,13 +21,15 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  */
 public class TapStorageFactoryTest {
 	TapStorageFactory storageFactory;
-	@BeforeEach
-	public void setup() {
-		storageFactory = InstanceFactory.instance(TapStorageFactory.class);
-		storageFactory.init(TapStorageFactory.StorageOptions.create().rootPath("./tap_storage_test"));
-	}
+//	@BeforeEach
+//	public void setup() {
+//		storageFactory = InstanceFactory.instance(TapStorageFactory.class);
+//		storageFactory.init(TapStorageFactory.StorageOptions.create().rootPath("./tap_storage_test"));
+//	}
 	@Test
 	public void testKVStorage() {
+		storageFactory = InstanceFactory.instance(TapStorageFactory.class);
+		storageFactory.init(TapStorageFactory.StorageOptions.create().rootPath("./tap_storage_test"));
 		TapKVStorage kvStorage = storageFactory.getKVStorage("test");
 		Assertions.assertNotNull(kvStorage);
 
@@ -78,6 +81,8 @@ public class TapStorageFactoryTest {
 
 	@Test
 	public void testSequenceStorage() {
+		storageFactory = InstanceFactory.instance(TapStorageFactory.class);
+		storageFactory.init(TapStorageFactory.StorageOptions.create().rootPath("./tap_storage_test"));
 		TapSequenceStorage sequenceStorage = storageFactory.getSequenceStorage("test");
 		Assertions.assertNotNull(sequenceStorage);
 

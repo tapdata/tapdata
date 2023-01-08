@@ -6,6 +6,7 @@ import io.tapdata.entity.schema.*;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
@@ -17,8 +18,10 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author aplomb
@@ -45,25 +48,19 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
+
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartition -> {
 					readPartitionList.add(readPartition);
-				})
+				}))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(1, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					Assertions.assertNotNull(readPartition);
-					Assertions.assertNull(readPartition.getPartitionFilter().getRightBoundary());
-					Assertions.assertNull(readPartition.getPartitionFilter().getLeftBoundary());
-					Assertions.assertNull(readPartition.getPartitionFilter().getMatch());
-					completed();
+					assertEquals(1, readPartitionList.size());
+					assertEquals("ReadPartition TapPartitionFilter ", readPartitionList.get(0).toString());
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.startSplitting();
-
-		waitCompleted(4);
 	}
 
 	@Test
@@ -87,25 +84,19 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-		})
+
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(1, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					Assertions.assertNotNull(readPartition);
-					Assertions.assertNull(readPartition.getPartitionFilter().getRightBoundary());
-					Assertions.assertNull(readPartition.getPartitionFilter().getLeftBoundary());
-					Assertions.assertNull(readPartition.getPartitionFilter().getMatch());
-					completed();
+					assertEquals(3, readPartitionList.size());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter match {a: 1, }", readPartitionList.get(1).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'1'; ", readPartitionList.get(2).toString());
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.startSplitting();
-
-		waitCompleted(4);
 	}
 	@Test
 	public void testTwoRecordForInt() throws Throwable {
@@ -122,29 +113,20 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(2, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					Assertions.assertNotNull(readPartition);
-					Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey());
-					Assertions.assertEquals(2, readPartition.getPartitionFilter().getRightBoundary().getValue());
-					ReadPartition readPartition1 = readPartitionList.get(1);
-					Assertions.assertEquals(QueryOperator.GTE, readPartition1.getPartitionFilter().getLeftBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition1.getPartitionFilter().getLeftBoundary().getKey());
-					Assertions.assertEquals(2, readPartition1.getPartitionFilter().getLeftBoundary().getValue());
-					completed();
+					assertEquals(5, readPartitionList.size());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter match {a: 1, }", readPartitionList.get(1).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter match {a: 2, }", readPartitionList.get(3).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'2'; ", readPartitionList.get(4).toString());
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.startSplitting();
-
-		waitCompleted(4);
 	}
 	@Test
 	public void testThreeRecordForInt() throws Throwable {
@@ -162,29 +144,22 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(2, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					Assertions.assertNotNull(readPartition);
-					Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey());
-					Assertions.assertEquals(2, readPartition.getPartitionFilter().getRightBoundary().getValue());
-					ReadPartition readPartition1 = readPartitionList.get(1);
-					Assertions.assertEquals(QueryOperator.GTE, readPartition1.getPartitionFilter().getLeftBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition1.getPartitionFilter().getLeftBoundary().getKey());
-					Assertions.assertEquals(2, readPartition1.getPartitionFilter().getLeftBoundary().getValue());
-					completed();
+					assertEquals(7, readPartitionList.size());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter match {a: 1, }", readPartitionList.get(1).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter match {a: 2, }", readPartitionList.get(3).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ", readPartitionList.get(4).toString());
+					assertEquals("ReadPartition TapPartitionFilter match {a: 3, }", readPartitionList.get(5).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'3'; ", readPartitionList.get(6).toString());
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.startSplitting();
-
-		waitCompleted(4);
 	}
 
 	@Test
@@ -213,40 +188,23 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartition -> readPartitionList.add(readPartition)))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(4, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					$(() -> Assertions.assertNotNull(readPartition));
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(2, readPartition.getPartitionFilter().getRightBoundary().getValue()));
-
-					ReadPartition readPartition1 = readPartitionList.get(1);
-					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition1.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition1.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(2, readPartition1.getPartitionFilter().getLeftBoundary().getValue()));
-
-					ReadPartition readPartition2 = readPartitionList.get(2);
-					$(() -> Assertions.assertNull(readPartition2.getPartitionFilter().getLeftBoundary()));
-					$(() -> Assertions.assertNull(readPartition2.getPartitionFilter().getRightBoundary()));
-					$(() -> Assertions.assertEquals(3, readPartition2.getPartitionFilter().getMatch().get("a")));
-
-					ReadPartition readPartition3 = readPartitionList.get(3);
-					$(() -> Assertions.assertEquals(QueryOperator.GT, readPartition3.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition3.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(3, readPartition3.getPartitionFilter().getLeftBoundary().getValue()));
-					completed();
+					assertEquals(7, readPartitionList.size());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter match {a: 1, }", readPartitionList.get(1).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter match {a: 2, }", readPartitionList.get(3).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ", readPartitionList.get(4).toString());
+					assertEquals("ReadPartition TapPartitionFilter match {a: 3, }", readPartitionList.get(5).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'3'; ", readPartitionList.get(6).toString());
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.startSplitting();
 
-		waitCompleted(4);
 	}
 
 	@Test
@@ -265,29 +223,20 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(3, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					Assertions.assertNotNull(readPartition);
-					Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey());
-					Assertions.assertEquals(1.6666666666666665d, readPartition.getPartitionFilter().getRightBoundary().getValue());
-					ReadPartition readPartition1 = readPartitionList.get(2);
-					Assertions.assertEquals(QueryOperator.GTE, readPartition1.getPartitionFilter().getLeftBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition1.getPartitionFilter().getLeftBoundary().getKey());
-					Assertions.assertEquals(2.333333333333333d, readPartition1.getPartitionFilter().getLeftBoundary().getValue());
-					completed();
+					$(() -> assertEquals(5, readPartitionList.size()));
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1.02'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='1.02'; rightBoundary a<'2.0'; ", readPartitionList.get(1).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='2.0'; rightBoundary a<'2.02'; ", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='2.02'; rightBoundary a<'2.98'; ", readPartitionList.get(3).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='2.98'; ", readPartitionList.get(4).toString());
 				})
 				.queryFieldMinMaxValue(new DoubleFieldMinMaxHandler(records))
 				.countByPartitionFilter(new DoubleFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.startSplitting();
-
-		waitCompleted(4);
 	}
 
 	@Test
@@ -306,29 +255,24 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(2, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					$(() -> Assertions.assertNotNull(readPartition));
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals("DateTime nano 123000000 seconds 1670861304 timeZone null", readPartition.getPartitionFilter().getRightBoundary().getValue().toString()));
-					ReadPartition readPartition1 = readPartitionList.get(1);
-					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition1.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition1.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals("DateTime nano 123000000 seconds 1670861304 timeZone null", readPartition1.getPartitionFilter().getLeftBoundary().getValue().toString()));
-					completed();
+					$(() -> assertEquals(9, readPartitionList.size()));
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'DateTime nano 153000000 seconds 1670861303 timeZone null'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 153000000 seconds 1670861303 timeZone null'; rightBoundary a<'DateTime nano 473000000 seconds 1670861304 timeZone null'; ", readPartitionList.get(1).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 473000000 seconds 1670861304 timeZone null'; rightBoundary a<'DateTime nano 503000000 seconds 1670861305 timeZone null'; ", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 503000000 seconds 1670861305 timeZone null'; rightBoundary a<'DateTime nano 103000000 seconds 1670861305 timeZone null'; ", readPartitionList.get(3).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 103000000 seconds 1670861305 timeZone null'; rightBoundary a<'DateTime nano 133000000 seconds 1670861305 timeZone null'; ", readPartitionList.get(4).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 133000000 seconds 1670861305 timeZone null'; rightBoundary a<'DateTime nano 493000000 seconds 1670861305 timeZone null'; ", readPartitionList.get(5).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 493000000 seconds 1670861305 timeZone null'; rightBoundary a<'DateTime nano 523000000 seconds 1670861306 timeZone null'; ", readPartitionList.get(6).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 523000000 seconds 1670861306 timeZone null'; rightBoundary a<'DateTime nano 93000000 seconds 1670861306 timeZone null'; ", readPartitionList.get(7).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 93000000 seconds 1670861306 timeZone null'; ", readPartitionList.get(8).toString());
 				})
 				.queryFieldMinMaxValue(new DateTimeFieldMinMaxHandler(records))
 				.countByPartitionFilter(new DateTimeFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.startSplitting();
-
-		waitCompleted(4);
 	}
 
 	@Test
@@ -347,29 +291,24 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(2, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					$(() -> Assertions.assertNotNull(readPartition));
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals("DateTime nano 123000000 seconds 1670861304 timeZone null", readPartition.getPartitionFilter().getRightBoundary().getValue().toString()));
-					ReadPartition readPartition1 = readPartitionList.get(1);
-					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition1.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition1.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals("DateTime nano 123000000 seconds 1670861304 timeZone null", readPartition1.getPartitionFilter().getLeftBoundary().getValue().toString()));
-					completed();
+					$(() -> assertEquals(9, readPartitionList.size()));
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'DateTime nano 153000000 seconds 1670861303 timeZone null'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 153000000 seconds 1670861303 timeZone null'; rightBoundary a<'DateTime nano 473000000 seconds 1670861304 timeZone null'; ", readPartitionList.get(1).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 473000000 seconds 1670861304 timeZone null'; rightBoundary a<'DateTime nano 503000000 seconds 1670861305 timeZone null'; ", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 503000000 seconds 1670861305 timeZone null'; rightBoundary a<'DateTime nano 103000000 seconds 1670861305 timeZone null'; ", readPartitionList.get(3).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 103000000 seconds 1670861305 timeZone null'; rightBoundary a<'DateTime nano 133000000 seconds 1670861305 timeZone null'; ", readPartitionList.get(4).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 133000000 seconds 1670861305 timeZone null'; rightBoundary a<'DateTime nano 493000000 seconds 1670861305 timeZone null'; ", readPartitionList.get(5).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 493000000 seconds 1670861305 timeZone null'; rightBoundary a<'DateTime nano 523000000 seconds 1670861306 timeZone null'; ", readPartitionList.get(6).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 523000000 seconds 1670861306 timeZone null'; rightBoundary a<'DateTime nano 93000000 seconds 1670861306 timeZone null'; ", readPartitionList.get(7).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='DateTime nano 93000000 seconds 1670861306 timeZone null'; ", readPartitionList.get(8).toString());
 				})
 				.queryFieldMinMaxValue(new DateTimeFieldMinMaxHandler(records))
 				.countByPartitionFilter(new DateTimeFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.startSplitting();
-
-		waitCompleted(4);
 	}
 
 	@Test
@@ -392,39 +331,33 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(6, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					Assertions.assertNotNull(readPartition);
-					Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey());
-					Assertions.assertEquals("aaaM", readPartition.getPartitionFilter().getRightBoundary().getValue());
-
-					ReadPartition readPartition3 = readPartitionList.get(3);
-					Assertions.assertNotNull(readPartition);
-					Assertions.assertEquals(QueryOperator.LT, readPartition3.getPartitionFilter().getRightBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition3.getPartitionFilter().getRightBoundary().getKey());
-					Assertions.assertEquals("b", readPartition3.getPartitionFilter().getRightBoundary().getValue());
-					Assertions.assertEquals(QueryOperator.GTE, readPartition3.getPartitionFilter().getLeftBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition3.getPartitionFilter().getLeftBoundary().getKey());
-					Assertions.assertEquals("aaad", readPartition3.getPartitionFilter().getLeftBoundary().getValue());
-
-					ReadPartition readPartition5 = readPartitionList.get(5);
-					Assertions.assertEquals(QueryOperator.GTE, readPartition5.getPartitionFilter().getLeftBoundary().getOperator());
-					Assertions.assertEquals("a", readPartition5.getPartitionFilter().getLeftBoundary().getKey());
-					Assertions.assertEquals("bbbbb%", readPartition5.getPartitionFilter().getLeftBoundary().getValue());
-					completed();
+					$(() -> assertEquals(14, readPartitionList.size()));
+					String[] strs = new String[]{"ReadPartition TapPartitionFilter rightBoundary a<'aaaFd'; ",
+							"ReadPartition TapPartitionFilter match {a: aaaFd, }",
+							"ReadPartition TapPartitionFilter leftBoundary a>'aaaFd'; rightBoundary a<'aaabc'; ",
+							"ReadPartition TapPartitionFilter match {a: aaabc, }",
+							"ReadPartition TapPartitionFilter leftBoundary a>'aaabc'; rightBoundary a<'aaacd'; ",
+							"ReadPartition TapPartitionFilter match {a: aaacd, }",
+							"ReadPartition TapPartitionFilter leftBoundary a>'aaacd'; rightBoundary a<'aaaed'; ",
+							"ReadPartition TapPartitionFilter match {a: aaaed, }",
+							"ReadPartition TapPartitionFilter leftBoundary a>'aaaed'; rightBoundary a<'bbbbb'; ",
+							"ReadPartition TapPartitionFilter match {a: bbbbb, }",
+							"ReadPartition TapPartitionFilter leftBoundary a>'bbbbb'; rightBoundary a<'bbbbb0'; ",
+							"ReadPartition TapPartitionFilter leftBoundary a>='bbbbb0'; rightBoundary a<'bbbbb1!'; ",
+							"ReadPartition TapPartitionFilter leftBoundary a>='bbbbb1!'; rightBoundary a<'bbbbb10'; ",
+							"ReadPartition TapPartitionFilter leftBoundary a>='bbbbb10'; "
+							};
+					for(int i = 0; i < strs.length; i++) {
+						assertEquals(strs[i], readPartitionList.get(i).toString());
+					}
 				})
 				.queryFieldMinMaxValue(new StringFieldMinMaxHandler(records))
 				.countByPartitionFilter(new StringFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.startSplitting();
-
-		waitCompleted(4);
 	}
 
 	@Test
@@ -443,25 +376,22 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(2, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					Assertions.assertNotNull(readPartition);
-					Assertions.assertEquals(false, readPartition.getPartitionFilter().getMatch().get("a"));
-					ReadPartition readPartition1 = readPartitionList.get(1);
-					Assertions.assertEquals(true, readPartition1.getPartitionFilter().getMatch().get("a"));
-					completed();
+					assertEquals(2, readPartitionList.size());
+					String[] strs = new String[] {
+							"ReadPartition TapPartitionFilter match {a: false, }",
+							"ReadPartition TapPartitionFilter match {a: true, }"
+					};
+					for(int i = 0; i < strs.length; i++) {
+						assertEquals(strs[i], readPartitionList.get(i).toString());
+					}
 				})
 				.queryFieldMinMaxValue(new BooleanFieldMinMaxHandler(records))
 				.countByPartitionFilter(new BooleanFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.startSplitting();
-
-		waitCompleted(4);
 	}
 
 	@Test
@@ -494,57 +424,31 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 1L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(11, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					$(() -> Assertions.assertNotNull(readPartition));
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(2, readPartition.getPartitionFilter().getRightBoundary().getValue()));
-//
-//					ReadPartition readPartition1 = readPartitionList.get(1);
-//					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition1.getPartitionFilter().getLeftBoundary().getOperator()));
-//					$(() -> Assertions.assertEquals("a", readPartition1.getPartitionFilter().getLeftBoundary().getKey()));
-//					$(() -> Assertions.assertEquals(2, readPartition1.getPartitionFilter().getLeftBoundary().getValue()));
-//
-					ReadPartition readPartition2 = readPartitionList.get(2);
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition2.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("b", readPartition2.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(54, readPartition2.getPartitionFilter().getRightBoundary().getValue()));
-					$(() -> Assertions.assertEquals(3, readPartition2.getPartitionFilter().getMatch().get("a")));
-//
-					ReadPartition readPartition3 = readPartitionList.get(7);
-					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition3.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("b", readPartition3.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(99, readPartition3.getPartitionFilter().getLeftBoundary().getValue()));
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition3.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("b", readPartition3.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(513, readPartition3.getPartitionFilter().getRightBoundary().getValue()));
-					$(() -> Assertions.assertEquals(3, readPartition3.getPartitionFilter().getMatch().get("a")));
+					assertEquals(14, readPartitionList.size());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary b<'5'; match {a: 1, }", readPartitionList.get(1).toString());
+					assertEquals("ReadPartition TapPartitionFilter match {a: 1, b: 5, }", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>'5'; match {a: 1, }", readPartitionList.get(3).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ", readPartitionList.get(4).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary b<'51'; match {a: 2, }", readPartitionList.get(5).toString());
+					assertEquals("ReadPartition TapPartitionFilter match {a: 2, b: 51, }", readPartitionList.get(6).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>'51'; match {a: 2, }", readPartitionList.get(7).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ", readPartitionList.get(8).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary b<'57'; match {a: 3, }", readPartitionList.get(9).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>='57'; rightBoundary b<'61'; match {a: 3, }", readPartitionList.get(10).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>='61'; rightBoundary b<'449'; match {a: 3, }", readPartitionList.get(11).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>='449'; match {a: 3, }", readPartitionList.get(12).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'3'; ", readPartitionList.get(13).toString());
 
-					ReadPartition readPartition9 = readPartitionList.get(9);
-					$(() -> Assertions.assertEquals(3, readPartition9.getPartitionFilter().getMatch().get("a")));
-					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition9.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("b", readPartition9.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(514, readPartition9.getPartitionFilter().getLeftBoundary().getValue()));
-
-					ReadPartition readPartition10 = readPartitionList.get(10);
-					$(() -> Assertions.assertEquals(QueryOperator.GT, readPartition10.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition10.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(3, readPartition10.getPartitionFilter().getLeftBoundary().getValue()));
-
-					completed();
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.startSplitting();
 
-		waitCompleted(411111);
 	}
 
 	@Test
@@ -577,54 +481,35 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 2L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(2L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(6, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					$(() -> Assertions.assertNotNull(readPartition));
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(3, readPartition.getPartitionFilter().getRightBoundary().getValue()));
-
-					ReadPartition readPartition1 = readPartitionList.get(1);
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition1.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals(3, readPartition1.getPartitionFilter().getMatch().get("a")));
-					$(() -> Assertions.assertEquals("b", readPartition1.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(55, readPartition1.getPartitionFilter().getRightBoundary().getValue()));
-					$(() -> Assertions.assertNull(readPartition1.getPartitionFilter().getLeftBoundary()));
-
-					ReadPartition readPartition2 = readPartitionList.get(2);
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition2.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("b", readPartition2.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(57, readPartition2.getPartitionFilter().getRightBoundary().getValue()));
-					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition2.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("b", readPartition2.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(55, readPartition2.getPartitionFilter().getLeftBoundary().getValue()));
-					$(() -> Assertions.assertEquals(3, readPartition2.getPartitionFilter().getMatch().get("a")));
-//
-					ReadPartition readPartition3 = readPartitionList.get(4);
-					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition3.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("b", readPartition3.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(145, readPartition3.getPartitionFilter().getLeftBoundary().getValue()));
-					$(() -> Assertions.assertEquals(3, readPartition3.getPartitionFilter().getMatch().get("a")));
-
-					ReadPartition readPartition9 = readPartitionList.get(5);
-					$(() -> Assertions.assertEquals(QueryOperator.GT, readPartition9.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition9.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(3, readPartition9.getPartitionFilter().getLeftBoundary().getValue()));
-
-					completed();
+					assertEquals(14, readPartitionList.size());
+					String[] strs = new String[] {
+							"ReadPartition TapPartitionFilter rightBoundary a<'1'; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<'5'; match {a: 1, }",
+					"ReadPartition TapPartitionFilter match {a: 1, b: 5, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>'5'; match {a: 1, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<'51'; match {a: 2, }",
+					"ReadPartition TapPartitionFilter match {a: 2, b: 51, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>'51'; match {a: 2, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<'57'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>='57'; rightBoundary b<'61'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>='61'; rightBoundary b<'449'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>='449'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>'3'; "
+					};
+					for(int i = 0; i < strs.length; i++) {
+						assertEquals(strs[i], readPartitionList.get(i).toString());
+					}
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 //				.countIsSlow(true)
 				.startSplitting();
-
-		waitCompleted(4);
 	}
 
 	@Test
@@ -657,37 +542,29 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 4L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(4L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(4, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					$(() -> Assertions.assertNotNull(readPartition));
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(3, readPartition.getPartitionFilter().getRightBoundary().getValue()));
-
-					ReadPartition readPartition1 = readPartitionList.get(1);
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition1.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals(3, readPartition1.getPartitionFilter().getMatch().get("a")));
-					$(() -> Assertions.assertEquals("b", readPartition1.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(207, readPartition1.getPartitionFilter().getRightBoundary().getValue()));
-					$(() -> Assertions.assertNull(readPartition1.getPartitionFilter().getLeftBoundary()));
-
-					ReadPartition readPartition2 = readPartitionList.get(2);
-					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition2.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("b", readPartition2.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(207, readPartition2.getPartitionFilter().getLeftBoundary().getValue()));
-					$(() -> Assertions.assertEquals(3, readPartition2.getPartitionFilter().getMatch().get("a")));
-
-					ReadPartition readPartition9 = readPartitionList.get(3);
-					$(() -> Assertions.assertEquals(QueryOperator.GT, readPartition9.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition9.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(3, readPartition9.getPartitionFilter().getLeftBoundary().getValue()));
-
-					completed();
+					assertEquals(14, readPartitionList.size());
+					String[] strs = new String[] {
+							"ReadPartition TapPartitionFilter rightBoundary a<'1'; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<'5'; match {a: 1, }",
+					"ReadPartition TapPartitionFilter match {a: 1, b: 5, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>'5'; match {a: 1, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<'51'; match {a: 2, }",
+					"ReadPartition TapPartitionFilter match {a: 2, b: 51, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>'51'; match {a: 2, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<'57'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>='57'; rightBoundary b<'61'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>='61'; rightBoundary b<'449'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>='449'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>'3'; "
+					};
+					for(int i = 0; i < strs.length; i++) {
+						assertEquals(strs[i], readPartitionList.get(i).toString());
+					}
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
@@ -695,7 +572,6 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 //				.countIsSlow(true)
 				.startSplitting();
 
-		waitCompleted(4);
 	}
 
 	@Test
@@ -728,47 +604,34 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, 4L, null, readPartition -> {
-					readPartitionList.add(readPartition);
-				})
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(4L).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
-					$(() -> Assertions.assertEquals(16, readPartitionList.size()));
-					ReadPartition readPartition = readPartitionList.get(0);
-					$(() -> Assertions.assertNotNull(readPartition));
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(1, readPartition.getPartitionFilter().getRightBoundary().getValue()));
-
-					ReadPartition readPartition1 = readPartitionList.get(1);
-					$(() -> Assertions.assertEquals(1, readPartition1.getPartitionFilter().getMatch().get("a")));
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition1.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("b", readPartition1.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(5, readPartition1.getPartitionFilter().getRightBoundary().getValue()));
-					$(() -> Assertions.assertNull(readPartition1.getPartitionFilter().getLeftBoundary()));
-
-					ReadPartition readPartition2 = readPartitionList.get(13);
-					$(() -> Assertions.assertEquals(QueryOperator.GTE, readPartition2.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("b", readPartition2.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(61, readPartition2.getPartitionFilter().getLeftBoundary().getValue()));
-					$(() -> Assertions.assertEquals(QueryOperator.LT, readPartition2.getPartitionFilter().getRightBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("b", readPartition2.getPartitionFilter().getRightBoundary().getKey()));
-					$(() -> Assertions.assertEquals(451, readPartition2.getPartitionFilter().getRightBoundary().getValue()));
-					$(() -> Assertions.assertEquals(3, readPartition2.getPartitionFilter().getMatch().get("a")));
-
-					ReadPartition readPartition9 = readPartitionList.get(15);
-					$(() -> Assertions.assertEquals(QueryOperator.GT, readPartition9.getPartitionFilter().getLeftBoundary().getOperator()));
-					$(() -> Assertions.assertEquals("a", readPartition9.getPartitionFilter().getLeftBoundary().getKey()));
-					$(() -> Assertions.assertEquals(3, readPartition9.getPartitionFilter().getLeftBoundary().getValue()));
-
-					completed();
+					$(() -> assertEquals(14, readPartitionList.size()));
+					String[] strs = new String[] {
+							"ReadPartition TapPartitionFilter rightBoundary a<'1'; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<'5'; match {a: 1, }",
+					"ReadPartition TapPartitionFilter match {a: 1, b: 5, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>'5'; match {a: 1, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<'51'; match {a: 2, }",
+					"ReadPartition TapPartitionFilter match {a: 2, b: 51, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>'51'; match {a: 2, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<'57'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>='57'; rightBoundary b<'61'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>='61'; rightBoundary b<'449'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>='449'; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>'3'; "
+					};
+					for(int i = 0; i < strs.length; i++) {
+						assertEquals(strs[i], readPartitionList.get(i).toString());
+					}
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
 				.maxRecordRatio(2)
 				.countIsSlow(true)
 				.startSplitting();
-
-		waitCompleted(411111111);
 	}
 }
