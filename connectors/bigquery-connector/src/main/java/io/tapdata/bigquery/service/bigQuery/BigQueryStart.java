@@ -23,8 +23,19 @@ public abstract class BigQueryStart {
 
     public BigQueryStart(TapConnectionContext connectorContext) {
         this.connectorContext = connectorContext;
-        this.config = config();
-        this.sqlMarker = SqlMarker.create(config.serviceAccount());
+    }
+    public BigQueryStart autoStart(){
+        this.config = this.config();
+        this.sqlMarker = SqlMarker.create(this.config.serviceAccount());
+        return this;
+    }
+    public BigQueryStart paperStart(BigQueryStart starter){
+        if (Objects.isNull(starter)){
+            throw new CoreException("The preload object cannot be empty according to the supplementary operation class attribute of the load data. ");
+        }
+        this.config = starter.config();
+        this.sqlMarker = starter.sqlMarker;
+        return this;
     }
 
     public static ContextConfig config(TapConnectionContext connectorContext) {

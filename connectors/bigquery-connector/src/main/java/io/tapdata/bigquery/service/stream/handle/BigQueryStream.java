@@ -1,37 +1,27 @@
 package io.tapdata.bigquery.service.stream.handle;
 
-import io.tapdata.bigquery.service.stream.WriteCommittedStream;
+import com.google.protobuf.Descriptors;
 import io.tapdata.bigquery.service.bigQuery.BigQueryStart;
+import io.tapdata.bigquery.service.stream.WriteCommittedStream;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.pdk.apis.entity.WriteListResult;
-import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.entity.schema.TapTable;
-import com.google.protobuf.Descriptors;
 
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 import java.io.IOException;
 import java.util.*;
 
 public class BigQueryStream extends BigQueryStart {
     public static final String TAG = BigQueryStream.class.getSimpleName();
-    public static final Map<String,WriteCommittedStream> streamMap = new ConcurrentHashMap<>();
 
     private WriteCommittedStream stream;
     private TapTable tapTable;
     private MergeHandel merge ;
-    private AtomicLong streamOffset;
-
-    public BigQueryStream streamOffset(AtomicLong streamOffset){
-        this.streamOffset = streamOffset;
-        return this;
-    }
 
     public BigQueryStream merge(MergeHandel merge){
         this.merge = merge;
@@ -48,30 +38,13 @@ public class BigQueryStream extends BigQueryStart {
     }
 
     public BigQueryStream createWriteCommittedStream() throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
-        String tableName = super.config.isMixedUpdates()?super.config().tempCursorSchema():tapTable.getName();
-        if (Objects.isNull(stream)) {
-            String key = super.config().projectId() +
-                    "_" + super.config().tableSet() +
-                    "_" + tableName +
-                    "_" + super.config().serviceAccount();
-            stream = Optional.ofNullable(streamMap.get(key))
-                    .orElse(WriteCommittedStream.writer(
-                            super.config().projectId(),
-                            super.config().tableSet(),
-                            tableName,
-                            super.config().serviceAccount())
-                    );
-            if (connectorContext instanceof TapConnectorContext){
-                TapConnectorContext context = (TapConnectorContext)connectorContext;
-                stream.stateMap(context.getStateMap()).streamOffset(streamOffset);
-            }
-            streamMap.put(key,stream);
-        }
+        String tableName = super.config.isMixedUpdates() ? super.config().tempCursorSchema() : this.tapTable.getName();
+        this.stream = WriteCommittedStream.writer(
+                        super.config().projectId(),
+                        super.config().tableSet(),
+                        tableName,
+                        super.config().serviceAccount());
         return this;
-    }
-
-    public WriteCommittedStream writeCommittedStream(){
-        return this.stream;
     }
 
     private BigQueryStream(TapConnectionContext connectorContext) {
@@ -85,6 +58,7 @@ public class BigQueryStream extends BigQueryStart {
     public WriteListResult<TapRecordEvent> writeRecord(List<TapRecordEvent> events, TapTable table) throws IOException, Descriptors.DescriptorValidationException, InterruptedException {
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
         this.tapTable = table;
+        this.createWriteCommittedStream();
         if (this.config.isMixedUpdates()){
             //混合模式写入数据
             synchronized (this.merge.mergeLock()){
@@ -94,6 +68,7 @@ public class BigQueryStream extends BigQueryStart {
             //append-only 模式
             this.stream.append(this.records(events, result));
         }
+        //this.stream.close();
         return result;
     }
 

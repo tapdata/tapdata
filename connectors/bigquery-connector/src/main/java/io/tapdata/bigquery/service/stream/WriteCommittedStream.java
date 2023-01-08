@@ -15,7 +15,6 @@ import io.grpc.LoadBalancerRegistry;
 import io.grpc.internal.PickFirstLoadBalancerProvider;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.utils.cache.KVMap;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -29,7 +28,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Phaser;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class WriteCommittedStream {
     public static final String TAG = WriteCommittedStream.class.getSimpleName();
@@ -38,12 +36,14 @@ public class WriteCommittedStream {
     private String projectId;
     private DataWriter writer;
     private String credentialsJson;
-    private KVMap<Object> stateMap;
-    private AtomicLong streamOffset;
+    private Offset streamOffset = Offset.offset();
     private BigQueryWriteClient client;
 
-    public WriteCommittedStream streamOffset(AtomicLong streamOffset) {
-        this.streamOffset = streamOffset;
+    public WriteCommittedStream streamOffset(Offset streamOffset) {
+//        if (Objects.isNull(streamOffset)) {
+//            TapLogger.error(TAG, "Stream offset cannot be null.");
+//        }
+//        this.streamOffset = streamOffset;
         return this;
     }
 
@@ -83,11 +83,6 @@ public class WriteCommittedStream {
         return this;
     }
 
-    public WriteCommittedStream stateMap(KVMap<Object> stateMap) {
-        this.stateMap = stateMap;
-        return this;
-    }
-
     public static WriteCommittedStream writer(String projectId, String dataSet, String tableName, String credentialsJson) throws DescriptorValidationException, InterruptedException, IOException {
         WriteCommittedStream writeCommittedStream = new WriteCommittedStream()
                 .projectId(projectId)
@@ -111,8 +106,8 @@ public class WriteCommittedStream {
             // One time initialization.
             this.writer = new DataWriter();
             this.writer.initialize(parentTable, this.client, this.credentialsJson);
-        }catch (Exception e){
-            TapLogger.error(TAG,String.format("Unable to create Stream connection, exception information: %s.",e.getMessage()));
+        } catch (Exception e) {
+            TapLogger.error(TAG, String.format("Unable to create Stream connection, exception information: %s.", e.getMessage()));
         }
         return this;
     }
@@ -137,11 +132,9 @@ public class WriteCommittedStream {
                 jsonArr.put(jsonObject);
             }
             try {
-                long offsetState = this.streamOffset.get();
-                this.writer.append(jsonArr, offsetState);
-                this.streamOffset.addAndGet(jsonArr.length());
+                this.writer.append(jsonArr, this.streamOffset.addAndGetBefore(jsonArr.length()));
             } catch (Exception e) {
-                TapLogger.error(TAG, "Stream API write record (Append_only) error, data offset is : " + this.streamOffset);
+                throw new CoreException("Stream API write record (Append_only) error, data offset is : " + this.streamOffset.get() + ", message:" + e.getMessage());
             }
         });
     }
@@ -149,8 +142,8 @@ public class WriteCommittedStream {
     public void appendJSON(List<Map<String, Object>> record) {
         if (Objects.isNull(record) || record.isEmpty()) return;
         List<List<Map<String, Object>>> partition = Lists.partition(record, 5000);
-        JSONArray json = new JSONArray();
         partition.forEach(recordPartition -> {
+            JSONArray json = new JSONArray();
             for (Map<String, Object> map : recordPartition) {
                 if (Objects.isNull(map)) continue;
                 JSONObject jsonObject = new JSONObject();
@@ -168,14 +161,12 @@ public class WriteCommittedStream {
                 });
                 json.put(jsonObject);
             }
+            try {
+                this.writer.append(json, this.streamOffset.addAndGetBefore(json.length()));
+            } catch (Exception e) {
+                throw new CoreException("Stream API write record (Mixed updates) error,data offset is : " + this.streamOffset.get() + ". message:" + e.getMessage());
+            }
         });
-        try {
-            long offsetState = this.streamOffset.get();
-            this.writer.append(json, offsetState);
-            this.streamOffset.addAndGet(json.length());
-        } catch (Exception e) {
-            TapLogger.error(TAG, "Stream API write record (Mixed updates) error,data offset is : " + this.streamOffset );
-        }
     }
 
     public void close() {
@@ -290,6 +281,39 @@ public class WriteCommittedStream {
                 // Reduce the count of in-flight requests.
                 this.parent.inflightRequestCount.arriveAndDeregister();
             }
+        }
+    }
+
+    public static class Offset {
+        Long offsetState = 0L;
+
+        public long get() {
+            return this.offsetState;
+        }
+
+        public Offset set(long offset) {
+            this.offsetState = offset;
+            return this;
+        }
+
+        public Offset add(long step) {
+            this.offsetState += step;
+            return this;
+        }
+
+        public long addAndGetBefore(long step) {
+            long before = this.offsetState;
+            this.offsetState += step;
+            return before;
+        }
+
+        public long addAndGetAfter(long step) {
+            this.offsetState += step;
+            return this.offsetState;
+        }
+
+        public static Offset offset() {
+            return new Offset();
         }
     }
 }

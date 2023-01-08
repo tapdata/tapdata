@@ -42,32 +42,26 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 @TapConnectorClass("spec.json")
 public class BigQueryConnector extends ConnectorBase {
 	private static final String TAG = BigQueryConnector.class.getSimpleName();
-	private static final int STREAM_SIZE = 60000;
-	private static final String STREAM_OFFSET_KEY_NAME = "STREAM_API_OFFSET";
+	private static final int STREAM_SIZE = 30000;
 
 	private WriteRecord writeRecord;
+	private TableCreate tableCreate;
 	private TapEventCollector tapEventCollector;
 	private BigQueryStream stream;
 	private MergeHandel merge ;
-	private ScheduledFuture<?> future;
 	private final AtomicBoolean running = new AtomicBoolean(Boolean.TRUE);
-    private final AtomicLong streamOffset = new AtomicLong(0);
-	private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+	private String tableId;
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
-        this.writeRecord = WriteRecord.create(connectionContext);
+        this.writeRecord = (WriteRecord)WriteRecord.create(connectionContext).autoStart();
+		this.tableCreate = (TableCreate) TableCreate.create(connectionContext).paperStart(this.writeRecord);
 		if (connectionContext instanceof TapConnectorContext) {
 			TapConnectorContext context = (TapConnectorContext)connectionContext;
 			isConnectorStarted(connectionContext, connectorContext -> {
@@ -81,32 +75,13 @@ public class BigQueryConnector extends ConnectorBase {
 				}
 			});
 			ContextConfig config =this.writeRecord.config();
-			this.stream = BigQueryStream.streamWrite(context);
+			this.stream = (BigQueryStream) BigQueryStream.streamWrite(context).paperStart(this.writeRecord);
 			if (Objects.nonNull(config) && config.isMixedUpdates()) {
-				this.merge = MergeHandel.merge(connectionContext)
+				this.merge = ((MergeHandel)MergeHandel.merge(connectionContext).paperStart(writeRecord))
 						.running(this.running)
-						.mergeDelaySeconds(config.mergeDelay())
-						.temporaryTableId(config.tempCursorSchema());
+						.mergeDelaySeconds(config.mergeDelay());
 				this.stream.merge(this.merge);
 			}
-		}
-	}
-	private void saveOffsetToStateMap(TapConnectorContext context){
-		KVMap<Object> stateMap = context.getStateMap();
-		if (Objects.isNull(stateMap)){
-			throw new CoreException("Task's state map can not be null or not be empty.");
-		}
-		stateMap.put(BigQueryConnector.STREAM_OFFSET_KEY_NAME,this.streamOffset.get());
-	}
-	private long getOffsetFromStateMap(TapConnectorContext context){
-		KVMap<Object> stateMap = context.getStateMap();
-		if (Objects.isNull(stateMap)){
-			throw new CoreException("Task's state map can not be null or not be empty.");
-		}
-		try {
-			return (Long) stateMap.get(BigQueryConnector.STREAM_OFFSET_KEY_NAME);
-		}catch (Exception e){
-			return 0L;
 		}
 	}
 
@@ -119,13 +94,7 @@ public class BigQueryConnector extends ConnectorBase {
 		Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::stop);
 		this.running.set(false);
 		Optional.ofNullable(this.merge).ifPresent(MergeHandel::stop);
-		Optional.ofNullable(this.future).ifPresent(consumer->{
-			consumer.cancel(true);
-			if (connectionContext instanceof TapConnectorContext){
-				this.saveOffsetToStateMap((TapConnectorContext) connectionContext);
-			}
-		});
-		Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
+		//Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
 	}
 
 	@Override
@@ -139,38 +108,49 @@ public class BigQueryConnector extends ConnectorBase {
                 .supportCreateTableV2(this::createTableV2)
 				.supportClearTable(this::clearTable)
                 .supportDropTable(this::dropTable)
+				.supportReleaseExternalFunction(this::release)
 		;
 	}
 
-    private void dropTable(TapConnectorContext context, TapDropTableEvent dropTableEvent) {
-		TableCreate tableCreate = TableCreate.create(context);
-		tableCreate.dropTable(dropTableEvent);
-		if( Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates() ) {
-			KVMap<Object> stateMap = context.getStateMap();
-			Object tempCursorSchema = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
-			if(Objects.isNull(tempCursorSchema)){
-				TapLogger.info(TAG,"Cache Schema has created ,named is " + tempCursorSchema);
+	private void release(TapConnectorContext context) {
+		KVMap<Object> stateMap = context.getStateMap();
+		Object temporaryTable = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
+		if (Objects.nonNull(temporaryTable)) {
+			merge = (MergeHandel) MergeHandel.merge(context).autoStart();
+			//清除临时表
+			if (Objects.nonNull(merge.config()) && Objects.nonNull(this.merge.config().tempCursorSchema())) {
+				if (Objects.nonNull(tableId) && !"".equals(tableId.trim())) {
+					try {
+						merge.mainTable(table(tableId)).mergeTableOnce();
+					} catch (Exception e) {
+						throw new CoreException(String.format(" The temporary table is removed during the reset operation. Moving out and merging the remaining data failed. Temporary table name:%s, target table name:%s. ", tableId, this.merge.config().tempCursorSchema()));
+					}
+				}
+				this.merge.dropTemporaryTable();
+				this.merge.config().tempCursorSchema(null);
+				stateMap.put(ContextConfig.TEMP_CURSOR_SCHEMA_NAME,null);
 			}
-			this.merge.dropTemporaryTable(String.valueOf(tempCursorSchema));
 		}
+	}
+
+	private void dropTable(TapConnectorContext context, TapDropTableEvent dropTableEvent) {
+		this.tableCreate.dropTable(dropTableEvent);
     }
 
     private void clearTable(TapConnectorContext connectorContext, TapClearTableEvent clearTableEvent) {
-		TableCreate tableCreate = TableCreate.create(connectorContext);
-		tableCreate.cleanTable(clearTableEvent);
+		this.tableCreate.cleanTable(clearTableEvent);
 		if(Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()) {
 			this.merge.cleanTemporaryTable();
 		}
     }
 
     private CreateTableOptions createTableV2(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) {
-		TableCreate tableCreate = TableCreate.create(connectorContext);
 		CreateTableOptions createTableOptions = CreateTableOptions.create().tableExists(tableCreate.isExist(createTableEvent));
 		if (!createTableOptions.getTableExists()){
-			tableCreate.createSchema(createTableEvent);
+			this.tableCreate.createSchema(createTableEvent);
 		}
 		if(Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()) {
-			this.merge.createTemporaryTable(createTableEvent.getTable(),tableCreate.config().tempCursorSchema());
+			this.merge.createTemporaryTable(createTableEvent.getTable(), this.tableCreate.config().tempCursorSchema());
 		}
 		return createTableOptions;
     }
@@ -180,28 +160,14 @@ public class BigQueryConnector extends ConnectorBase {
 	}
 
 	private void createTable(TapConnectorContext connectorContext, TapCreateTableEvent tapCreateTableEvent) {
-		TableCreate tableCreate = TableCreate.create(connectorContext);
-		if (!tableCreate.isExist(tapCreateTableEvent)){
-			tableCreate.createSchema(tapCreateTableEvent);
+		if (!this.tableCreate.isExist(tapCreateTableEvent)){
+			this.tableCreate.createSchema(tapCreateTableEvent);
 		}
 	}
 
 	private void writeRecord(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
-		//定期更新stream API 每批提交的数据绑定的offset 到 stateMap
-		this.streamOffset.set(this.getOffsetFromStateMap(context));
-		if ( Objects.isNull(this.future)){
-			this.future = this.scheduledExecutorService.scheduleWithFixedDelay(() -> {
-				try {
-					this.saveOffsetToStateMap(context);
-				} catch (Throwable throwable) {
-					TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
-				}
-			}, 10, 300, TimeUnit.SECONDS);
-		}
-		this.stream.streamOffset(this.streamOffset).tapTable(table);
-		if (Objects.isNull(this.stream.writeCommittedStream())) {
-            this.stream.createWriteCommittedStream();
-        }
+		this.tableId = table.getId();
+		this.stream.tapTable(table);
         this.writeRecordStream(context, events, table, consumer);
         if (Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()){
 			this.merge.mergeTemporaryTableToMainTable(table);
@@ -232,7 +198,7 @@ public class BigQueryConnector extends ConnectorBase {
 	}
 
 	/**
-	 * @deprecated
+	 * @deprecated  Because QPS is too low .
 	 * */
 	private void writeRecordDML(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
 		if (Objects.isNull(this.writeRecord)){
@@ -244,15 +210,14 @@ public class BigQueryConnector extends ConnectorBase {
 
 	@Override
 	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-		TableCreate tableCreate = TableCreate.create(connectionContext);
-		tableCreate.discoverSchema(tables, tableSize, consumer);
+		this.tableCreate.discoverSchema(tables, tableSize, consumer);
 	}
 
 
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
 		ConnectionOptions connectionOptions = ConnectionOptions.create();
-		BigQueryConnectionTest bigQueryConnectionTest = BigQueryConnectionTest.create(connectionContext);
+		BigQueryConnectionTest bigQueryConnectionTest = (BigQueryConnectionTest) BigQueryConnectionTest.create(connectionContext).autoStart();
 		TestItem testItem = bigQueryConnectionTest.testServiceAccount();
 		consumer.accept(testItem);
 		if ( TestItem.RESULT_FAILED == testItem.getResult()){
@@ -265,6 +230,6 @@ public class BigQueryConnector extends ConnectorBase {
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-		return TableCreate.create(connectionContext).schemaCount();
+		return ((TableCreate)TableCreate.create(connectionContext).autoStart()).schemaCount();
 	}
 }
