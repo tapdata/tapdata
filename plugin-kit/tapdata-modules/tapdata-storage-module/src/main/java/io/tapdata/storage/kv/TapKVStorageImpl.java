@@ -158,10 +158,15 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 		final Options options = new Options();
 		options.setCompressionType(CompressionType.ZSTD_COMPRESSION);
 		options.setCreateIfMissing(true);
-		String basePath = FilenameUtils.concat(storageOptions.getRootPath(), "kv_rocksdb/");
-		dbDir = new File(FilenameUtils.concat(basePath, id));
+
+		String thePath = storageOptions.getRootPath();
+		if(path != null)
+			thePath = FilenameUtils.concat(thePath, path);
+		thePath = FilenameUtils.concat(thePath, "kv_rocksdb/");
+
+		dbDir = new File(FilenameUtils.concat(thePath, id));
 		try {
-			FileUtils.forceMkdir(new File(basePath));
+			FileUtils.forceMkdir(dbDir);
 			db = RocksDB.open(options, dbDir.getAbsolutePath());
 		} catch(RocksDBException ex) {
 			TapLogger.error(TAG, "Error initializing RocksDB, check configurations and permissions, exception: {}, message: {}, stackTrace: {}",

@@ -118,8 +118,11 @@ public class TapSequenceStorageImpl extends TapStorageImpl implements TapSequenc
 
 	private void handleInitializing(TapSequenceStorageImpl sequenceStorage, StateMachine<String, TapSequenceStorageImpl> stateMachine) {
 		try {
-			String basePath = FilenameUtils.concat(storageOptions.getRootPath(), "sequence_tapdata/");
-			dbFile = new File(FilenameUtils.concat(basePath, id));
+			String thePath = storageOptions.getRootPath();
+			if(path != null)
+				thePath = FilenameUtils.concat(thePath, path);
+			thePath = FilenameUtils.concat(thePath, "sequence_tapdata/");
+			dbFile = new File(FilenameUtils.concat(thePath, id));
 			fileOS = FileUtils.openOutputStream(dbFile);
 			compressedOS = TapStorageFactoryImpl.factory.createCompressorOutputStream(CompressorStreamFactory.ZSTANDARD, fileOS);
 			dataOS = new DataOutputStream(compressedOS);

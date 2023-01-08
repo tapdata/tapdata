@@ -8,4 +8,6 @@ public interface TapStorage {
 	void setClassLoader(ClassLoader classLoader);
 	void clear();
 	void destroy();
+
+	void setPath(String path);
 }

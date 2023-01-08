@@ -57,7 +57,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 		this.sourcePdkDataNode = sourcePdkDataNode;
 
 		this.storageFactory = InstanceFactory.instance(TapStorageFactory.class);
-		storageFactory.init(TapStorageFactory.StorageOptions.create().disableJavaSerializable(true).rootPath("./partition_storage/" + sourcePdkDataNode.getNode().getId()));
+		storageFactory.init(TapStorageFactory.StorageOptions.create().disableJavaSerializable(true).rootPath("./partition_storage"));
 		String taskId = pdkSourceContext.getSourcePdkDataNode().getNode().getTaskId();
 
 		kvStorageId = "stream_" + taskId + "_" + readPartition.getId();
@@ -86,6 +86,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 					storageFactory.deleteKVStorage(kvStorageId);
 					kvStorage = storageFactory.getKVStorage(kvStorageId);
 					kvStorage.setClassLoader(sourcePdkDataNode.getConnectorNode().getConnectorClassLoader());
+					kvStorage.setPath(sourcePdkDataNode.getNode().getId());
 //					sourcePdkDataNode.getObsLogger().info("Prepared kv storage file {} for partition {}", kvStorageId, readPartition);
 				}
 			}
@@ -101,6 +102,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 					storageFactory.deleteSequenceStorage(sequenceStorageId);
 					sequenceStorage = storageFactory.getSequenceStorage(sequenceStorageId);
 					sequenceStorage.setClassLoader(sourcePdkDataNode.getConnectorNode().getConnectorClassLoader());
+					sequenceStorage.setPath(sourcePdkDataNode.getNode().getId());
 //					sourcePdkDataNode.getObsLogger().info("Prepared sequence storage file {} for partition {}", sequenceStorageId, readPartition);
 				}
 			}
@@ -147,6 +149,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 				if(kvStorageDuringSending == null) {
 					kvStorageDuringSending = storageFactory.getKVStorage(kvStorageDuringSendingId);
 					kvStorageDuringSending.setClassLoader(sourcePdkDataNode.getConnectorNode().getConnectorClassLoader());
+					kvStorageDuringSending.setPath(sourcePdkDataNode.getNode().getId());
 //					sourcePdkDataNode.getObsLogger().info("Prepared kv storage during sending file {} for partition {}", kvStorageDuringSendingId, readPartition);
 				}
 			}
