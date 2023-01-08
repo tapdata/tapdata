@@ -168,9 +168,9 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 			reference.get().add(insertRecordEvent(record, table.getId()));
 			sentEventCount.increment();
 			if(reference.get().size() >= sourcePdkDataNode.batchSize) {
-				long theTime = System.currentTimeMillis();
+//				long theTime = System.currentTimeMillis();
 				enqueueTapEvents(batchReadFuncAspect, reference.get());
-				sourcePdkDataNode.getObsLogger().info("enqueueTapEvents sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
+//				sourcePdkDataNode.getObsLogger().info("enqueueTapEvents sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
 				reference.set(new ArrayList<>());
 			}
 			return null;
@@ -220,9 +220,9 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 			AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
 
 		if (CollectionUtil.isNotEmpty(tapdataEvents)) {
-			long time = System.currentTimeMillis();
+//			long time = System.currentTimeMillis();
 			tapdataEvents.forEach(sourcePdkDataNode::enqueue);
-			sourcePdkDataNode.getObsLogger().info("enqueue events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
+//			sourcePdkDataNode.getObsLogger().info("enqueue events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
 
 //			time = System.currentTimeMillis();
 			if (batchReadFuncAspect != null)

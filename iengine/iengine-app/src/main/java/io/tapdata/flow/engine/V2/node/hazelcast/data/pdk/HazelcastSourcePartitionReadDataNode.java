@@ -138,6 +138,9 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 		PDKSourceContext pdkSourceContext = jobContext.getContext(PDKSourceContext.class);
 		obsLogger.info("Start initial sync for tables {} with readPartitionOptions {}", pdkSourceContext.getPendingInitialSyncTables(), readPartitionOptions);
 
+		if(getConnectorNode().getConnectorFunctions().getCountByPartitionFilterFunction() == null) {
+			readPartitionOptions.setSplitType(ReadPartitionOptions.SPLIT_TYPE_BY_MINMAX);
+		}
 		if(readPartitionOptions.getSplitType() == ReadPartitionOptions.SPLIT_TYPE_BY_COUNT)
 			doCount(pdkSourceContext.getPendingInitialSyncTables());
 
