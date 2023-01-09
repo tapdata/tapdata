@@ -23,6 +23,7 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.message.constant.Level;
@@ -33,7 +34,6 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -76,8 +76,8 @@ public class TaskAlarmScheduler {
     private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
 
 
-    @Scheduled(cron = "0 0/30 * * * ?")
-    @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+//    @Scheduled(cron = "0 0/30 * * * ?")
+//    @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskDataNodeConnectAlarm() throws InterruptedException {
         Thread.currentThread().setName("taskSchedule-taskDataNodeConnectAlarm");
 
@@ -228,7 +228,7 @@ public class TaskAlarmScheduler {
         }
     }
 
-    @Scheduled(cron = "0 0/1 * * * ? ")
+    @Scheduled(cron = "30 0/1 * * * ? ")
     @SchedulerLock(name ="task_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAlarm() {
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
@@ -246,7 +246,9 @@ public class TaskAlarmScheduler {
 
                 Query measureQuery = new Query(Criteria.where("grnty").is("minute")
                         .and("tags.type").in(Lists.newArrayList("task", "node"))
-                        .and("tags.taskId").is(taskId).and("date").gte(start).lt(end));
+                        .and("tags.taskId").is(taskId)
+                        .and("tags.taskRecordId").is(task.getTaskRecordId())
+                        .and("date").gt(start).lt(end));
                 List<MeasurementEntity> measurementEntities = measurementServiceV2.find(measureQuery);
                 if (CollectionUtils.isNotEmpty(measurementEntities)) {
                     List<Sample> taskSamples = Lists.newArrayList();
@@ -400,11 +402,7 @@ public class TaskAlarmScheduler {
 
     private void taskIncrementDelayAlarm(TaskDto task, String taskId, List<Sample> taskSamples, Map<AlarmKeyEnum, AlarmRuleDto> collect) {
         // check task start cdc
-        if (CollectionUtils.isEmpty(task.getMilestones())) {
-            return;
-        }
-        boolean match = task.getMilestones().stream().anyMatch(m -> "WRITE_CDC_EVENT".equals(m.getCode()) && "running".equals(m.getStatus()));
-        if (!match) {
+        if (Objects.isNull(task.getCurrentEventTimestamp())) {
             return;
         }
 

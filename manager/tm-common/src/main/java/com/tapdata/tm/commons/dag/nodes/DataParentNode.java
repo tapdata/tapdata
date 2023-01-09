@@ -108,6 +108,7 @@ public abstract class DataParentNode<S> extends Node<S> {
             s.setOriginalName(tableName);
             s.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, tableName, getTaskId()));
             str.setSinkQulifiedName(s.getQualifiedName());
+            str.setSinkObjectName(tableName);
         }
 
         int userDeleteNum = 0;

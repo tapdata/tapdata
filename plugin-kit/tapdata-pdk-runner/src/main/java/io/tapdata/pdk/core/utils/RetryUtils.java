@@ -50,10 +50,13 @@ public class RetryUtils extends CommonUtils {
 
 	public static void autoRetry(Node node, PDKMethod method, PDKMethodInvoker invoker) {
 		CommonUtils.AnyError runnable = invoker.getR();
-		final String message = invoker.getMessage();
-		final String logTag = invoker.getLogTag();
-		final long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
-		final boolean async = invoker.isAsync();
+		String message = invoker.getMessage();
+		String logTag = invoker.getLogTag();
+		boolean async = invoker.isAsync();
+		long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
+		if (retryPeriodSeconds <= 0) {
+			throw new IllegalArgumentException("PeriodSeconds can not be zero or less than zero");
+		}
 		while (invoker.getRetryTimes() >= 0) {
 			try {
 				runnable.run();

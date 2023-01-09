@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
+import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.param.ValidateTableParam;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -524,6 +525,14 @@ public class DataSourceController extends BaseController {
             put("total", total);
         }};
         return success(result);
+    }
+
+    @Operation(summary = "Connection statistics api")
+    @GetMapping("/stats")
+    public ResponseMessage<ConnectionStats> stats() {
+
+        return success(dataSourceService.stats(getLoginUser()));
+
     }
 
 }

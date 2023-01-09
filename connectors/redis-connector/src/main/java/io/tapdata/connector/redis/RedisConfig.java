@@ -20,7 +20,7 @@ public class RedisConfig {
     private String database;
     private ArrayList<LinkedHashMap<String, Integer>> sentinelAddress;
 
-    private String valueType;
+    private String valueType = "List";
     private String keyExpression;
     private String valueData;
     private String valueJoinString;
@@ -28,7 +28,7 @@ public class RedisConfig {
     private long expireTime;
     private Boolean resetExpire;
     private String keyTableName;
-    private Boolean listHead;
+    private Boolean listHead = true;
     private Boolean oneKey;
 
     public RedisConfig load(Map<String, Object> map) {

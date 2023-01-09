@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag.process;
 
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
@@ -36,7 +37,7 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
     }
 
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         Schema outputSchema = superMergeSchema(inputSchemas, schema);
 
         //批量删除
