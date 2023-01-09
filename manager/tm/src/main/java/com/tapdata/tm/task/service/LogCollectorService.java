@@ -381,6 +381,8 @@ public class LogCollectorService {
         logCollectorVo.setCreateTime(taskDto.getCreateAt());
         logCollectorVo.setStatus(taskDto.getStatus());
         logCollectorVo.setStatuses(taskDto.getStatuses());
+        logCollectorVo.setDag(taskDto.getDag());
+        logCollectorVo.setSyncPoints(taskDto.getSyncPoints());
 //        List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
 //        if (CollectionUtils.isNotEmpty(syncPoints)) {
 //            TaskDto.SyncPoint syncPoint = syncPoints.get(0);
