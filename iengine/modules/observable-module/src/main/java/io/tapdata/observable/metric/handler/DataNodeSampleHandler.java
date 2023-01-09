@@ -206,8 +206,9 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	public void handleBatchReadFuncEnd(long endAt) {
 		Optional.ofNullable(snapshotTableCounter).ifPresent(CounterSampler::inc);
 		tableSnapshotDoneAtMap.put(currentSnapshotTable, endAt);
-//		currentSnapshotTable = null;
+//currentSnapshotTable = null;
 		currentSnapshotTableInsertRowTotal = null;
+
 	}
 
 
@@ -413,11 +414,11 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	public static class HealthCheckRunner {
 		private static final String TAG = HealthCheckRunner.class.getSimpleName();
 		private static final Logger logger = LogManager.getLogger(DataNodeSampleHandler.class);
-//		private static final HealthCheckRunner INSTANCE = new HealthCheckRunner();
+		//		private static final HealthCheckRunner INSTANCE = new HealthCheckRunner();
 
-//		public static HealthCheckRunner getInstance() {
-//			return INSTANCE;
-//		}
+		//public static HealthCheckRunner getInstance() {
+			//return INSTANCE;
+		//		}
 
 		private static final int PERIOD_SECOND = 5;
 		private final Map<String, Node<?>> nodeMap;

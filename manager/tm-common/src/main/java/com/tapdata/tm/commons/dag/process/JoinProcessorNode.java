@@ -3,6 +3,7 @@ import com.tapdata.tm.commons.exception.DDLException;
 import com.tapdata.tm.commons.schema.TableIndexColumn;
 
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
@@ -79,10 +80,10 @@ public class JoinProcessorNode extends ProcessorNode {
      * @return
      */
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         if (leftNodeId == null || rightNodeId == null) {
             log.warn("No left or right nodeId specified in join process node {}.", getId());
-            return super.mergeSchema(inputSchemas, schema);
+            return super.mergeSchema(inputSchemas, schema, options);
         }
         List<Node<Schema>> predecessorNodes = predecessors();
         Node<Schema> leftNode = null;
@@ -96,7 +97,7 @@ public class JoinProcessorNode extends ProcessorNode {
 
         if (leftNode == null || rightNode == null) {
             log.warn("Left or right nodeId is invalid, not found in predecessor nodes {}.", getId());
-            return super.mergeSchema(inputSchemas, schema);
+            return super.mergeSchema(inputSchemas, schema, options);
         }
 
         Schema baseSchema = null;
@@ -125,7 +126,7 @@ public class JoinProcessorNode extends ProcessorNode {
 
         if (baseSchema == null || joinSchema == null) {
             log.warn("Left or right schema is invalid, not found schema in predecessor nodes {}.", getId());
-            return super.mergeSchema(inputSchemas, schema);
+            return super.mergeSchema(inputSchemas, schema, options);
         }
 
         if (embeddedMode) {

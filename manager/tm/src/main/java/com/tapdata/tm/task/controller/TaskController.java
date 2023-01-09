@@ -17,6 +17,7 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -29,10 +30,7 @@ import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
-import com.tapdata.tm.task.vo.JsResultDto;
-import com.tapdata.tm.task.vo.JsResultVo;
-import com.tapdata.tm.task.vo.TaskDetailVo;
-import com.tapdata.tm.task.vo.TaskRecordListVo;
+import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -685,16 +683,20 @@ public class TaskController extends BaseController {
     }
 
     @PutMapping("batchStart")
-    public ResponseMessage<List<MutiResponseMessage>> batchStart(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
+    public ResponseMessage<List<MutiResponseMessage>> batchStart(@RequestParam("taskIds") List<String> taskIds,
+                                                                 HttpServletRequest request,
+                                                                 HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchStart(taskObjectIds, getLoginUser(), request);
+        List<MutiResponseMessage> responseMessages = taskService.batchStart(taskObjectIds, getLoginUser(), request, response);
         return success(responseMessages);
     }
 
     @PutMapping("batchStop")
-    public ResponseMessage<List<MutiResponseMessage>> batchStop(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
+    public ResponseMessage<List<MutiResponseMessage>> batchStop(@RequestParam("taskIds") List<String> taskIds,
+                                                                HttpServletRequest request,
+                                                                HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchStop(taskObjectIds, getLoginUser(), request);
+        List<MutiResponseMessage> responseMessages = taskService.batchStop(taskObjectIds, getLoginUser(), request, response);
 
         //add message
         List<TaskEntity> taskEntityList = taskService.findByIds(taskObjectIds);
@@ -711,19 +713,21 @@ public class TaskController extends BaseController {
     }
 
     @DeleteMapping("batchDelete")
-    public ResponseMessage<List<MutiResponseMessage>> batchDelete(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
+    public ResponseMessage<List<MutiResponseMessage>> batchDelete(@RequestParam("taskIds") List<String> taskIds,
+                                                                  HttpServletRequest request,
+                                                                  HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskObjectIds, getLoginUser(), request);
-
-
+        List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskObjectIds, getLoginUser(), request, response);
         return success(responseMessages);
     }
 
     @Operation(summary = "重置任务接口")
     @PatchMapping("batchRenew")
-    public ResponseMessage<List<MutiResponseMessage>> batchRenew(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
+    public ResponseMessage<List<MutiResponseMessage>> batchRenew(@RequestParam("taskIds") List<String> taskIds,
+                                                                 HttpServletRequest request,
+                                                                 HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchRenew(taskObjectIds, getLoginUser(), request);
+        List<MutiResponseMessage> responseMessages = taskService.batchRenew(taskObjectIds, getLoginUser(), request, response);
         return success(responseMessages);
     }
 
@@ -1041,6 +1045,20 @@ public class TaskController extends BaseController {
         taskService.updateTaskLogSetting(taskId, logSettingParam, getLoginUser());
         return success();
     }
+
+    @Operation(summary = "任务统计数据接口")
+    @GetMapping("/stats")
+    public ResponseMessage<TaskStatsDto> stats() {
+        return success(taskService.stats(getLoginUser()));
+    }
+
+
+    @Operation(summary = "任务数据量统计")
+    @GetMapping("/stats/transport")
+    public ResponseMessage<DataFlowInsightStatisticsDto> statsTransport(@RequestParam("granularity") String granularity) {
+        return success(taskService.statsTransport(getLoginUser()));
+    }
+
 
 
     @PatchMapping("rename/{taskId}")
