@@ -61,10 +61,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -147,12 +147,15 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
         DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode(nodeId) : null;
         List<String> tableNames = sourceNode.getTableNames();
-        if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
+        if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
             List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail, taskId);
             if (CollectionUtils.isEmpty(metaInstances)) {
                 metaInstances = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(), null, userDetail);
             }
-            tableNames = metaInstances.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
+            tableNames = metaInstances.stream()
+                    .map(MetadataInstancesDto::getOriginalName)
+                    .filter(originalName -> Pattern.matches(sourceNode.getExpression(), originalName))
+                    .collect(Collectors.toList());
         }
 
         List<String> currentTableList = Lists.newArrayList();

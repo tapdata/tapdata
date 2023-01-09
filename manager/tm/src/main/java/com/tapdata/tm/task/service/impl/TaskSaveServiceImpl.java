@@ -1,7 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
 import com.tapdata.tm.Settings.service.AlarmSettingService;
-import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
@@ -32,8 +31,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -82,11 +81,14 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             DatabaseNode sourceNode = dag.getSourceNode().getFirst();
             List<String> tableNames = sourceNode.getTableNames();
-            if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
+            if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
                 String connectionId = sourceNode.getConnectionId();
                 List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
                 if (CollectionUtils.isNotEmpty(metaList)) {
-                    List<String> collect = metaList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
+                    List<String> collect = metaList.stream()
+                            .map(MetadataInstancesDto::getOriginalName)
+                            .filter(originalName -> Pattern.matches(sourceNode.getExpression(), originalName))
+                            .collect(Collectors.toList());
                     sourceNode.setTableNames(collect);
                 }
             }

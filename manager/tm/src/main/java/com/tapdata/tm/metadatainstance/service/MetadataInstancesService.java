@@ -5,7 +5,6 @@ import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -27,10 +26,7 @@ import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
-import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
-import com.tapdata.tm.commons.util.MetaType;
-import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -44,7 +40,10 @@ import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.*;
+import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MetadataUtil;
+import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SchemaTransformUtils;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -1792,12 +1791,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         );
 
         DataSourceConnectionDto dataSource = dataSourceService.findById(toObjectId(node.getConnectionId()));
-        if (!"all".equals(node.getMigrateTableSelectType())) {
+        if (!"expression".equals(node.getMigrateTableSelectType())) {
             List<String> qualifiedNames = new ArrayList<>();
             for (String tableName : node.getTableNames()) {
                 qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), dataSource, tableName));
             }
             filter.getWhere().and("qualified_name", new Document("$in", qualifiedNames));
+        } else {
+            filter.getWhere().and("qualified_name", new Document("$regex", node.getExpression()));
         }
 
 

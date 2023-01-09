@@ -183,7 +183,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node instanceof DatabaseNode) {
 			String migrateTableSelectType = ((DatabaseNode) node).getMigrateTableSelectType();
-			if (StringUtils.isBlank(migrateTableSelectType) || !"all".equals(migrateTableSelectType)) {
+			if (StringUtils.isBlank(migrateTableSelectType) || !"expression".equals(migrateTableSelectType)) {
 				return false;
 			}
 			Boolean enableDynamicTable = ((DatabaseNode) node).getEnableDynamicTable();
