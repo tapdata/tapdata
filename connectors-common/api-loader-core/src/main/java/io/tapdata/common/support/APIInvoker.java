@@ -37,6 +37,10 @@ public interface APIInvoker {
 
 	public List<String> tables();
 
+	public List<APIEntity> tokenApis();
+
+	public List<String> tokenApiNames();
+
 	public Map<String,Object> variable();
 
 	public void pageStage(TapConnectorContext connectorContext,

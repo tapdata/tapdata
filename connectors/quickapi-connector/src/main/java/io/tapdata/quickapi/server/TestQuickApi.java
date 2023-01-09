@@ -73,9 +73,9 @@ public class TestQuickApi extends QuickApiBase {
     //3. 是否声明了access_token变量名称的对应关系
     public TestItem testTokenConfig(){
         try {
-            List<APIEntity> tables = this.invoker.tableApis();
-            if (!tables.isEmpty()) {
-                if (tables.size()>1){
+            List<APIEntity> tokens = this.invoker.tokenApis();
+            if (!tokens.isEmpty()) {
+                if (tokens.size()>1){
                     return testItem(QuickApiTestItem.TEST_TOKEN.testName(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,"The resolved API document does not use TAP_GET_TOKEN claims that the access TOKEN has obtained too many API.");
                 }
                 String tokenParams = config.tokenParams();

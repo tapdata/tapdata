@@ -40,6 +40,16 @@ public class APIInvokerDecoratorStruct implements APIInvoker {
     }
 
     @Override
+    public List<APIEntity> tokenApis() {
+        return apiInvoker.tokenApis();
+    }
+
+    @Override
+    public List<String> tokenApiNames() {
+        return apiInvoker.tokenApiNames();
+    }
+
+    @Override
     public Map<String, Object> variable() {
         return apiInvoker.variable();
     }

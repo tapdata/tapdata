@@ -31,14 +31,11 @@ public class PageNone implements PageStage {
         int size = tapPage.batchCount();
 
         String pageResultPath = requestApi.pageResultPath();
-        if (Objects.isNull(pageResultPath)){
-            TapLogger.info(TAG, toJson(apiResponse));
-            throw new CoreException("The table data source field is not specified in the interface return result.");
-        }
+        String pageResultPathTemp = this.pageResultPath(pageResultPath);
         Map<String, Object> apiResult = apiResponse.result();
-        Object pageResult = ApiMapUtil.getKeyFromMap(apiResult, pageResultPath);
+        Object pageResult = ApiMapUtil.getKeyFromMap(apiResult, pageResultPathTemp);
         if (Objects.isNull(pageResult)){
-            throw new CoreException(String.format("The value of the [%s] parameter was not found in the request result, the interface call failed, or check whether the parameter key is correct.",pageResultPath));
+            throw new CoreException(String.format("The value of the [%s] parameter was not found in the request result, the interface call failed, or check whether the parameter key is correct.", pageResultPath));
         }
         List<TapEvent> tapEvents = new ArrayList<>();
         if (pageResult instanceof Collection){
@@ -66,7 +63,7 @@ public class PageNone implements PageStage {
             consumer.accept(tapEvents, tapPage.offset());
         }else {
             TapLogger.info(TAG, "pageResultPath :\n"+toJson(pageResult));
-            throw new CoreException(String.format("The data obtained from %s is not recognized as table data.",pageResultPath));
+            throw new CoreException(String.format("The data obtained from %s is not recognized as table data.", pageResultPath));
         }
     }
 }

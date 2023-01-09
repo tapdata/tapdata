@@ -18,8 +18,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static io.tapdata.base.ConnectorBase.fromJson;
-import static io.tapdata.base.ConnectorBase.toJson;
+import static io.tapdata.base.ConnectorBase.*;
 
 public class PostManAnalysis {
     private static final String TAG = PostManAnalysis.class.getSimpleName();
@@ -174,8 +173,25 @@ public class PostManAnalysis {
     public APIResponse http(Request request) throws IOException {
         OkHttpClient client = new OkHttpClient().newBuilder().build();
         Response response = client.newCall(request).execute();
+        Map<String, Object> result = new HashMap<>();
+        Optional.ofNullable(response.body()).ifPresent( body -> {
+            try {
+                Optional.ofNullable(body.string()).ifPresent(str->{
+                    try {
+                        result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJson(str));
+                    }catch (Exception notMap){
+                        try {
+                            result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJsonArray(str));
+                        }catch (Exception notArray){
+                            result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, str);
+                        }
+                    }
+                });
+            } catch (IOException e) {
+            }
+        });
         return APIResponse.create().httpCode(response.code())
-                .result((Map<String, Object>) fromJson(response.body().string()))
+                .result(result)
                 .headers(getHeaderMap(response.headers()));
     }
 

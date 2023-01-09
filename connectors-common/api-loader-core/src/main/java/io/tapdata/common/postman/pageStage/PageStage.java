@@ -1,5 +1,6 @@
 package io.tapdata.common.postman.pageStage;
 
+import io.tapdata.common.postman.entity.params.Api;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -46,12 +47,12 @@ public interface PageStage {
     }
     public void page(TapPage tapPage);
 
-    public default boolean accept(Map<String, Object> result,TapPage tapPage,String pageResultPath){
-        Object pageResult = ApiMapUtil.getKeyFromMap(result, pageResultPath);
+    public default boolean accept(Map<String, Object> result,TapPage tapPage, String pageResultPath){
+        String pageResultPathTemp = this.pageResultPath(pageResultPath);
+        Object pageResult = ApiMapUtil.getKeyFromMap(result, pageResultPathTemp);
         if (Objects.isNull(pageResult)){
             TapLogger.info(TAG,String.format("Batch read may be over,The value of the [%s] parameter was not found in the request result, the interface call failed, or check whether the parameter key is correct.",pageResultPath));
             return false;
-            //throw new CoreException();
         }
         List<TapEvent> tapEvents = new ArrayList<>();
         BiConsumer<List<TapEvent>, Object> consumer = tapPage.consumer();
@@ -85,5 +86,11 @@ public interface PageStage {
             TapLogger.info(TAG, "pageResultPath :\n"+ toJson(pageResult));
             throw new CoreException(String.format("The data obtained from %s is not recognized as table data.",pageResultPath));
         }
+    }
+
+    public default String pageResultPath(String pageResultPath){
+        return Api.PAGE_RESULT_PATH_DEFAULT_PATH + (
+                Objects.isNull(pageResultPath) || "".equals(pageResultPath.trim())? "" : "." + pageResultPath
+        );
     }
 }

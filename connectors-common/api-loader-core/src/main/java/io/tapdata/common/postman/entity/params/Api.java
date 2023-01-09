@@ -5,6 +5,7 @@ import io.tapdata.common.support.core.emun.TapApiTag;
 import java.util.Objects;
 
 public class Api {
+    public static final String PAGE_RESULT_PATH_DEFAULT_PATH = "data";
     String id;
     String name;
     String tableName;

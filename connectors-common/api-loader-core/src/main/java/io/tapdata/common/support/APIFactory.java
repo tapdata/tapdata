@@ -6,8 +6,8 @@ import java.util.Map;
  * @author aplomb
  */
 public interface APIFactory {
-	String TYPE_POSTMAN = "postman";
-	String TYPE_API_FOX = "api-fox";
+	String TYPE_POSTMAN = "POST_MAN";
+	String TYPE_API_FOX = "API_FOX";
 
 	public static final String DEFAULT_POST_MAN_FILE_PATH = "connectors-javascript/coding-test-connector/src/main/resources/postman_api_collection.json";
 
