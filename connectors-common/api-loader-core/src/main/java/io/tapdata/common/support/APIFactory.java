@@ -8,6 +8,9 @@ import java.util.Map;
 public interface APIFactory {
 	String TYPE_POSTMAN = "postman";
 	String TYPE_API_FOX = "api-fox";
+
+	public static final String DEFAULT_POST_MAN_FILE_PATH = "connectors-javascript/coding-test-connector/src/main/resources/postman_api_collection.json";
+
 	/**
 	 * Generate APIInvoker instance from api description content.
 	 *

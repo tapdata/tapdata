@@ -8,6 +8,7 @@ import io.tapdata.common.postman.entity.params.Header;
 import io.tapdata.common.postman.entity.params.Url;
 import io.tapdata.common.postman.enums.PostParam;
 import io.tapdata.common.postman.util.ReplaceTagUtil;
+import io.tapdata.common.support.APIFactory;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.common.support.core.emun.TapApiTag;
 import io.tapdata.common.support.entitys.APIResponse;
@@ -22,7 +23,6 @@ import static io.tapdata.base.ConnectorBase.toJson;
 
 public class PostManAnalysis {
     private static final String TAG = PostManAnalysis.class.getSimpleName();
-
     public boolean filterUselessApi(){
         //是否过滤没有被标记的api
         return false;
@@ -30,7 +30,7 @@ public class PostManAnalysis {
 
     public String sourcePath(){
         //默认的API JSON 存放位置。
-        return "/resources/api/apiJson.json";
+        return APIFactory.DEFAULT_POST_MAN_FILE_PATH;
     }
 
     public static PostManAnalysis create(){

@@ -8,8 +8,11 @@ public class FunctionBase {
     protected JSFunctionNames functionName;
     protected LoadJavaScripter javaScripter;
     public boolean hasNotSupport(LoadJavaScripter javaScripter){
+        return !this.hasSupport(javaScripter);
+    }
+    public boolean hasSupport(LoadJavaScripter javaScripter){
         this.javaScripter = javaScripter;
-        return !this.javaScripter.functioned(functionName.jsName());
+        return this.javaScripter.functioned(functionName.jsName());
     }
     public FunctionBase javaScripter(LoadJavaScripter javaScripter){
         this.javaScripter = javaScripter;
