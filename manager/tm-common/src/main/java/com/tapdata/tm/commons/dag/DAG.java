@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
@@ -1069,7 +1070,7 @@ public class DAG implements Serializable, Cloneable {
         results.add(node);
 
         if (event instanceof TapCreateTableEvent || event instanceof TapDropTableEvent) {
-            if (node instanceof DatabaseNode) {
+            if (node instanceof DatabaseNode ||  node instanceof MigrateProcessorNode) {
                 node.fieldDdlEvent(event);
                 Dag dag = toDag();
                 DAG newDag = build(dag);

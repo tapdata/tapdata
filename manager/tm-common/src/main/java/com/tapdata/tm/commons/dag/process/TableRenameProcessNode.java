@@ -39,6 +39,13 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
      */
     private LinkedHashSet<TableRenameTableInfo> tableNames;
 
+    private String prefix;
+    private String suffix;
+    private String replaceBefore;
+    private String replaceAfter;
+    private String transferCase;
+
+
 
     public Map<String, TableRenameTableInfo> originalMap () {
         if (Objects.isNull(tableNames) || tableNames.isEmpty()) {
