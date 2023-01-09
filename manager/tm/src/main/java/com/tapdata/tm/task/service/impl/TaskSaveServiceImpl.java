@@ -74,6 +74,9 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         }
 
         DAG dag = taskDto.getDag();
+        if (Objects.isNull(dag) || org.apache.commons.collections4.CollectionUtils.isEmpty(dag.getNodes())) {
+            return;
+        }
 
         //supplier migrate tableSelectType=all tableNames and SyncObjects
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {

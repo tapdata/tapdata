@@ -441,7 +441,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getStreamOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
 			cdcDelayCalculation.addHeartbeatTable(tables);
-			int batchSize = dataProcessorContext.getTaskDto().getReadBatchSize();
+			int batchSize = 1;
 			String streamReadFunctionName = null;
 			if (rawDataCallbackFilterFunctionV2 != null)
 				streamReadFunctionName = rawDataCallbackFilterFunctionV2.getClass().getSimpleName();

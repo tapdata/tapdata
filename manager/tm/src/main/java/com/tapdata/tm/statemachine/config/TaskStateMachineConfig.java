@@ -68,6 +68,7 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 				.transition(TaskState.RUNNING, TaskState.ERROR, DataFlowEvent.ERROR)
 				.transition(TaskState.RUNNING, TaskState.STOPPING, DataFlowEvent.STOP)
 				.transition(TaskState.RUNNING, TaskState.STOPPED, DataFlowEvent.FORCE_STOP)
+				.transition(TaskState.RUNNING, TaskState.RUNNING, DataFlowEvent.RUNNING)
 				.transition(TaskState.ERROR, TaskState.ERROR, DataFlowEvent.CONFIRM)
 				.transition(TaskState.ERROR, TaskState.SCHEDULING, DataFlowEvent.START)
 				.transition(TaskState.ERROR, TaskState.RENEWING, DataFlowEvent.RENEW)

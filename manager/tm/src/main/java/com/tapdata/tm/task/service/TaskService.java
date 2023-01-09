@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
@@ -400,6 +401,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return create(taskDto, user);
         }
 
+        // supplement migrate_field_rename_processor fieldMapping data
+        supplementMigrateFieldMapping(taskDto, user);
+        taskSaveService.syncTaskSetting(taskDto, user);
+
         if (oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
             //throw new BizException("Task.OldVersion");
         }
@@ -453,6 +458,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         DAG dag = taskDto.getDag();
+        if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getNodes())) {
+            return;
+        }
+
         dag.getNodes().forEach(node -> {
             if (node instanceof MigrateFieldRenameProcessorNode) {
                 MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) node;
@@ -685,11 +694,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @return
      */
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask) {
-
-        // supplement migrate_field_rename_processor fieldMapping data
-        supplementMigrateFieldMapping(taskDto, user);
-        taskSaveService.syncTaskSetting(taskDto, user);
-
         DAG dag = taskDto.getDag();
 
         if (!taskDto.getShareCache()) {
@@ -2818,6 +2822,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        Update update = Update.update("lastStartDate", System.currentTimeMillis());
+        if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
+            String taskRecordId = new ObjectId().toHexString();
+            update.set("taskRecordId", taskRecordId);
+            taskDto.setTaskRecordId(taskRecordId);
+            taskDto.setNeedCreateRecord(true);
+        }
+        if (Objects.isNull(taskDto.getStartTime())) {
+            DateTime date = DateUtil.date();
+            update.set("startTime", date);
+            taskDto.setStartTime(date);
+        }
+        update(Query.query(Criteria.where("_id").is(taskDto.getId().toHexString())), update);
+
         checkDagAgentConflict(taskDto, false);
         if (!taskDto.getShareCache()) {
                 Map<String, List<Message>> validateMessage = taskDto.getDag().validate();
@@ -2888,8 +2906,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //需要将重启标识清除
         Update set = Update.update("isEdit", false)
                 .set("restartFlag", false)
-                .set("stopRetryTimes", 0)
-                .set("lastStartDate", System.currentTimeMillis());
+                .set("stopRetryTimes", 0);
         update(query, set, user);
         taskScheduleService.scheduling(taskDto, user);
     }
@@ -3548,5 +3565,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return chart6Map;
     }
 
-
+    public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {
+        Query query = Query.query(Criteria.where("agentId").is(agentId).and("status").is(TaskDto.STATUS_STOPPING));
+        query.fields().include("_id");
+        List<TaskDto> needStopTasks = findAllDto(query, userDetail);
+        for (TaskDto needStopTask : needStopTasks) {
+            stopped(needStopTask.getId(), userDetail);
+        }
+    }
 }

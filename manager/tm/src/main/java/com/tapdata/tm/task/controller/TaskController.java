@@ -1066,4 +1066,10 @@ public class TaskController extends BaseController {
         taskService.rename(taskId, newName, getLoginUser());
         return success();
     }
+
+    @PostMapping("/stopTaskByAgentId/{agentId}")
+    public ResponseMessage<Void> stopTaskByAgentId(@PathVariable("agentId") String agentId) {
+        taskService.stopTaskIfNeedByAgentId(agentId, getLoginUser());
+        return success();
+    }
 }
