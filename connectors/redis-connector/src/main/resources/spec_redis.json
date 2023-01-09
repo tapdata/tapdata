@@ -219,7 +219,7 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-index": 4,
-          "default": false,
+          "default": true,
           "x-reactions": [
             {
               "dependencies": [".valueType",".oneKey"],
@@ -301,41 +301,13 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "x-index": 8,
-          "default": "\"",
-          "required": true,
+          "default": "",
           "x-reactions": [
             {
               "dependencies": [".valueData"],
               "fulfill": {
                 "state": {
                   "visible": "{{$deps[0] === 'Text'}}"
-                }
-              }
-            }
-          ]
-        },
-        "expireTime": {
-          "type": "string",
-          "title": "${expireTime}",
-          "x-decorator": "FormItem",
-          "x-component": "InputNumber",
-          "x-index": 9,
-          "default": 0,
-          "required": true
-        },
-        "resetExpire": {
-          "type": "boolean",
-          "title": "${resetExpire}",
-          "x-decorator": "FormItem",
-          "x-component": "Switch",
-          "x-index": 10,
-          "default": false,
-          "x-reactions": [
-            {
-              "dependencies": [".expireTime"],
-              "fulfill": {
-                "state": {
-                  "visible": "{{$deps[0] !== 0}}"
                 }
               }
             }
