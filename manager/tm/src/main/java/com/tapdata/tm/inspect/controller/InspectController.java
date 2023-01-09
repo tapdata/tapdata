@@ -18,6 +18,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -61,6 +62,8 @@ public class InspectController extends BaseController {
             throw new BizException("Inspect.Name.Exist");
         }
 
+        Date date=new Date();
+        inspect.setPing_time(date.getTime());
         return success(inspectService.save(inspect, getLoginUser()));
     }
 
@@ -79,10 +82,8 @@ public class InspectController extends BaseController {
 
 
     /**
-     * 如果前端传的过滤字符串是：“{"where":{"id":{"$inq":["6172668517e4396fb056da1b"]}}}” ，以便查询id  是in的时候，
-     * baseservice里面的find方法查不出来，
-     *
      * @param filterJson
+     * 获取校验任务列表
      * @return
      */
     @GetMapping
@@ -96,7 +97,7 @@ public class InspectController extends BaseController {
 
 
     /**
-     * Find a model instance by {{id}} from the data source
+     * 获取校验详情
      *
      * @return
      */

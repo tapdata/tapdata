@@ -18,6 +18,7 @@ import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -288,6 +289,23 @@ public class TapdataTaskScheduler {
 		}
 	}
 
+	/**
+	 * Will run when engine start in cloud mode
+	 * Run task(s) already started, find clause: status=running and agentID={@link TapdataTaskScheduler#instanceNo}
+	 */
+	public void runTaskIfNeedWhenEngineStart() {
+		if(!appType.isCloud()) return;
+		Query query = new Query(
+				new Criteria("agentId").is(instanceNo)
+						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
+		);
+		List<TaskDto> tasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+		if (CollectionUtils.isNotEmpty(tasks)) {
+			logger.info("Found task(s) already running before engine start, will run these task(s) immediately\n  {}", tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
+			tasks.forEach(this::sendStartTask);
+		}
+	}
+
 	private void startTask(TaskDto taskDto) {
 		final String taskId = taskDto.getId().toHexString();
 		if (taskClientMap.containsKey(taskId)) {
@@ -303,11 +321,12 @@ public class TapdataTaskScheduler {
 			return;
 		}
 		try {
-			String checkTaskCanStart = checkTaskCanStart(taskId);
-			if (StringUtils.isNotBlank(checkTaskCanStart)) {
-				logger.warn(checkTaskCanStart);
-				return;
-			}
+			// todo 后续处理
+//			String checkTaskCanStart = checkTaskCanStart(taskId);
+//			if (StringUtils.isNotBlank(checkTaskCanStart)) {
+//				logger.warn(checkTaskCanStart);
+//				return;
+//			}
 			Log4jUtil.setThreadContext(taskDto);
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);

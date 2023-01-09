@@ -3,18 +3,35 @@ package com.tapdata.tm.ws.cs;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.commons.websocket.MessageInfo;
+import com.tapdata.tm.commons.websocket.MessageInfoBuilder;
+import com.tapdata.tm.commons.websocket.v1.MessageInfoV1;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
+import com.tapdata.tm.schedule.MessageQueueWatch;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
+import com.tapdata.tm.ws.endpoint.WebSocketServer;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.messaging.Message;
 import org.springframework.data.mongodb.core.messaging.MessageListener;
 
 import java.util.Map;
 
+/**
+ * Remove change stream for message queue
+ * @see MessageQueueWatch
+ */
+@Deprecated
 @Slf4j
 public class MongoMessageListener implements MessageListener<ChangeStreamDocument<Document>, Document> {
+
+    private WebSocketServer webSocketServer;
+
+    public MongoMessageListener(WebSocketServer webSocketServer) {
+        this.webSocketServer = webSocketServer;
+    }
 
     @Override
     public void onMessage(Message<ChangeStreamDocument<Document>, Document> message) {
@@ -37,6 +54,17 @@ public class MongoMessageListener implements MessageListener<ChangeStreamDocumen
                         messageQueueDto.setData(dataObject);
                     }
                     WebSocketManager.sendMessage(messageQueueDto.getReceiver(), JsonUtil.toJsonUseJackson(messageQueueDto));
+                } else if ( messageQueueDto.getType().equals(MessageInfoV1.VERSION)) {
+                    MessageInfo messageInfo = MessageInfoBuilder.parse(messageQueueDto.getData().toString());
+                    if (messageInfo != null) {
+                        if (MessageInfoV1.RETURN_TYPE.equals(((MessageInfoV1)messageInfo).getType())) {
+                            if (WebSocketManager.containsResultCallback(messageInfo.getReqId())) {
+                                webSocketServer.handlerResult((MessageInfoV1) messageInfo);
+                            }
+                        } else if (StringUtils.isNotBlank(messageQueueDto.getReceiver())){
+                            WebSocketManager.sendMessage(messageQueueDto.getReceiver(), messageInfo);
+                        }
+                    }
                 } /*else if (messageQueueDto.getData() != null && MessageType.EDIT_FLUSH.getType().equals(messageQueueDto.getData().get("type"))) {
                     Object data = messageQueueDto.getData();
                     EditFlushHandler.sendEditFlushMessage((String) data.get("taskId"), data.get("data"));
