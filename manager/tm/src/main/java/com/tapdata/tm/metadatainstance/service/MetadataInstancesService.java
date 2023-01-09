@@ -1791,14 +1791,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         );
 
         DataSourceConnectionDto dataSource = dataSourceService.findById(toObjectId(node.getConnectionId()));
-        if (!"expression".equals(node.getMigrateTableSelectType())) {
+        if ("expression".equals(node.getMigrateTableSelectType())) {
+            filter.getWhere().and("qualified_name", new Document("$regex", node.getExpression()));
+        } else {
             List<String> qualifiedNames = new ArrayList<>();
             for (String tableName : node.getTableNames()) {
                 qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), dataSource, tableName));
             }
             filter.getWhere().and("qualified_name", new Document("$in", qualifiedNames));
-        } else {
-            filter.getWhere().and("qualified_name", new Document("$regex", node.getExpression()));
         }
 
 
