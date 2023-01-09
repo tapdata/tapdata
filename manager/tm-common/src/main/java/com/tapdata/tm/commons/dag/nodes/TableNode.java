@@ -154,6 +154,21 @@ public class TableNode extends DataNode {
     /** 自定义sql条件 */
     @EqField
     private Integer  limit;
+
+    /** 增量轮询指定字段名称 */
+    private List<String> cdcPollingFields;
+    /** 增量轮询排序方式  asc desc*/
+    private String cdcPollingOrder;
+    /** 增量轮询字段的默认值 */
+    private List<String> cdcPollingFieldsDefaultValues;
+    /** 增量轮询间隔  单位 毫秒 */
+    private int cdcPollingInterval;
+    /** 增量轮询的每次读取行数 */
+    private int cdcPollingBatchSize;
+
+
+
+
     public TableNode() {
         super("table");
     }
