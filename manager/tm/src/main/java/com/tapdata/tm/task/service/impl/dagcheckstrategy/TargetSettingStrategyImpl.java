@@ -29,7 +29,6 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
         ObjectId taskId = taskDto.getId();
-        String taskName = taskDto.getName();
         String current = DateUtil.now();
         Date now = new Date();
 
@@ -38,7 +37,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
         LinkedList<DatabaseNode> targetNode = taskDto.getDag().getTargetNode();
 
         if (CollectionUtils.isEmpty(targetNode)) {
-            return Lists.newArrayList();
+            return null;
         }
 
         targetNode.forEach(node -> {

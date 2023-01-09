@@ -46,10 +46,6 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
     @Override
     public boolean taskSaveCheckLog(TaskDto taskDto, UserDetail userDetail) {
-        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-            return false;
-        }
-
         taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
 
         boolean noPass = false;
@@ -58,8 +54,6 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             Optional<TaskDagCheckLog> any = taskDagCheckLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
             if (any.isPresent()) {
                 noPass = true;
-
-                //taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
             }
         }
 
