@@ -39,7 +39,7 @@ public class TapFileStorageImplTest {
         tapFileStorage.delete(filePath);
     }
 
-    @Test
+//    @Test
     @Disabled
     public void testTapFileStorage() throws Exception {
         //加载config.json， 是FileStorage实现需要的配置参数
