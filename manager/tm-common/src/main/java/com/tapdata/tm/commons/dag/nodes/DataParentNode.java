@@ -58,6 +58,7 @@ public abstract class DataParentNode<S> extends Node<S> {
     private Boolean enableDDL;
 
     private List<String> disabledEvents;
+    @Deprecated
     private Boolean enableDynamicTable;
 	/** 是否开启全量并发写入*/
 	private Boolean initialConcurrent;

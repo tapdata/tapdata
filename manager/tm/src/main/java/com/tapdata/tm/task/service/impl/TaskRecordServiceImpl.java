@@ -116,7 +116,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
             Long inputTotal = r.getInputTotal();
             Long outputTotal = r.getOutputTotal();
 
-            if (ObjectUtils.anyNull(inputTotal, outputTotal) || TaskDto.STATUS_RUNNING.equals(vo.getStatus())) {
+            if (ObjectUtils.anyNull(inputTotal, outputTotal) || inputTotal == 0 || outputTotal == 0 || TaskDto.STATUS_RUNNING.equals(vo.getStatus())) {
                 Long[] values = measurementServiceV2.countEventByTaskRecord(taskId, taskRecordId);
                 if (null != values && values.length == 2) {
                     inputTotal = values[0];
