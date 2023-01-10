@@ -22,8 +22,8 @@ public class RedisConfig {
 
     private String valueType = "List";
     private String keyExpression;
-    private String valueData = "Text";
-    private String valueJoinString = ",";
+    private String valueData;
+    private String valueJoinString;
     private String valueTransferredString = "";
     private long expireTime;
     private Boolean resetExpire;

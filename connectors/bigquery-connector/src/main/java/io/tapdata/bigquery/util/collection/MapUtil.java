@@ -42,8 +42,6 @@ public class MapUtil<K,V> {
         }
     }
 
-
-
     public static String CSVLine(Map<String,Object> csvObj,Map<String,Object> filedMap){
         StringJoiner joiner = new StringJoiner(Constants.SPLIT_CHAR);
         join(joiner,csvObj,filedMap);

@@ -26,33 +26,33 @@
 
 - 2.如果您已經配寘過相應的服務帳號（***請直接跳過2-6這些步驟直接從第7步開始***），您此刻需要新建一個服務帳號。 點擊功能表列中的**CREATE CREDENTIAL**選項：
 
-  ![](../img/serviceAccount1.png)
+  ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount1.png)
 
 - 3.選擇**Service Account**，進行服務帳號的創建：
 
-  ![](../img/serviceAccount2.png)
+  ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount2.png)
 
 - 4.分別填寫服務帳號的基本資訊：
 
-  ![](../img/serviceAccount3.png)
+  ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount3.png)
 
 - 5.將此服務帳戶關聯到項目，並配寘其存取權限規則，我們這裡需要選擇BigQuery下的BigQuery Admin許可權；
 
-  ![](../img/serviceAccount4.png)
+  ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount4.png)
   
-  ![](../img/serviceAccount5.png)
+  ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount5.png)
 
 - 6.配寘完成後，點擊創建。 我們會回到Credentital頁面，可以在Service Account表格中看到我們剛剛創建好的服務帳號：
 
- ![](../img/serviceAccount6.png)
+ ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount6.png)
 
 - 7.點擊這個創建好的Service account，進入Service account. 此時我們開始配寘訪問秘鑰，也就是我們創建資料來源是需要用到的關鍵資訊。 我們選擇Key是選項，點擊Add key。 創建一個新的key；
 
- ![](../img/serviceAccount7.png)
+ ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount7.png)
 
 - 8.點擊創建，選擇JSON格式的秘鑰。 保存到本地後，打開JSON檔案，複製全部內容到Tapdata創建連接頁面，將複製到的內容粘貼到服務帳號文本域中即可；
 
- ![](../img/serviceAccount8.png)
+ ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount8.png)
 
 獲取**數据集ID**
 
@@ -60,4 +60,4 @@
 
 - 2.可以從介面，直接獲取數据集ID，如下圖所示，依次看到的層級關係為項目ID->數据集ID->資料表ID：
 
- ![](../img/tableSetId.png)
+ ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount9.png)
