@@ -1792,7 +1792,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         DataSourceConnectionDto dataSource = dataSourceService.findById(toObjectId(node.getConnectionId()));
         if ("expression".equals(node.getMigrateTableSelectType())) {
-            filter.getWhere().and("qualified_name", new Document("$regex", node.getExpression()));
+            filter.getWhere().and("qualified_name", new Document("$regex", node.getTableExpression()));
         } else {
             List<String> qualifiedNames = new ArrayList<>();
             for (String tableName : node.getTableNames()) {

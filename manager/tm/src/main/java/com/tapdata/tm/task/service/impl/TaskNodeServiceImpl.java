@@ -154,7 +154,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }
             tableNames = metaInstances.stream()
                     .map(MetadataInstancesDto::getOriginalName)
-                    .filter(originalName -> Pattern.matches(sourceNode.getExpression(), originalName))
+                    .filter(originalName -> {
+                        if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
+                            return false;
+                        } else {
+                            return Pattern.matches(sourceNode.getTableExpression(), originalName);
+                        }
+                    })
                     .collect(Collectors.toList());
         }
 

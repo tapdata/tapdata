@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
@@ -179,7 +180,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private boolean needDynamicTable(Object obj) {
+	private boolean needDynamicTable(String tableName) {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node instanceof DatabaseNode) {
 			String migrateTableSelectType = ((DatabaseNode) node).getMigrateTableSelectType();
@@ -196,6 +197,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			GetTableNamesFunction getTableNamesFunction = getConnectorNode().getConnectorFunctions().getGetTableNamesFunction();
 			if (null == getTableNamesFunction) {
 				return false;
+			}
+			if (StringUtils.isNotEmpty(tableName)) {
+				String expression = ((DatabaseNode) node).getTableExpression();
+				if (StringUtils.isEmpty(expression) || !ReUtil.isMatch(expression, tableName)) {
+					return false;
+				}
 			}
 		} else {
 			return false;

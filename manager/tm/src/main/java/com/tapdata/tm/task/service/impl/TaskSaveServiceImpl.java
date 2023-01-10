@@ -87,7 +87,13 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                 if (CollectionUtils.isNotEmpty(metaList)) {
                     List<String> collect = metaList.stream()
                             .map(MetadataInstancesDto::getOriginalName)
-                            .filter(originalName -> Pattern.matches(sourceNode.getExpression(), originalName))
+                            .filter(originalName -> {
+                                if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
+                                    return false;
+                                } else {
+                                    return Pattern.matches(sourceNode.getTableExpression(), originalName);
+                                }
+                            })
                             .collect(Collectors.toList());
                     sourceNode.setTableNames(collect);
                 }

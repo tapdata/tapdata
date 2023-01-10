@@ -78,7 +78,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     /**
      * migrateTableSelectType=expression的正则表达式
      */
-    private String expression;
+    private String tableExpression;
 
     public static final String SELF_TYPE = "database";
 
