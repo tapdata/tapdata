@@ -10,9 +10,7 @@ import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.*;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -316,7 +314,7 @@ public class AsyncQueueWorkerImpl implements QueueWorker, Runnable {
 						}
 					}
 					if(realError) {
-						TapLogger.error(TAG, "Execute job id {} asyncJob {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable));
+						TapLogger.error(TAG, "Execute job id {} job {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable));
 						if(asyncJobErrorListener != null) {
 							try {
 								asyncJobErrorListener.errorOccurred(currentJobContext.getId(), job, throwable);
@@ -339,35 +337,65 @@ public class AsyncQueueWorkerImpl implements QueueWorker, Runnable {
 			} else if(asyncJob instanceof AsyncJob) {
 				AsyncJob theAsyncJob = (AsyncJob) asyncJob;
 				AtomicBoolean executed = new AtomicBoolean(false);
-				theAsyncJob.run(currentJobContext, (jobContext, throwable) -> {
-					if(executed.compareAndSet(false, true)) {
-						boolean realError = false;
-						if(throwable != null) {
-							realError = true;
-							if(throwable instanceof CoreException) {
-								CoreException coreException = (CoreException) throwable;
-								if(coreException.getCode() == AsyncErrors.ASYNC_JOB_STOPPED) {
-									realError = false;
-								}
-							}
-							if(realError) {
-								TapLogger.error(TAG, "Execute job id {} asyncJob {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable));
-								if(asyncJobErrorListener != null) {
-									try {
-										asyncJobErrorListener.errorOccurred(currentJobContext.getId(), theAsyncJob, throwable);
-									} catch (Throwable throwable1) {
-										TapLogger.error(TAG, "Execute job's errorOccurred id {} asyncJob {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable1));
+				AtomicBoolean realError = new AtomicBoolean(false);
+				try {
+					theAsyncJob.run(currentJobContext, (jobContext, throwable) -> {
+						if(executed.compareAndSet(false, true)) {
+							if(throwable != null) {
+								realError.set(true);
+								if(throwable instanceof CoreException) {
+									CoreException coreException = (CoreException) throwable;
+									if(coreException.getCode() == AsyncErrors.ASYNC_JOB_STOPPED) {
+										realError.set(false);
 									}
 								}
+								if(realError.get()) {
+									TapLogger.error(TAG, "Execute job id {} asyncJob {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable));
+									if(asyncJobErrorListener != null) {
+										try {
+											asyncJobErrorListener.errorOccurred(currentJobContext.getId(), theAsyncJob, throwable);
+										} catch (Throwable throwable1) {
+											TapLogger.error(TAG, "Execute asyncJob's errorOccurred id {} asyncJob {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable1));
+										}
+									}
+								}
+							} else {
+								configNextJobContext(jobContext);
 							}
-						} else {
-							configNextJobContext(jobContext);
+	//						changeState(STATE_RUNNING, STATE_IDLE, null, true);
+							if(!realError.get())
+								startPrivate();
 						}
+					});
+				} catch(Throwable throwable) {
+					realError.set(true);
+					if(throwable instanceof CoreException) {
+						CoreException coreException = (CoreException) throwable;
+						if(coreException.getCode() == AsyncErrors.ASYNC_JOB_STOPPED) {
+							realError.set(false);
+						}
+					}
+					if(realError.get()) {
+						TapLogger.error(TAG, "Execute asyncJob id {} asyncJob {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable));
+						if(asyncJobErrorListener != null) {
+							try {
+								asyncJobErrorListener.errorOccurred(currentJobContext.getId(), theAsyncJob, throwable);
+							} catch (Throwable throwable1) {
+								TapLogger.error(TAG, "Execute asyncJob's errorOccurred id {} asyncJob {} failed, {}", currentJobContext.getId(), asyncJob, tapUtils.getStackTrace(throwable1));
+							}
+							return;
+						}
+					}
+				} finally {
+					if(asyncJob instanceof LastJob) {
+						changeState(STATE_RUNNING, STATE_FINISHED, null, false);
+						threadPoolExecutor.shutdownNow();
+					} else {
 //						changeState(STATE_RUNNING, STATE_IDLE, null, true);
-						if(!realError)
+						if(!realError.get())
 							startPrivate();
 					}
-				});
+				}
 			}
 		} /*else {
 			changeState(STATE_RUNNING, STATE_IDLE, null, true);

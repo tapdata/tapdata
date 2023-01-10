@@ -5,11 +5,14 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.TapFilter;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static io.tapdata.entity.simplify.TapSimplify.list;
 
 /**
  * @author aplomb
@@ -69,6 +72,32 @@ public class TapPartitionFilter extends TapFilter {
 
 	public void setRightBoundary(QueryOperator rightBoundary) {
 		this.rightBoundary = rightBoundary;
+	}
+
+	public TapAdvanceFilter toAdvanceFilter() {
+		TapAdvanceFilter advanceFilter = TapAdvanceFilter.create().match(match);
+		if(leftBoundary != null)
+			advanceFilter.op(leftBoundary);
+		if(rightBoundary != null)
+			advanceFilter.op(rightBoundary);
+		return advanceFilter;
+	}
+
+	public TapPartitionFilter fromAdvanceFilter(TapAdvanceFilter advanceFilter) {
+		if(advanceFilter != null) {
+			match = advanceFilter.getMatch();
+			List<QueryOperator> ops = advanceFilter.getOperators();
+			if(ops != null) {
+				for(QueryOperator operator : ops) {
+					if(operator.getOperator() == QueryOperator.LT || operator.getOperator() == QueryOperator.LTE) {
+						rightBoundary = operator;
+					} else if(operator.getOperator() == QueryOperator.GT || operator.getOperator() == QueryOperator.GTE) {
+						leftBoundary = operator;
+					}
+				}
+			}
+		}
+		return this;
 	}
 
 	@Override

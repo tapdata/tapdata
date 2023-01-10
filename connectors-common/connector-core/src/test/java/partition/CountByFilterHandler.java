@@ -2,6 +2,7 @@ package partition;
 
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 
@@ -17,7 +18,7 @@ public class CountByFilterHandler implements CountByPartitionFilterFunction {
 		this.records = records;
 	}
 	@Override
-	public long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapPartitionFilter filter) {
+	public long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapAdvanceFilter filter) {
 		return 0;
 	}
 }

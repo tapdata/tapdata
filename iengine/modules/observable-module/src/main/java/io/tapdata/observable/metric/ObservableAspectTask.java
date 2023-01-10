@@ -179,9 +179,11 @@ public class ObservableAspectTask extends AspectTask {
 							handler.handleBatchReadProcessComplete(System.currentTimeMillis(), recorder)
 					);
 					// batch read should calculate table snapshot insert counter
-					Optional.ofNullable(tableSampleHandlers.get(table)).ifPresent(
-							handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal())
-					);
+					if(tableSampleHandlers != null) {
+						Optional.ofNullable(tableSampleHandlers.get(table)).ifPresent(
+								handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal())
+						);
+					}
 				});
 				aspect.enqueuedConsumer(events ->
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(

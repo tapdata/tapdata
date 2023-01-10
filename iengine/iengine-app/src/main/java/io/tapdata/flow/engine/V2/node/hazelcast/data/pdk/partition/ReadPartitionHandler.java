@@ -111,6 +111,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = sourcePdkDataNode.getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
 		if(queryByAdvanceFilterFunction != null) {
 			long time = System.currentTimeMillis();
+			LongAdder storageTakes = new LongAdder();
 			LongAdder counter = new LongAdder();
 			TapPartitionFilter partitionFilter = readPartition.getPartitionFilter();
 			TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create()
@@ -124,16 +125,19 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 						pdkMethodInvoker.runnable(
 								() -> queryByAdvanceFilterFunction.query(sourcePdkDataNode.getConnectorNode().getConnectorContext(), tapAdvanceFilter, table, filterResults -> {
 									Optional.ofNullable(filterResults.getResults()).ifPresent(results -> {
+										long storageTime;
 										for (Map<String, Object> result : results) {
 											counter.increment();
+											storageTime = System.currentTimeMillis();
 											sequenceStorage.add(reviseData(result));
+											storageTakes.add(System.currentTimeMillis() - storageTime);
 										}
 									});
 								})
 						));
 			} finally {
 				sourcePdkDataNode.removePdkMethodInvoker(pdkMethodInvoker);
-				sourcePdkDataNode.getObsLogger().info("Stored the readPartition {} into local {}, takes {}, total {}", readPartition, sequenceStorageId, (System.currentTimeMillis() - time), counter.longValue());
+				sourcePdkDataNode.getObsLogger().info("Stored the readPartition {} into local {}, takes {}, storage takes {}, total {}", readPartition, sequenceStorageId, (System.currentTimeMillis() - time), storageTakes.longValue(), counter.longValue());
 			}
 
 		}

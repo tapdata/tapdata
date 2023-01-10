@@ -133,7 +133,7 @@ public class DatabaseReadPartitionSplitter {
 		context.getLog().info(id + ": Start splitting for table {}, maxRecordInPartition {}", table.getId(), maxRecordInPartition);
 		TapPartitionFilter partitionFilter = TapPartitionFilter.create();
 		long time = System.currentTimeMillis();
-		long count = countIsSlow ? -1 : countByPartitionFilter.countByPartitionFilter(context, table, partitionFilter);
+		long count = countIsSlow ? -1 : countByPartitionFilter.countByPartitionFilter(context, table, partitionFilter.toAdvanceFilter());
 		context.getLog().info(id + ": Initial count {}, takes {} countIsSlow {}", count, (System.currentTimeMillis() - time), countIsSlow);
 
 		TapIndexEx partitionIndex = table.partitionIndex();
@@ -294,7 +294,7 @@ public class DatabaseReadPartitionSplitter {
 		}
 
 		TapIndexField indexField = indexFields.get(splitProgress.getCurrentFieldPos());
-		FieldMinMaxValue fieldMinMaxValue = queryFieldMinMaxValue.minMaxValue(context, table, partitionFilter, indexField.getName());
+		FieldMinMaxValue fieldMinMaxValue = queryFieldMinMaxValue.minMaxValue(context, table, partitionFilter.toAdvanceFilter(), indexField.getName());
 		if(fieldMinMaxValue == null || fieldMinMaxValue.getMin() == null || fieldMinMaxValue.getMax() == null) {
 			partitionCollector.addPartition(partitionFilter, 0L);
 			partitionCollector.state(PartitionCollector.STATE_DONE);
@@ -331,7 +331,7 @@ public class DatabaseReadPartitionSplitter {
 						return true;
 					}
 
-					FieldMinMaxValue fieldMinMaxValueForPartition = queryFieldMinMaxValue.minMaxValue(context, table, eachPartitionFilter, indexField.getName());
+					FieldMinMaxValue fieldMinMaxValueForPartition = queryFieldMinMaxValue.minMaxValue(context, table, eachPartitionFilter.toAdvanceFilter(), indexField.getName());
 					if(fieldMinMaxValueForPartition == null || fieldMinMaxValueForPartition.getMin() == null || fieldMinMaxValueForPartition.getMax() == null) {
 						newPartitionFilters.add(eachPartitionFilter);
 						minMaxPartitionMap.put(eachPartitionFilter, 0L);
@@ -363,10 +363,10 @@ public class DatabaseReadPartitionSplitter {
 		jobContext.foreach(partitionFilters, eachPartitionFilter -> {
 			long partitionCount = -1;
 			if(!countIsSlow) {
-				partitionCount = countByPartitionFilter.countByPartitionFilter(context, table, eachPartitionFilter);
+				partitionCount = countByPartitionFilter.countByPartitionFilter(context, table, eachPartitionFilter.toAdvanceFilter());
 //				context.getLog().info(id + " " + partitionFilter + ": Partition count {} for {}", partitionCount, eachPartitionFilter);
 			} else if(!minMaxPartitionMap.containsKey(eachPartitionFilter)){
-				FieldMinMaxValue fieldMinMaxValueForPartition = queryFieldMinMaxValue.minMaxValue(context, table, eachPartitionFilter, indexField.getName());
+				FieldMinMaxValue fieldMinMaxValueForPartition = queryFieldMinMaxValue.minMaxValue(context, table, eachPartitionFilter.toAdvanceFilter(), indexField.getName());
 				if(fieldMinMaxValueForPartition == null || fieldMinMaxValueForPartition.getMin() == null || fieldMinMaxValueForPartition.getMax() == null) {
 					minMaxPartitionMap.put(eachPartitionFilter, 0L);
 				} else {

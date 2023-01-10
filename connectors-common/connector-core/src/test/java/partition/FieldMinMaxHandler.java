@@ -4,6 +4,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryFieldMinMaxValueFunction;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
@@ -23,7 +24,8 @@ public abstract class FieldMinMaxHandler implements QueryFieldMinMaxValueFunctio
 	}
 
 	@Override
-	public FieldMinMaxValue minMaxValue(TapConnectorContext connectorContext, TapTable table, TapPartitionFilter filter, String fieldName) {
+	public FieldMinMaxValue minMaxValue(TapConnectorContext connectorContext, TapTable table, TapAdvanceFilter advanceFilter, String fieldName) {
+		TapPartitionFilter filter = new TapPartitionFilter().fromAdvanceFilter(advanceFilter);
 		QueryOperator left = filter.getLeftBoundary();
 		QueryOperator right = filter.getRightBoundary();
 		DataMap matchMap = filter.getMatch();
@@ -63,7 +65,9 @@ public abstract class FieldMinMaxHandler implements QueryFieldMinMaxValueFunctio
 		return null;
 	}
 	@Override
-	public long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapPartitionFilter filter) {QueryOperator left = filter.getLeftBoundary();
+	public long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapAdvanceFilter advanceFilter) {
+		TapPartitionFilter filter = TapPartitionFilter.create().fromAdvanceFilter(advanceFilter);
+		QueryOperator left = filter.getLeftBoundary();
 		QueryOperator right = filter.getRightBoundary();
 		DataMap matchMap = filter.getMatch();
 		List<Map<String, Object>> newRecords = new ArrayList<>();

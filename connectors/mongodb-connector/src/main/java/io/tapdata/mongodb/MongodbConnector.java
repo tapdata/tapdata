@@ -459,7 +459,7 @@ public class MongodbConnector extends ConnectorBase {
 		executeResultConsumer.accept(executeResult);
 	}
 
-	private FieldMinMaxValue queryFieldMinMaxValue(TapConnectorContext connectorContext, TapTable table, TapPartitionFilter partitionFilter, String fieldName) {
+	private FieldMinMaxValue queryFieldMinMaxValue(TapConnectorContext connectorContext, TapTable table, TapAdvanceFilter partitionFilter, String fieldName) {
 		MongoCollection<Document> collection = getMongoCollection(table.getId());
 		TapIndexEx partitionIndex = table.partitionIndex();
 		if(partitionIndex == null)
@@ -536,35 +536,36 @@ public class MongodbConnector extends ConnectorBase {
 		return newSort;
 	}
 
-	private long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapPartitionFilter partitionFilter) {
+	private long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapAdvanceFilter partitionFilter) {
 		Bson query = queryForPartitionFilter(partitionFilter, table.partitionIndex());
 		return getCollectionNotAggregateCountByTableName(mongoClient, mongoConfig.getDatabase(), table.getId(), query);
 	}
 
-	private Bson queryForPartitionFilter(TapPartitionFilter partitionFilter, TapIndexEx partitionKeys) {
+	private Bson queryForPartitionFilter(TapAdvanceFilter partitionFilter, TapIndexEx partitionKeys) {
 		List<Bson> bsonList = new ArrayList<>();
-		List<QueryOperator> ops = list(partitionFilter.getLeftBoundary(), partitionFilter.getRightBoundary());
-		for (QueryOperator op : ops) {
-			if(op == null)
-				continue;
-			if(!partitionKeys.getIndexMap().containsKey(op.getKey())) {
-				throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in operators", op.getKey(), partitionKeys);
+		List<QueryOperator> ops = partitionFilter.getOperators();
+		if(ops != null)
+			for (QueryOperator op : ops) {
+				if(op == null)
+					continue;
+				if(!partitionKeys.getIndexMap().containsKey(op.getKey())) {
+					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in operators", op.getKey(), partitionKeys);
+				}
+				switch (op.getOperator()) {
+					case QueryOperator.GT:
+						bsonList.add(gt(op.getKey(), op.getValue()));
+						break;
+					case QueryOperator.GTE:
+						bsonList.add(gte(op.getKey(), op.getValue()));
+						break;
+					case QueryOperator.LT:
+						bsonList.add(lt(op.getKey(), op.getValue()));
+						break;
+					case QueryOperator.LTE:
+						bsonList.add(lte(op.getKey(), op.getValue()));
+						break;
+				}
 			}
-			switch (op.getOperator()) {
-				case QueryOperator.GT:
-					bsonList.add(gt(op.getKey(), op.getValue()));
-					break;
-				case QueryOperator.GTE:
-					bsonList.add(gte(op.getKey(), op.getValue()));
-					break;
-				case QueryOperator.LT:
-					bsonList.add(lt(op.getKey(), op.getValue()));
-					break;
-				case QueryOperator.LTE:
-					bsonList.add(lte(op.getKey(), op.getValue()));
-					break;
-			}
-		}
 		DataMap match = partitionFilter.getMatch();
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {

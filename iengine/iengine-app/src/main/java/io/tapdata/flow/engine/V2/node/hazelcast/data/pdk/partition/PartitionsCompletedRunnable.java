@@ -36,7 +36,7 @@ public class PartitionsCompletedRunnable implements Runnable {
 	}
 	@Override
 	public void run() {
-		sourcePdkDataNodeEx1.getObsLogger().info("Partitions has been split for table {}, wait until all partitions has been read. readPartitionList {}", tapTable.getId(), readPartitionList.size());
+		sourcePdkDataNodeEx1.getObsLogger().info("Partitions has been split for table {}, wait until all partitions has been read. readPartition size {} list {}", tapTable.getId(), readPartitionList.size(), readPartitionList);
 		Object batchOffsetObj = sourcePdkDataNodeEx1.getSyncProgress().getBatchOffsetObj();
 		PartitionTableOffset partitionTableOffset = null;
 		if(batchOffsetObj instanceof Map) {

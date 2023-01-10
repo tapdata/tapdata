@@ -85,7 +85,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 
 	private final AtomicBoolean streamReadStarted = new AtomicBoolean(false);
 	private final AtomicBoolean tableParallelWorkerStarted = new AtomicBoolean(false);
-	public final Integer batchSize = 1000;
+	public final Integer batchSize = 3000;
 	public final Integer partitionReaderThreadCount = 8;
 	private Map<String, ParallelWorker> tablePartitionReaderMap = new ConcurrentSkipListMap<>();
 	public HazelcastSourcePartitionReadDataNode(DataProcessorContext dataProcessorContext) {
