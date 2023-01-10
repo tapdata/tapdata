@@ -143,7 +143,7 @@ public abstract class BigQueryStart {
                 Object tempCursorSchema = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
                 if (Objects.isNull(tempCursorSchema)) {
                     tempCursorSchema = cursorSchema + "_" + UUID.randomUUID().toString().replaceAll("-", "_");
-                    stateMap.put(ContextConfig.TEMP_CURSOR_SCHEMA_NAME, tempCursorSchema);
+                    //stateMap.put(ContextConfig.TEMP_CURSOR_SCHEMA_NAME, tempCursorSchema); //这里不需要put,已改变到 临时表建表时put
                     TapLogger.info(TAG, "Cache Schema has created ,named is " + tempCursorSchema);
                 }
                 contextConfig.tempCursorSchema(String.valueOf(tempCursorSchema));

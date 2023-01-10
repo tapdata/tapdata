@@ -1,5 +1,6 @@
 package io.tapdata.bigquery.service.stream.v2;
 
+import io.tapdata.bigquery.entity.ContextConfig;
 import io.tapdata.bigquery.service.bigQuery.BigQueryResult;
 import io.tapdata.bigquery.service.bigQuery.BigQueryStart;
 import io.tapdata.bigquery.service.bigQuery.TableCreate;
@@ -133,6 +134,7 @@ public class MergeHandel extends BigQueryStart {
             return table;
         }
         this.createSchema(table,tableId);
+        StateMapOperator.operator((TapConnectorContext) connectorContext).save(ContextConfig.TEMP_CURSOR_SCHEMA_NAME,tableId);
         return table;
     }
 

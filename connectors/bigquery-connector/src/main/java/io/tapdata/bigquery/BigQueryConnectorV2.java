@@ -77,12 +77,11 @@ public class BigQueryConnectorV2 extends ConnectorBase {
             });
             ContextConfig config =this.writeRecord.config();
             this.stream = (BigQueryStream) BigQueryStream.streamWrite(context).paperStart(this.writeRecord);
-            if (Objects.nonNull(config) && config.isMixedUpdates()) {
-                this.merge = ((MergeHandel)MergeHandel.merge(connectionContext).paperStart(writeRecord))
-                        .running(this.running)
-                        .mergeDelaySeconds(config.mergeDelay());
-                this.stream.merge(this.merge);
-            }
+            this.merge = ((MergeHandel)MergeHandel.merge(connectionContext).paperStart(writeRecord))
+                    .running(this.running)
+                    .mergeDelaySeconds(config.mergeDelay());
+            this.stream.merge(this.merge);
+
         }
     }
 
@@ -114,40 +113,36 @@ public class BigQueryConnectorV2 extends ConnectorBase {
     }
 
     private void release(TapConnectorContext context) {
-
         KVMap<Object> stateMap = context.getStateMap();
         Object temporaryTable = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
         if (Objects.nonNull(temporaryTable)) {
-            merge = (MergeHandel) MergeHandel.merge(context).autoStart();
-            //清除临时表
-            if (Objects.nonNull(merge.config()) && Objects.nonNull(this.merge.config().tempCursorSchema())) {
-                if (Objects.nonNull(tableId) && !"".equals(tableId.trim())) {
-                    try {
-                        merge.mainTable(table(tableId)).mergeTableOnce();
-                    } catch (Exception e) {
-                        throw new CoreException(String.format(" The temporary table is removed during the reset operation. Moving out and merging the remaining data failed. Temporary table name:%s, target table name:%s. ", tableId, this.merge.config().tempCursorSchema()));
-                    }
-                }
-                this.merge.dropTemporaryTable();
+            this.merge = (MergeHandel) MergeHandel.merge(context).autoStart();
+            //删除临时表
+            try {
+                this.merge.dropTemporaryTable(String.valueOf(temporaryTable));
                 this.merge.config().tempCursorSchema(null);
                 stateMap.put(ContextConfig.TEMP_CURSOR_SCHEMA_NAME,null);
+            }catch (Exception e){
+                TapLogger.warn(TAG," Temporary table cannot be drop temporarily. Details: "+e.getMessage());
             }
         }
     }
 
     private void dropTable(TapConnectorContext context, TapDropTableEvent dropTableEvent) {
-        boolean drop = false;
-        if (drop) {
-            this.tableCreate.dropTable(dropTableEvent);
-        }
+        this.tableCreate.dropTable(dropTableEvent);
     }
 
     private void clearTable(TapConnectorContext connectorContext, TapClearTableEvent clearTableEvent) {
-        boolean clean = false;
-        if (clean) {
+        try {
             this.tableCreate.cleanTable(clearTableEvent);
-            if (Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()) {
+        }catch (Exception e){
+            TapLogger.warn(TAG," Table data cannot be cleared temporarily. Details: " + e.getMessage());
+        }
+        if (Objects.nonNull(this.merge)) {
+            try {
                 this.merge.cleanTemporaryTable();
+            }catch (Exception e){
+                TapLogger.warn(TAG," Temporary table data cannot be cleared temporarily. Details: "+e.getMessage());
             }
         }
     }

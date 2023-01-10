@@ -1,6 +1,7 @@
 package io.tapdata.bigquery.service.stream.v2;
 
 import com.google.protobuf.Descriptors;
+import io.tapdata.bigquery.entity.ContextConfig;
 import io.tapdata.bigquery.service.bigQuery.BigQueryStart;
 import io.tapdata.bigquery.service.stream.WriteCommittedStream;
 import io.tapdata.entity.error.CoreException;
@@ -23,6 +24,7 @@ public class BigQueryStream extends BigQueryStart {
     private TapTable tapTable;
     private MergeHandel merge;
     private StateMapOperator stateMap;
+    private String tempTableName;
 
     public BigQueryStream stateMap(TapConnectionContext connectorContext) {
         if (!(connectorContext instanceof TapConnectorContext)) {
@@ -123,7 +125,14 @@ public class BigQueryStream extends BigQueryStart {
             this.merge.mergeTemporaryTableToMainTable(table, delay);
         }
         if (!eventAfter.mixedAndAppendData().isEmpty()) {
-            this.createWriteCommittedStream(this.merge.config().tempCursorSchema());
+            if (Objects.isNull(this.tempTableName)) {
+                Object tableName = this.stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
+                if (Objects.isNull(tableName)) {
+                    throw new CoreException(" Coding error: The temporary table was not created or the temporary table name was not saved successfully. Please check the code implementation. ");
+                }
+                this.tempTableName = String.valueOf(tableName);
+            }
+            this.createWriteCommittedStream(this.tempTableName);
             this.stream.appendJSON(eventAfter.mixedAndAppendData());
             this.stream.close();
             Optional.ofNullable(eventAfter.mergeKeyId()).ifPresent(e -> this.stateMap.save(MergeHandel.MERGE_KEY_ID, e));
@@ -142,7 +151,7 @@ public class BigQueryStream extends BigQueryStart {
         private long insert;
         private long update;
         private long delete;
-        private boolean isAppend;
+        private boolean isAppend = true;
         private final List<Map<String, Object>> appendData = new ArrayList<>();
         private final List<Map<String, Object>> mixedAndAppendData = new ArrayList<>();
         private Object mergeKeyId;
@@ -194,7 +203,6 @@ public class BigQueryStream extends BigQueryStart {
                     if (this.isAppend) {
                         this.isAppend = false;
                         this.streamToBatchTime = System.nanoTime();
-                        //Optional.of(event.getReferenceTime()).orElse(System.nanoTime());
                     }
                     if (event instanceof TapUpdateRecordEvent) {
                         this.update++;
