@@ -14,6 +14,7 @@ import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -22,9 +23,7 @@ import java.math.RoundingMode;
 import java.text.MessageFormat;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 @Component("modelProcessStrategy")
 @Setter(onMethod_ = {@Autowired})
@@ -49,7 +48,13 @@ public class ModelProcessStrategyImpl implements DagLogStrategy {
                 if (CollectionUtils.isNotEmpty(metaInstances)) {
                     total = metaInstances.stream()
                             .map(MetadataInstancesDto::getOriginalName)
-                            .filter(originalName -> Pattern.matches(sourceNode.getExpression(), originalName))
+                            .filter(originalName -> {
+                                if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
+                                    return false;
+                                } else {
+                                    return Pattern.matches(sourceNode.getTableExpression(), originalName);
+                                }
+                            })
                             .count();
                 }
             } else {

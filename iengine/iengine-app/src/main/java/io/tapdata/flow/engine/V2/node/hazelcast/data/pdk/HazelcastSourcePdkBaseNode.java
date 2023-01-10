@@ -66,6 +66,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -170,8 +171,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (needDynamicTable(null)) {
 				this.newTables = new CopyOnWriteArrayList<>();
 				this.removeTables = new CopyOnWriteArrayList<>();
+
+				Predicate<String> dynamicTableFilter = t -> ReUtil.isMatch(((DatabaseNode) node).getTableExpression(), t);
 				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(),
-						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn());
+						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn(), dynamicTableFilter);
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
@@ -185,10 +188,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (node instanceof DatabaseNode) {
 			String migrateTableSelectType = ((DatabaseNode) node).getMigrateTableSelectType();
 			if (StringUtils.isBlank(migrateTableSelectType) || !"expression".equals(migrateTableSelectType)) {
-				return false;
-			}
-			Boolean enableDynamicTable = ((DatabaseNode) node).getEnableDynamicTable();
-			if (null == enableDynamicTable || !enableDynamicTable) {
 				return false;
 			}
 			if (syncType.equals(SyncTypeEnum.INITIAL_SYNC)) {
