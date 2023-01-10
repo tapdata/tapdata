@@ -32,7 +32,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 public class MergeHandel extends BigQueryStart {
     private static final String TAG = MergeHandel.class.getSimpleName();
-    public static final Long FIRST_MERGE_DELAY_SECOND = 31 * 60L ;
+    public static final Long FIRST_MERGE_DELAY_SECOND = 33 * 60L ;
 
     public static final String STREAM_TO_BATCH_TIME = "STREAM_TO_BATCH_TIME";
     public static final String MERGE_KEY_ID = "merge_id";
