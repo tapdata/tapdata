@@ -72,8 +72,13 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     private Integer rows;
 
-    // 复制任务 全部 or 自定义
+    // 复制任务 1.all 2.custom => 1.all => custom 2.expression
     private String migrateTableSelectType;
+
+    /**
+     * migrateTableSelectType=expression的正则表达式
+     */
+    private String tableExpression;
 
     public static final String SELF_TYPE = "database";
 

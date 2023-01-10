@@ -5,7 +5,6 @@ import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -25,7 +24,6 @@ import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
@@ -757,32 +755,11 @@ public class TaskController extends BaseController {
 
         DAG dag = taskDto.getDag();
         if (dag != null) {
-            List<Edge> edges = dag.getEdges();
-            String sourceNodeId = "";
-            String targetNodeId = "";
-            if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && CollectionUtils.isNotEmpty(edges)) {
-                sourceNodeId = edges.get(0).getSource();
-                targetNodeId = edges.get(edges.size() - 1).getTarget();
-            }
-
-            List<String> tableNames = Lists.newArrayList();
             List<Node> nodes = dag.getNodes();
             if (CollectionUtils.isNotEmpty(nodes)) {
                 for (Node node : nodes) {
                     if (node instanceof DatabaseNode) {
                         DatabaseNode databaseNode = ((DatabaseNode) node);
-                        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !StringUtils.equals("custom", databaseNode.getMigrateTableSelectType())) {
-                            if (databaseNode.getId().equals(sourceNodeId) && CollectionUtils.isEmpty(databaseNode.getTableNames())) {
-                                tableNames = metadataInstancesService.tables(databaseNode.getConnectionId(), SourceTypeEnum.SOURCE.name());
-                                databaseNode.setTableNames(tableNames);
-                            }
-                            if (databaseNode.getId().equals(targetNodeId) && CollectionUtils.isEmpty(databaseNode.getSyncObjects().get(0).getObjectNames())) {
-                                if (CollectionUtils.isEmpty(tableNames)) {
-                                    tableNames = metadataInstancesService.tables(databaseNode.getConnectionId(), SourceTypeEnum.SOURCE.name());
-                                }
-                                databaseNode.getSyncObjects().get(0).setObjectNames(tableNames);
-                            }
-                        }
 
                         if ("all".equals(taskDto.getRollback())) {
                             databaseNode.setFieldProcess(null);
