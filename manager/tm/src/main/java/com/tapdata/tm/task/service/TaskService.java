@@ -439,6 +439,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         DAG dag = taskDto.getDag();
+        if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getNodes())) {
+            return;
+        }
+
         dag.getNodes().forEach(node -> {
             if (node instanceof MigrateFieldRenameProcessorNode) {
                 MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) node;
