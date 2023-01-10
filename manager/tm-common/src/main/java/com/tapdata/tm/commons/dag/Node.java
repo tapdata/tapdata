@@ -76,8 +76,6 @@ public abstract class Node<S> extends Element{
 
     protected transient EventListener<S> listener;
 
-    private Integer batchSize;
-
 //    private String subTaskId;
 
     /**

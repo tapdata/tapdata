@@ -116,8 +116,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		this.updateMetadata = new ConcurrentHashMap<>();
 		this.removeMetadata = new CopyOnWriteArrayList<>();
 
-		this.targetBatch = Math.max(dataProcessorContext.getTaskDto().getWriteBatchSize(), DEFAULT_TARGET_BATCH);
-		this.targetBatchIntervalMs = Math.max(dataProcessorContext.getTaskDto().getWriteBatchWaitMs(), DEFAULT_TARGET_BATCH_INTERVAL_MS);
+		this.targetBatch = Math.max(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchSize(), DEFAULT_TARGET_BATCH);
+		this.targetBatchIntervalMs = Math.max(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchWaitMs(), DEFAULT_TARGET_BATCH_INTERVAL_MS);
 		logger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
 		obsLogger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
 		logger.info("Target node {}[{}] batch max wait interval ms: {}", getNode().getName(), getNode().getId(), targetBatchIntervalMs);

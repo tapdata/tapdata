@@ -58,7 +58,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	protected TapLogger.LogListener logListener;
 	private List<PDKMethodInvoker> pdkMethodInvokerList = new ArrayList<>();
 
-	protected Integer batchSize = 100;
+	protected Integer readBatchSize;
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -66,10 +66,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 		}
-		Node<?> node = dataProcessorContext.getNode();
-		if (node instanceof DataParentNode && ((DataParentNode) node).getBatchSize() != null) {
-			this.batchSize = ((DataParentNode) node).getBatchSize();
-		}
+		this.readBatchSize = Math.max(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize(), 100);
 		logListener = new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {

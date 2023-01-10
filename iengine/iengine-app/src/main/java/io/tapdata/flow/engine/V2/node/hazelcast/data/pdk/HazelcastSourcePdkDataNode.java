@@ -184,7 +184,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 							executeDataFuncAspect(
 									BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
-											.eventBatchSize(batchSize)
+											.eventBatchSize(readBatchSize)
 											.connectorContext(getConnectorNode().getConnectorContext())
 											.offsetState(tableOffset)
 											.dataProcessorContext(this.getDataProcessorContext())
@@ -237,10 +237,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	}
 																});
 															} else {
-																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, batchSize, consumer);
+																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 															}
 														} else {
-															batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, batchSize, consumer);
+															batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 														}
 													}
 											)
