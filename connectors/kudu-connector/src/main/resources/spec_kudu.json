@@ -1,0 +1,160 @@
+{
+  "properties": {
+    "name": "KuDu",
+    "icon": "icons/kudu.png",
+    "doc": "${doc}",
+    "id": "kudu"
+  },
+  "configOptions": {
+    "capabilities": [
+      {
+        "id": "dml_insert_policy",
+        "alternatives": [
+          "update_on_exists",
+          "ignore_on_exists"
+        ]
+      },
+      {
+        "id": "dml_update_policy",
+        "alternatives": [
+          "ignore_on_nonexists",
+          "insert_on_nonexists"
+        ]
+      },
+      {
+        "id": "api_server_supported"
+      }
+    ],
+    "connection": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "required": true,
+          "type": "string",
+          "title": "${host}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 1
+        },
+        "port": {
+          "required": true,
+          "type": "string",
+          "title": "${port}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_port",
+          "x-index": 2
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/kudu_en_US.md",
+      "host": "FE Host",
+      "port": "JDBC Port"
+    },
+    "zh_CN": {
+      "doc": "docs/kudu_zh_CN.md",
+      "host": "FE地址",
+      "port": "JDBC端口"
+    },
+    "zh_TW": {
+      "doc": "docs/kudu_zh_TW.md",
+      "host": "FE地址",
+      "port": "JDBC端口"
+    }
+  },
+  "dataTypes": {
+    "boolean": {
+      "to": "TapBoolean"
+    },
+    "int8": {
+      "to": "TapNumber",
+      "bit": 8,
+      "value": [
+        -128,
+        127
+      ],
+      "precision": 3
+    },
+    "int16": {
+      "to": "TapNumber",
+      "bit": 16,
+      "value": [
+        -32768,
+        32767
+      ],
+      "precision": 5
+    },
+    "int32": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        -2147483648,
+        2147483647
+      ]
+    },
+    "int64": {
+      "to": "TapNumber",
+      "bit": 64,
+      "precision": 19,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ]
+    },
+    "timestamp": {
+      "to": "TapDateTime",
+      "range": [
+        "1970-01-01 00:00:01.000000",
+        "2038-01-19 03:14:07.999999"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
+      "fraction": 6,
+      "withTimeZone": true
+    },
+    "float": {
+      "to": "TapNumber",
+      "precision": [
+        1,
+        30
+      ],
+      "scale": [
+        0,
+        30
+      ],
+      "value": [
+        "-3.402823466E+38",
+        "3.402823466E+38"
+      ],
+      "fixed": false
+    },
+    "double": {
+      "to": "TapNumber",
+      "precision": [
+        1,
+        255
+      ],
+      "scale": [
+        0,
+        30
+      ],
+      "value": [
+        "-1.7976931348623157E+308",
+        "1.7976931348623157E+308"
+      ],
+      "unsigned": "unsigned",
+      "fixed": false
+    },
+    "string": {
+      "to": "TapString"
+    },
+    "binary": {
+      "to": "TapBinary"
+    }
+  }
+}
