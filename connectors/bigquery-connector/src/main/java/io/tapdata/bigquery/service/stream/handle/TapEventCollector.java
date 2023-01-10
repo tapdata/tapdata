@@ -116,16 +116,16 @@ public class TapEventCollector {
         }
     }
 
-    public void addTapEvents(List<TapRecordEvent> eventList,TapTable table,boolean isMixedUpdates) {
+    public void addTapEvents(List<TapRecordEvent> eventList,TapTable table) {
         if (eventList != null && !eventList.isEmpty()) {
-            this.transform(eventList, table, isMixedUpdates);
+            this.transform(eventList, table);
             this.events.addAll(eventList);
         }
         this.touch = System.currentTimeMillis();
         tryUpload(this.events.size() > this.maxRecords);
     }
 
-    private void transform(List<TapRecordEvent> eventList,TapTable table,boolean isMixedUpdates){
+    private void transform(List<TapRecordEvent> eventList,TapTable table){
         //if (!isMixedUpdates) return;
         LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
         if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {

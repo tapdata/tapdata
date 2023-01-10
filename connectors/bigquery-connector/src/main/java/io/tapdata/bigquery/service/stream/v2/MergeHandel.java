@@ -1,6 +1,5 @@
-package io.tapdata.bigquery.service.stream.handle;
+package io.tapdata.bigquery.service.stream.v2;
 
-import io.tapdata.bigquery.entity.ContextConfig;
 import io.tapdata.bigquery.service.bigQuery.BigQueryResult;
 import io.tapdata.bigquery.service.bigQuery.BigQueryStart;
 import io.tapdata.bigquery.service.bigQuery.TableCreate;
@@ -32,7 +31,9 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 public class MergeHandel extends BigQueryStart {
     private static final String TAG = MergeHandel.class.getSimpleName();
+    public static final Long FIRST_MERGE_DELAY_SECOND = 31 * 60L ;
 
+    public static final String STREAM_TO_BATCH_TIME = "STREAM_TO_BATCH_TIME";
     public static final String MERGE_KEY_ID = "merge_id";
     public static final String MERGE_KEY_ID_LAST = "merge_id_last";
     public static final String MERGE_KEY_TYPE = "merge_type";
@@ -66,7 +67,7 @@ public class MergeHandel extends BigQueryStart {
                     "   UPDATE SET %s "; //username = tab.username, change_id = tab.change_id
 
     private final Object mergeLock = new Object();
-    private long mergeDelaySeconds = ContextConfig.MERGE_DELAY_DEFAULT;
+    private long mergeDelaySeconds = 2*60*60;
     private AtomicBoolean running = new AtomicBoolean(false);
 
     private ScheduledFuture<?> future;
@@ -154,7 +155,7 @@ public class MergeHandel extends BigQueryStart {
             throw new CoreException("Tap table is null or empty.");
         }
         LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
-        if (io.tapdata.bigquery.util.tool.Checker.isEmptyCollection(nameFieldMap)){
+        if (Checker.isEmptyCollection(nameFieldMap)){
             throw new CoreException("Tap table schema null or empty.");
         }
         String tableSetName = "`"+tableSet+"`.`"+tableId+"`";
@@ -176,7 +177,7 @@ public class MergeHandel extends BigQueryStart {
                     .append(dataType.toUpperCase());
             //DEFAULT
             String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
-            if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(defaultValue)) {
+            if (Checker.isNotEmpty(defaultValue)) {
                 if(defaultValue.contains("'")){
                     defaultValue = defaultValue.replaceAll( "'", "\\'");
                 }
@@ -189,7 +190,7 @@ public class MergeHandel extends BigQueryStart {
             // comment
             String comment = tapField.getComment();
             structSql.append(" OPTIONS (");
-            if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(comment)) {
+            if (Checker.isNotEmpty(comment)) {
                 comment = comment.replaceAll("'", "\\'");
                 structSql.append(" description = '").append( comment).append("' ");
             }
@@ -204,11 +205,11 @@ public class MergeHandel extends BigQueryStart {
         String comment = table.getComment();
         sql.append(" ) ");
         String collateSpecification = "";//默认排序规则
-        if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(collateSpecification)){
+        if (Checker.isNotEmpty(collateSpecification)){
             sql.append(" DEFAULT COLLATE ").append(collateSpecification).append(" ");
         }
         sql.append(" OPTIONS ( ");
-        if (io.tapdata.bigquery.util.tool.Checker.isNotEmpty(comment)) {
+        if (Checker.isNotEmpty(comment)) {
             comment = comment.replaceAll("'", "\\'");
             sql.append(" description = '").append(comment).append("' ");
         }
@@ -219,39 +220,40 @@ public class MergeHandel extends BigQueryStart {
         }
     }
 
-    public List<TapRecordEvent> temporaryEvent(List<TapRecordEvent> eventList){
+    public List<TapRecordEvent> temporaryEvents(List<TapRecordEvent> eventList){
         List<TapRecordEvent> insertRecordEvent = new ArrayList<>();
-        for (TapRecordEvent event : eventList) {
-            TapInsertRecordEvent insert ;
-            Map<String,Object> after = new HashMap<>();
-            if (event instanceof TapInsertRecordEvent){
-                TapInsertRecordEvent recordEvent = (TapInsertRecordEvent) event;
-                after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_INSERT);
-                after.put(MergeHandel.MERGE_KEY_DATA_AFTER, recordEvent.getAfter());
-            }else if (event instanceof TapUpdateRecordEvent){
-                TapUpdateRecordEvent recordEvent = (TapUpdateRecordEvent) event;
-                after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_UPDATE);
-                after.put(MergeHandel.MERGE_KEY_DATA_BEFORE, recordEvent.getBefore());
-                after.put(MergeHandel.MERGE_KEY_DATA_AFTER, recordEvent.getAfter());
-
-            }else if (event instanceof TapDeleteRecordEvent){
-                TapDeleteRecordEvent recordEvent = (TapDeleteRecordEvent) event;
-                after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_DELETE);
-                after.put(MergeHandel.MERGE_KEY_DATA_BEFORE, recordEvent.getBefore());
-            }else {
-                continue;
-            }
-            long nanoTime = System.nanoTime();
-            after.put(MergeHandel.MERGE_KEY_ID, nanoTime);
-            after.put(MergeHandel.MERGE_KEY_EVENT_TIME, event.getReferenceTime());
-            after.put(MergeHandel.MERGE_KEY_TABLE_ID, event.getTableId());
-            insert = new TapInsertRecordEvent();
-            insert.after(after);
-            insert.referenceTime(event.getReferenceTime());
-            insert.setTableId(super.config().tempCursorSchema());
-            insertRecordEvent.add(insert);
-        }
+        eventList.stream().filter(Objects::nonNull).forEach(event->Optional.ofNullable(this.temporaryEvent(event)).ifPresent(insertRecordEvent::add));
         return insertRecordEvent;
+    }
+    public TapInsertRecordEvent temporaryEvent(TapRecordEvent event){
+        TapInsertRecordEvent insert ;
+        Map<String,Object> after = new HashMap<>();
+        if (event instanceof TapInsertRecordEvent){
+            TapInsertRecordEvent recordEvent = (TapInsertRecordEvent) event;
+            after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_INSERT);
+            after.put(MergeHandel.MERGE_KEY_DATA_AFTER, recordEvent.getAfter());
+        }else if (event instanceof TapUpdateRecordEvent){
+            TapUpdateRecordEvent recordEvent = (TapUpdateRecordEvent) event;
+            after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_UPDATE);
+            after.put(MergeHandel.MERGE_KEY_DATA_BEFORE, recordEvent.getBefore());
+            after.put(MergeHandel.MERGE_KEY_DATA_AFTER, recordEvent.getAfter());
+
+        }else if (event instanceof TapDeleteRecordEvent){
+            TapDeleteRecordEvent recordEvent = (TapDeleteRecordEvent) event;
+            after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_DELETE);
+            after.put(MergeHandel.MERGE_KEY_DATA_BEFORE, recordEvent.getBefore());
+        }else {
+            return null;
+        }
+        long nanoTime = System.nanoTime();
+        after.put(MergeHandel.MERGE_KEY_ID, nanoTime);
+        after.put(MergeHandel.MERGE_KEY_EVENT_TIME, event.getReferenceTime());
+        after.put(MergeHandel.MERGE_KEY_TABLE_ID, event.getTableId());
+        insert = new TapInsertRecordEvent();
+        insert.after(after);
+        insert.referenceTime(event.getReferenceTime());
+        insert.setTableId(super.config().tempCursorSchema());
+        return insert;
     }
 
     /**
@@ -313,6 +315,9 @@ public class MergeHandel extends BigQueryStart {
      * 合并零时表到主表 - 混合模式
      * */
     public void mergeTemporaryTableToMainTable(TapTable mainTable){
+        this.mergeTemporaryTableToMainTable(mainTable, 300);
+    }
+    public void mergeTemporaryTableToMainTable(TapTable mainTable, long delay){
         if (Objects.isNull(mainTable)){
             throw new CoreException("TableTable must not be null or not be empty.");
         }
@@ -326,7 +331,7 @@ public class MergeHandel extends BigQueryStart {
                         TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
                     }
                 }
-            }, 60, this.mergeDelaySeconds, TimeUnit.SECONDS);
+            }, delay, this.mergeDelaySeconds, TimeUnit.SECONDS);
         }
     }
 

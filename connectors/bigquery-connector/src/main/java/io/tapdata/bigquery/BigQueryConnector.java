@@ -45,7 +45,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-@TapConnectorClass("spec.json")
+//@TapConnectorClass("spec.json")
 public class BigQueryConnector extends ConnectorBase {
 	private static final String TAG = BigQueryConnector.class.getSimpleName();
 	private static final int STREAM_SIZE = 30000;
@@ -194,7 +194,7 @@ public class BigQueryConnector extends ConnectorBase {
 				}
 			}
 		}
-		this.tapEventCollector.addTapEvents(events,table,this.writeRecord.config().isMixedUpdates());
+		this.tapEventCollector.addTapEvents(events,table);
 	}
 
 	/**
