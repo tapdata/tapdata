@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.impl;
 
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -75,7 +76,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             DatabaseNode sourceNode = dag.getSourceNode().getFirst();
             List<String> tableNames = sourceNode.getTableNames();
-            if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
+            if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
                 String connectionId = sourceNode.getConnectionId();
                 List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
                 if (CollectionUtils.isNotEmpty(metaList)) {
@@ -89,6 +90,9 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                                 }
                             })
                             .collect(Collectors.toList());
+                    if (CollectionUtils.isEmpty(collect)) {
+                        throw new BizException("DAG.MigrateTaskNotContainsTable");
+                    }
                     sourceNode.setTableNames(collect);
                 }
             }

@@ -147,7 +147,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
         DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode(nodeId) : null;
         List<String> tableNames = sourceNode.getTableNames();
-        if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
+        if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
             List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail, taskId);
             if (CollectionUtils.isEmpty(metaInstances)) {
                 metaInstances = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(), null, userDetail);
