@@ -71,10 +71,13 @@ public abstract class DataParentNode<S> extends Node<S> {
     /** 目标节点配置字段修改规则 */
     private List<FieldChangeRule> fieldChangeRules;
 
-    private Integer readBatchSize;
+    @EqField
+    private Integer readBatchSize = 500;
+    @EqField
     private Integer writeBatchSize;
 
     /** 写入每批最大等待时间 */
+    @EqField
     private Long writeBatchWaitMs;
     /**
      * constructor for node

@@ -66,7 +66,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 		}
-		this.readBatchSize = Math.max(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize(), 100);
+		this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(100);
 		logListener = new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {

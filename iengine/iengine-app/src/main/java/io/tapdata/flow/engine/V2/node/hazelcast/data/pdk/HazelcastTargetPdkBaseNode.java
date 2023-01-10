@@ -59,7 +59,7 @@ import java.util.function.Consumer;
  **/
 public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
-	public static final int DEFAULT_TARGET_BATCH_INTERVAL_MS = 3000;
+	public static final long DEFAULT_TARGET_BATCH_INTERVAL_MS = 3000;
 	public static final int DEFAULT_TARGET_BATCH = 2000;
 	private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
@@ -116,8 +116,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		this.updateMetadata = new ConcurrentHashMap<>();
 		this.removeMetadata = new CopyOnWriteArrayList<>();
 
-		this.targetBatch = Math.max(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchSize(), DEFAULT_TARGET_BATCH);
-		this.targetBatchIntervalMs = Math.max(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchWaitMs(), DEFAULT_TARGET_BATCH_INTERVAL_MS);
+		this.targetBatch = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchSize()).orElse(DEFAULT_TARGET_BATCH);
+		this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
 		logger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
 		obsLogger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
 		logger.info("Target node {}[{}] batch max wait interval ms: {}", getNode().getName(), getNode().getId(), targetBatchIntervalMs);
