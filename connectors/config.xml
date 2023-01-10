@@ -158,10 +158,10 @@
               <command>jenkins-slave</command>
               <args>${computer.jnlpmac} ${computer.name}</args>
               <ttyEnabled>false</ttyEnabled>
-              <resourceRequestCpu>5000m</resourceRequestCpu>
+              <resourceRequestCpu>4000m</resourceRequestCpu>
               <resourceRequestMemory>8000Mi</resourceRequestMemory>
               <resourceRequestEphemeralStorage></resourceRequestEphemeralStorage>
-              <resourceLimitCpu>5000m</resourceLimitCpu>
+              <resourceLimitCpu>4000m</resourceLimitCpu>
               <resourceLimitMemory>8000Mi</resourceLimitMemory>
               <resourceLimitEphemeralStorage></resourceLimitEphemeralStorage>
               <envVars/>
