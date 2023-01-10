@@ -20,12 +20,15 @@ public abstract class BigQueryStart {
     protected ContextConfig config;
     protected TapConnectionContext connectorContext;
     protected SqlMarker sqlMarker;
+    public ContextConfig config(){
+        return this.config;
+    }
 
     public BigQueryStart(TapConnectionContext connectorContext) {
         this.connectorContext = connectorContext;
     }
     public BigQueryStart autoStart(){
-        this.config = this.config();
+        this.config = this.contextConfig();
         this.sqlMarker = SqlMarker.create(this.config.serviceAccount());
         return this;
     }
@@ -38,7 +41,7 @@ public abstract class BigQueryStart {
         return this;
     }
 
-    public static ContextConfig config(TapConnectionContext connectorContext) {
+    public static ContextConfig contextConfig(TapConnectionContext connectorContext) {
         ContextConfig contextConfig = ContextConfig.create();
         if (null == connectorContext) return contextConfig;
         DataMap connectionConfig = connectorContext.getConnectionConfig();
@@ -59,7 +62,7 @@ public abstract class BigQueryStart {
         return contextConfig.serviceAccount(serviceAccount);
     }
 
-    public ContextConfig config() {
+    public ContextConfig contextConfig() {
         ContextConfig contextConfig = ContextConfig.create();
         if (Objects.isNull(this.connectorContext)) return contextConfig;
         DataMap connectionConfig = this.connectorContext.getConnectionConfig();

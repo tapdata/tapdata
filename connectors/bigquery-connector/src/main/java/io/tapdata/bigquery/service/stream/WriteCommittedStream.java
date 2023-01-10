@@ -38,12 +38,12 @@ public class WriteCommittedStream {
     private String credentialsJson;
     private Offset streamOffset = Offset.offset();
     private BigQueryWriteClient client;
+    public BigQueryWriteClient client(){
+        return this.client;
+    }
 
     public WriteCommittedStream streamOffset(Offset streamOffset) {
-//        if (Objects.isNull(streamOffset)) {
-//            TapLogger.error(TAG, "Stream offset cannot be null.");
-//        }
-//        this.streamOffset = streamOffset;
+        this.streamOffset = streamOffset;
         return this;
     }
 
@@ -272,7 +272,6 @@ public class WriteCommittedStream {
                                 (storageException != null) ? storageException : new RuntimeException(throwable);
                     }
                 }
-                TapLogger.warn(TAG, "Warn: " + throwable.getMessage());
                 done();
                 throw new CoreException("Error: " + throwable.getMessage());
             }

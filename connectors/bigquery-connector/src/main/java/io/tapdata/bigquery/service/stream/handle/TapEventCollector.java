@@ -86,19 +86,19 @@ public class TapEventCollector {
                     } catch (Throwable throwable) {
                         TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
                     }
-                }, 1, 5, TimeUnit.SECONDS);
+                }, idleSeconds, 10, TimeUnit.SECONDS);
             }
         }
     }
 
     private synchronized void tryUpload(boolean forced) {
         if (!this.isUploading && this.pendingUploadEvents != null) {
-            TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
+            //TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
             uploadEvents();
         } else if ((this.pendingUploadEvents == null && !this.events.isEmpty()) && (forced || (this.touch != null && System.currentTimeMillis() - this.touch > this.idleSeconds * 1000L))) {
             this.pendingUploadEvents = this.events;
             this.events = new CopyOnWriteArrayList<>();
-            TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
+            //TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
             uploadEvents();
         }
     }

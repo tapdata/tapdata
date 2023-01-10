@@ -4,12 +4,17 @@ import com.google.protobuf.Descriptors;
 import io.tapdata.bigquery.entity.ContextConfig;
 import io.tapdata.bigquery.service.bigQuery.BigQueryStart;
 import io.tapdata.bigquery.service.stream.WriteCommittedStream;
+import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
+import io.tapdata.bigquery.util.bigQueryUtil.SqlValueConvert;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -21,10 +26,12 @@ public class BigQueryStream extends BigQueryStart {
     public static final String TAG = BigQueryStream.class.getSimpleName();
 
     private WriteCommittedStream stream;
+    private WriteCommittedStream batch;
     private TapTable tapTable;
     private MergeHandel merge;
     private StateMapOperator stateMap;
     private String tempTableName;
+    private final Object lock = new Object();
 
     public BigQueryStream stateMap(TapConnectionContext connectorContext) {
         if (!(connectorContext instanceof TapConnectorContext)) {
@@ -48,17 +55,32 @@ public class BigQueryStream extends BigQueryStart {
         return this;
     }
 
+    /**
+     * @deprecated
+     * */
     public BigQueryStream createWriteCommittedStream() throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
         String tableName = super.config.isMixedUpdates() ? super.config().tempCursorSchema() : this.tapTable.getName();
         return this.createWriteCommittedStream(tableName);
     }
 
     public BigQueryStream createWriteCommittedStream(String tableName) throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
-        this.stream = WriteCommittedStream.writer(
-                super.config().projectId(),
-                super.config().tableSet(),
-                tableName,
-                super.config().serviceAccount());
+        if (Objects.isNull(this.stream)) {
+            this.stream = WriteCommittedStream.writer(
+                    super.config().projectId(),
+                    super.config().tableSet(),
+                    tableName,
+                    super.config().serviceAccount());
+        }
+        return this;
+    }
+    public BigQueryStream createWriteCommittedBatch(String tableName) throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
+        if (Objects.isNull(this.batch)) {
+            this.batch = WriteCommittedStream.writer(
+                    super.config().projectId(),
+                    super.config().tableSet(),
+                    tableName,
+                    super.config().serviceAccount());
+        }
         return this;
     }
 
@@ -73,24 +95,30 @@ public class BigQueryStream extends BigQueryStart {
     public WriteListResult<TapRecordEvent> writeRecord(List<TapRecordEvent> events, TapTable table) throws InterruptedException, IOException, Descriptors.DescriptorValidationException {
         Long streamToBatchTime = this.stateMap.getLong(MergeHandel.STREAM_TO_BATCH_TIME);
         boolean needCreateTemporaryTable = Objects.isNull(streamToBatchTime);
-        EventAfter eventAfter = new EventAfter(streamToBatchTime);
+        Long mergeId = this.stateMap.getLong(MergeHandel.MERGE_KEY_ID);
+        EventAfter eventAfter = new EventAfter(streamToBatchTime)
+                .hasMerged(Objects.nonNull(mergeId))
+                .table(table);
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
         this.tapTable = table;
         eventAfter.convertData(events, this.merge);
         streamToBatchTime = Optional.ofNullable(streamToBatchTime).orElse(eventAfter.streamToBatchTime());
         if (!eventAfter.appendData().isEmpty()) {
-            this.createWriteCommittedStream(table.getId());
-            this.stream.append(eventAfter.appendData());
-            this.stream.close();
+            synchronized (this.lock) {
+                this.createWriteCommittedBatch(table.getId());
+                this.batch.append(eventAfter.appendData());
+            }
+            //this.batch.close();
         }
         if (!eventAfter.isAppend()) {
             // 创建临时表
             if (needCreateTemporaryTable) {
-                this.merge.createTemporaryTable(table, this.merge.config().tempCursorSchema());
+                String temporaryTableName = this.merge.config().tempCursorSchema();
+                this.merge.createTemporaryTable(table, temporaryTableName);
+                TapLogger.info(TAG,String.format(" The data has been written in stream mode,and will be written to a temporary table. A temporary table has been created for [ %s ] which name is: %s",table.getId(),temporaryTableName));
             }
             // 启动merge线程
-            Long mergeId = this.stateMap.getLong(MergeHandel.MERGE_KEY_ID);
-            long delay = MergeHandel.FIRST_MERGE_DELAY_SECOND;
+            long delay = MergeHandel.FIRST_MERGE_DELAY_SECOND * 1000000000L;
             long nowTime = System.nanoTime();
             //mergeId == null,判断此时为首次merge,延时31min
             if (Objects.isNull(mergeId)) {
@@ -122,7 +150,7 @@ public class BigQueryStream extends BigQueryStart {
                 long time = nowTime - mergeId;
                 delay = 10 + (time > delaySecond ? 0 : delaySecond - time);
             }
-            this.merge.mergeTemporaryTableToMainTable(table, delay);
+            this.merge.mergeTemporaryTableToMainTable(table, delay/1000000000L);
         }
         if (!eventAfter.mixedAndAppendData().isEmpty()) {
             if (Objects.isNull(this.tempTableName)) {
@@ -132,9 +160,11 @@ public class BigQueryStream extends BigQueryStart {
                 }
                 this.tempTableName = String.valueOf(tableName);
             }
-            this.createWriteCommittedStream(this.tempTableName);
-            this.stream.appendJSON(eventAfter.mixedAndAppendData());
-            this.stream.close();
+            synchronized (this.lock) {
+                this.createWriteCommittedStream(this.tempTableName);
+                this.stream.appendJSON(eventAfter.mixedAndAppendData());
+            }
+            //this.stream.close();
             Optional.ofNullable(eventAfter.mergeKeyId()).ifPresent(e -> this.stateMap.save(MergeHandel.MERGE_KEY_ID, e));
             Optional.ofNullable(eventAfter.streamToBatchTime()).ifPresent(e -> this.stateMap.save(MergeHandel.STREAM_TO_BATCH_TIME, e));
         }
@@ -144,7 +174,10 @@ public class BigQueryStream extends BigQueryStart {
     }
 
     public void closeStream() {
-        Optional.ofNullable(stream).ifPresent(WriteCommittedStream::close);
+        synchronized (this.lock){
+            Optional.ofNullable(stream).ifPresent(WriteCommittedStream::close);
+            Optional.ofNullable(batch).ifPresent(WriteCommittedStream::close);
+        }
     }
 
     public static class EventAfter {
@@ -156,6 +189,11 @@ public class BigQueryStream extends BigQueryStart {
         private final List<Map<String, Object>> mixedAndAppendData = new ArrayList<>();
         private Object mergeKeyId;
         public Long streamToBatchTime;
+        private TapTable table;
+        public EventAfter table(TapTable mainTable){
+            this.table = mainTable;
+            return this;
+        }
 
         public long insert() {
             return this.insert;
@@ -190,6 +228,10 @@ public class BigQueryStream extends BigQueryStart {
                 this.streamToBatchTime = streamToBatchTime;
                 this.isAppend = false;
             }
+        }
+        public EventAfter hasMerged(boolean hasMerged){
+            this.isAppend = !hasMerged;
+            return this;
         }
 
         public EventAfter convertData(List<TapRecordEvent> events, MergeHandel mergeHandel) {

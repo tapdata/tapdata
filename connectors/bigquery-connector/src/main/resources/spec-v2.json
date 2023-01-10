@@ -79,8 +79,8 @@
       "writeMode": "Write Mode",
       "mixedUpdates": "Mixed Updates",
       "appendOnly": "Append Only",
-      "cursorSchema": "Cursor schema name(Mandatory in mixed mode)",
-      "mergeDelay": " Data merge delay time (s,default: 3600s) "
+      "cursorSchema": "Cursor schema name prefix(default: temp_table)",
+      "mergeDelay": " Data merge delay time (s,default: 3600s， The first consolidation shall be carried out 30 minutes after the end of full volume ) "
     },
     "zh_CN": {
       "doc": "docs/bigquery_zh_CN.md",
@@ -89,8 +89,8 @@
       "writeMode": "写入模式",
       "mixedUpdates": "混合更新",
       "appendOnly": "仅插入",
-      "cursorSchema": "临时表名称(混合模式下必填)",
-      "mergeDelay": "数据合并延时时间(秒，默认：3600秒)"
+      "cursorSchema": "临时表前缀(默认：temp_table)",
+      "mergeDelay": "数据合并延时时间(秒，默认：3600秒，第一次合并在全量结束30min以后进行)"
     },
     "zh_TW": {
 
@@ -100,8 +100,8 @@
       "writeMode": "寫入模式",
       "mixedUpdates": "混合更新",
       "appendOnly": "僅插入",
-      "cursorSchema": "臨時表名稱（混合模式下必填）",
-      "mergeDelay": "數據合併延時時間（秒，默認：3600秒）"
+      "cursorSchema": "臨時表前缀(默認：temp_table)",
+      "mergeDelay": "數據合併延時時間（秒，默認：3600秒，第一次合并在全量结束30min以后进行）"
     }
   },
   "dataTypes": {

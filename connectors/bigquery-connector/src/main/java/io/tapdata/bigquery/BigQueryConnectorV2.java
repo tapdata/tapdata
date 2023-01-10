@@ -20,10 +20,7 @@ import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapArrayValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapValue;
-import io.tapdata.entity.schema.value.TapYearValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.cache.Entry;
 import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVMap;
@@ -42,6 +39,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -94,7 +92,7 @@ public class BigQueryConnectorV2 extends ConnectorBase {
         Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::stop);
         this.running.set(false);
         Optional.ofNullable(this.merge).ifPresent(MergeHandel::stop);
-        //Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
+        Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
     }
 
     @Override
@@ -103,6 +101,26 @@ public class BigQueryConnectorV2 extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapYearValue.class, "INT64", TapValue::getValue);
         codecRegistry.registerFromTapValue(TapMapValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
         codecRegistry.registerFromTapValue(TapArrayValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+//            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
+//                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+//            }
+            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
+        });
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
+//            if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
+//                tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+//            }
+            return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
+        });
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTimeStr());
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+//            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+//                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+//            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+
         connectorFunctions.supportWriteRecord(this::writeRecord)
                 .supportCommandCallbackFunction(this::command)
                 .supportCreateTableV2(this::createTableV2)
@@ -174,7 +192,7 @@ public class BigQueryConnectorV2 extends ConnectorBase {
         try {
             consumer.accept(this.stream.writeRecord(events, table));
         } catch (Exception e) {
-            TapLogger.error(TAG, e.getMessage());
+            TapLogger.error(TAG,e.getMessage());
         }
     }
     private void writeRecordStream(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
