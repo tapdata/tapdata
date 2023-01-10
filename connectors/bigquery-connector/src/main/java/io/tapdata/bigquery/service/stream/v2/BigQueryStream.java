@@ -64,23 +64,23 @@ public class BigQueryStream extends BigQueryStart {
     }
 
     public BigQueryStream createWriteCommittedStream(String tableName) throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
-        if (Objects.isNull(this.stream)) {
+//        if (Objects.isNull(this.stream)) {
             this.stream = WriteCommittedStream.writer(
                     super.config().projectId(),
                     super.config().tableSet(),
                     tableName,
                     super.config().serviceAccount());
-        }
+//        }
         return this;
     }
     public BigQueryStream createWriteCommittedBatch(String tableName) throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
-        if (Objects.isNull(this.batch)) {
+//        if (Objects.isNull(this.batch)) {
             this.batch = WriteCommittedStream.writer(
                     super.config().projectId(),
                     super.config().tableSet(),
                     tableName,
                     super.config().serviceAccount());
-        }
+//        }
         return this;
     }
 
@@ -107,6 +107,7 @@ public class BigQueryStream extends BigQueryStart {
             synchronized (this.lock) {
                 this.createWriteCommittedBatch(table.getId());
                 this.batch.append(eventAfter.appendData());
+                this.batch.close();
             }
             //this.batch.close();
         }
@@ -164,7 +165,6 @@ public class BigQueryStream extends BigQueryStart {
                 this.createWriteCommittedStream(this.tempTableName);
                 this.stream.appendJSON(eventAfter.mixedAndAppendData());
                 this.stream.close();
-                this.batch.close();
             }
             //this.stream.close();
             Optional.ofNullable(eventAfter.mergeKeyId()).ifPresent(e -> this.stateMap.save(MergeHandel.MERGE_KEY_ID, e));
