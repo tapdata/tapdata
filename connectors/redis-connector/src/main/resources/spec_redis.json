@@ -295,13 +295,13 @@
             }
           ]
         },
-        "valueTransferredString": {
-          "type": "string",
-          "title": "${valueTransferredString}",
+        "csvFormat": {
+          "type": "boolean",
+          "title": "${csvFormat}",
           "x-decorator": "FormItem",
-          "x-component": "Input",
+          "x-component": "Switch",
           "x-index": 8,
-          "default": "",
+          "default": true,
           "x-reactions": [
             {
               "dependencies": [".valueData"],
@@ -339,7 +339,7 @@
       "keyExpression": "Key expression",
       "valueData": "Value display",
       "valueJoinString": "Value join string",
-      "valueTransferredString": "Value transferred string",
+      "csvFormat": "Csv Format",
       "expireTime": "Expire time(second)",
       "resetExpire": "Reset expire time when updated",
       "prompt": "Add"
@@ -365,7 +365,7 @@
       "keyExpression": "键表达式",
       "valueData": "值显示",
       "valueJoinString": "值连接符",
-      "valueTransferredString": "转义字符",
+      "csvFormat": "Csv格式化",
       "expireTime": "有效时间（秒）",
       "resetExpire": "更新时重置有效时间",
       "prompt": "添加"
@@ -391,7 +391,7 @@
       "keyExpression": "鍵運算式",
       "valueData": "值顯示",
       "valueJoinString": "值連接符",
-      "valueTransferredString": "轉義字元",
+      "csvFormat": "Csv格式化",
       "expireTime": "有效時間（秒）",
       "resetExpire": "更新時重置有效時間",
       "prompt": "添加"
