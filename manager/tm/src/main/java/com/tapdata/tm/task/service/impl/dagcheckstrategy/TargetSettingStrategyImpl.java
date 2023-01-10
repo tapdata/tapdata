@@ -1,8 +1,11 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import cn.hutool.core.date.DateUtil;
-import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
@@ -11,15 +14,14 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.math.NumberUtils;
-import org.bson.types.ObjectId;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
 import java.util.Date;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 @Component("targetSettingStrategy")
 public class TargetSettingStrategyImpl implements DagLogStrategy {
@@ -28,45 +30,96 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
 
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
-        ObjectId taskId = taskDto.getId();
+        String taskId = taskDto.getId().toHexString();
         String current = DateUtil.now();
         Date now = new Date();
 
         List<TaskDagCheckLog> result = Lists.newArrayList();
-        Map<String, Integer> nameMap = Maps.newHashMap();
-        LinkedList<DatabaseNode> targetNode = taskDto.getDag().getTargetNode();
+        Set<String> nameSet = Sets.newHashSet();
+        DAG dag = taskDto.getDag();
 
-        if (CollectionUtils.isEmpty(targetNode)) {
+        if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getTargets())) {
             return null;
         }
 
-        targetNode.forEach(node -> {
+        String userId = userDetail.getUserId();
+        dag.getTargets().forEach(node -> {
             String name = node.getName();
+            String nodeId = node.getId();
+
+            DataParentNode dataParentNode = (DataParentNode) node;
+
+            if (StringUtils.isEmpty(name)) {
+                TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
+                        .grade(Level.ERROR).nodeId(nodeId)
+                        .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}节点名称为空。", dataParentNode.getDatabaseType()))
+                        .build();
+                log.setCreateAt(now);
+                log.setCreateUser(userId);
+                result.add(log);
+            }
+
+            if (StringUtils.isEmpty(dataParentNode.getConnectionId())) {
+                TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
+                        .grade(Level.ERROR).nodeId(nodeId)
+                        .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}未选择数据库。", name))
+                        .build();
+                log.setCreateAt(now);
+                log.setCreateUser(userId);
+                result.add(log);
+            }
+
+            List<String> tableNames;
+            if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+                DatabaseNode databaseNode = (DatabaseNode) node;
+                tableNames = databaseNode.getTableNames();
+            } else {
+                TableNode tableNode = (TableNode) node;
+                tableNames = Lists.newArrayList(tableNode.getTableName());
+                if (CollectionUtils.isEmpty(tableNode.getUpdateConditionFields())) {
+                    TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
+                            .grade(Level.ERROR).nodeId(nodeId)
+                            .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}更新条件字段未设置。", name))
+                            .build();
+                    log.setCreateAt(now);
+                    log.setCreateUser(userId);
+                    result.add(log);
+                }
+            }
+
+            if (CollectionUtils.isEmpty(tableNames)) {
+                TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
+                        .grade(Level.ERROR).nodeId(nodeId)
+                        .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}未选择表。", name))
+                        .build();
+                log.setCreateAt(now);
+                log.setCreateUser(userId);
+                result.add(log);
+            }
+
             Integer value;
             String template;
             Level grade;
-            if (nameMap.containsKey(name)) {
-                value = nameMap.get(name) + 1;
+            if (nameSet.contains(name)) {
                 template = templateEnum.getErrorTemplate();
                 grade = Level.ERROR;
             } else {
-                value = NumberUtils.INTEGER_ZERO;
                 template = templateEnum.getInfoTemplate();
                 grade = Level.INFO;
             }
-            nameMap.put(name, value);
+            nameSet.add(name);
 
             String content = MessageFormat.format(template, current, name);
 
-            TaskDagCheckLog log = new TaskDagCheckLog();
-            log.setTaskId(taskId.toHexString());
-            log.setCheckType(templateEnum.name());
-            log.setCreateAt(now);
-            log.setCreateUser(userDetail.getUserId());
-            log.setLog(content);
-            log.setGrade(grade);
-            log.setNodeId(node.getId());
+            TaskDagCheckLog log = TaskDagCheckLog.builder()
+                    .taskId(taskId)
+                    .checkType(templateEnum.name())
+                    .log(content)
+                    .grade(grade)
+                    .nodeId(nodeId).build();
 
+            log.setCreateAt(now);
+            log.setCreateUser(userId);
             result.add(log);
         });
 

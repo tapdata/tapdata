@@ -49,7 +49,7 @@ public class ModelProcessStrategyImpl implements DagLogStrategy {
                 if (CollectionUtils.isNotEmpty(metaInstances)) {
                     total = metaInstances.stream()
                             .map(MetadataInstancesDto::getOriginalName)
-                            .filter(originalName -> Pattern.matches(sourceNode.getExpression(), originalName))
+                            .filter(originalName -> Pattern.matches(sourceNode.getTableExpression(), originalName))
                             .count();
                 }
             } else {

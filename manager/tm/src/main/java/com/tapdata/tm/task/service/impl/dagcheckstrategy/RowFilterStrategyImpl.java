@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.RowFilterProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
@@ -19,13 +20,17 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
-@Component("jsSettingStrategy")
-public class JsSettingStrategyImpl implements DagLogStrategy {
+@Component("rowFilterStrategy")
+public class RowFilterStrategyImpl implements DagLogStrategy {
 
-    private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.JS_NODE_CHECK;
+    private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.ROW_FILTER_CHECK;
 
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+            return null;
+        }
+
         String taskId = taskDto.getId().toHexString();
 
         Date now = new Date();
@@ -38,7 +43,7 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
         }
 
         dag.getNodes().stream()
-                .filter(node -> node instanceof JsProcessorNode || node instanceof MigrateJsProcessorNode)
+                .filter(node -> node instanceof RowFilterProcessorNode)
                 .forEach(node -> {
                     String name = node.getName();
                     String nodeId = node.getId();
@@ -46,7 +51,17 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
                     if (StringUtils.isEmpty(name)) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log("$date【$taskName】【JavaScript节点设置检测】：JavaScript节点节点名称为空。")
+                                .log("$date【$taskName】【Row Filter节点设置检测】：Row Filter节点节点名称为空。")
+                                .build();
+                        log.setCreateAt(now);
+                        log.setCreateUser(userId);
+                        result.add(log);
+                    }
+
+                    if (StringUtils.isEmpty(((RowFilterProcessorNode) node).getExpression())) {
+                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
+                                .grade(Level.ERROR).nodeId(nodeId)
+                                .log(MessageFormat.format("$date【$taskName】【Row Filter节点设置检测】：Row Filter节点{0}条件表达式为空。", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -56,7 +71,7 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【字段编辑节点设置检测】：节点{0}检测通过", name))
+                                .log(MessageFormat.format("$date【$taskName】【Row Filter节点设置检测】：Row Filter节点{0}检测通过。", name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
