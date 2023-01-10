@@ -1,8 +1,9 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
-import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -43,30 +44,25 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 
         List<TaskDagCheckLog> result = Lists.newArrayList();
         Map<String, Integer> nameMap = Maps.newHashMap();
-        LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
+        DAG dag = taskDto.getDag();
 
-        if (CollectionUtils.isEmpty(sourceNode)) {
-            return Lists.newArrayList();
+        if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getNodes())) {
+            return null;
         }
 
-        sourceNode.forEach(node -> {
+        dag.getSources().forEach(node -> {
             String name = node.getName();
             Integer value;
-            String template;
-            Level grade;
             if (nameMap.containsKey(name)) {
                 value = nameMap.get(name) + 1;
-                template = templateEnum.getErrorTemplate();
-                grade = Level.ERROR;
 
-                String content = MessageFormat.format(template, name);
                 TaskDagCheckLog log = new TaskDagCheckLog();
                 log.setTaskId(taskId.toHexString());
                 log.setCheckType(templateEnum.name());
                 log.setCreateAt(now);
                 log.setCreateUser(userDetail.getUserId());
-                log.setLog(content);
-                log.setGrade(grade);
+                log.setLog(MessageFormat.format(templateEnum.getErrorTemplate(), name));
+                log.setGrade(Level.ERROR);
                 log.setNodeId(node.getId());
 
                 result.add(log);
@@ -76,7 +72,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             nameMap.put(name, value);
 
             // check schema
-            String connectionId = node.getConnectionId();
+            String connectionId = node instanceof DatabaseNode ? ((DatabaseNode) node).getConnectionId() : ((TableNode) node).getConnectionId();
             DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
             Optional.ofNullable(connectionDto).ifPresent(dto -> {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
@@ -108,8 +104,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
         });
 
         if (CollectionUtils.isEmpty(result)) {
-
-            sourceNode.forEach(node -> {
+            dag.getSources().forEach(node -> {
                 TaskDagCheckLog log = new TaskDagCheckLog();
                 String content = MessageFormat.format(templateEnum.getInfoTemplate(), node.getName());
                 log.setTaskId(taskId.toHexString());
@@ -118,7 +113,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 log.setCreateUser(userDetail.getUserId());
                 log.setLog(content);
                 log.setGrade(Level.INFO);
-                log.setNodeId(taskDto.getDag().getSourceNode().getFirst().getId());
+                log.setNodeId(node.getId());
 
                 result.add(log);
             });

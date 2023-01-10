@@ -40,12 +40,8 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
         }
 
         collect.forEach(node -> {
-
-            String template;
-            Level grade;
-
-            template = templateEnum.getInfoTemplate();
-            grade = Level.INFO;
+            String template = templateEnum.getInfoTemplate();
+            Level grade = Level.INFO;
 
             String content = MessageFormat.format(template, current, node.getName());
 
