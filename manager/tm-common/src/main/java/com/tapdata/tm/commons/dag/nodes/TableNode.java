@@ -155,7 +155,7 @@ public class TableNode extends DataNode {
     @EqField
     private Integer  limit;
 
-    /** 增量方式  cdc  polling */
+    /** 增量方式  logCdc  polling */
     private String cdcMode;
 
     /** 增量轮询指定字段名称 */
