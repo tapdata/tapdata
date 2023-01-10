@@ -4,15 +4,20 @@ package com.tapdata.tm.commons.dag.process;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -115,5 +120,46 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
 
         getSourceNode().stream().findFirst().ifPresent(node -> connectionId.set(node.getConnectionId()));
         return connectionId.get();
+    }
+
+
+    @Override
+    public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+        if (event instanceof TapCreateTableEvent) {
+            String tableName = event.getTableId();
+            TableRenameTableInfo tableInfo = new TableRenameTableInfo(tableName, tableName, convertTableName(tableName));
+            tableNames.add(tableInfo);
+        } else if (event instanceof TapDropTableEvent) {
+            String tableName = event.getTableId();
+            for (TableRenameTableInfo tableInfo : tableNames) {
+                if (tableInfo.getOriginTableName().equals(tableName)) {
+                    tableNames.remove(tableInfo);
+                    break;
+                }
+            }
+        }
+    }
+
+    private String convertTableName(String tableName) {
+        if (StringUtils.isNotBlank(prefix)) {
+            tableName = prefix + tableName;
+        }
+
+        if (StringUtils.isNotBlank(suffix)) {
+            tableName = tableName + suffix;
+        }
+
+        if (StringUtils.isNotBlank(replaceBefore) && replaceAfter != null) {
+            tableName = tableName.replace(replaceBefore, replaceAfter);
+        }
+
+        if (StringUtils.isNotBlank(transferCase)) {
+            if (transferCase.equals("UPPER")) {
+                tableName = tableName.toUpperCase(Locale.ROOT);
+            } else if (transferCase.equals("LOWER")) {
+                tableName = tableName.toLowerCase(Locale.ROOT);
+            }
+        }
+        return tableName;
     }
 }
