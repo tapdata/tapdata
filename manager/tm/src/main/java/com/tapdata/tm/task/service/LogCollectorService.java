@@ -101,7 +101,7 @@ public class LogCollectorService {
         query.skip(skip);
         query.limit(limit);
         MongoUtils.applySort(query, sort);
-        query.fields().include("status", "name", "createTime", "dag", "statuses", "attrs");
+        query.fields().include("status", "name", "createTime", "dag", "statuses", "attrs", "syncPoints");
 
         List<TaskDto> allDto = taskService.findAllDto(query, user);
         long count = taskService.count(new Query(criteria), user);
@@ -306,6 +306,10 @@ public class LogCollectorService {
 
         if (StringUtils.isNotBlank(logCollectorEditVo.getSyncTime())) {
             update.set("syncPoints.dateTime", logCollectorEditVo.getSyncTime());
+        }
+
+        if (CollectionUtils.isNotEmpty(logCollectorEditVo.getSyncPoints())) {
+            update.set("syncPoints", logCollectorEditVo.getSyncPoints());
         }
 
         taskService.updateById(objectId, update, user);
