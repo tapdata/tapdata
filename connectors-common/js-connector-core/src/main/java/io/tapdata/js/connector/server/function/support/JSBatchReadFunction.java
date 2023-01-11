@@ -48,14 +48,26 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
         if(Objects.isNull(table)){
             throw new CoreException("TapTable must not be null or not be empty.");
         }
+        if (Objects.isNull(offset)){
+            offset = new HashMap<>();
+        }
         ScriptEngine scriptEngine = javaScripter.scriptEngine();
         ScriptCore scriptCore = new ScriptCore(table.getId());
         scriptEngine.put("core", scriptCore);
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         BatchReadSender sender = new BatchReadSender().core(scriptCore);
+        final Object finalOffset = offset;
         Runnable runnable = () -> {
             try {
-                super.javaScripter.invoker(JSFunctionNames.BatchReadFunction.jsName(),context.getConfigContext(),context.getNodeConfig(),offset,table.getId(),batchCount,sender);
+                super.javaScripter.invoker(
+                        JSFunctionNames.BatchReadFunction.jsName(),
+                        context.getConfigContext(),
+                        context.getNodeConfig(),
+                        finalOffset,
+                        table.getId(),
+                        batchCount,
+                        sender
+                );
             } catch (Exception e) {
                 scriptException.set(e);
             }

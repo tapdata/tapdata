@@ -1,5 +1,6 @@
 package io.tapdata.js.connector.iengine;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.js.connector.JSConnector;
 
 import java.net.URL;
@@ -39,8 +40,8 @@ public class ScriptEngineInstance {
             ClassLoader classLoader = JSConnector.class.getClassLoader();
             Enumeration<URL> resources = classLoader.getResources(JS_FLOODER+"/");
             this.script.load(resources);
-        }catch (Exception ignored){
-
+        }catch (Exception error){
+            throw new CoreException(error.getMessage());
         }
     }
 }

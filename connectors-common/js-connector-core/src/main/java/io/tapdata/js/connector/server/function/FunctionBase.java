@@ -2,23 +2,25 @@ package io.tapdata.js.connector.server.function;
 
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 
-import java.util.Objects;
-
 public class FunctionBase {
     protected JSFunctionNames functionName;
     protected LoadJavaScripter javaScripter;
-    public boolean hasNotSupport(LoadJavaScripter javaScripter){
+
+    public boolean hasNotSupport(LoadJavaScripter javaScripter) {
         return !this.hasSupport(javaScripter);
     }
-    public boolean hasSupport(LoadJavaScripter javaScripter){
+
+    public boolean hasSupport(LoadJavaScripter javaScripter) {
         this.javaScripter = javaScripter;
         return this.javaScripter.functioned(functionName.jsName());
     }
-    public FunctionBase javaScripter(LoadJavaScripter javaScripter){
+
+    public FunctionBase javaScripter(LoadJavaScripter javaScripter) {
         this.javaScripter = javaScripter;
         return this;
     }
-    public LoadJavaScripter javaScripter(){
+
+    public LoadJavaScripter javaScripter() {
         return this.javaScripter;
     }
 }

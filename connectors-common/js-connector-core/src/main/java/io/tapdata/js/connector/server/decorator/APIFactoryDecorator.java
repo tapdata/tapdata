@@ -4,6 +4,7 @@ import io.tapdata.common.support.APIFactory;
 import io.tapdata.common.support.APIInvoker;
 import io.tapdata.common.support.APIResponseInterceptor;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.js.connector.base.CacheContext;
 import io.tapdata.js.utils.ScriptUtil;
 
 import java.io.IOException;

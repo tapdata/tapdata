@@ -22,6 +22,10 @@ public interface APIInvoker {
 		return this.invoke(uriOrName, method, params,false);
 	}
 
+	public default APIResponse invoke(String uriOrName, Map<String, Object> params){
+		return this.invoke(uriOrName,"POST", params,false);
+	}
+
 	public default APIResponse invoke(String uriOrName, String method){
 		return this.invoke(uriOrName, method, new HashMap<>(),false);
 	}

@@ -1,6 +1,7 @@
 package io.tapdata.js.connector.server.function.support;
 
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.js.connector.enums.JSTableKeys;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.iengine.ScriptEngineInstance;
@@ -42,8 +43,8 @@ public class BaseTableCountFunction extends FunctionBase {
             }
             return 0;
         }
-        if (this.javaScripter.functioned(functionName.jsName())){
-            TapLogger.info(TAG,"Not found 'discover_schema' which the implementation of a named function, cannot load and scan tables.");
+        if (!this.javaScripter.functioned(JSFunctionNames.DISCOVER_SCHEMA.jsName())){
+            TapLogger.info(TAG,"Not found 'discover_schema' which the implementation of a named function in js file [connector.js], cannot load and scan tables.");
             return 0;
         }
         Object invoker = this.javaScripter.invoker(JSFunctionNames.DISCOVER_SCHEMA.jsName(), connectionContext);
@@ -54,8 +55,14 @@ public class BaseTableCountFunction extends FunctionBase {
         Set<Map.Entry<String, Object>> discoverSchema = new HashSet<>();
         AtomicInteger tableNum = new AtomicInteger();
         try {
-            Map<String,Object> discoverSchemaMirror = fromJsonObject(String.valueOf(invoker));
-            discoverSchema = discoverSchemaMirror.entrySet();
+            if (invoker instanceof Map){
+                discoverSchema = ((Map<String,Object>)invoker).entrySet();
+            }else if (invoker instanceof Collection){
+                Collection<Object> tableCollection = (Collection<Object>) invoker;
+                tableNum.set(tableCollection.size());
+            }else {
+                tableNum.getAndIncrement();
+            }
         }catch (Exception e){
             tableNum.getAndIncrement();
         }

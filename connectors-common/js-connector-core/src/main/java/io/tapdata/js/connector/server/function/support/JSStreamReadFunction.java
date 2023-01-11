@@ -16,6 +16,7 @@ import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 
 import javax.script.ScriptEngine;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -46,16 +47,28 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
         if(Objects.isNull(tableList)){
             throw new CoreException("Table lists must not be null or not be empty.");
         }
+        if (Objects.isNull(offsetState)){
+            offsetState = new HashMap<>();
+        }
         ScriptCore scriptCore = new ScriptCore(tableList.get(0));
         AtomicReference<Object> contextMap = new AtomicReference<>(offsetState);
         ScriptEngine scriptEngine = javaScripter.scriptEngine();
         scriptEngine.put("core", scriptCore);
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         StreamReadSender sender = new StreamReadSender().core(scriptCore);
+        final Object finalOffset = offsetState;
         Runnable runnable = () -> {
             try {
                 while (this.isAlive.get()) {
-                    super.javaScripter.invoker(JSFunctionNames.StreamReadFunction.jsName(),nodeContext.getConfigContext(),nodeContext.getNodeConfig(),offsetState,tableList,recordSize,sender);
+                    super.javaScripter.invoker(
+                            JSFunctionNames.StreamReadFunction.jsName(),
+                            nodeContext.getConfigContext(),
+                            nodeContext.getNodeConfig(),
+                            finalOffset,
+                            tableList,
+                            recordSize,
+                            sender
+                    );
                     this.wait(5*60*1000);
                 }
             } catch (InterruptedException ignored) {

@@ -27,6 +27,8 @@ import static io.tapdata.base.ConnectorBase.fromJsonObject;
 //(3)Return detailed table information:
 // [{},{},['','',''],{}],list of tables , every item as a table info. if each item be list, the list must be table name(String) list.
 //The field has the following properties: type  |  default  |  nullable  |  isPrimaryKey  |  autoInc | comment
+//default, isPrimaryKey
+//String#byte, Number#value
 /**
  * [
  *    {
@@ -34,7 +36,8 @@ import static io.tapdata.base.ConnectorBase.fromJsonObject;
  *        "fields":{
  *            "key1":{
  *                type:"String",
- *                default:"111"
+ *                default:"111",
+ *                bytes: 150,
  *            },
  *            "key2":{
  *                type:"Number",
@@ -87,53 +90,56 @@ public class BaseDiscoverSchemaFunction extends FunctionBase {
         }
         List<TapTable> tables = new ArrayList<>();
         Set<Map.Entry<String, Object>> discoverSchema = new HashSet<>();
-        try {
-            Map<String,Object> discoverSchemaMirror = fromJsonObject(String.valueOf(invoker));
-            discoverSchema = discoverSchemaMirror.entrySet();
-        }catch (Exception e){
+        if (invoker instanceof Map){
+            discoverSchema = ((Map<String,Object>)invoker).entrySet();
+        }else if (invoker instanceof Collection){
+            Collection<Object> tableCollection = (Collection<Object>) invoker;
+            tableCollection.stream().filter(Objects::nonNull).forEach(tab-> this.covertTable(tables,tab));
+        }else {
             String tableId = String.valueOf(invoker);
             tables.add(new TapTable(tableId,tableId));
         }
         if (!discoverSchema.isEmpty()) {
-            discoverSchema.stream().filter(Objects::nonNull).forEach(entry -> {
-                Object entryValue = entry.getValue();
-                if (entryValue instanceof String){
-                    String table = (String)entryValue;
-                    tables.add(new TapTable(table,table));
-                }else if (entryValue instanceof Map){
-                    Map<String,Object> tableMap = (Map<String, Object>) entryValue;
-                    TapTable tapTable = new TapTable();
-                    Object tableIdObj = tableMap.get(JSTableKeys.TABLE_NAME);
-                    if (Objects.isNull(tableIdObj)){
-                        TapLogger.warn(TAG,"The declared table has no table name. Please assign a value to the 'name' field of the table.");
-                        return;
-                    }
-                    String tableId = (String)tableIdObj;
-                    Object tableCommentObj = tableMap.get(JSTableKeys.TABLE_COMMENT);
-
-                    Object fieldsMapObj = tableMap.get(JSTableKeys.TABLE_FIELD);
-                    if (Objects.isNull(fieldsMapObj)){
-                        TapLogger.warn(TAG,String.format("The declared table does not contain any field information. If necessary, please add field information to Table [%s].",tableId));
-                    }else {
-                        Map<String, Object> columnMap = (Map<String, Object>) fieldsMapObj;
-                        columnMap.entrySet().stream().filter(field ->
-                                Objects.nonNull(field) && Objects.nonNull(field.getKey())
-                        ).forEach(column -> tapTable.add(this.field(column)));
-                    }
-                    tapTable.setId(tableId);
-                    tapTable.setName(tableId);
-                    tapTable.setComment(Objects.isNull(tableCommentObj)?null:String.valueOf(tableCommentObj));
-                    tables.add(tapTable);
-                }else if(entryValue instanceof Collection){
-                    Collection<Object> collection = (Collection<Object>) entryValue;
-                    collection.stream().filter(Objects::nonNull).forEach(table->{
-                        String tableName = String.valueOf(table);
-                        tables.add(new TapTable(tableName,tableName));
-                    });
-                }
-            });
+            discoverSchema.stream().filter(Objects::nonNull).forEach(entry -> this.covertTable(tables,entry.getValue()));
         }
         consumer.accept(tables);
+    }
+
+    private void covertTable(List<TapTable> tables, Object value){
+        if (value instanceof String){
+            String table = (String)value;
+            tables.add(new TapTable(table,table));
+        }else if (value instanceof Map){
+            Map<String,Object> tableMap = (Map<String, Object>) value;
+            TapTable tapTable = new TapTable();
+            Object tableIdObj = tableMap.get(JSTableKeys.TABLE_NAME);
+            if (Objects.isNull(tableIdObj)){
+                TapLogger.warn(TAG,"The declared table has no table name. Please assign a value to the 'name' field of the table.");
+                return;
+            }
+            String tableId = (String)tableIdObj;
+            Object tableCommentObj = tableMap.get(JSTableKeys.TABLE_COMMENT);
+
+            Object fieldsMapObj = tableMap.get(JSTableKeys.TABLE_FIELD);
+            if (Objects.isNull(fieldsMapObj)){
+                TapLogger.warn(TAG,String.format("The declared table does not contain any field information. If necessary, please add field information to Table [%s].",tableId));
+            }else {
+                Map<String, Object> columnMap = (Map<String, Object>) fieldsMapObj;
+                columnMap.entrySet().stream().filter(field ->
+                        Objects.nonNull(field) && Objects.nonNull(field.getKey())
+                ).forEach(column -> tapTable.add(this.field(column)));
+            }
+            tapTable.setId(tableId);
+            tapTable.setName(tableId);
+            tapTable.setComment(Objects.isNull(tableCommentObj)?null:String.valueOf(tableCommentObj));
+            tables.add(tapTable);
+        }else if(value instanceof Collection){
+            Collection<Object> collection = (Collection<Object>) value;
+            collection.stream().filter(Objects::nonNull).forEach(table->{
+                String tableName = String.valueOf(table);
+                tables.add(new TapTable(tableName,tableName));
+            });
+        }
     }
 
     private TapField field(Map.Entry<String,Object> column){

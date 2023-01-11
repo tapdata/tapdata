@@ -6,6 +6,7 @@ public class APIResponse {
     private Map<String, Object> result;
     private Integer httpCode;
     private Map<String, Object> headers;
+    private Map<String,Object> error;
 
     public static APIResponse create(){
         return new APIResponse();
@@ -40,6 +41,13 @@ public class APIResponse {
     }
     public APIResponse headers(Map<String, Object> headers){
         this.headers = headers;
+        return this;
+    }
+    public Map<String,Object> error(){
+        return this.error;
+    }
+    public APIResponse error(Map<String, Object> error){
+        this.error = error;
         return this;
     }
 }

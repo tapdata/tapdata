@@ -4,9 +4,9 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.js.connector.base.Core;
 import io.tapdata.js.connector.base.ScriptCore;
 import io.tapdata.common.support.APISender;
+import io.tapdata.js.connector.iengine.LoadJavaScripter;
 
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class BatchReadSender implements APISender {
     private static final String TAG = BatchReadSender.class.getSimpleName();
@@ -18,17 +18,16 @@ public class BatchReadSender implements APISender {
     }
 
     @Override
-    public boolean send(List<Object> data, boolean hasNext, Object offsetState) {
+    public void send(Object data, Object offsetState) {
         if(Objects.isNull(core)){
             TapLogger.warn(TAG,"ScriptCore can not be null or not be empty.");
-            return false;
+            return ;
         }
-        core.push(data, Core.MESSAGE_OPERATION_INSERT,offsetState);
-        return hasNext;
+        core.push(this.covertList(data), Core.MESSAGE_OPERATION_INSERT,offsetState);
     }
 
     @Override
-    public boolean send(List<Object> data, boolean hasNext, Object offsetState, boolean cacheAgoRecord) {
-        return this.send(data, hasNext, offsetState);
+    public void send(Object data, Object offsetState, boolean cacheAgoRecord) {
+        this.send(data , offsetState);
     }
 }

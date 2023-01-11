@@ -3,10 +3,18 @@ package io.tapdata.js.connector.iengine;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.script.ScriptFactory;
+import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.js.connector.enums.Constants;
 
-import javax.script.*;
-import java.io.*;
+import javax.script.Bindings;
+import javax.script.Invocable;
+import javax.script.ScriptContext;
+import javax.script.ScriptEngine;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.util.*;
 import java.util.function.Function;
@@ -35,6 +43,8 @@ public class LoadJavaScripter {
 
     private String ENGINE_TYPE = GRAAL_ENGINE;
 
+    public static final String eval = "" +
+            "var tapAPI = Java.type(\"io.tapdata.js.connector.server.decorator.APIFactoryDecorator\");";
     //UnModify Map
     /**
      * @deprecated
@@ -65,9 +75,12 @@ public class LoadJavaScripter {
         return loadJavaScripter.params(jarFilePath, flooder).init();
     }
 
+    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class);
+
     public LoadJavaScripter init() {
-        ScriptEngineManager engineManager = new ScriptEngineManager();
-        this.scriptEngine = engineManager.getEngineByName(ENGINE_TYPE);//
+//        ScriptEngineManager engineManager = new ScriptEngineManager();
+//        this.scriptEngine = engineManager.getEngineByName(ENGINE_TYPE);//
+        this.scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(ENGINE_TYPE));
         //GraalJSEngineFactory graalJSEngineFactory = new GraalJSEngineFactory();
         //scriptEngine = graalJSEngineFactory.getScriptEngine();
 //        this.scriptEngine = new ConnectorScriptEngine(null);
@@ -90,9 +103,9 @@ public class LoadJavaScripter {
                 List<Map.Entry<InputStream, File>> files = javaScriptFiles(url);
                 for (Map.Entry<InputStream, File> file : files) {
                     String path = file.getValue().getPath().replaceAll("\\\\", "/");
-                    this.scriptEngine.eval(new FileReader(path));
+//                    this.scriptEngine.eval(new FileReader(path));
                     //this.scriptEngine.eval("onload('" + path + "');");
-                    //this.scriptEngine.eval("eval(load('" + path + "'))");
+                    this.scriptEngine.eval("load('" + path + "');");
                     //scriptEngine.eval("load('"+path+"');");
 
 //                    SimpleBindings simpleBindings = new SimpleBindings();
@@ -324,70 +337,55 @@ public class LoadJavaScripter {
 
     public Object invokerGraal(String functionName, Object... params) {
         if (Objects.isNull(functionName)) return null;
-        //AtomicReference<Throwable> scriptException = new AtomicReference<>();
         if (Objects.isNull(this.scriptEngine)) return null;
         Function<Object[], Object> polyglotMapAndFunction;
         try {
-            //Invocable invocable = (Invocable) this.scriptEngine;
-//            Object apply = invocable.invokeFunction(functionName, params);
-            polyglotMapAndFunction = (Function<Object[], Object>) this.scriptEngine.get(functionName);
-
-            Object apply = polyglotMapAndFunction.apply(params);
-            if (Objects.isNull(apply)) {
-                return null;
-            } else if (apply instanceof Map || apply instanceof Collection) {
-                try {
-                    String toString = apply.toString();
-                    if (toString.matches("\\(([0-9]+)\\)\\[.*]")) {
-                        toString = toString.replaceFirst("\\(([0-9]+)\\)", "");
-                    }
-                    return ConnectorBase.fromJsonArray(toString);
-                } catch (Exception e) {
-                    try {
-                        String string = apply.toString();
-                        return "{}".equals(string) ? new HashMap<>() : fromJson(string);
-                    } catch (Exception error) {
-                        TapLogger.warn(TAG, "function named " + functionName + " exec failed, function return value is: " + apply.toString() + "error cast java Object.");
-                        return null;
-                    }
-                }
-            } else {
-                return apply;
-            }
+            Invocable invocable = (Invocable) this.scriptEngine;
+            Object apply = invocable.invokeFunction(functionName, params);
+            //polyglotMapAndFunction = (Function<Object[], Object>) this.scriptEngine.get(functionName);
+            //Object apply = polyglotMapAndFunction.apply(params);
+            return LoadJavaScripter.covertData(apply);
             //((Map)((Function)this.scriptEngine.get("discover_schema")).apply(null)).size()
             //ConnectorBase.fromJsonArray(((Function)this.scriptEngine.get("write_record")).apply(null).toString())
             //((Function)this.scriptEngine.get("testArrMap")).apply(null);
             //((Function)this.scriptEngine.get("testArrMap")).apply(null).toString().replaceFirst("\\(2\\)","")
             //ConnectorBase.fromJsonArray(((Function)this.scriptEngine.get("testArrMap")).apply(null).toString().replaceFirst("\\(([0-9]+)\\)",""))
             //ConnectorBase.fromJsonArray("(1)[{id: 2, name: 'kit'}, {id: 1}]".replaceFirst("\\(([0-9]+)\\)",""))
-
-
             //PolyglotMapAndFunction polyglotMapAndFunction = (PolyglotMapAndFunction)this.scriptEngine.get("batch_read");
             //PolyglotMap ployglotMap = (PolyglotMap) polyglotMapAndFunction.apply(null);
             //ployglotMap.get("0")e iterator = context1.getBindings(ScriptEngine.FILENAME).getIterator();
             //Object invoke = invocable.invokeFunction(functionName, params);
-
             //ARRAY
             //ConnectorBase.fromJsonArray(((Function)this.scriptEngine.get("discover_schema")).apply(null).toString())
-
             //Map
         } catch (Exception e) {
-            //scriptException.set(e);
             TapLogger.warn(TAG, "Not function named " + functionName + " can be found.");
             return null;
         }
     }
-//    private Map<String,Object> toMap(Object objMap){
-//        List<Object> functionList = new ArrayList<>();
-//        Object obj = null;
-//        int index = 0;
-//        Map<String,Object> map = ((Map<String,Object>)objMap);
-//        do{
-//            obj = map.get(""+ index);
-//            index++;
-//            if (Objects.nonNull(obj)){
-//                functionList.add(obj);
-//            }else break;
-//        }while(true);
-//    }
+
+
+    public static Object covertData(Object apply){
+        if (Objects.isNull(apply)) {
+            return null;
+        } else if (apply instanceof Map || apply instanceof Collection) {
+            try {
+                String toString = apply.toString();
+                if (toString.matches("\\(([0-9]+)\\)\\[.*]")) {
+                    toString = toString.replaceFirst("\\(([0-9]+)\\)", "");
+                }
+                return ConnectorBase.fromJsonArray(toString);
+            } catch (Exception e) {
+                try {
+                    String string = apply.toString();
+                    return "{}".equals(string) ? new HashMap<>() : fromJson(string);
+                } catch (Exception error) {
+                    //TapLogger.warn(TAG, "function named " + functionName + " exec failed, function return value is: " + apply.toString() + "error cast java Object.");
+                    return null;
+                }
+            }
+        } else {
+            return apply;
+        }
+    }
 }

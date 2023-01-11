@@ -4,11 +4,9 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.js.connector.base.Core;
 import io.tapdata.js.connector.base.ScriptCore;
 import io.tapdata.common.support.APISender;
+import io.tapdata.js.connector.iengine.LoadJavaScripter;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static io.tapdata.base.ConnectorBase.toJson;
@@ -22,27 +20,27 @@ public class StreamReadSender implements APISender {
         return this;
     }
     @Override
-    public boolean send(List<Object> data, boolean hasNext, Object offsetState) {
+    public void send(Object data, Object offsetState) {
         if(Objects.isNull(core)){
             TapLogger.warn(TAG,"ScriptCore can not be null or not be empty.");
-            return false;
+            return;
         }
-        core.push(data, Core.MESSAGE_OPERATION_INSERT,offsetState);
-        return hasNext;
+        data = LoadJavaScripter.covertData(data);
+        core.push(this.covertList(data), Core.MESSAGE_OPERATION_INSERT,offsetState);
     }
 
     Map<Integer,Object> cacheAgoData = new HashMap<>();
     @Override
-    public boolean send(List<Object> data, boolean hasNext, Object offsetState, boolean cacheAgoRecord) {
-        if (!cacheAgoRecord) this.send(data,hasNext,offsetState);
-        List<Object> newData = data.stream().filter(dataItem-> {
-                Integer hashCode = this.hashCode(dataItem);
-                return -1 != hashCode && Objects.isNull(cacheAgoData.get(hashCode));
-            }
-        ).collect(Collectors.toList());
-        cacheAgoData = new HashMap<>();
-        newData.stream().filter(Objects::nonNull).forEach(item-> cacheAgoData.put(this.hashCode(item),item));
-        return this.send(newData,hasNext,offsetState);
+    public void send(Object data, Object offsetState, boolean cacheAgoRecord) {
+//        if (!cacheAgoRecord) this.send(data,offsetState);
+//        List<Object> newData = data.stream().filter(dataItem-> {
+//                Integer hashCode = this.hashCode(dataItem);
+//                return -1 != hashCode && Objects.isNull(cacheAgoData.get(hashCode));
+//            }
+//        ).collect(Collectors.toList());
+//        cacheAgoData = new HashMap<>();
+//        newData.stream().filter(Objects::nonNull).forEach(item-> cacheAgoData.put(this.hashCode(item),item));
+        this.send(data,offsetState);
     }
 
     private Integer hashCode(Object obj){

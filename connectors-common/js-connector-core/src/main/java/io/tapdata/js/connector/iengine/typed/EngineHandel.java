@@ -12,4 +12,5 @@ public interface EngineHandel {
 
     public Map<String, EngineHandel> load(String jarFilePath, String flooder,Enumeration<URL> resources);
 
+    public Object covertData(Object data);
 }

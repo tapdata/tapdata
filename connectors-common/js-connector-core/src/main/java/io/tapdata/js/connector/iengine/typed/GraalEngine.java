@@ -57,6 +57,31 @@ public class GraalEngine extends AbstractEngine<GraalEngine> {
     }
 
     @Override
+    public Object covertData(Object apply) {
+        if (Objects.isNull(apply)) {
+            return null;
+        } else if (apply instanceof Map || apply instanceof Collection) {
+            try {
+                String toString = apply.toString();
+                if (toString.matches("\\(([0-9]+)\\)\\[.*]")) {
+                    toString = toString.replaceFirst("\\(([0-9]+)\\)", "");
+                }
+                return ConnectorBase.fromJsonArray(toString);
+            } catch (Exception e) {
+                try {
+                    String string = apply.toString();
+                    return "{}".equals(string) ? new HashMap<>() : fromJson(string);
+                } catch (Exception error) {
+                    //TapLogger.warn(TAG, "function named " + functionName + " exec failed, function return value is: " + apply.toString() + "error cast java Object.");
+                    return null;
+                }
+            }
+        } else {
+            return apply;
+        }
+    }
+
+    @Override
     protected Map.Entry<String, EngineHandel> load(URL url) {
         ScriptEngineManager engineManager = new ScriptEngineManager();
         this.scriptEngine = engineManager.getEngineByName(EngineHandel.GRAAL_ENGINE);

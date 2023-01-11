@@ -65,7 +65,7 @@
 					"response": []
 				},
 				{
-					"name": "GetIssuesList",
+					"name": "Issues",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -77,7 +77,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"Action\": \"DescribeIssueListWithPage\",\r\n    \"ProjectName\": \"tapdata\",\r\n    \"IssueType\": \"ALL\",\r\n    \"PageNumber\": 1,\r\n    \"PageSize\": 20\r\n}",
+							"raw": "{\r\n    \"Action\": \"DescribeIssueListWithPage\",\r\n    \"ProjectName\": \"tapdata\",\r\n    \"IssueType\": \"ALL\",\r\n    \"PageNumber\": 1,\r\n    \"PageSize\": 500\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -92,12 +92,12 @@
 							"query": [
 								{
 									"key": "PageNumber",
-									"value": "1",
+									"value": 1,
 									"description": "TAP_PAGE_FROM"
 								},
 								{
 									"key": "PageSize",
-									"value": "500",
+									"value": 500,
 									"description": "TAP_PAGE_TO"
 								}
 							]
@@ -161,7 +161,7 @@
 		},
 		{
 			"key": "access_token",
-			"value": "15024b4fb38a5b9e143786d670005aa36c66e714",
+			"value": "a8b40762dc9c8bb2e8726520e8343caff86ce4fc",
 			"type": "default"
 		},
 		{

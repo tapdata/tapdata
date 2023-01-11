@@ -52,6 +52,11 @@ public class NashornEngine extends AbstractEngine<NashornEngine> {
     }
 
     @Override
+    public Object covertData(Object data) {
+        return null;
+    }
+
+    @Override
     protected Map.Entry<String, EngineHandel> load(URL url) {
         return null;
     }

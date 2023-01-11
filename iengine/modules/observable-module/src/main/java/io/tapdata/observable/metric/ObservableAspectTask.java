@@ -170,7 +170,7 @@ public class ObservableAspectTask extends AspectTask {
 					taskSampleHandler.handleBatchReadAccept(size);
 				});
 				aspect.processCompleteConsumer(events -> {
-					if (null == events || events.size() == 0) {
+					if (null == events || events.isEmpty()) {
 						return;
 					}
 

@@ -7,6 +7,7 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.js.connector.base.CacheContext;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.iengine.ScriptEngineInstance;
 import io.tapdata.js.connector.server.decorator.APIFactoryDecorator;
@@ -61,9 +62,6 @@ public class JSConnector extends ConnectorBase {
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tablesFilter, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable{
         this.instanceScript(connectionContext);
-        Object map = this.javaScripter.invoker("emptyMap");
-        Object map1 = this.javaScripter.invoker("testMap");
-        Object testString = this.javaScripter.invoker("testString");
         BaseDiscoverSchemaFunction.discover(this.javaScripter).invoker(connectionContext,consumer);
     }
 
@@ -100,16 +98,17 @@ public class JSConnector extends ConnectorBase {
                 }
             }
         }
-        JSAPIInterceptorConfig config = JSAPIInterceptorConfig.config();
-        APIFactoryDecorator factory = new APIFactoryDecorator(apiFactory).interceptor(JSAPIResponseInterceptor.create(config, apiInvoker));
-        this.javaScripter.scriptEngine().put("tapAPI",factory);
-        this.javaScripter.scriptEngine().put("log",new ConnectorLog());
         //this.javaScripter.bindingGlobal("tapFunctions",new ArrayList<>());
 //        try {
 //            this.javaScripter.scriptEngine().eval("var tapAPI = Java.type(\"io.tapdata.js.connector.server.decorator.APIFactoryDecorator\");");
 //        }catch (Exception e){
 //
 //        }
+        JSAPIInterceptorConfig config = JSAPIInterceptorConfig.config();
+        APIFactoryDecorator factory = new APIFactoryDecorator(apiFactory).interceptor(JSAPIResponseInterceptor.create(config, apiInvoker));
+        this.javaScripter.scriptEngine().put("tapAPI",factory);
+        this.javaScripter.scriptEngine().put("log",new ConnectorLog());
+        this.javaScripter.scriptEngine().put("tapCache",new CacheContext());
         engineInstance.loadScript();
     }
 }
