@@ -1856,7 +1856,25 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		return connectionStats;
 	}
 
-	@Data
+	public void batchEncryptConfig() {
+		Query query = Query.query(Criteria
+				.where("config").exists(true)
+				.and("config").ne(null)
+				.and("encryptConfig").exists(false));
+		query.fields().include("_id", "config");
+		List<DataSourceEntity> result = repository.findAll(query);
+		result.forEach(entity -> {
+
+			repository.encryptConfig(entity);
+
+			if (entity.getEncryptConfig() != null) {
+				repository.update(Query.query(Criteria.where("id").is(entity.getId())),
+						Update.update("encryptConfig", entity.getEncryptConfig()).unset("config"));
+			}
+		});
+	}
+
+    @Data
 	protected static class Part{
 		private String _id;
 		private long count;

@@ -144,6 +144,12 @@ public class DataSourceRepository extends BaseRepository<DataSourceEntity, Objec
         return super.updateByWhere(query, set, setOnInsert, unset, userDetail);
     }
 
+    @Override
+    public Update buildUpdateSet(DataSourceEntity entity, UserDetail userDetail) {
+        this.encryptConfig(entity);
+        return super.buildUpdateSet(entity, userDetail);
+    }
+
     public void encryptConfig(DataSourceEntity entity) {
         //AES256Util.Aes256Encode()
         if (entity != null && entity.getConfig() != null) {
