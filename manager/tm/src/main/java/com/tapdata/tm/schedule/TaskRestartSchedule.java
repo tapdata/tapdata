@@ -106,8 +106,12 @@ public class TaskRestartSchedule {
         for (TaskDto taskDto : all) {
             if (isCloud) {
                 String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
-                if ("offline".equals(status) || "online".equals(status)) {
+                if ("offline".equals(status) ) {
                     log.debug("The cloud version does not need this rescheduling");
+                    return;
+                }
+                if ("online".equals(status)) {
+                    taskScheduleService.sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
                     return;
                 }
             }

@@ -59,8 +59,8 @@ import java.util.function.Consumer;
  **/
 public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
-	public static final int DEFAULT_TARGET_BATCH_INTERVAL_MS = 2000;
-	public static final int DEFAULT_TARGET_BATCH = 3000;
+	public static final int DEFAULT_TARGET_BATCH_INTERVAL_MS = 3000;
+	public static final int DEFAULT_TARGET_BATCH = 2000;
 	private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	protected String tableName;

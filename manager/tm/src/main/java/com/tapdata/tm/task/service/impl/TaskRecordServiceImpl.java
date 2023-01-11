@@ -97,8 +97,6 @@ public class TaskRecordServiceImpl implements TaskRecordService {
             }
         }));
 
-
-        final AtomicReference<Boolean> first = new AtomicReference<>(true);
         List<TaskRecordListVo> collect = taskRecords.stream().map(r -> {
             String taskRecordId = r.getId().toHexString();
 

@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
@@ -381,6 +382,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return create(taskDto, user);
         }
 
+        // supplement migrate_field_rename_processor fieldMapping data
+        supplementMigrateFieldMapping(taskDto, user);
+        taskSaveService.syncTaskSetting(taskDto, user);
+
         if (oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
             //throw new BizException("Task.OldVersion");
         }
@@ -434,6 +439,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         DAG dag = taskDto.getDag();
+        if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getNodes())) {
+            return;
+        }
+
         dag.getNodes().forEach(node -> {
             if (node instanceof MigrateFieldRenameProcessorNode) {
                 MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) node;
@@ -666,11 +675,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @return
      */
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask) {
-
-        // supplement migrate_field_rename_processor fieldMapping data
-        supplementMigrateFieldMapping(taskDto, user);
-        taskSaveService.syncTaskSetting(taskDto, user);
-
         DAG dag = taskDto.getDag();
 
         if (!taskDto.getShareCache()) {
@@ -2610,8 +2614,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
         Update update = Update.update("lastStartDate", System.currentTimeMillis());
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
-            update.set("taskRecordId", new ObjectId().toHexString());
+            String taskRecordId = new ObjectId().toHexString();
+            update.set("taskRecordId", taskRecordId);
+            taskDto.setTaskRecordId(taskRecordId);
             taskDto.setNeedCreateRecord(true);
+        }
+        if (Objects.isNull(taskDto.getStartTime())) {
+            DateTime date = DateUtil.date();
+            update.set("startTime", date);
+            taskDto.setStartTime(date);
         }
         update(Query.query(Criteria.where("_id").is(taskDto.getId().toHexString())), update);
 
@@ -3343,5 +3354,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return chart6Map;
     }
 
-
+    public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {
+        Query query = Query.query(Criteria.where("agentId").is(agentId).and("status").is(TaskDto.STATUS_STOPPING));
+        query.fields().include("_id");
+        List<TaskDto> needStopTasks = findAllDto(query, userDetail);
+        for (TaskDto needStopTask : needStopTasks) {
+            stopped(needStopTask.getId(), userDetail);
+        }
+    }
 }
