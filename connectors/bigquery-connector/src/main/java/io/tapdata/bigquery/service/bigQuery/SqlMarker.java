@@ -27,7 +27,7 @@ public class SqlMarker {
             this.credentials = ServiceAccountCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8)));
             this.bigQuery();
         } catch (IOException e) {
-            TapLogger.error(TAG,"Unable to create a connection through Service Account Credentials. Please check whether the Service Account is correct or invalid. ");
+            TapLogger.error(TAG, "Unable to create a connection through Service Account Credentials. Please check whether the Service Account is correct or invalid. ");
         }
     }
 
@@ -60,7 +60,7 @@ public class SqlMarker {
     public BigQueryResult executeOnce(String sql) {
         try {
             BigQueryResult execute = execute(sql);
-            TapLogger.info(TAG,"BigQuery current operation has executed Sql once, Please pay attention to the upper limit of SQL usage (1500/h), executing Sql: " + sql);
+            TapLogger.info(TAG, "BigQuery current operation has executed Sql once, Please pay attention to the upper limit of SQL usage (1500/h), executing Sql: " + sql);
             return execute;
         } catch (BigQueryException | InterruptedException e) {
             throw new CoreException(String.format("%s Big Query execute error, %s , %s.", TAG, e.getMessage(), sql));

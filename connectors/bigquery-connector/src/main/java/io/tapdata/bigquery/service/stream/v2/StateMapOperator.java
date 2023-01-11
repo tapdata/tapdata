@@ -43,8 +43,9 @@ public class StateMapOperator {
         Object value = this.stateMap.get(key);
         return Objects.isNull(value) ? null : String.valueOf(value);
     }
+
     public Long getLong(String key) {
         Object value = this.stateMap.get(key);
-        return Objects.nonNull(value) && (value instanceof Long) ? (Long)value : null ;
+        return Objects.nonNull(value) && (value instanceof Long) ? (Long) value : null;
     }
 }

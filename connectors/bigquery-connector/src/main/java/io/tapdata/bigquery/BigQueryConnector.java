@@ -47,189 +47,191 @@ import java.util.function.Consumer;
 
 //@TapConnectorClass("spec.json")
 public class BigQueryConnector extends ConnectorBase {
-	private static final String TAG = BigQueryConnector.class.getSimpleName();
-	private static final int STREAM_SIZE = 30000;
+    private static final String TAG = BigQueryConnector.class.getSimpleName();
+    private static final int STREAM_SIZE = 30000;
 
-	private WriteRecord writeRecord;
-	private TableCreate tableCreate;
-	private TapEventCollector tapEventCollector;
-	private BigQueryStream stream;
-	private MergeHandel merge ;
-	private final AtomicBoolean running = new AtomicBoolean(Boolean.TRUE);
-	private String tableId;
+    private WriteRecord writeRecord;
+    private TableCreate tableCreate;
+    private TapEventCollector tapEventCollector;
+    private BigQueryStream stream;
+    private MergeHandel merge;
+    private final AtomicBoolean running = new AtomicBoolean(Boolean.TRUE);
+    private String tableId;
 
-	@Override
-	public void onStart(TapConnectionContext connectionContext) throws Throwable {
-        this.writeRecord = (WriteRecord)WriteRecord.create(connectionContext).autoStart();
-		this.tableCreate = (TableCreate) TableCreate.create(connectionContext).paperStart(this.writeRecord);
-		if (connectionContext instanceof TapConnectorContext) {
-			TapConnectorContext context = (TapConnectorContext)connectionContext;
-			isConnectorStarted(connectionContext, connectorContext -> {
-				Iterator<Entry<TapTable>> iterator = connectorContext.getTableMap().iterator();
-				while (iterator.hasNext()) {
-					Entry<TapTable> next = iterator.next();
-					TapTable value = next.getValue();
-					if (Checker.isNotEmpty(value)) {
-						FieldChecker.verifyFieldName(value.getNameFieldMap());
-					}
-				}
-			});
-			ContextConfig config =this.writeRecord.config();
-			this.stream = (BigQueryStream) BigQueryStream.streamWrite(context).paperStart(this.writeRecord);
-			if (Objects.nonNull(config) && config.isMixedUpdates()) {
-				this.merge = ((MergeHandel)MergeHandel.merge(connectionContext).paperStart(writeRecord))
-						.running(this.running)
-						.mergeDelaySeconds(config.mergeDelay());
-				this.stream.merge(this.merge);
-			}
-		}
-	}
+    @Override
+    public void onStart(TapConnectionContext connectionContext) throws Throwable {
+        this.writeRecord = (WriteRecord) WriteRecord.create(connectionContext).autoStart();
+        this.tableCreate = (TableCreate) TableCreate.create(connectionContext).paperStart(this.writeRecord);
+        if (connectionContext instanceof TapConnectorContext) {
+            TapConnectorContext context = (TapConnectorContext) connectionContext;
+            isConnectorStarted(connectionContext, connectorContext -> {
+                Iterator<Entry<TapTable>> iterator = connectorContext.getTableMap().iterator();
+                while (iterator.hasNext()) {
+                    Entry<TapTable> next = iterator.next();
+                    TapTable value = next.getValue();
+                    if (Checker.isNotEmpty(value)) {
+                        FieldChecker.verifyFieldName(value.getNameFieldMap());
+                    }
+                }
+            });
+            ContextConfig config = this.writeRecord.config();
+            this.stream = (BigQueryStream) BigQueryStream.streamWrite(context).paperStart(this.writeRecord);
+            if (Objects.nonNull(config) && config.isMixedUpdates()) {
+                this.merge = ((MergeHandel) MergeHandel.merge(connectionContext).paperStart(writeRecord))
+                        .running(this.running)
+                        .mergeDelaySeconds(config.mergeDelay());
+                this.stream.merge(this.merge);
+            }
+        }
+    }
 
-	@Override
-	public void onStop(TapConnectionContext connectionContext) throws Throwable {
-		synchronized (this) {
-			this.notify();
-		}
-		Optional.ofNullable(this.writeRecord).ifPresent(WriteRecord::onDestroy);
-		Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::stop);
-		this.running.set(false);
-		Optional.ofNullable(this.merge).ifPresent(MergeHandel::stop);
-		//Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
-	}
+    @Override
+    public void onStop(TapConnectionContext connectionContext) throws Throwable {
+        synchronized (this) {
+            this.notify();
+        }
+        Optional.ofNullable(this.writeRecord).ifPresent(WriteRecord::onDestroy);
+        Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::stop);
+        this.running.set(false);
+        Optional.ofNullable(this.merge).ifPresent(MergeHandel::stop);
+        //Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
+    }
 
-	@Override
-	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
-	    //codecRegistry.registerFromTapValue(TapYearValue.class, "DATE", TapValue::getValue);
-	    codecRegistry.registerFromTapValue(TapYearValue.class, "INT64", TapValue::getValue);
-	    codecRegistry.registerFromTapValue(TapMapValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
+    @Override
+    public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+        //codecRegistry.registerFromTapValue(TapYearValue.class, "DATE", TapValue::getValue);
+        codecRegistry.registerFromTapValue(TapYearValue.class, "INT64", TapValue::getValue);
+        codecRegistry.registerFromTapValue(TapMapValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
         codecRegistry.registerFromTapValue(TapArrayValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
-		connectorFunctions.supportWriteRecord(this::writeRecord)
-				.supportCommandCallbackFunction(this::command)
+        connectorFunctions.supportWriteRecord(this::writeRecord)
+                .supportCommandCallbackFunction(this::command)
                 .supportCreateTableV2(this::createTableV2)
-				.supportClearTable(this::clearTable)
+                .supportClearTable(this::clearTable)
                 .supportDropTable(this::dropTable)
-				.supportReleaseExternalFunction(this::release)
-		;
-	}
+                .supportReleaseExternalFunction(this::release)
+        ;
+    }
 
-	private void release(TapConnectorContext context) {
-		KVMap<Object> stateMap = context.getStateMap();
-		Object temporaryTable = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
-		if (Objects.nonNull(temporaryTable)) {
-			merge = (MergeHandel) MergeHandel.merge(context).autoStart();
-			//清除临时表
-			if (Objects.nonNull(merge.config()) && Objects.nonNull(this.merge.config().tempCursorSchema())) {
-				if (Objects.nonNull(tableId) && !"".equals(tableId.trim())) {
-					try {
-						merge.mainTable(table(tableId)).mergeTableOnce();
-					} catch (Exception e) {
-						throw new CoreException(String.format(" The temporary table is removed during the reset operation. Moving out and merging the remaining data failed. Temporary table name:%s, target table name:%s. ", tableId, this.merge.config().tempCursorSchema()));
-					}
-				}
-				this.merge.dropTemporaryTable();
-				this.merge.config().tempCursorSchema(null);
-				stateMap.put(ContextConfig.TEMP_CURSOR_SCHEMA_NAME,null);
-			}
-		}
-	}
+    private void release(TapConnectorContext context) {
+        KVMap<Object> stateMap = context.getStateMap();
+        Object temporaryTable = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
+        if (Objects.nonNull(temporaryTable)) {
+            merge = (MergeHandel) MergeHandel.merge(context).autoStart();
+            //清除临时表
+            if (Objects.nonNull(merge.config()) && Objects.nonNull(this.merge.config().tempCursorSchema())) {
+                if (Objects.nonNull(tableId) && !"".equals(tableId.trim())) {
+                    try {
+                        merge.mainTable(table(tableId)).mergeTableOnce();
+                    } catch (Exception e) {
+                        throw new CoreException(String.format(" The temporary table is removed during the reset operation. Moving out and merging the remaining data failed. Temporary table name:%s, target table name:%s. ", tableId, this.merge.config().tempCursorSchema()));
+                    }
+                }
+                this.merge.dropTemporaryTable();
+                this.merge.config().tempCursorSchema(null);
+                stateMap.put(ContextConfig.TEMP_CURSOR_SCHEMA_NAME, null);
+            }
+        }
+    }
 
-	private void dropTable(TapConnectorContext context, TapDropTableEvent dropTableEvent) {
-		this.tableCreate.dropTable(dropTableEvent);
+    private void dropTable(TapConnectorContext context, TapDropTableEvent dropTableEvent) {
+        this.tableCreate.dropTable(dropTableEvent);
     }
 
     private void clearTable(TapConnectorContext connectorContext, TapClearTableEvent clearTableEvent) {
-		this.tableCreate.cleanTable(clearTableEvent);
-		if(Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()) {
-			this.merge.cleanTemporaryTable();
-		}
+        this.tableCreate.cleanTable(clearTableEvent);
+        if (Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()) {
+            this.merge.cleanTemporaryTable();
+        }
     }
 
     private CreateTableOptions createTableV2(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) {
-		CreateTableOptions createTableOptions = CreateTableOptions.create().tableExists(tableCreate.isExist(createTableEvent));
-		if (!createTableOptions.getTableExists()){
-			this.tableCreate.createSchema(createTableEvent);
-		}
-		if(Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()) {
-			this.merge.createTemporaryTable(createTableEvent.getTable(), this.tableCreate.config().tempCursorSchema());
-		}
-		return createTableOptions;
+        CreateTableOptions createTableOptions = CreateTableOptions.create().tableExists(tableCreate.isExist(createTableEvent));
+        if (!createTableOptions.getTableExists()) {
+            this.tableCreate.createSchema(createTableEvent);
+        }
+        if (Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()) {
+            this.merge.createTemporaryTable(createTableEvent.getTable(), this.tableCreate.config().tempCursorSchema());
+        }
+        return createTableOptions;
     }
 
     private CommandResult command(TapConnectionContext context, CommandInfo commandInfo) {
-		return Command.command(context,commandInfo);
-	}
+        return Command.command(context, commandInfo);
+    }
 
-	private void createTable(TapConnectorContext connectorContext, TapCreateTableEvent tapCreateTableEvent) {
-		if (!this.tableCreate.isExist(tapCreateTableEvent)){
-			this.tableCreate.createSchema(tapCreateTableEvent);
-		}
-	}
-
-	private void writeRecord(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
-		this.tableId = table.getId();
-		this.stream.tapTable(table);
-        this.writeRecordStream(context, events, table, consumer);
-        if (Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()){
-			this.merge.mergeTemporaryTableToMainTable(table);
+    private void createTable(TapConnectorContext connectorContext, TapCreateTableEvent tapCreateTableEvent) {
+        if (!this.tableCreate.isExist(tapCreateTableEvent)) {
+            this.tableCreate.createSchema(tapCreateTableEvent);
         }
-	}
-	private void uploadEvents(Consumer<WriteListResult<TapRecordEvent>> consumer, List<TapRecordEvent> events, TapTable table) {
-		try {
-			consumer.accept(this.stream.writeRecord(events, table));
-		} catch (Exception e) {
-			TapLogger.error(TAG, e.getMessage());
-		}
-	}
-	private void writeRecordStream(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
-		if (Objects.isNull(this.tapEventCollector)) {
-			synchronized (this) {
-				if (Objects.isNull(this.tapEventCollector)) {
-					this.tapEventCollector = TapEventCollector.create()
-							.maxRecords(BigQueryConnector.STREAM_SIZE)
-							.idleSeconds(5)
-							.table(table)
-							.writeListResultConsumer(consumer)
-							.eventCollected(this::uploadEvents);
-					this.tapEventCollector.start();
-				}
-			}
-		}
-		this.tapEventCollector.addTapEvents(events,table);
-	}
+    }
 
-	/**
-	 * @deprecated  Because QPS is too low .
-	 * */
-	private void writeRecordDML(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer){
-		if (Objects.isNull(this.writeRecord)){
-			this.writeRecord = WriteRecord.create(connectorContext);
-		}
-		this.writeRecord.writeBatch(tapRecordEvents, tapTable, writeListResultConsumer);
-	}
+    private void writeRecord(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
+        this.tableId = table.getId();
+        this.stream.tapTable(table);
+        this.writeRecordStream(context, events, table, consumer);
+        if (Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()) {
+            this.merge.mergeTemporaryTableToMainTable(table);
+        }
+    }
+
+    private void uploadEvents(Consumer<WriteListResult<TapRecordEvent>> consumer, List<TapRecordEvent> events, TapTable table) {
+        try {
+            consumer.accept(this.stream.writeRecord(events, table));
+        } catch (Exception e) {
+            TapLogger.error(TAG, e.getMessage());
+        }
+    }
+
+    private void writeRecordStream(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
+        if (Objects.isNull(this.tapEventCollector)) {
+            synchronized (this) {
+                if (Objects.isNull(this.tapEventCollector)) {
+                    this.tapEventCollector = TapEventCollector.create()
+                            .maxRecords(BigQueryConnector.STREAM_SIZE)
+                            .idleSeconds(5)
+                            .table(table)
+                            .writeListResultConsumer(consumer)
+                            .eventCollected(this::uploadEvents);
+                    this.tapEventCollector.start();
+                }
+            }
+        }
+        this.tapEventCollector.addTapEvents(events, table);
+    }
+
+    /**
+     * @deprecated Because QPS is too low .
+     */
+    private void writeRecordDML(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
+        if (Objects.isNull(this.writeRecord)) {
+            this.writeRecord = WriteRecord.create(connectorContext);
+        }
+        this.writeRecord.writeBatch(tapRecordEvents, tapTable, writeListResultConsumer);
+    }
 
 
-	@Override
-	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-		this.tableCreate.discoverSchema(tables, tableSize, consumer);
-	}
+    @Override
+    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+        this.tableCreate.discoverSchema(tables, tableSize, consumer);
+    }
 
 
-	@Override
-	public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
-		ConnectionOptions connectionOptions = ConnectionOptions.create();
-		BigQueryConnectionTest bigQueryConnectionTest = (BigQueryConnectionTest) BigQueryConnectionTest.create(connectionContext).autoStart();
-		TestItem testItem = bigQueryConnectionTest.testServiceAccount();
-		consumer.accept(testItem);
-		if ( TestItem.RESULT_FAILED == testItem.getResult()){
-			return connectionOptions;
-		}
-		TestItem tableSetItem = bigQueryConnectionTest.testTableSet();
-		consumer.accept(tableSetItem);
-		return connectionOptions;
-	}
+    @Override
+    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
+        BigQueryConnectionTest bigQueryConnectionTest = (BigQueryConnectionTest) BigQueryConnectionTest.create(connectionContext).autoStart();
+        TestItem testItem = bigQueryConnectionTest.testServiceAccount();
+        consumer.accept(testItem);
+        if (TestItem.RESULT_FAILED == testItem.getResult()) {
+            return connectionOptions;
+        }
+        TestItem tableSetItem = bigQueryConnectionTest.testTableSet();
+        consumer.accept(tableSetItem);
+        return connectionOptions;
+    }
 
-	@Override
-	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-		return ((TableCreate)TableCreate.create(connectionContext).autoStart()).schemaCount();
-	}
+    @Override
+    public int tableCount(TapConnectionContext connectionContext) throws Throwable {
+        return ((TableCreate) TableCreate.create(connectionContext).autoStart()).schemaCount();
+    }
 }

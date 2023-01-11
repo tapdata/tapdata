@@ -121,7 +121,7 @@ public class BigQueryStream extends BigQueryStart {
             // 启动merge线程
             long delay = MergeHandel.FIRST_MERGE_DELAY_SECOND * 1000000000L;
             long nowTime = System.nanoTime();
-            //mergeId == null,判断此时为首次merge,延时31min
+            //mergeId == null,判断此时为首次merge,延时33min
             if (Objects.isNull(mergeId)) {
                 // -->Time course direction
                 // |------------------|------------------|--------|---------|------------------

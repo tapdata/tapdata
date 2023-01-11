@@ -20,20 +20,23 @@ public abstract class BigQueryStart {
     protected ContextConfig config;
     protected TapConnectionContext connectorContext;
     protected SqlMarker sqlMarker;
-    public ContextConfig config(){
+
+    public ContextConfig config() {
         return this.config;
     }
 
     public BigQueryStart(TapConnectionContext connectorContext) {
         this.connectorContext = connectorContext;
     }
-    public BigQueryStart autoStart(){
+
+    public BigQueryStart autoStart() {
         this.config = this.contextConfig();
         this.sqlMarker = SqlMarker.create(this.config.serviceAccount());
         return this;
     }
-    public BigQueryStart paperStart(BigQueryStart starter){
-        if (Objects.isNull(starter)){
+
+    public BigQueryStart paperStart(BigQueryStart starter) {
+        if (Objects.isNull(starter)) {
             throw new CoreException("The preload object cannot be empty according to the supplementary operation class attribute of the load data. ");
         }
         this.config = starter.config();
@@ -93,8 +96,8 @@ public abstract class BigQueryStart {
 
     /**
      * @deprecated
-     * */
-    private void $v1_config(ContextConfig contextConfig){
+     */
+    private void $v1_config(ContextConfig contextConfig) {
         DataMap nodeConfig = this.connectorContext.getNodeConfig();
         if (connectorContext instanceof TapConnectorContext && Objects.nonNull(nodeConfig)) {
             String writeMode = nodeConfig.getString("writeMode");
@@ -131,7 +134,7 @@ public abstract class BigQueryStart {
         }
     }
 
-    private void $v2_config(ContextConfig contextConfig){
+    private void $v2_config(ContextConfig contextConfig) {
         DataMap nodeConfig = this.connectorContext.getNodeConfig();
         if (connectorContext instanceof TapConnectorContext && Objects.nonNull(nodeConfig)) {
             String cursorSchema = nodeConfig.getString("cursorSchema");
@@ -157,7 +160,7 @@ public abstract class BigQueryStart {
                 time = Long.parseLong(mergeDelay);
             } catch (Exception e) {
                 time = ContextConfig.MERGE_DELAY_DEFAULT;
-                TapLogger.info(TAG, " The merge delay interval is specified, and the default interval has been selected ,it is: " + time +"s.");
+                TapLogger.info(TAG, " The merge delay interval is specified, and the default interval has been selected ,it is: " + time + "s.");
             }
             contextConfig.mergeDelay(time);
         }

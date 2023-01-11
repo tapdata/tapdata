@@ -2,10 +2,8 @@ package io.tapdata.bigquery.service.stream.handle;
 
 import io.tapdata.bigquery.util.bigQueryUtil.SqlValueConvert;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -116,7 +114,7 @@ public class TapEventCollector {
         }
     }
 
-    public void addTapEvents(List<TapRecordEvent> eventList,TapTable table) {
+    public void addTapEvents(List<TapRecordEvent> eventList, TapTable table) {
         if (eventList != null && !eventList.isEmpty()) {
             this.transform(eventList, table);
             this.events.addAll(eventList);
@@ -125,7 +123,7 @@ public class TapEventCollector {
         tryUpload(this.events.size() > this.maxRecords);
     }
 
-    private void transform(List<TapRecordEvent> eventList,TapTable table){
+    private void transform(List<TapRecordEvent> eventList, TapTable table) {
         //if (!isMixedUpdates) return;
         LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
         if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {
@@ -133,13 +131,13 @@ public class TapEventCollector {
         }
         for (TapRecordEvent event : eventList) {
             if (Objects.isNull(event)) continue;
-            Map<String,Object> record = new HashMap<>();
-            if (event instanceof TapInsertRecordEvent){
-                Map<String,Object> recordMap = new HashMap<>();
-                TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent)event;
+            Map<String, Object> record = new HashMap<>();
+            if (event instanceof TapInsertRecordEvent) {
+                Map<String, Object> recordMap = new HashMap<>();
+                TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) event;
                 record = insertRecordEvent.getAfter();
                 Map<String, Object> finalRecord = record;
-                nameFieldMap.forEach((key, f)-> {
+                nameFieldMap.forEach((key, f) -> {
                     Object value = finalRecord.get(key);
                     if (Objects.nonNull(value)) {
                         recordMap.put(key, SqlValueConvert.streamJsonArrayValue(value, f));

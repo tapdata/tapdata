@@ -39,7 +39,8 @@ public class WriteCommittedStream {
     private String credentialsJson;
     private Offset streamOffset = Offset.offset();
     private BigQueryWriteClient client;
-    public BigQueryWriteClient client(){
+
+    public BigQueryWriteClient client() {
         return this.client;
     }
 
@@ -176,7 +177,7 @@ public class WriteCommittedStream {
             try {
                 this.client.shutdownNow();
                 boolean close = this.client.awaitTermination(1, TimeUnit.MILLISECONDS);
-                if (close){
+                if (close) {
                     this.writer.cleanup(this.client);
                 }
             } catch (InterruptedException e) {
