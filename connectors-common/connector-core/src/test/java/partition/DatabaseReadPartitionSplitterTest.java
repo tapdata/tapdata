@@ -49,7 +49,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
 
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartition -> {
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).minMaxSplitPieces(100).consumer(readPartition -> {
 					readPartitionList.add(readPartition);
 				}))
 				.typeSplitterMap(new TypeSplitterMap())
@@ -85,7 +85,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
 
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					assertEquals(3, readPartitionList.size());
@@ -113,7 +113,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					assertEquals(5, readPartitionList.size());
@@ -144,7 +144,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					assertEquals(7, readPartitionList.size());
@@ -188,7 +188,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartition -> readPartitionList.add(readPartition)))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).minMaxSplitPieces(100).consumer(readPartition -> readPartitionList.add(readPartition)))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					assertEquals(7, readPartitionList.size());
@@ -223,7 +223,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> assertEquals(5, readPartitionList.size()));
@@ -255,7 +255,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> assertEquals(9, readPartitionList.size()));
@@ -291,7 +291,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> assertEquals(9, readPartitionList.size()));
@@ -331,7 +331,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> assertEquals(14, readPartitionList.size()));
@@ -376,7 +376,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					assertEquals(2, readPartitionList.size());
@@ -424,7 +424,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(1L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					assertEquals(14, readPartitionList.size());
@@ -481,7 +481,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(2L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(2L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					assertEquals(14, readPartitionList.size());
@@ -542,7 +542,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(4L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(4L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					assertEquals(14, readPartitionList.size());
@@ -604,7 +604,7 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 
 		TestConnector testConnector = new TestConnector();
 		List<ReadPartition> readPartitionList = new ArrayList<>();
-		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(4L).consumer(readPartitionList::add))
+		testConnector.calculateDatabaseReadPartitions(connectorContext, table, GetReadPartitionOptions.create().maxRecordInPartition(4L).minMaxSplitPieces(100).consumer(readPartitionList::add))
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> assertEquals(14, readPartitionList.size()));

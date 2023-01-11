@@ -13,14 +13,14 @@ public class GetReadPartitionOptions {
 	public static final int SPLIT_TYPE_BY_COUNT = 1;
 	public static final int SPLIT_TYPE_BY_MINMAX = 10;
 
+	private Integer minMaxSplitPieces;
+	public GetReadPartitionOptions minMaxSplitPieces(Integer minMaxSplitPieces) {
+		this.minMaxSplitPieces = minMaxSplitPieces;
+		return this;
+	}
 	private Long maxRecordInPartition;
 	public GetReadPartitionOptions maxRecordInPartition(Long maxRecordInPartition) {
 		this.maxRecordInPartition = maxRecordInPartition;
-		return this;
-	}
-	private List<ReadPartition> existingPartitions;
-	public GetReadPartitionOptions existingPartitions(List<ReadPartition> existingPartitions) {
-		this.existingPartitions = existingPartitions;
 		return this;
 	}
 	private int splitType;
@@ -56,14 +56,6 @@ public class GetReadPartitionOptions {
 		this.maxRecordInPartition = maxRecordInPartition;
 	}
 
-	public List<ReadPartition> getExistingPartitions() {
-		return existingPartitions;
-	}
-
-	public void setExistingPartitions(List<ReadPartition> existingPartitions) {
-		this.existingPartitions = existingPartitions;
-	}
-
 	public int getSplitType() {
 		return splitType;
 	}
@@ -94,5 +86,13 @@ public class GetReadPartitionOptions {
 
 	public void setCompletedRunnable(Runnable completedRunnable) {
 		this.completedRunnable = completedRunnable;
+	}
+
+	public Integer getMinMaxSplitPieces() {
+		return minMaxSplitPieces;
+	}
+
+	public void setMinMaxSplitPieces(Integer minMaxSplitPieces) {
+		this.minMaxSplitPieces = minMaxSplitPieces;
 	}
 }

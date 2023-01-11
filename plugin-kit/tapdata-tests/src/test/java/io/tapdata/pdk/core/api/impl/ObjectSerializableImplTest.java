@@ -2,6 +2,7 @@ package io.tapdata.pdk.core.api.impl;
 
 import com.alibaba.fastjson.JSONObject;
 import io.tapdata.entity.codecs.TDDUser;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -22,11 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class ObjectSerializableImplTest {
-    @Test
-    public void allTypeTest() {
-        ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
-
-    }
 
     @Test
     public void supportFirstVersion() {

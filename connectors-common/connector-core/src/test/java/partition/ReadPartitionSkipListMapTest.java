@@ -17,6 +17,24 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
  */
 public class ReadPartitionSkipListMapTest {
 	@Test
+	public void testEmptyPartitionFilter() {
+		TapIndexEx partitionIndex = new TapIndexEx(index("a").indexField(indexField("a").fieldAsc(true)));
+		ReadPartition readPartition = new ReadPartition().partitionIndex(partitionIndex).partitionFilter(TapPartitionFilter.create());
+		ConcurrentSkipListMap<ReadPartition, Object> skipListMap = new ConcurrentSkipListMap<>(ReadPartition::compareTo);
+		skipListMap.put(readPartition, new Object());
+
+		ReadPartition theRP0 = skipListMap.ceilingKey(ReadPartition.create().partitionFilter(TapPartitionFilter.create()));
+		Assertions.assertNotNull(theRP0);
+		Object rp = skipListMap.get(readPartition);
+		Assertions.assertNotNull(rp);
+
+		ReadPartition readPartition1 = skipListMap.ceilingKey(ReadPartition.create().partitionFilter(TapPartitionFilter.create().match("a", 1)));
+		Assertions.assertNotNull(readPartition1);
+	}
+
+
+
+	@Test
 	public void testReadPartitionSimpleInt() {
 		TapIndexEx partitionIndex = new TapIndexEx(index("a").indexField(indexField("a").fieldAsc(true)));
 		ReadPartition readPartition = new ReadPartition().partitionIndex(partitionIndex).partitionFilter(TapPartitionFilter.create().rightBoundary(QueryOperator.lt("a", 3)));
@@ -121,6 +139,9 @@ public class ReadPartitionSkipListMapTest {
 		skipListMap.put(readPartition5, new Object());
 		skipListMap.put(readPartition6, new Object());
 		skipListMap.put(readPartition7, new Object());
+
+		Object o1 = skipListMap.get(new ReadPartition().partitionIndex(partitionIndex).partitionFilter(TapPartitionFilter.create().match("a", "3").match("b", "发啊打扫房间").leftBoundary(QueryOperator.gte("c", "aaaa")).rightBoundary(QueryOperator.lt("c", "bbbb"))));
+		Assertions.assertNotNull(o1);
 
 		ReadPartition thePR0 = skipListMap.ceilingKey(ReadPartition.create().partitionFilter(TapPartitionFilter.create().match("a", "012313").match("b", "b1232").match("c", "aaaaa")));
 		Assertions.assertTrue(thePR0.getPartitionFilter().toString().contains("rightBoundary a<'3';"));

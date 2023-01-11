@@ -6,6 +6,8 @@ import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.async.master.JobContext;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
@@ -57,16 +59,16 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 		this.sourcePdkDataNode = sourcePdkDataNode;
 
 		this.storageFactory = InstanceFactory.instance(TapStorageFactory.class);
-		storageFactory.init(TapStorageFactory.StorageOptions.create().disableJavaSerializable(true).rootPath("./partition_storage"));
+		storageFactory.init(TapStorageFactory.StorageOptions.create().disableJavaSerializable(false).rootPath("./partition_storage"));
 		String taskId = pdkSourceContext.getSourcePdkDataNode().getNode().getTaskId();
 
 		kvStorageId = "stream_" + taskId + "_" + readPartition.getId();
 		kvStorageDuringSendingId = "stream_" + taskId + "_" + readPartition.getId() + "_during_sending";
 		sequenceStorageId = "batch_" + taskId + "_" + readPartition.getId();
 	}
-	public void writeIntoKVStorage(Map<String, Object> key, Map<String, Object> after) {
+	public void writeIntoKVStorage(Map<String, Object> key, Map<String, Object> after, TapRecordEvent recordEvent) {
 		if(kvStorageDuringSending != null)
-			kvStorageDuringSending.put(key, after);
+			kvStorageDuringSending.put(key, recordEvent);
 		else
 			kvStorage.put(key, after);
 	}
@@ -247,7 +249,8 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 				List<TapEvent> list = new ArrayList<>();
 				AtomicReference<List<TapEvent>> eventListReference = new AtomicReference<>(list);
 				kvStorageDuringSending.foreach((key, value) -> {
-					eventListReference.get().add(insertRecordEvent((Map<String, Object>) value, table.getId()));
+//					eventListReference.get().add(insertRecordEvent((Map<String, Object>) value, table.getId()));
+					eventListReference.get().add((TapRecordEvent)value);
 					counter.increment();
 					if(eventListReference.get().size() >= sourcePdkDataNode.batchSize) {
 						sourcePdkDataNode.handleStreamEventsReceived(eventListReference.get(), null);

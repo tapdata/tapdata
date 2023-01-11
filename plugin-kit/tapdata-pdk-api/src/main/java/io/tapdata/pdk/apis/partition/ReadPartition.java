@@ -7,11 +7,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexEx;
 import io.tapdata.entity.schema.TapIndexField;
-import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.QueryOperator;
-import io.tapdata.pdk.apis.partition.splitter.TypeSplitter;
-import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 
 import java.io.Serializable;
 import java.util.List;
@@ -83,9 +79,15 @@ public class ReadPartition implements Comparable<ReadPartition>, Serializable {
 				if (curRightBoundary != null) {
 					curRightBValue = curRightBoundary.getValue();
 				} else {
-					if (partitionFilter.getLeftBoundary() == null)
-						return -1;
-					else
+					if (partitionFilter.getLeftBoundary() == null) {
+						if ((o.partitionFilter.getMatch() == null || o.partitionFilter.getMatch().getObject(indexField.getName()) == null)
+								&& o.partitionFilter.getRightBoundary() == null
+								&& o.partitionFilter.getLeftBoundary() == null)
+							// 只有一个分区的情况
+							return 0;
+						else
+							return -1;
+					} else
 						return 1;
 				}
 			}
@@ -98,8 +100,9 @@ public class ReadPartition implements Comparable<ReadPartition>, Serializable {
 				if (oRightBoundary != null) {
 					oRightBValue = oRightBoundary.getValue();
 				} else {
+					// o永远都是map中的值，如果o都为null，则直接匹配，注：这种情况下map中只有一个值且这个值中的Filter全部为null
 					if (o.partitionFilter.getLeftBoundary() == null)
-						return 1;
+						return 0;
 					else
 						return -1;
 				}

@@ -57,10 +57,10 @@ public abstract class ConnectorBase implements TapConnector {
 		return new DatabaseReadPartitionSplitter()
 				.context(connectorContext)
 				.table(table)
+				.minMaxSplitPieces(options.getMinMaxSplitPieces())
 				.maxRecordInPartition(options.getMaxRecordInPartition())
 				.consumer(options.getConsumer())
 				.countIsSlow(options.getSplitType() != GetReadPartitionOptions.SPLIT_TYPE_BY_COUNT)
-				.existingPartitions(options.getExistingPartitions())
 				.typeSplitterMap(options.getTypeSplitterMap())
 				.splitCompleteListener(id -> options.getCompletedRunnable().run())
 				;

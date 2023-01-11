@@ -184,6 +184,7 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 
 		if(!stateMachine.getCurrentState().equals(STATE_INITIALIZED))
 			throw new CoreException(StorageErrors.ITERATE_ON_WRONG_STATE, "Iterate on wrong state {}, expect state {}", stateMachine.getCurrentState(), STATE_INITIALIZED);
+		CommonUtils.ignoreAnyError(() -> db.syncWal(), TAG);
 		db.close();
 		release();
 		stateMachine.gotoState(STATE_INITIALIZING, FormatUtils.format("Re-initializing after reset, id {}, options {}", id, storageOptions));
@@ -195,6 +196,7 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 //			throw new CoreException(StorageErrors.ITERATE_ON_WRONG_STATE, "Iterate on wrong state {}, expect state {}", stateMachine.getCurrentState(), STATE_INITIALIZED);
 		if (stateMachine != null && !stateMachine.getCurrentState().equals(STATE_DESTROYED)) {
 			stateMachine.gotoState(STATE_DESTROYED, FormatUtils.format("Force destroy, id {}, options {}", id, storageOptions));
+			CommonUtils.ignoreAnyError(() -> db.syncWal(), TAG);
 			db.close();
 		}
 		initHandler = null;
@@ -202,7 +204,10 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 	}
 
 	private void release() {
-		if(dbDir != null)
-			CommonUtils.ignoreAnyError(() -> FileUtils.forceDelete(dbDir), TAG);
+		if(dbDir != null) {
+			if(dbDir.exists()) {
+				CommonUtils.ignoreAnyError(() -> FileUtils.forceDelete(dbDir), TAG);
+			}
+		}
 	}
 }

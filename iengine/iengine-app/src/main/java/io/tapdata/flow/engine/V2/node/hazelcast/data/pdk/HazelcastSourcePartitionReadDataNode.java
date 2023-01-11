@@ -85,8 +85,8 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 
 	private final AtomicBoolean streamReadStarted = new AtomicBoolean(false);
 	private final AtomicBoolean tableParallelWorkerStarted = new AtomicBoolean(false);
-	public final Integer batchSize = 3000;
-	public final Integer partitionReaderThreadCount = 8;
+	public Integer batchSize = 3000;
+	public Integer partitionReaderThreadCount = 8;
 	private Map<String, ParallelWorker> tablePartitionReaderMap = new ConcurrentSkipListMap<>();
 	public HazelcastSourcePartitionReadDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -107,7 +107,15 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 	protected void doInit(@NotNull Context context) throws Exception {
 		try {
 			FileUtils.deleteQuietly(new File("./partition_storage/" + getNode().getId()));
-
+			Node<?> node = dataProcessorContext.getNode();
+			if(node instanceof DataParentNode) {
+				DataParentNode<?> dataParentNode = (DataParentNode<?>) node;
+				ReadPartitionOptions readPartitionOptions = dataParentNode.getReadPartitionOptions();
+				if(readPartitionOptions != null) {
+					partitionReaderThreadCount = readPartitionOptions.getPartitionThreadCount();
+					batchSize = readPartitionOptions.getPartitionBatchCount();
+				}
+			}
 			super.doInit(context);
 			// MILESTONE-INIT_CONNECTOR-FINISH
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.FINISH);
@@ -274,7 +282,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 										getConnectorNode().getConnectorContext(),
 										tapTable,
 										GetReadPartitionOptions.create().maxRecordInPartition(finalReadPartitionOptions.getMaxRecordInPartition())
-												.existingPartitions(null)
+												.minMaxSplitPieces(finalReadPartitionOptions.getMinMaxSplitPieces())
 												.splitType(finalReadPartitionOptions.getSplitType())
 												.typeSplitterMap(typeSplitterMap)
 												.consumer((partitionConsumer))

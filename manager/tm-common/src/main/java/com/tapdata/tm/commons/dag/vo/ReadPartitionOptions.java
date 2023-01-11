@@ -15,6 +15,9 @@ public class ReadPartitionOptions implements Serializable {
 
 	private boolean enable = false;
 	private long maxRecordInPartition = 500_000;
+	private int partitionThreadCount = 8;
+	private int partitionBatchCount = 3000;
+	private int minMaxSplitPieces = 100;
 	public int getSplitType() {
 		return splitType;
 	}
@@ -39,8 +42,32 @@ public class ReadPartitionOptions implements Serializable {
 		this.enable = enable;
 	}
 
+	public int getPartitionThreadCount() {
+		return partitionThreadCount;
+	}
+
+	public void setPartitionThreadCount(int partitionThreadCount) {
+		this.partitionThreadCount = partitionThreadCount;
+	}
+
+	public int getPartitionBatchCount() {
+		return partitionBatchCount;
+	}
+
+	public void setPartitionBatchCount(int partitionBatchCount) {
+		this.partitionBatchCount = partitionBatchCount;
+	}
+
+	public int getMinMaxSplitPieces() {
+		return minMaxSplitPieces;
+	}
+
+	public void setMinMaxSplitPieces(int minMaxSplitPieces) {
+		this.minMaxSplitPieces = minMaxSplitPieces;
+	}
+
 	@Override
 	public String toString() {
-		return "ReadPartitionOptions enable " + enable + " maxRecordInPartition " + maxRecordInPartition + " splitType " + (splitType == SPLIT_TYPE_BY_COUNT ? "by count" : "by min/max");
+		return "ReadPartitionOptions enable " + enable + " maxRecordInPartition " + maxRecordInPartition + " splitType " + (splitType == SPLIT_TYPE_BY_COUNT ? "by count" : "by min/max" + " minMaxSplitPieces " + minMaxSplitPieces + " partitionBatchCount " + partitionBatchCount + " partitionThreadCount " + partitionThreadCount);
 	}
 }

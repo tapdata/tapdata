@@ -31,8 +31,6 @@ import java.util.function.Consumer;
 public class DatabaseReadPartitionSplitter {
 	private TypeSplitterMap typeSplitterMap;
 	private String id;
-	private ScheduledExecutorService handleReadPartitionScheduler;
-//	private ScheduledFuture<?> partitionFuture;
 
 	public DatabaseReadPartitionSplitter id(String id) {
 		this.id = id;
@@ -74,6 +72,11 @@ public class DatabaseReadPartitionSplitter {
 		this.table = table;
 		return this;
 	}
+	private int minMaxSplitPieces = 100;
+	public DatabaseReadPartitionSplitter minMaxSplitPieces(int minMaxSplitPieces) {
+		this.minMaxSplitPieces = minMaxSplitPieces;
+		return this;
+	}
 	private long maxRecordInPartition = 500000;
 	public DatabaseReadPartitionSplitter maxRecordInPartition(long maxRecordInPartition) {
 		this.maxRecordInPartition = maxRecordInPartition;
@@ -82,16 +85,6 @@ public class DatabaseReadPartitionSplitter {
 	private int maxRecordRatio = 4;
 	public DatabaseReadPartitionSplitter maxRecordRatio(int maxRecordRatio) {
 		this.maxRecordRatio = maxRecordRatio;
-		return this;
-	}
-	private int countNumOfThread = 3;
-	public DatabaseReadPartitionSplitter countNumOfThread(int countNumOfThread) {
-		this.countNumOfThread = countNumOfThread;
-		return this;
-	}
-	private List<ReadPartition> existingPartitions;
-	public DatabaseReadPartitionSplitter existingPartitions(List<ReadPartition> existingPartitions) {
-		this.existingPartitions = existingPartitions;
 		return this;
 	}
 	private Consumer<ReadPartition> consumer;
@@ -150,8 +143,6 @@ public class DatabaseReadPartitionSplitter {
 				splitCompleteListener.completed(id);
 			context.getLog().info(id + ": Split job done only one piece here, no need to split, maxRecordWithRatioInPartition {} partitionIndex {}", maxRecordWithRatioInPartition, partitionIndex);
 		} else {
-			JobMaster asyncMaster = InstanceFactory.instance(JobMaster.class);
-
 			SplitContext splitContext = SplitContext.create().indexFields(partitionIndex.getIndexFields()).total(count);
 			SplitProgress splitProgress = SplitProgress.create().partitionFilter(TapPartitionFilter.create()).currentFieldPos(0).count(count);
 
@@ -159,7 +150,6 @@ public class DatabaseReadPartitionSplitter {
 //				currentPartitionCollector = rootPartitionCollector;
 //			}
 
-			handleReadPartitionScheduler = Executors.newSingleThreadScheduledExecutor();
 //			if(partitionFuture != null)
 //				partitionFuture.cancel(true);
 //			partitionFuture = handleReadPartitionScheduler.scheduleWithFixedDelay(this::handleReadPartitions,  1000L, 1000L, TimeUnit.MILLISECONDS);
@@ -285,7 +275,7 @@ public class DatabaseReadPartitionSplitter {
 		context.getLog().info(id + " " + partitionFilter + ": start splitting");
 		long count = splitProgress.getCount();
 		List<TapIndexField> indexFields = splitContext.getIndexFields();
-		long splitPieces = 100; //split 200 pieces by default. When count is < 0, default pieces will be used.
+		long splitPieces = minMaxSplitPieces; //split 200 pieces by default. When count is < 0, default pieces will be used.
 		if(count >= 0) {
 			splitPieces = count / maxRecordInPartition + ((count % maxRecordInPartition) == 0 ? 0 : 1);
 			context.getLog().info(id + " " + partitionFilter + ": Split into {} pieces", splitPieces);
@@ -426,10 +416,6 @@ public class DatabaseReadPartitionSplitter {
 		return maxRecordInPartition;
 	}
 
-	public List<ReadPartition> getExistingPartitions() {
-		return existingPartitions;
-	}
-
 	public Consumer<ReadPartition> getConsumer() {
 		return consumer;
 	}
@@ -459,16 +445,16 @@ public class DatabaseReadPartitionSplitter {
 		return countIsSlow;
 	}
 
-	public int getCountNumOfThread() {
-		return countNumOfThread;
-	}
-
 	public long getMaxRecordWithRatioInPartition() {
 		return maxRecordWithRatioInPartition;
 	}
 
 	public int getSplitPiecesForCountIsSlow() {
 		return splitPiecesForCountIsSlow;
+	}
+
+	public int getMinMaxSplitPieces() {
+		return minMaxSplitPieces;
 	}
 }
 
