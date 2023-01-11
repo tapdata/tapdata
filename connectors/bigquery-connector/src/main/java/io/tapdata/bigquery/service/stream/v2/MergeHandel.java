@@ -258,12 +258,12 @@ public class MergeHandel extends BigQueryStart {
             TapInsertRecordEvent recordEvent = (TapInsertRecordEvent) event;
             after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_INSERT);
             after.put(MergeHandel.MERGE_KEY_DATA_AFTER, recordEvent.getAfter());
+            after.put(MergeHandel.MERGE_KEY_DATA_BEFORE, recordEvent.getAfter());
         } else if (event instanceof TapUpdateRecordEvent) {
             TapUpdateRecordEvent recordEvent = (TapUpdateRecordEvent) event;
             after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_UPDATE);
             after.put(MergeHandel.MERGE_KEY_DATA_BEFORE, recordEvent.getBefore());
             after.put(MergeHandel.MERGE_KEY_DATA_AFTER, recordEvent.getAfter());
-
         } else if (event instanceof TapDeleteRecordEvent) {
             TapDeleteRecordEvent recordEvent = (TapDeleteRecordEvent) event;
             after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_DELETE);
@@ -307,11 +307,11 @@ public class MergeHandel extends BigQueryStart {
         }
         try {
             super.sqlMarker.executeOnce(String.format(
-                    MergeHandel.CLEAN_TABLE_SQL,
-                    projectId,
-                    tableSet,
-                    super.config().tempCursorSchema(),
-                    newestRecordId));
+                MergeHandel.CLEAN_TABLE_SQL,
+                projectId,
+                tableSet,
+                super.config().tempCursorSchema(),
+                newestRecordId));
         } catch (Exception e) {
             TapLogger.warn(TAG,"Failed to empty temporary table, table name is " + super.config().tempCursorSchema() + ", " + e.getMessage());
         }
@@ -327,10 +327,10 @@ public class MergeHandel extends BigQueryStart {
         }
         try {
             BigQueryResult bigQueryResult = super.sqlMarker.executeOnce(
-                    String.format(MergeHandel.DROP_TABLE_SQL
-                            , super.config().projectId()
-                            , super.config().tableSet()
-                            , temporaryTableId));
+                String.format(MergeHandel.DROP_TABLE_SQL
+                    , super.config().projectId()
+                    , super.config().tableSet()
+                    , temporaryTableId));
             return Checker.isNotEmpty(bigQueryResult) && Checker.isNotEmpty(bigQueryResult.getTotalRows()) && bigQueryResult.getTotalRows() > 0;
         } catch (Exception e) {
             throw new CoreException(String.format("Drop temporary table error,table name is: %s, error is: %s.", temporaryTableId, e.getMessage()));

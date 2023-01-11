@@ -4,17 +4,13 @@ import com.google.protobuf.Descriptors;
 import io.tapdata.bigquery.entity.ContextConfig;
 import io.tapdata.bigquery.service.bigQuery.BigQueryStart;
 import io.tapdata.bigquery.service.stream.WriteCommittedStream;
-import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
-import io.tapdata.bigquery.util.bigQueryUtil.SqlValueConvert;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -57,7 +53,7 @@ public class BigQueryStream extends BigQueryStart {
 
     /**
      * @deprecated
-     * */
+     */
     public BigQueryStream createWriteCommittedStream() throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
         String tableName = super.config.isMixedUpdates() ? super.config().tempCursorSchema() : this.tapTable.getName();
         return this.createWriteCommittedStream(tableName);
@@ -66,20 +62,21 @@ public class BigQueryStream extends BigQueryStart {
     public BigQueryStream createWriteCommittedStream(String tableName) throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
         if (Objects.isNull(this.stream)) {
             this.stream = WriteCommittedStream.writer(
-                    super.config().projectId(),
-                    super.config().tableSet(),
-                    tableName,
-                    super.config().serviceAccount());
+                super.config().projectId(),
+                super.config().tableSet(),
+                tableName,
+                super.config().serviceAccount());
         }
         return this;
     }
+
     public BigQueryStream createWriteCommittedBatch(String tableName) throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
         if (Objects.isNull(this.batch)) {
             this.batch = WriteCommittedStream.writer(
-                    super.config().projectId(),
-                    super.config().tableSet(),
-                    tableName,
-                    super.config().serviceAccount());
+                super.config().projectId(),
+                super.config().tableSet(),
+                tableName,
+                super.config().serviceAccount());
         }
         return this;
     }
@@ -97,8 +94,8 @@ public class BigQueryStream extends BigQueryStart {
         boolean needCreateTemporaryTable = Objects.isNull(streamToBatchTime);
         Long mergeId = this.stateMap.getLong(MergeHandel.MERGE_KEY_ID);
         EventAfter eventAfter = new EventAfter(streamToBatchTime)
-                .hasMerged(Objects.nonNull(mergeId))
-                .table(table);
+            .hasMerged(Objects.nonNull(mergeId))
+            .table(table);
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
         this.tapTable = table;
         eventAfter.convertData(events, this.merge);
@@ -116,7 +113,7 @@ public class BigQueryStream extends BigQueryStart {
             if (needCreateTemporaryTable) {
                 String temporaryTableName = this.merge.config().tempCursorSchema();
                 this.merge.createTemporaryTable(table, temporaryTableName);
-                TapLogger.info(TAG,String.format(" The data has been written in stream mode,and will be written to a temporary table. A temporary table has been created for [ %s ] which name is: %s",table.getId(),temporaryTableName));
+                TapLogger.info(TAG, String.format(" The data has been written in stream mode,and will be written to a temporary table. A temporary table has been created for [ %s ] which name is: %s", table.getId(), temporaryTableName));
             }
             // 启动merge线程
             long delay = MergeHandel.FIRST_MERGE_DELAY_SECOND * 1000000000L;
@@ -151,7 +148,7 @@ public class BigQueryStream extends BigQueryStart {
                 long time = nowTime - mergeId;
                 delay = 10 + (time > delaySecond ? 0 : delaySecond - time);
             }
-            this.merge.mergeTemporaryTableToMainTable(table, delay/1000000000L);
+            this.merge.mergeTemporaryTableToMainTable(table, delay / 1000000000L);
         }
         if (!eventAfter.mixedAndAppendData().isEmpty()) {
             if (Objects.isNull(this.tempTableName)) {
@@ -176,7 +173,7 @@ public class BigQueryStream extends BigQueryStart {
     }
 
     public void closeStream() {
-        synchronized (this.lock){
+        synchronized (this.lock) {
             Optional.ofNullable(stream).ifPresent(WriteCommittedStream::close);
             Optional.ofNullable(batch).ifPresent(WriteCommittedStream::close);
         }
@@ -192,7 +189,8 @@ public class BigQueryStream extends BigQueryStart {
         private Object mergeKeyId;
         public Long streamToBatchTime;
         private TapTable table;
-        public EventAfter table(TapTable mainTable){
+
+        public EventAfter table(TapTable mainTable) {
             this.table = mainTable;
             return this;
         }
@@ -231,7 +229,8 @@ public class BigQueryStream extends BigQueryStart {
                 this.isAppend = false;
             }
         }
-        public EventAfter hasMerged(boolean hasMerged){
+
+        public EventAfter hasMerged(boolean hasMerged) {
             this.isAppend = !hasMerged;
             return this;
         }
