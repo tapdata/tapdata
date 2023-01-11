@@ -94,9 +94,11 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			this.needToDeclare = StringUtils.isNotEmpty(declareScript);
 			if (this.needToDeclare) {
 				if (multipleTables) {
-					declareScript = String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript);
+					declareScript = String.format("var TapModelDeclare = Java.type(\"com.tapdata.processor.util.TapModelDeclare\");\n" +
+									"function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript);
 				} else {
-					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
+					declareScript = String.format("var TapModelDeclare = Java.type(\"com.tapdata.processor.util.TapModelDeclare\");\n" +
+									"function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
 				}
 				this.engine = ScriptUtil.getScriptEngine(declareScript, null, null,
 								((DataProcessorContext) processorBaseContext).getCacheService(),
