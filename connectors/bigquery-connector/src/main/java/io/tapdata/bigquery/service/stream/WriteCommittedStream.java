@@ -175,6 +175,7 @@ public class WriteCommittedStream {
     public void close() {
         if (Objects.nonNull(this.writer)) {
             try {
+                this.client.flushRows(this.writer.getStreamName());
                 this.client.shutdownNow();
                 boolean close = this.client.awaitTermination(1, TimeUnit.MILLISECONDS);
                 if (close) {
