@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Phaser;
+import java.util.concurrent.TimeUnit;
 
 public class WriteCommittedStream {
     public static final String TAG = WriteCommittedStream.class.getSimpleName();
@@ -169,9 +170,18 @@ public class WriteCommittedStream {
         });
     }
 
+
     public void close() {
-        if (Objects.nonNull(this.writer))
-            this.writer.cleanup(this.client);
+        if (Objects.nonNull(this.writer)) {
+            try {
+                this.client.shutdownNow();
+                boolean close = this.client.awaitTermination(1, TimeUnit.MILLISECONDS);
+                if (close){
+                    this.writer.cleanup(this.client);
+                }
+            } catch (InterruptedException e) {
+            }
+        }
     }
 
     // A simple wrapper object showing how the stateful stream writer should be used.
