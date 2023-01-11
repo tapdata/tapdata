@@ -281,6 +281,14 @@ public class TaskController extends BaseController {
 
             // set hostName;
             workerService.setHostName(taskDto);
+
+            // supplement startTime
+            if (Objects.isNull(taskDto.getStartTime())) {
+                TaskDto taskRecord = taskRecordService.queryTask(taskDto.getTaskRecordId(), user.getUserId());
+                if (Objects.nonNull(taskRecord)) {
+                    taskDto.setStartTime(taskRecord.getStartTime());
+                }
+            }
         }
         return success(taskDto);
     }
