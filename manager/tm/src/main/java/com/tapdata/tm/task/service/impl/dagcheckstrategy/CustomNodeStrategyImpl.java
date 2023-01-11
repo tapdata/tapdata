@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.customNode.dto.CustomNodeDto;
 import com.tapdata.tm.customNode.service.CustomNodeService;
@@ -10,6 +11,7 @@ import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
@@ -17,11 +19,9 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.security.Key;
 import java.text.MessageFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 @Component("customNodeStrategy")
 @Setter(onMethod_ = {@Autowired})
@@ -66,19 +66,18 @@ public class CustomNodeStrategyImpl implements DagLogStrategy {
                     } else {
                         List<String> formRequired = Lists.newArrayList();
                         Map<String, Object> formSchema = customNodeDto.getFormSchema();
-                        if (!formSchema.isEmpty()) {
-                            Map schema = (Map) formSchema.get("schema");
-                            if (!schema.isEmpty()) {
-                                Map properties = (Map) schema.get("properties");
-                                if (!properties.isEmpty()) {
-                                    for (Object o : properties.keySet()) {
-                                        Map map = (Map) properties.get(o.toString());
-                                        boolean required = (Boolean) map.getOrDefault("required", false);
-                                        formRequired.add(o.toString());
+
+                        FunctionUtils.ignoreAnyError(() -> {
+                            Map properties = JsonUtil.getValue(formSchema, "schema.properties", Map.class);
+                            Optional.ofNullable(properties).ifPresent(prop -> {
+                                prop.forEach((key, value) -> {
+                                    Map formMap = (Map) value;
+                                    if ((Boolean) formMap.getOrDefault("required", false)) {
+                                        formRequired.add(key.toString());
                                     }
-                                }
-                            }
-                        }
+                                });
+                            });
+                        });
 
                         if (CollectionUtils.isNotEmpty(formRequired)) {
                             boolean requiredFlag = false;

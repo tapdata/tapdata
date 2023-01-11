@@ -18,10 +18,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Component("targetSettingStrategy")
 public class TargetSettingStrategyImpl implements DagLogStrategy {
@@ -69,13 +67,13 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                 result.add(log);
             }
 
-            List<String> tableNames;
+            AtomicReference<List<String>> tableNames = new AtomicReference<>();
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 DatabaseNode databaseNode = (DatabaseNode) node;
-                tableNames = databaseNode.getTableNames();
+                Optional.ofNullable(databaseNode.getSyncObjects()).ifPresent(list -> tableNames.set(list.get(0).getObjectNames()));
             } else {
                 TableNode tableNode = (TableNode) node;
-                tableNames = Lists.newArrayList(tableNode.getTableName());
+                tableNames.set(Lists.newArrayList(tableNode.getTableName()));
                 if (CollectionUtils.isEmpty(tableNode.getUpdateConditionFields())) {
                     TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                             .grade(Level.ERROR).nodeId(nodeId)
@@ -87,7 +85,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                 }
             }
 
-            if (CollectionUtils.isEmpty(tableNames)) {
+            if (CollectionUtils.isEmpty(tableNames.get())) {
                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                         .grade(Level.ERROR).nodeId(nodeId)
                         .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}未选择表。", name))
