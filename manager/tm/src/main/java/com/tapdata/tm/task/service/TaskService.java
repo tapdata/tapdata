@@ -90,6 +90,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.quartz.CronScheduleBuilder;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -188,6 +189,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setStatus(TaskDto.STATUS_EDIT);
         log.debug("The save task is complete and the task will be processed, task name = {}", taskDto.getName());
         DAG dag = taskDto.getDag();
+
+        if (StringUtils.isNotEmpty(taskDto.getCrontabExpression()) && taskDto.isCrontabExpressionFlag()) {
+            try {
+                CronScheduleBuilder.cronSchedule(taskDto.getCrontabExpression());
+            } catch (Exception e) {
+                throw new BizException("Task.CronError");
+            }
+        }
 
         if (dag != null && CollectionUtils.isNotEmpty(dag.getNodes())) {
             List<Node> nodes = dag.getNodes();
@@ -373,6 +382,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         checkTaskInspectFlag(taskDto);
         //根据id校验当前需要更新到任务是否存在
         TaskDto oldTaskDto = null;
+
+        if (StringUtils.isNotEmpty(taskDto.getCrontabExpression()) && taskDto.isCrontabExpressionFlag()) {
+            try {
+                CronScheduleBuilder.cronSchedule(taskDto.getCrontabExpression());
+            } catch (Exception e) {
+                throw new BizException("Task.CronError");
+            }
+        }
 
         if (taskDto.getId() != null) {
             oldTaskDto = findById(taskDto.getId(), user);
@@ -3324,16 +3341,26 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
-                .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
-                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING));
+                .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_STOPPING,
+                        TaskDto.STATUS_RUNNING, TaskDto.STATUS_RENEWING, TaskDto.STATUS_DELETING));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
             taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
                     .collect(Collectors.toList());
+            log.info("Total cron task:{}", taskList.size());
+            int error = 0;
+            int success = 0;
             for (TaskDto taskDto : taskList) {
-                scheduleService.executeTask(taskDto);
+                try {
+                    scheduleService.executeTask(taskDto);
+                    success = success + 1;
+                } catch (Exception e) {
+                    log.error("Cron task error name:{},id:{}", taskDto.getName(), taskDto.getId());
+                    error = error + 1;
+                }
             }
+            log.info("Success sum:{},error sum:{}", success, error);
         }
     }
 
