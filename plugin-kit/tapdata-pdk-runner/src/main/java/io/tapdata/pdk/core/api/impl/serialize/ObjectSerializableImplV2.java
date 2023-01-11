@@ -4,10 +4,13 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.error.TapAPIErrorCodes;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.ObjectSerializable;
+import io.tapdata.entity.utils.TapUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
@@ -56,6 +59,7 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 	private static final int TYPE_TIME = 33;
 
 	private static final byte VERSION = -128; //greater the newer
+	private static final String TAG = ObjectSerializableImplV2.class.getSimpleName();
 	private Class<?> documentClass;
 	private Method documentParseMethod;
 	private Constructor objectIdConstructor;
@@ -393,16 +397,18 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 					return oos.readObject();
 				} catch (ClassNotFoundException e) {
 //						e.printStackTrace();
+					TapLogger.warn(TAG, "readObject failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(e));
 				}
 				break;
 			case TYPE_MONGODB_OBJECT_ID:
 				String idStr = dis.readUTF();
-				if(objectIdConstructor == null) {
+				if(objectIdConstructor == null || (options != null && options.getClassLoader() != null && !objectIdConstructor.getDeclaringClass().getClassLoader().equals(options.getClassLoader()))) {
 					try {
 						Class<?> objectIdClass = findClass(options, "org.bson.types.ObjectId");
 						objectIdConstructor = objectIdClass.getConstructor(String.class);
 					} catch (Throwable throwable) {
 //							throwable.printStackTrace();
+						TapLogger.warn(TAG, "findClass for org.bson.types.ObjectId failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 					}
 				}
 				if(objectIdConstructor != null) {
@@ -410,6 +416,7 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 						return objectIdConstructor.newInstance(idStr);
 					} catch (Throwable e) {
 //							e.printStackTrace();
+						TapLogger.warn(TAG, "ObjectId newInstance with id {} failed, {}", idStr, InstanceFactory.instance(TapUtils.class).getStackTrace(e));
 					}
 				}
 				break;
@@ -418,20 +425,22 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 				byte[] docBytes = new byte[docLength];
 				dis.readFully(docBytes);
 				String docContent = new String(docBytes, StandardCharsets.UTF_8);
-				if(documentParseMethod == null) {
+				if(documentParseMethod == null || (options != null && options.getClassLoader() != null && !documentParseMethod.getDeclaringClass().getClassLoader().equals(options.getClassLoader()))) {
 					try {
 						documentClass = findClass(options, "org.bson.Document");
 						documentParseMethod = documentClass.getMethod("parse", String.class);
 					} catch (Throwable throwable) {
 //							throwable.printStackTrace();
+						TapLogger.warn(TAG, "org.bson.Document get parse method failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 					}
 				}
 				if(documentParseMethod != null) {
 					try {
-						Object newObj = documentClass.newInstance();
-						return documentParseMethod.invoke(newObj, docContent);
+//						Object newObj = documentClass.newInstance();
+						return documentParseMethod.invoke(null, docContent);
 					} catch (Throwable e) {
 //							e.printStackTrace();
+						TapLogger.warn(TAG, "org.bson.Document get parse method failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(e));
 					}
 				}
 				break;
