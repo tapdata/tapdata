@@ -1858,8 +1858,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 	public void batchEncryptConfig() {
 		Query query = Query.query(Criteria
-				.where("config").exists(true)
-				.and("config").ne(null)
+				.where("config").ne(null)
 				.and("encryptConfig").exists(false));
 		query.fields().include("_id", "config");
 		List<DataSourceEntity> result = repository.findAll(query);
