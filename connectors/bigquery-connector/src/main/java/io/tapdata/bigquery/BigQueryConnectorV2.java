@@ -7,23 +7,19 @@ import io.tapdata.bigquery.service.bigQuery.BigQueryConnectionTest;
 import io.tapdata.bigquery.service.bigQuery.TableCreate;
 import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.bigquery.service.command.Command;
-import io.tapdata.bigquery.service.stream.handle.BigQueryStream;
-import io.tapdata.bigquery.service.stream.handle.MergeHandel;
 import io.tapdata.bigquery.service.stream.handle.TapEventCollector;
+import io.tapdata.bigquery.service.stream.v2.BigQueryStream;
+import io.tapdata.bigquery.service.stream.v2.MergeHandel;
 import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
 import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapArrayValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapValue;
-import io.tapdata.entity.schema.value.TapYearValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.cache.Entry;
 import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVMap;
@@ -45,10 +41,11 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-//@TapConnectorClass("spec.json")
-public class BigQueryConnector extends ConnectorBase {
+@TapConnectorClass("spec-v2.json")
+public class BigQueryConnectorV2 extends ConnectorBase {
     private static final String TAG = BigQueryConnector.class.getSimpleName();
     private static final int STREAM_SIZE = 30000;
+    private static final int CUMULATIVE_TIME_INTERVAL = 5;
 
     private WriteRecord writeRecord;
     private TableCreate tableCreate;
@@ -76,12 +73,11 @@ public class BigQueryConnector extends ConnectorBase {
             });
             ContextConfig config = this.writeRecord.config();
             this.stream = (BigQueryStream) BigQueryStream.streamWrite(context).paperStart(this.writeRecord);
-            if (Objects.nonNull(config) && config.isMixedUpdates()) {
-                this.merge = ((MergeHandel) MergeHandel.merge(connectionContext).paperStart(writeRecord))
-                        .running(this.running)
-                        .mergeDelaySeconds(config.mergeDelay());
-                this.stream.merge(this.merge);
-            }
+            this.merge = ((MergeHandel) MergeHandel.merge(connectionContext).paperStart(writeRecord))
+                    .running(this.running)
+                    .mergeDelaySeconds(config.mergeDelay());
+            this.stream.merge(this.merge);
+
         }
     }
 
@@ -94,7 +90,7 @@ public class BigQueryConnector extends ConnectorBase {
         Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::stop);
         this.running.set(false);
         Optional.ofNullable(this.merge).ifPresent(MergeHandel::stop);
-        //Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
+        Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
     }
 
     @Override
@@ -103,6 +99,11 @@ public class BigQueryConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapYearValue.class, "INT64", TapValue::getValue);
         codecRegistry.registerFromTapValue(TapMapValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
         codecRegistry.registerFromTapValue(TapArrayValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS"));
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTimeStr());
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> formatTapDateTime(tapYearValue.getValue(), "yyyy"));
+
         connectorFunctions.supportWriteRecord(this::writeRecord)
                 .supportCommandCallbackFunction(this::command)
                 .supportCreateTableV2(this::createTableV2)
@@ -116,19 +117,14 @@ public class BigQueryConnector extends ConnectorBase {
         KVMap<Object> stateMap = context.getStateMap();
         Object temporaryTable = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
         if (Objects.nonNull(temporaryTable)) {
-            merge = (MergeHandel) MergeHandel.merge(context).autoStart();
-            //清除临时表
-            if (Objects.nonNull(merge.config()) && Objects.nonNull(this.merge.config().tempCursorSchema())) {
-                if (Objects.nonNull(tableId) && !"".equals(tableId.trim())) {
-                    try {
-                        merge.mainTable(table(tableId)).mergeTableOnce();
-                    } catch (Exception e) {
-                        throw new CoreException(String.format(" The temporary table is removed during the reset operation. Moving out and merging the remaining data failed. Temporary table name:%s, target table name:%s. ", tableId, this.merge.config().tempCursorSchema()));
-                    }
-                }
-                this.merge.dropTemporaryTable();
+            this.merge = (MergeHandel) MergeHandel.merge(context).autoStart();
+            //删除临时表
+            try {
+                this.merge.dropTemporaryTable(String.valueOf(temporaryTable));
                 this.merge.config().tempCursorSchema(null);
                 stateMap.put(ContextConfig.TEMP_CURSOR_SCHEMA_NAME, null);
+            } catch (Exception e) {
+                TapLogger.warn(TAG, " Temporary table cannot be drop temporarily. Details: " + e.getMessage());
             }
         }
     }
@@ -138,9 +134,17 @@ public class BigQueryConnector extends ConnectorBase {
     }
 
     private void clearTable(TapConnectorContext connectorContext, TapClearTableEvent clearTableEvent) {
-        this.tableCreate.cleanTable(clearTableEvent);
-        if (Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()) {
-            this.merge.cleanTemporaryTable();
+        try {
+            this.tableCreate.cleanTable(clearTableEvent);
+        } catch (Exception e) {
+            TapLogger.warn(TAG, " Table data cannot be cleared temporarily. Details: " + e.getMessage());
+        }
+        if (Objects.nonNull(this.merge)) {
+            try {
+                this.merge.cleanTemporaryTable();
+            } catch (Exception e) {
+                TapLogger.warn(TAG, " Temporary table data cannot be cleared temporarily. Details: " + e.getMessage());
+            }
         }
     }
 
@@ -148,9 +152,6 @@ public class BigQueryConnector extends ConnectorBase {
         CreateTableOptions createTableOptions = CreateTableOptions.create().tableExists(tableCreate.isExist(createTableEvent));
         if (!createTableOptions.getTableExists()) {
             this.tableCreate.createSchema(createTableEvent);
-        }
-        if (Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()) {
-            this.merge.createTemporaryTable(createTableEvent.getTable(), this.tableCreate.config().tempCursorSchema());
         }
         return createTableOptions;
     }
@@ -169,16 +170,13 @@ public class BigQueryConnector extends ConnectorBase {
         this.tableId = table.getId();
         this.stream.tapTable(table);
         this.writeRecordStream(context, events, table, consumer);
-        if (Objects.nonNull(this.merge) && this.merge.config().isMixedUpdates()) {
-            this.merge.mergeTemporaryTableToMainTable(table);
-        }
     }
 
     private void uploadEvents(Consumer<WriteListResult<TapRecordEvent>> consumer, List<TapRecordEvent> events, TapTable table) {
         try {
             consumer.accept(this.stream.writeRecord(events, table));
         } catch (Exception e) {
-            TapLogger.error(TAG, e.getMessage());
+            TapLogger.warn(TAG, e.getMessage());
         }
     }
 
@@ -187,8 +185,8 @@ public class BigQueryConnector extends ConnectorBase {
             synchronized (this) {
                 if (Objects.isNull(this.tapEventCollector)) {
                     this.tapEventCollector = TapEventCollector.create()
-                            .maxRecords(BigQueryConnector.STREAM_SIZE)
-                            .idleSeconds(5)
+                            .maxRecords(BigQueryConnectorV2.STREAM_SIZE)
+                            .idleSeconds(BigQueryConnectorV2.CUMULATIVE_TIME_INTERVAL)
                             .table(table)
                             .writeListResultConsumer(consumer)
                             .eventCollected(this::uploadEvents);

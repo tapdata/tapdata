@@ -2,6 +2,8 @@ package io.tapdata.bigquery.entity;
 
 public class ContextConfig {
     public static final String TEMP_CURSOR_SCHEMA_NAME = "tempCursorSchema";
+    public static final String TEMP_CURSOR_SCHEMA_NAME_DEFAULT = "temp_table";
+    public static final Long MERGE_DELAY_DEFAULT = 60 * 60L;
     private String serviceAccount;
     private String projectId;
     private String tableSet ;

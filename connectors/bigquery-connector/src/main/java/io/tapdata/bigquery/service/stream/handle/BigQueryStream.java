@@ -21,18 +21,18 @@ public class BigQueryStream extends BigQueryStart {
 
     private WriteCommittedStream stream;
     private TapTable tapTable;
-    private MergeHandel merge ;
+    private MergeHandel merge;
 
-    public BigQueryStream merge(MergeHandel merge){
+    public BigQueryStream merge(MergeHandel merge) {
         this.merge = merge;
         return this;
     }
 
-    public TapTable tapTable(){
+    public TapTable tapTable() {
         return this.tapTable;
     }
 
-    public BigQueryStream tapTable(TapTable tapTable){
+    public BigQueryStream tapTable(TapTable tapTable) {
         this.tapTable = tapTable;
         return this;
     }
@@ -40,10 +40,10 @@ public class BigQueryStream extends BigQueryStart {
     public BigQueryStream createWriteCommittedStream() throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
         String tableName = super.config.isMixedUpdates() ? super.config().tempCursorSchema() : this.tapTable.getName();
         this.stream = WriteCommittedStream.writer(
-                        super.config().projectId(),
-                        super.config().tableSet(),
-                        tableName,
-                        super.config().serviceAccount());
+                super.config().projectId(),
+                super.config().tableSet(),
+                tableName,
+                super.config().serviceAccount());
         return this;
     }
 
@@ -59,12 +59,12 @@ public class BigQueryStream extends BigQueryStart {
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
         this.tapTable = table;
         this.createWriteCommittedStream();
-        if (this.config.isMixedUpdates()){
+        if (this.config.isMixedUpdates()) {
             //混合模式写入数据
-            synchronized (this.merge.mergeLock()){
+            synchronized (this.merge.mergeLock()) {
                 this.stream.appendJSON(this.records(this.merge.temporaryEvent(events), result));
             }
-        }else {
+        } else {
             //append-only 模式
             this.stream.append(this.records(events, result));
         }
@@ -72,39 +72,37 @@ public class BigQueryStream extends BigQueryStart {
         return result;
     }
 
-    private List<Map<String,Object>> records(List<TapRecordEvent> events,WriteListResult<TapRecordEvent> result){
-        int insert = 0,update = 0, delete = 0;
+    private List<Map<String, Object>> records(List<TapRecordEvent> events, WriteListResult<TapRecordEvent> result) {
+        int insert = 0, update = 0, delete = 0;
         KVMap<Object> stateMap = ((TapConnectorContext) this.connectorContext).getStateMap();
-        List<Map<String,Object>> list = new ArrayList<>();
+        List<Map<String, Object>> list = new ArrayList<>();
         Object mergeKeyId = null;
         for (TapRecordEvent event : events) {
             if (Objects.isNull(event)) continue;
-            Map<String,Object> record = new HashMap<>();
-            if (event instanceof TapInsertRecordEvent){
+            Map<String, Object> record = new HashMap<>();
+            if (event instanceof TapInsertRecordEvent) {
                 insert++;
-                record = ((TapInsertRecordEvent)event).getAfter();
-            }
-            else if(event instanceof TapUpdateRecordEvent){
+                record = ((TapInsertRecordEvent) event).getAfter();
+            } else if (event instanceof TapUpdateRecordEvent) {
                 update++;
                 //record = ((TapUpdateRecordEvent)event).getAfter();
-            }
-            else if(event instanceof TapDeleteRecordEvent){
+            } else if (event instanceof TapDeleteRecordEvent) {
                 delete++;
                 //record = ((TapDeleteRecordEvent)event).getBefore();
             }
             mergeKeyId = record.get(MergeHandel.MERGE_KEY_ID);
-            if (!record.isEmpty()){
+            if (!record.isEmpty()) {
                 list.add(record);
             }
         }
         result.removedCount(delete).modifiedCount(update).insertedCount(insert);
-        if (Objects.nonNull(mergeKeyId)){
-            stateMap.put(MergeHandel.MERGE_KEY_ID,mergeKeyId);
+        if (Objects.nonNull(mergeKeyId)) {
+            stateMap.put(MergeHandel.MERGE_KEY_ID, mergeKeyId);
         }
         return list;
     }
 
-    public void closeStream(){
+    public void closeStream() {
         Optional.ofNullable(stream).ifPresent(WriteCommittedStream::close);
     }
 }

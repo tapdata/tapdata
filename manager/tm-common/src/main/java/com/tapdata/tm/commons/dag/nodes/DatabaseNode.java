@@ -55,7 +55,6 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     private List<String> outputLanes;
     private String existDataProcessMode = "keepData";
     private String dropType;
-    private Integer readBatchSize;
     private Integer readCdcInterval;
     private List<FieldProcess> fieldProcess;
 

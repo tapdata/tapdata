@@ -2,10 +2,8 @@ package io.tapdata.bigquery.service.stream.handle;
 
 import io.tapdata.bigquery.util.bigQueryUtil.SqlValueConvert;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -86,19 +84,19 @@ public class TapEventCollector {
                     } catch (Throwable throwable) {
                         TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
                     }
-                }, 1, 5, TimeUnit.SECONDS);
+                }, idleSeconds, 10, TimeUnit.SECONDS);
             }
         }
     }
 
     private synchronized void tryUpload(boolean forced) {
         if (!this.isUploading && this.pendingUploadEvents != null) {
-            TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
+            //TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
             uploadEvents();
         } else if ((this.pendingUploadEvents == null && !this.events.isEmpty()) && (forced || (this.touch != null && System.currentTimeMillis() - this.touch > this.idleSeconds * 1000L))) {
             this.pendingUploadEvents = this.events;
             this.events = new CopyOnWriteArrayList<>();
-            TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
+            //TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
             uploadEvents();
         }
     }
@@ -116,16 +114,16 @@ public class TapEventCollector {
         }
     }
 
-    public void addTapEvents(List<TapRecordEvent> eventList,TapTable table,boolean isMixedUpdates) {
+    public void addTapEvents(List<TapRecordEvent> eventList, TapTable table) {
         if (eventList != null && !eventList.isEmpty()) {
-            this.transform(eventList, table, isMixedUpdates);
+            this.transform(eventList, table);
             this.events.addAll(eventList);
         }
         this.touch = System.currentTimeMillis();
         tryUpload(this.events.size() > this.maxRecords);
     }
 
-    private void transform(List<TapRecordEvent> eventList,TapTable table,boolean isMixedUpdates){
+    private void transform(List<TapRecordEvent> eventList, TapTable table) {
         //if (!isMixedUpdates) return;
         LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
         if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {
@@ -133,13 +131,13 @@ public class TapEventCollector {
         }
         for (TapRecordEvent event : eventList) {
             if (Objects.isNull(event)) continue;
-            Map<String,Object> record = new HashMap<>();
-            if (event instanceof TapInsertRecordEvent){
-                Map<String,Object> recordMap = new HashMap<>();
-                TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent)event;
+            Map<String, Object> record = new HashMap<>();
+            if (event instanceof TapInsertRecordEvent) {
+                Map<String, Object> recordMap = new HashMap<>();
+                TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) event;
                 record = insertRecordEvent.getAfter();
                 Map<String, Object> finalRecord = record;
-                nameFieldMap.forEach((key, f)-> {
+                nameFieldMap.forEach((key, f) -> {
                     Object value = finalRecord.get(key);
                     if (Objects.nonNull(value)) {
                         recordMap.put(key, SqlValueConvert.streamJsonArrayValue(value, f));
