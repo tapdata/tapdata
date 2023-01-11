@@ -468,7 +468,7 @@ public class MongodbConnector extends ConnectorBase {
 				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)
 				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
 				|| null != matchThrowable(throwable, MongoServerUnavailableException.class)
-				|| null != matchThrowable(throwable, IOException.class)) {
+				|| null != matchThrowable(throwable, MongoQueryException.class)) {
 			retryOptions.needRetry(true);
 			return retryOptions;
 		}
