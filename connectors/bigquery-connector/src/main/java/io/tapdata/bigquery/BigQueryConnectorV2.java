@@ -176,7 +176,7 @@ public class BigQueryConnectorV2 extends ConnectorBase {
         try {
             consumer.accept(this.stream.writeRecord(events, table));
         } catch (Exception e) {
-            TapLogger.error(TAG, e.getMessage());
+            TapLogger.warn(TAG, e.getMessage());
         }
     }
 

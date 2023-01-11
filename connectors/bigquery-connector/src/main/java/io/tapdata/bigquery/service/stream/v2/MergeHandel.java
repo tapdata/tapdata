@@ -313,7 +313,7 @@ public class MergeHandel extends BigQueryStart {
                     super.config().tempCursorSchema(),
                     newestRecordId));
         } catch (Exception e) {
-            throw new CoreException("Failed to empty temporary table, table name is " + super.config().tempCursorSchema() + ", " + e.getMessage());
+            TapLogger.warn(TAG,"Failed to empty temporary table, table name is " + super.config().tempCursorSchema() + ", " + e.getMessage());
         }
     }
 
@@ -355,7 +355,7 @@ public class MergeHandel extends BigQueryStart {
                     try {
                         this.mergeTableOnce();
                     } catch (Throwable throwable) {
-                        TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
+                        TapLogger.warn(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
                     }
                 }
             }, delay, this.mergeDelaySeconds, TimeUnit.SECONDS);
