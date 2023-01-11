@@ -15,9 +15,7 @@ import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
-import com.tapdata.tm.commons.dag.process.CacheLookupProcessorNode;
-import com.tapdata.tm.commons.dag.process.JsProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.*;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
@@ -43,7 +41,7 @@ import java.util.function.BiConsumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
-public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode{
+public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode {
 
   private static final Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNode.class);
   public static final String TAG = HazelcastJavaScriptProcessorNode.class.getSimpleName();
@@ -55,6 +53,11 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
   private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
   private ScriptExecutorsManager.ScriptExecutor source;
   private ScriptExecutorsManager.ScriptExecutor target;
+
+  /**
+   *
+   */
+  private boolean standard;
 
   @SneakyThrows
   public HazelcastJavaScriptProcessorNode(ProcessorBaseContext processorBaseContext) {
@@ -69,6 +72,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
       script = ((CacheLookupProcessorNode) node).getScript();
     } else {
       throw new RuntimeException("unsupported node " + node.getClass().getName());
+    }
+
+    if (node instanceof StandardJsProcessorNode || node instanceof StandardMigrateJsProcessorNode) {
+      this.standard = true;
     }
 
     List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(
