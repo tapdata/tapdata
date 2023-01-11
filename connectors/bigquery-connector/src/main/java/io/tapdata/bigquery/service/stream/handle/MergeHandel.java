@@ -228,12 +228,12 @@ public class MergeHandel extends BigQueryStart {
                 TapInsertRecordEvent recordEvent = (TapInsertRecordEvent) event;
                 after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_INSERT);
                 after.put(MergeHandel.MERGE_KEY_DATA_AFTER, recordEvent.getAfter());
+                after.put(MergeHandel.MERGE_KEY_DATA_BEFORE, recordEvent.getAfter());
             } else if (event instanceof TapUpdateRecordEvent) {
                 TapUpdateRecordEvent recordEvent = (TapUpdateRecordEvent) event;
                 after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_UPDATE);
                 after.put(MergeHandel.MERGE_KEY_DATA_BEFORE, recordEvent.getBefore());
                 after.put(MergeHandel.MERGE_KEY_DATA_AFTER, recordEvent.getAfter());
-
             } else if (event instanceof TapDeleteRecordEvent) {
                 TapDeleteRecordEvent recordEvent = (TapDeleteRecordEvent) event;
                 after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_DELETE);
