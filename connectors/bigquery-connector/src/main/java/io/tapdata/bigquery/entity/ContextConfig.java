@@ -1,9 +1,16 @@
 package io.tapdata.bigquery.entity;
 
 public class ContextConfig {
+    public static final String TEMP_CURSOR_SCHEMA_NAME = "tempCursorSchema";
     private String serviceAccount;
     private String projectId;
     private String tableSet ;
+
+    private String writeMode;
+    private String cursorSchema;
+    private String tempCursorSchema;
+    private Long mergeDelay;
+
     public static ContextConfig create(){
         return new ContextConfig();
     }
@@ -28,5 +35,38 @@ public class ContextConfig {
     }
     public String tableSet(){
         return this.tableSet;
+    }
+
+    public ContextConfig mergeDelay(Long mergeDelay){
+        this.mergeDelay= mergeDelay;
+        return this;
+    }
+    public Long mergeDelay(){
+        return this.mergeDelay;
+    }
+
+    public ContextConfig cursorSchema(String cursorSchema){
+        this.cursorSchema = cursorSchema;
+        return this;
+    }public ContextConfig tempCursorSchema(String tempCursorSchema){
+        this.tempCursorSchema = tempCursorSchema;
+        return this;
+    }
+    public String cursorSchema(){
+        return this.cursorSchema;
+    }
+    public String tempCursorSchema(){
+        return this.tempCursorSchema;
+    }
+
+    public ContextConfig writeMode(String writeMode){
+        this.writeMode= writeMode;
+        return this;
+    }
+    public String writeMode(){
+        return this.writeMode;
+    }
+    public boolean isMixedUpdates(){
+        return "MIXED_UPDATES".equals(this.writeMode);
     }
 }

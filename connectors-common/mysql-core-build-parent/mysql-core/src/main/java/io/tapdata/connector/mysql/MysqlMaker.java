@@ -94,7 +94,7 @@ public class MysqlMaker implements SqlMaker {
         }
         if (CollectionUtils.isNotEmpty(pks)) {
             for (String pk : pks) {
-                String orderStr = pk + " ASC";
+                String orderStr = String.format(MysqlJdbcContext.FIELD_TEMPLATE, pk) + " ASC";
                 if (orderList.contains(orderStr)) {
                     continue;
                 }
