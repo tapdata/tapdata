@@ -163,7 +163,7 @@ public class TableNode extends DataNode {
     /** 增量轮询排序方式  asc desc*/
     private String cdcPollingOrder;
     /** 增量轮询字段的默认值 */
-    private List<String> cdcPollingFieldsDefaultValues;
+    private Map<String, String> cdcPollingFieldsDefaultValues;
     /** 增量轮询间隔  单位 毫秒 */
     private int cdcPollingInterval;
     /** 增量轮询的每次读取行数 */
