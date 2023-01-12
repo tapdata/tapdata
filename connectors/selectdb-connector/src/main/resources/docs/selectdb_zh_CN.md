@@ -25,7 +25,7 @@ GRANT PROCESS ON *.* TO 'tapdata' IDENTIFIED BY 'password';
 连接名称：Tapdata
 仓库公网 IP：39.108.5.66
 MySQL 协议端口：16604
-HTTP 协议端口：39.108.5.66:42188
+HTTP 协议端口：42188
 数据库：TEST
 账号：admin
 密码：admin
