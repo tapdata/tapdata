@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.JoinTable;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.pdk.apis.entity.QueryOperator;
+import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -157,11 +158,10 @@ public class TableNode extends DataNode {
     private String cdcMode;
 
     /** 增量轮询指定字段名称 */
-    private List<String> cdcPollingFields;
+    private List<CdcPollingField> cdcPollingFields;
     /** 增量轮询排序方式  asc desc*/
     private String cdcPollingOrder;
-    /** 增量轮询字段的默认值 */
-    private Map<String, String> cdcPollingFieldsDefaultValues;
+
     /** 增量轮询间隔  单位 毫秒 */
     private int cdcPollingInterval;
     /** 增量轮询的每次读取行数 */
@@ -283,5 +283,13 @@ public class TableNode extends DataNode {
     @Override
     public void fieldDdlEvent(TapDDLEvent event) throws Exception {
         updateDdlList(updateConditionFields, event);
+    }
+
+    @Data
+    public static class CdcPollingField {
+        /** 指定的轮询字段 */
+        private String field;
+        /** 指定的轮询字段默认值 */
+        private String defaultValue;
     }
 }
