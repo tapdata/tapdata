@@ -26,12 +26,13 @@ import java.util.function.BiConsumer;
 
 public class JSBatchReadFunction extends FunctionBase implements FunctionSupport<BatchReadFunction> {
     AtomicBoolean isAlive = new AtomicBoolean(true);
-    public JSBatchReadFunction isAlive(AtomicBoolean isAlive){
+
+    public JSBatchReadFunction isAlive(AtomicBoolean isAlive) {
         this.isAlive = isAlive;
         return this;
     }
 
-    private JSBatchReadFunction(){
+    private JSBatchReadFunction() {
         super();
         super.functionName = JSFunctionNames.BatchReadFunction;
     }
@@ -41,15 +42,13 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
         if (super.hasNotSupport(javaScripter)) return null;
         return this::batchRead;
     }
-    private void batchRead(TapConnectorContext context, TapTable table, Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer ){
-        if (Objects.isNull(context)){
+
+    private void batchRead(TapConnectorContext context, TapTable table, Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) {
+        if (Objects.isNull(context)) {
             throw new CoreException("TapConnectorContext must not be null or not be empty.");
         }
-        if(Objects.isNull(table)){
+        if (Objects.isNull(table)) {
             throw new CoreException("TapTable must not be null or not be empty.");
-        }
-        if (Objects.isNull(offset)){
-            offset = new HashMap<>();
         }
         ScriptEngine scriptEngine = javaScripter.scriptEngine();
         ScriptCore scriptCore = new ScriptCore(table.getId());
@@ -85,7 +84,7 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
                 if (EmptyKit.isNotNull(message)) {
                     eventList.add(message.getTapEvent());
                     if (eventList.size() == batchCount) {
-                        eventsOffsetConsumer.accept(eventList, new HashMap<>());
+                        eventsOffsetConsumer.accept(eventList, offset);
                         eventList = new ArrayList<>();
                     }
                 }
@@ -97,14 +96,14 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
             throw new RuntimeException(scriptException.get());
         }
         if (isAlive.get() && EmptyKit.isNotEmpty(eventList)) {
-            eventsOffsetConsumer.accept(eventList, new HashMap<>());
+            eventsOffsetConsumer.accept(eventList, offset);
         }
         if (t.isAlive()) {
             t.stop();
         }
     }
 
-    public static BatchReadFunction create(LoadJavaScripter loadJavaScripter,AtomicBoolean isAlive) {
+    public static BatchReadFunction create(LoadJavaScripter loadJavaScripter, AtomicBoolean isAlive) {
         return new JSBatchReadFunction().isAlive(isAlive).function(loadJavaScripter);
     }
 }

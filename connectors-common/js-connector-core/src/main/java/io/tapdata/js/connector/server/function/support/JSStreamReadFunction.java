@@ -16,20 +16,21 @@ import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 
 import javax.script.ScriptEngine;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class JSStreamReadFunction extends FunctionBase implements FunctionSupport<StreamReadFunction> {AtomicBoolean isAlive = new AtomicBoolean(true);
-    public JSStreamReadFunction isAlive(AtomicBoolean isAlive){
+public class JSStreamReadFunction extends FunctionBase implements FunctionSupport<StreamReadFunction> {
+    AtomicBoolean isAlive = new AtomicBoolean(true);
+
+    public JSStreamReadFunction isAlive(AtomicBoolean isAlive) {
         this.isAlive = isAlive;
         return this;
     }
 
-    JSStreamReadFunction(){
+    JSStreamReadFunction() {
         super();
         super.functionName = JSFunctionNames.StreamReadFunction;
     }
@@ -41,14 +42,11 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
     }
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
-        if (Objects.isNull(nodeContext)){
+        if (Objects.isNull(nodeContext)) {
             throw new CoreException("TapConnectorContext must not be null or not be empty.");
         }
-        if(Objects.isNull(tableList)){
+        if (Objects.isNull(tableList)) {
             throw new CoreException("Table lists must not be null or not be empty.");
-        }
-        if (Objects.isNull(offsetState)){
-            offsetState = new HashMap<>();
         }
         ScriptCore scriptCore = new ScriptCore(tableList.get(0));
         AtomicReference<Object> contextMap = new AtomicReference<>(offsetState);
@@ -69,7 +67,7 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
                             recordSize,
                             sender
                     );
-                    this.wait(5*60*1000);
+                    this.wait(5 * 60 * 1000);
                 }
             } catch (InterruptedException ignored) {
             } catch (Exception e) {

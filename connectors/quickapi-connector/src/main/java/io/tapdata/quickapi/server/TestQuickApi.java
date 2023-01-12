@@ -105,7 +105,7 @@ public class TestQuickApi extends QuickApiBase {
             boolean testApiFailed = false;
             StringJoiner joiner = new StringJoiner(";\n");
             for (APIEntity apiEntity : tables) {
-                APIResponse http = invoker.invoke(apiEntity.name(), apiEntity.method(), this.invoker.variable(),true);
+                APIResponse http = invoker.invoke(apiEntity.name(), this.invoker.variable(), apiEntity.method(),true);
                 StringBuilder builder = new StringBuilder();
                 builder.append("(")
                         .append(testApiIndex++)

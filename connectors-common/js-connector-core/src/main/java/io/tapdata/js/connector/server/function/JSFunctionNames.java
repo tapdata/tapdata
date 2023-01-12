@@ -8,6 +8,7 @@ public enum JSFunctionNames {
     WriteRecordFunction("write_record","WriteRecordFunction",""),
     BatchCountFunction("batch_count","BatchCountFunction",""),
     CreateTableV2Function("create_table_v2","CreateTableV2Function",""),
+    TimestampToStreamOffset("timestamp_to_stream_offset","TimestampToStreamOffset",""),
 
     CONNECTION_TEST("connection_test","ConnectionTest",""),
     DISCOVER_SCHEMA("discover_schema","DiscoverSchema",""),

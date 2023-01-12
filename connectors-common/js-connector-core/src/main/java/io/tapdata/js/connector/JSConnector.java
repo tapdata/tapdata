@@ -8,6 +8,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.base.CacheContext;
+import io.tapdata.js.connector.base.JsUtil;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.iengine.ScriptEngineInstance;
 import io.tapdata.js.connector.server.decorator.APIFactoryDecorator;
@@ -34,18 +35,20 @@ public class JSConnector extends ConnectorBase {
     private APIInvoker apiInvoker ;
     private Map<String,Object> apiParam = new HashMap<>();
     private APIFactory apiFactory = new APIFactoryImpl();
+    private CacheContext cacheContext = new CacheContext();
 
     private final AtomicBoolean isAlive = new AtomicBoolean(true);
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
-        this.instanceScript(connectionContext);
         this.isAlive.set(true);
-
+        this.cacheContext.activate(this.isAlive);
+        this.instanceScript(connectionContext);
     }
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         this.isAlive.set(false);
+        Optional.ofNullable(this.cacheContext).ifPresent(CacheContext::clean);
     }
 
     @Override
@@ -56,7 +59,8 @@ public class JSConnector extends ConnectorBase {
             .supportBatchRead(FunctionSupport.function(javaScripter, script->JSBatchReadFunction.create(script,this.isAlive)))
             .supportBatchCount(FunctionSupport.function(javaScripter, JSBatchCountFunction::create))
             .supportRawDataCallbackFilterFunctionV2(FunctionSupport.function(javaScripter, JSRawDataCallbackFunction::create))
-            .supportCreateTableV2(FunctionSupport.function(javaScripter, JSCreateTableV2Function::create));
+            .supportCreateTableV2(FunctionSupport.function(javaScripter, JSCreateTableV2Function::create))
+            .supportTimestampToStreamOffset(FunctionSupport.function(javaScripter, JSTimestampToStreamOffsetFunction::create));
     }
 
     @Override
@@ -98,17 +102,12 @@ public class JSConnector extends ConnectorBase {
                 }
             }
         }
-        //this.javaScripter.bindingGlobal("tapFunctions",new ArrayList<>());
-//        try {
-//            this.javaScripter.scriptEngine().eval("var tapAPI = Java.type(\"io.tapdata.js.connector.server.decorator.APIFactoryDecorator\");");
-//        }catch (Exception e){
-//
-//        }
         JSAPIInterceptorConfig config = JSAPIInterceptorConfig.config();
-        APIFactoryDecorator factory = new APIFactoryDecorator(apiFactory).interceptor(JSAPIResponseInterceptor.create(config, apiInvoker));
+        APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory).interceptor(JSAPIResponseInterceptor.create(config, apiInvoker));
         this.javaScripter.scriptEngine().put("tapAPI",factory);
         this.javaScripter.scriptEngine().put("log",new ConnectorLog());
-        this.javaScripter.scriptEngine().put("tapCache",new CacheContext());
+        this.javaScripter.scriptEngine().put("tapCache",this.cacheContext);
+        this.javaScripter.scriptEngine().put("tapUtil",new JsUtil());
         engineInstance.loadScript();
     }
 }

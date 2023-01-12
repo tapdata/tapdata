@@ -33,14 +33,4 @@ public abstract class Core {
     }
 
     public abstract void push(List<Object> data, String op, Object contextMap);
-
-    public Object toMap(Object obj){
-        if (obj instanceof Function){
-            Function obj1 = (Function) obj;
-            Object apply = obj1.apply(null);
-            return apply;
-        }else {
-            return obj;
-        }
-    }
 }

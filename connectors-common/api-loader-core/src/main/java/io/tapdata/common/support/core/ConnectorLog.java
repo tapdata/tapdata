@@ -2,6 +2,8 @@ package io.tapdata.common.support.core;
 
 import io.tapdata.entity.logger.TapLogger;
 
+import java.util.function.Function;
+
 public class ConnectorLog {
 
     private static final String TAG = ConnectorLog.class.getSimpleName();

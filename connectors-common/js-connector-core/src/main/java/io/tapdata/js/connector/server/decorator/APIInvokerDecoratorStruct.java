@@ -1,13 +1,13 @@
 package io.tapdata.js.connector.server.decorator;
 
-import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.schema.TapTable;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.common.support.APIInvoker;
 import io.tapdata.common.support.APIIterateInterceptor;
 import io.tapdata.common.support.APIResponseInterceptor;
 import io.tapdata.common.support.entitys.APIEntity;
 import io.tapdata.common.support.entitys.APIResponse;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.List;
 import java.util.Map;
@@ -16,9 +16,11 @@ import java.util.function.BiConsumer;
 
 public class APIInvokerDecoratorStruct implements APIInvoker {
     private APIInvoker apiInvoker;
-    public APIInvokerDecoratorStruct(APIInvoker apiInvoker){
+
+    public APIInvokerDecoratorStruct(APIInvoker apiInvoker) {
         this.apiInvoker = apiInvoker;
     }
+
     @Override
     public APIResponse invoke(String uriOrName, Map<String, Object> params, String method, boolean invoker) {
         return apiInvoker.invoke(uriOrName, params, method, invoker);

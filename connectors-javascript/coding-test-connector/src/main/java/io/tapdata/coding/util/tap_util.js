@@ -4,7 +4,7 @@
 var invoker = loadAPI();
 var OptionalUtil = {
     isEmpty: function (obj) {
-        return 'undefined' == obj || null == obj;
+        return typeof(obj) == 'undefined'  || null == obj;
     },
     notEmpty: function (obj) {
         return !this.isEmpty(obj);
@@ -19,7 +19,7 @@ function iterateAllData(apiName, offset, call) {
     let error;
     do {
         let response = invoker.invoke(apiName, offset);
-        res = response.result.data;
+        res = response.result;
         error = response.error;
     } while (call(res, offset, error));
 }

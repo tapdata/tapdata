@@ -38,10 +38,10 @@ public class QuickAPIResponseInterceptor implements APIResponseInterceptor {
             List<APIEntity> apiEntities = invoker.tableApis();
             if ( !apiEntities.isEmpty() ){
                 APIEntity apiEntity = apiEntities.get(0);
-                APIResponse tokenResponse = invoker.invoke(apiEntity.name(), apiEntity.method(), params,true);
+                APIResponse tokenResponse = invoker.invoke(apiEntity.name(), params, apiEntity.method(),true);
                 if (expireHandel.refreshComplete(tokenResponse,params)) {
                     //再调用
-                    interceptorResponse = invoker.invoke(urlOrName, method, params,true);
+                    interceptorResponse = invoker.invoke(urlOrName, params, method,true);
                 }
             }
         }
