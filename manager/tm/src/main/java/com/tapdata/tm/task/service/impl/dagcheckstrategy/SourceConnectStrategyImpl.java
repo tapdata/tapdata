@@ -1,7 +1,10 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import com.google.common.collect.Maps;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -20,6 +23,7 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Component("sourceConnectStrategy")
 @Setter(onMethod_ = {@Autowired})
@@ -30,15 +34,14 @@ public class SourceConnectStrategyImpl implements DagLogStrategy {
 
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
-        List<TaskDagCheckLog> result = Lists.newArrayList();
-        LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
-
-        if (CollectionUtils.isEmpty(sourceNode)) {
-            return Lists.newArrayList();
+        DAG dag = taskDto.getDag();
+        if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getNodes())) {
+            return null;
         }
 
-        for (DatabaseNode node : sourceNode) {
-            String connectionId = node.getConnectionId();
+        List<TaskDagCheckLog> result = Lists.newArrayList();
+        for (Node node : dag.getSources()) {
+            String connectionId = node instanceof DatabaseNode ? ((DatabaseNode) node).getConnectionId() : ((TableNode) node).getConnectionId();
             DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
             if (DataSourceEntity.STATUS_READY.equals(connectionDto.getStatus())) {
                 continue;
@@ -56,8 +59,6 @@ public class SourceConnectStrategyImpl implements DagLogStrategy {
 
             dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetail);
         }
-
-
         return result;
     }
 }

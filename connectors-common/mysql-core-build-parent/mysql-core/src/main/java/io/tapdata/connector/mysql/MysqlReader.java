@@ -257,6 +257,9 @@ public class MysqlReader implements Closeable {
 //					.with("time.type", "io.tapdata.connector.mysql.converters.TimeConverter")
 //					.with("time.schema.name", "io.debezium.mysql.type.Time")
 					.with("snapshot.locking.mode", "none");
+			if (EmptyKit.isNotBlank(connectionConfig.getString("timezone"))) {
+				builder.with("database.serverTimezone", TimeZone.getTimeZone(connectionConfig.getString("timezone")).toZoneId());
+			}
 			List<String> dbTableNames = tables.stream().map(t -> database + "." + t).collect(Collectors.toList());
 			builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, database);
 			builder.with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, String.join(",", dbTableNames));

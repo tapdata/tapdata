@@ -862,10 +862,11 @@ public class MeasurementServiceV2 {
         vs.remove("inputQps");
         vs.remove("outputQps");
         vs.forEach((k, v) -> {
+            Long value = Objects.nonNull(v) ? v.longValue() : 0;
             if (StringUtils.startsWith(k, "input")) {
-                inputTotal.updateAndGet(v1 -> v1 + v.longValue());
+                inputTotal.updateAndGet(v1 -> v1 + value);
             } else if (StringUtils.startsWith(k, "output")) {
-                outputTotal.updateAndGet(v1 -> v1 + v.longValue());
+                outputTotal.updateAndGet(v1 -> v1 + value);
             }
         });
 

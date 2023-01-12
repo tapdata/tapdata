@@ -40,4 +40,5 @@ public class Table {
     private FileProperty fileProperty;
     private String oneone;
     private String userId;
+    private String charset;
 }
