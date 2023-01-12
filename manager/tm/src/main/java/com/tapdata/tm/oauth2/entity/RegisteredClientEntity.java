@@ -22,7 +22,7 @@ public class RegisteredClientEntity {
     private Set<String> clientAuthenticationMethods;
     @Field("grantTypes")
     private Set<String> authorizationGrantTypes;
-    private String redirectUris;
+    private Set<String> redirectUris;
     private Set<String> scopes;
     private String clientSettings;
     private String tokenSettings;

@@ -3,18 +3,31 @@ package com.tapdata.tm.utils;
 import cn.hutool.extra.mail.MailAccount;
 import cn.hutool.extra.mail.MailUtil;
 import com.alibaba.fastjson.JSON;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import javax.mail.Message;
+import javax.mail.MessagingException;
+import javax.mail.Session;
+import javax.mail.Transport;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
 import java.io.*;
+import java.util.Date;
 import java.util.List;
-import java.util.Objects;
+import java.util.Properties;
 
 
 /**
@@ -36,13 +49,157 @@ import java.util.Objects;
 @Component
 public class MailUtils {
 
+    private String host;
+    private Integer port;
+
+    private String user;
+    private String sendAddress;
+
+    private String password;
+
+    @Autowired
+    SettingsService settingsService;
+
+    /**
+     * 发送html形式的邮件
+     */
+    @Deprecated
+    public SendStatus sendHtmlMail(String subject, String to, String username, String agentName, String emailHref, String maiContent) {
+        SendStatus sendStatus = new SendStatus("false", "");
+        // 读取html模板
+        String html = readHtmlToString("mailTemplate.html");
+
+        // 写入模板内容
+        Document doc = Jsoup.parse(html);
+        doc.getElementById("username").html(username);
+
+        if (StringUtils.isEmpty(agentName)) {
+            sendStatus.setErrorMessage("agentName 为空");
+            return sendStatus;
+        }
+        doc.getElementById("sysName").html("您的Agent：");
+        doc.getElementById("agentName").html(agentName);
+        doc.getElementById("mailContent").html(maiContent);
+        doc.getElementById("clickHref").attr("href", emailHref);
+
+        String result = doc.toString();
+        Properties props = new Properties();
+        props.put("mail.smtp.host", "");
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+        props.put("mail.smtp.socketFactory.fallback", "true");
+        Session session = Session.getDefaultInstance(props);
+        session.setDebug(true);
+
+        Transport transport = null;
+        MimeMessage message = new MimeMessage(session);
+        try {
+            //初始化发送邮件配置
+            this.initMailConfig();
+            message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
+            message.setRecipient(Message.RecipientType.TO, new InternetAddress(to, this.user));// 设置收件人,并设置其接收类型为TO
+            message.setSubject(subject);// 设置标题
+            message.setContent(result, "text/html;charset=UTF-8"); // 设置邮件内容类型为html
+            message.setSentDate(new Date());// 设置发信时间
+            message.saveChanges();// 存储邮件信息
+
+            // 发送邮件
+            transport = session.getTransport("smtp");
+            if (null != port) {
+                transport.connect(host, port, user, password);
+            } else {
+                transport.connect(host, user, password);
+            }
+            transport.sendMessage(message, message.getAllRecipients());
+
+            //发送邮件成功，status置为true
+            sendStatus.setStatus("true");
+        } catch (Exception e) {
+            log.error("邮件发送异常", e);
+            sendStatus.setErrorMessage(e.getMessage());
+        } finally {
+            if (null != transport) {
+                try {
+                    transport.close();//关闭连接
+                } catch (MessagingException e) {
+                    log.error("发送邮件 ，transport 关闭异常", e);
+                }
+            }
+        }
+        return sendStatus;
+    }
 
 
     /**
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(String to, String username, String agentName, String emailHref, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum) {
-        return new SendStatus("true", "");
+        SendStatus sendStatus = new SendStatus("false", "");
+        // 读取html模板
+        String html = readHtmlToString("mailTemplate.html");
+
+        // 写入模板内容
+        Document doc = Jsoup.parse(html);
+        doc.getElementById("username").html(username);
+        doc.getElementById("agentName").html(agentName);
+
+        if (SystemEnum.AGENT.equals(systemEnum)) {
+            doc.getElementById("sysName").html("您的Agent：");
+        } else if (SystemEnum.DATAFLOW.equals(systemEnum) || SystemEnum.SYNC.equals(systemEnum) || SystemEnum.MIGRATION.equals(systemEnum)) {
+            doc.getElementById("sysName").html("您的任务：");
+        }
+
+        String mailContent = getMailContent(systemEnum, msgTypeEnum);
+        doc.getElementById("mailContent").html(mailContent);
+        doc.getElementById("clickHref").attr("href", emailHref);
+
+        String result = doc.toString();
+        Properties props = new Properties();
+        props.put("mail.smtp.host", "");
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+        props.put("mail.smtp.socketFactory.fallback", "true");
+        Session session = Session.getDefaultInstance(props);
+        session.setDebug(true);
+
+        Transport transport = null;
+        MimeMessage message = new MimeMessage(session);
+        try {
+            //初始化发送邮件配置
+            this.initMailConfig();
+            message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
+            message.setRecipient(Message.RecipientType.TO, new InternetAddress(to, this.user));// 设置收件人,并设置其接收类型为TO
+
+            String title = getMailTitle(systemEnum, msgTypeEnum);
+            message.setSubject(title);// 设置标题
+            message.setContent(result, "text/html;charset=UTF-8"); // 设置邮件内容类型为html
+            message.setSentDate(new Date());// 设置发信时间
+            message.saveChanges();// 存储邮件信息
+
+            // 发送邮件
+            transport = session.getTransport("smtp");
+            if (null != port) {
+                transport.connect(host, port, user, password);
+            } else {
+                transport.connect(host, user, password);
+            }
+            transport.sendMessage(message, message.getAllRecipients());
+
+            //发送邮件成功，status置为true
+            sendStatus.setStatus("true");
+        } catch (Exception e) {
+            log.error("邮件发送异常", e);
+            sendStatus.setErrorMessage(e.getMessage());
+        } finally {
+            if (null != transport) {
+                try {
+                    transport.close();//关闭连接
+                } catch (MessagingException e) {
+                    log.error("发送邮件 ，transport 关闭异常", e);
+                }
+            }
+        }
+        return sendStatus;
     }
 
 
@@ -50,10 +207,81 @@ public class MailUtils {
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(String to, String username, String agentName, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, String sourceId) {
+        SendStatus sendStatus = new SendStatus("false", "");
+        if (StringUtils.isEmpty(to)) {
+            sendStatus.setErrorMessage("mail is null");
+            return sendStatus;
+        }
 
-        return new SendStatus("true", "");
+        // 读取html模板
+        String html = readHtmlToString("mailTemplate.html");
+
+        // 写入模板内容
+        Document doc = Jsoup.parse(html);
+        doc.getElementById("username").html(username);
+        doc.getElementById("agentName").html(agentName);
+
+        if (SystemEnum.AGENT.equals(systemEnum)) {
+            doc.getElementById("sysName").html("您的Agent：");
+        } else if (SystemEnum.DATAFLOW.equals(systemEnum) || SystemEnum.SYNC.equals(systemEnum) || SystemEnum.MIGRATION.equals(systemEnum)) {
+            doc.getElementById("sysName").html("您的任务：");
+        }
+
+        String mailContent = getMailContent(systemEnum, msgTypeEnum);
+        doc.getElementById("mailContent").html(mailContent);
+
+        String emailHref = getHrefClick(sourceId, systemEnum, msgTypeEnum);
+
+        doc.getElementById("clickHref").attr("href", emailHref);
+
+        String result = doc.toString();
+        Properties props = new Properties();
+        props.put("mail.smtp.host", "");
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+        props.put("mail.smtp.socketFactory.fallback", "true");
+        Session session = Session.getDefaultInstance(props);
+        session.setDebug(true);
+
+        Transport transport = null;
+        MimeMessage message = new MimeMessage(session);
+        try {
+            //初始化发送邮件配置
+            this.initMailConfig();
+            message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
+            message.setRecipient(Message.RecipientType.TO, new InternetAddress(to, this.user));// 设置收件人,并设置其接收类型为TO
+
+            String title = getMailTitle(systemEnum, msgTypeEnum);
+            message.setSubject(title);// 设置标题
+            message.setContent(result, "text/html;charset=UTF-8"); // 设置邮件内容类型为html
+            message.setSentDate(new Date());// 设置发信时间
+            message.saveChanges();// 存储邮件信息
+
+            // 发送邮件
+            transport = session.getTransport("smtp");
+            if (null != port) {
+                transport.connect(host, port, user, password);
+            } else {
+                transport.connect(host, user, password);
+            }
+            transport.sendMessage(message, message.getAllRecipients());
+
+            //发送邮件成功，status置为true
+            sendStatus.setStatus("true");
+        } catch (Exception e) {
+            log.error("邮件发送异常", e);
+            sendStatus.setErrorMessage(e.getMessage());
+        } finally {
+            if (null != transport) {
+                try {
+                    transport.close();//关闭连接
+                } catch (MessagingException e) {
+                    log.error("发送邮件 ，transport 关闭异常", e);
+                }
+            }
+        }
+        return sendStatus;
     }
-
 
     /**
      * 企业版发送的通知邮件，没有点击连接
@@ -64,21 +292,24 @@ public class MailUtils {
 
 
     /**
-     * 发送html形式的邮件
-     */
-    public SendStatus sendHtmlMail(String to, String username, String serverName, String title, String mailContent, String emailHref) {
-        return new SendStatus("true", "");
-    }
-
-
-    /**
      * 获取发送出去邮件的点击连接
      *
      * @return
      */
     public String getAgentClick(String serverName, MsgTypeEnum msgTypeEnum) {
+        Object hostUrl = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_HREF).getValue();
+        String clickHref = "https://cloud.tapdata.net/console/#/";
 
-        return "";
+        if (MsgTypeEnum.CONNECTION_INTERRUPTED.equals(msgTypeEnum)) {
+            clickHref = hostUrl + "instance?keyword=" + serverName;
+        } else if (MsgTypeEnum.CONNECTED.equals(msgTypeEnum)) {
+            clickHref = hostUrl + "instance?keyword=" + serverName;
+        } else if (MsgTypeEnum.WILL_RELEASE_AGENT.equals(msgTypeEnum)) {
+            clickHref = hostUrl.toString();
+        } else if (MsgTypeEnum.RELEASE_AGENT.equals(msgTypeEnum)) {
+            clickHref = hostUrl.toString();
+        }
+        return clickHref;
     }
 
 
@@ -89,11 +320,36 @@ public class MailUtils {
      * @return
      */
     public String getHrefClick(String sourceId, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum) {
-        return "";
-    }
+        Object hostUrl = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_HREF).getValue();
+        String clickHref = "https://cloud.tapdata.net/console/#/";
 
-    public String getHrefClick(String sourceId, String subId, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum) {
-        return "";
+        if (SystemEnum.AGENT.equals(systemEnum)) {
+            if (MsgTypeEnum.CONNECTION_INTERRUPTED.equals(msgTypeEnum)) {
+//                http://sit.cloud.tapdata.net/console/#/instance?keyword=dfs-agent-17e2d9e3eb6
+                clickHref = hostUrl + "instance?keyword=" + sourceId;
+            } else if (MsgTypeEnum.CONNECTED.equals(msgTypeEnum)) {
+                clickHref = hostUrl + "instanceDetails?id=" + sourceId;
+            } else if (MsgTypeEnum.WILL_RELEASE_AGENT.equals(msgTypeEnum)) {
+                clickHref = hostUrl.toString();
+            } else if (MsgTypeEnum.RELEASE_AGENT.equals(msgTypeEnum)) {
+                clickHref = hostUrl.toString();
+            }
+        } else if (SystemEnum.MIGRATION.equals(systemEnum)) {
+            if (MsgTypeEnum.STOPPED_BY_ERROR.equals(msgTypeEnum)) {
+//                http://sit.cloud.tapdata.net/console/#/task/61d688b55fe7526dc84d6c19/monitor
+                clickHref = hostUrl + "task/" + sourceId + "/monitor";
+            } else if (MsgTypeEnum.CONNECTED.equals(msgTypeEnum)) {
+                clickHref = hostUrl + "task/" + sourceId + "/monitor";
+            }
+        } else if (SystemEnum.SYNC.equals(systemEnum)) {
+            if (MsgTypeEnum.STOPPED_BY_ERROR.equals(msgTypeEnum)) {
+            }
+        } else if (SystemEnum.DATAFLOW.equals(systemEnum)) {
+            if (MsgTypeEnum.STOPPED_BY_ERROR.equals(msgTypeEnum)) {
+            } else if (MsgTypeEnum.CONNECTED.equals(msgTypeEnum)) {
+            }
+        }
+        return clickHref;
     }
 
     /**
@@ -180,7 +436,19 @@ public class MailUtils {
      * 993
      */
     private void initMailConfig() {
+        String host = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.host"));
+        String port = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.port"));
+        String username = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.user"));
+        String sendAddress = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "email.send.address"));
+        String password = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.password"));
 
+        this.host = host;
+        if (StringUtils.isNotEmpty(port)) {
+            this.port = Integer.valueOf(port);
+        }
+        this.sendAddress = sendAddress;
+        this.user = username;
+        this.password = password;
 
     }
 
@@ -299,7 +567,7 @@ public class MailUtils {
      */
     public static void sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
         boolean flag = true;
-        if (StringUtils.isAnyBlank(parms.getHost(), parms.getFrom(),parms.getUser(), parms.getPass())) {
+        if (StringUtils.isAnyBlank(parms.getHost(), parms.getFrom(),parms.getUser(), parms.getPass()) || CollectionUtils.isEmpty(adressees)) {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));
             flag = false;
         } else {

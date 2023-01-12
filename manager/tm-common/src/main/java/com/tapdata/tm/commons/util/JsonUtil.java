@@ -13,8 +13,11 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.tapdata.manager.common.utils.Utils;
+import com.tapdata.tm.commons.task.dto.Status;
 import io.tapdata.entity.schema.type.TapType;
 import lombok.extern.slf4j.Slf4j;
+import ognl.Ognl;
+import ognl.OgnlContext;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -157,5 +160,11 @@ public class JsonUtil {
 				throw new RuntimeException("Unsupported tap type: " + typeInt);
 			}
 		}
+	}
+
+	public static <T> T getValue(Map map, String path, Class<T> clazz) throws Exception {
+		OgnlContext ctx = new OgnlContext();
+		ctx.setRoot(map);
+		return (T) Ognl.getValue(path, ctx, ctx.getRoot());
 	}
 }
