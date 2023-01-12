@@ -183,13 +183,12 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 					obsLogger.info("Table {} has read finished, no need batch read any more. ", table);
 					return null;
 				}
-				TapTable tapTable = dataProcessorContext.getTapTableMap().get(table);
-				Object tableOffset = ((Map<String, Object>) syncProgress.getBatchOffsetObj()).get(tapTable.getId());
+				Object tableOffset = ((Map<String, Object>) syncProgress.getBatchOffsetObj()).get(table);
 //				logger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
-				obsLogger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
+				obsLogger.info("Starting batch read, table name: " + table + ", offset: " + tableOffset);
 				int eventBatchSize = 100;
 				tableParallelWorker.job("table#" + table, JobContext.create(null), asyncQueueWorker -> asyncQueueWorker.asyncJob((jobContext1, jobCompleted) -> {
-					handleReadPartitionsForTable(pdkSourceContext, getReadPartitionsFunction, finalReadPartitionOptions, tapTable, jobCompleted);
+					handleReadPartitionsForTable(pdkSourceContext, getReadPartitionsFunction, finalReadPartitionOptions, table, jobCompleted);
 				}).finished().setAsyncJobErrorListener((id, asyncJob, throwable) -> {
 					this.errorHandle(throwable, throwable.getMessage());
 				}));
@@ -213,7 +212,8 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 		return null;
 	}
 
-	private void handleReadPartitionsForTable(PDKSourceContext pdkSourceContext, GetReadPartitionsFunction getReadPartitionsFunction, ReadPartitionOptions finalReadPartitionOptions, TapTable tapTable, AsyncJobCompleted jobCompleted) {
+	private void handleReadPartitionsForTable(PDKSourceContext pdkSourceContext, GetReadPartitionsFunction getReadPartitionsFunction, ReadPartitionOptions finalReadPartitionOptions, String tableId, AsyncJobCompleted jobCompleted) {
+		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableId);
 		tablePartitionReaderMap.computeIfAbsent(tapTable.getId(), table -> asyncMaster.createAsyncParallelWorker("PartitionsReader_" + table, partitionReaderThreadCount));
 		ParallelWorker partitionsReader = tablePartitionReaderMap.get(tapTable.getId());//asyncMaster.createAsyncParallelWorker("PartitionsReader_" + tapTable.getId(), 8);
 
@@ -392,7 +392,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 							TapEventPartitionDispatcher eventPartitionDispatcher = tableEventPartitionDispatcher.get(entry.getKey());
 							TapTable tapTable = tapTableMap.get(entry.getKey());
 							if(tapTable == null)
-								throw new CoreException(PartitionErrorCodes.TAP_TABLE_NOT_FOUND, "TapTable {} not found while recovering partitions", tapTable.getId());
+								throw new CoreException(PartitionErrorCodes.TAP_TABLE_NOT_FOUND, "TapTable {} not found while recovering partitions", entry.getKey());
 							if(eventPartitionDispatcher == null) {
 								eventPartitionDispatcher = tableEventPartitionDispatcher.computeIfAbsent(entry.getKey(), table -> {
 									TapEventPartitionDispatcher dispatcher = new TapEventPartitionDispatcher(tapTable, obsLogger);

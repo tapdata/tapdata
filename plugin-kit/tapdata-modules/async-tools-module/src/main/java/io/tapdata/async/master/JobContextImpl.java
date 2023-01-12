@@ -61,7 +61,8 @@ public class JobContextImpl extends JobContext {
 		}
 	}
 
-	private void checkJobStoppedOrNot() {
+	@Override
+	public void checkJobStoppedOrNot() {
 		if(stopped.get())
 			throw new CoreException(AsyncErrors.ASYNC_JOB_STOPPED, "Async job {} stopped, reason {}", id, stopReason);
 	}

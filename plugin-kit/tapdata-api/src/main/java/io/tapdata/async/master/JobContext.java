@@ -17,6 +17,9 @@ public abstract class JobContext {
 	public abstract void foreach(int maxCount, Function<Integer, Boolean> function);
 	public abstract <T> void foreach(Iterator<T> iterator, Function<T, Boolean> function);
 	public abstract <T> void foreach(Collection<T> collection, Function<T, Boolean> function);
+
+	public abstract void checkJobStoppedOrNot();
+
 	public abstract <K, V> void foreach(Map<K, V> map, Function<Map.Entry<K, V>, Boolean> entryFunction);
 	public abstract void runOnce(Runnable runnable);
 

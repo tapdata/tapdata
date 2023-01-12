@@ -390,11 +390,11 @@ public class AsyncQueueWorkerImpl implements QueueWorker, Runnable {
 					if(asyncJob instanceof LastJob) {
 						changeState(STATE_RUNNING, STATE_FINISHED, null, false);
 						threadPoolExecutor.shutdownNow();
-					} else {
+					} /*else {
 //						changeState(STATE_RUNNING, STATE_IDLE, null, true);
 						if(!realError.get())
 							startPrivate();
-					}
+					}*/
 				}
 			}
 		} /*else {

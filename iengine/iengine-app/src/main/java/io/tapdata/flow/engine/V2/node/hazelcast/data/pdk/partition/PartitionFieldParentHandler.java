@@ -24,18 +24,18 @@ import static io.tapdata.entity.simplify.TapSimplify.map;
  * @author aplomb
  */
 public class PartitionFieldParentHandler {
-	protected TapTable table;
+	protected String table;
 	protected List<String> partitionFields;
 	protected Map<String, Integer> dateFieldFactionMap;
 	protected TypeHandlers<TapEvent, Void> typeHandlers = new TypeHandlers<>();
 	public PartitionFieldParentHandler(TapTable tapTable) {
-		table = tapTable;
-		TapIndexEx partitionIndex = table.partitionIndex();
+		table = tapTable.getId();
+		TapIndexEx partitionIndex = tapTable.partitionIndex();
 		if(partitionIndex == null || partitionIndex.getIndexFields() == null || partitionIndex.getIndexFields().isEmpty()) {
 			throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL, "Partition index is illegal for table {}", table);
 		}
 
-		LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		partitionFields = new ArrayList<>();
 		for(TapIndexField field : partitionIndex.getIndexFields()) {
 			partitionFields.add(field.getName());
