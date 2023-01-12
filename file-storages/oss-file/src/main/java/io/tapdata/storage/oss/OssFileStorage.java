@@ -1,4 +1,4 @@
-package io.tapdata.storege.oss;
+package io.tapdata.storage.oss;
 
 import com.aliyun.oss.ClientBuilderConfiguration;
 import com.aliyun.oss.OSS;
@@ -39,7 +39,7 @@ public class OssFileStorage implements TapFileStorage {
         ossConfig = new OssConfig().load(params);
         ClientBuilderConfiguration conf = new ClientBuilderConfiguration();
         conf.setProtocol(Protocol.HTTP);
-        ossClient = new OSSClientBuilder().build(ossConfig.getEndpoint(), ossConfig.getAccessKeyId(), ossConfig.getAccessKeySecret(), conf);
+        ossClient = new OSSClientBuilder().build(ossConfig.getEndpoint(), ossConfig.getAccessKey(), ossConfig.getSecretKey(), conf);
     }
 
     @Override
@@ -52,7 +52,7 @@ public class OssFileStorage implements TapFileStorage {
     @Override
     public TapFile getFile(String path) throws Exception {
         try {
-            OSSObject ossObject = ossClient.getObject(ossConfig.getBucketName(), path);
+            OSSObject ossObject = ossClient.getObject(ossConfig.getBucket(), path);
             TapFile tapFile = new TapFile();
             tapFile.type(TapFile.TYPE_FILE)
                     .name(path.substring(path.lastIndexOf("/") + 1))
@@ -81,7 +81,7 @@ public class OssFileStorage implements TapFileStorage {
             return;
         }
         try (
-                InputStream is = ossClient.getObject(ossConfig.getBucketName(), path).getObjectContent()
+                InputStream is = ossClient.getObject(ossConfig.getBucket(), path).getObjectContent()
         ) {
             consumer.accept(is);
         }
@@ -90,7 +90,7 @@ public class OssFileStorage implements TapFileStorage {
     @Override
     public boolean isFileExist(String path) {
         try {
-            ossClient.doesObjectExist(ossConfig.getBucketName(), path);
+            ossClient.doesObjectExist(ossConfig.getBucket(), path);
             return true;
         } catch (OSSException e) {
             return false;
@@ -100,8 +100,8 @@ public class OssFileStorage implements TapFileStorage {
     @Override
     public boolean move(String sourcePath, String destPath) {
         try {
-            ossClient.copyObject(ossConfig.getBucketName(), sourcePath, ossConfig.getBucketName(), destPath);
-            ossClient.deleteObject(ossConfig.getBucketName(), sourcePath);
+            ossClient.copyObject(ossConfig.getBucket(), sourcePath, ossConfig.getBucket(), destPath);
+            ossClient.deleteObject(ossConfig.getBucket(), sourcePath);
             return true;
         } catch (OSSException e) {
             return false;
@@ -111,8 +111,8 @@ public class OssFileStorage implements TapFileStorage {
     @Override
     public boolean delete(String path) throws Exception {
 
-        List<String> deletedObjects = ossClient.deleteObjects(new DeleteObjectsRequest(ossConfig.getBucketName())
-                .withKeys((List<String>) ossClient.listObjects(ossConfig.getBucketName(), path))
+        List<String> deletedObjects = ossClient.deleteObjects(new DeleteObjectsRequest(ossConfig.getBucket())
+                .withKeys((List<String>) ossClient.listObjects(ossConfig.getBucket(), path))
                 .withEncodingType("url")).getDeletedObjects();
         try {
             for (String obj : deletedObjects) {
@@ -129,7 +129,7 @@ public class OssFileStorage implements TapFileStorage {
         if (!isFileExist(path) || canReplace) {
             ObjectMetadata objectMetadata = new ObjectMetadata();
             objectMetadata.setContentLength(is.available());
-            ossClient.putObject(ossConfig.getBucketName(), path, is, objectMetadata);
+            ossClient.putObject(ossConfig.getBucket(), path, is, objectMetadata);
         }
         return getFile(path);
     }
@@ -142,7 +142,7 @@ public class OssFileStorage implements TapFileStorage {
             return;
         }
         AtomicReference<List<TapFile>> listAtomicReference = new AtomicReference<>(new ArrayList<>());
-        ossClient.listObjectsV2(ossConfig.getBucketName(), directoryPath).getObjectSummaries().forEach(v -> {
+        ossClient.listObjectsV2(ossConfig.getBucket(), directoryPath).getObjectSummaries().forEach(v -> {
             String path = v.getKey();
             String fileName = path.substring(path.lastIndexOf("/") + 1);
             if (recursive || completionPath(directoryPath).length() + fileName.length() == path.length()) {
@@ -163,12 +163,12 @@ public class OssFileStorage implements TapFileStorage {
 
     @Override
     public boolean isDirectoryExist(String path) throws Exception {
-        return ossClient.listObjectsV2(ossConfig.getBucketName(), completionPath(path)).getKeyCount() > 0;
+        return ossClient.listObjectsV2(ossConfig.getBucket(), completionPath(path)).getKeyCount() > 0;
     }
 
     @Override
     public String getConnectInfo() {
-        return "oss://" + ossConfig.getEndpoint() + "/" + ossConfig.getBucketName();
+        return "oss://" + ossConfig.getEndpoint() + "/" + ossConfig.getBucket();
     }
 
     private String completionPath(String path) {

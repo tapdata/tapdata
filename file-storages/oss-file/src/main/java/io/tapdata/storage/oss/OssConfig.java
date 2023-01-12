@@ -1,4 +1,4 @@
-package io.tapdata.storege.oss;
+package io.tapdata.storage.oss;
 
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -11,9 +11,9 @@ import java.util.Map;
  * Date: 2023/1/3
  **/
 public class OssConfig implements Serializable {
-    private String accessKeyId;
-    private String accessKeySecret;
-    private String bucketName;
+    private String accessKey;
+    private String SecretKey;
+    private String bucket;
     private String endpoint;
 
     private static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
@@ -24,28 +24,28 @@ public class OssConfig implements Serializable {
         return this;
     }
 
-    public String getAccessKeyId() {
-        return accessKeyId;
+    public String getAccessKey() {
+        return accessKey;
     }
 
-    public void setAccessKeyId(String accessKeyId) {
-        this.accessKeyId = accessKeyId;
+    public void setAccessKey(String accessKey) {
+        this.accessKey = accessKey;
     }
 
-    public String getAccessKeySecret() {
-        return accessKeySecret;
+    public String getSecretKey() {
+        return SecretKey;
     }
 
-    public void setAccessKeySecret(String accessKeySecret) {
-        this.accessKeySecret = accessKeySecret;
+    public void setSecretKey(String secretKey) {
+        this.SecretKey = secretKey;
     }
 
-    public String getBucketName() {
-        return bucketName;
+    public String getBucket() {
+        return bucket;
     }
 
-    public void setBucketName(String bucketName) {
-        this.bucketName = bucketName;
+    public void setBucket(String bucket) {
+        this.bucket = bucket;
     }
 
     public String getEndpoint() {
