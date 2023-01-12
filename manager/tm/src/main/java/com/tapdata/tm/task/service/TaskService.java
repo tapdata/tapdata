@@ -2734,7 +2734,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //                log.info((DataSyncMq.OP_TYPE_RESET.equals(opType) ? "reset" : "delete") + "Task reset timeout.");
 //                throw new BizException(DataSyncMq.OP_TYPE_RESET.equals(opType) ? "Task.ResetTimeout" : "Task.DeleteTimeout");
 //            }
-            if (noAgent) {
+            if (noAgent && DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
                 afterRemove(taskDto, user);
             }
         } else {
