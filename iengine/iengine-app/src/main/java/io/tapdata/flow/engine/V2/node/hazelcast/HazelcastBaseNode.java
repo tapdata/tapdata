@@ -712,6 +712,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected boolean isRunning() {
+		//isJetJobRunning has thread lock and not a simple implementation.
+		//Should avoid invoke isJetJobRunning method for every event.
+		//Use TapCache to cache the isJetJobRunning's result, expire in 2 seconds.
+		//Then no more performance issue.
 		return running.get() && !Thread.currentThread().isInterrupted() && isJobRunning.get();
 	}
 
