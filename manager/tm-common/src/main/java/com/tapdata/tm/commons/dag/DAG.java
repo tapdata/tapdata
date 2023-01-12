@@ -167,12 +167,23 @@ public class DAG implements Serializable, Cloneable {
             LinkedHashMap<String, String> tableNameRelation = Maps.newLinkedHashMap();
 
             // 中间有表改的话 需要同步更新
-            LinkedList<TableRenameProcessNode> collect = nodes.stream()
-                    .filter(n -> n instanceof TableRenameProcessNode)
-                    .map(t -> (TableRenameProcessNode) t)
-                    .collect(Collectors.toCollection(LinkedList::new));
-            if (CollectionUtils.isNotEmpty(collect)) {
-                Map<String, TableRenameTableInfo> originalMap = collect.getLast().originalMap();
+//            LinkedList<TableRenameProcessNode> collect = nodes.stream()
+//                    .filter(n -> n instanceof TableRenameProcessNode)
+//                    .map(t -> (TableRenameProcessNode) t)
+//                    .collect(Collectors.toCollection(LinkedList::new));
+
+            LinkedList<Node> nodeLists = parseLinkedNode(taskDag);
+
+
+
+            if (CollectionUtils.isNotEmpty(nodeLists)) {
+                Map<String, TableRenameTableInfo> originalMap = new LinkedHashMap<>();
+                for (Node nodeList : nodeLists) {
+                    if (nodeList instanceof TableRenameProcessNode) {
+                        Map<String, TableRenameTableInfo> tableRenameTableInfoMap = ((TableRenameProcessNode) nodeList).originalMap();
+                        originalMap.putAll(tableRenameTableInfoMap);
+                    }
+                }
                 for (int i = 0; i < tableNamesList.size(); i++) {
                     String tableName = tableNamesList.get(i);
                     String currentTableName = tableName;
@@ -215,6 +226,39 @@ public class DAG implements Serializable, Cloneable {
         }
 
         return dag;
+    }
+
+
+    public static LinkedList<Node> parseLinkedNode(Dag dag) {
+        List<Edge> edges = dag.getEdges();
+        List<String> sourceList = edges.stream().map(Edge::getSource).collect(Collectors.toList());
+        List<String> targetList = edges.stream().map(Edge::getTarget).collect(Collectors.toList());
+
+        List<String> firstSourceList = sourceList.stream().filter(s -> !targetList.contains(s)).collect(Collectors.toList());
+
+        LinkedList<Node> linkedNode = new LinkedList<>();
+        if (CollectionUtils.isEmpty(firstSourceList)) {
+            return linkedNode;
+        }
+
+        LinkedList<String> list = new LinkedList<>();
+        String source = firstSourceList.get(0);
+        list.add(source);
+        Map<String, String> edgeMap = new HashMap<>();
+        for (Edge edge : edges) {
+            edgeMap.put(edge.getSource(), edge.getTarget());
+        }
+
+        while ((source = edgeMap.get(source)) != null) {
+            list.add(source);
+        }
+
+        List<Node> nodes = dag.getNodes();
+        Map<String, Node> nodeMap = nodes.stream().collect(Collectors.toMap(Element::getId, n -> n, (m1, m2) -> m1));
+        for (String s : list) {
+            linkedNode.add(nodeMap.get(s));
+        }
+        return linkedNode;
     }
 
     /**
