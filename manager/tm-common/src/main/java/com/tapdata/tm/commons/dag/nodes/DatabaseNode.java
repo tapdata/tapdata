@@ -75,6 +75,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     // 复制任务 全部 or 自定义
     private String migrateTableSelectType;
 
+    private Map<String, Object> nodeConfig;
+
     public static final String SELF_TYPE = "database";
 
     public DatabaseNode() {
