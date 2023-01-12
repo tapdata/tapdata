@@ -25,14 +25,14 @@ public class WriteValve {
     //
     private Consumer<WriteListResult<TapRecordEvent>> consumer;
     //
-    private RecordProcessor recordCovert = (list, table)->{};
+    private EventProcessor eventProcessor = (list, table)->{};
     //
     public static WriteValve open(
             TapTable writeTable,
             int writeSize,
             int submissionInterval,
             EventCollector eventCollector,
-            RecordProcessor recordCovert,
+            EventProcessor recordCovert,
             Consumer<WriteListResult<TapRecordEvent>> writeConsumer ) {
         return new WriteValve()
                 .writeSize(writeSize)
@@ -104,8 +104,8 @@ public class WriteValve {
         this.eventCollector = eventCollector;
         return this;
     }
-    public WriteValve recoverCovert(RecordProcessor recordCovert){
-        this.recordCovert = recordCovert;
+    public WriteValve recoverCovert(EventProcessor eventProcessor){
+        this.eventProcessor = eventProcessor;
         return this;
     }
     private WriteValve writeConsumer(Consumer<WriteListResult<TapRecordEvent>> writeConsumer){

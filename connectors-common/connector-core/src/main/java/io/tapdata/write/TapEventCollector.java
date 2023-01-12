@@ -28,15 +28,15 @@ final class TapEventCollector {
     private final AtomicBoolean isStarted = new AtomicBoolean(false);
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     private List<TapRecordEvent> events = new CopyOnWriteArrayList<>();
-    private RecordProcessor recordProcessor = (eventList, table) -> {
+    private EventProcessor eventProcessor = (eventList, table) -> {
     };
 
     public static TapEventCollector create() {
         return new TapEventCollector();
     }
 
-    public TapEventCollector recoverCovert(RecordProcessor recordCovert) {
-        this.recordProcessor = recordCovert;
+    public TapEventCollector recoverCovert(EventProcessor recordCovert) {
+        this.eventProcessor = recordCovert;
         return this;
     }
 
@@ -123,7 +123,7 @@ final class TapEventCollector {
 
     public void addTapEvents(List<TapRecordEvent> eventList, TapTable table) {
         if (eventList != null && !eventList.isEmpty()) {
-            this.recordProcessor.covert(eventList, table);
+            this.eventProcessor.covert(eventList, table);
             this.events.addAll(eventList);
         }
         tryUpload(this.events.size() > this.maxRecords);
