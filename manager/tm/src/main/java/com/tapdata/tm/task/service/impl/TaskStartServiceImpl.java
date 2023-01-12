@@ -71,10 +71,6 @@ public class TaskStartServiceImpl implements TaskStartService {
 
     @Override
     public boolean taskStartCheckLog(TaskDto taskDto, UserDetail userDetail) {
-        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-            return false;
-        }
-
         taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
 
         boolean saveNoPass = false;
@@ -83,7 +79,6 @@ public class TaskStartServiceImpl implements TaskStartService {
             Optional<TaskDagCheckLog> any = saveLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
             if (any.isPresent()) {
                 saveNoPass = true;
-                //taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
             }
         }
 
@@ -93,9 +88,6 @@ public class TaskStartServiceImpl implements TaskStartService {
             Optional<TaskDagCheckLog> any = startLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
             if (any.isPresent()) {
                 startNoPass = true;
-                if (!saveNoPass) {
-                    //taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
-                }
             }
         }
 
