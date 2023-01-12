@@ -20,8 +20,8 @@ public class APIInvokerDecoratorStruct implements APIInvoker {
         this.apiInvoker = apiInvoker;
     }
     @Override
-    public APIResponse invoke(String uriOrName, String method, Map<String, Object> params, boolean invoker) {
-        return apiInvoker.invoke(uriOrName, method, params, invoker);
+    public APIResponse invoke(String uriOrName, Map<String, Object> params, String method, boolean invoker) {
+        return apiInvoker.invoke(uriOrName, params, method, invoker);
     }
 
     @Override

@@ -16,22 +16,22 @@ import java.util.function.BiConsumer;
  * @author aplomb
  */
 public interface APIInvoker {
-	public APIResponse invoke(String uriOrName, String method, Map<String, Object> params, boolean invoker);
+	public APIResponse invoke(String uriOrName, Map<String, Object> params, String method, boolean invoker);
 
-	public default APIResponse invoke(String uriOrName, String method, Map<String, Object> params){
-		return this.invoke(uriOrName, method, params,false);
+	public default APIResponse invoke(String uriOrName, Map<String, Object> params, String method){
+		return this.invoke(uriOrName, params, method,false);
 	}
 
 	public default APIResponse invoke(String uriOrName, Map<String, Object> params){
-		return this.invoke(uriOrName,"POST", params,false);
+		return this.invoke(uriOrName, params,"POST",false);
 	}
 
 	public default APIResponse invoke(String uriOrName, String method){
-		return this.invoke(uriOrName, method, new HashMap<>(),false);
+		return this.invoke(uriOrName, new HashMap<>(), method,false);
 	}
 
 	public default APIResponse invoke(String uriOrName){
-		return this.invoke(uriOrName, "POST", new HashMap<>(),false);
+		return this.invoke(uriOrName, new HashMap<>(), "POST",false);
 	}
 
 

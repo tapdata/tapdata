@@ -124,7 +124,7 @@ public class PostManAPIInvoker
     }
 
     @Override
-    public APIResponse invoke(String uriOrName, String method, Map<String, Object> params, boolean invoker) {
+    public APIResponse invoke(String uriOrName, Map<String, Object> params, String method, boolean invoker) {
         if (Objects.isNull(params)) {
             params = new HashMap<>();
         }
@@ -223,7 +223,7 @@ public class PostManAPIInvoker
         }
         Map<String, Object> result;
         do {
-            APIResponse invoke = this.invoke(urlOrName, method, param, true);
+            APIResponse invoke = this.invoke(urlOrName, param, method, true);
             result = invoke.result();
         } while (interceptor.iterate(result, offset, APIIterateError.error()));
     }

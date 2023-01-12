@@ -8,10 +8,7 @@ import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.js.connector.enums.Constants;
 
-import javax.script.Bindings;
-import javax.script.Invocable;
-import javax.script.ScriptContext;
-import javax.script.ScriptEngine;
+import javax.script.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,6 +42,7 @@ public class LoadJavaScripter {
 
     public static final String eval = "" +
             "var tapAPI = Java.type(\"io.tapdata.js.connector.server.decorator.APIFactoryDecorator\");";
+    public static final String LOAD_BASE = "load('connectors-common/js-connector-core/src/main/java/io/tapdata/js/utils/js/_tap_api_factory_collect.js')";
     //UnModify Map
     /**
      * @deprecated
@@ -79,8 +77,13 @@ public class LoadJavaScripter {
 
     public LoadJavaScripter init() {
 //        ScriptEngineManager engineManager = new ScriptEngineManager();
-//        this.scriptEngine = engineManager.getEngineByName(ENGINE_TYPE);//
+//        this.scriptEngine = engineManager.getEngineByName(ENGINE_TYPE);
         this.scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(ENGINE_TYPE));
+        try {
+            this.scriptEngine.eval(LoadJavaScripter.LOAD_BASE);
+        } catch (ScriptException e) {
+            TapLogger.warn(TAG,"Unable to load configuration javascript to jsEngine. ");
+        }
         //GraalJSEngineFactory graalJSEngineFactory = new GraalJSEngineFactory();
         //scriptEngine = graalJSEngineFactory.getScriptEngine();
 //        this.scriptEngine = new ConnectorScriptEngine(null);

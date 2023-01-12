@@ -27,7 +27,7 @@ public class PageNone implements PageStage {
         String apiName = api.name();
         String apiMethod = api.method();
         Map<String, Object> param = tapPage.apiParam();
-        APIResponse apiResponse = invoker.invoke(apiName, apiMethod, param,true);
+        APIResponse apiResponse = invoker.invoke(apiName, param, apiMethod,true);
         int size = tapPage.batchCount();
 
         String pageResultPath = requestApi.pageResultPath();

@@ -59,11 +59,11 @@ public class PageSizePageIndex implements PageStage {
         }
         param.put(pageIndexName,pageIndexValue);
         param.put(pageSizeName,pageSizeValue);
-        APIResponse apiResponse = invoker.invoke(apiName, apiMethod, param,true);
+        APIResponse apiResponse = invoker.invoke(apiName, param, apiMethod,true);
         Map<String, Object> result = apiResponse.result();
         while (this.accept(result,tapPage,pageResultPath)){
             param.put(pageIndexName,++pageIndexValue);
-            apiResponse = invoker.invoke(apiName, apiMethod, param,true);
+            apiResponse = invoker.invoke(apiName, param, apiMethod,true);
             result = apiResponse.result();
         }
     }

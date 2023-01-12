@@ -1,7 +1,7 @@
 /**
  *  This is the toolkit encapsulated by Tap Data.
  * */
-var invoker = tapAPI.loadAPI();
+var invoker = loadAPI();
 var OptionalUtil = {
     isEmpty: function (obj) {
         return 'undefined' == obj || null == obj;
@@ -19,7 +19,7 @@ function iterateAllData(apiName, offset, call) {
     let error;
     do {
         let response = invoker.invoke(apiName, offset);
-        res = (core.toMap(response.result)).data;
+        res = response.result.data;
         error = response.error;
     } while (call(res, offset, error));
 }

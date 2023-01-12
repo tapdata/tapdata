@@ -60,11 +60,11 @@ public class FromTo implements PageStage {
         }
         param.put(fromKeyName,toValue);
         param.put(toKeyName,toValue+pageSize);
-        APIResponse apiResponse = invoker.invoke(apiName, apiMethod, param,true);
+        APIResponse apiResponse = invoker.invoke(apiName, param, apiMethod,true);
         Map<String, Object> result = apiResponse.result();
         while (this.accept(result,tapPage,pageResultPath)){
             param.put(fromKeyName,toValue+1);
-            apiResponse = invoker.invoke(apiName, apiMethod, param,true);
+            apiResponse = invoker.invoke(apiName, param, apiMethod,true);
             result = apiResponse.result();
         }
     }

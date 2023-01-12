@@ -64,10 +64,10 @@ public class PageToken implements PageStage {
             param = new HashMap<>();
         }
         param.put(sizeKeyName,sizeValue);
-        APIResponse apiResponse = invoker.invoke(apiName, apiMethod, param,true);
+        APIResponse apiResponse = invoker.invoke(apiName, param, apiMethod,true);
         Map<String, Object> result = apiResponse.result();
         while (this.accept(result,tapPage,pageResultPath)){
-            apiResponse = invoker.invoke(apiName, apiMethod, param,true);
+            apiResponse = invoker.invoke(apiName, param, apiMethod,true);
             result = apiResponse.result();
             param.put(tokenName, tokenValue = getPageToken(result,tokenName));
             if(!hasNext(result,hasNextName)){

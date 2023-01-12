@@ -60,11 +60,11 @@ public class PageLimit implements PageStage {
         }
         param.put(offsetKeyName,offsetValue);
         param.put(limitKeyName,limitValue);
-        APIResponse apiResponse = invoker.invoke(apiName, apiMethod, param,true);
+        APIResponse apiResponse = invoker.invoke(apiName, param, apiMethod,true);
         Map<String, Object> result = apiResponse.result();
         while (Objects.nonNull(result) && this.accept(result,tapPage,pageResultPath)){
             param.put(offsetKeyName , offsetValue = (offsetValue + limitValue));
-            apiResponse = invoker.invoke(apiName, apiMethod, param,true);
+            apiResponse = invoker.invoke(apiName, param, apiMethod,true);
             result = apiResponse.result();
         }
     }
