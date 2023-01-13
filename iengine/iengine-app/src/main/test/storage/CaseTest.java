@@ -35,41 +35,48 @@ public class CaseTest {
 //			}).start();
 //		}
 
-		run(storageFactory, 1, () -> {
-			run(storageFactory, 2, () -> {
-				run(storageFactory, 4, () -> {
-					run(storageFactory, 8, () -> {
-						System.out.println("Finished");
-					});
-				});
-			});
-		});
-
+		run(storageFactory, 1);
+		run(storageFactory, 2);
+		run(storageFactory, 4);
+		run(storageFactory, 8);
 	}
 
-	private static void run(TapStorageFactory storageFactory, int thread, Runnable finished) {
+	private static void run(TapStorageFactory storageFactory, int thread) {
 		AtomicInteger counter = new AtomicInteger();
 		System.out.println("Testing " + thread + " threads...");
+		StringBuilder builder = new StringBuilder();
+		Thread[] threads = new Thread[thread];
+
+		long startTime = System.currentTimeMillis();
+		int count = 1000000;
+
 		for(int i = 0; i < thread; i++) {
 			int finalI = i;
-			new Thread(() -> {
-				StringBuilder builder = new StringBuilder();
+			Thread t = new Thread(() -> {
 				try {
-					test(storageFactory, "" + finalI, builder);
+					test(storageFactory, "" + finalI, count);
 				} catch (UnsupportedEncodingException e) {
 					throw new RuntimeException(e);
 				}
-				if(finished != null && counter.incrementAndGet() == thread) {
-					builder.append("=====================" + thread + " threads============================\n");
-					System.out.println(builder.toString());
-					finished.run();
-				}
-			}).start();
+			});
+			t.start();
+			threads[i] = t;
 		}
+		for (int i = 0; i < thread; i++) {
+			try {
+				threads[i].join();
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+		}
+
+		Long endTime = System.currentTimeMillis();
+		System.out.println("avg write/read speed is:" + count*2*1000/(endTime-startTime));
+		System.out.println("=====================" + thread + " threads============================\n");
 
 	}
 
-	private static void test(TapStorageFactory storageFactory, String name, StringBuilder builder) throws UnsupportedEncodingException {
+	private static void test(TapStorageFactory storageFactory, String name, int count) throws UnsupportedEncodingException {
 		TapKVStorage kvStorage = storageFactory.getKVStorage("justTest_" + name);
 
 		Map<String, Object> map2 = map(entry("abc", 123), entry("aaa", "AKJFKLDSJFLD"), entry("jadsfl", "alskdfj"));
@@ -77,21 +84,16 @@ public class CaseTest {
 		map2.put("bytes", "helloworld".getBytes("utf8"));
 		map2.put("dateTime", new DateTime(new Date()));
 
-		int count = 1000000;
-		long time = System.currentTimeMillis();
 		for(int i = 0 ; i < count; i++) {
 			Map<String, Object> key = map(entry("id", "id_" + i));
 			map2.putAll(key);
 			kvStorage.put(key, map2);
 		}
-		builder.append(Thread.currentThread() + " put takes " + (System.currentTimeMillis() - time) + "\n");
 
-		time = System.currentTimeMillis();
 		for(int i = 0 ; i < count; i++) {
 			Map<String, Object> key = map(entry("id", "id_" + i));
 			Map<String, Object> value = (Map<String, Object>) kvStorage.get(key);
 		}
-		builder.append(Thread.currentThread() + " get takes " + (System.currentTimeMillis() - time) + "\n");
 
 //		time = System.currentTimeMillis();
 //		for(int i = 0 ; i < count; i++) {
