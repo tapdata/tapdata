@@ -35,20 +35,20 @@ public class CaseTest {
 //			}).start();
 //		}
 
-		run(storageFactory, 1);
-		run(storageFactory, 2);
-		run(storageFactory, 4);
-		run(storageFactory, 8);
+		run(storageFactory, 1L);
+		run(storageFactory, 2L);
+		run(storageFactory, 4L);
+		run(storageFactory, 8L);
 	}
 
-	private static void run(TapStorageFactory storageFactory, int thread) {
+	private static void run(TapStorageFactory storageFactory, Long thread) {
 		AtomicInteger counter = new AtomicInteger();
 		System.out.println("Testing " + thread + " threads...");
 		StringBuilder builder = new StringBuilder();
-		Thread[] threads = new Thread[thread];
+		Thread[] threads = new Thread[thread.intValue()];
 
 		long startTime = System.currentTimeMillis();
-		int count = 1000000;
+		long count = 1000000;
 
 		for(int i = 0; i < thread; i++) {
 			int finalI = i;
@@ -71,12 +71,13 @@ public class CaseTest {
 		}
 
 		Long endTime = System.currentTimeMillis();
-		System.out.println("avg write/read speed is:" + count*thread*1000/(endTime-startTime));
+		long speed = count*thread*1000/(endTime-startTime);
+		System.out.println("avg write/read speed is:" + speed);
 		System.out.println("=====================" + thread + " threads============================\n");
 
 	}
 
-	private static void test(TapStorageFactory storageFactory, String name, int count) throws UnsupportedEncodingException {
+	private static void test(TapStorageFactory storageFactory, String name, long count) throws UnsupportedEncodingException {
 		TapKVStorage kvStorage = storageFactory.getKVStorage("justTest_" + name);
 
 		Map<String, Object> map2 = map(entry("abc", 123), entry("aaa", "AKJFKLDSJFLD"), entry("jadsfl", "alskdfj"));
