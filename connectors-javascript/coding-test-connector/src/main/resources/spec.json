@@ -13,124 +13,119 @@
       }
     },
     "connection": {
-      "pdkExpansion": [],
-      "node": {
-      },
-      "connection": {
-        "type": "object",
-        "properties": {
-          "teamName": {
-            "type": "String",
-            "title": "${teamName}",
-            "x-decorator": "FormItem",
-            "x-component": "Input",
-            "apiServerKey": "database_host",
-            "x-index": 10,
-            "required": true
+      "type": "object",
+      "properties": {
+        "teamName": {
+          "type": "String",
+          "title": "${teamName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 10,
+          "required": true
+        },
+        "token": {
+          "type": "String",
+          "title": "${token}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 20,
+          "required": true
+        },
+        "projectName": {
+          "title": "${projectName}",
+          "type": "string",
+          "required": true,
+          "x-decorator": "FormItem",
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"DescribeUserProjects\"} }}"
           },
-          "token": {
-            "type": "String",
-            "title": "${token}",
-            "x-decorator": "FormItem",
-            "x-component": "Input",
-            "apiServerKey": "database_host",
-            "x-index": 20,
-            "required": true
-          },
-          "projectName": {
-            "title": "${projectName}",
-            "type": "string",
-            "required": true,
-            "x-decorator": "FormItem",
-            "x-component": "AsyncSelect",
-            "x-component-props": {
-              "method": "{{loadCommandList}}",
-              "params": "{{ {$values: $values, command: \"DescribeUserProjects\"} }}"
-            },
-            "x-index": 30,
-            "x-reactions": [
-              {
-                "dependencies": ["teamName", "token"],
-                "fulfill": {
-                  "state": {
-                    "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
-                  }
-                }
-              }
-            ]
-          },
-          "connectionMode": {
-            "type": "String",
-            "default": "DocumentMode",
-            "title": "${connectionMode}",
-            "x-decorator": "FormItem",
-            "x-component": "Select",
-            "enum": [
-              {
-                "label": "${document}",
-                "value": "DocumentMode"
-              }
-            ],
-            "x-index": 40,
-            "required": false
-          },
-          "streamReadType": {
-            "type": "String",
-            "default": "WebHook",
-            "title": "${streamReadType}",
-            "x-decorator": "FormItem",
-            "x-component": "Select",
-            "enum": [
-              {
-                "label": "${webHookRead}",
-                "value": "WebHook"
-              },
-              {
-                "label": "${pollingRead}",
-                "value": "Polling"
-              }
-            ],
-            "x-index": 50,
-            "required": false
-          },
-          "hookButton": {
-            "type": "void",
-            "title": "${hookButton}",
-            "x-decorator": "FormItem",
-            "x-component-props": {
-              "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
-            },
-            "x-reactions": {
-              "dependencies": ["streamReadType"],
+          "x-index": 30,
+          "x-reactions": [
+            {
+              "dependencies": ["teamName", "token"],
               "fulfill": {
                 "state": {
-                  "display": "{{$deps[0] === \"WebHook\" ? \"visible\" : \"hidden\"}}"
+                  "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
                 }
               }
+            }
+          ]
+        },
+        "connectionMode": {
+          "type": "String",
+          "default": "DocumentMode",
+          "title": "${connectionMode}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${document}",
+              "value": "DocumentMode"
+            }
+          ],
+          "x-index": 40,
+          "required": false
+        },
+        "streamReadType": {
+          "type": "String",
+          "default": "WebHook",
+          "title": "${streamReadType}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${webHookRead}",
+              "value": "WebHook"
             },
-            "x-content": "hookButton",
-            "x-component": "Button",
-            "x-index": 60
+            {
+              "label": "${pollingRead}",
+              "value": "Polling"
+            }
+          ],
+          "x-index": 50,
+          "required": false
+        },
+        "hookButton": {
+          "type": "void",
+          "title": "${hookButton}",
+          "x-decorator": "FormItem",
+          "x-component-props": {
+            "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
           },
-          "hookText": {
-            "type": "string",
-            "title": " ",
-            "x-decorator": "FormItem",
-            "x-decorator-props": {
-              "colon": false
-            },
-            "x-reactions": {
-              "dependencies": ["streamReadType"],
-              "fulfill": {
-                "state": {
-                  "display": "{{$deps[0] === \"WebHook\" ? \"visible\" : \"hidden\"}}"
-                }
+          "x-reactions": {
+            "dependencies": ["streamReadType"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"WebHook\" ? \"visible\" : \"hidden\"}}"
               }
-            },
-            "x-component": "Input",
-            "x-index": 70,
-            "actionOnCopy" : "NEW_WEB_HOOK_URL"
-          }
+            }
+          },
+          "x-content": "hookButton",
+          "x-component": "Button",
+          "x-index": 60
+        },
+        "hookText": {
+          "type": "string",
+          "title": " ",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-reactions": {
+            "dependencies": ["streamReadType"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"WebHook\" ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          },
+          "x-component": "Input",
+          "x-index": 70,
+          "actionOnCopy" : "NEW_WEB_HOOK_URL"
         }
       }
     }
@@ -138,28 +133,137 @@
   "messages": {
     "default": "en_US",
     "en_US": {
+      "token": "Token",
+      "projectName": "project name",
+      "teamName": "Team name",
+      "webHook": "Service Hook",
+      "hookButton": "Generate Service URL",
+
+      "iterationCodes": "Iteration",
+      "issueType": "Issue Type",
+
+      "allIssueType": "All Issue",
+      "defectIssue": "Defect",
+      "requirementIssue": "Requirement",
+      "missionIssue": "Mission",
+      "epicIssue": "Epic",
+
+      "connectionMode": "Connection mode",
+      "document": "General document",
+      "csv": "CSV format",
+
+      "streamReadType": "Incremental mode",
+      "webHookRead": "Web Hook",
+      "pollingRead": "Polling Read",
+
+
       "doc": "doc/testcoding_en_US.md",
-      "apiType": "Commissioning platform",
-      "jsonTxt": "Postman Collection in JSON",
-      "expireStatus": "Expiration Status Desc",
-      "tokenParams": "Token parameter specification",
-      "hookButton": "Generate Service URL"
+      "df_initial_totals": "Initial data amount",
+      "df_incremental_interval": "Incremental interval (ms)",
+      "df_incremental_interval_totals": "Incremental Interval Upper Limits",
+      "df_incremental_types": "incremental event types",
+      "df_incremental_types_insert": "Insert",
+      "df_incremental_types_update": "Update",
+      "df_incremental_types_delete": "Delete",
+      "df_write_interval": "Write Interval (ms)",
+      "df_write_interval_totals": "Write Interval Upper Limit",
+      "df_write_log": "Print write log",
+      "df_table_name": "Table Name",
+      "df_table_fields": "Field Definitions",
+      "df_table_field_name": "Name",
+      "df_table_field_type": "Type",
+      "df_table_field_default": "Default value",
+      "df_table_field_primary": "Primary Key",
+      "df_table_field_operator": "Operation",
+      "df_table_field_btn_add": "Add field"
     },
     "zh_CN": {
+      "token": "令牌",
+      "projectName": "项目名称",
+      "teamName": "团队名称",
+      "webHook": "Service Hook",
+      "hookButton": "生成服务 URL",
+
+      "iterationCodes": "迭代",
+      "issueType": "事项类型",
+
+      "allIssueType": "全部事项",
+      "defectIssue": "缺陷",
+      "requirementIssue": "需求",
+      "missionIssue": "任务",
+      "epicIssue": "史诗",
+
+      "connectionMode": "连接模式",
+      "document": "普通文档格式",
+      "csv": "CSV格式",
+
+      "streamReadType": "增量方式",
+      "webHookRead": "Web Hook",
+      "pollingRead": "轮询式",
+
       "doc": "doc/testcoding_zh_CN.md",
-      "apiType": "调试平台",
-      "jsonTxt": "PostMan导出的API JSON",
-      "expireStatus": "过期状态描述",
-      "tokenParams": "Token 参数指定",
-      "hookButton": "生成服务URL"
+      "df_initial_totals": "初始化数据量",
+      "df_incremental_interval": "增量间隔（毫秒）",
+      "df_incremental_interval_totals": "增量间隔上限",
+      "df_incremental_types": "增量事件类型",
+      "df_incremental_types_insert": "插入",
+      "df_incremental_types_update": "更新",
+      "df_incremental_types_delete": "删除",
+      "df_write_interval": "写入间隔(毫秒)",
+      "df_write_interval_totals": "写入间隔上限",
+      "df_write_log": "打印写入日志",
+      "df_table_name": "表名",
+      "df_table_fields": "字段定义",
+      "df_table_field_name": "名称",
+      "df_table_field_type": "类型",
+      "df_table_field_default": "默认值",
+      "df_table_field_primary": "主键",
+      "df_table_field_operator": "操作",
+      "df_table_field_btn_add": "增加字段"
     },
     "zh_TW": {
+      "token": "權杖",
+      "projectName": "項目名稱",
+      "teamName": "團隊名稱",
+      "webHook": "Service Hook",
+      "hookButton": "生成服務URL",
+
+      "iterationCodes": "迭代",
+      "issueType": "事項类型",
+
+      "allIssueType": "全部事項",
+      "defectIssue": "缺陷",
+      "requirementIssue": "需求",
+      "missionIssue": "任務",
+      "epicIssue": "史詩",
+
+      "connectionMode": "連接模式",
+      "document": "普通文檔格式",
+      "csv": "CSV格式",
+
+      "streamReadType": "增量方式",
+      "webHookRead": "Web Hook",
+      "pollingRead": "輪詢式",
+
       "doc": "doc/testcoding_zh_TW.md",
-      "apiType": "調試平臺",
-      "jsonTxt": "PostMan匯出的API JSON",
-      "expireStatus": "過期狀態描述",
-      "tokenParams": "Token 參數指定",
-      "hookButton": "生成服務URL"
+      "df_initial_totals": "初始化數據量",
+      "df_incremental_interval": "增量間隔（毫秒）",
+      "df_incremental_interval_totals": "增量間隔上限",
+      "df_incremental_types": "增量事件類型",
+      "df_incremental_types_insert": "插入",
+      "df_incremental_types_update": "更新",
+      "df_incremental_types_delete": "刪除",
+      "df_write_interval": "寫入間隔(毫秒)",
+      "df_write_interval_totals": "寫入間隔上限",
+      "df_write_log": "打印寫入日誌",
+      "df_table_name": "表名",
+      "df_table_fields": "字段定義",
+      "df_table_field_name": "名稱",
+      "df_table_field_type": "類型",
+      "df_table_field_default": "默認值",
+      "df_table_field_primary": "主鍵",
+      "df_table_field_operator": "操作",
+      "df_table_field_btn_add": "增加字段"
     }
   }
 }
