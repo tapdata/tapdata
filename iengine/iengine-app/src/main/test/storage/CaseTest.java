@@ -35,14 +35,19 @@ public class CaseTest {
 //			}).start();
 //		}
 
-		run(storageFactory, 1L);
-		run(storageFactory, 2L);
-		run(storageFactory, 4L);
-		run(storageFactory, 8L);
-		run(storageFactory, 16L);
+		run(storageFactory, 1L, 0);
+		run(storageFactory, 1L, 1);
+		run(storageFactory, 2L, 0);
+		run(storageFactory, 2L, 1);
+		run(storageFactory, 4L, 0);
+		run(storageFactory, 4L, 1);
+		run(storageFactory, 8L, 0);
+		run(storageFactory, 8L, 1);
+		run(storageFactory, 16L, 0);
+		run(storageFactory, 16L, 1);
 	}
 
-	private static void run(TapStorageFactory storageFactory, Long thread) {
+	private static void run(TapStorageFactory storageFactory, Long thread, int mode) {
 		AtomicInteger counter = new AtomicInteger();
 		System.out.println("Testing " + thread + " threads...");
 		StringBuilder builder = new StringBuilder();
@@ -55,7 +60,7 @@ public class CaseTest {
 			int finalI = i;
 			Thread t = new Thread(() -> {
 				try {
-					test(storageFactory, "" + finalI, count);
+					test(storageFactory, "" + finalI, count, mode);
 				} catch (UnsupportedEncodingException e) {
 					throw new RuntimeException(e);
 				}
@@ -72,13 +77,19 @@ public class CaseTest {
 		}
 
 		Long endTime = System.currentTimeMillis();
-		long speed = count*thread*1000/(endTime-startTime);
-		System.out.println("avg write/read speed is:" + speed);
-		System.out.println("=====================" + thread + " threads============================\n");
+		if (mode == 0) {
+			long speed = count*thread*1000*2/(endTime-startTime);
+			System.out.println("avg write/read speed is:" + speed);
+		}
+		if (mode == 1) {
+			long speed = count*thread*1000/(endTime-startTime);
+			System.out.println("avg write speed is:" + speed);
+		}
+		System.out.println("=====================" + thread + " threads============================");
 
 	}
 
-	private static void test(TapStorageFactory storageFactory, String name, long count) throws UnsupportedEncodingException {
+	private static void test(TapStorageFactory storageFactory, String name, long count, int mode) throws UnsupportedEncodingException {
 		TapKVStorage kvStorage = storageFactory.getKVStorage("justTest_" + name);
 
 		Map<String, Object> map2 = map(entry("abc", 123), entry("aaa", "AKJFKLDSJFLD"), entry("jadsfl", "alskdfj"));
@@ -92,9 +103,11 @@ public class CaseTest {
 			kvStorage.put(key, map2);
 		}
 
-		for(int i = 0 ; i < count; i++) {
-			Map<String, Object> key = map(entry("id", "id_" + i));
-			Map<String, Object> value = (Map<String, Object>) kvStorage.get(key);
+		if (mode == 0) {
+			for (int i = 0; i < count; i++) {
+				Map<String, Object> key = map(entry("id", "id_" + i));
+				Map<String, Object> value = (Map<String, Object>) kvStorage.get(key);
+			}
 		}
 
 //		time = System.currentTimeMillis();
