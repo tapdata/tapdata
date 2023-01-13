@@ -1,3 +1,5 @@
+package storage;
+
 import io.tapdata.common.JSONUtil;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
