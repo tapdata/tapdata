@@ -125,27 +125,27 @@ public class WriteCommittedStream {
     public void append(List<Map<String, Object>> record) {
         if (Objects.isNull(record) || record.isEmpty()) return;
         List<List<Map<String, Object>>> partition = Lists.partition(record, 5000);
+        JSONArray jsonArr = new JSONArray();
         partition.forEach(recordPartition -> {
-            JSONArray jsonArr = new JSONArray();
             for (Map<String, Object> map : recordPartition) {
                 if (Objects.isNull(map)) continue;
                 JSONObject jsonObject = new JSONObject();
                 map.forEach(jsonObject::put);
                 jsonArr.put(jsonObject);
             }
-            try {
-                this.writer.append(jsonArr, this.streamOffset.addAndGetBefore(jsonArr.length()));
-            } catch (Exception e) {
-                throw new CoreException("Stream API write record to target error, data offset is : " + this.streamOffset.get() + ", message:" + e.getMessage());
-            }
         });
+        try {
+            this.writer.append(jsonArr, this.streamOffset.addAndGetBefore(jsonArr.length()));
+        } catch (Exception e) {
+            throw new CoreException("Stream API write record to target error, data offset is : " + this.streamOffset.get() + ", message:" + e.getMessage());
+        }
     }
 
     public void appendJSON(List<Map<String, Object>> record) {
         if (Objects.isNull(record) || record.isEmpty()) return;
         List<List<Map<String, Object>>> partition = Lists.partition(record, 5000);
+        JSONArray json = new JSONArray();
         partition.forEach(recordPartition -> {
-            JSONArray json = new JSONArray();
             for (Map<String, Object> map : recordPartition) {
                 if (Objects.isNull(map)) continue;
                 JSONObject jsonObject = new JSONObject();
@@ -163,12 +163,12 @@ public class WriteCommittedStream {
                 });
                 json.put(jsonObject);
             }
-            try {
-                this.writer.append(json, this.streamOffset.addAndGetBefore(json.length()));
-            } catch (Exception e) {
-                throw new CoreException("Stream API write record to temporary table error,data offset is : " + this.streamOffset.get() + ". message:" + e.getMessage());
-            }
         });
+        try {
+            this.writer.append(json, this.streamOffset.addAndGetBefore(json.length()));
+        } catch (Exception e) {
+            throw new CoreException("Stream API write record to temporary table error,data offset is : " + this.streamOffset.get() + ". message:" + e.getMessage());
+        }
     }
 
 

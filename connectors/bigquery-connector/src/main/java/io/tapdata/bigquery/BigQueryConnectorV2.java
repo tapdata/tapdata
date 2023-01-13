@@ -100,7 +100,8 @@ public class BigQueryConnectorV2 extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapYearValue.class, "INT64", TapValue::getValue);
         codecRegistry.registerFromTapValue(TapMapValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
         codecRegistry.registerFromTapValue(TapArrayValue.class, "JSON", tapValue -> toJson(tapValue.getValue()));
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS"));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, "TIMESTAMP",tapValue -> formatTapDateTime(tapValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS"));//2023-01-12 09:57:27.628000 UTC
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, "DATETIME",tapValue -> FieldChecker.simpleDateValue(tapValue.getValue(), "yyyy-MM-dd HH:mm:ss",false).replace(" ","T"));//2023-01-12 09:57:27.628000 UTC
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTimeStr());
         codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> formatTapDateTime(tapYearValue.getValue(), "yyyy"));

@@ -48,10 +48,10 @@ public class SqlValueConvert {
 
     public static Object streamJsonArrayValue(Object value, TapField field) {
         if (Objects.isNull(value)) return null;
-        if (value instanceof DateTime) {
-            DateTime time = (DateTime) value;
-            return FieldChecker.simpleDateValue(time.toTimestamp(), DATE_TIME_FORMAT, false);
-        }
+//        if (value instanceof DateTime) {
+//            DateTime time = (DateTime) value;
+//            return FieldChecker.simpleDateValue(time.toTimestamp(), DATE_TIME_FORMAT, false);
+//        }
         TapType tapType = field.getTapType();
         switch (tapType.getClass().getSimpleName()) {
             case "TapString":
@@ -60,13 +60,12 @@ public class SqlValueConvert {
                 return toJson(value);
             case "TapBinary":
             case "TapBoolean":
-                return value;
             case "TapDateTime":
-                return FieldChecker.simpleDateValue(value, DATE_TIME_FORMAT, false);
+                //return value;//FieldChecker.simpleDateValue(value, DATE_TIME_FORMAT, false);
             case "TapDate":
-                return FieldChecker.simpleDateValue(value, DATE_FORMAT, false);
+                //return value;//FieldChecker.simpleDateValue(value, DATE_FORMAT, false);
             case "TapTime":
-                return FieldChecker.simpleDateValue(value, TIME_FORMAT, false);
+                return value;//FieldChecker.simpleDateValue(value, TIME_FORMAT, false);
             case "TapMap":
                 return toJson(value);
             case "TapNumber":
