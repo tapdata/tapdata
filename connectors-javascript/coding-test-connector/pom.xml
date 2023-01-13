@@ -160,11 +160,11 @@
         </plugins>
         <resources>
             <resource>
-                <directory>src/main/java</directory>
+                <directory>src/main/javascript</directory>
                 <includes>
                     <include>**/*.js</include>
                 </includes>
-                <targetPath>./${parent.artifactId}/${project.artifactId}/src/main/java/</targetPath>
+                <targetPath>./${parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
             </resource>
             <resource>
                 <directory>${basedir}/src/main/resources</directory>

@@ -31,6 +31,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static io.tapdata.base.ConnectorBase.fromJson;
+import static io.tapdata.base.ConnectorBase.toJson;
 
 public class PostManAPIInvoker
         implements APIDocument<APIInvoker>, APIInvoker {
@@ -132,6 +133,7 @@ public class PostManAPIInvoker
         if (invoker) {
             response = this.interceptor.intercept(response, uriOrName, method, params);
         }
+        System.out.println("DEBUG-INFO: Results obtained from this execution: \n" + toJson(response));
         return response;
     }
 

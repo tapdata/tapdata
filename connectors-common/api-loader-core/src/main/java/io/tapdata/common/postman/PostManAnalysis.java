@@ -163,6 +163,7 @@ public class PostManAnalysis {
                 }
             }
         }
+        bodyMap.putAll(params);
         RequestBody body = RequestBody.create(mediaType, toJson(bodyMap));
         Request.Builder builder = new Request.Builder()
                 .url(url)

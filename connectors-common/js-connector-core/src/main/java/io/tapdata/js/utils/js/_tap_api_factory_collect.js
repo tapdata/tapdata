@@ -62,7 +62,7 @@ class TapApi {
         }
     }
 
-    releaseFromCache(key){
+    releaseFromCache(key) {
         if (!isParam(key)) {
             log.info("Key name is empty, cannot release data. ");
         }
@@ -81,16 +81,30 @@ function loadAPI(apiContent, type, params) {
 }
 
 
-function nowDate(){
+function nowDate() {
     return tapUtil.nowToDateStr();
 }
-function nowDateTime(){
+
+function nowDateTime() {
     return tapUtil.nowToDateTimeStr();
 }
 
-function formatDate(time){
+function formatDate(time) {
     return tapUtil.longToDateStr(time);
 }
-function formatDateTime(time){
+
+function formatDateTime(time) {
     return tapUtil.longToDateStr(time);
+}
+
+function elementSearch(array, index) {
+    return tapUtil.elementSearch(array, index);
+}
+
+function firstElement(array) {
+    return tapUtil.elementSearch(array, 0);
+}
+
+function isAlive() {
+    return nodeIsAlive.get();
 }

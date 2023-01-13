@@ -230,7 +230,7 @@ public class LoadJavaScripter {
             Object apply = invocable.invokeFunction(functionName, params);
             return LoadJavaScripter.covertData(apply);
         } catch (Exception e) {
-            throw new CoreException(String.format(" Method execution failed, method name -[%s], params are -[%s], message: %s", functionName, toJson(params), e.getMessage()));
+            throw new CoreException(String.format("JavaScript Method execution failed, method name -[%s], params are -[%s], message: %s", functionName, toJson(params), e.getMessage()));
         }
     }
 

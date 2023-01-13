@@ -108,6 +108,7 @@ public class JSConnector extends ConnectorBase {
         this.javaScripter.scriptEngine().put("log",new ConnectorLog());
         this.javaScripter.scriptEngine().put("tapCache",this.cacheContext);
         this.javaScripter.scriptEngine().put("tapUtil",new JsUtil());
+        this.javaScripter.scriptEngine().put("nodeIsAlive",isAlive);
         engineInstance.loadScript();
     }
 }

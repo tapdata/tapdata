@@ -23,7 +23,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class JSStreamReadFunction extends FunctionBase implements FunctionSupport<StreamReadFunction> {
-    AtomicBoolean isAlive = new AtomicBoolean(true);
+    private AtomicBoolean isAlive = new AtomicBoolean(true);
+    private final Object lock = new Object();
+    private static final long STREAM_READ_DELAY_SEC = 5 * 60 * 1000L;
 
     public JSStreamReadFunction isAlive(AtomicBoolean isAlive) {
         this.isAlive = isAlive;
@@ -67,7 +69,9 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
                             recordSize,
                             sender
                     );
-                    this.wait(5 * 60 * 1000);
+                    synchronized (this.lock) {
+                        this.lock.wait(JSStreamReadFunction.STREAM_READ_DELAY_SEC);
+                    }
                 }
             } catch (InterruptedException ignored) {
             } catch (Exception e) {
@@ -104,7 +108,10 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
             consumer.accept(eventList, lastContextMap);
             contextMap.set(lastContextMap);
         }
-        if (t.isAlive()) {
+        if (t.isAlive() || this.isAlive.get()) {
+            synchronized (this.lock){
+                this.lock.notifyAll();
+            }
             t.stop();
         }
         consumer.streamReadEnded();

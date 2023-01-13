@@ -50,4 +50,36 @@ public class APIResponse {
         this.error = error;
         return this;
     }
+
+    public Map<String, Object> getResult() {
+        return result;
+    }
+
+    public void setResult(Map<String, Object> result) {
+        this.result = result;
+    }
+
+    public Integer getHttpCode() {
+        return httpCode;
+    }
+
+    public void setHttpCode(Integer httpCode) {
+        this.httpCode = httpCode;
+    }
+
+    public Map<String, Object> getHeaders() {
+        return headers;
+    }
+
+    public void setHeaders(Map<String, Object> headers) {
+        this.headers = headers;
+    }
+
+    public Map<String, Object> getError() {
+        return error;
+    }
+
+    public void setError(Map<String, Object> error) {
+        this.error = error;
+    }
 }
