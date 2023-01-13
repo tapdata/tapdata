@@ -13,20 +13,24 @@ public class ConnectorScriptEngine implements ScriptEngine, Invocable {
     private final Invocable invocable;
     private final String buildInScript = "";
     private URLClassLoader externalJarClassLoader;
+
     public ConnectorScriptEngine(ScriptOptions scriptOptions) {
         ScriptEngineManager engineManager = new ScriptEngineManager();
         this.scriptEngine = engineManager.getEngineByName("javascript");
         invocable = (Invocable) scriptEngine;
         ScriptEngineInit.create().init(this.scriptEngine);
     }
+
     public ConnectorScriptEngine(ScriptEngine scriptEngine) {
         this.scriptEngine = scriptEngine;
         invocable = (Invocable) scriptEngine;
         //ScriptEngineInit.create().init(this.scriptEngine);
     }
+
     private String combineFunctions(String script) {
         return buildInScript + "\n" + script;
     }
+
     @Override
     public Object invokeMethod(Object thiz, String name, Object... args) throws ScriptException, NoSuchMethodException {
         return invocable.invokeMethod(thiz, name, args);

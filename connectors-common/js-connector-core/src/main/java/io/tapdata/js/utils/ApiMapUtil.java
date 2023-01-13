@@ -6,58 +6,60 @@ import java.util.*;
 
 public class ApiMapUtil {
 
-    public static Object getKeyFromMap(Object mapObj,String keyName){
-        if (mapObj instanceof Map){
+    public static Object getKeyFromMap(Object mapObj, String keyName) {
+        if (mapObj instanceof Map) {
             int indexPoint = keyName.indexOf(".");
-            String nameKey = keyName.substring(0, indexPoint < 0 ?keyName.length() : indexPoint);
-            Object value = ((Map<String,Object>)mapObj).get(nameKey);
-            if(indexPoint > 0 && indexPoint < keyName.length()) {
+            String nameKey = keyName.substring(0, indexPoint < 0 ? keyName.length() : indexPoint);
+            Object value = ((Map<String, Object>) mapObj).get(nameKey);
+            if (indexPoint > 0 && indexPoint < keyName.length()) {
                 String subKey = keyName.substring(indexPoint + 1);
                 return getKeyFromMap(value, subKey);
-            }else {
-                return value ;
+            } else {
+                return value;
             }
-        }else if(mapObj instanceof String){
+        } else if (mapObj instanceof String) {
             return mapObj;
         }
         return mapObj;
     }
 
-    public static Object depthSearchParamFromMap(Object mapObj,String keyName){
+    public static Object depthSearchParamFromMap(Object mapObj, String keyName) {
         if (Objects.isNull(mapObj) || Objects.isNull(keyName)) return "";
-        if (mapObj instanceof Map){
-            Map<String,Object> map = (Map<String,Object>)mapObj;
+        if (mapObj instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) mapObj;
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 String key = entry.getKey();
                 Object value = entry.getValue();
                 if (keyName.equals(key)) return value;
-                if (value instanceof Map || value instanceof Collection)  return depthSearchParamFromMap(entry.getValue(),keyName);
+                if (value instanceof Map || value instanceof Collection)
+                    return depthSearchParamFromMap(entry.getValue(), keyName);
             }
-        }else if (mapObj instanceof Collection){
+        } else if (mapObj instanceof Collection) {
             Collection list = (Collection) mapObj;
             for (Object arr : list) {
-                return depthSearchParamFromMap(arr,keyName);
+                return depthSearchParamFromMap(arr, keyName);
             }
         }
         return "";
     }
 
-    public static void depthSearchParamFromMap(Object mapObj,String keyName,List<Map.Entry<String,Object>> valueEntry){
-        if (Objects.isNull(mapObj) || Objects.isNull(keyName)) return ;
-        if (mapObj instanceof Map){
-            Map<String,Object> map = (Map<String,Object>)mapObj;
+    public static void depthSearchParamFromMap(Object mapObj, String keyName, List<Map.Entry<String, Object>> valueEntry) {
+        if (Objects.isNull(mapObj) || Objects.isNull(keyName)) return;
+        if (mapObj instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) mapObj;
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 String key = entry.getKey();
                 Object value = entry.getValue();
                 if (keyName.equals(key)) {
-                    valueEntry.add(new AbstractMap.SimpleEntry<>(key,value));
+                    valueEntry.add(new AbstractMap.SimpleEntry<>(key, value));
                 }
-                if (value instanceof Map || value instanceof Collection)  depthSearchParamFromMap(entry.getValue(),keyName);
+                if (value instanceof Map || value instanceof Collection)
+                    depthSearchParamFromMap(entry.getValue(), keyName);
             }
-        }else if (mapObj instanceof Collection){
+        } else if (mapObj instanceof Collection) {
             Collection list = (Collection) mapObj;
             for (Object arr : list) {
-                depthSearchParamFromMap(arr,keyName);
+                depthSearchParamFromMap(arr, keyName);
             }
         }
     }
@@ -92,13 +94,13 @@ public class ApiMapUtil {
         System.out.println(table4 + " <-> " + (table4.matches(TapApiTag.TAP_TABLE.tagRegex())));
         System.out.println(table5 + " <-> " + (table5.matches(TapApiTag.TAP_TABLE.tagRegex())));
 
-        Map<String,Object> map1= new HashMap<>();
-        map1.put("acc","acc");
-        map1.put("cvv",new HashMap<String,Object>(){{
-            put("bbb","a");
-            put("dd","a");
-            put("er","asdf");
+        Map<String, Object> map1 = new HashMap<>();
+        map1.put("acc", "acc");
+        map1.put("cvv", new HashMap<String, Object>() {{
+            put("bbb", "a");
+            put("dd", "a");
+            put("er", "asdf");
         }});
-        System.out.println(depthSearchParamFromMap(map1,"acsc"));
+        System.out.println(depthSearchParamFromMap(map1, "acsc"));
     }
 }

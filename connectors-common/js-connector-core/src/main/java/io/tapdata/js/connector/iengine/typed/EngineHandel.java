@@ -10,7 +10,7 @@ public interface EngineHandel {
 
     public Object invoker(String functionName, Object... params);
 
-    public Map<String, EngineHandel> load(String jarFilePath, String flooder,Enumeration<URL> resources);
+    public Map<String, EngineHandel> load(String jarFilePath, String flooder, Enumeration<URL> resources);
 
     public Object covertData(Object data);
 }

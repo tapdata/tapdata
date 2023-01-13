@@ -16,7 +16,6 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 
 import javax.script.ScriptEngine;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;

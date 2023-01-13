@@ -25,29 +25,34 @@ import java.util.function.Consumer;
 
 public class JSWriteRecordFunction extends FunctionBase implements FunctionSupport<WriteRecordFunction> {
     AtomicBoolean isAlive = new AtomicBoolean(true);
-    public JSWriteRecordFunction isAlive(AtomicBoolean isAlive){
+
+    public JSWriteRecordFunction isAlive(AtomicBoolean isAlive) {
         this.isAlive = isAlive;
         return this;
     }
-    JSWriteRecordFunction(){
+
+    JSWriteRecordFunction() {
         super();
         super.functionName = JSFunctionNames.WriteRecordFunction;
     }
+
     @Override
     public WriteRecordFunction function(LoadJavaScripter javaScripter) {
         if (super.hasNotSupport(javaScripter)) return null;
         return this::write;
     }
+
     private ConcurrentHashMap<String, ScriptEngine> writeEnginePool = new ConcurrentHashMap<>(16);
+
     private void write(TapConnectorContext context, List<TapRecordEvent> tapRecordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws ScriptException {
-        if (Objects.isNull(context)){
+        if (Objects.isNull(context)) {
             throw new CoreException("TapConnectorContext must not be null or not be empty.");
         }
-        if(Objects.isNull(table)){
+        if (Objects.isNull(table)) {
             throw new CoreException("Table lists must not be null or not be empty.");
         }
         String threadName = Thread.currentThread().getName();
-        ScriptEngine scriptEngine ;
+        ScriptEngine scriptEngine;
         if (writeEnginePool.containsKey(threadName)) {
             scriptEngine = writeEnginePool.get(threadName);
         } else {
@@ -58,7 +63,7 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
-        List<Map<String, Object>> machiningEvents = machiningEvents(tapRecordEvents,table.getId(), insert, update, delete);
+        List<Map<String, Object>> machiningEvents = machiningEvents(tapRecordEvents, table.getId(), insert, update, delete);
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
         try {
             super.javaScripter.invoker(
@@ -67,8 +72,8 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                     context.getNodeConfig(),
                     machiningEvents
             );
-        }catch (Exception e){
-            throw new CoreException(String.format("Exceptions occurred when executing writeRecord to write data. The operations of adding %s, modifying %s, and deleting %s failed.",insert.get(),update.get(),delete.get()));
+        } catch (Exception e) {
+            throw new CoreException(String.format("Exceptions occurred when executing writeRecord to write data. The operations of adding %s, modifying %s, and deleting %s failed.", insert.get(), update.get(), delete.get()));
         }
         writeListResultConsumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
     }
@@ -79,25 +84,26 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
     public static final String EVENT_INSERT_KEY = "INSERT";
     public static final String EVENT_UPDATE_KEY = "UPDATE";
     public static final String EVENT_DELETE_KEY = "DELETE";
-    private List<Map<String,Object>> machiningEvents(List<TapRecordEvent> tapRecordEvents,final String tableId,AtomicLong insert,AtomicLong update,AtomicLong delete){
-        List<Map<String,Object>> events = new ArrayList<>();
+
+    private List<Map<String, Object>> machiningEvents(List<TapRecordEvent> tapRecordEvents, final String tableId, AtomicLong insert, AtomicLong update, AtomicLong delete) {
+        List<Map<String, Object>> events = new ArrayList<>();
         if (Objects.isNull(tapRecordEvents)) return events;
         tapRecordEvents.stream().filter(Objects::nonNull).forEach(tapRecord -> {
-            Map<String,Object> event = new HashMap<>();
-            if (tapRecord instanceof TapInsertRecordEvent){
-                event.put(EVENT_TYPE_KEY,EVENT_INSERT_KEY);
-                event.put(EVENT_DATA_KEY,((TapInsertRecordEvent)tapRecord).getAfter());
+            Map<String, Object> event = new HashMap<>();
+            if (tapRecord instanceof TapInsertRecordEvent) {
+                event.put(EVENT_TYPE_KEY, EVENT_INSERT_KEY);
+                event.put(EVENT_DATA_KEY, ((TapInsertRecordEvent) tapRecord).getAfter());
                 insert.incrementAndGet();
-            }else if(tapRecord instanceof TapUpdateRecordEvent){
-                event.put(EVENT_TYPE_KEY,EVENT_UPDATE_KEY);
-                event.put(EVENT_DATA_KEY,((TapUpdateRecordEvent)tapRecord).getAfter());
+            } else if (tapRecord instanceof TapUpdateRecordEvent) {
+                event.put(EVENT_TYPE_KEY, EVENT_UPDATE_KEY);
+                event.put(EVENT_DATA_KEY, ((TapUpdateRecordEvent) tapRecord).getAfter());
                 update.incrementAndGet();
-            }else if(tapRecord instanceof TapDeleteRecordEvent){
-                event.put(EVENT_TYPE_KEY,EVENT_DELETE_KEY);
-                event.put(EVENT_DATA_KEY,((TapDeleteRecordEvent)tapRecord).getBefore());
+            } else if (tapRecord instanceof TapDeleteRecordEvent) {
+                event.put(EVENT_TYPE_KEY, EVENT_DELETE_KEY);
+                event.put(EVENT_DATA_KEY, ((TapDeleteRecordEvent) tapRecord).getBefore());
                 delete.incrementAndGet();
             }
-            event.put(EVENT_TABLE_KEY,tableId);
+            event.put(EVENT_TABLE_KEY, tableId);
             events.add(event);
         });
         return events;

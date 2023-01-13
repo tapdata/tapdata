@@ -10,7 +10,7 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 
 public class JSCreateTableV2Function extends FunctionBase implements FunctionSupport<CreateTableV2Function> {
-    private JSCreateTableV2Function(){
+    private JSCreateTableV2Function() {
         super();
         super.functionName = JSFunctionNames.CreateTableV2Function;
     }

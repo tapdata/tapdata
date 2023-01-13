@@ -21,23 +21,23 @@ public abstract class AbstractEngine<T> implements EngineHandel {
         return null;
     }
 
-    protected abstract Map.Entry<String,EngineHandel> load(URL url);
+    protected abstract Map.Entry<String, EngineHandel> load(URL url);
 
     @Override
-    public Map<String,EngineHandel> load(String jarFilePath, String flooder,Enumeration<URL> resources) {
+    public Map<String, EngineHandel> load(String jarFilePath, String flooder, Enumeration<URL> resources) {
         this.jarFilePath = jarFilePath;
         this.flooder = flooder;
         List<URL> list = new ArrayList<>();
         while (resources.hasMoreElements()) {
             list.add(resources.nextElement());
         }
-        Map<String,EngineHandel> result = new HashMap<>();
-        if ( !list.isEmpty() ){
+        Map<String, EngineHandel> result = new HashMap<>();
+        if (!list.isEmpty()) {
             list.stream().filter(Objects::nonNull)
-                .forEach(url ->
-                    Optional.ofNullable(this.load(url))
-                        .ifPresent(consumer -> result.put(consumer.getKey(),consumer.getValue()))
-                );
+                    .forEach(url ->
+                            Optional.ofNullable(this.load(url))
+                                    .ifPresent(consumer -> result.put(consumer.getKey(), consumer.getValue()))
+                    );
         }
         return result;
     }
@@ -45,6 +45,7 @@ public abstract class AbstractEngine<T> implements EngineHandel {
 
     protected String jarFilePath;
     protected String flooder;
+
     protected List<Map.Entry<InputStream, File>> getAllFileFromJar(String path) {
         List<Map.Entry<InputStream, File>> fileList = new ArrayList<>();
         String pathJar = Objects.nonNull(jarFilePath) && !"".equals(jarFilePath) ? jarFilePath : path.replace("file:/", "").replace("!/" + flooder, "");

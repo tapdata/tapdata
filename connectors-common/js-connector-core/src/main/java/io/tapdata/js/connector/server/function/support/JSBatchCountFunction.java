@@ -15,7 +15,8 @@ import java.util.Objects;
 
 public class JSBatchCountFunction extends FunctionBase implements FunctionSupport<BatchCountFunction> {
     private static final String TAG = JSBatchCountFunction.class.getSimpleName();
-    private JSBatchCountFunction(){
+
+    private JSBatchCountFunction() {
         super();
         super.functionName = JSFunctionNames.BatchCountFunction;
     }
@@ -27,10 +28,10 @@ public class JSBatchCountFunction extends FunctionBase implements FunctionSuppor
     }
 
     private long batchCount(TapConnectorContext context, TapTable table) {
-        if (Objects.isNull(context)){
+        if (Objects.isNull(context)) {
             throw new CoreException("TapConnectorContext must not be null or not be empty.");
         }
-        if(Objects.isNull(table)){
+        if (Objects.isNull(table)) {
             throw new CoreException("Table lists must not be null or not be empty.");
         }
         Object invoker = super.javaScripter.invoker(
@@ -39,14 +40,14 @@ public class JSBatchCountFunction extends FunctionBase implements FunctionSuppor
                 context.getNodeConfig(),
                 table.getId()
         );
-        if (Objects.isNull(invoker)){
-            TapLogger.info(TAG,"JavaScript execution result cannot be NULL or empty, please return Long type result.");
+        if (Objects.isNull(invoker)) {
+            TapLogger.info(TAG, "JavaScript execution result cannot be NULL or empty, please return Long type result.");
             return 0L;
         }
         try {
             return Long.parseLong(String.valueOf(invoker));
-        }catch (Exception e){
-            TapLogger.warn(TAG,String.format("JavaScript execution result cannot be converted to Long, please return Long type result.Msg: %s. ",e.getMessage()));
+        } catch (Exception e) {
+            TapLogger.warn(TAG, String.format("JavaScript execution result cannot be converted to Long, please return Long type result.Msg: %s. ", e.getMessage()));
             return 0;
         }
     }

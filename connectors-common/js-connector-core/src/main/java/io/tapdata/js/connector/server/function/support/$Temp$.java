@@ -7,7 +7,7 @@ import io.tapdata.js.connector.server.function.JSFunctionNames;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 
 public class $Temp$ extends FunctionBase implements FunctionSupport<TapFunction> {
-    private $Temp$(){
+    private $Temp$() {
         super();
         super.functionName = JSFunctionNames.BatchReadFunction;
         //        Object invoker = this.javaScripter.invoker(JSFunctionNames.DISCOVER_SCHEMA.jsName(), null);

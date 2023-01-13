@@ -5,15 +5,18 @@ import io.tapdata.common.support.APIInvoker;
 
 import java.util.Map;
 
-public class APIFactoryDecoratorStruct implements APIFactory{
+public class APIFactoryDecoratorStruct implements APIFactory {
     protected APIFactory apiFactory;
-    public APIFactoryDecoratorStruct(APIFactory apiFactory){
+
+    public APIFactoryDecoratorStruct(APIFactory apiFactory) {
         this.apiFactory = apiFactory;
     }
-    public APIFactory apiFactory(){
+
+    public APIFactory apiFactory() {
         return this.apiFactory;
     }
-    public APIFactoryDecoratorStruct apiFactory(APIFactory apiFactory){
+
+    public APIFactoryDecoratorStruct apiFactory(APIFactory apiFactory) {
         this.apiFactory = apiFactory;
         return this;
     }

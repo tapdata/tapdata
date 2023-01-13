@@ -7,33 +7,33 @@ import java.util.Map;
 
 public class JSAPIInterceptorConfig {
 
-    public static JSAPIInterceptorConfig config(){
+    public static JSAPIInterceptorConfig config() {
         return new JSAPIInterceptorConfig();
     }
 
     private boolean hasConfig = false;
 
-    private List<Map<String,Object>> expireStatus;
+    private List<Map<String, Object>> expireStatus;
 
     public static final JSFunctionNames expireFunction = JSFunctionNames.EXPIRE_STATUS;
 
     public static final JSFunctionNames UPDATE_TOKEN = JSFunctionNames.UPDATE_TOKEN;
 
-    public JSAPIInterceptorConfig expireStatus(List<Map<String,Object>> expireStatus){
+    public JSAPIInterceptorConfig expireStatus(List<Map<String, Object>> expireStatus) {
         this.expireStatus = expireStatus;
         return this;
     }
 
-    public JSAPIInterceptorConfig hasConfig(boolean hasConfig){
+    public JSAPIInterceptorConfig hasConfig(boolean hasConfig) {
         this.hasConfig = hasConfig;
         return this;
     }
 
-    public List<Map<String,Object>> expireStatus(){
+    public List<Map<String, Object>> expireStatus() {
         return this.expireStatus;
     }
 
-    public boolean hasConfig(){
+    public boolean hasConfig() {
         return this.hasConfig;
     }
 

@@ -4,7 +4,7 @@
 var invoker = loadAPI();
 var OptionalUtil = {
     isEmpty: function (obj) {
-        return typeof(obj) == 'undefined'  || null == obj;
+        return typeof (obj) == 'undefined' || null == obj;
     },
     notEmpty: function (obj) {
         return !this.isEmpty(obj);

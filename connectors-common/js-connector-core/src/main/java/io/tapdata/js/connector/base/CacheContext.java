@@ -25,7 +25,7 @@ public class CacheContext {
                     long start = System.nanoTime();
                     long peekTime = 0L;
                     while (this.running.get() && !timeLimitedMayGarbage.isEmpty() && ((peekTime = System.nanoTime()) + CacheContext.POLL_NANO_TIME) < start) {
-                        synchronized (this.lock){
+                        synchronized (this.lock) {
                             String key = timeLimitedMayGarbage.poll();
                             this.remove(this.data.get(key), key, peekTime);
                         }
@@ -39,7 +39,8 @@ public class CacheContext {
         }
         return this;
     }
-    public void clean(){
+
+    public void clean() {
         this.alive.notify();
         this.running.set(false);
         if (this.scavenger.isAlive()) {

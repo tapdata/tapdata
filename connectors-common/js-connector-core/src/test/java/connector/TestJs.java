@@ -22,25 +22,26 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 public class TestJs {
     @Test
     public void testScript() {
-        exec(new String[]{"src/main/java/io/tapdata/js/connector/iengine/connector.js","discover_schema"});
+        exec(new String[]{"src/main/java/io/tapdata/js/connector/iengine/connector.js", "discover_schema"});
     }
+
     @Test
     public void testScriptJs() {
         exec();
     }
 
     @Test
-    public void testScripts(){
+    public void testScripts() {
         String[][] script = {
-                {"src/main/java/io/tapdata/api/apiJs/test.js","requestData"},
-                {"src/main/java/io/tapdata/api/batchRead.js","batchRead"}
+                {"src/main/java/io/tapdata/api/apiJs/test.js", "requestData"},
+                {"src/main/java/io/tapdata/api/batchRead.js", "batchRead"}
         };
         for (String[] js : script) {
             exec(js);
         }
     }
 
-    public void exec(String[] script){
+    public void exec(String[] script) {
         ScriptEngineManager engineManager = new ScriptEngineManager();
         ScriptEngine scriptEngine = engineManager.getEngineByName("nashorn");
         try {
@@ -54,7 +55,8 @@ public class TestJs {
             e.printStackTrace();
         }
     }
-    public void exec(){
+
+    public void exec() {
         StreamReadConsumer consumer = new StreamReadConsumer();
         try {
             streamRead(
@@ -133,7 +135,7 @@ public class TestJs {
         consumer.streamReadEnded();
     }
 
-    boolean isAlive(){
+    boolean isAlive() {
         return true;
     }
 }

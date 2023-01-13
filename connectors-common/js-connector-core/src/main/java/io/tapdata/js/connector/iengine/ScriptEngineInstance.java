@@ -14,33 +14,35 @@ public class ScriptEngineInstance {
 
     private static ScriptEngineInstance instance;
 
-    public static ScriptEngineInstance instance(){
-        if (Objects.isNull(instance)){
-            synchronized (ScriptEngineInstance.class){
-                if (Objects.isNull(instance)){
+    public static ScriptEngineInstance instance() {
+        if (Objects.isNull(instance)) {
+            synchronized (ScriptEngineInstance.class) {
+                if (Objects.isNull(instance)) {
                     instance = new ScriptEngineInstance();
                 }
             }
         }
-        return instance ;//= new ScriptEngineInstance();
+        return instance;//= new ScriptEngineInstance();
     }
 
-    private ScriptEngineInstance(){
+    private ScriptEngineInstance() {
         this.scriptInstance();
     }
 
-    private void scriptInstance(){
+    private void scriptInstance() {
         this.script = LoadJavaScripter.loader("", JS_FLOODER);
     }
-    public LoadJavaScripter script(){
+
+    public LoadJavaScripter script() {
         return this.script;
     }
-    public void loadScript(){
+
+    public void loadScript() {
         try {
             ClassLoader classLoader = JSConnector.class.getClassLoader();
-            Enumeration<URL> resources = classLoader.getResources(JS_FLOODER+"/");
+            Enumeration<URL> resources = classLoader.getResources(JS_FLOODER + "/");
             this.script.load(resources);
-        }catch (Exception error){
+        } catch (Exception error) {
             throw new CoreException(error.getMessage());
         }
     }

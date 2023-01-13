@@ -4,7 +4,6 @@ import io.tapdata.common.support.APIFactory;
 import io.tapdata.common.support.APIInvoker;
 import io.tapdata.common.support.APIResponseInterceptor;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.js.connector.base.CacheContext;
 import io.tapdata.js.utils.ScriptUtil;
 
 import java.io.IOException;
@@ -19,11 +18,11 @@ public class APIFactoryDecorator extends APIFactoryDecoratorStruct {
         super(apiFactory);
     }
 
-    public APIResponseInterceptor interceptor(){
+    public APIResponseInterceptor interceptor() {
         return this.interceptor;
     }
 
-    public APIFactoryDecorator interceptor(APIResponseInterceptor interceptor){
+    public APIFactoryDecorator interceptor(APIResponseInterceptor interceptor) {
         this.interceptor = interceptor;
         return this;
     }
@@ -31,13 +30,13 @@ public class APIFactoryDecorator extends APIFactoryDecoratorStruct {
     @Override
     public APIInvoker loadAPI(String apiContent, String type, Map<String, Object> params) {
         if (Objects.isNull(type)) type = APIFactory.TYPE_POSTMAN;
-        if (Objects.isNull(apiContent)){
+        if (Objects.isNull(apiContent)) {
             try {
                 apiContent = ScriptUtil.fileToString("connectors-javascript/coding-test-connector/src/main/resources/postman_api_collection.json");
             } catch (IOException e) {
                 throw new CoreException("File get error,may be file connectors-javascript/coding-test-connector/src/main/resources/postman_api_collection.json not exists. ");
             }
-            if (Objects.isNull(apiContent)){
+            if (Objects.isNull(apiContent)) {
                 throw new CoreException("File get error,may be file connectors-javascript/coding-test-connector/src/main/resources/postman_api_collection.json not exists. ");
             }
         }
@@ -48,11 +47,11 @@ public class APIFactoryDecorator extends APIFactoryDecoratorStruct {
 
     @Override
     public APIInvoker loadAPI(Map<String, Object> params) {
-        return this.loadAPI(null,null,params);
+        return this.loadAPI(null, null, params);
     }
 
     @Override
     public APIInvoker loadAPI() {
-        return this.loadAPI(null,null,new HashMap<>());
+        return this.loadAPI(null, null, new HashMap<>());
     }
 }

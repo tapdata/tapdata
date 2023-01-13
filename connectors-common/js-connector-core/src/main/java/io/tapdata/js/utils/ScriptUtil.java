@@ -33,7 +33,7 @@ public class ScriptUtil {
                 "}";
         String scriptFun3 = "anysc function stream_read (connection,table,size,consumer) {\n" +
                 "    return [\"Pet\", \"User\"];\n" +
-                "var a = 12;"+
+                "var a = 12;" +
                 "}";
         String scriptFun4 = "var write_record = async function write_record(connection,table,size,consumer) {\n" +
                 "    return [\"Pet\", \"User\"];\n" +
@@ -41,19 +41,21 @@ public class ScriptUtil {
         Map<String, String> stringStringMap = keepScriptToMap(zhusi + scriptFun1 + "\n" + scriptFun2 + "\n" + scriptFun3 + "\n" + scriptFun4);
         stringStringMap.forEach((key, value) -> System.out.println(key));
     }
+
     public static final String REGEX1 = "(function[\\s]+)(.*?)([\\s]*\\()(.*?)([\\s|\\n]*\\{)(.*?)(})";
     public static final String REGEX2 = "(function)(\\s+)(.*)([\\s]*)(\\()(.*)([\\s|\n]*)(\\{)(.*)(})";
 
 
     public static final String REGEX = "((((var)|(let)|(const))(\\s*)(.*)(\\s*)(=)(\\s*))?function[\\s|\n]*)(.*)";
-    public static Map<String,String> keepScriptToMap(String script){
+
+    public static Map<String, String> keepScriptToMap(String script) {
         Pattern scriptPattern = Pattern.compile(REGEX);
         Matcher matcher = scriptPattern.matcher(script);
-        HashMap<String,String> map = new HashMap<>();
+        HashMap<String, String> map = new HashMap<>();
         while (matcher.find()) {
             String functionNameJs = matcher.group();
             String functionName = getFunctionName(functionNameJs);
-            if(Objects.nonNull(functionName)) {
+            if (Objects.nonNull(functionName)) {
                 map.put(functionName, functionName);
             }
             //System.out.println(functionNameJs);
@@ -62,28 +64,30 @@ public class ScriptUtil {
         }
         return Collections.unmodifiableMap(map);
     }
+
     public static final String FUNCTION_REGEX = "";
     public static final String FUNCTION_PRE = "function";
     public static final String FUNCTION_SUF = "(";
-    public static String getFunctionName(String function){
-        if (Objects.isNull(function))return null;
+
+    public static String getFunctionName(String function) {
+        if (Objects.isNull(function)) return null;
 
         String[] split = function.split("=");
-        if (split.length>1) {
+        if (split.length > 1) {
             String functionName = split[0];
             String[] split1 = functionName.split("\\s");
-            if (split1.length>1){
+            if (split1.length > 1) {
                 return split1[1].trim();
-            }else{
+            } else {
                 return split1[0].trim();
             }
         }
         int fromIndex = function.indexOf(FUNCTION_PRE);
         if (fromIndex < 0) return null;
         fromIndex += FUNCTION_PRE.length();
-        int endIndex = function.indexOf(FUNCTION_SUF,fromIndex);
+        int endIndex = function.indexOf(FUNCTION_SUF, fromIndex);
         if (endIndex < 0) return null;
-        return function.substring(fromIndex,endIndex).trim();
+        return function.substring(fromIndex, endIndex).trim();
     }
 
 
@@ -97,7 +101,8 @@ public class ScriptUtil {
         if (!file.exists()) return null;
         return fileToString(new FileInputStream(file));
     }
-    public static String fileToString(InputStream connectorJsStream) throws IOException{
+
+    public static String fileToString(InputStream connectorJsStream) throws IOException {
         Reader reader = null;
         Writer writer = new StringWriter();
         char[] buffer = new char[1024];
@@ -107,9 +112,9 @@ public class ScriptUtil {
             while ((n = reader.read(buffer)) != -1) {
                 writer.write(buffer, 0, n);
             }
-        }catch (Exception ignored){
+        } catch (Exception ignored) {
         } finally {
-            if(Objects.nonNull(reader)){
+            if (Objects.nonNull(reader)) {
                 reader.close();
                 writer.close();
                 connectorJsStream.close();
@@ -117,11 +122,12 @@ public class ScriptUtil {
         }
         return writer.toString();
     }
-    public static InputStream appendStream(InputStream stream,String...appender){
+
+    public static InputStream appendStream(InputStream stream, String... appender) {
         List<InputStream> inputStreams = new ArrayList<>();
         inputStreams.add(stream);
         for (String item : appender) {
-            inputStreams.add(new ByteArrayInputStream(("\n\n"+item).getBytes(StandardCharsets.UTF_8)));
+            inputStreams.add(new ByteArrayInputStream(("\n\n" + item).getBytes(StandardCharsets.UTF_8)));
         }
         return new SequenceInputStream(Collections.enumeration(inputStreams));
     }

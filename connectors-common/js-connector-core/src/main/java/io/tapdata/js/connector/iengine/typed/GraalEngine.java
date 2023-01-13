@@ -1,19 +1,19 @@
 package io.tapdata.js.connector.iengine.typed;
 
+import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.base.ConnectorBase;
 
-import javax.script.ScriptEngineManager;
-import java.util.function.Function;
-import javax.script.SimpleBindings;
 import javax.script.ScriptContext;
-import java.io.InputStreamReader;
 import javax.script.ScriptEngine;
-import java.io.InputStream;
+import javax.script.ScriptEngineManager;
+import javax.script.SimpleBindings;
 import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.*;
+import java.util.function.Function;
 
 import static io.tapdata.base.ConnectorBase.fromJson;
 
@@ -97,6 +97,6 @@ public class GraalEngine extends AbstractEngine<GraalEngine> {
         } catch (Exception error) {
             throw new CoreException("Error java script code, message: " + error.getMessage());
         }
-        return new AbstractMap.SimpleEntry<String, EngineHandel>("",this);
+        return new AbstractMap.SimpleEntry<String, EngineHandel>("", this);
     }
 }

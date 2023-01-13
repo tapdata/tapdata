@@ -109,7 +109,7 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
             contextMap.set(lastContextMap);
         }
         if (t.isAlive() || this.isAlive.get()) {
-            synchronized (this.lock){
+            synchronized (this.lock) {
                 this.lock.notifyAll();
             }
             t.stop();

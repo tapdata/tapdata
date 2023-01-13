@@ -13,7 +13,8 @@ import java.util.Objects;
 
 public class JSTimestampToStreamOffsetFunction extends FunctionBase implements FunctionSupport<TimestampToStreamOffsetFunction> {
     private static final String TAG = JSTimestampToStreamOffsetFunction.class.getSimpleName();
-    private JSTimestampToStreamOffsetFunction(){
+
+    private JSTimestampToStreamOffsetFunction() {
         super();
         super.functionName = JSFunctionNames.TimestampToStreamOffset;
     }
@@ -25,18 +26,19 @@ public class JSTimestampToStreamOffsetFunction extends FunctionBase implements F
     }
 
     private Object defaultTimestampToStreamOffset(TapConnectorContext tapConnectorContext, Long time) {
-        return time != null ? time: System.currentTimeMillis();
+        return time != null ? time : System.currentTimeMillis();
     }
-    private Object timestampToStreamOffset(TapConnectorContext context, Long time){
-        if (Objects.isNull(context)){
+
+    private Object timestampToStreamOffset(TapConnectorContext context, Long time) {
+        if (Objects.isNull(context)) {
             throw new CoreException("TapConnectorContext cannot be empty.");
         }
         Object invoker = super.javaScripter.invoker(
                 JSFunctionNames.BatchCountFunction.jsName(),
                 time
         );
-        if (Objects.isNull(invoker)){
-            TapLogger.info(TAG,"JavaScript execution result is empty, The current timestamp is returned.");
+        if (Objects.isNull(invoker)) {
+            TapLogger.info(TAG, "JavaScript execution result is empty, The current timestamp is returned.");
             return System.currentTimeMillis();
         }
         return invoker;

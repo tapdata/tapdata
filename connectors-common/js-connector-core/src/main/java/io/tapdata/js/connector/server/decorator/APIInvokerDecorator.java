@@ -3,7 +3,7 @@ package io.tapdata.js.connector.server.decorator;
 import io.tapdata.common.support.APIInvoker;
 import io.tapdata.common.support.APIIterateInterceptor;
 
-public class APIInvokerDecorator extends APIInvokerDecoratorStruct{
+public class APIInvokerDecorator extends APIInvokerDecoratorStruct {
     public APIInvokerDecorator(APIInvoker apiInvoker) {
         super(apiInvoker);
     }
