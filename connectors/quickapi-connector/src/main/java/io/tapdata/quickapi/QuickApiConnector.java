@@ -115,12 +115,6 @@ public class QuickApiConnector extends ConnectorBase {
 		}catch (Exception e){
 			consumer.accept(testItem(QuickApiTestItem.TEST_PARAM.testName(),TestItem.RESULT_FAILED,e.getMessage()));
 		}
-
-		//TestItem testJSON = testQuickApi.testJSON();
-		//consumer.accept(testJSON);
-		//if (Objects.isNull(testJSON) || Objects.equals(testJSON.getResult(),TestItem.RESULT_FAILED)){
-		//	return connectionOptions;
-		//}
 		TestItem testTapTableTag = testQuickApi.testTapTableTag();
 		consumer.accept(testTapTableTag);
 		if (Objects.isNull(testTapTableTag) || Objects.equals(testTapTableTag.getResult(),TestItem.RESULT_FAILED)){
@@ -133,11 +127,8 @@ public class QuickApiConnector extends ConnectorBase {
 			return connectionOptions;
 		}
 
-		TestItem testItem = testQuickApi.testApi();
-		consumer.accept(testItem);
-		if (Objects.isNull(testItem) || Objects.equals(testItem.getResult(),TestItem.RESULT_FAILED)){
-			return connectionOptions;
-		}
+		List<TestItem> testItem = testQuickApi.testApi();
+		Optional.ofNullable(testItem).ifPresent(test->test.forEach(consumer));
 		return connectionOptions;
 	}
 
