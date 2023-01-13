@@ -104,17 +104,19 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
   protected void doInit(@NotNull Context context) throws Exception {
     super.doInit(context);
     Node node = getNode();
-    this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
-            node.getTaskId(), node.getId());
-    ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
+    if (!this.standard) {
+      this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
+              node.getTaskId(), node.getId());
+      ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
 
-    List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
-    List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
+      List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
+      List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
 
-    this.source = getDefaultScriptExecutor(predecessors);
-    this.target = getDefaultScriptExecutor(successors);
-    ((ScriptEngine) this.engine).put("source", source);
-    ((ScriptEngine) this.engine).put("target", target);
+      this.source = getDefaultScriptExecutor(predecessors);
+      this.target = getDefaultScriptExecutor(successors);
+      ((ScriptEngine) this.engine).put("source", source);
+      ((ScriptEngine) this.engine).put("target", target);
+    }
 
   }
 
