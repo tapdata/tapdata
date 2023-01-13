@@ -9,16 +9,18 @@ import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.bigquery.service.command.Command;
 import io.tapdata.bigquery.service.stream.handle.BigQueryStream;
 import io.tapdata.bigquery.service.stream.handle.MergeHandel;
-import io.tapdata.bigquery.service.stream.handle.TapEventCollector;
 import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
+import io.tapdata.bigquery.util.bigQueryUtil.SqlValueConvert;
 import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapMapValue;
@@ -27,7 +29,6 @@ import io.tapdata.entity.schema.value.TapYearValue;
 import io.tapdata.entity.utils.cache.Entry;
 import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
@@ -37,11 +38,10 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import io.tapdata.write.WriteValve;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -49,14 +49,14 @@ import java.util.function.Consumer;
 public class BigQueryConnector extends ConnectorBase {
     private static final String TAG = BigQueryConnector.class.getSimpleName();
     private static final int STREAM_SIZE = 30000;
-
+    private static final int CUMULATIVE_TIME_INTERVAL = 5;
     private WriteRecord writeRecord;
     private TableCreate tableCreate;
-    private TapEventCollector tapEventCollector;
     private BigQueryStream stream;
     private MergeHandel merge;
     private final AtomicBoolean running = new AtomicBoolean(Boolean.TRUE);
     private String tableId;
+    private WriteValve valve;
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -91,7 +91,7 @@ public class BigQueryConnector extends ConnectorBase {
             this.notify();
         }
         Optional.ofNullable(this.writeRecord).ifPresent(WriteRecord::onDestroy);
-        Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::stop);
+        Optional.ofNullable(this.valve).ifPresent(WriteValve::close);
         this.running.set(false);
         Optional.ofNullable(this.merge).ifPresent(MergeHandel::stop);
         //Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
@@ -183,20 +183,44 @@ public class BigQueryConnector extends ConnectorBase {
     }
 
     private void writeRecordStream(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
-        if (Objects.isNull(this.tapEventCollector)) {
-            synchronized (this) {
-                if (Objects.isNull(this.tapEventCollector)) {
-                    this.tapEventCollector = TapEventCollector.create()
-                            .maxRecords(BigQueryConnector.STREAM_SIZE)
-                            .idleSeconds(5)
-                            .table(table)
-                            .writeListResultConsumer(consumer)
-                            .eventCollected(this::uploadEvents);
-                    this.tapEventCollector.start();
-                }
-            }
+        if (Objects.isNull(this.valve)) {
+            this.valve = WriteValve.open(
+                    table,
+                    BigQueryConnector.STREAM_SIZE,
+                    BigQueryConnector.CUMULATIVE_TIME_INTERVAL,
+                    (writeConsumer, writeList, targetTable) -> {
+                        try {
+                            writeConsumer.accept(this.stream.writeRecord(writeList, targetTable));
+                        } catch (Exception e) {
+                            TapLogger.warn(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
+                        }
+                    },
+                    (writeList, targetTable) -> {
+                        LinkedHashMap<String, TapField> nameFieldMap = targetTable.getNameFieldMap();
+                        if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {
+                            throw new CoreException("TapTable not any fields.");
+                        }
+                        for (TapRecordEvent event : writeList) {
+                            if (Objects.isNull(event)) continue;
+                            Map<String, Object> record = new HashMap<>();
+                            if (event instanceof TapInsertRecordEvent) {
+                                Map<String, Object> recordMap = new HashMap<>();
+                                TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) event;
+                                record = insertRecordEvent.getAfter();
+                                Map<String, Object> finalRecord = record;
+                                nameFieldMap.forEach((key, f) -> {
+                                    Object value = finalRecord.get(key);
+                                    if (Objects.nonNull(value)) {
+                                        recordMap.put(key, SqlValueConvert.streamJsonArrayValue(value, f));
+                                    }
+                                });
+                                insertRecordEvent.after(recordMap);
+                            }
+                        }
+                    },
+                    consumer
+            ).write(events);
         }
-        this.tapEventCollector.addTapEvents(events, table);
     }
 
     /**

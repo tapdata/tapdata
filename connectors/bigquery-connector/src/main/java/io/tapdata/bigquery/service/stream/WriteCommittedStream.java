@@ -136,7 +136,7 @@ public class WriteCommittedStream {
             try {
                 this.writer.append(jsonArr, this.streamOffset.addAndGetBefore(jsonArr.length()));
             } catch (Exception e) {
-                throw new CoreException("Stream API write record (Append_only) error, data offset is : " + this.streamOffset.get() + ", message:" + e.getMessage());
+                throw new CoreException("Stream API write record to target error, data offset is : " + this.streamOffset.get() + ", message:" + e.getMessage());
             }
         });
     }
@@ -166,7 +166,7 @@ public class WriteCommittedStream {
             try {
                 this.writer.append(json, this.streamOffset.addAndGetBefore(json.length()));
             } catch (Exception e) {
-                throw new CoreException("Stream API write record (Mixed updates) error,data offset is : " + this.streamOffset.get() + ". message:" + e.getMessage());
+                throw new CoreException("Stream API write record to temporary table error,data offset is : " + this.streamOffset.get() + ". message:" + e.getMessage());
             }
         });
     }

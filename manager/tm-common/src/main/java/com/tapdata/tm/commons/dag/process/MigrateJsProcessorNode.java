@@ -269,6 +269,12 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
         super(NodeEnum.migrate_js_processor.name(), NodeCatalog.processor);
     }
 
+
+    public MigrateJsProcessorNode(String type, NodeCatalog catalog) {
+        super(type, catalog);
+    }
+
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

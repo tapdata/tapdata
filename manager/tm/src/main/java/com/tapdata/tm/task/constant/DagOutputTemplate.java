@@ -9,7 +9,7 @@ public class DagOutputTemplate {
      * Agent不可用：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【Agent可用性检测】：当前无可用Agent，任务运行失败
      */
-    public static String AGENT_CAN_USE_INFO = "$date【$taskName】【Agent可用性检测】：检查到当前有{1}个可用Agent：[{2}],当前任务将在Agent：'{'{3}}上运行";
+    public static String AGENT_CAN_USE_INFO = "$date【$taskName】【Agent可用性检测】：检查到当前有{1}个可用Agent：[{2}],当前任务将在Agent：{3}上运行";
     public static String AGENT_CAN_USE_ERROR = "$date【$taskName】【Agent可用性检测】：当前指定的Agent：{1}不可用，请尽快恢复，或者重新指定其它Agent。";
 
     /**
@@ -31,10 +31,10 @@ public class DagOutputTemplate {
      * 源节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【源节点设置检测】：节点{MySQL_01}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置
      */
-    public static String SOURCE_SETTING_INFO = "$date【$taskName】【源节点设置检测】：节点'{'{0}}检测通过";
-    public static String SOURCE_SETTING_ERROR = "$date【$taskName】【源节点设置检测】：节点'{'{0}}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置";
-    public static String SOURCE_SETTING_ERROR_SCHEMA = "$date【$taskName】【源节点设置检测】：节点'{'{0}}检测未通过，源库没有表";
-    public static String SOURCE_SETTING_ERROR_SCHEMA_LOAD = "$date【$taskName】【源节点设置检测】：节点'{'{0}}检测未通过，连接模型未加载完成";
+    public static String SOURCE_SETTING_INFO = "$date【$taskName】【源节点设置检测】：节点{0}检测通过";
+    public static String SOURCE_SETTING_ERROR = "$date【$taskName】【源节点设置检测】：节点{0}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置";
+    public static String SOURCE_SETTING_ERROR_SCHEMA = "$date【$taskName】【源节点设置检测】：节点{0}检测未通过，源库没有表";
+    public static String SOURCE_SETTING_ERROR_SCHEMA_LOAD = "$date【$taskName】【源节点设置检测】：节点{0}检测未通过，连接模型未加载完成";
 
     /**
      * JS节点设置检测：（没有可跳过检测）
@@ -44,8 +44,8 @@ public class DagOutputTemplate {
      * JS节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22 【任务A】 【JS节点设置检测】：节点{JS节点001}检测未通过，异常项属性：{脚本}，异常原因：设置有误，请重新设置
      */
-    public static String JS_NODE_INFO = "$date【$taskName】【JS节点设置检测】：节点'{'{1}}检测通过";
-    public static String JS_NODE_ERROR = "$date【$taskName】【JS节点设置检测】：节点'{'{1}}检测未通过，异常项属性：{脚本}，异常原因：设置有误，请重新设置";
+    public static String JS_NODE_INFO = "$date【$taskName】【JS节点设置检测】：节点{1}检测通过";
+    public static String JS_NODE_ERROR = "$date【$taskName】【JS节点设置检测】：节点{1}检测未通过，异常项属性：{脚本}，异常原因：设置有误，请重新设置";
 
     /**
      * 表编辑节点设置检测：（没有可跳过检测）
@@ -66,8 +66,8 @@ public class DagOutputTemplate {
      * 字段编辑节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【字段编辑节点设置检测】：节点{字段编辑节点001}检测未通过，异常项属性：{后缀}，异常原因：设置有误，请重新设置
      */
-    public static String FIELD_EDIT_NODE_INFO = "$date【$taskName】【字段编辑节点设置检测】：节点'{'{1}}检测通过";
-    public static String FIELD_EDIT_NODE_ERROR = "$date【$taskName】【字段编辑节点设置检测】：节点'{'{1}}检测未通过，异常项属性：{后缀}，异常原因：设置有误，请重新设置";
+    public static String FIELD_EDIT_NODE_INFO = "$date【$taskName】【字段编辑节点设置检测】：节点{1}检测通过";
+    public static String FIELD_EDIT_NODE_ERROR = "$date【$taskName】【字段编辑节点设置检测】：节点{1}检测未通过，异常项属性：{后缀}，异常原因：设置有误，请重新设置";
 
     /**
      * 目标节点设置检测：
@@ -77,8 +77,8 @@ public class DagOutputTemplate {
      * 目标节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【目标节点设置检测】：节点{MySQL_01}检测未通过，异常项属性：{节点名称}，异常原因：节点名称重复，请重新设置
      */
-    public static String TARGET_NODE_INFO = "$date【$taskName】【目标节点设置检测】：节点'{'{1}}检测通过";
-    public static String TARGET_NODE_ERROR = "$date【$taskName】【目标节点设置检测】：节点'{'{1}}检测未通过，异常项属性：{节点名称}，异常原因：节点名称重复，请重新设置";
+    public static String TARGET_NODE_INFO = "$date【$taskName】【目标节点设置检测】：节点{1}检测通过";
+    public static String TARGET_NODE_ERROR = "$date【$taskName】【目标节点设置检测】：节点{1}检测未通过，异常项属性：{节点名称}，异常原因：节点名称重复，请重新设置";
 
     /**
      * 源连接检测：

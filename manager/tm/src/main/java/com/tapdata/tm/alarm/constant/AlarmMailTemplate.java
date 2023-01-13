@@ -26,7 +26,7 @@ public class AlarmMailTemplate {
             "    Task name: {0}\n" +
             "    CDC time: {1}";
 
-    public static final String TASK_INCREMENT_DELAY_START_TITLE = "Tapdata Notification: CDC delay】{0}";
+    public static final String TASK_INCREMENT_DELAY_START_TITLE = "【Tapdata Notification: CDC delay】{0}";
     public static final String TASK_INCREMENT_DELAY_START = "Your task CDC delay. \n" +
             "    Task name: {0}\n" +
             "    Delay times: {1}ms";
