@@ -14,7 +14,7 @@ import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DataNode;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.*;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -112,19 +112,19 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
       List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
       List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
 
-      this.source = getDefaultScriptExecutor(predecessors);
-      this.target = getDefaultScriptExecutor(successors);
+      this.source = getDefaultScriptExecutor(predecessors, "source");
+      this.target = getDefaultScriptExecutor(successors, "target");
       ((ScriptEngine) this.engine).put("source", source);
       ((ScriptEngine) this.engine).put("target", target);
     }
 
   }
 
-  private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes) {
+  private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {
     if (nodes != null && nodes.size() > 0) {
       Node<?> source = nodes.get(0);
-      if (source instanceof DataNode) {
-        String connectionId = ((DataNode) source).getConnectionId();
+      if (source instanceof DataParentNode) {
+        String connectionId = ((DataParentNode) source).getConnectionId();
         Connections connections = clientMongoOperator.findOne(new Query(where("_id").is(connectionId)),
                 ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
         if (connections != null) {
@@ -136,8 +136,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
         }
       }
     }
-    logger.warn("The source or target could not build the executor, please check");
-    obsLogger.warn("The source or target could not build the executor, please check");
+    logger.warn("The " + flag + " could not build the executor, please check");
+    obsLogger.warn("The " + flag + " could not build the executor, please check");
     return null;
   }
 
