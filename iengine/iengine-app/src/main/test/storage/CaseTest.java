@@ -39,6 +39,7 @@ public class CaseTest {
 		run(storageFactory, 2L);
 		run(storageFactory, 4L);
 		run(storageFactory, 8L);
+		run(storageFactory, 16L);
 	}
 
 	private static void run(TapStorageFactory storageFactory, Long thread) {
