@@ -31,6 +31,7 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -276,7 +277,15 @@ public class SelectDbConnector extends ConnectorBase {
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-        return selectDbJdbcContext.queryAllTables(null).size();
+        DataMap connectionConfig = connectionContext.getConnectionConfig();
+        String database = connectionConfig.getString("database");
+        AtomicInteger count = new AtomicInteger(0);
+        this.selectDbJdbcContext.query(String.format("SELECT COUNT(1) count FROM `information_schema`.`TABLES` WHERE TABLE_SCHEMA='%s' AND TABLE_TYPE='BASE TABLE'", database), rs -> {
+            if (rs.next()) {
+                count.set(Integer.parseInt(rs.getString("count")));
+            }
+        });
+        return count.get();
     }
 
     private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
