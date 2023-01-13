@@ -71,7 +71,7 @@ public class CaseTest {
 		}
 
 		Long endTime = System.currentTimeMillis();
-		System.out.println("avg write/read speed is:" + count*2*1000/(endTime-startTime));
+		System.out.println("avg write/read speed is:" + count*thread*1000/(endTime-startTime));
 		System.out.println("=====================" + thread + " threads============================\n");
 
 	}
