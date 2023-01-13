@@ -161,7 +161,7 @@ public class BigQueryStream extends BigQueryStart {
             synchronized (this.lock) {
                 this.createWriteCommittedStream(this.tempTableName);
                 this.stream.appendJSON(eventAfter.mixedAndAppendData());
-                this.batch.close();
+                //this.batch.close();
             }
             //this.stream.close();
             Optional.ofNullable(eventAfter.mergeKeyId()).ifPresent(e -> this.stateMap.save(MergeHandel.MERGE_KEY_ID, e));
