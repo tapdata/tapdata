@@ -73,11 +73,13 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
                                     }
                                     TapDeleteRecordEvent tapDeleteRecordEvent =
                                             TapSimplify.deleteDMLEvent(before, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
+                                    tapRecordEvent.clone(tapDeleteRecordEvent);
                                     events.get(index).setTapEvent(tapDeleteRecordEvent);
                                 }else {
                                     Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
                                     TapInsertRecordEvent insertRecordEvent =
                                             TapSimplify.insertRecordEvent(after, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
+                                    tapRecordEvent.clone(insertRecordEvent);
                                     events.get(index).setTapEvent(insertRecordEvent);
                                 }
                                 result =true;
@@ -126,13 +128,17 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
 
 
     public boolean compareValue(Map<String, Object> mapRecordValue, Map<String, TapField> nameFieldMap,
-                                TableNode tableNode,TapCodecsFilterManager tapCodecsFilterManager) {
+                                TableNode tableNode, TapCodecsFilterManager tapCodecsFilterManager) {
         List<QueryOperator> operators = tableNode.getConditions();
 
         AtomicBoolean filterValue = new AtomicBoolean(true);
         tapCodecsFilterManager.transformToTapValueMap(mapRecordValue, nameFieldMap, (ToTapValueCheck) (key, value) -> {
             for (QueryOperator queryOperator : operators) {
-             if (key.equals(queryOperator.getKey())) {
+                if (key.equals(queryOperator.getKey())) {
+                    if (value == null) {
+                        filterValue.set(false);
+                        return false;
+                    }
                     if (value instanceof Number) {
                         if (!NumberUtil.compare(queryOperator, value)) {
                             filterValue.set(false);

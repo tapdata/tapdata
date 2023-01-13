@@ -71,4 +71,7 @@ public class ModulesListVo extends BaseVo {
     private String connectionType;
 
     private String connectionName;
+
+    /** 访问路径方式  默认值 default  自定义 customize*/
+    private String pathAccessMethod;
 }

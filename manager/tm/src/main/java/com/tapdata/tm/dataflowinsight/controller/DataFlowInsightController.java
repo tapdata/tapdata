@@ -2,11 +2,13 @@ package com.tapdata.tm.dataflowinsight.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.behavior.service.BehaviorService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightDto;
 import com.tapdata.tm.dataflowinsight.dto.RuntimeMonitorReq;
 import com.tapdata.tm.dataflowinsight.dto.RuntimeMonitorResp;
 import com.tapdata.tm.dataflowinsight.service.DataFlowInsightService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -33,6 +35,11 @@ public class DataFlowInsightController extends BaseController {
     @Autowired
     private DataFlowInsightService dataFlowInsightService;
 
+    @Autowired
+    private BehaviorService behaviorService;
+    @Autowired
+    private TaskService taskService;
+
     /**
      * Create a new instance of the model and persist it into the data source
      * @param dataFlowInsight
@@ -42,7 +49,11 @@ public class DataFlowInsightController extends BaseController {
     @PostMapping
     public ResponseMessage<DataFlowInsightDto> save(@RequestBody DataFlowInsightDto dataFlowInsight) {
         dataFlowInsight.setId(null);
-        return success(dataFlowInsightService.save(dataFlowInsight, getLoginUser()));
+
+        UserDetail userDetail = getLoginUser();
+        behaviorService.trace(dataFlowInsight, userDetail);
+
+        return success(dataFlowInsightService.save(dataFlowInsight, userDetail));
     }
 
     /**
@@ -53,7 +64,9 @@ public class DataFlowInsightController extends BaseController {
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
     public ResponseMessage<DataFlowInsightDto> update(@RequestBody DataFlowInsightDto dataFlowInsight) {
-        return success(dataFlowInsightService.save(dataFlowInsight, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        behaviorService.trace(dataFlowInsight, userDetail);
+        return success(dataFlowInsightService.save(dataFlowInsight, userDetail));
     }
 
 
@@ -247,13 +260,21 @@ public class DataFlowInsightController extends BaseController {
     @PostMapping("upsertWithWhere")
     public ResponseMessage<DataFlowInsightDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody DataFlowInsightDto dataFlowInsight) {
         Where where = parseWhere(whereJson);
-        return success(dataFlowInsightService.upsertByWhere(where, dataFlowInsight, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        behaviorService.trace(dataFlowInsight, userDetail);
+        return success(dataFlowInsightService.upsertByWhere(where, dataFlowInsight, userDetail));
     }
 
     @Operation(summary = "DataFlowInsight runtimeMonitor")
     @GetMapping("/runtimeMonitor")
     public ResponseMessage<RuntimeMonitorResp> runtimeMonitor(@Validated RuntimeMonitorReq runtimeMonitorReq) {
         return success(dataFlowInsightService.runtimeMonitor(runtimeMonitorReq, getLoginUser()));
+    }
+
+    @Operation(summary = "DataFlowInsight statistics")
+    @GetMapping("/statistics")
+    public ResponseMessage<Object> statistics(@RequestParam("granularity") String granularity) {
+        return success(taskService.statsTransport(getLoginUser()));
     }
 
 }

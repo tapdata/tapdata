@@ -640,6 +640,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			currentEx = (NodeException) throwable;
 		} else {
 			currentEx = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
+			obsLogger.error(errorMessage, throwable);
 		}
 		try {
 			if (null == error) {
@@ -781,6 +782,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getSchemaByNodeAndTableName(getNode().getId(), tableName);
 				if (null != metadata) {
 					qualifiedName = metadata.getQualifiedName();
+					if (null == metadata.getId()) {
+						metadata.setId(new ObjectId());
+					}
+					((DAGDataServiceImpl)dagDataService).setMetaDataMap(metadata);
 					((List<MetadataInstancesDto>) insertMetadata).add(metadata);
 					TapTable tapTable = ((DAGDataServiceImpl) dagDataService).getTapTable(qualifiedName);
 					if (tapTableMap.containsKey(tableName)) {

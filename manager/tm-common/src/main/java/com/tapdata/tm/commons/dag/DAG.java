@@ -3,6 +3,8 @@ package com.tapdata.tm.commons.dag;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableList;
+import com.tapdata.tm.commons.dag.vo.CustomTypeMapping;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -464,16 +466,16 @@ public class DAG implements Serializable, Cloneable {
                         }
                     }
 
-                    @Override
-                    public void schemaTransformResult(String nodeId, List<SchemaTransformerResult> schemaTransformerResults) {
-                        List<SchemaTransformerResult> results1 = results.get(nodeId);
-                        if (CollectionUtils.isNotEmpty(results1)) {
-                            results1.addAll(schemaTransformerResults);
-                        } else {
-                            results.put(nodeId, schemaTransformerResults);
-                        }
-                        lastBatchResults.put(nodeId, schemaTransformerResults);
+                @Override
+                public void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults) {
+                    List<SchemaTransformerResult> results1 = results.get(nodeId);
+                    if (CollectionUtils.isNotEmpty(results1)) {
+                        results1.addAll(schemaTransformerResults);
+                    } else {
+                        results.put(nodeId, schemaTransformerResults);
                     }
+                    lastBatchResults.put(nodeId, schemaTransformerResults);
+                }
 
                     @Override
                     public List<SchemaTransformerResult> getSchemaTransformResult(String nodeId) {
@@ -493,8 +495,8 @@ public class DAG implements Serializable, Cloneable {
                         dagDataService.updateTransformRate(id, total, Math.min(finished, total));
                     }
 
-                    @Override
-                    public void schemaTransformResult(String nodeId, List<SchemaTransformerResult> schemaTransformerResults) {
+                @Override
+                public void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults) {
 
                     }
 
@@ -530,6 +532,14 @@ public class DAG implements Serializable, Cloneable {
             return msg;
         }
         return new HashMap<>();
+    }
+
+    /**
+     * 获取所有源节点
+     * @return
+     */
+    public List<Node> getSourceNodes() {
+        return graph.getSources().stream().map(graph::getNode).collect(Collectors.toList());
     }
 
     private void clearTransFlag(Node node) {
@@ -841,8 +851,9 @@ public class DAG implements Serializable, Cloneable {
             }
 
             if (node instanceof DatabaseNode) {
-                List<String> tableNames = ((DatabaseNode) node).getTableNames();
-                if (CollectionUtils.isEmpty(tableNames)) {
+                DatabaseNode databaseNode = (DatabaseNode) node;
+                List<String> tableNames = databaseNode.getTableNames();
+                if (CollectionUtils.isEmpty(tableNames) && !"expression".equals(databaseNode.getMigrateTableSelectType())) {
                     Message message = new Message();
                     message.setCode("DAG.MigrateTaskNotContainsTable");
                     message.setMsg("task not contains tables");
@@ -886,10 +897,10 @@ public class DAG implements Serializable, Cloneable {
                 }
 
                 @Override
-                public void schemaTransformResult(String nodeId, List<SchemaTransformerResult> schemaTransformerResults) {
+                public void schemaTransformResult(String nodeId,Node node, List<SchemaTransformerResult> schemaTransformerResults) {
                     nodeEventListeners.forEach(nodeEventListener -> {
                         try {
-                            nodeEventListener.schemaTransformResult(nodeId, schemaTransformerResults);
+                            nodeEventListener.schemaTransformResult(nodeId, node, schemaTransformerResults);
                         } catch (Exception e) {
                             logger.error("Trigger transfer listener failed {}", e.getMessage());
                         }
@@ -1029,6 +1040,8 @@ public class DAG implements Serializable, Cloneable {
 
         private String rollback; //: "table"/"all"
         private String rollbackTable; //: "Leon_CAR_CUSTOMER";
+        private List<CustomTypeMapping> customTypeMappings;
+        private String fieldsNameTransform;
         private List<String> includes; //: "Leon_CAR_CUSTOMER";
         private int batchNum;
         private String uuid;
@@ -1036,6 +1049,11 @@ public class DAG implements Serializable, Cloneable {
         private String syncType;
         private FieldChangeRuleGroup fieldChangeRules;
 
+        public Options(String rollback, String rollbackTable, List<CustomTypeMapping> customTypeMappings) {
+            this.rollback = rollback;
+            this.rollbackTable = rollbackTable;
+            this.customTypeMappings = customTypeMappings;
+        }
         public void processRule(MetadataInstancesDto dto) {
             if (null == fieldChangeRules) return;
             String nodeId = dto.getNodeId();

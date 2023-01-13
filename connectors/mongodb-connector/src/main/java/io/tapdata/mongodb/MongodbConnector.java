@@ -468,7 +468,7 @@ public class MongodbConnector extends ConnectorBase {
 				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)
 				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
 				|| null != matchThrowable(throwable, MongoServerUnavailableException.class)
-				|| null != matchThrowable(throwable, IOException.class)) {
+				|| null != matchThrowable(throwable, MongoQueryException.class)) {
 			retryOptions.needRetry(true);
 			return retryOptions;
 		}
@@ -505,18 +505,18 @@ public class MongodbConnector extends ConnectorBase {
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
 		final DataMap connectionConfig = connectionContext.getConnectionConfig();
 		if (MapUtils.isEmpty(connectionConfig)) {
-			throw new RuntimeException(String.format("connection config cannot be empty %s", connectionConfig));
+			throw new RuntimeException("connection config cannot be empty");
 		}
 		mongoConfig =(MongodbConfig) new MongodbConfig().load(connectionConfig);
 		if (mongoConfig == null) {
-			throw new RuntimeException(String.format("load mongo config failed from connection config %s", connectionConfig));
+			throw new RuntimeException("load mongo config failed from connection config");
 		}
 		if (mongoClient == null) {
 			try {
 				mongoClient = MongodbUtil.createMongoClient(mongoConfig);
 				mongoDatabase = mongoClient.getDatabase(mongoConfig.getDatabase());
 			} catch (Throwable e) {
-				throw new RuntimeException(String.format("create mongodb connection failed %s, mongo config %s, connection config %s", e.getMessage(), mongoConfig, connectionConfig), e);
+				throw new RuntimeException(String.format("create mongodb connection failed %s", e.getMessage()), e);
 			}
 		}
 	}

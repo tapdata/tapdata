@@ -137,7 +137,7 @@ drop table public.test_decode
   If tapdata is interrupted due to an uncontrollable exception (power failure, process crash, etc.), the slot connection cannot be deleted from the pg master node correctly, and a slot connection quota will always be occupied. You need to manually log in to the master node to delete
   Query slot information
 ```
-// Check if there is slot_name=tapdata information
+// Check if there is slot_name With tapdata_ cdc_ start information
  TABLE pg_replication_slots;
 ```
 - **Delete slot node**<br>

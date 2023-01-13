@@ -24,7 +24,14 @@ public enum Operation {
 
 
     DELETE_ALL("deleteAll"),
-    DELETE("delete") ;
+    DELETE("delete"),
+
+    UPDATE_PHONE("update_phone"),
+    BIND_PHONE("bind_phone"),
+    UPDATE_EMAIL("update_email"),
+    BIND_EMAIL("bind_email"),
+    RESET_PASSWORD("reset_password"),
+    ;
 
     private final String value;
 
@@ -37,5 +44,13 @@ public enum Operation {
         return value;
     }
 
-
+    public static Operation of(String value) {
+        Operation[] operations = Operation.values();
+        for (int i = 0; i < operations.length; i++) {
+            if(operations[i].value.equals(value)) {
+                return operations[i];
+            }
+        }
+        return Operation.UPDATE;
+    }
 }

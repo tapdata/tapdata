@@ -36,6 +36,10 @@
             {
               "label": "S3FS",
               "value": "s3fs"
+            },
+            {
+              "label": "OSS",
+              "value": "oss"
             }
           ],
           "x-reactions": [
@@ -76,6 +80,14 @@
               "fulfill": {
                 "state": {
                   "visible": "{{$self.value==='s3fs'}}"
+                }
+              }
+            },
+            {
+              "target": "*(accessKey,secretKey,endpoint,bucket)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='oss'}}"
                 }
               }
             }

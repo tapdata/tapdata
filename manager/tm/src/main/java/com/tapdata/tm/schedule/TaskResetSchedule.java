@@ -11,7 +11,6 @@ import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskResetLogService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections4.CollectionUtils;
@@ -65,7 +64,7 @@ public class TaskResetSchedule {
     public void checkNoResponseOp() {
 
         try {
-            Criteria taskCri = Criteria.where("status").in(TaskDto.STATUS_RENEWING, TaskDto.STATUS_DELETING);
+            Criteria taskCri = Criteria.where("status").in(TaskDto.STATUS_RENEWING, TaskDto.STATUS_DELETING).and("is_deleted").ne(true);
 
             Query query1 = new Query(taskCri);
             query1.fields().include("status", "last_updated", "user_id");

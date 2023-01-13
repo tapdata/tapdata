@@ -5,6 +5,8 @@ import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
+import com.tapdata.tm.commons.dag.vo.CustomTypeMapping;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -14,7 +16,6 @@ import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.message.constant.Level;
@@ -28,11 +29,13 @@ import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.commons.schema.MetadataTransformerDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.transform.entity.MetadataTransformerItemEntity;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
+import com.tapdata.tm.typemappings.constant.TypeMappingDirection;
+import com.tapdata.tm.typemappings.entity.TypeMappingsEntity;
+import com.tapdata.tm.typemappings.service.DataTypeSupportService;
+import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.utils.MongoUtils;
@@ -61,6 +64,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -75,17 +79,32 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 public class DAGService implements DAGDataService {
     private final Logger logger = LogManager.getLogger(DAGService.class);
 
+    @Autowired
     private MetadataInstancesService metadataInstancesService;
+
+    @Autowired
     private DataSourceService dataSourceService;
+
+    @Autowired
     private UserService userService;
+
+    @Autowired
+    private TypeMappingsService typeMappingsService;
+
+    @Autowired
     private MessageQueueService messageQueueService;
+
+    @Autowired
+    private MetadataInstancesRepository repository;
     private MongoTemplate mongoTemplate;
     private DataSourceDefinitionService dataSourceDefinitionService;
     private MetadataTransformerService metadataTransformerService;
     private MetadataTransformerItemService metadataTransformerItemService;
     private TaskService taskService;
-    private MetadataInstancesRepository repository;
     private TaskDagCheckLogService taskDagCheckLogService;
+
+    @Autowired
+    private DataTypeSupportService dataTypeSupportService;
 
     private Schema convertToSchema(MetadataInstancesDto metadataInstances, UserDetail user) {
         if (metadataInstances == null)
@@ -267,7 +286,7 @@ public class DAGService implements DAGDataService {
 
             // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
             //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
-            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, userDetail);
+            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, userDetail, options);
             metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
 
             metadataInstancesDto.setMetaType(_metaType);
@@ -354,8 +373,8 @@ public class DAGService implements DAGDataService {
             metadataInstancesDto.setDatabaseId(dataSourceMetadataInstance.getId().toHexString());
         }
 
-        int modifyCount = metadataInstancesService.bulkSave(metadataInstancesDtos, dataSource,
-                userDetail, existsMetadataInstances);
+        int modifyCount = metadataInstancesService.bulkSave(metadataInstancesDtos, dataSourceMetadataInstance, dataSource,
+                options, userDetail, existsMetadataInstances);
         log.info("Bulk save metadataInstance {}, cost {}ms", modifyCount, System.currentTimeMillis() - start);
 
         return metadataInstancesDtos.stream()
@@ -401,9 +420,13 @@ public class DAGService implements DAGDataService {
         SourceDto sourceDto = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dataSource), SourceDto.class);
 
         // 其他类型的 meta type 暂时不做模型推演处理
-        String metaType = "table";
-        if ("mongodb".equals(dataSource.getDatabase_type())) {
-            metaType = "collection";
+        String metaType = MetaType.table.name();
+        if (DataSourceEnum.isMetaTypeCollection(dataSource.getDatabase_type())) {
+            metaType = MetaType.collection.name();
+        } else if ("vika".equals(dataSource.getDatabase_type())) {
+            metaType = MetaType.VikaDatasheet.name();
+        } else if ("qingflow".equals(dataSource.getDatabase_type())) {
+            metaType = MetaType.qingFlowApp.name();
         }
 
         final String _metaType = metaType;
@@ -413,7 +436,7 @@ public class DAGService implements DAGDataService {
 
             // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
             //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
-            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, userDetail);
+            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, userDetail, options);
             metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
 
             metadataInstancesDto.getFields().forEach(field -> {
@@ -497,8 +520,8 @@ public class DAGService implements DAGDataService {
             metadataInstancesDto.setDatabaseId(dataSourceMetadataInstance.getId().toHexString());
         }
 
-        int modifyCount = metadataInstancesService.bulkSave(metadataInstancesDtos, dataSource,
-                userDetail, existsMetadataInstances);
+        int modifyCount = metadataInstancesService.bulkSave(metadataInstancesDtos, dataSourceMetadataInstance, dataSource,
+               options, userDetail, existsMetadataInstances);
         log.info("Bulk save metadataInstance {}, cost {}ms", modifyCount, System.currentTimeMillis() - start);
 
         return metadataInstancesDtos.stream()
@@ -511,14 +534,14 @@ public class DAGService implements DAGDataService {
      * @param schema 映射后的字段类型将保存在这个对象上
      */
     private Schema processFieldFromDB(MetadataInstancesDto metadataInstances, Schema schema, UserDetail user) {
+        String databaseType = metadataInstances.getSource().getDatabase_type();
         String dbVersion = metadataInstances.getSource().getDb_version();
         if (StringUtils.isBlank(dbVersion)) {
             dbVersion = "*";
         }
 
-
-        String databaseType = metadataInstances.getSource().getDatabase_type();
-        //Map<String, List<TypeMappingsEntity>> typeMapping = typeMappingsService.getTypeMapping(databaseType, TypeMappingDirection.TO_TAPTYPE);
+        Map<String, List<TypeMappingsEntity>> typeMapping =
+                typeMappingsService.getTypeMapping(databaseType, TypeMappingDirection.TO_TAPTYPE);
 
         if (schema.getFields() == null) {
             schema.setFields(new ArrayList<>());
@@ -537,30 +560,111 @@ public class DAGService implements DAGDataService {
         schema.setFields(schema1.getFields());
 
         schema.setInvalidFields(new ArrayList<>());
-        //String finalDbVersion = dbVersion;
+        String finalDbVersion = dbVersion;
         schema.getFields().forEach(field -> {
-            String originalDataType = field.getDataType();
-            if (StringUtils.isBlank(field.getOriginalDataType())) {
-                field.setOriginalDataType(originalDataType);
+            if (field.isDeleted()) {
+                return;
             }
-            field.setDataTypeTemp(originalDataType);
 
-//            String cacheKey = originalDataType + "-" + finalDbVersion;
-//            List<TypeMappingsEntity> typeMappings = null;
-//            if (typeMapping.containsKey(cacheKey)) {
-//                typeMappings = typeMapping.get(cacheKey);
-//            } else if (typeMapping.containsKey(originalDataType + "-*")) {
-//                cacheKey = originalDataType + "-*";
-//                typeMappings = typeMapping.get(cacheKey);
-//            }
-//            if (typeMappings == null || typeMappings.size() == 0) {
-//                schema.getInvalidFields().add(field.getFieldName());
-//                log.error("Not found tap type mapping rule for databaseType={}, dbVersion={}, dbFieldType={}", databaseType, finalDbVersion, originalDataType);
-//                return;
-//            }
-//
-//            field.setDataType(typeMappings.get(0).getTapType());
-//            field.setFixed(typeMappings.get(0).getFixed());
+            //field.setOriginalDataType(originalDataType);
+            if (field.getDataType() == null) {
+                field.setDataType(field.getOriginalDataType());
+            }
+            if (field.getOriginalDataType() == null) {
+                field.setOriginalDataType(field.getDataType());
+            }
+            String originalDataType = field.getDataType();
+
+            String cacheKey = originalDataType + "-" + finalDbVersion;
+            List<TypeMappingsEntity> typeMappings = null;
+            if (typeMapping.containsKey(cacheKey)) {
+                typeMappings = typeMapping.get(cacheKey);
+            } else if (typeMapping.containsKey(originalDataType + "-*")) {
+                cacheKey = originalDataType + "-*";
+                typeMappings = typeMapping.get(cacheKey);
+            }
+            if (typeMappings == null || typeMappings.size() == 0) {
+                //schema.getInvalidFields().add(field.getFieldName());
+                log.error("Not found tap type mapping rule for databaseType={}, dbVersion={}, dbFieldType={}", databaseType, finalDbVersion, originalDataType);
+            } else if (typeMappings.size() == 1) {
+                field.setDataType(typeMappings.get(0).getTapType());
+                field.setTapType(typeMappings.get(0).getTapType());
+                field.setFixed(typeMappings.get(0).getFixed());
+            } else {
+                Integer precision = field.getPrecision();
+                Integer scale = field.getScale();
+                String dataType = field.getDataType();
+                TypeMappingsEntity optimalType = null;
+
+                Function<TypeMappingsEntity, Integer> sortFactor = (TypeMappingsEntity tm1) -> {
+                    long factorPrecision = 0;
+                    long factorScale = 0;
+                    if (precision != null) {
+                        Long tm1MinPrecision = tm1.getMinPrecision();
+                        Long tm1MaxPrecision = tm1.getMaxPrecision();
+                        factorPrecision = (tm1MaxPrecision != null ? tm1MaxPrecision : 0L) -
+                                (tm1MinPrecision != null ? tm1MinPrecision : 0L);
+                    }
+                    if (scale != null) {
+                        Long tm1MinScale = tm1.getMinScale();
+                        Long tm1MaxScale = tm1.getMaxScale();
+                        factorScale = (tm1MaxScale != null ? tm1MaxScale : 0L) -
+                                (tm1MinScale != null ? tm1MinScale : 0L);
+                    }
+                    return Long.valueOf(factorPrecision + factorScale).intValue();
+                };
+
+                List<TypeMappingsEntity> optimalTypeList = typeMappings.stream().filter(tm -> {
+                    if (precision != null) { // 过滤掉 type mapping 中 precision 为 null 或者 min max 范围不包含 字段长度的规则
+                        if (tm.getMinPrecision() == null || tm.getMinPrecision() > precision)
+                            return false;
+                        if (tm.getMaxPrecision() == null || tm.getMaxPrecision() < precision)
+                            return false;
+                    }
+                    if (scale != null && !"String".equalsIgnoreCase(dataType)) { //过滤掉 type mapping 中 scale 为 null 或者 min max 范围不包含 字段精度的规则
+                        if (tm.getMinScale() == null || tm.getMinScale() > scale)
+                            return false;
+                        if (tm.getMaxScale() == null || tm.getMaxScale() < scale)
+                            return false;
+                    }
+
+                    if (precision == null && scale == null) {
+                        return tm.getMaxPrecision() == null && tm.getMinPrecision() == null &&
+                                tm.getMaxScale() == null && tm.getMinScale() == null;
+                    } else if (precision == null) {
+                        return tm.getMaxPrecision() == null && tm.getMinPrecision() == null;
+                    } else if (scale == null) {
+                        return tm.getMaxScale() == null && tm.getMinScale() == null;
+                    }
+
+                    return true;
+                }).sorted((tm1, tm2) -> { // 按照 长度范围、精度范围排序，将最符合的排在上面
+
+                    int tm1Factor = sortFactor.apply(tm1);
+                    int tm2Factor = sortFactor.apply(tm2);
+
+                    return tm1Factor - tm2Factor;
+
+                }).collect(Collectors.toList());
+
+                //optimalTypeList = _optimalTypeList.size() > 0 ? _optimalTypeList : typeMappings;
+                //}
+
+                if (optimalTypeList.size() == 1) {
+                    optimalType = optimalTypeList.get(0);
+                }
+
+                if (optimalType == null) {
+                    optimalType = typeMappings.get(0);
+                }
+
+                if (optimalType != null) {
+                    field.setDataType(optimalType.getTapType());
+                    field.setTapType(optimalType.getTapType());
+                    field.setFixed(optimalType.getFixed());
+                }
+            }
+
         });
 
         return schema;
@@ -572,7 +676,8 @@ public class DAGService implements DAGDataService {
      * @param metadataInstancesDto 将映射后的字段类型保存到这里
      * @param dataSourceConnectionDto 数据库类型
      */
-    private MetadataInstancesDto processFieldToDB(Schema schema, MetadataInstancesDto metadataInstancesDto, DataSourceConnectionDto dataSourceConnectionDto, UserDetail user) {
+    private MetadataInstancesDto processFieldToDB(Schema schema, MetadataInstancesDto metadataInstancesDto, DataSourceConnectionDto dataSourceConnectionDto, UserDetail user,
+                                                  DAG.Options options) {
 
         if (metadataInstancesDto == null || schema == null ||
                 metadataInstancesDto.getFields() == null || dataSourceConnectionDto == null){
@@ -587,7 +692,8 @@ public class DAGService implements DAGDataService {
         if (StringUtils.isBlank(dbVersion)) {
             dbVersion = "*";
         }
-        //Map<String, List<TypeMappingsEntity>> typeMapping = typeMappingsService.getTypeMapping(databaseType, TypeMappingDirection.TO_DATATYPE);
+        Map<String, List<TypeMappingsEntity>> typeMapping =
+                typeMappingsService.getTypeMapping(databaseType, TypeMappingDirection.TO_DATATYPE);
 
         schema.setInvalidFields(new ArrayList<>());
         String finalDbVersion = dbVersion;
@@ -640,10 +746,204 @@ public class DAGService implements DAGDataService {
             if (field.getId() == null) {
                 field.setId(new ObjectId().toHexString());
             }
+
+            if (field.isDeleted()) {
+                return;
+            }
+
             Field originalField = fields.get(field.getFieldName());
-            if (databaseType.equalsIgnoreCase(field.getSourceDbType())) {
-                if (originalField != null && originalField.getDataTypeTemp() != null) {
-                    field.setDataType(originalField.getDataTypeTemp());
+            String originalDataType = field.getOriginalDataType();
+            String dataType = field.getDataType();
+            String cacheKey = dataType + "-" + finalDbVersion;
+            String tapTypeType = field.getTapType();
+            boolean isManual = Field.SOURCE_MANUAL.equals(field.getSource());
+
+            // 标记不支持的字段并直接跳过类型映射
+            if (!dataTypeSupportService.supportDataType(sourceNodeDatabaseType, databaseType, originalDataType)) {
+                field.setDeleted(true);
+                field.setDataTypeSupport(false);
+
+                originalField.setDeleted(true);
+                originalField.setDataTypeSupport(false);
+                return;
+            }
+
+            field.setColumnSize(field.getPrecision());// compatible create table sql for v1 version
+
+            // Match custom type mapping first
+            if (!isManual && options != null && options.getCustomTypeMappings() != null && originalDataType != null) {
+                Optional<CustomTypeMapping> optional = options.getCustomTypeMappings().stream()
+                        .filter(ctm -> originalDataType.equalsIgnoreCase(ctm.getSourceType())).findFirst();
+                if (optional.isPresent()) {
+                    CustomTypeMapping ctm = optional.get();
+                    field.setDataType(ctm.getTargetType());
+                    if (ctm.getLength() != null){
+                        field.setPrecision(ctm.getLength()); // 长度
+                    }
+                    if (ctm.getPrecision() != null) {
+                        field.setScale(ctm.getPrecision()); // 精度
+                    }
+                    return;
+                }
+            }
+
+            if (!isManual && databaseType.equalsIgnoreCase(sourceNodeDatabaseType)) {
+                if (originalField != null) {
+                    field.setDataType(originalField.getOriginalDataType());
+                    return;
+                }
+            }
+
+            List<TypeMappingsEntity> typeMappings = Collections.emptyList();
+            if (typeMapping.containsKey(cacheKey)) {
+                typeMappings = typeMapping.get(cacheKey);
+            } else if (typeMapping.containsKey(tapTypeType  + "-" + finalDbVersion)) {
+                typeMappings = typeMapping.get(tapTypeType  + "-" + finalDbVersion);
+            } else if (typeMapping.containsKey(tapTypeType  + "-*")) {
+                typeMappings = typeMapping.get(tapTypeType  + "-*");
+            } else if (typeMapping.containsKey(dataType + "-*")) {
+                cacheKey = dataType + "-*";
+                typeMappings = typeMapping.get(cacheKey);
+            }
+
+            if (typeMappings == null || typeMappings.size() == 0) {
+                field.setDataType(null);
+                schema.getInvalidFields().add(field.getFieldName());
+                log.error("Not found db type mapping rule for databaseType={}, databaseVersion={}, tapFieldType={}", databaseType, finalDbVersion, dataType);
+                return;
+            }
+
+            TypeMappingsEntity optimalType = null;
+            Integer precision = field.getPrecision();
+            Integer scale = field.getScale();
+            Function<TypeMappingsEntity, Integer> sortFactor = (TypeMappingsEntity tm1) -> {
+                long factorPrecision = 0;
+                long factorScale = 0;
+                if (precision != null) {
+                    Long tm1MinPrecision = tm1.getMinPrecision();
+                    Long tm1MaxPrecision = tm1.getMaxPrecision();
+                    factorPrecision = (tm1MaxPrecision != null ? tm1MaxPrecision : 0L) -
+                            (tm1MinPrecision != null ? tm1MinPrecision : 0L);
+                }
+                if (scale != null) {
+                    Long tm1MinScale = tm1.getMinScale();
+                    Long tm1MaxScale = tm1.getMaxScale();
+                    factorScale = (tm1MaxScale != null ? tm1MaxScale : 0L) -
+                            (tm1MinScale != null ? tm1MinScale : 0L);
+                }
+                return Long.valueOf(factorPrecision + factorScale).intValue();
+            };
+
+            if (StringUtils.isNotBlank(originalDataType)) { // 先根据源库类型名称 与 目标库类型名称相同，找到最优映射规则
+                optimalType = typeMappings.stream().filter(typeMappingsEntity -> originalDataType
+                        .equalsIgnoreCase(typeMappingsEntity.getDbType())).findFirst().orElse(null);
+            }
+
+            List<TypeMappingsEntity> optimalTypeList = typeMappings;
+
+            // 根据源库的 fixed 标记，缩小目标库类型规则范围
+            if (optimalTypeList.size() > 0 && originalField != null && originalField.getFixed() != null) {
+                List<TypeMappingsEntity> _optimalTypeList = optimalTypeList.stream()
+                        .filter(t -> t.getFixed() != null && t.getFixed().equals(originalField.getFixed()))
+                        .collect(Collectors.toList());
+                if (_optimalTypeList.size() > 0) {
+                    optimalTypeList = _optimalTypeList;
+                }
+            }
+
+            if (optimalType == null) {
+                //if(precision != null || scale != null) {
+                optimalTypeList = typeMappings.stream().filter(tm -> {
+                        if (precision != null) { // 过滤掉 type mapping 中 precision 为 null 或者 min max 范围不包含 字段长度的规则
+                            if (tm.getMinPrecision() == null || tm.getMinPrecision() > precision)
+                                return false;
+                            if (tm.getMaxPrecision() == null || tm.getMaxPrecision() < precision)
+                                return false;
+                        }
+                        if (scale != null && !"String".equalsIgnoreCase(dataType)) { //过滤掉 type mapping 中 scale 为 null 或者 min max 范围不包含 字段精度的规则
+                            if (tm.getMinScale() == null || tm.getMinScale() > scale)
+                                return false;
+                            if (tm.getMaxScale() == null || tm.getMaxScale() < scale)
+                                return false;
+                        }
+
+                        if (precision == null && scale == null) {
+                            return tm.getMaxPrecision() == null && tm.getMinPrecision() == null &&
+                                    tm.getMaxScale() == null && tm.getMinScale() == null;
+                        } else if (precision == null) {
+                            return tm.getMaxPrecision() == null && tm.getMinPrecision() == null;
+                        } else if (scale == null) {
+                            return tm.getMaxScale() == null && tm.getMinScale() == null;
+                        }
+
+                        return true;
+                    }).sorted((tm1, tm2) -> { // 按照 长度范围、精度范围排序，将最符合的排在上面
+
+                        int tm1Factor = sortFactor.apply(tm1);
+                        int tm2Factor = sortFactor.apply(tm2);
+
+                        return tm1Factor - tm2Factor;
+
+                    }).collect(Collectors.toList());
+
+                    //optimalTypeList = _optimalTypeList.size() > 0 ? _optimalTypeList : typeMappings;
+                //}
+
+                if (optimalTypeList.size() == 1) {
+                    optimalType = optimalTypeList.get(0);
+                }
+            }
+
+            if (optimalType == null && optimalTypeList.size() > 1) { // 有多个最优类型，根据 dbTypeDefault=true 过滤
+                optimalType = optimalTypeList.stream()
+                        .filter(TypeMappingsEntity::isDbTypeDefault)
+                        .findFirst().orElse(null);
+            }
+            if (optimalType == null && optimalTypeList.size() == 0) {
+                optimalTypeList = typeMappings;
+            }
+
+            if (optimalType == null)
+                optimalType = optimalTypeList.stream().filter(TypeMappingsEntity::isTapTypeDefault).findFirst().orElse(null);
+
+            if (optimalType == null && optimalTypeList.size() > 0){
+                optimalType = optimalTypeList.get(0);
+            }
+
+            if (optimalType == null) {
+                field.setDataType(null);
+                schema.getInvalidFields().add(field.getFieldName());
+                log.error("Not found db type mapping rule for databaseType={}, databaseVersion={}, tapFieldType={}", databaseType, finalDbVersion, dataType);
+            } else {
+                field.setDataType(optimalType.getDbType());
+                field.setOriginalDataType(optimalType.getDbType());
+                field.setDataType1(optimalType.getCode()); // 兼容 旧的 convert
+                field.setDataCode(optimalType.getCode());
+                //field.setSource(com.tapdata.tm.metadatainstance.bean.Field.SOURCE_JOB_ANALYZE);
+
+                if ((optimalType.getTapType().equalsIgnoreCase("String") || optimalType.getTapType().equalsIgnoreCase("Null")) &&
+                        (field.getPrecision() == null || field.getPrecision() < 0) &&
+                        (optimalType.getMaxPrecision() != null && optimalType.getMaxPrecision() != 0)
+                ) {
+                    field.setPrecision(100);
+                }
+                if (optimalType.getMinScale() == null && optimalType.getMaxScale() == null)
+                    field.setScale(null);
+                if (optimalType.getMinPrecision() == null && optimalType.getMaxPrecision() == null)
+                    field.setPrecision( null );
+                // 将 字段长度和精度设置为符合默认类型范围的长度和精度
+                if (field.getPrecision() != null) {
+                    Long minPrecision = ensureLong(optimalType.getMinPrecision());
+                    Long maxPrecision = ensureLong(optimalType.getMaxPrecision());
+                    if (field.getPrecision() < minPrecision || field.getPrecision() > maxPrecision)
+                        field.setPrecision(maxPrecision.intValue());
+                }
+
+                if (field.getScale() != null) {
+                    Long minScale = ensureLong(optimalType.getMinScale());
+                    Long maxScale = ensureLong(optimalType.getMaxScale());
+                    if (field.getScale() < minScale || field.getScale() > maxScale)
+                        field.setScale(maxScale.intValue());
                 }
             }
         });
