@@ -1,9 +1,11 @@
 package io.tapdata.write;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -15,7 +17,7 @@ public class WriteValve {
     //
     private int writeSize = 10000;
     //
-    private TapTable targetTable;
+    //private TapTable targetTable;
     //
     private int submissionInterval = 5;
     //
@@ -25,30 +27,41 @@ public class WriteValve {
     //
     private Consumer<WriteListResult<TapRecordEvent>> consumer;
     //
-    private EventProcessor eventProcessor = (list, table)->{};
+    private EventProcessor eventProcessor = (list, table) -> {
+    };
+
     //
     public static WriteValve open(
-            TapTable writeTable,
             int writeSize,
             int submissionInterval,
             EventCollector eventCollector,
             EventProcessor recordCovert,
-            Consumer<WriteListResult<TapRecordEvent>> writeConsumer ) {
+            Consumer<WriteListResult<TapRecordEvent>> writeConsumer) {
         return new WriteValve()
                 .writeSize(writeSize)
-                .writeTable(writeTable)
                 .submissionInterval(submissionInterval)
                 .eventCollected(eventCollector)
                 .recoverCovert(recordCovert)
                 .writeConsumer(writeConsumer).start();
     }
 
+    //
     public static WriteValve open(
-            TapTable writeTable,
+            int writeSize,
+            int submissionInterval,
             EventCollector eventCollector,
-            Consumer<WriteListResult<TapRecordEvent>> writeConsumer ) {
+            Consumer<WriteListResult<TapRecordEvent>> writeConsumer) {
         return new WriteValve()
-                .writeTable(writeTable)
+                .writeSize(writeSize)
+                .submissionInterval(submissionInterval)
+                .eventCollected(eventCollector)
+                .writeConsumer(writeConsumer).start();
+    }
+
+    public static WriteValve open(
+            EventCollector eventCollector,
+            Consumer<WriteListResult<TapRecordEvent>> writeConsumer) {
+        return new WriteValve()
                 .eventCollected(eventCollector)
                 .writeConsumer(writeConsumer).start();
     }
@@ -65,7 +78,7 @@ public class WriteValve {
                             .maxRecords(this.writeSize)
                             .initDelay(this.initDelay)
                             .idleSeconds(this.submissionInterval)
-                            .table(this.targetTable)
+                            //.table(this.targetTable)
                             .writeListResultConsumer(this.consumer)
                             .eventCollected(this.eventCollector);
                     this.tapEventCollector.start();
@@ -75,40 +88,68 @@ public class WriteValve {
         return this;
     }
 
-    public void close(){
+    public void close() {
         Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::stop);
     }
 
-    public WriteValve write(List<TapRecordEvent> eventList) {
-        this.tapEventCollector.addTapEvents(eventList, targetTable);
+    public void commit(String tableId) {
+        if (Objects.isNull(tableId) || "".equals(tableId.trim())){
+            throw new CoreException(" Unable to submit data for an empty table, table name is empty.");
+        }
+        Optional.ofNullable(this.tapEventCollector).ifPresent(e -> {
+            List<String> tab = new ArrayList<>();
+            tab.add(tableId);
+            e.uploadEvents(tab);
+        });
+    }
+
+    public void commitAll(){
+        Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::uploadEvents);
+    }
+
+    public void commit(List<String> tableIdList) {
+        if (Objects.isNull(tableIdList) || tableIdList.isEmpty()){
+            throw new CoreException(" If you need to submit the data of all tables immediately, please use commitAll(). ");
+        }
+        Optional.ofNullable(this.tapEventCollector).ifPresent(e -> e.uploadEvents(tableIdList));
+    }
+
+    public WriteValve write(List<TapRecordEvent> eventList, TapTable table) {
+        this.tapEventCollector.addTapEvents(eventList, table);
         return this;
     }
 
-    public WriteValve writeSize(int writeSize){
+    public WriteValve writeSize(int writeSize) {
         this.writeSize = writeSize;
         return this;
     }
-    public WriteValve initDelay(int initDelay){
+
+    public WriteValve initDelay(int initDelay) {
         this.initDelay = initDelay;
         return this;
     }
-    private WriteValve writeTable(TapTable targetTable){
-        this.targetTable = targetTable;
+
+    private WriteValve writeTable(TapTable targetTable) {
+        //this.targetTable = targetTable;
         return this;
     }
-    public WriteValve submissionInterval(int submissionInterval){
+
+    public WriteValve submissionInterval(int submissionInterval) {
         this.submissionInterval = submissionInterval;
         return this;
     }
-    private WriteValve eventCollected(EventCollector eventCollector){
+
+    private WriteValve eventCollected(EventCollector eventCollector) {
         this.eventCollector = eventCollector;
         return this;
     }
-    public WriteValve recoverCovert(EventProcessor eventProcessor){
+
+    public WriteValve recoverCovert(EventProcessor eventProcessor) {
         this.eventProcessor = eventProcessor;
         return this;
     }
-    private WriteValve writeConsumer(Consumer<WriteListResult<TapRecordEvent>> writeConsumer){
+
+    private WriteValve writeConsumer(Consumer<WriteListResult<TapRecordEvent>> writeConsumer) {
         this.consumer = writeConsumer;
         return this;
     }

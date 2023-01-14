@@ -39,6 +39,10 @@ public class WriteCommittedStream {
     private String credentialsJson;
     private Offset streamOffset = Offset.offset();
     private BigQueryWriteClient client;
+    public WriteCommittedStream client(BigQueryWriteClient client){
+        this.client = client;
+        return this;
+    }
 
     public BigQueryWriteClient client() {
         return this.client;
@@ -91,19 +95,24 @@ public class WriteCommittedStream {
                 .dataSet(dataSet)
                 .tableName(tableName)
                 .credentialsJson(credentialsJson);
-        return writeCommittedStream.init();
+        return writeCommittedStream;
+    }
+    public WriteCommittedStream create(){
+        return this.init();
     }
 
     private WriteCommittedStream() {
 
     }
+    public static BigQueryWriteClient createClient(String credentialsJson) throws IOException {
+        GoogleCredentials googleCredentials = WriteCommittedStream.getGoogleCredentials(credentialsJson);
+        BigQueryWriteSettings settings =
+                BigQueryWriteSettings.newBuilder().setCredentialsProvider(() -> googleCredentials).build();
+        return BigQueryWriteClient.create(settings);
+    }
 
     private WriteCommittedStream init() {
-        GoogleCredentials googleCredentials = getGoogleCredentials(this.credentialsJson);
         try {
-            BigQueryWriteSettings settings =
-                    BigQueryWriteSettings.newBuilder().setCredentialsProvider(() -> googleCredentials).build();
-            this.client = BigQueryWriteClient.create(settings);
             TableName parentTable = TableName.of(this.projectId, this.dataSet, this.tableName);
             // One time initialization.
             this.writer = new DataWriter();
@@ -114,7 +123,7 @@ public class WriteCommittedStream {
         return this;
     }
 
-    private GoogleCredentials getGoogleCredentials(String credentialsJson) {
+    private static GoogleCredentials getGoogleCredentials(String credentialsJson) {
         try {
             return GoogleCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8)));
         } catch (IOException e) {
@@ -135,9 +144,14 @@ public class WriteCommittedStream {
             }
         });
         try {
+            if (Objects.isNull(this.client)) {
+                this.init();
+            }
             this.writer.append(jsonArr, this.streamOffset.addAndGetBefore(jsonArr.length()));
         } catch (Exception e) {
             throw new CoreException("Stream API write record to target error, data offset is : " + this.streamOffset.get() + ", message:" + e.getMessage());
+        }finally {
+            this.close();
         }
     }
 
@@ -165,9 +179,14 @@ public class WriteCommittedStream {
             }
         });
         try {
+            if (Objects.isNull(this.client)) {
+                this.init();
+            }
             this.writer.append(json, this.streamOffset.addAndGetBefore(json.length()));
         } catch (Exception e) {
             throw new CoreException("Stream API write record to temporary table error,data offset is : " + this.streamOffset.get() + ". message:" + e.getMessage());
+        }finally {
+            this.close();
         }
     }
 
@@ -175,10 +194,9 @@ public class WriteCommittedStream {
     public void close() {
         if (Objects.nonNull(this.writer)) {
             try {
-                this.client.flushRows(this.writer.getStreamName());
-                this.client.shutdownNow();
-                boolean close = this.client.awaitTermination(1, TimeUnit.MILLISECONDS);
-                if (close) {
+                //this.client.flushRows(this.writer.getStreamName());
+                this.client.shutdown();
+                if (this.client.awaitTermination(1, TimeUnit.MILLISECONDS)) {
                     this.writer.cleanup(this.client);
                 }
             } catch (InterruptedException e) {
