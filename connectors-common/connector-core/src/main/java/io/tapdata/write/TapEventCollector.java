@@ -163,7 +163,16 @@ final class TapEventCollector {
         if (eventList != null && !eventList.isEmpty()) {
             this.eventProcessor.covert(eventList, table);
             this.events.addAll(eventList);
-            Optional.ofNullable(eventList.get(0)).flatMap(event -> Optional.ofNullable(event.getTableId())).ifPresent(tableId -> this.collectedTable.put(tableId, table));
+            Optional.ofNullable(eventList.get(0))
+                    .flatMap(event ->
+                            Optional.ofNullable(event.getTableId()))
+                    .ifPresent(tableId -> {
+                        TapTable agoTable = this.collectedTable.get(tableId);
+                        if (Objects.nonNull(agoTable)) {
+                            //TODO
+                        }
+                        this.collectedTable.put(tableId, table);
+                    });
             //this.collectedTable.put(table.getId(), table);
         }
         tryUpload(this.events.size() > this.maxRecords);
