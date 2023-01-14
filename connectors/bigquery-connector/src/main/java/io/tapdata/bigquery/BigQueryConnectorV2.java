@@ -17,6 +17,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -47,7 +48,7 @@ import java.util.function.Consumer;
 public class BigQueryConnectorV2 extends ConnectorBase {
     private static final String TAG = BigQueryConnector.class.getSimpleName();
     private static final int STREAM_SIZE = 30000;
-    private static final int CUMULATIVE_TIME_INTERVAL = 5;
+    private static final int CUMULATIVE_TIME_INTERVAL = 1;
 
     private WriteRecord writeRecord;
     private TableCreate tableCreate;
@@ -112,7 +113,6 @@ public class BigQueryConnectorV2 extends ConnectorBase {
                 .supportClearTable(this::clearTable)
                 .supportDropTable(this::dropTable)
                 .supportReleaseExternalFunction(this::release)
-                //.supportNewFieldFunction()
         ;
     }
 

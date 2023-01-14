@@ -29,6 +29,8 @@ public class WriteValve {
     //
     private EventProcessor eventProcessor = (list, table) -> {
     };
+    //
+    private boolean autoCheckTableWhenWriteOnce = false;
 
     //
     public static WriteValve open(
@@ -93,7 +95,7 @@ public class WriteValve {
     }
 
     public void commit(String tableId) {
-        if (Objects.isNull(tableId) || "".equals(tableId.trim())){
+        if (Objects.isNull(tableId) || "".equals(tableId.trim())) {
             throw new CoreException(" Unable to submit data for an empty table, table name is empty.");
         }
         Optional.ofNullable(this.tapEventCollector).ifPresent(e -> {
@@ -103,12 +105,12 @@ public class WriteValve {
         });
     }
 
-    public void commitAll(){
+    public void commitAll() {
         Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::uploadEvents);
     }
 
     public void commit(List<String> tableIdList) {
-        if (Objects.isNull(tableIdList) || tableIdList.isEmpty()){
+        if (Objects.isNull(tableIdList) || tableIdList.isEmpty()) {
             throw new CoreException(" If you need to submit the data of all tables immediately, please use commitAll(). ");
         }
         Optional.ofNullable(this.tapEventCollector).ifPresent(e -> e.uploadEvents(tableIdList));
@@ -151,6 +153,12 @@ public class WriteValve {
 
     private WriteValve writeConsumer(Consumer<WriteListResult<TapRecordEvent>> writeConsumer) {
         this.consumer = writeConsumer;
+        return this;
+    }
+
+    public WriteValve autoCheckTableWhenWriteOnce(boolean autoCheck) {
+        this.autoCheckTableWhenWriteOnce = autoCheck;
+        this.tapEventCollector.autoCheckTable(autoCheck);
         return this;
     }
 }

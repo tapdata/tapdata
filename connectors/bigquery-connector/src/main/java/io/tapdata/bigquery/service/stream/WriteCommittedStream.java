@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 public class WriteCommittedStream {
     public static final String TAG = WriteCommittedStream.class.getSimpleName();
+    private int maxStreamCount = 50000;
     private String dataSet;
     private String tableName;
     private String projectId;
@@ -41,6 +42,13 @@ public class WriteCommittedStream {
     private BigQueryWriteClient client;
     public WriteCommittedStream client(BigQueryWriteClient client){
         this.client = client;
+        return this;
+    }
+    public int maxStreamCount(){
+        return this.maxStreamCount;
+    }
+    public WriteCommittedStream maxStreamCount(int maxStreamCount){
+        this.maxStreamCount = maxStreamCount;
         return this;
     }
 
@@ -133,61 +141,64 @@ public class WriteCommittedStream {
 
     public void append(List<Map<String, Object>> record) {
         if (Objects.isNull(record) || record.isEmpty()) return;
-        List<List<Map<String, Object>>> partition = Lists.partition(record, 5000);
-        JSONArray jsonArr = new JSONArray();
+        List<List<Map<String, Object>>> partition = Lists.partition(record, this.maxStreamCount);
         partition.forEach(recordPartition -> {
+            JSONArray jsonArr = new JSONArray();
             for (Map<String, Object> map : recordPartition) {
-                if (Objects.isNull(map)) continue;
-                JSONObject jsonObject = new JSONObject();
-                map.forEach(jsonObject::put);
-                jsonArr.put(jsonObject);
+                jsonArr.put(WriteCommittedStream.convertJsonObject(map));
             }
+            this.append(jsonArr);
         });
+    }
+
+    public void append(JSONArray jsonArr){
         try {
-            if (Objects.isNull(this.client)) {
-                this.init();
-            }
-            this.writer.append(jsonArr, this.streamOffset.addAndGetBefore(jsonArr.length()));
+            AppendRowsResponse response = this.writer.append(jsonArr, this.streamOffset.addAndGetBefore(jsonArr.length()));
+            //AppendRowsResponse.AppendResult appendResult = response.getAppendResult();
         } catch (Exception e) {
             throw new CoreException("Stream API write record to target error, data offset is : " + this.streamOffset.get() + ", message:" + e.getMessage());
-        }finally {
-            this.close();
         }
     }
 
     public void appendJSON(List<Map<String, Object>> record) {
         if (Objects.isNull(record) || record.isEmpty()) return;
-        List<List<Map<String, Object>>> partition = Lists.partition(record, 5000);
-        JSONArray json = new JSONArray();
+        List<List<Map<String, Object>>> partition = Lists.partition(record, this.maxStreamCount);
         partition.forEach(recordPartition -> {
+            JSONArray json = new JSONArray();
             for (Map<String, Object> map : recordPartition) {
                 if (Objects.isNull(map)) continue;
-                JSONObject jsonObject = new JSONObject();
-                map.forEach((key, value) -> {
-                    if (value instanceof Map) {
-                        JSONObject jsonObjects = new JSONObject();
-                        Map<String, Object> objectMap = (Map<String, Object>) value;
-                        objectMap.forEach(jsonObjects::put);
-                        jsonObject.put(key, jsonObjects);
-                    } else if (value instanceof Collection) {
-                        jsonObject.put(key, value);
-                    } else {
-                        jsonObject.put(key, value);
-                    }
-                });
-                json.put(jsonObject);
+                json.put(WriteCommittedStream.convertJsonObjectV2(map));
+            }
+            this.append(json);
+        });
+    }
+    public void appendJSONArray(List<JSONArray> record){
+        if (Objects.isNull(record) || record.isEmpty()) return;
+        for (JSONArray objects : record) {
+            this.append(objects);
+        }
+    }
+
+    public static JSONObject convertJsonObjectV2(Map<String,Object> map){
+        JSONObject jsonObject = new JSONObject();
+        map.forEach((key, value) -> {
+            if (value instanceof Map) {
+                JSONObject jsonObjects = new JSONObject();
+                Map<String, Object> objectMap = (Map<String, Object>) value;
+                objectMap.forEach(jsonObjects::put);
+                jsonObject.put(key, jsonObjects);
+            } else if (value instanceof Collection) {
+                jsonObject.put(key, value);
+            } else {
+                jsonObject.put(key, value);
             }
         });
-        try {
-            if (Objects.isNull(this.client)) {
-                this.init();
-            }
-            this.writer.append(json, this.streamOffset.addAndGetBefore(json.length()));
-        } catch (Exception e) {
-            throw new CoreException("Stream API write record to temporary table error,data offset is : " + this.streamOffset.get() + ". message:" + e.getMessage());
-        }finally {
-            this.close();
-        }
+        return jsonObject;
+    }
+    public static JSONObject convertJsonObject(Map<String,Object> map){
+        JSONObject jsonObject = new JSONObject();
+        map.forEach(jsonObject::put);
+        return jsonObject;
     }
 
 
@@ -196,10 +207,10 @@ public class WriteCommittedStream {
             try {
                 //this.client.flushRows(this.writer.getStreamName());
                 this.client.shutdown();
-                if (this.client.awaitTermination(1, TimeUnit.MILLISECONDS)) {
+                if (this.client.awaitTermination(3, TimeUnit.MILLISECONDS)) {
                     this.writer.cleanup(this.client);
                 }
-            } catch (InterruptedException e) {
+            } catch (Exception e) {
             }
         }
     }
@@ -242,8 +253,8 @@ public class WriteCommittedStream {
                     .build();
         }
 
-        public void append(JSONArray data, long offset)
-                throws DescriptorValidationException, IOException, ExecutionException {
+        public AppendRowsResponse append(JSONArray data, long offset)
+                throws DescriptorValidationException, IOException, ExecutionException, InterruptedException {
             synchronized (this.lock) {
                 // If earlier appends have failed, we need to reset before continuing.
                 if (this.error != null) {
@@ -256,6 +267,7 @@ public class WriteCommittedStream {
                     future, new DataWriter.AppendCompleteCallback(this), MoreExecutors.directExecutor());
             // Increase the count of in-flight requests.
             this.inflightRequestCount.register();
+            return future.get();
         }
 
         public void cleanup(BigQueryWriteClient client) {

@@ -1,6 +1,7 @@
 package io.tapdata.bigquery.service.stream.v2;
 
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient;
+import com.google.common.collect.Lists;
 import com.google.protobuf.Descriptors;
 import io.tapdata.bigquery.entity.ContextConfig;
 import io.tapdata.bigquery.service.bigQuery.BigQueryStart;
@@ -15,6 +16,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import org.json.JSONArray;
 
 import java.io.IOException;
 import java.util.*;
@@ -22,7 +24,7 @@ import java.util.*;
 public class BigQueryStream extends BigQueryStart {
     public static final String TAG = BigQueryStream.class.getSimpleName();
 
-//    private WriteCommittedStream stream;
+    //    private WriteCommittedStream stream;
 //    private WriteCommittedStream batch;
     private TapTable tapTable;
     private MergeHandel merge;
@@ -30,6 +32,7 @@ public class BigQueryStream extends BigQueryStart {
     private String tempTableName;
     private final Object lock = new Object();
     private BigQueryWriteClient client;
+    public final Map<String, WriteCommittedStream> streamFactory = new HashMap<>();
 
     public BigQueryStream stateMap(TapConnectionContext connectorContext) {
         if (!(connectorContext instanceof TapConnectorContext)) {
@@ -62,13 +65,20 @@ public class BigQueryStream extends BigQueryStart {
     }
 
     public WriteCommittedStream createWriteCommittedStream(String tableName) throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
-       return WriteCommittedStream.writer(
-                super.config().projectId(),
-                super.config().tableSet(),
-                tableName,
-                super.config().serviceAccount())
-               .client(Optional.ofNullable(this.client).orElse(client = WriteCommittedStream.createClient(super.config().serviceAccount())))
-               .create();
+        return this.streamFactory.computeIfAbsent(tableName, key -> {
+            try {
+                return WriteCommittedStream.writer(
+                        super.config().projectId(),
+                        super.config().tableSet(),
+                        tableName,
+                        super.config().serviceAccount())
+                        .client(WriteCommittedStream.createClient(super.config().serviceAccount()))
+                        .maxStreamCount(super.config().maxStreamAppendCount())
+                        .create();
+            } catch (Exception e) {
+                throw new RuntimeException(e.getMessage());
+            }
+        });
     }
 
     private BigQueryStream(TapConnectionContext connectorContext) throws IOException {
@@ -84,15 +94,15 @@ public class BigQueryStream extends BigQueryStart {
         boolean needCreateTemporaryTable = Objects.isNull(streamToBatchTime);
         Long mergeId = this.stateMap.getLong(MergeHandel.MERGE_KEY_ID);
         EventAfter eventAfter = new EventAfter(streamToBatchTime)
-            .hasMerged(Objects.nonNull(mergeId))
-            .table(table);
+                .hasMerged(Objects.nonNull(mergeId))
+                .table(table);
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
         this.tapTable = table;
         eventAfter.convertData(events, this.merge);
         streamToBatchTime = Optional.ofNullable(streamToBatchTime).orElse(eventAfter.streamToBatchTime());
         if (!eventAfter.appendData().isEmpty()) {
             synchronized (this.lock) {
-                this.createWriteCommittedStream(table.getId()).append(eventAfter.appendData());;
+                this.createWriteCommittedStream(table.getId()).append(eventAfter.appendData());
                 //this.batch.close();
             }
             //this.batch.close();
@@ -148,7 +158,7 @@ public class BigQueryStream extends BigQueryStart {
                 this.tempTableName = String.valueOf(tableName);
             }
             synchronized (this.lock) {
-                this.createWriteCommittedStream(this.tempTableName).appendJSON(eventAfter.mixedAndAppendData());;
+                this.createWriteCommittedStream(this.tempTableName).appendJSON(eventAfter.mixedAndAppendData());
                 //this.batch.close();
             }
             //this.stream.close();
@@ -161,10 +171,11 @@ public class BigQueryStream extends BigQueryStart {
     }
 
     public void closeStream() {
-//        synchronized (this.lock) {
-//            Optional.ofNullable(stream).ifPresent(WriteCommittedStream::close);
-//            Optional.ofNullable(batch).ifPresent(WriteCommittedStream::close);
-//        }
+        synchronized (this.lock) {
+            if (!this.streamFactory.isEmpty()) {
+                this.streamFactory.forEach((table, stream) -> Optional.ofNullable(stream).ifPresent(WriteCommittedStream::close));
+            }
+        }
     }
 
     public static class EventAfter {
@@ -172,8 +183,8 @@ public class BigQueryStream extends BigQueryStart {
         private long update;
         private long delete;
         private boolean isAppend = true;
-        private final List<Map<String, Object>> appendData = new ArrayList<>();
-        private final List<Map<String, Object>> mixedAndAppendData = new ArrayList<>();
+        private final List<Map<String,Object>> appendData = new ArrayList<>();
+        private final List<Map<String,Object>> mixedAndAppendData = new ArrayList<>();
         private Object mergeKeyId;
         public Long streamToBatchTime;
         private TapTable table;
@@ -195,11 +206,11 @@ public class BigQueryStream extends BigQueryStart {
             return this.update;
         }
 
-        public List<Map<String, Object>> appendData() {
+        public List<Map<String,Object>> appendData() {
             return this.appendData;
         }
 
-        public List<Map<String, Object>> mixedAndAppendData() {
+        public List<Map<String,Object>> mixedAndAppendData() {
             return this.mixedAndAppendData;
         }
 
@@ -225,7 +236,6 @@ public class BigQueryStream extends BigQueryStart {
 
         public EventAfter convertData(List<TapRecordEvent> events, MergeHandel mergeHandel) {
             for (TapRecordEvent event : events) {
-                if (Objects.isNull(event)) continue;
                 Map<String, Object> record = new HashMap<>();
                 if (event instanceof TapInsertRecordEvent) {
                     this.insert++;
@@ -239,8 +249,8 @@ public class BigQueryStream extends BigQueryStart {
                         this.update++;
                     } else if (event instanceof TapDeleteRecordEvent) {
                         this.delete++;
-                    }else {
-                        TapLogger.warn(TAG,"Error Event.");
+                    } else {
+                        TapLogger.warn(TAG, "Error Event.");
                     }
                 }
                 if (this.isAppend) {
