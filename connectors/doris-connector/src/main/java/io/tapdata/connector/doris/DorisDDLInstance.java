@@ -60,7 +60,7 @@ public class DorisDDLInstance {
         if (tapField.getDataType() == null) {
             return null;
         }
-        fieldStrs.add(tapField.getName());
+        fieldStrs.add("`" + tapField.getName() + "`");
         fieldStrs.add(tapField.getDataType());
         Boolean nullable = tapField.getNullable();
         if (nullable != null && !nullable) {
