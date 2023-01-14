@@ -112,6 +112,7 @@ public class BigQueryConnectorV2 extends ConnectorBase {
                 .supportClearTable(this::clearTable)
                 .supportDropTable(this::dropTable)
                 .supportReleaseExternalFunction(this::release)
+                //.supportNewFieldFunction()
         ;
     }
 
@@ -171,7 +172,6 @@ public class BigQueryConnectorV2 extends ConnectorBase {
     private void writeRecordStream(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
         if (Objects.isNull(this.valve)) {
             this.valve = WriteValve.open(
-                    table,
                     BigQueryConnectorV2.STREAM_SIZE,
                     BigQueryConnectorV2.CUMULATIVE_TIME_INTERVAL,
                     (writeConsumer, writeList, targetTable) -> {
@@ -207,7 +207,7 @@ public class BigQueryConnectorV2 extends ConnectorBase {
                     consumer
             );
         }
-        this.valve.write(events);
+        this.valve.write(events,table);
     }
 
     @Override
