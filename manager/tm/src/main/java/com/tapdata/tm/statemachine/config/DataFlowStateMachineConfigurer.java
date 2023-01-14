@@ -7,7 +7,13 @@
 package com.tapdata.tm.statemachine.config;
 
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.commons.websocket.MessageInfoBuilder;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.dataflowrecord.dto.DataFlowRecordDto;
+import com.tapdata.tm.dataflowrecord.service.DataFlowRecordService;
+import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.statemachine.annotation.EnableStateMachine;
 import com.tapdata.tm.statemachine.configuration.AbstractStateMachineConfigurer;
@@ -18,12 +24,14 @@ import com.tapdata.tm.statemachine.enums.DataFlowState;
 import com.tapdata.tm.statemachine.model.DataFlowStateContext;
 import com.tapdata.tm.statemachine.model.StateContext;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
+import com.tapdata.tm.user.service.UserService;
 
 import java.util.Date;
 import java.util.function.Function;
 
 import com.tapdata.tm.user.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -34,10 +42,10 @@ import org.springframework.data.mongodb.core.query.Update;
 public class DataFlowStateMachineConfigurer extends AbstractStateMachineConfigurer<DataFlowState, DataFlowEvent> {
 
     @Autowired
-    MessageService messageService;
+    UserService userService;
 
     @Autowired
-    UserService userService;
+    MessageQueueService messageQueueService;
 
     public void configure(StateMachineBuilder<DataFlowState, DataFlowEvent> builder) {
         builder.transition()
@@ -212,11 +220,34 @@ public class DataFlowStateMachineConfigurer extends AbstractStateMachineConfigur
     @Autowired
     private DataFlowService dataFlowService;
 
+    @Autowired
+    private DataFlowRecordService dataFlowRecordService;
+
     public Function<StateContext<DataFlowState, DataFlowEvent>, StateMachineResult> commonAction() {
         return (stateContext) -> {
             if (stateContext instanceof DataFlowStateContext) {
                 Update update = Update.update("status", stateContext.getTarget().getName());
-                setOperTime(stateContext.getTarget().getName(), update);
+                DataFlowDto dataFlowDto = ((DataFlowStateContext) stateContext).getData();
+                setOperTime(dataFlowDto, stateContext.getTarget().getName(), update, stateContext.getUserDetail());
+                if (StateMachineConstant.DATAFLOW_STATUS_STOPPING.equals(stateContext.getTarget().getName())) {
+                   try {
+                       messageQueueService.sendMessage(dataFlowDto.getAgentId(),
+                               MessageInfoBuilder.newMessage()
+                                       .call("dataFlowScheduler", "stoppingDataFlow")
+                                       .body(dataFlowDto.getId().toHexString()).build());
+                   } catch (Exception e) {
+                       log.error("Send stopping data flow event to flow engine failed", e);
+                   }
+                } else if (StateMachineConstant.DATAFLOW_STATUS_FORCE_STOPPING.equals(stateContext.getTarget().getName())) {
+                    try {
+                        messageQueueService.sendMessage(dataFlowDto.getAgentId(),
+                                MessageInfoBuilder.newMessage()
+                                        .call("dataFlowScheduler", "forceStoppingDataFlow")
+                                        .body(dataFlowDto.getId().toHexString()).build());
+                    } catch (Exception e) {
+                        log.error("Send force stopping data flow event to flow engine failed", e);
+                    }
+                }
                 UpdateResult updateResult = dataFlowService.update(
                         Query.query(Criteria.where("_id").is(((DataFlowStateContext) stateContext).getData().getId())
                                 .and("status").is(stateContext.getSource().getName())),
@@ -235,12 +266,19 @@ public class DataFlowStateMachineConfigurer extends AbstractStateMachineConfigur
         };
     }
 
-    private void setOperTime(String status, Update update) {
+    private void setOperTime(DataFlowDto dataFlowDto, String status, Update update, UserDetail userDetail) {
         log.info("setOperTime status:{}",status);
         Date date = new Date();
+        String dataFlowStatus = null;
+        if (dataFlowDto == null){
+            dataFlowDto = new DataFlowDto();
+        }
         switch (status) {
             case StateMachineConstant.DATAFLOW_STATUS_SCHEDULING:  //  scheduled对应startTime和scheduledTime
                 update.set("startTime", date).set("scheduledTime", date);
+                dataFlowStatus = DataFlowRecordDto.STATUS_RUNNING;
+                dataFlowDto.setStartTime(date);
+                dataFlowDto.setFinishTime(null);
                 break;
             case StateMachineConstant.DATAFLOW_STATUS_STOPPING:  // stopping对应stoppingTime
                 update.set("stoppingTime", date);
@@ -253,13 +291,40 @@ public class DataFlowStateMachineConfigurer extends AbstractStateMachineConfigur
                 break;
             case StateMachineConstant.DATAFLOW_STATUS_ERROR:  //  error对应errorTime和finishTime
                 update.set("errorTime", date).set("finishTime", date);
+                dataFlowStatus = DataFlowRecordDto.STATUS_ERROR;
+                dataFlowDto.setFinishTime(date);
                 log.info("任务变为已停止");
                 break;
             case StateMachineConstant.DATAFLOW_STATUS_STOPPED:  //   paused对应pausedTime和finishTime
                 update.set("pausedTime", date).set("finishTime", date);
+                dataFlowDto.setFinishTime(date);
+                boolean isCompleted = false;
+                /*if (dataFlowDto.getSetting() != null && "initial_sync".equals(dataFlowDto.getSetting().get("sync_type")) && dataFlowDto.getStats() != null){
+                    List<String> sourceStageId = dataFlowDto.getStages().stream().filter(stage -> stage.get("outputLanes") != null
+                            && stage.get("outputLanes") instanceof List
+                            && ((List) stage.get("outputLanes")).size() > 0)
+                            .map(stage -> ((List) stage.get("outputLanes")).get(0).toString())
+                            .collect(Collectors.toList());
+                    Object stagesMetrics = dataFlowDto.getStats().get("stagesMetrics");
+                    if (stagesMetrics instanceof List && CollectionUtils.isNotEmpty((List) stagesMetrics)){
+                        int completeCount = (int) IntStream.range(0, ((List) stagesMetrics).size()).mapToObj((IntFunction<Object>) ((List) stagesMetrics)::get)
+                                .filter(stagesMetric -> stagesMetric instanceof Map
+                                        && sourceStageId.contains(((Map) stagesMetric).get("stageId").toString())
+                                        && "initialized".equals(((Map) stagesMetric).get("status")))
+                                .count();
+                        if (((List) stagesMetrics).size() == completeCount){
+                            isCompleted = true;
+                        }
+                    }
+                }*/
+                dataFlowStatus = isCompleted ? DataFlowRecordDto.STATUS_COMPLETED : DataFlowRecordDto.STATUS_PAUSED;
                 break;
             default:
                 break;
+        }
+
+        if (StringUtils.isNotBlank(dataFlowStatus)){
+            dataFlowRecordService.saveRecord(dataFlowDto, dataFlowStatus, userDetail);
         }
     }
 

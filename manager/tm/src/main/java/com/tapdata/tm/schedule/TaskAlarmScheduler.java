@@ -76,8 +76,8 @@ public class TaskAlarmScheduler {
     private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
 
 
-    @Scheduled(cron = "0 0/30 * * * ?")
-    @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+//    @Scheduled(cron = "0 0/30 * * * ?")
+//    @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskDataNodeConnectAlarm() throws InterruptedException {
         Thread.currentThread().setName("taskSchedule-taskDataNodeConnectAlarm");
 

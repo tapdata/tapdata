@@ -24,12 +24,12 @@ public class AgentUpdateSchedule {
     /**
      * @desc 执行扫描，每1分钟执行一次
      */
-    @Scheduled(cron = "0 */1 * * * ?")
+    @Scheduled(cron = "0/5 * * * * ?")
     public void execute() {
-        log.info("清理 clusterOperation");
+        log.debug("清理 clusterOperation");
         clusterOperationService.cleanOperation();
 
-        log.info("清理 cleanWorkers");
+        log.debug("清理 cleanWorkers");
 //        if(server && server.daasSettings && server.daasSettings['buildProfile'] !== 'DAAS')
         String buildProfile = String.valueOf(settingsService.getByCategoryAndKey("System", "buildProfile"));
         if (!"DAAS".equals(buildProfile)){

@@ -134,9 +134,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@SneakyThrows
 	private void doSnapshot(List<String> tableList) {
 		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
-		snapshotProgressManager = new SnapshotProgressManager(dataProcessorContext.getTaskDto(), clientMongoOperator,
-				getConnectorNode(), dataProcessorContext.getTapTableMap());
-//		snapshotProgressManager.startStatsSnapshotEdgeProgress(dataProcessorContext.getNode());
 
 		// count the data size of the tables;
 		doCount(tableList);
@@ -184,11 +181,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							Object tableOffset = ((Map<String, Object>) syncProgress.getBatchOffsetObj()).get(tapTable.getId());
 							logger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 							obsLogger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
-							int eventBatchSize = 100;
 
 							executeDataFuncAspect(
 									BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
-											.eventBatchSize(eventBatchSize)
+											.eventBatchSize(readBatchSize)
 											.connectorContext(getConnectorNode().getConnectorContext())
 											.offsetState(tableOffset)
 											.dataProcessorContext(this.getDataProcessorContext())
@@ -241,10 +237,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	}
 																});
 															} else {
-																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, eventBatchSize, consumer);
+																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 															}
 														} else {
-															batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, eventBatchSize, consumer);
+															batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 														}
 													}
 											)

@@ -8,6 +8,7 @@ package com.tapdata.tm.dataflow.dto;
 
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
+import com.tapdata.tm.commons.dag.vo.CustomTypeMapping;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.worker.dto.TcmInfo;
 import java.util.List;
@@ -50,6 +51,8 @@ public class DataFlowDto extends SchedulableDto {
 	private Long pingTime;
 
 	private Long nextSyncTime;
+
+	private Long nextScheduledTime;
 
 	//private String agentId;
 
@@ -116,4 +119,11 @@ public class DataFlowDto extends SchedulableDto {
 	 * 模型推演结果
 	 */
 	private List<SchemaTransformerResult> metadataMappings;
+
+	private String startType;  // 任务启动方式, manual-手动运行， auto-自动运行
+
+	private String dataFlowRecordId; // 任务记录id
+	private List<CustomTypeMapping> customTypeMappings;
+
+	private Map<String, List<String>> deletedFields;
 }
