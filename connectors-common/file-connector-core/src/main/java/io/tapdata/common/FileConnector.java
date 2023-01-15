@@ -57,6 +57,12 @@ public abstract class FileConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
+        if (EmptyKit.isNotNull(fileRecordWriter)) {
+            if (!storage.supportAppendData()) {
+                fileRecordWriter.mergeCacheFiles();
+            }
+            fileRecordWriter.releaseResource();
+        }
         storage.destroy();
     }
 
@@ -226,8 +232,20 @@ public abstract class FileConnector extends ConnectorBase {
     protected void initMergeCacheFilesThread() {
         executorService = Executors.newFixedThreadPool(1);
         executorService.submit(() -> {
+            int count = 0;
             while (isAlive()) {
-
+                if (EmptyKit.isNotNull(fileRecordWriter)) {
+                    count++;
+                }
+                TapSimplify.sleep(1000 * 60);
+                if (count >= 5) {
+                    try {
+                        fileRecordWriter.mergeCacheFiles();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                    count = 0;
+                }
             }
         });
     }

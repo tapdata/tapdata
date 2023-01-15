@@ -7,7 +7,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 
-public abstract class AbstractFileWriter {
+public abstract class AbstractFileWriter implements AutoCloseable {
 
     protected String path;
     protected OutputStream outputStream;

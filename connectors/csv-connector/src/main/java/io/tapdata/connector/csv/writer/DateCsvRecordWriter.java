@@ -12,7 +12,7 @@ import java.util.function.Consumer;
 
 public class DateCsvRecordWriter extends AbstractCsvRecordWriter {
 
-    public DateCsvRecordWriter(TapFileStorage storage, CsvConfig csvConfig, TapTable tapTable, KVMap<Object> kvMap) {
+    public DateCsvRecordWriter(TapFileStorage storage, CsvConfig csvConfig, TapTable tapTable, KVMap<Object> kvMap) throws Exception {
         super(storage, csvConfig, tapTable, kvMap);
     }
 

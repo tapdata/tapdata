@@ -1,5 +1,7 @@
 package io.tapdata.connector.csv.writer;
 
+import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
 import io.tapdata.common.AbstractFileRecordWriter;
 import io.tapdata.connector.csv.config.CsvConfig;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -8,10 +10,13 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +24,7 @@ import java.util.function.Consumer;
 
 public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
 
-    public AbstractCsvRecordWriter(TapFileStorage storage, CsvConfig csvConfig, TapTable tapTable, KVMap<Object> kvMap) {
+    public AbstractCsvRecordWriter(TapFileStorage storage, CsvConfig csvConfig, TapTable tapTable, KVMap<Object> kvMap) throws Exception {
         super(storage, csvConfig, tapTable, kvMap);
     }
 
@@ -100,7 +105,12 @@ public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
         if (fileWriterMap.containsKey(uniquePath)) {
             csvFileWriter = (CsvFileWriter) fileWriterMap.get(uniquePath);
             if (csvFileWriter.isClosed()) {
-                csvFileWriter.init();
+                if (storage.supportAppendData()) {
+                    csvFileWriter.init();
+                } else {
+                    csvFileWriter = new CsvFileWriter(storage, getNewCacheFileName(csvFileWriter.getPath()), fileConfig.getFileEncoding());
+                    fileWriterMap.put(uniquePath, csvFileWriter);
+                }
             }
         } else {
             csvFileWriter = new CsvFileWriter(storage, uniquePath, fileConfig.getFileEncoding());
@@ -119,10 +129,42 @@ public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
         return csvFileWriter;
     }
 
+    private String getNewCacheFileName(String path) {
+        if (!path.contains(".tapCache")) {
+            return path + ".tapCache1";
+        } else {
+            int index = path.lastIndexOf(".tapCache") + 9;
+            return path.substring(0, index) + (Integer.parseInt(path.substring(index)) + 1);
+        }
+    }
+
     protected String[] getStringArray(Map<String, Object> data, List<String> fieldList, String op) {
         String[] res = fieldList.stream().map(v -> EmptyKit.isNull(data.get(v)) ? "" : String.valueOf(data.get(v))).toArray(String[]::new);
         res = Arrays.copyOf(res, fieldList.size() + 1);
         res[fieldList.size()] = op;
         return res;
+    }
+
+    @Override
+    protected void writeCacheFile(String coreLocalFilePath, List<TapFile> cacheFilesPath) throws Exception {
+        try (
+                CsvFileWriter localCsvFileWriter = new CsvFileWriter(localStorage, coreLocalFilePath, fileConfig.getFileEncoding())
+        ) {
+            for (TapFile file : cacheFilesPath) {
+                storage.readFile(file.getPath(), inputStream -> {
+                    try (
+                            Reader reader = new InputStreamReader(inputStream, fileConfig.getFileEncoding());
+                            CSVReader csvReader = new CSVReaderBuilder(reader).build()
+                    ) {
+                        String[] data;
+                        while ((data = csvReader.readNext()) != null) {
+                            localCsvFileWriter.getCsvWriter().writeNext(data);
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
+        }
     }
 }

@@ -47,14 +47,6 @@ public class CsvConnector extends FileConnector {
     }
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        if (EmptyKit.isNotNull(fileRecordWriter)) {
-            fileRecordWriter.releaseResource();
-        }
-        super.onStop(connectionContext);
-    }
-
-    @Override
     protected void makeFileOffset(FileOffset fileOffset) {
         fileOffset.setDataLine(fileConfig.getDataStartLine());
     }
