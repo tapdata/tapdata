@@ -46,10 +46,10 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
 
     private void write(TapConnectorContext context, List<TapRecordEvent> tapRecordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws ScriptException {
         if (Objects.isNull(context)) {
-            throw new CoreException("TapConnectorContext must not be null or not be empty.");
+            throw new CoreException("TapConnectorContext cannot not be empty.");
         }
         if (Objects.isNull(table)) {
-            throw new CoreException("Table lists must not be null or not be empty.");
+            throw new CoreException("Table lists cannot not be empty.");
         }
         String threadName = Thread.currentThread().getName();
         ScriptEngine scriptEngine;

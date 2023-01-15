@@ -29,3 +29,15 @@ function read(urlName, offset, sender, isStreamRead){
         return offsetNext.PageNumber <= result.Response.Data.TotalPage && isAlive();
     });
 }
+function command_callback(connectionConfig, nodeConfig, commandInfo){
+    invoker.addConfig(connectionConfig,nodeConfig);
+    let userInfo = (invoker.invoke('MyUserInfo')).result;
+    if (commandInfo.command === 'DescribeUserProjects') {
+        let data = invoker.invoke("DescribeUserProjects", { userId: userInfo.Response.User.Id});
+        return {
+            "items": convertList(data.result.Response.ProjectList, {'DisplayName': 'label', 'Name': 'value'}),
+            "page": 1,
+            "size": data.result.Response.ProjectList.length,
+            "total": data.result.Response.ProjectList.length };
+    }
+}

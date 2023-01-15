@@ -4,9 +4,11 @@ function isParam(param) {
 
 class TapApi {
     invoker;
+    config;
 
     constructor(invoker) {
         this.invoker = invoker;
+        this.config = _tapConfig_;
     }
 
     invoke(uriOrNameStr, paramsMap, methodStr, hasInvoker) {
@@ -16,13 +18,13 @@ class TapApi {
             return null;
         }
         if (isParam(paramsMap) && isParam(methodStr) && isParam(hasInvoker)) {
-            result = this.invoker.invoke(uriOrNameStr, paramsMap, methodStr, hasInvoker);
+            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr, hasInvoker);
         } else if (isParam(paramsMap) && isParam(methodStr)) {
-            result = this.invoker.invoke(uriOrNameStr, paramsMap, methodStr);
+            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr);
         } else if (isParam(paramsMap)) {
-            result = this.invoker.invoke(uriOrNameStr, paramsMap);
+            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap));
         } else {
-            result = this.invoker.invoke(uriOrNameStr);
+            result = this.invoker.invoke(uriOrNameStr, this.config);
         }
         return {
             "result": tapUtil.toMap(result.result).data,
@@ -32,10 +34,14 @@ class TapApi {
         };
     }
 
+    addConfig(connection, node){
+        this.config = tapUtil.mixedData(connection,node);
+    }
+
     invokeAndCache(uriOrNameStr, paramsMap, methodStr, hasInvoker) {
         let result = this.invoke(uriOrNameStr, paramsMap, methodStr, hasInvoker);
         if (isParam(uriOrNameStr) && null != result) {
-            return tapCache.save(uriOrNameStr, result);
+            //return tapCache.save(uriOrNameStr, result);
         }
         return result;
     }
@@ -44,7 +50,7 @@ class TapApi {
         if (!isParam(name)) {
             log.info("Invalid name will not get data from cache. ");
         }
-        let cacheResult = tapCache.get(name);
+        let cacheResult = null;//tapCache.get(name);
         return core.toMap(cacheResult);
     }
 
@@ -56,9 +62,9 @@ class TapApi {
             log.info("Invalid data will not save data to cache. ");
         }
         if (isParam(saveSec) && !isNaN(saveSec)) {
-            return tapCache.save(uriOrNameStr, result, saveSec);
+            //return tapCache.save(uriOrNameStr, result, saveSec);
         } else {
-            return tapCache.save(uriOrNameStr, result);
+            //return tapCache.save(uriOrNameStr, result);
         }
     }
 
@@ -66,7 +72,7 @@ class TapApi {
         if (!isParam(key)) {
             log.info("Key name is empty, cannot release data. ");
         }
-        return tapCache.release(key);
+        //return tapCache.release(key);
     }
 }
 
@@ -107,4 +113,8 @@ function firstElement(array) {
 
 function isAlive() {
     return nodeIsAlive.get();
+}
+
+function convertList(list,convertMatch){
+    return tapUtil.convertList(list, convertMatch);
 }

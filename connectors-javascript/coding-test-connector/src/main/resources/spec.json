@@ -15,7 +15,7 @@
     "connection": {
       "type": "object",
       "properties": {
-        "teamName": {
+        "team_name": {
           "type": "String",
           "title": "${teamName}",
           "x-decorator": "FormItem",
@@ -24,7 +24,7 @@
           "x-index": 10,
           "required": true
         },
-        "token": {
+        "access_token": {
           "type": "String",
           "title": "${token}",
           "x-decorator": "FormItem",
@@ -33,7 +33,7 @@
           "x-index": 20,
           "required": true
         },
-        "projectName": {
+        "project_name": {
           "title": "${projectName}",
           "type": "string",
           "required": true,
@@ -46,7 +46,7 @@
           "x-index": 30,
           "x-reactions": [
             {
-              "dependencies": ["teamName", "token"],
+              "dependencies": ["team_name", "access_token"],
               "fulfill": {
                 "state": {
                   "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
@@ -54,40 +54,6 @@
               }
             }
           ]
-        },
-        "connectionMode": {
-          "type": "String",
-          "default": "DocumentMode",
-          "title": "${connectionMode}",
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "enum": [
-            {
-              "label": "${document}",
-              "value": "DocumentMode"
-            }
-          ],
-          "x-index": 40,
-          "required": false
-        },
-        "streamReadType": {
-          "type": "String",
-          "default": "WebHook",
-          "title": "${streamReadType}",
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "enum": [
-            {
-              "label": "${webHookRead}",
-              "value": "WebHook"
-            },
-            {
-              "label": "${pollingRead}",
-              "value": "Polling"
-            }
-          ],
-          "x-index": 50,
-          "required": false
         },
         "hookButton": {
           "type": "void",
@@ -106,7 +72,8 @@
           },
           "x-content": "hookButton",
           "x-component": "Button",
-          "x-index": 60
+          "x-index": 60,
+          "x-display": "hidden"
         },
         "hookText": {
           "type": "string",
@@ -123,6 +90,7 @@
               }
             }
           },
+          "x-display": "hidden",
           "x-component": "Input",
           "x-index": 70,
           "actionOnCopy" : "NEW_WEB_HOOK_URL"

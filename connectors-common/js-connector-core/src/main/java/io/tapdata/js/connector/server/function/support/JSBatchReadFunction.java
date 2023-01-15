@@ -44,10 +44,10 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
 
     private void batchRead(TapConnectorContext context, TapTable table, Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) {
         if (Objects.isNull(context)) {
-            throw new CoreException("TapConnectorContext must not be null or not be empty.");
+            throw new CoreException("TapConnectorContext cannot not be empty.");
         }
         if (Objects.isNull(table)) {
-            throw new CoreException("TapTable must not be null or not be empty.");
+            throw new CoreException("TapTable cannot not be empty.");
         }
         ScriptEngine scriptEngine = javaScripter.scriptEngine();
         ScriptCore scriptCore = new ScriptCore(table.getId());

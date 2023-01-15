@@ -9,8 +9,8 @@
     <packaging>pom</packaging>
 
 	<modules>
-		<module>qingflow-connector</module>
 		<module>coding-test-connector</module>
+		<module>coding-demo-connector</module>
 	</modules>
 
 	<properties>

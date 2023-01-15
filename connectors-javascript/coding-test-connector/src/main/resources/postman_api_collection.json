@@ -1,69 +1,13 @@
 {
 	"info": {
-		"_postman_id": "aac3cd1c-84d8-4d55-bd15-50ef79b419b9",
-		"name": "TEST",
+		"_postman_id": "16dd97ac-ca6b-48ba-bf69-6c3b11edec49",
+		"name": "TEST Copy",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
 		{
 			"name": "TEST_SUB",
 			"item": [
-				{
-					"name": "TAP_TABLE[test](FROM_TO:data.issues)TEST_HTTP",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "A",
-								"value": "SSS",
-								"type": "default"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n    \"param\":\"{{key}}\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "www.baidu.com/{{TEST_SUB}}/:test?from=1&size=20",
-							"host": [
-								"www",
-								"baidu",
-								"com"
-							],
-							"path": [
-								"{{TEST_SUB}}",
-								":test"
-							],
-							"query": [
-								{
-									"key": "from",
-									"value": "1",
-									"description": "TAP_PAGE_FROM"
-								},
-								{
-									"key": "size",
-									"value": "20",
-									"description": "TAP_PAGE_SIZE"
-								}
-							],
-							"variable": [
-								{
-									"key": "test",
-									"value": ""
-								}
-							]
-						}
-					},
-					"response": []
-				},
 				{
 					"name": "Issues",
 					"request": {
@@ -77,7 +21,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"Action\": \"DescribeIssueListWithPage\",\r\n,\"ProjectName\": \"tapdata\",\r\n    \"IssueType\": \"ALL\",\r\n    \"PageNumber\": 1,\r\n    \"PageSize\": 500\r\n}",
+							"raw": "{\r\n\"Action\": \"DescribeIssueListWithPage\",\r\n,\"ProjectName\": \"{{project_name}}\",\r\n    \"IssueType\": \"ALL\",\r\n    \"PageNumber\": 1,\r\n    \"PageSize\": 500\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -85,9 +29,9 @@
 							}
 						},
 						"url": {
-							"raw": "{{baseUrl}}?PageNumber=1&PageSize=500",
+							"raw": "https://{{team_name}}.coding.net/open-api?PageNumber&PageSize",
 							"host": [
-								"{{baseUrl}}"
+								"https://{{team_name}}.coding.net/open-api"
 							],
 							"query": [
 								{
@@ -106,67 +50,81 @@
 					"response": []
 				},
 				{
-					"name": "查询事项自定义字段",
+					"name": "MyUserInfo",
 					"request": {
-						"method": "GET",
-						"header": []
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "token {{access_token}}",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"Action\": \"DescribeCodingCurrentUser\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://{{team_name}}.coding.net/open-api",
+							"host": [
+								"https://{{team_name}}.coding.net/open-api"
+							]
+						}
 					},
 					"response": []
 				},
 				{
-					"name": "OssAliYUN",
+					"name": "DescribeUserProjects",
 					"request": {
-						"method": "GET",
-						"header": []
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "token {{access_token}}",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"Action\": \"DescribeUserProjects\",\r\n  \"userId\": 0\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://{{team_name}}.coding.net/open-api",
+							"host": [
+								"https://{{team_name}}.coding.net/open-api"
+							]
+						}
 					},
 					"response": []
 				}
 			]
 		}
 	],
-	"event": [
-		{
-			"listen": "prerequest",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					""
-				]
-			}
-		},
-		{
-			"listen": "test",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					""
-				]
-			}
-		}
-	],
+	"event": [],
 	"variable": [
 		{
-			"key": "TEST_VAR",
-			"value": "1",
-			"type": "default"
-		},
-		{
-			"key": "TEST_SUB",
-			"value": "TEST_SUB"
-		},
-		{
-			"key": "baseUrl",
-			"value": "https://tapdata.coding.net/open-api",
+			"key": "team_name",
+			"value": "",
 			"type": "default"
 		},
 		{
 			"key": "access_token",
-			"value": "a8b40762dc9c8bb2e8726520e8343caff86ce4fc",
+			"value": "",
 			"type": "default"
 		},
 		{
-			"key": "ISSUES_PAGE_NUMBER",
-			"value": "5",
+			"key": "project_name",
+			"value": "",
 			"type": "default"
 		}
 	]

@@ -50,7 +50,7 @@ public class BaseConnectionTestFunction extends FunctionBase {
         ConnectionOptions options = new ConnectionOptions();
         if (this.javaScripter.functioned(functionName.jsName())) {
             if (Objects.isNull(context)) {
-                consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "TapConnectorContext must not be null or not be empty."));
+                consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "TapConnectorContext cannot not be empty."));
                 return options;
             }
             Object invoker = super.javaScripter.invoker(JSFunctionNames.CONNECTION_TEST.jsName(), context.getConnectionConfig());

@@ -4,6 +4,8 @@ import java.util.Objects;
 
 public enum JSFunctionNames {
     BatchReadFunction("batch_read", "BatchReadFunction", ""),
+    CommandV2("command_callback_v2", "CommandCallbackFunction", ""),
+    CommandV1("command_callback", "CommandCallbackFunction", ""),
     StreamReadFunction("stream_read", "StreamReadFunction", ""),
     WriteRecordFunction("write_record", "WriteRecordFunction", ""),
     BatchCountFunction("batch_count", "BatchCountFunction", ""),

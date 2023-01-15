@@ -7,6 +7,7 @@ import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.js.connector.enums.Constants;
+import io.tapdata.js.connector.server.function.ExecuteConfig;
 
 import javax.script.*;
 import java.io.File;
@@ -224,7 +225,12 @@ public class LoadJavaScripter {
     public Object invokerGraal(String functionName, Object... params) {
         if (Objects.isNull(functionName)) return null;
         if (Objects.isNull(this.scriptEngine)) return null;
-        Function<Object[], Object> polyglotMapAndFunction;
+        //Function<Object[], Object> polyglotMapAndFunction;
+//        Object connectionConfig = this.scriptEngine.get(ExecuteConfig.CONNECTION_CONFIG);
+//        if (Objects.nonNull(connectionConfig) && connectionConfig instanceof Map){
+//
+//        }
+//        Object nodeConfigMap = this.scriptEngine.get(ExecuteConfig.NODE_CONFIG);
         try {
             Invocable invocable = (Invocable) this.scriptEngine;
             Object apply = invocable.invokeFunction(functionName, params);
@@ -238,7 +244,9 @@ public class LoadJavaScripter {
     public static Object covertData(Object apply) {
         if (Objects.isNull(apply)) {
             return null;
-        } else if (apply instanceof Map || apply instanceof Collection) {
+        } else if (apply instanceof Map){
+            return fromJson(toJson(apply));
+        } else if(apply instanceof Collection) {
             try {
                 String toString = apply.toString();
                 if (toString.matches("\\(([0-9]+)\\)\\[.*]")) {

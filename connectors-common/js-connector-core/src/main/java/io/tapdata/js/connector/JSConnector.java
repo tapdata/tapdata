@@ -14,6 +14,7 @@ import io.tapdata.js.connector.base.JsUtil;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.iengine.ScriptEngineInstance;
 import io.tapdata.js.connector.server.decorator.APIFactoryDecorator;
+import io.tapdata.js.connector.server.function.ExecuteConfig;
 import io.tapdata.js.connector.server.function.FunctionSupport;
 import io.tapdata.js.connector.server.function.support.*;
 import io.tapdata.js.connector.server.inteceptor.JSAPIInterceptorConfig;
@@ -35,21 +36,21 @@ public class JSConnector extends ConnectorBase {
     private APIInvoker apiInvoker;
     private Map<String, Object> apiParam = new HashMap<>();
     private APIFactory apiFactory = new APIFactoryImpl();
-    private CacheContext cacheContext = new CacheContext();
+    //private CacheContext cacheContext = new CacheContext();
 
     private final AtomicBoolean isAlive = new AtomicBoolean(true);
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
         this.isAlive.set(true);
-        this.cacheContext.activate(this.isAlive);
+        //this.cacheContext.activate(this.isAlive);
         this.instanceScript(connectionContext);
     }
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         this.isAlive.set(false);
-        Optional.ofNullable(this.cacheContext).ifPresent(CacheContext::clean);
+        //Optional.ofNullable(this.cacheContext).ifPresent(CacheContext::clean);
     }
 
     @Override
@@ -61,7 +62,9 @@ public class JSConnector extends ConnectorBase {
                 .supportBatchCount(FunctionSupport.function(javaScripter, JSBatchCountFunction::create))
                 .supportRawDataCallbackFilterFunctionV2(FunctionSupport.function(javaScripter, JSRawDataCallbackFunction::create))
                 .supportCreateTableV2(FunctionSupport.function(javaScripter, JSCreateTableV2Function::create))
-                .supportTimestampToStreamOffset(FunctionSupport.function(javaScripter, JSTimestampToStreamOffsetFunction::create));
+                .supportTimestampToStreamOffset(FunctionSupport.function(javaScripter, JSTimestampToStreamOffsetFunction::create))
+                .supportCommandCallbackFunction(FunctionSupport.function(javaScripter, JSCommandFunction::create))
+                ;
     }
 
     @Override
@@ -84,6 +87,7 @@ public class JSConnector extends ConnectorBase {
 
     private void instanceScript(TapConnectionContext connectionContext) {
         ScriptEngineInstance engineInstance = ScriptEngineInstance.instance();
+        Map<String,Object> configMap = ExecuteConfig.contextConfig(connectionContext).toMap();
         if (Objects.isNull(this.javaScripter)) {
             this.javaScripter = engineInstance.script();
             if (Objects.nonNull(connectionContext)) {
@@ -107,9 +111,10 @@ public class JSConnector extends ConnectorBase {
         APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory).interceptor(JSAPIResponseInterceptor.create(config, apiInvoker));
         this.javaScripter.scriptEngine().put("tapAPI", factory);
         this.javaScripter.scriptEngine().put("log", new ConnectorLog());
-        this.javaScripter.scriptEngine().put("tapCache", this.cacheContext);
+        //this.javaScripter.scriptEngine().put("tapCache", this.cacheContext);
         this.javaScripter.scriptEngine().put("tapUtil", new JsUtil());
         this.javaScripter.scriptEngine().put("nodeIsAlive", isAlive);
+        this.javaScripter.scriptEngine().put("_tapConfig_", configMap);
         engineInstance.loadScript();
     }
 }

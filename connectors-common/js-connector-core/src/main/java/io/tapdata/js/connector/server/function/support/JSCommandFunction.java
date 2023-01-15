@@ -1,0 +1,125 @@
+package io.tapdata.js.connector.server.function.support;
+
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.js.connector.iengine.LoadJavaScripter;
+import io.tapdata.js.connector.server.function.ExecuteConfig;
+import io.tapdata.js.connector.server.function.FunctionBase;
+import io.tapdata.js.connector.server.function.FunctionSupport;
+import io.tapdata.js.connector.server.function.JSFunctionNames;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.entity.CommandResult;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
+import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+
+public class JSCommandFunction extends FunctionBase implements FunctionSupport<CommandCallbackFunction> {
+    private static final String TAG = JSCommandFunction.class.getSimpleName();
+
+    private JSCommandFunction() {
+        super();
+        super.functionName = JSFunctionNames.CommandV1;
+    }
+
+    @Override
+    public CommandCallbackFunction function(LoadJavaScripter javaScripter) {
+        if (super.hasNotSupport(javaScripter)) {
+            return null;
+        }
+        return this::commandV1;
+//        if (super.hasNotSupport(javaScripter)){
+//            return !super.javaScripter.functioned(JSFunctionNames.CommandV1.jsName()) ? null : this::commandV1;
+//        }else {
+//            return !super.javaScripter.functioned(JSFunctionNames.CommandV1.jsName()) ? this::commandV3 : this::commandV2;
+//        }
+    }
+
+    private CommandResult commandV3(TapConnectionContext context, CommandInfo commandInfo) {
+        return null;
+    }
+
+    private CommandResult commandV2(TapConnectionContext context, CommandInfo commandInfo) {
+        CommandResult commandResult = new CommandResult();
+        if (Objects.isNull(context)) {
+            throw new CoreException("TapConnectorContext cannot not be empty.");
+        }
+        if (Objects.isNull(commandInfo)) {
+            throw new CoreException("Command info cannot be empty.");
+        }
+        try {
+            Object invoker = super.javaScripter.invoker(
+                    JSFunctionNames.CommandV1.jsName(),
+                    context.getConnectionConfig(),
+                    commandInfo
+            );
+            if (Objects.isNull(invoker)) {
+                Map<String, Object> data = new HashMap<>();
+                data.put("data", invoker);
+                commandResult.result(data);
+            } else {
+                invoker = super.javaScripter.invoker(
+                        JSFunctionNames.CommandV2.jsName(),
+                        invoker
+                );
+                if (invoker instanceof Map) {
+                    commandResult.result((Map<String, Object>) invoker);
+                } else {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("data", invoker);
+                    commandResult.result(data);
+                }
+            }
+        } catch (Exception e) {
+            TapLogger.warn(TAG, " Method 'command' failed to execute. Unable to get the return result. The final result will be null ");
+            commandResult.result(new HashMap<>());
+        }
+        return commandResult;
+    }
+
+    private CommandResult commandV1(TapConnectionContext context, CommandInfo commandInfo) {
+        CommandResult commandResult = new CommandResult();
+        if (Objects.isNull(context)) {
+            throw new CoreException("TapConnectorContext cannot not be empty.");
+        }
+        if (Objects.isNull(commandInfo)) {
+            throw new CoreException("Command info cannot be empty.");
+        }
+        Map<String, Object> commandMap = new HashMap<>();
+        commandMap.put("command", commandInfo.getCommand());
+        commandMap.put("args", commandInfo.getArgMap());
+        commandMap.put("action", commandInfo.getAction());
+        commandMap.put("type", commandInfo.getType());
+        commandMap.put("time", commandInfo.getTime());
+        Map<String, Object> configMap = ExecuteConfig.contextConfig(null)
+                .connection(commandInfo.getConnectionConfig())
+                .node(commandInfo.getNodeConfig())
+                .toMap();
+        super.javaScripter.scriptEngine().put("_tapConfig_", configMap);
+        try {
+            Object invoker = super.javaScripter.invoker(
+                    this.functionName.jsName(),
+                    commandInfo.getConnectionConfig(),
+                    commandInfo.getNodeConfig(),
+                    commandMap
+            );
+            if (invoker instanceof Map) {
+                commandResult.result((Map<String, Object>) invoker);
+            } else {
+                Map<String, Object> data = new HashMap<>();
+                data.put("data", invoker);
+                commandResult.result(data);
+            }
+        } catch (Exception e) {
+            TapLogger.warn(TAG, " Method " + this.functionName.jsName() + " failed to execute. Unable to get the return result. The final result will be null ");
+            commandResult.result(new HashMap<>());
+        }
+        return commandResult;
+    }
+
+    public static CommandCallbackFunction create(LoadJavaScripter loadJavaScripter) {
+        return new JSCommandFunction().function(loadJavaScripter);
+    }
+}

@@ -46,4 +46,43 @@ public class JsUtil {
             return array;
         }
     }
+    public Map<String,Object> mergeData(Object margeTarget,Object using){
+        if(margeTarget instanceof Map && using instanceof Map){
+            Map<String, Object> target = (Map<String, Object>) margeTarget;
+            Map<String,Object> from = (Map<String, Object>) using;
+            target.putAll(from);
+            return target;
+        }
+        return null;
+    }
+    public Map<String,Object> mixedData(Object margeTarget,Object using){
+        Map<String ,Object> data = new HashMap<>();
+        if(margeTarget instanceof Map ){
+            Map<String, Object> target = (Map<String, Object>) margeTarget;
+            data.putAll(target);
+        }
+        if( using instanceof Map){
+            Map<String,Object> from = (Map<String, Object>) using;
+            data.putAll(from);
+        }
+        return data;
+    }
+
+    public Object convertList(Object list, Object convertMatch){
+        if (convertMatch instanceof Map && list instanceof Collection){
+            List<Map<String,Object>> listObj = (List<Map<String, Object>>) list;
+            Map<String, String> match = (Map<String, String>) convertMatch;
+            List<Object> afterConvert = new ArrayList<>();
+            listObj.stream().filter(Objects::nonNull).forEach(map->{
+                Map<String,Object> afterConvertMap = new HashMap<>();
+                match.forEach((key,afterKey)->{
+                    afterConvertMap.put(afterKey, map.get(key));
+                });
+                afterConvert.add(afterConvertMap);
+            });
+            return afterConvert;
+        }else {
+            return list;
+        }
+    }
 }

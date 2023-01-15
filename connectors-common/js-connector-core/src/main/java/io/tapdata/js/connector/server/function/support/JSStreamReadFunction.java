@@ -5,12 +5,14 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.js.connector.base.CustomEventMessage;
 import io.tapdata.js.connector.base.ScriptCore;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
+import io.tapdata.js.connector.server.function.ExecuteConfig;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.FunctionSupport;
 import io.tapdata.js.connector.server.function.JSFunctionNames;
 import io.tapdata.js.connector.server.sender.StreamReadSender;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 
@@ -26,6 +28,7 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
     private AtomicBoolean isAlive = new AtomicBoolean(true);
     private final Object lock = new Object();
     private static final long STREAM_READ_DELAY_SEC = 1 * 60 * 1000L;
+    ExecuteConfig config;
 
     public JSStreamReadFunction isAlive(AtomicBoolean isAlive) {
         this.isAlive = isAlive;
@@ -45,14 +48,17 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         if (Objects.isNull(nodeContext)) {
-            throw new CoreException("TapConnectorContext must not be null or not be empty.");
+            throw new CoreException("TapConnectorContext cannot not be empty.");
+        }
+        if(Objects.isNull(this.config)) {
+            this.config = ExecuteConfig.contextConfig(nodeContext);
         }
         if (Objects.isNull(tableList)) {
-            throw new CoreException("Table lists must not be null or not be empty.");
+            throw new CoreException("Table lists cannot not be empty.");
         }
         ScriptCore scriptCore = new ScriptCore(tableList.get(0));
         AtomicReference<Object> contextMap = new AtomicReference<>(offsetState);
-        ScriptEngine scriptEngine = javaScripter.scriptEngine();
+        ScriptEngine scriptEngine = super.javaScripter.scriptEngine();
         scriptEngine.put("core", scriptCore);
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         StreamReadSender sender = new StreamReadSender().core(scriptCore);
@@ -119,5 +125,33 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
 
     public static StreamReadFunction create(LoadJavaScripter loadJavaScripter, AtomicBoolean isAlive) {
         return new JSStreamReadFunction().isAlive(isAlive).function(loadJavaScripter);
+    }
+    public static class Config extends ExecuteConfig{
+        private LoadJavaScripter javaScripter;
+        private AtomicBoolean isAlive;
+        public Config javaScripter(LoadJavaScripter javaScripter){
+            this.javaScripter = javaScripter;
+            return this;
+        }
+        public LoadJavaScripter javaScripter(){
+            return this.javaScripter;
+        }
+        public Config isAlive(AtomicBoolean isAlive){
+            this.isAlive = isAlive;
+            return this;
+        }
+        public AtomicBoolean isAlive(){
+            return this.isAlive;
+        }
+
+        public static Config config(TapConnectionContext context, LoadJavaScripter javaScripter, AtomicBoolean isAlive){
+            return new Config(context)
+                    .javaScripter(javaScripter)
+                    .isAlive(isAlive);
+        }
+        protected Config(TapConnectionContext context) {
+            super(context);
+
+        }
     }
 }
