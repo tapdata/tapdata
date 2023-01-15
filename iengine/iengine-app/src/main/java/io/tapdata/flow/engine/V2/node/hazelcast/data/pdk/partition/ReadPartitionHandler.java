@@ -170,10 +170,9 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 		long time = System.currentTimeMillis();
 
 		AtomicReference<List<TapEvent>> reference = new AtomicReference<>(events);
-		sequenceStorage.foreach((key1, value) -> {
+		sequenceStorage.foreachValues((value, value1) -> {
 			Map<String, Object> record = (Map<String, Object>) value;
-			Map<String, Object> key = (Map<String, Object>) key1;
-			Map<String, Object> dataFromCDC = (Map<String, Object>) kvStorage.removeAndGet(key);
+			Map<String, Object> dataFromCDC = (Map<String, Object>) value1;
 			if(dataFromCDC != null) {
 				record.putAll(dataFromCDC);
 			}
@@ -186,7 +185,24 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 				reference.set(new ArrayList<>());
 			}
 			return null;
-		});
+		}, kvStorage::removeAndGet);
+//		sequenceStorage.foreach((key1, value) -> {
+//			Map<String, Object> record = (Map<String, Object>) value;
+//			Map<String, Object> key = (Map<String, Object>) key1;
+//			Map<String, Object> dataFromCDC = (Map<String, Object>) kvStorage.removeAndGet(key);
+//			if(dataFromCDC != null) {
+//				record.putAll(dataFromCDC);
+//			}
+//			reference.get().add(insertRecordEvent(record, table));
+//			sentEventCount.increment();
+//			if(reference.get().size() >= sourcePdkDataNode.batchSize) {
+////				long theTime = System.currentTimeMillis();
+//				enqueueTapEvents(batchReadFuncAspect, reference.get());
+////				sourcePdkDataNode.getObsLogger().info("enqueueTapEvents sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
+//				reference.set(new ArrayList<>());
+//			}
+//			return null;
+//		});
 		long theTime = System.currentTimeMillis();
 		enqueueTapEvents(batchReadFuncAspect, reference.get());
 		sourcePdkDataNode.getObsLogger().info("enqueueTapEvents last sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
@@ -196,7 +212,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 		theTime = System.currentTimeMillis();
 		List<TapEvent> newInsertEvents = new ArrayList<>();
 		AtomicReference<List<TapEvent>> newInsertReference = new AtomicReference<>(newInsertEvents);
-		kvStorage.foreach((key, value) -> {
+		kvStorage.foreachValues((value) -> {
 			jobContext.checkJobStoppedOrNot();
 			newInsertReference.get().add(insertRecordEvent((Map<String, Object>) value, table));
 			sentEventCount.increment();
@@ -252,7 +268,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 
 				List<TapEvent> list = new ArrayList<>();
 				AtomicReference<List<TapEvent>> eventListReference = new AtomicReference<>(list);
-				kvStorageDuringSending.foreach((key, value) -> {
+				kvStorageDuringSending.foreachValues((value) -> {
 					jobContext.checkJobStoppedOrNot();
 //					eventListReference.get().add(insertRecordEvent((Map<String, Object>) value, table.getId()));
 					eventListReference.get().add((TapRecordEvent)value);

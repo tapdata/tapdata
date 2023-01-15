@@ -18,6 +18,7 @@ import org.rocksdb.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  * @author aplomb
@@ -43,7 +44,11 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 		if(!stateMachine.getCurrentState().equals(STATE_INITIALIZED))
 			throw new CoreException(StorageErrors.ITERATE_ON_WRONG_STATE, "Iterate on wrong state {}, expect state {}", stateMachine.getCurrentState(), STATE_INITIALIZED);
 		try {
-			db.put(objectSerializable.fromObject(key), objectSerializable.fromObject(value));
+			if(key instanceof byte[]) {
+				db.put((byte[]) key, objectSerializable.fromObject(value));
+			} else {
+				db.put(objectSerializable.fromObject(key), objectSerializable.fromObject(value));
+			}
 		} catch (RocksDBException e) {
 			throw new CoreException(StorageErrors.KV_STORAGE_PUT_FAILED, e, "Put key {} value {} failed, {}" ,key, value, e.getMessage());
 		}
@@ -57,7 +62,11 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 		if(!stateMachine.getCurrentState().equals(STATE_INITIALIZED))
 			throw new CoreException(StorageErrors.ITERATE_ON_WRONG_STATE, "Iterate on wrong state {}, expect state {}", stateMachine.getCurrentState(), STATE_INITIALIZED);
 		try {
-			return objectSerializable.toObject(db.get(objectSerializable.fromObject(key)), toObjectOptions);
+			if(key instanceof byte[]) {
+				return objectSerializable.toObject(db.get((byte[]) key), toObjectOptions);
+			} else {
+				return objectSerializable.toObject(db.get(objectSerializable.fromObject(key)), toObjectOptions);
+			}
 		} catch (RocksDBException e) {
 			throw new CoreException(StorageErrors.KV_STORAGE_GET_FAILED, e, "Get key {} failed, {}", key, e.getMessage());
 		}
@@ -68,8 +77,13 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 		if(stateMachine == null)
 			initHandler.run();
 
+
 		try {
-			db.delete(objectSerializable.fromObject(key));
+			if(key instanceof byte[]) {
+				db.delete((byte[]) key);
+			} else {
+				db.delete(objectSerializable.fromObject(key));
+			}
 		} catch (RocksDBException e) {
 			throw new CoreException(StorageErrors.KV_STORAGE_DELETE_FAILED, e, "Delete key {} failed, {}", key, e.getMessage());
 		}
@@ -80,7 +94,12 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 			initHandler.run();
 
 		try {
-			byte[] keyBytes = objectSerializable.fromObject(key);
+			byte[] keyBytes = null;
+			if(key instanceof byte[]) {
+				keyBytes = (byte[]) key;
+			} else {
+				keyBytes = objectSerializable.fromObject(key);
+			}
 			byte[] dataBytes = db.get(keyBytes);
 			Object data = null;
 			if(dataBytes != null) {
@@ -90,6 +109,58 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 			return data;
 		} catch (RocksDBException e) {
 			throw new CoreException(StorageErrors.KV_STORAGE_DELETE_FAILED, e, "Delete key {} failed, {}", key, e.getMessage());
+		}
+	}
+	@Override
+	public void foreachValues(Function<Object, Boolean> iterateFunc) {
+		foreachValues(iterateFunc, true);
+	}
+	@Override
+	public void foreachValues(Function<Object, Boolean> iterateFunc, boolean asc) {
+		if(stateMachine == null)
+			initHandler.run();
+
+		try(RocksIterator iterator = db.newIterator()) {
+			if(asc) {
+				for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
+					Boolean result = iterateFunc.apply(objectSerializable.toObject(iterator.value(), toObjectOptions));
+					if(result != null && !result)
+						break;
+				}
+			} else {
+				for (iterator.seekToLast(); iterator.isValid(); iterator.prev()) {
+					Boolean result = iterateFunc.apply(objectSerializable.toObject(iterator.value(), toObjectOptions));
+					if(result != null && !result)
+						break;
+				}
+			}
+		}
+	}
+	@Override
+	public void foreachValues(BiFunction<Object, Object, Boolean> iterateFunc, GetObject getObject) {
+		foreachValues(iterateFunc, getObject, true);
+	}
+	@Override
+	public void foreachValues(BiFunction<Object, Object, Boolean> iterateFunc, GetObject getObject, boolean asc) {
+		if(stateMachine == null)
+			initHandler.run();
+
+		try(RocksIterator iterator = db.newIterator()) {
+			if(asc) {
+				for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
+					Object value1 = getObject.get(iterator.key());
+					Boolean result = iterateFunc.apply(objectSerializable.toObject(iterator.value(), toObjectOptions), value1);
+					if(result != null && !result)
+						break;
+				}
+			} else {
+				for (iterator.seekToLast(); iterator.isValid(); iterator.prev()) {
+					Object value1 = getObject.get(iterator.key());
+					Boolean result = iterateFunc.apply(objectSerializable.toObject(iterator.value(), toObjectOptions), value1);
+					if(result != null && !result)
+						break;
+				}
+			}
 		}
 	}
 
