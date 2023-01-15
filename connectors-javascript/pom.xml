@@ -10,7 +10,6 @@
 
 	<modules>
 		<module>coding-test-connector</module>
-		<module>coding-demo-connector</module>
 	</modules>
 
 	<properties>

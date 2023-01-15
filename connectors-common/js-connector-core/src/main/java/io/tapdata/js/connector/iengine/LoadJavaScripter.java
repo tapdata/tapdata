@@ -248,18 +248,13 @@ public class LoadJavaScripter {
             return fromJson(toJson(apply));
         } else if(apply instanceof Collection) {
             try {
+                return ConnectorBase.fromJsonArray(toJson(apply));
+            } catch (Exception e) {
                 String toString = apply.toString();
                 if (toString.matches("\\(([0-9]+)\\)\\[.*]")) {
                     toString = toString.replaceFirst("\\(([0-9]+)\\)", "");
                 }
                 return ConnectorBase.fromJsonArray(toString);
-            } catch (Exception e) {
-                try {
-                    String string = apply.toString();
-                    return "{}".equals(string) ? new HashMap<>() : fromJson(string);
-                } catch (Exception error) {
-                    return null;
-                }
             }
         } else {
             return apply;
