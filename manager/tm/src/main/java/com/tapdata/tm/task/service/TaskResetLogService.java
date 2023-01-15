@@ -13,8 +13,8 @@ public interface TaskResetLogService {
 
     List<TaskResetEventDto> find(Query query);
 
-    void clearLogByTaskId(String taskId);
 
+    void clearLogByTaskId(String taskId);
 
     TaskDagCheckLogVo getLogs(TaskLogDto dto);
 }

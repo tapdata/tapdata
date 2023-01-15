@@ -123,6 +123,18 @@ public class ScriptUtil {
 																					ScriptConnection target,
 																					ICacheGetter memoryCacheGetter,
 																					ScriptLogger logger) throws ScriptException {
+		return getScriptEngine(jsEngineName, script, javaScriptFunctions, clientMongoOperator, source, target, memoryCacheGetter, logger, false);
+	}
+
+	public static Invocable getScriptEngine(String jsEngineName,
+																					String script,
+																					List<JavaScriptFunctions> javaScriptFunctions,
+																					ClientMongoOperator clientMongoOperator,
+																					ScriptConnection source,
+																					ScriptConnection target,
+																					ICacheGetter memoryCacheGetter,
+																					ScriptLogger logger,
+																					boolean standard) throws ScriptException {
 
 		if (StringUtils.isBlank(script)) {
 			script = "function process(record){\n" +
@@ -137,7 +149,7 @@ public class ScriptUtil {
 							new LoggingOutputStream(logger, Level.INFO),
 							new LoggingOutputStream(logger, Level.ERROR));
 			final ClassLoader[] externalClassLoader = new ClassLoader[1];
-			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalClassLoader[0] = urlClassLoader);
+			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalClassLoader[0] = urlClassLoader, standard);
 			if (externalClassLoader[0] != null) {
 				Thread.currentThread().setContextClassLoader(externalClassLoader[0]);
 			}
@@ -282,6 +294,9 @@ public class ScriptUtil {
 		return initBuildInMethod(javaScriptFunctions, clientMongoOperator, null);
 	}
 	public static String initBuildInMethod(List<JavaScriptFunctions> javaScriptFunctions, ClientMongoOperator clientMongoOperator, Consumer<URLClassLoader> consumer) {
+		return initBuildInMethod(javaScriptFunctions, clientMongoOperator, consumer, false);
+	}
+	public static String initBuildInMethod(List<JavaScriptFunctions> javaScriptFunctions, ClientMongoOperator clientMongoOperator, Consumer<URLClassLoader> consumer, boolean standard) {
 		StringBuilder buildInMethod = new StringBuilder();
 		buildInMethod.append("var DateUtil = Java.type(\"com.tapdata.constant.DateUtil\");\n");
 		buildInMethod.append("var UUIDGenerator = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
@@ -293,20 +308,24 @@ public class ScriptUtil {
 		buildInMethod.append("var JSONUtil = Java.type('com.tapdata.constant.JSONUtil');\n");
 		buildInMethod.append("var HanLPUtil = Java.type(\"com.tapdata.constant.HanLPUtil\");\n");
 		buildInMethod.append("var split_chinese = HanLPUtil.hanLPParticiple;\n");
-		buildInMethod.append("var rest = Java.type(\"com.tapdata.processor.util.CustomRest\");\n");
-		buildInMethod.append("var tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\");\n");
 		buildInMethod.append("var util = Java.type(\"com.tapdata.processor.util.Util\");\n");
-		buildInMethod.append("var mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\");\n");
 		buildInMethod.append("var MD5Util = Java.type(\"com.tapdata.constant.MD5Util\");\n");
 		buildInMethod.append("var MD5 = function(str){return MD5Util.crypt(str, true);};\n");
 		buildInMethod.append("var Collections = Java.type(\"java.util.Collections\");\n");
-		buildInMethod.append("var networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\");\n");
 		buildInMethod.append("var MapUtils = Java.type(\"com.tapdata.constant.MapUtil\");\n");
-		buildInMethod.append("var TapModelDeclare = Java.type(\"com.tapdata.processor.util.TapModelDeclare\");\n");
 		buildInMethod.append("var sleep = function(ms){\n" +
 				"var Thread = Java.type(\"java.lang.Thread\");\n" +
 				"Thread.sleep(ms);\n" +
 				"}\n");
+
+		if (standard) {
+			return buildInMethod.toString();
+		}
+
+		buildInMethod.append("var networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\");\n");
+		buildInMethod.append("var rest = Java.type(\"com.tapdata.processor.util.CustomRest\");\n");
+		buildInMethod.append("var tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\");\n");
+		buildInMethod.append("var mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\");\n");
 
 		if (CollectionUtils.isNotEmpty(javaScriptFunctions)) {
 			List<URL> urlList = new ArrayList<>();
@@ -351,12 +370,10 @@ public class ScriptUtil {
 			}
 			if (CollectionUtils.isNotEmpty(urlList)) {
 				logger.debug("urlClassLoader will load: {}", urlList);
-//				final URLClassLoader urlClassLoader = new CustomerClassLoader(urlList.toArray(new URL[0]), Thread.currentThread().getContextClassLoader());
 				final URLClassLoader urlClassLoader = new CustomerClassLoader(urlList.toArray(new URL[0]), ScriptUtil.class.getClassLoader());
 				if(consumer != null) {
 					consumer.accept(urlClassLoader);
 				}
-//				Thread.currentThread().setContextClassLoader(urlClassLoader);
 			}
 		}
 

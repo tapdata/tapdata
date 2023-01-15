@@ -20,6 +20,7 @@ public class SchemaTransformerResult implements Serializable {
     private String sourceDbType;                        //": "Demo MySQL",
     private String sourceObjectName;                        //": "AUTO_CLAIM",
     private int sourceFieldCount;                        //": 9,
+    private int sourceDeletedFieldCount;                        //": 9,
     private String sourceTableId;                      //   ": "61552406beeb6a899b22fe5e",
 
     private String sinkNodeId;
@@ -31,6 +32,8 @@ public class SchemaTransformerResult implements Serializable {
     private int userDeletedNum;                    //  ": 0,
     private String sinkTableId;                  // ": "615523a6beeb6a899b21df14"
     private List<FieldsMapping> fieldsMapping;
+    private int sinkAvailableFieldCount;
+    private int sinkInvalidFieldCount;
 
     private LinkedList<FieldInfo> migrateFieldsMapping;
 }

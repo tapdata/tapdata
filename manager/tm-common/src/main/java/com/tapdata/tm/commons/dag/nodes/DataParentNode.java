@@ -58,6 +58,7 @@ public abstract class DataParentNode<S> extends Node<S> {
     private Boolean enableDDL;
 
     private List<String> disabledEvents;
+    @Deprecated
     private Boolean enableDynamicTable;
 	/** 是否开启全量并发写入*/
 	private Boolean initialConcurrent;
@@ -69,6 +70,15 @@ public abstract class DataParentNode<S> extends Node<S> {
 	private Integer cdcConcurrentWriteNum;
     /** 目标节点配置字段修改规则 */
     private List<FieldChangeRule> fieldChangeRules;
+
+    @EqField
+    private Integer readBatchSize = 500;
+    @EqField
+    private Integer writeBatchSize;
+
+    /** 写入每批最大等待时间 */
+    @EqField
+    private Long writeBatchWaitMs;
     /**
      * constructor for node
      *
@@ -108,6 +118,7 @@ public abstract class DataParentNode<S> extends Node<S> {
             s.setOriginalName(tableName);
             s.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, tableName, getTaskId()));
             str.setSinkQulifiedName(s.getQualifiedName());
+            str.setSinkObjectName(tableName);
         }
 
         int userDeleteNum = 0;

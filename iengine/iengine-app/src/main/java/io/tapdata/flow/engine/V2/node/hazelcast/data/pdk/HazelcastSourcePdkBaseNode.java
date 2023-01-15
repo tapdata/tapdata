@@ -1,9 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import cn.hutool.core.util.ReUtil;
+import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
-import com.tapdata.entity.task.NodeUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
@@ -56,6 +57,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -64,6 +66,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -168,8 +171,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (needDynamicTable(null)) {
 				this.newTables = new CopyOnWriteArrayList<>();
 				this.removeTables = new CopyOnWriteArrayList<>();
+
+				Predicate<String> dynamicTableFilter = t -> ReUtil.isMatch(((DatabaseNode) node).getTableExpression(), t);
 				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(),
-						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn());
+						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn(), dynamicTableFilter);
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
@@ -178,15 +183,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private boolean needDynamicTable(Object obj) {
+	private boolean needDynamicTable(String tableName) {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node instanceof DatabaseNode) {
 			String migrateTableSelectType = ((DatabaseNode) node).getMigrateTableSelectType();
-			if (StringUtils.isBlank(migrateTableSelectType) || !"all".equals(migrateTableSelectType)) {
-				return false;
-			}
-			Boolean enableDynamicTable = ((DatabaseNode) node).getEnableDynamicTable();
-			if (null == enableDynamicTable || !enableDynamicTable) {
+			if (StringUtils.isBlank(migrateTableSelectType) || !"expression".equals(migrateTableSelectType)) {
 				return false;
 			}
 			if (syncType.equals(SyncTypeEnum.INITIAL_SYNC)) {
@@ -195,6 +196,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			GetTableNamesFunction getTableNamesFunction = getConnectorNode().getConnectorFunctions().getGetTableNamesFunction();
 			if (null == getTableNamesFunction) {
 				return false;
+			}
+			if (StringUtils.isNotEmpty(tableName)) {
+				String expression = ((DatabaseNode) node).getTableExpression();
+				if (StringUtils.isEmpty(expression) || !ReUtil.isMatch(expression, tableName)) {
+					return false;
+				}
 			}
 		} else {
 			return false;
@@ -589,11 +596,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
 		} else if (tapEvent instanceof TapDDLEvent) {
 			logger.info("Source node received an ddl event: " + tapEvent);
+			obsLogger.info("Source node received an ddl event: " + tapEvent);
+
+			obsLogger.info("ddlFilter enable data: " + JSON.toJSONString(ddlFilter));
+
 			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
 				logger.warn("DDL events are filtered: " + tapEvent);
 				obsLogger.warn("DDL events are filtered: " + tapEvent);
 				return null;
 			}
+
 			tapdataEvent = new TapdataEvent();
 			tapdataEvent.setTapEvent(tapEvent);
 			tapdataEvent.setSyncStage(syncStage);
@@ -653,6 +665,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+					if (null == metadata.getId()) {
+						metadata.setId(new ObjectId());
+					}
 					insertMetadata.add(metadata);
 					logger.info("Create new table schema transform finished: " + tapTable);
 					obsLogger.info("Create new table schema transform finished: " + tapTable);
@@ -685,12 +700,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				tapEvent.addInfo(DAG_DATA_SERVICE_INFO_KEY, dagDataService);
 				tapEvent.addInfo(TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY, errorMessage);
 			} catch (Throwable e) {
-				throw errorHandle(e, "Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage());
+				throw new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
 			}
 		}
 		if (null == tapdataEvent) {
-			RuntimeException runtimeException = new RuntimeException("Found event type does not support: " + tapEvent.getClass().getSimpleName());
-			throw errorHandle(runtimeException, "Found event type does not support: " + tapEvent.getClass().getSimpleName());
+			throw new RuntimeException("Found event type does not support: " + tapEvent.getClass().getSimpleName());
 		}
 		return tapdataEvent;
 	}

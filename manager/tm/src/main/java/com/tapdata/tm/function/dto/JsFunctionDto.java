@@ -26,4 +26,9 @@ public class JsFunctionDto extends BaseDto {
     private String return_value;
     private String function_body;
 
+    private String category;
+
+    private String example;
+
+    private String desc;
 }

@@ -3,7 +3,6 @@ package io.tapdata.websocket;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.constant.*;
-import com.tapdata.entity.AppType;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.ping.PingDto;
 import com.tapdata.tm.commons.ping.PingType;
@@ -37,9 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.websocket.WebSocketEventResult.Type.HANDLE_EVENT_ERROR_RESULT;
@@ -56,7 +53,7 @@ import static io.tapdata.websocket.WebSocketEventResult.Type.UNKNOWN_EVENT_RESUL
  * @author jackin
  */
 @Component("managementWebsocketHandler")
-@DependsOn("connectorManager")
+@DependsOn("tapdataTaskScheduler")
 public class ManagementWebsocketHandler implements WebSocketHandler {
 
 	public static final String WEBSOCKET_CODE_KEY = "websocketCode";
@@ -77,7 +74,10 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	 */
 	public static final String DESTINATION = "/agent";
 
-	private static final Long PING_INTERVAL = 5L;
+	/**
+	 * Check ws alive every {PING_INTERVAL} seconds.
+	 */
+	private static final Long PING_INTERVAL = 10L;
 	/**
 	 * websocket接受消息的长度限制：10MB
 	 */
@@ -96,7 +96,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	/**
 	 * 连接失败后尝试的次数
 	 */
-	private int retryTime;
+	private int retryTime = 20;
 
 	/**
 	 * data engine唯一标记，每个agent实例都有一个唯一的id
@@ -118,7 +118,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	@Autowired
 	private TaskService<TaskDto> taskService;
 
-	WebSocketSession session;
+	private WebSocketSession session;
 
 	@Autowired
 	private SettingService settingService;
@@ -140,7 +140,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		healthThreadPool = new ScheduledThreadPoolExecutor(1);
 		healthThreadPool.scheduleWithFixedDelay(() -> {
 			Thread.currentThread().setName("Management Websocket Health Check");
-			if (session == null || !session.isOpen()) {
+			if (!isOpen()) {
 				logger.info("It is detected that the websocket is not connected, a connection will be created");
 				createClients();
 			}
@@ -165,30 +165,36 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 				}
 			} catch (Exception e) {
 				logger.error("Websocket heartbeat failed, will reconnect. Error: " + e.getMessage(), e);
-				handleWhenPingFailed();
 				createClients();
 			}
 		}, 0, PING_INTERVAL, TimeUnit.SECONDS);
 	}
 
 	private void handleWhenPingFailed() {
-		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
-		if (null == tapdataTaskScheduler) return;
-		tapdataTaskScheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
-		tapdataTaskScheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_STOP_TASK_NAME);
+		DebounceUtil.debounce("StopTaskSchedulerOnWSDisconnect", 10000, () -> {
+			TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+			if (null == tapdataTaskScheduler) return;
+			tapdataTaskScheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
+			tapdataTaskScheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_STOP_TASK_NAME);
+		});
 	}
 
 	private void handleWhenPingSucceed() {
-		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
-		if (null == tapdataTaskScheduler) return;
-		tapdataTaskScheduler.stopScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
-		tapdataTaskScheduler.stopScheduleTask(TapdataTaskScheduler.SCHEDULE_STOP_TASK_NAME);
+		DebounceUtil.debounce("StartTaskSchedulerOnWSConnected", 10000, () -> {
+			TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+			if (null == tapdataTaskScheduler) return;
+			tapdataTaskScheduler.stopScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
+			tapdataTaskScheduler.stopScheduleTask(TapdataTaskScheduler.SCHEDULE_STOP_TASK_NAME);
+		});
 	}
 
 	/**
 	 * 创建web socket 客户端
 	 */
 	public synchronized void createClients() {
+
+		if (isOpen())
+			return;
 
 		// 连接前关闭之前所有的连接
 		closeSession();
@@ -209,9 +215,14 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		if (session != null) {
 			try {
 				session.close();
+				session = null;
 			} catch (IOException ignore) {
 			}
 		}
+	}
+
+	private boolean isOpen() {
+		return session != null && session.isOpen();
 	}
 
 	private void connect(String baseURL) {
@@ -228,9 +239,9 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					+ "?agentId={agentId}&access_token={access_token}");
 
 			// 临时处理，连接dfs时，去掉"/console"
-			if (((AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE)).isDfs()) {
+			/*if (((AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE)).isDfs()) {
 				currentWsUrl = currentWsUrl.replace("/console", "");
-			}
+			}*/
 
 			WebSocketClient client = new StandardWebSocketClient();
 
@@ -245,7 +256,8 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			if (org.apache.commons.lang3.StringUtils.isNotEmpty(version)) {
 				WebSocketHttpHeaders webSocketHttpHeaders = new WebSocketHttpHeaders();
 				webSocketHttpHeaders.add(WebSocketHttpHeaders.USER_AGENT, version);
-				this.listenableFuture = client.doHandshake(this, webSocketHttpHeaders, URI.create(UriUtils.decode(currentWsUrl, StandardCharsets.UTF_8)));
+				this.listenableFuture = client.doHandshake(this, webSocketHttpHeaders,
+						URI.create(currentWsUrl));
 			} else {
 				this.listenableFuture = client.doHandshake(this, UriUtils.decode(currentWsUrl, StandardCharsets.UTF_8));
 			}
@@ -261,6 +273,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 	@Override
 	public void afterConnectionEstablished(WebSocketSession session) {
+		handleWhenPingSucceed();
 	}
 
 	@Override
@@ -296,7 +309,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					result.setSender(event.getReceiver());
 
 					JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-					session.sendMessage(new TextMessage(JSONUtil.obj2Json(result)));
+					sendMessage(new TextMessage(JSONUtil.obj2Json(result)));
 				});
 			} catch (Exception e) {
 				String errorMsg = String.format("Handle websocket event error, event: %s, message: %s",
@@ -353,11 +366,15 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	@Override
 	public void handleTransportError(WebSocketSession session, Throwable exception) {
 		logger.error("Web socket handler occur handle transport error {}", exception.getMessage(), exception);
+		closeSession();
+		handleWhenPingFailed();
 	}
 
 	@Override
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) {
 		logger.info("Web socket closed, session: {}, status code: {}, reason: {}", currentWsUrl != null ? currentWsUrl : "", closeStatus.getCode(), closeStatus.getReason());
+		closeSession();
+		handleWhenPingFailed();
 	}
 
 	@Override
@@ -372,9 +389,15 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	 * @param textMessage
 	 * @throws IOException
 	 */
-	public void sendMessage(TextMessage textMessage) throws Exception {
+	public synchronized void sendMessage(TextMessage textMessage) throws RuntimeException {
 		int failTime = 0;
 		while (true) {
+			if (!isOpen()) {
+				if (++failTime > retryTime) {
+					throw new RuntimeException("Retried sending " + failTime + " times, but all failed, cancel retry.");
+				}
+				continue;
+			}
 			try {
 				synchronized (session) {
 					session.sendMessage(textMessage);
@@ -382,10 +405,14 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 				}
 			} catch (Throwable e) {
 				if (++failTime > retryTime) {
-					throw e;
+					throw new RuntimeException("Retried sending " + failTime + " times, but all failed, cancel retry.", e);
 				} else {
 					logger.warn("Send websocket message failed, fail time: {}, message: {}, err: {}, stack: {}", failTime, textMessage, e.getMessage(), Log4jUtil.getStackString(e));
-					Thread.sleep(100L);
+					try {
+						Thread.sleep(500L);
+					} catch (InterruptedException e1) {
+						logger.warn("Waiting to be interrupted", e1);
+					}
 					createClients();
 				}
 			}

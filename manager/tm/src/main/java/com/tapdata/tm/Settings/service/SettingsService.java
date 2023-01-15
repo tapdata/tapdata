@@ -27,6 +27,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.jsoup.Jsoup;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -82,6 +83,14 @@ public class SettingsService {
         }
 
         return value;
+    }
+
+    public boolean isCloud() {
+        Object buildProfile = getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
+        if (Objects.isNull(buildProfile)) {
+            buildProfile = "DAAS";
+        }
+        return buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
     }
 
     public Settings getByCategoryAndKey(CategoryEnum category, KeyEnum key) {
