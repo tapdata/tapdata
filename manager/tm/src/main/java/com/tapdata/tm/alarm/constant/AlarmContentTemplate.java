@@ -125,7 +125,6 @@ public class AlarmContentTemplate {
      * 【Warning】任务[MySQL-2-Oracle] 所在Agent[Agent01]已停止运行，当前已无可用Agent，任务已停止运行，请尽快处理！告警时间：2022-08-08 12:23:12
      */
     public static final String SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT = "任务[$taskName]所在Agent[{0}]已停止运行，当前已无可用Agent，将会影响任务正常运行，请尽快处理！告警时间：{1}";
-    public static final String SYSTEM_FLOW_EGINGE_RECOVER = "任务[$taskName]所在Agent[{0}]已恢复运行，告警时间：{1}";
 
     public static final String SYSTEM_FLOW_EGINGE_DOWN_CLOUD = "任务[$taskName]所在Agent[{0}]已停止运行，将会影响任务正常运行，请尽快处理！告警时间：{1}";
 

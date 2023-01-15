@@ -2,7 +2,6 @@ package io.tapdata.mongodb.util;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoCollection;
-import io.tapdata.constant.AppType;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.utils.cache.KVMap;
@@ -124,9 +123,7 @@ public class MongodbLookupUtil {
 		}
 
 		public static Map findDeleteCacheByOid(ConnectionString connectionString, String collectionName, Object id, KVMap<Object> globalStateMap) {
-                if(AppType.init().isCloud()){
-					return null;
-				}
+
 				String validate = findValidate(connectionString, collectionName, id, globalStateMap);
 				if (EmptyKit.isNotBlank(validate)) {
 						throw new IllegalArgumentException(validate);

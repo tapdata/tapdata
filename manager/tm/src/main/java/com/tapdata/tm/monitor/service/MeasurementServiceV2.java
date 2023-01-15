@@ -165,9 +165,9 @@ public class MeasurementServiceV2 {
             Number value = data.get(key);
             if (requestMap.containsKey(key)
                     && Objects.nonNull(requestMap.get(key))
-                    && requestMap.get(key).doubleValue() == 0
+                    && requestMap.get(key).longValue() == 0L
                     && Objects.nonNull(value)
-                    && value.doubleValue() > 0) {
+                    && value.longValue() > 0L) {
                 requestSample.getVs().put(key, value);
             } else if (!requestMap.containsKey(key) && data.containsKey(key)) {
                 requestSample.getVs().put(key, value);
@@ -862,11 +862,10 @@ public class MeasurementServiceV2 {
         vs.remove("inputQps");
         vs.remove("outputQps");
         vs.forEach((k, v) -> {
-            Long value = Objects.nonNull(v) ? v.longValue() : 0;
             if (StringUtils.startsWith(k, "input")) {
-                inputTotal.updateAndGet(v1 -> v1 + value);
+                inputTotal.updateAndGet(v1 -> v1 + v.longValue());
             } else if (StringUtils.startsWith(k, "output")) {
-                outputTotal.updateAndGet(v1 -> v1 + value);
+                outputTotal.updateAndGet(v1 -> v1 + v.longValue());
             }
         });
 
@@ -957,9 +956,8 @@ public class MeasurementServiceV2 {
             }
 
             String fullSyncStatus;
-            if (syncRate.compareTo(BigDecimal.ONE) >= 0) {
+            if (syncRate.compareTo(BigDecimal.ONE) == 0) {
                 fullSyncStatus = "DONE";
-                syncRate = BigDecimal.ONE;
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
                 fullSyncStatus = "NOT_START";
             } else {

@@ -41,7 +41,7 @@ public class CacheNode extends Node<Object> {
     }
 
     @Override
-    public Object mergeSchema(List inputSchemas, Object o, DAG.Options options) {
+    public Object mergeSchema(List inputSchemas, Object o) {
         return null;
     }
 

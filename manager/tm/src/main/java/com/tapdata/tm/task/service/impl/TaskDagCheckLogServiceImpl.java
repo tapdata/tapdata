@@ -5,12 +5,9 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
-import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
@@ -133,7 +130,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         modelQuery.with(Sort.by("_id"));
         List<TaskDagCheckLog> modelLogs = find(modelQuery);
         // check task nodes has js node
-        boolean hasJsNode = taskDto.getDag().getNodes().stream().anyMatch(n -> (n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode) && ! (n instanceof CustomProcessorNode));
+        boolean hasJsNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode);
         if (hasJsNode) {
             List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName());
             Optional.ofNullable(jsNodeLog).ifPresent(modelLogs::addAll);

@@ -2,13 +2,13 @@ package com.tapdata.tm.clusterOperation.service;
 
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.clusterOperation.constant.AgentStatusEnum;
 import com.tapdata.tm.clusterOperation.dto.ClusterOperationDto;
 import com.tapdata.tm.clusterOperation.entity.ClusterOperationEntity;
 import com.tapdata.tm.clusterOperation.repository.ClusterOperationRepository;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.MD5Util;
 import com.tapdata.tm.ws.endpoint.WebSocketClusterServer;
@@ -22,6 +22,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -69,8 +70,9 @@ public class ClusterOperationService extends BaseService<ClusterOperationDto, Cl
                         WebSocketClusterServer.sendMessage(dto.getUuid(), dataToSend);
                         //send 完之后,  根据发送消息返回的结果 要更新表
                         updateAfterSend(dto.getId().toString());
-                    } catch (Throwable e) {
-                        log.error("agent升级 异常. uuid:{}", dto.getUuid(), e);
+                    } catch (IOException e) {
+                        log.error("agent升级 异常. uuid:{}", dto.getUuid());
+                        log.error("agent升级 异常", e);
                     }
                 }
             } else {
@@ -133,22 +135,20 @@ public class ClusterOperationService extends BaseService<ClusterOperationDto, Cl
      */
     public void changeStatus(Map data) {
         log.info("in changeStatus  data:{}", JSON.toJSONString(data));
-        Object objectData = data.get("data");
-        Object receiveStatus = ((Map) objectData).get("status");
-        Object id = ((Map) objectData).get("_id");
+        String receiveStatus = (String) data.get("status");
+        String id = (String) data.get("_id");
         Integer status = ("true".equals(receiveStatus) ? 2 : 3);
 
-        Query query = Query.query(Criteria.where("id").is(id.toString()));
+        Query query = Query.query(Criteria.where("id").is(id));
         Update update = new Update();
         update.set("status", status);
         update(query, update);
-        Object server = ((Map) objectData).get("server");
 
-        String queryData = server + "Operation";
-        ObjectId objectId = new ObjectId(id.toString());
-        Query clusterStateQuery = Query.query(Criteria.where(queryData + "._id").is(objectId));
+
+        //  let serverOperation = msg.data.server + 'Operation';  是什么意思
+        Query clusterStateQuery = Query.query(Criteria.where("id").is(id));
         Update clusterUpdate = new Update();
-        clusterUpdate.set(queryData + ".status", status);
+        clusterUpdate.set("status", clusterUpdate);
         clusterStateService.update(clusterStateQuery, clusterUpdate);
     }
 

@@ -18,7 +18,12 @@ import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.roleMapping.dto.PrincipleType;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
-import com.tapdata.tm.user.dto.*;
+import com.tapdata.tm.user.dto.ChangePasswordRequest;
+import com.tapdata.tm.user.dto.CreateUserRequest;
+import com.tapdata.tm.user.dto.DeletePermissionRoleMappingDto;
+import com.tapdata.tm.user.dto.GenerateAccessTokenDto;
+import com.tapdata.tm.user.dto.LoginRequest;
+import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.param.ResetPasswordParam;
 import com.tapdata.tm.user.service.UserService;
@@ -443,17 +448,6 @@ public class UserController extends BaseController {
     @PostMapping("/change-password")
     public ResponseMessage<Long> changePassword(@RequestBody @Validated ChangePasswordRequest request) {
         return success(userService.changePassword(request, getLoginUser()));
-    }
-
-    @Operation(summary = "Bind phone on current login user")
-    @PatchMapping("/phone")
-    public ResponseMessage<UserDto> updatePhone(@RequestBody @Validated BindPhoneReq bindPhoneReq) {
-        return success(userService.updatePhone(getLoginUser(), bindPhoneReq));
-    }
-    @Operation(summary = "Bind email on current login user")
-    @PatchMapping("/email")
-    public ResponseMessage<UserDto> updatePhone(@RequestBody @Validated BindEmailReq bindEmailReq) {
-        return success(userService.updateEmail(getLoginUser(), bindEmailReq));
     }
 
 

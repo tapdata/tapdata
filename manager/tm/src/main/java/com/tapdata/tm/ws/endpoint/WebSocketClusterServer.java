@@ -11,20 +11,15 @@ import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.parser.Feature;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.log.dto.LogDto;
 import com.tapdata.tm.log.service.LogService;
-import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
-import com.tapdata.tm.messagequeue.service.MessageQueueService;
-import com.tapdata.tm.tcm.service.TcmService;
-import com.tapdata.tm.uploadlog.service.UploadLogService;
 import com.tapdata.tm.utils.MD5Util;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.worker.service.WorkerService;
-import com.tapdata.tm.ws.dto.WebSocketResult;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -52,7 +47,6 @@ import java.util.stream.Collectors;
 public class WebSocketClusterServer extends TextWebSocketHandler {
 
     public static final Map<String, AgentInfo> agentMap = new ConcurrentHashMap<>();
-    private static final Map<String, WebSocketSession> webSocketSessionCache = new ConcurrentHashMap<>();
 
     @Autowired
     ClusterOperationService clusterOperationService;
@@ -67,15 +61,6 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
     @Autowired
     LogService logService;
 
-    @Autowired
-    TcmService tcmService;
-
-    @Autowired
-    UploadLogService uploadLogService;
-
-    @Autowired
-    MessageQueueService messageQueueService;
-
 
     /**
      * 握手后建立成功
@@ -83,7 +68,6 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         log.info("WebSocketClusterServer  afterConnectionEstablished sessionId:{}, sessionUri :{}   ", session.getId(), session.getUri());
-        webSocketSessionCache.put(session.getId(), session);
     }
 
     /**
@@ -100,39 +84,11 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         log.error("WebSocket close about cluster,id: {},uri: {},closeStatus: {}", session.getId(), session.getUri(), status);
-        WebSocketSession wsSession = webSocketSessionCache.remove(session.getId());
-        if (wsSession != null) {
-            for (String uuid : agentMap.keySet() ) {
-                if (agentMap.get(uuid).session == wsSession) {
-                    agentMap.remove(uuid);
-                    break;
-                }
-            }
-        }
     }
 
     public static void sendMessage(String uuid, String message) throws IOException {
-        AgentInfo agentInfo = agentMap.get(uuid);
-        if (agentInfo == null) {
-            return;
-        }
-        WebSocketSession webSocketSession = agentInfo.getSession();
+        WebSocketSession webSocketSession = agentMap.get(uuid).getSession();
         webSocketSession.sendMessage(new TextMessage(message));
-    }
-
-    // todo 发送分开
-    public void sendDistributeClusterMessage(String uuid, String message) throws IOException {
-        AgentInfo agentInfo = agentMap.get(uuid);
-        if (agentInfo == null) {
-            MessageQueueDto queueDto = new MessageQueueDto();
-            queueDto.setReceiver(uuid);
-            queueDto.setData(message);
-            queueDto.setType("pipeCluster");
-            messageQueueService.save(queueDto);
-        } else {
-            WebSocketSession webSocketSession = agentInfo.getSession();
-            webSocketSession.sendMessage(new TextMessage(message));
-        }
     }
 
 
@@ -174,14 +130,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
                     String uuid = MapUtils.getAsStringByPath(map, "/data/systemInfo/uuid");
                     log.info("statusInfo put uuid  :{}",uuid);
                     if (StringUtils.isNotBlank(uuid)) {
-                        //根据uuid 报错session，以便可以发对uuid对应的session去
-                        //为什么要不断往后退ttl
-                        AgentInfo agentInfo = agentMap.get(uuid);
-                        if (agentInfo != null) {
-                            agentInfo.ttl = ttl;
-                        } else {
-                            agentMap.put(uuid, new AgentInfo(uuid, session, ttl));
-                        }
+                        agentMap.put(uuid, new AgentInfo(uuid, session, ttl));
                     }
                     clusterStateService.statusInfo(map);
                     break;
@@ -210,15 +159,6 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
                 case "updateWorkerPingTime":
                     updateWorkerPingTime(map);
                     break;
-                case "checkTapdataAgentVersion": // 获取tapdataAgent版本是否支持
-                    checkTapdataAgentVersion(map, session);
-                    break;
-                case "downloadUrl": //  获取engine的downloadUrl
-                    getLatestDownloadUrl(session);
-                    break;
-                case "uploadLog": // 上传日志处理心跳
-                    uploadLogService.handleUploadHeartBeat(map);
-                    break;
                 default:
                     session.sendMessage(new TextMessage("Type is not supported"));
                     break;
@@ -228,36 +168,9 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
             log.error("Handle message failed,message: {}", e.getMessage(), e);
             try {
                 session.sendMessage(new TextMessage("Handle message failed,message:" + e.getMessage()));
-            } catch (Exception ex) {
-                log.error("Websocket send message failed,message: {}", ex.getMessage(), ex);
+            } catch (Exception ignored) {
+                log.error("Websocket send message failed,message: {}", e.getMessage());
             }
-        }
-    }
-
-    private void getLatestDownloadUrl(WebSocketSession session) {
-        WebSocketResult webSocketResult = WebSocketResult.ok(tcmService.getDownloadUrl(), "downloadUrl");
-        try {
-            session.sendMessage(new TextMessage(JsonUtil.toJson(webSocketResult)));
-        } catch (Exception e) {
-            log.error("Websocket send message failed,message: {}", e.getMessage(), e);
-        }
-    }
-
-    private void checkTapdataAgentVersion(Map map, WebSocketSession session) {
-        Object data = map.get("data");
-        Object versionInfo = null;
-        if (data instanceof Map){
-            Object version = ((Map) data).get("version");
-            if (version != null){
-                versionInfo = tcmService.getVersionInfo(version.toString());
-            }
-        }
-        WebSocketResult webSocketResult = WebSocketResult.ok(versionInfo, "checkTapdataAgentVersion");
-
-        try {
-            session.sendMessage(new TextMessage(JsonUtil.toJson(webSocketResult)));
-        } catch (Exception e) {
-            log.error("Websocket send message failed,message: {}", e.getMessage(), e);
         }
     }
 

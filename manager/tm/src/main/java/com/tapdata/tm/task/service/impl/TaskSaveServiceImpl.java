@@ -1,8 +1,8 @@
 package com.tapdata.tm.task.service.impl;
 
 import com.tapdata.tm.Settings.service.AlarmSettingService;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
-import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -32,8 +32,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,6 +47,10 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
     @Override
     public boolean taskSaveCheckLog(TaskDto taskDto, UserDetail userDetail) {
+        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+            return false;
+        }
+
         taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
 
         boolean noPass = false;
@@ -55,6 +59,8 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             Optional<TaskDagCheckLog> any = taskDagCheckLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
             if (any.isPresent()) {
                 noPass = true;
+
+                //taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
             }
         }
 
@@ -68,31 +74,16 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         }
 
         DAG dag = taskDto.getDag();
-        if (Objects.isNull(dag) || org.apache.commons.collections4.CollectionUtils.isEmpty(dag.getNodes())) {
-            return;
-        }
 
         //supplier migrate tableSelectType=all tableNames and SyncObjects
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             DatabaseNode sourceNode = dag.getSourceNode().getFirst();
             List<String> tableNames = sourceNode.getTableNames();
-            if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
+            if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
                 String connectionId = sourceNode.getConnectionId();
                 List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
                 if (CollectionUtils.isNotEmpty(metaList)) {
-                    List<String> collect = metaList.stream()
-                            .map(MetadataInstancesDto::getOriginalName)
-                            .filter(originalName -> {
-                                if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
-                                    return false;
-                                } else {
-                                    return Pattern.matches(sourceNode.getTableExpression(), originalName);
-                                }
-                            })
-                            .collect(Collectors.toList());
-                    if (CollectionUtils.isEmpty(collect)) {
-                        throw new BizException("DAG.MigrateTaskNotContainsTable");
-                    }
+                    List<String> collect = metaList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
                     sourceNode.setTableNames(collect);
                 }
             }
@@ -136,7 +127,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                 if (node != null) {
                     if (node.isDataNode()) {
                         if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
-//                            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_CANNOT_CONNECT));
+                            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_CANNOT_CONNECT));
                             //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
                             //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
                             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));

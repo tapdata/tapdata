@@ -22,7 +22,6 @@ public class ResetCounterSampler implements Sampler {
 
     @Override
     public Number value() {
-        long value = counter.sumThenReset();
-        return value > 0 ? value : null;
+        return counter.sumThenReset();
     }
 }

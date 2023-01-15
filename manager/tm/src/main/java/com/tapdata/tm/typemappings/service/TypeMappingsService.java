@@ -1,8 +1,6 @@
 package com.tapdata.tm.typemappings.service;
 
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.base.dto.Filter;
-import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
@@ -44,15 +42,6 @@ public class TypeMappingsService extends BaseService<TypeMappingsDto, TypeMappin
 
     protected void beforeSave(TypeMappingsDto typeMappings, UserDetail user) {
 
-    }
-
-    @Override
-    public Page<TypeMappingsDto> find(Filter filter, UserDetail userDetail) {
-        List<TypeMappingsEntity> list = repository.findAll(filter);
-        long total = repository.count(filter.getWhere());
-
-        List<TypeMappingsDto> items = convertToDto(list, TypeMappingsDto.class);
-        return new Page<>(total, items);
     }
 
     public String findByDataType(String databaseType, UserDetail user) {
@@ -156,9 +145,11 @@ public class TypeMappingsService extends BaseService<TypeMappingsDto, TypeMappin
 
     /**
      * 清理换成
+     * @param databaseType
+     * @param direction
      */
-    @CacheEvict(cacheManager = "memoryCache", cacheNames = "TypeMapping")
-    public void clearTypeMappingCache(){}
+    @CacheEvict(cacheManager = "memoryCache", cacheNames = "TypeMapping", key = "#databaseType + '-' + #direction.name()")
+    public void clearTypeMappingCache(String databaseType, TypeMappingDirection direction){}
 
     public void deleteAll(Where where) {
         Criteria criteria = repository.whereToCriteria(where);

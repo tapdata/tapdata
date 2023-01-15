@@ -38,8 +38,7 @@ public class InspectResultController extends BaseController {
 
 
     /**
-     *  engine 通过这个接口 保存校验结果，，这时候会把inspect的内容整个传过来，保存到数据库中。
-     *  因为校验历史，需要看到每一次校验的内容，所以InspectReuslt 里面还得保存Inspect的具体数据，不能去掉
+     * 保存校验结果
      * @param inspectResult
      * @return
      */
@@ -69,11 +68,11 @@ public class InspectResultController extends BaseController {
 
 
     /**
-     * 查询校验结果列表
+     * Find all instances of the model matched by filter from the data source
      * @param filterJson
      * @return
      */
-    @Operation(summary = "查询校验结果列表")
+    @Operation(summary = "Find all instances of the model matched by filter from the data source")
     @GetMapping
     public ResponseMessage<Page<InspectResultDto>> find(
             @RequestParam(value = "filter", required = false) String filterJson,
@@ -127,7 +126,7 @@ public class InspectResultController extends BaseController {
      */
     @Operation(summary = "获取校验详情")
     @GetMapping("findById")
-    public ResponseMessage<InspectResultDto> findById(@RequestParam("filter") String filter) {
+    public ResponseMessage<InspectResultDto> findById(  @RequestParam("filter") String filter) {
         Filter f = parseFilter(filter);
         return success(inspectResultService.findById(f,getLoginUser()));
     }

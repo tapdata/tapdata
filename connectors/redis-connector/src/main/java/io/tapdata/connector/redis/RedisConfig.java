@@ -20,16 +20,15 @@ public class RedisConfig {
     private String database;
     private ArrayList<LinkedHashMap<String, Integer>> sentinelAddress;
 
-    private String valueType = "List";
+    private String valueType;
     private String keyExpression;
-    private String valueData = "Text";
-    private String valueJoinString = ",";
-    private String valueTransferredString = "";
-    private Boolean csvFormat = true;
+    private String valueData;
+    private String valueJoinString;
+    private String valueTransferredString;
     private long expireTime;
     private Boolean resetExpire;
     private String keyTableName;
-    private Boolean listHead = true;
+    private Boolean listHead;
     private Boolean oneKey;
 
     public RedisConfig load(Map<String, Object> map) {
@@ -146,14 +145,6 @@ public class RedisConfig {
 
     public void setValueTransferredString(String valueTransferredString) {
         this.valueTransferredString = valueTransferredString;
-    }
-
-    public Boolean getCsvFormat() {
-        return csvFormat;
-    }
-
-    public void setCsvFormat(Boolean csvFormat) {
-        this.csvFormat = csvFormat;
     }
 
     public String getKeyTableName() {

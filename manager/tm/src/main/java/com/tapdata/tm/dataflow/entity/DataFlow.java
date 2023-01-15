@@ -8,7 +8,6 @@ package com.tapdata.tm.dataflow.entity;
 
 import com.tapdata.tm.base.entity.SchedulableEntity;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
-import com.tapdata.tm.commons.dag.vo.CustomTypeMapping;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import java.util.List;
 import java.util.Map;
@@ -52,8 +51,6 @@ public class DataFlow extends SchedulableEntity {
 	private Long pingTime;
 
 	private Long nextSyncTime;
-
-	private Long nextScheduledTime;
 
 //	private String agentId;
 
@@ -108,12 +105,5 @@ public class DataFlow extends SchedulableEntity {
 	 * 模型推演结果
 	 */
 	private List<SchemaTransformerResult> metadataMappings;
-
-	private String startType;  // 任务启动方式, manual-手动运行， auto-自动运行
-
-	private String dataFlowRecordId; // 任务记录id
-	private List<CustomTypeMapping> customTypeMappings;
-
-	private Map<String, List<String>> deletedFields;
 
 }

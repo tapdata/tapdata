@@ -36,6 +36,6 @@ public class WriteCostAvgSampler implements Sampler {
         if(counterValue > 0) {
             return total / counterValue;
         }
-        return null;
+        return 0;
     }
 }

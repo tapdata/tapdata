@@ -18,10 +18,11 @@ import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
-import io.tapdata.exception.ExceptionUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.schema.SampleMockUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
@@ -105,7 +106,7 @@ public class TestRunAspectTask extends AspectTask {
     if (stopAspect.getError() != null) {
       //run task error
       paramMap.put("code", "error");
-      paramMap.put("message", ExceptionUtil.getMessage(stopAspect.getError()));
+      paramMap.put("message", stopAspect.getError().getMessage());
     } else {
       paramMap.put("code", "ok");
       paramMap.put("before", resultMap.get("before"));

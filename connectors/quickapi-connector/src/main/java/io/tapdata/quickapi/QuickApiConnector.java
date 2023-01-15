@@ -8,7 +8,6 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
-import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
@@ -79,14 +78,6 @@ public class QuickApiConnector extends ConnectorBase {
 					.supportTimestampToStreamOffset(this::timestampToStreamOffset);
 		}else{
 			TapLogger.error(TAG,"ConnectorFunctions must be not null or not be empty. ");
-		}
-	}
-
-	private void streamRead(TapConnectorContext context, List<String> strings, Object o, int i, StreamReadConsumer streamReadConsumer) {
-		TapLogger.info(TAG,"QuickAPIConnector does not support StreamRead at the moment. Please manually set the task to incremental only or wait 3 seconds for the task to enter the completion state.");
-		try {
-			this.wait(3000);
-		} catch (InterruptedException ignored) {
 		}
 	}
 

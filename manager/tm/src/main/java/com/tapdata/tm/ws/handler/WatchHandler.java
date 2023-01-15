@@ -18,7 +18,6 @@ import com.tapdata.tm.ws.cs.WatchListener;
 import com.tapdata.tm.ws.dto.CollectionWatchCache;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
-import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
 import java.util.ArrayList;
@@ -58,7 +57,7 @@ public class WatchHandler implements WebSocketHandler {
 		MessageInfo messageInfo = context.getMessageInfo();
 		if (messageInfo == null){
 			try {
-				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Message data cannot be null"));
+				WebSocketManager.sendMessage(context.getSender(), "Message data cannot be null");
 			} catch (Exception e) {
 				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
@@ -67,7 +66,7 @@ public class WatchHandler implements WebSocketHandler {
 		String collectionName = messageInfo.getCollection();
 		if (StringUtils.isEmpty(collectionName)){
 			try {
-				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("CollectionName is empty"));
+				WebSocketManager.sendMessage(context.getSender(), "CollectionName is empty");
 			} catch (Exception e) {
 				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
@@ -81,7 +80,7 @@ public class WatchHandler implements WebSocketHandler {
 		}
 		if (CollectionUtils.isEmpty(list)){
 			try {
-				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Where is empty"));
+				WebSocketManager.sendMessage(context.getSender(), "Where is empty");
 			} catch (Exception e) {
 				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
@@ -92,7 +91,7 @@ public class WatchHandler implements WebSocketHandler {
 		if (CollectionUtils.isEmpty(dataFlows) || dataFlows.size() != ids.size()){
 			List<String> idList = dataFlows.stream().map(dataFlow -> dataFlow.getId().toHexString()).collect(Collectors.toList());
 			String idStr = org.apache.commons.lang3.StringUtils.join(idList, ",");
-			WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Some dataFlow info was not found,Existing ids: " + idStr));
+			WebSocketManager.sendMessage(context.getSender(), "Some dataFlow info was not found,Existing ids: " + idStr);
 			return;
 		}
 

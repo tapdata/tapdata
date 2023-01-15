@@ -52,10 +52,5 @@
             <artifactId>s3fs-file</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>oss-file</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>
     </dependencies>
 </project>

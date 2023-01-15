@@ -8,7 +8,6 @@ public enum FileProtocolEnum {
     SMB("smb", "io.tapdata.storage.smb.SmbFileStorage"),
     S3FS("s3fs", "io.tapdata.storage.s3fs.S3fsFileStorage"),
     NFS("nfs", "io.tapdata.storage.nfs.NfsFileStorage"),
-    OSS("oss","io.tapdata.storage.oss.OssFileStorage"),
     UNSUPPORTED("unsupported", null);
 
     private final String name;

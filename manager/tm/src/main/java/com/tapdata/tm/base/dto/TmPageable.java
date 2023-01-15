@@ -24,18 +24,8 @@ public class TmPageable implements Serializable, Pageable {
     //排序条件
     private Sort sort = Sort.by("createTime").descending();
 
-    @Min(0)
-    private Integer offset;
-
     public TmPageable() {
 
-    }
-
-    public TmPageable(int offset, int size, Sort sort) {
-        this.size = size;
-        this.offset = offset;
-
-        this.sort = sort;
     }
 
     public void setSort(Sort sort) {
@@ -65,9 +55,6 @@ public class TmPageable implements Serializable, Pageable {
     // 第二页所需要增加的数量
     @Override
     public long getOffset() {
-        if (offset != null) {
-            return offset;
-        }
         return (page - 1) * size.longValue();
     }
 

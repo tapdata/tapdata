@@ -15,6 +15,7 @@ import java.util.List;
  * 提供返回给页面的vo类
  * 暂时没有用到
  */
+@Deprecated
 @Data
 public class InspectListVo extends BaseVo {
     /**  */
@@ -27,13 +28,24 @@ public class InspectListVo extends BaseVo {
     private String inspectMethod;
 
     /**  */
+    private PlatformInfo platformInfo;
+    /**  */
+    private Timing timing;
+    /**  */
+    private Limit limit;
+    /**  */
     private Boolean enabled=true;
     /**  */
-//    private List<Task> tasks;
+    private List<Task> tasks;
     /**  */
     private String dataFlowName;
     /**  */
     private String status;
+    /**  */
+    @JsonProperty("ping_time")
+    private Long pingTime;
+
+
     /**  */
     private Long lastStartTime;
     /**  */
@@ -48,12 +60,11 @@ public class InspectListVo extends BaseVo {
     private Integer differenceNumber=0;
 
     @JsonProperty("InspectResult")
-    private InspectResultListVo inspectResult;
+    private InspectResultDto inspectResult;
 
     /**
      * 标志是否是二次校验，如果是，值就是父校验的id,
      * 如果不是，就 空
      */
     private String byFirstCheckId;
-    private String version; // 校验任务编辑时生成版本号，用于表示结果属于哪个版本
 }

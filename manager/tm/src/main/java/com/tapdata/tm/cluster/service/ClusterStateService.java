@@ -34,7 +34,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -57,14 +56,8 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 @Setter(onMethod_ = {@Autowired})
 public class ClusterStateService extends BaseService<ClusterStateDto, ClusterStateEntity, ObjectId, ClusterStateRepository> {
 
-    @Autowired(required = false)
-    @Lazy
-    WorkerService workerService;
-
-    @Autowired
-    ClusterOperationService clusterOperationService;
-
-    @Autowired
+    private WorkerService workerService;
+    private ClusterOperationService clusterOperationService;
     private MessageService messageService;
     private SettingsService settingsService;
     private MongoTemplate mongoTemplate;
@@ -104,13 +97,13 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             update.set("updateTime", new Date());
             update.set("updateVersion", version);
 //            workerService.update(workQuery, update);
-            workerService.update(query,update, userDetail);
+            workerService.updateAll(query,update);
             retResult = "1";
         } else {
             List<String> downList = Arrays.asList("tapdata", "tapdata.exe", "tapdata-agent", "log4j2.yml");
             clusterStateDtoList.forEach(clusterStateDto -> {
                 addNewClusterOperation(clusterStateDto, param, downList);
-                updateWorker(processId, param.getVersion(), userDetail);
+                updateWorker(processId, param.getVersion());
             });
 
         }
@@ -245,7 +238,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         repository.getMongoOperations().insert(cluserOperationEntity);
     }
 
-    private void updateWorker(String processId, String version, UserDetail user) {
+    private void updateWorker(String processId, String version) {
         Query query = Query.query(Criteria.where("process_id").is(processId));
         Update update = new Update();
         update.set("updateVersion", version);
@@ -254,7 +247,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         update.set("updateStatus", "preparing");
         update.set("updateMsg", "preparing");
         update.set("updatePingTime", new Date().getTime());
-        workerService.update(query, update, user);
+        workerService.updateAll(query,update);
     }
 
     /**
@@ -287,7 +280,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         Update update = Update.fromDocument(doc);
         update.set("status", "running");
         update.set("uuid",uuid);
-        update.setOnInsert("insertTime", now);
+        update.set("insertTime", now);
         update.set("ttl", new Date(newTtl.longValue()));
         update.set("last_updated",new Date());
         log.info("insert ClusterState data:{} ", JSON.toJSONString(update));

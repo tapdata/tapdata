@@ -31,7 +31,6 @@ public class CounterSampler implements Sampler {
 
     @Override
     public Number value() {
-        long value = counter.longValue();
-        return value > 0 ? value : null;
+        return counter.longValue();
     }
 }

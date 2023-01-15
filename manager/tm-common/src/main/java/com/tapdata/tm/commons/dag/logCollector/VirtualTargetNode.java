@@ -28,7 +28,7 @@ public class VirtualTargetNode extends Node<Object> {
     }
 
     @Override
-    public Object mergeSchema(List<Object> inputSchemas, Object schemas, DAG.Options options) {
+    public Object mergeSchema(List<Object> inputSchemas, Object schemas) {
         return null;
     }
 

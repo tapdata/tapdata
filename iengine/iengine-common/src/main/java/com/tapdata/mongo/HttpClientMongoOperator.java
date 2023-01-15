@@ -786,15 +786,6 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 		}
 	}
 
-	@Override
-	public <T> T postOne(Map<String, Object> obj, String resource, Class<T> className) {
-		validateToken();
-		if (null == obj) {
-			obj = new HashMap<>();
-		}
-		return restTemplateOperator.postOne(obj, addToken(resource), className);
-	}
-
 	private void appendProperty(Document doc, String[] keys, Object value, int length, int count) {
 		if (count >= length - 1) {
 			doc.append(keys[count], value);

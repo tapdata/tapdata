@@ -76,18 +76,14 @@ public class FieldChecker {
     }
 
     public static String simpleStringValue(Object value){
-        return simpleStringValue(value,true);
-    }
-    public static String simpleStringValue(Object value,boolean hasBoundary){
         if (null == value) return NULL_VALUE;
-        String boundaryStr = boundary(hasBoundary);
-        return boundaryStr+String.valueOf(value)
+        return "'"+String.valueOf(value)
                 .replaceAll("'","\\\\'")
                 .replaceAll("\"\\{","\\{")
                 .replaceAll("\"\\[","\\[")
                 .replaceAll("}\"","}")
                 .replaceAll("]\"","]")
-                +boundaryStr;
+                +"'";
     }
 
     public static String simpleValue(Object value){
@@ -99,28 +95,20 @@ public class FieldChecker {
                 .replaceAll("]\"","]")
                 ;
     }
-
     public static String simpleDateValue(Object value,String format){
-        return simpleDateValue(value,format,true);
-    }
-    public static String simpleDateValue(Object value,String format, boolean hasBoundary){
         if (null == value) return NULL_VALUE;
-        String boundaryStr = boundary(hasBoundary);
         if (value instanceof DateTime){
             DateTime date = (DateTime) value;
             Date valDate = new Date();
             valDate.setTime(date.getSeconds()*1000);
-            return boundaryStr+DateUtil.format(valDate,format)+boundaryStr;
+            return "'"+DateUtil.format(valDate,format)+"'";
         }else if(value instanceof Date || value instanceof Long){
-            return boundaryStr + DateUtil.format(value instanceof Date ? (Date) value :new Date((Long)value ),format)+boundaryStr;
+            return "'"+DateUtil.format(value instanceof Date ? (Date) value :new Date((Long)value ),format)+"'";
         }else if (value instanceof String){
-            return boundaryStr+ value +boundaryStr;
+            return "'"+ value +"'";
         }else {
-            return boundaryStr + String.valueOf(value) + boundaryStr;
+            return "'"+String.valueOf(value) + "'";
         }
-    }
-    private static String boundary(boolean hasBoundary){
-        return hasBoundary?"'":"";
     }
     public static String simpleYearValue(Object value){
         try {

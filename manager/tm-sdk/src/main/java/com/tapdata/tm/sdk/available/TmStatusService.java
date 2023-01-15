@@ -23,25 +23,18 @@ public class TmStatusService {
 
   private final static List<Runnable> toAvailableHandler = new ArrayList<>();
 
-  public static boolean isEnable() {
-    return appType.isCloud();
-  }
-
-  public static boolean isNotEnable() {
-    return !isEnable();
-  }
   public static boolean isNotAvailable() {
     return !isAvailable();
   }
   public static boolean isAvailable() {
-    if (isNotEnable()) {
+    if (!appType.isCloud()) {
       return true;
     }
     return available.get();
   }
 
   public static void setNotAvailable() {
-    if (isNotEnable()) {
+    if (!appType.isCloud()) {
       return;
     }
     available.set(false);
@@ -54,7 +47,7 @@ public class TmStatusService {
    * to available, do something...
    */
   public static void setAvailable() {
-    if (isNotEnable()) {
+    if (!appType.isCloud()) {
       return;
     }
     available.set(true);
@@ -64,7 +57,7 @@ public class TmStatusService {
   }
 
   public static void addNewTask(String taskId) {
-    if (isNotEnable()) {
+    if (!appType.isCloud()) {
       return;
     }
     if (isAvailable()) {
@@ -75,7 +68,7 @@ public class TmStatusService {
   }
 
   public static void setAllowReport(String taskId) {
-    if (isNotEnable()) {
+    if (!appType.isCloud()) {
       return;
     }
     taskReportStatusMap.computeIfAbsent(taskId, k -> new AtomicBoolean()).set(true);
@@ -95,7 +88,7 @@ public class TmStatusService {
   }
 
   public static boolean isAllowReport(String taskId) {
-    if (isNotEnable()) {
+    if (!appType.isCloud()) {
       return true;
     }
     if (StringUtils.isEmpty(taskId)) {
@@ -106,14 +99,14 @@ public class TmStatusService {
   }
 
   public static void registeredTmAvailableHandler(Runnable runnable) {
-    if (isNotEnable()) {
+    if (!appType.isCloud()) {
       return;
     }
     toAvailableHandler.add(runnable);
   }
 
   public static void removeTask(String taskId) {
-    if (isNotEnable()) {
+    if (!appType.isCloud()) {
       return;
     }
     taskReportStatusMap.remove(taskId);

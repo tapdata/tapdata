@@ -17,7 +17,7 @@ spring:
     encoding: UTF-8
 
   mvc:
-    static-path-pattern: /static/**
+    static-path-pattern: /**
     format:
       date-time: yyyyMM-dd HH:mm:ss
   resources:
@@ -89,12 +89,6 @@ server:
     min-spare-threads: 100 #最小工作线程数量
     max-connections: 1000 #一瞬间最大支持的并发的连接数
     accept-count: 20 #等待队列长度
-  max-http-header-size: 2MB
-
-mail:
-  host: smtp.exmail.qq.com
-  user: ludanwen@tapdata.io
-  password: ENC(aU03+YWxQ+WbjOyzLyG0oKxdLUkSz3cf)
 
 jasypt:
   encryptor:
@@ -107,7 +101,7 @@ management:
         include: '*'
   metrics:
     tags:
-      application: 'TMApplication'
+      application: 'TCMApplication'
 
 
 

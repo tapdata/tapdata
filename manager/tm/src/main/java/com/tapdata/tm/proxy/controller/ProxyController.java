@@ -57,7 +57,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;

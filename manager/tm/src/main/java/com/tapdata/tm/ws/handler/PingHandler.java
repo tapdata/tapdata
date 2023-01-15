@@ -20,13 +20,10 @@ import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+
 import java.util.Map;
 import java.util.Random;
 
-/**
- * @author lg&lt;lirufei0808@gmail.com&gt;
- * create at 2022/4/16 下午1:14
- */
 @WebSocketMessageHandler(type = MessageType.PING)
 @Slf4j
 public class PingHandler implements WebSocketHandler {

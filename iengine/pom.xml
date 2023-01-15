@@ -123,7 +123,7 @@
 
         <protobuf-dynamic.version>1.0.1</protobuf-dynamic.version>
 
-        <tm-sdk.version>1.0.3-SNAPSHOT</tm-sdk.version>
+        <tm-sdk.version>1.0.2-SNAPSHOT</tm-sdk.version>
         <tm-common.version>0.0.3-SNAPSHOT</tm-common.version>
 
         <okhttp.version>4.9.1</okhttp.version>

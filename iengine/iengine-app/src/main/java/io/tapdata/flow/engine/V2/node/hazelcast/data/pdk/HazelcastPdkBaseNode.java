@@ -8,7 +8,6 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -58,15 +57,12 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	protected TapLogger.LogListener logListener;
 	private List<PDKMethodInvoker> pdkMethodInvokerList = new ArrayList<>();
 
-	protected Integer readBatchSize;
-
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 		}
-		this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(100);
 		logListener = new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {

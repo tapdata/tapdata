@@ -1,4 +1,3 @@
-/*
 package com.tapdata.tm.inspect.vo;
 
 import lombok.Data;
@@ -9,4 +8,3 @@ public class SourceVo {
     private String connectionName;
     private String table;
 }
-*/

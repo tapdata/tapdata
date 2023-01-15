@@ -122,7 +122,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             // monitor log save will after task stopTime 5s, so add 10s;
             Long end = param.getEnd();
             end += 10000L;
-            criteria.and("timestamp").gte(start - 5000L).lt(end);
+            criteria.and("timestamp").gte(start).lt(end);
         } else if ("testRun".equals(type)) {
             criteria.and("timestamp").gte(start);
         }

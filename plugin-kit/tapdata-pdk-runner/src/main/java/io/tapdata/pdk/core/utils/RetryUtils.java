@@ -6,7 +6,6 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
-import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
@@ -51,13 +50,10 @@ public class RetryUtils extends CommonUtils {
 
 	public static void autoRetry(Node node, PDKMethod method, PDKMethodInvoker invoker) {
 		CommonUtils.AnyError runnable = invoker.getR();
-		String message = invoker.getMessage();
-		String logTag = invoker.getLogTag();
-		boolean async = invoker.isAsync();
-		long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
-		if (retryPeriodSeconds <= 0) {
-			throw new IllegalArgumentException("PeriodSeconds can not be zero or less than zero");
-		}
+		final String message = invoker.getMessage();
+		final String logTag = invoker.getLogTag();
+		final long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
+		final boolean async = invoker.isAsync();
 		while (invoker.getRetryTimes() >= 0) {
 			try {
 				runnable.run();
@@ -104,7 +100,7 @@ public class RetryUtils extends CommonUtils {
 							}
 						}
 					}
-					callBeforeRetryMethodIfNeed(retryOptions, logTag, node);
+					callBeforeRetryMethodIfNeed(retryOptions, logTag);
 				} else {
 					if (errThrowable instanceof CoreException) {
 						throw (CoreException) errThrowable;
@@ -144,15 +140,11 @@ public class RetryUtils extends CommonUtils {
 		}
 	}
 
-	private static void callBeforeRetryMethodIfNeed(RetryOptions retryOptions, String logTag, Node node) {
+	private static void callBeforeRetryMethodIfNeed(RetryOptions retryOptions, String logTag) {
 		if (null == retryOptions) {
 			return;
 		}
 		if (null == retryOptions.getBeforeRetryMethod()) {
-			if(node instanceof ConnectorNode) {
-				CommonUtils.ignoreAnyError(() -> ((ConnectorNode) node).connectorStop(), RetryUtils.class.getSimpleName());
-				CommonUtils.ignoreAnyError(() -> ((ConnectorNode) node).connectorInit(), RetryUtils.class.getSimpleName());
-			}
 			return;
 		}
 		CommonUtils.ignoreAnyError(() -> retryOptions.getBeforeRetryMethod().run(), logTag);

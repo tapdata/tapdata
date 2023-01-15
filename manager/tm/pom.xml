@@ -54,42 +54,6 @@
 			</properties>
 		</profile>
 		<profile>
-			<id>test3</id>
-			<properties>
-				<profile.active>test3</profile.active>
-				<profile.dir>${resource.dir}/test3</profile.dir>
-				<env.GIT_COMMIT_VERSION>${maven.build.timestamp}</env.GIT_COMMIT_VERSION>
-				<env.PRODUCT>dfs</env.PRODUCT>
-			</properties>
-		</profile>
-		<profile>
-			<id>cloud-dev</id>
-			<properties>
-				<profile.active>cloud-dev</profile.active>
-				<profile.dir>${resource.dir}/cloud-dev</profile.dir>
-				<env.GIT_COMMIT_VERSION>${maven.build.timestamp}</env.GIT_COMMIT_VERSION>
-				<env.PRODUCT>dfs</env.PRODUCT>
-			</properties>
-		</profile>
-		<profile>
-			<id>cloud-uat</id>
-			<properties>
-				<profile.active>cloud-uat</profile.active>
-				<profile.dir>${resource.dir}/cloud-uat</profile.dir>
-				<env.GIT_COMMIT_VERSION>${maven.build.timestamp}</env.GIT_COMMIT_VERSION>
-				<env.PRODUCT>dfs</env.PRODUCT>
-			</properties>
-		</profile>
-		<profile>
-			<id>cloud-test</id>
-			<properties>
-				<profile.active>cloud-test</profile.active>
-				<profile.dir>${resource.dir}/cloud-test</profile.dir>
-				<env.GIT_COMMIT_VERSION>${maven.build.timestamp}</env.GIT_COMMIT_VERSION>
-				<env.PRODUCT>dfs</env.PRODUCT>
-			</properties>
-		</profile>
-		<profile>
 			<id>uat</id>
 			<properties>
 				<profile.active>uat</profile.active>
@@ -103,15 +67,6 @@
 			<properties>
 				<profile.active>sit</profile.active>
 				<profile.dir>${resource.dir}/sit</profile.dir>
-				<env.GIT_COMMIT_VERSION>${maven.build.timestamp}</env.GIT_COMMIT_VERSION>
-				<env.PRODUCT>dfs</env.PRODUCT>
-			</properties>
-		</profile>
-		<profile>
-			<id>perf</id>
-			<properties>
-				<profile.active>perf</profile.active>
-				<profile.dir>${resource.dir}/perf</profile.dir>
 				<env.GIT_COMMIT_VERSION>${maven.build.timestamp}</env.GIT_COMMIT_VERSION>
 				<env.PRODUCT>dfs</env.PRODUCT>
 			</properties>
@@ -176,10 +131,6 @@
 			<artifactId>spring-boot-starter-data-mongodb</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.springframework.data</groupId>
-			<artifactId>spring-data-elasticsearch</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
@@ -203,18 +154,6 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-cache</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-actuator</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>io.micrometer</groupId>
-			<artifactId>micrometer-core</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>io.micrometer</groupId>
-			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
 
 		<dependency>
@@ -288,10 +227,10 @@
 			<scope>test</scope>
 		</dependency>
 
-		<!--<dependency>
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
-		</dependency>-->
+		</dependency>
 
 
 		<dependency>
@@ -463,10 +402,6 @@
 					<exclude>test/*</exclude>
 					<exclude>sit/*</exclude>
 					<exclude>idaas/*</exclude>
-					<exclude>test3/*</exclude>
-					<exclude>cloud-dev/*</exclude>
-					<exclude>cloud-uat/*</exclude>
-					<exclude>cloud-test/*</exclude>
 					<exclude>*.yaml</exclude>
 				</excludes>
 			</resource>

@@ -1,6 +1,5 @@
 package com.tapdata.tm.commons.dag.process;
 
-import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
@@ -39,14 +38,14 @@ public class AggregationProcessorNode extends ProcessorNode {
     }
 
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
         if (CollectionUtils.isEmpty(inputSchemas)) {
-            return super.mergeSchema(inputSchemas, schema, options);
+            return super.mergeSchema(inputSchemas, schema);
         }
 
         Schema inputSchema = inputSchemas.get(0);
         if (inputSchema == null || CollectionUtils.isEmpty(inputSchema.getFields())) {
-            return super.mergeSchema(inputSchemas, schema, options);
+            return super.mergeSchema(inputSchemas, schema);
         }
         Set<Field> fields = new HashSet<>();
         List<Field> inputFields = inputSchema.getFields();
@@ -108,12 +107,12 @@ public class AggregationProcessorNode extends ProcessorNode {
     //@Override
     public Schema mergeSchema1(List<Schema> inputSchemas, Schema schema) {
         if (CollectionUtils.isEmpty(inputSchemas)) {
-            return super.mergeSchema(inputSchemas, schema, null);
+            return super.mergeSchema(inputSchemas, schema);
         }
 
         Schema inputSchema = inputSchemas.get(0);
         if (inputSchema == null || CollectionUtils.isEmpty(inputSchema.getFields())) {
-            return super.mergeSchema(inputSchemas, schema, null);
+            return super.mergeSchema(inputSchemas, schema);
         }
         Set<Field> fields = new HashSet<>();
         List<Field> inputFields = inputSchema.getFields();

@@ -1,7 +1,5 @@
 package com.tapdata.tm.base.entity;
 
-import com.tapdata.manager.common.annotation.SetOnInsert;
-import com.tapdata.tm.base.validation.constraints.In;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,11 +24,9 @@ public class BaseEntity extends Entity implements Serializable {
 	/**
 	 * 租户ID
 	 */
-	@SetOnInsert
 	@Indexed
 	private String customId;
 
-	@SetOnInsert
 	@Indexed
 	@Field("createTime")
 	private Date createAt;
@@ -42,13 +38,11 @@ public class BaseEntity extends Entity implements Serializable {
 	/**
 	 * 对应操作该条记录的当前用户的id
 	 */
-	@SetOnInsert
 	@Indexed
 	@Field("user_id")
 	private String userId;
 	@Indexed
 	private String lastUpdBy;
-	@SetOnInsert
 	@Indexed
 	private String createUser;
 }

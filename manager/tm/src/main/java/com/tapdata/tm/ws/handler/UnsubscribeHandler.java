@@ -9,7 +9,6 @@ package com.tapdata.tm.ws.handler;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
 import com.tapdata.tm.ws.dto.WebSocketContext;
-import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
 import java.util.Arrays;
@@ -25,7 +24,7 @@ public class UnsubscribeHandler implements WebSocketHandler {
 		String messageType = context.getMessageInfo().getMessageType();
 		if (StringUtils.isBlank(messageType)){
 			try {
-				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("MessageType is blank"));
+				WebSocketManager.sendMessage(context.getSender(), "MessageType is blank");
 			} catch (Exception e) {
 				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
@@ -54,7 +53,7 @@ public class UnsubscribeHandler implements WebSocketHandler {
 
 		});
 		try {
-			WebSocketManager.sendMessage(context.getSender(), WebSocketResult.ok(String.format("MessageType [%s] unsubscribed successfully", messageType)));
+			WebSocketManager.sendMessage(context.getSender(), String.format("MessageType [%s] unsubscribed successfully", messageType));
 			log.info("MessageType {} unsubscribed successfully,sessionId: {}", messageType, context.getSessionId());
 		} catch (Exception e) {
 			log.error("WebSocket send message failed, message: {}", e.getMessage());

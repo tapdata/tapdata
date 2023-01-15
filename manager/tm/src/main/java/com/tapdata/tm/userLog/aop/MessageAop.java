@@ -30,6 +30,7 @@ import java.util.List;
 @Aspect
 @Component
 @Slf4j
+@Deprecated
 public class MessageAop {
 
     @Autowired
@@ -61,26 +62,23 @@ public class MessageAop {
     }
 
 
-    @Around(value = "readPointcut()")
+   /* @Around(value = "readPointcut()")
     public Object afterReadReturning(ProceedingJoinPoint joinPoint) throws Throwable {
         Object ret = null;
         Object[] args = joinPoint.getArgs();
 
-        if (args != null && args.length == 2) {
-            List<String> ids = (List<String>) args[0];
-            UserDetail userDetail = (UserDetail) args[1];
+        List<String> ids = (List<String>) args[0];
+        UserDetail userDetail = (UserDetail) args[1];
 
-            ret = joinPoint.proceed(args);
-            if (CollectionUtils.isNotEmpty(ids)) {
-                ids.forEach(id -> {
-                    userLogService.addUserLog(Modular.MESSAGE, Operation.READ, userDetail, id, "已读通知");
-                });
-            }
-        } else {
-            log.error("Ignore record read message operation.");
+        ret = joinPoint.proceed(args);
+        if (CollectionUtils.isNotEmpty(ids)) {
+            ids.forEach(id -> {
+                userLogService.addUserLog(Modular.MESSAGE, Operation.READ, userDetail, id, "已读通知");
+            });
         }
         return ret;
     }
+*/
     /**
      * 拦截已读全部通知
      *
@@ -88,7 +86,7 @@ public class MessageAop {
      * @return
      * @throws Throwable
      */
-    @Around(value = "readAllPointcut()")
+   /* @Around(value = "readAllPointcut()")
     public Object afterReadAll(ProceedingJoinPoint joinPoint) throws Throwable {
         Object ret = null;
         Object[] args = joinPoint.getArgs();
@@ -98,7 +96,7 @@ public class MessageAop {
         ret = joinPoint.proceed(args);
         userLogService.addUserLog(Modular.MESSAGE, Operation.READ_ALL, userDetail.getUserId(), null, "全部通知");
         return ret;
-    }
+    }*/
 
 
     /**

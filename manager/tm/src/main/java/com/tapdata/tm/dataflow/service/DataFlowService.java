@@ -13,23 +13,13 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.behavior.BehaviorCode;
-import com.tapdata.tm.behavior.service.BehaviorService;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataService;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.vo.TableOperation;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.Schema;
-import com.tapdata.tm.commons.websocket.AllowRemoteCall;
-import com.tapdata.tm.commons.websocket.MessageInfoBuilder;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.util.DAGUtils;
-import com.tapdata.tm.dataflow.StartType;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.dto.DataFlowResetAllReqDto;
 import com.tapdata.tm.dataflow.dto.DataFlowResetAllResDto;
@@ -37,7 +27,6 @@ import com.tapdata.tm.dataflow.dto.Stage;
 import com.tapdata.tm.dataflow.entity.DataFlow;
 import com.tapdata.tm.dataflow.repository.DataFlowRepository;
 import com.tapdata.tm.dataflowinsight.service.DataFlowInsightService;
-import com.tapdata.tm.dataflowrecord.service.DataFlowRecordService;
 import com.tapdata.tm.dataflowsdebug.service.DataFlowsDebugService;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.inspect.entity.InspectEntity;
@@ -46,8 +35,6 @@ import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.job.service.JobService;
 import com.tapdata.tm.jobddlhistories.service.JobDDLHistoriesService;
-import com.tapdata.tm.log.service.LogService;
-import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.statemachine.StateMachine;
@@ -55,25 +42,11 @@ import com.tapdata.tm.statemachine.constant.StateMachineConstant;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.enums.DataFlowState;
 import com.tapdata.tm.statemachine.model.DataFlowStateTrigger;
-import com.tapdata.tm.typemappings.service.DataTypeSupportService;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
-
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -82,8 +55,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.data.util.CloseableIterator;
-import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -107,8 +78,7 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 
 	private final JobService jobService;
 
-	@Autowired
-	private DataFlowsDebugService dataFlowsDebugService;
+	private final DataFlowsDebugService dataFlowsDebugService;
 
 	@Autowired
 	private DataFlowInsightService dataFlowInsightService;
@@ -132,27 +102,10 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 	@Autowired
 	private DAGDataService dagDataService;
 
-	@Autowired
-	private DataFlowRecordService dataFlowRecordService;
-
-	@Autowired
-	private DataTypeSupportService dataTypeSupportService;
-
-	@Autowired
-	private MessageQueueService messageQueueService;
-
-	@Autowired
-	private BehaviorService behaviorService;
-
-	@Autowired
-	private LogService logService;
-
 	private static ThreadPoolExecutor completableFutureThreadPool;
 
 	@Value("${tm.transform.batch.num:20}")
 	private int transformBatchNum;
-
-	private static final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
 	static {
 		int poolSize = Runtime.getRuntime().availableProcessors() * 2;
@@ -162,11 +115,13 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 
 	public DataFlowService(DataFlowRepository repository,
 	                       UserLogService userLogService, JobService jobService,
+	                       DataFlowsDebugService dataFlowsDebugService,
 	                       JobDDLHistoriesService jobDDLHistoriesService,
 	                       InspectDetailsService inspectDetailsService) {
 		super(repository, DataFlowDto.class, DataFlow.class);
 		this.userLogService = userLogService;
 		this.jobService = jobService;
+		this.dataFlowsDebugService = dataFlowsDebugService;
 		this.jobDDLHistoriesService = jobDDLHistoriesService;
 		this.inspectDetailsService = inspectDetailsService;
 	}
@@ -208,13 +163,10 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 		Page<DataFlowDto> dataFlowDtoPage = super.find(filter, userDetail);
 		List<DataFlowDto> items = dataFlowDtoPage.getItems();
 		if (CollectionUtils.isNotEmpty(items)){
-			List<String> statusList = Arrays.asList("running", "scheduled", "stopping", "force stopping");
-			Set<String> processIds = items.stream().filter(item -> item != null
-					&& statusList.contains(item.getStatus()))
-					.map(DataFlowDto::getAgentId).collect(Collectors.toSet());
+			Set<String> processIds = items.stream().filter(item -> item != null && "running".equals(item.getStatus())).map(DataFlowDto::getAgentId).collect(Collectors.toSet());
 			List<Worker> workers = workerService.findAll(Query.query(Criteria.where("process_id").in(processIds)), userDetail);
 			items.stream()
-					.filter(dataFlowDto -> dataFlowDto != null && statusList.contains(dataFlowDto.getStatus()))
+					.filter(dataFlowDto -> dataFlowDto != null && "running".equals(dataFlowDto.getStatus()))
 					.forEach(dataFlowDto -> workers.stream()
 							.filter(worker -> worker != null && dataFlowDto.getAgentId().equals(worker.getProcessId()))
 							.findFirst().ifPresent(worker -> dataFlowDto.setTcm(worker.getTcmInfo())));
@@ -229,9 +181,6 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 		}
 		dto.setId(dataFlowDto.getId());
 		save(dto, userDetail);
-
-		behaviorService.trace(dto, userDetail, BehaviorCode.editDataFlow);
-
 		return 0;
 	}
 
@@ -257,14 +206,6 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 		String status = MapUtils.getAsString(dto, "status");
 		if (StateMachineConstant.DATAFLOW_STATUS_FORCE_STOPPING.equals(status)){
 			updateById(toObjectId(id), Update.update("status", status).set("forceStoppingTime", new Date()), userDetail);
-
-			messageQueueService.sendMessage(dataFlowDto.getAgentId(),
-					MessageInfoBuilder.newMessage()
-							.call("dataFlowScheduler", "forceStoppingDataFlow")
-							.body(dataFlowDto.getId().toHexString()).build());
-
-			behaviorService.trace(dataFlowDto, userDetail, BehaviorCode.forceStopDataFlow);
-
 			return dto;
 		}
 		DataFlowStateTrigger trigger = new DataFlowStateTrigger();
@@ -276,16 +217,12 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 		switch (status){
 			case "scheduled":
 				trigger.setEvent(DataFlowEvent.START);
-				dataFlowDto.setStartType(StartType.manual.name());
-				behaviorService.trace(dataFlowDto, userDetail, BehaviorCode.startDataFlow);
 				break;
 			case "stopping":
 				trigger.setEvent(DataFlowEvent.STOP);
-				behaviorService.trace(dataFlowDto, userDetail, BehaviorCode.stopDataFlow);
 				break;
 			case "paused":
 				trigger.setEvent(DataFlowEvent.STOPPED);
-				behaviorService.trace(dataFlowDto, userDetail, BehaviorCode.pausedDataFlow);
 				break;
 			default:
 				throw new BizException("Not.Supported");
@@ -312,65 +249,11 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 				throw new BizException("Name.Already.Exists");
 			}
 		}
-		setNextScheduleTime(dto);
-
-		boolean isNew = dto.getId() == null;
 
 		DataFlowDto dataFlowDto = super.save(dto, userDetail);
 		List<SchemaTransformerResult> mapping = transformSchema(dataFlowDto, userDetail);
 		dataFlowDto.setMetadataMappings(mapping);
-
-		if (isNew) {
-			behaviorService.trace(dataFlowDto, userDetail, BehaviorCode.createDataFlow);
-
-			logService.afterCreatedDataFlow(dataFlowDto.getId().toHexString());
-		}
-
 		return dataFlowDto;
-	}
-
-	@Override
-	public boolean deleteById(ObjectId objectId, UserDetail userDetail) {
-		boolean result = super.deleteById(objectId, userDetail);
-
-		if (result) {
-			logService.afterDeletedDataFlow(objectId.toHexString());
-		}
-		return result;
-	}
-
-	/**
-	 * 设置定时调度任务时间
-	 **/
-	public void setNextScheduleTime(DataFlowDto dto){
-		Map<String, Object> setting = dto.getSetting();
-		Boolean isSchedule = MapUtils.getAsBoolean(setting, "isSchedule");
-		if (isSchedule != null && isSchedule){
-			if ("initial_sync".equals(dto.getSetting().get("sync_type"))){
-				String cronExpression = MapUtils.getAsString(setting, "cronExpression");
-				if (StringUtils.isNotBlank(cronExpression)){
-					if (!CronExpression.isValidExpression(cronExpression)){
-						throw new BizException("IllegalArgument", "cronExpression");
-					}
-					LocalDateTime next = CronExpression.parse(cronExpression).next(LocalDateTime.now());
-					if (next != null){
-						long epochMilli = next.toInstant(ZoneOffset.of("+8")).toEpochMilli();
-						dto.setNextScheduledTime(epochMilli);
-					}
-				}
-			}else if ("cdc".equals(dto.getSetting().get("sync_type"))){
-				String scheduleTime = MapUtils.getAsString(setting, "scheduleTime");
-				if (StringUtils.isNotBlank(scheduleTime)){
-					LocalDateTime time = LocalDateTime.parse(scheduleTime, dtf);
-					long epochMilli = time.toInstant(ZoneOffset.of("+8")).toEpochMilli();
-					dto.setNextScheduledTime(epochMilli);
-				}
-			}else {
-				dto.setNextScheduledTime(null);
-			}
-		}else {
-			dto.setNextScheduledTime(null);
-		}
 	}
 
 	public UpdateResult updateOne(Query query, Map<String, Object> map){
@@ -470,22 +353,21 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 					.set("executeMode", "normal")
 					.set("cdcLastTimes", null)
 					.set("milestones", null)
-					.set("finishTime", null)
 					.set("edgeMilestones", null);
-			update(Query.query(Criteria.where("_id").in(removeIds)), update);
+			update(Query.query(Criteria.where("_id").in(removeIds)), update, userDetail);
 		}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
-			jobService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)));
+			jobService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)), userDetail);
 		}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
-			dataFlowsDebugService.deleteAll(Query.query(Criteria.where("__tapd8.dataFlowId").in(removeIds)));
+			dataFlowsDebugService.deleteAll(Query.query(Criteria.where("__tapd8.dataFlowId").in(removeIds)), userDetail);
 		}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
-			dataFlowInsightService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)));
+			dataFlowInsightService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)), userDetail);
 		}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
 			metadataInstancesService.deleteAll(Query.query(new Criteria().orOperator(
 					Criteria.where("source._id").in(removeIds),
 					Criteria.where("source.dataFlowId").in(removeIds)
-			)));
+			)), userDetail);
 		}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
-			jobDDLHistoriesService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)));
+			jobDDLHistoriesService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)), userDetail);
 		}, completableFutureThreadPool)).join();
 		removeIds.forEach(dataFlowResetAllResDto::addSuccess);
 		return dataFlowResetAllResDto;
@@ -532,22 +414,20 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 		}
 
 		CompletableFuture.allOf(CompletableFuture.runAsync(() -> {
-			deleteAll(Query.query(Criteria.where("_id").in(removeIds)));
+			deleteAll(Query.query(Criteria.where("_id").in(removeIds)), userDetail);
 		}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
-			jobService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)));
+			jobService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)), userDetail);
 		}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
-			dataFlowsDebugService.deleteAll(Query.query(Criteria.where("__tapd8.dataFlowId").in(removeIds)));
+			dataFlowsDebugService.deleteAll(Query.query(Criteria.where("__tapd8.dataFlowId").in(removeIds)), userDetail);
 		}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
-			dataFlowInsightService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)));
-		}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
-			dataFlowRecordService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)));
+			dataFlowInsightService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)), userDetail);
 		}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
 			metadataInstancesService.deleteAll(Query.query(new Criteria().orOperator(
 					Criteria.where("source._id").in(removeIds),
 					Criteria.where("source.dataFlowId").in(removeIds)
-			)));
+			)), userDetail);
 		}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
-			jobDDLHistoriesService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)));
+			jobDDLHistoriesService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)), userDetail);
 		}, completableFutureThreadPool)).join();
 
 		List<InspectEntity> inspectList = inspectService.findAll(Query.query(Criteria.where("flowId").in(removeIds)), userDetail);
@@ -557,18 +437,14 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 				inspectIds.add(inspectEntity.getId().toHexString());
 			}
 			CompletableFuture.allOf(CompletableFuture.runAsync(() -> {
-				inspectService.deleteAll(Query.query(Criteria.where("flowId").in(removeIds)));
+				inspectService.deleteAll(Query.query(Criteria.where("flowId").in(removeIds)), userDetail);
 			}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
-				inspectResultService.deleteAll(Query.query(Criteria.where("inspect_id").in(inspectIds)));
+				inspectResultService.deleteAll(Query.query(Criteria.where("inspect_id").in(inspectIds)), userDetail);
 			}, completableFutureThreadPool), CompletableFuture.runAsync(() -> {
-				inspectDetailsService.deleteAll(Query.query(Criteria.where("inspect_id").in(inspectIds)));
+				inspectDetailsService.deleteAll(Query.query(Criteria.where("inspect_id").in(inspectIds)), userDetail);
 			}, completableFutureThreadPool)).join();
 		}
 		removeIds.forEach(dataFlowResetAllResDto::addSuccess);
-
-		removeIds.forEach(id -> {
-			behaviorService.trace(id, userDetail, BehaviorCode.deleteDataFlow);
-		});
 
 		return dataFlowResetAllResDto;
 	}
@@ -595,7 +471,7 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 
 		Map<String, List<SchemaTransformerResult>> results = new HashMap<>();
 
-		dag.addNodeEventListener(new Node.EventListener<List<com.tapdata.tm.commons.schema.Schema>>() {
+		dag.addNodeEventListener(new Node.EventListener<List<Schema>>() {
 			@Override
 			public void onTransfer(List<List<Schema>> inputSchemaList, List<Schema> schema, List<Schema> outputSchema, String nodeId) {
 				List<SchemaTransformerResult> schemaTransformerResults = results.get(nodeId);
@@ -614,57 +490,10 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 						schemaTransformerResult.setSinkTableId(metadataInstancesEntity.getId().toHexString());
 					}
 				}
-
-				// update delete field count
-				if (results.containsKey(nodeId)) {
-					schemaTransformerResults= results.get(nodeId);
-					Function<Schema, Map<String, com.tapdata.tm.commons.schema.Field>> fieldCollector =
-							(Schema t) -> t.getFields().stream().collect(Collectors.toMap(
-							f -> t.getOriginalName() + f.getFieldName(), f -> f, (f1, f2) -> f1
-					));
-					Map<String, Map<String, com.tapdata.tm.commons.schema.Field>> fieldMap = outputSchema.parallelStream()
-							.collect(Collectors.toMap(
-									Schema::getOriginalName,
-									fieldCollector,
-									(t1, t2) -> t1));
-
-					Map<String, List<String>> invalidFieldMap = outputSchema.parallelStream()
-							.collect(Collectors.toMap(Schema::getOriginalName, Schema::getInvalidFields, (t1, t2) -> t1));
-
-					schemaTransformerResults.forEach( schemaTransformerResult -> {
-						if (fieldMap.containsKey(schemaTransformerResult.getSinkObjectName())) {
-							Map<String, com.tapdata.tm.commons.schema.Field> fieldMaps = fieldMap.get(schemaTransformerResult.getSinkObjectName());
-							List<String> invalidFields = invalidFieldMap.get(schemaTransformerResult.getSinkObjectName());
-							long deleteCount = fieldMaps.values().stream().filter(com.tapdata.tm.commons.schema.Field::isDeleted).count();
-							deleteCount = deleteCount - schemaTransformerResult.getSourceDeletedFieldCount();
-							int sinkInvalidFieldCount = invalidFields != null ? invalidFields.size() : 0;
-
-//							schemaTransformerResult.setSinkInvalidFieldCount(sinkInvalidFieldCount);
-							schemaTransformerResult.setInvalid( sinkInvalidFieldCount > 0 || schemaTransformerResult.isInvalid());
-							schemaTransformerResult.setUserDeletedNum(deleteCount < 0 ? 0 : Long.valueOf(deleteCount).intValue());
-						}
-					});
-				}
 			}
 
 			@Override
-			public void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults) {
-				if (DatabaseNode.SELF_TYPE.equals(node.getType())) {
-					DatabaseNode databaseNode = (DatabaseNode) node;
-					List<TableOperation> tableOperation = databaseNode.getTableOperations();
-					if (("vika".equals(databaseNode.getDatabaseType()) || "qingflow".equals(databaseNode.getDatabaseType())) && tableOperation != null) {
-						schemaTransformerResults.forEach(str -> {
-							Optional<TableOperation> optional = tableOperation.stream()
-									.filter(top -> "rename".equals(top.getType()) && top.getTableName().equals(str.getSinkObjectName()))
-									.findFirst();
-							if (!optional.isPresent()) {
-								str.setInvalid(true);
-								str.setSinkObjectName(null);
-								str.setSinkQulifiedName(null);
-							}
-						});
-					}
-				}
+			public void schemaTransformResult(String nodeId, List<SchemaTransformerResult> schemaTransformerResults) {
 				List<SchemaTransformerResult> results1 = results.get(nodeId);
 				if (CollectionUtils.isNotEmpty(results1)) {
 					results1.addAll(schemaTransformerResults);
@@ -679,8 +508,7 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 			}
 		});
 
-		DAG.Options options = new DAG.Options(
-				dataFlowDto.getRollback(), dataFlowDto.getRollbackTable(), dataFlowDto.getCustomTypeMappings());
+		DAG.Options options = new DAG.Options(dataFlowDto.getRollback(), dataFlowDto.getRollbackTable());
 		options.setBatchNum(transformBatchNum);
 		if (StringUtils.isBlank(options.getUuid())) {
 			options.setUuid(UUIDUtil.getUUID());
@@ -689,51 +517,10 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 
 		List<SchemaTransformerResult> result = results.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
 
-		List<Node> sourceNodes = dag.getSourceNodes();
-		List<String> nodeIds = sourceNodes.stream().map(Node::getId).collect(Collectors.toList());
-		List<String> sourceQualifiedNames = result.stream().filter(s -> nodeIds.contains(s.getSourceNodeId()))
-				.map(SchemaTransformerResult::getSourceQualifiedName).collect(Collectors.toList());
-		Map<String, SchemaTransformerResult> map = result.stream()
-				.collect(Collectors.toMap(SchemaTransformerResult::getSourceQualifiedName, s -> s, (s1, s2) -> s1));
-		Query query = Query.query(Criteria.where("qualified_name").in(sourceQualifiedNames));
-		query.fields().include("fields", "id", "qualified_name", "original_name");
-
-		Map<String, List<String>> deletedFields = metadataInstancesService.findAll(query).stream()
-				.peek(m -> {
-					SchemaTransformerResult s = map.get(m.getQualifiedName());
-					if (s == null)
-						return;
-					List<Field> unsupportedFields = m.getFields().stream().filter(f ->
-							!dataTypeSupportService.supportDataType(s.getSourceDbType(), s.getSinkDbType(), f.getDataType()))
-							//.map(Field::getFieldName)
-							.collect(Collectors.toList());
-					m.setFields(unsupportedFields);
-				})
-				.filter(m -> m.getFields() != null && m.getFields().size() > 0)
-				.collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, m ->
-								m.getFields().stream().map(Field::getFieldName).collect(Collectors.toList()),
-						(m1, m2) -> m1));
-
 		if (dataFlowDto.getId() != null) {
-			UpdateResult a = repository.update(Query.query(Criteria.where("_id").is(dataFlowDto.getId())),
-					Update.update("metadataMappings", result).set("deletedFields", deletedFields), userDetail);
+			UpdateResult a = repository.update(Query.query(Criteria.where("_id").is(dataFlowDto.getId())), Update.update("metadataMappings", result), userDetail);
 		}
 
 		return result;
-	}
-
-	/**
-	 * Flow engine ping data flow
-	 * @param ids data flow id，multiple separated by commas
-	 * @return
-	 */
-	@AllowRemoteCall
-	public int pingRunningDataFlow(String ids) {
-		return 0;
-	}
-
-	public CloseableIterator<DataFlow> stream(Query query) {
-		query.cursorBatchSize(1000);
-		return repository.getMongoOperations().stream(query, DataFlow.class);
 	}
 }

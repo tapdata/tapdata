@@ -110,23 +110,10 @@ public abstract class AbstractRedisRecordWriter {
     protected String getTextValue(Map<String, Object> value) {
         return fieldList.stream().map(v -> {
             String str = String.valueOf(value.get(v));
-            if (redisConfig.getCsvFormat()) {
-                return csvFormat(str, redisConfig.getValueJoinString());
-            } else {
-                return str;
+            if (str.contains(redisConfig.getValueJoinString())) {
+                str = redisConfig.getValueTransferredString() + str + redisConfig.getValueTransferredString();
             }
+            return str;
         }).collect(Collectors.joining(redisConfig.getValueJoinString()));
-    }
-
-    private String csvFormat(String str, String delimiter) {
-        if (str.contains(delimiter)
-                || str.contains("\t")
-                || str.contains("\r")
-                || str.contains("\n")
-                || str.contains(" ")
-                || str.contains("\"")) {
-            return "\"" + str.replaceAll("\"", "\"\"") + "\"";
-        }
-        return str;
     }
 }

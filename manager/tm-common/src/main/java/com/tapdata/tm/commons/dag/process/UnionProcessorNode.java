@@ -30,6 +30,7 @@ public class UnionProcessorNode extends ProcessorNode{
         super(NodeEnum.union_processor.name());
     }
 
+    @Override
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
         if (schema != null) {
             return schema;

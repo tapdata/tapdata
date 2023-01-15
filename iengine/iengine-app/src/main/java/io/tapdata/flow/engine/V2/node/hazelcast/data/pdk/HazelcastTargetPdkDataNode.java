@@ -160,7 +160,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					obsLogger.warn("Table " + tableId + "use the primary key as the update condition, which is created when the table is create, and ignored");
 					return;
 				}
-
+				if (!usePkAsUpdateConditions) {
+					tapIndex.primary(true);
+				}
 				updateConditionFields.forEach(field -> {
 					TapIndexField tapIndexField = new TapIndexField();
 					tapIndexField.setName(field);

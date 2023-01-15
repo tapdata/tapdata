@@ -29,7 +29,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -306,9 +305,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         Criteria scopeCriteria = Criteria.where("scope").is("public");
         Criteria criteria = Criteria.where("type").in(dataSourceType).and("pdkHash").exists(true);;
         criteria.orOperator(customCriteria, userCriteria, supplierCriteria, scopeCriteria);
-        Query query = Query.query(criteria);
-        query.with(Sort.by("createTime").descending());
-        return findAll(query);
+        return findAll(Query.query(criteria));
     }
 
 

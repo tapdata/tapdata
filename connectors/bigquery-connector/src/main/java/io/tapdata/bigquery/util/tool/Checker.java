@@ -1,5 +1,8 @@
 package io.tapdata.bigquery.util.tool;
 
+import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.schema.type.TapType;
+
 import java.util.Collection;
 import java.util.Map;
 

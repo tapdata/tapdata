@@ -10,40 +10,6 @@
     "node": {
       "type": "object",
       "properties": {
-        "writeMode": {
-          "type": "String",
-          "default": "APPEND_ONLY",
-          "title": "${writeMode}",
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "enum": [
-            {
-              "label": "${appendOnly}",
-              "value": "APPEND_ONLY"
-            },
-            {
-              "label": "${mixedUpdates}",
-              "value": "MIXED_UPDATES"
-            }
-          ],
-          "x-index": 1,
-          "required": false
-        },
-        "cursorSchema": {
-          "title": "${cursorSchema}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "database_host",
-          "x-index": 20,
-          "required": false
-        },
-        "mergeDelay": {
-          "title": "${mergeDelay}",
-          "x-decorator": "FormItem",
-          "x-component": "InputNumber",
-          "x-index": 30,
-          "required": false
-        }
       }
     },
     "connection": {
@@ -92,33 +58,18 @@
     "en_US": {
       "doc": "docs/bigquery_en_US.md",
       "serviceAccount": "Service Account(JSON)",
-      "tableSet": "Table Set ID",
-      "writeMode": "Write Mode",
-      "mixedUpdates": "Mixed Updates",
-      "appendOnly": "Append Only",
-      "cursorSchema": "Cursor schema name(Mandatory in mixed mode)",
-      "mergeDelay": " Data merge delay time (s,default: 3600s) "
+      "tableSet": "Table Set ID"
     },
     "zh_CN": {
       "doc": "docs/bigquery_zh_CN.md",
       "serviceAccount": "服务账号(JSON)",
-      "tableSet": "数据集ID",
-      "writeMode": "写入模式",
-      "mixedUpdates": "混合更新",
-      "appendOnly": "仅插入",
-      "cursorSchema": "临时表名称(混合模式下必填)",
-      "mergeDelay": "数据合并延时时间(秒，默认：3600秒)"
+      "tableSet": "数据集ID"
     },
     "zh_TW": {
 
       "doc": "docs/bigquery_zh_TW.md",
       "serviceAccount": "服務帳號(JSON)",
-      "tableSet": "數据集ID",
-      "writeMode": "寫入模式",
-      "mixedUpdates": "混合更新",
-      "appendOnly": "僅插入",
-      "cursorSchema": "臨時表名稱（混合模式下必填）",
-      "mergeDelay": "數據合併延時時間（秒，默認：3600秒）"
+      "tableSet": "數据集ID"
     }
   },
   "dataTypes": {

@@ -35,27 +35,12 @@ public class Log4jUtil {
 		ThreadContext.put("taskId", taskDto.getId().toHexString());
 	}
 
-
 	public static void setThreadContext(String taskId) {
-		if (StringUtils.isBlank(taskId)) {
+		if (taskId == null) {
 			return;
 		}
 		ThreadContext.clearAll();
-		ThreadContext.put("dataFlowId", taskId);
-		ThreadContext.put("subTaskId", taskId);
 		ThreadContext.put("taskId", taskId);
-	}
-
-
-	public static String getContextTaskId() {
-		String taskId = ThreadContext.get("taskId");
-		if (StringUtils.isBlank(taskId)) {
-			taskId = ThreadContext.get("subTaskId");
-		}
-		if (StringUtils.isBlank(taskId)) {
-			taskId = ThreadContext.get("dataFlowId");
-		}
-		return taskId;
 	}
 
 	public static String getStackString(Throwable throwable) {

@@ -167,7 +167,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
     }
 
-    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
         if (!useStreamLoad()) {
             throw new UnsupportedOperationException("doris httpUrl is required for write operation");
         }

@@ -1,8 +1,6 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import cn.hutool.core.date.DateUtil;
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -18,7 +16,6 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Component("tableEditStrategy")
@@ -32,29 +29,33 @@ public class TableEditStrategyImpl implements DagLogStrategy {
         String current = DateUtil.now();
         Date now = new Date();
 
-        DAG dag = taskDto.getDag();
-
-        if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getNodes())) {
-            return null;
-        }
-
-        List<Node> collect = dag.getNodes().stream()
+        List<TaskDagCheckLog> result = Lists.newArrayList();
+        List<TableRenameProcessNode> collect = taskDto.getDag().getNodes().stream()
                 .filter(node -> node instanceof TableRenameProcessNode)
+                .map(node -> (TableRenameProcessNode) node)
                 .collect(Collectors.toList());
 
         if (CollectionUtils.isEmpty(collect)) {
-            return null;
+            return Lists.newArrayList();
         }
 
-        List<TaskDagCheckLog> result = Lists.newArrayList();
         collect.forEach(node -> {
+
+            String template;
+            Level grade;
+
+            template = templateEnum.getInfoTemplate();
+            grade = Level.INFO;
+
+            String content = MessageFormat.format(template, current, node.getName());
+
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setTaskId(taskId.toHexString());
             log.setCheckType(templateEnum.name());
             log.setCreateAt(now);
             log.setCreateUser(userDetail.getUserId());
-            log.setLog(MessageFormat.format(templateEnum.getInfoTemplate(), current, node.getName()));
-            log.setGrade(Level.INFO);
+            log.setLog(content);
+            log.setGrade(grade);
             log.setNodeId(node.getId());
 
             result.add(log);

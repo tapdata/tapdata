@@ -80,7 +80,7 @@ public class LogCollectorNode extends Node<List<Schema>> {
     }
 
     @Override
-    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
+    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
         return schemas;
     }
 

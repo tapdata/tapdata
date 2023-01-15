@@ -62,6 +62,8 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 				logger.warn("The task ping time monitor failed to start, which may affect the ping time functionality; Error: "
 						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			}
+			snapshotProgressManager = new SnapshotProgressManager(taskDto, clientMongoOperator);
+			snapshotProgressManager.startStatsSubTaskSnapshotProgress();
 		}
 		Optional<Node> cacheNode = taskDto.getDag().getNodes().stream().filter(n -> n instanceof CacheNode).findFirst();
 		cacheNode.ifPresent(c -> cacheName = ((CacheNode) c).getCacheName());
@@ -70,10 +72,6 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	@Override
 	public String getStatus() {
 		return HazelcastStatusMappingEnum.fromJobStatus(job.getStatus());
-	}
-
-	public JobStatus getJetStatus() {
-		return job.getStatus();
 	}
 
 	@Override
@@ -88,6 +86,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	@Override
 	public synchronized boolean stop() {
+		Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
 		if (job.getStatus() == JobStatus.RUNNING) {
 			job.suspend();
 		}

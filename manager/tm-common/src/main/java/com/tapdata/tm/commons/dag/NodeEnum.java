@@ -36,8 +36,6 @@ public enum NodeEnum {
     join_processor,
     /** js节点*/
     js_processor,
-
-    standard_js_processor,
     /** 多表合并节点*/
     merge_table_processor,
     /** */
@@ -53,6 +51,5 @@ public enum NodeEnum {
      */
     migrate_field_rename_processor,
     migrate_js_processor,
-    standard_migrate_js_processor,
     union_processor
 }

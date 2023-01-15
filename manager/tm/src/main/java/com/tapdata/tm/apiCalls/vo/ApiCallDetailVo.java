@@ -21,5 +21,4 @@ public class ApiCallDetailVo extends BaseVo {
     private Long speed;
     private Long averResponseTime;
     private String clientName;
-    private String userIp;
 }

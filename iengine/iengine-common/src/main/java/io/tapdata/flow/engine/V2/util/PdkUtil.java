@@ -76,7 +76,19 @@ public class PdkUtil {
 							false
 					);
 
+//        PDKIntegration.
 					PDKIntegration.refreshJars(filePath.toString());
+
+					if (isSnapshot(fileName)) {
+						IOFileFilter fileFilter = FileFilterUtils.and(EmptyFileFilter.NOT_EMPTY,
+								new WildcardFileFilter("*" + filePrefix + "*"));
+						Collection<File> files = FileUtils.listFiles(new File(dir), fileFilter, DirectoryFileFilter.INSTANCE);
+						for (File file : files) {
+							if (!file.getAbsolutePath().equals(filePath.toString())) {
+								FileUtils.deleteQuietly(file);
+							}
+						}
+					}
 				} else if (!PDKIntegration.hasJar(theFilePath.getName())) {
 					PDKIntegration.refreshJars(filePath.toString());
 				}
@@ -84,6 +96,10 @@ public class PdkUtil {
 				pdkDownloadUnlock(pdkHash, lock);
 			}
 		}
+	}
+
+	private static boolean isSnapshot(String fileName) {
+		return StringUtils.isNotBlank(fileName) && StringUtils.endsWith(fileName, "SNAPSHOT.jar");
 	}
 
 	@NotNull
