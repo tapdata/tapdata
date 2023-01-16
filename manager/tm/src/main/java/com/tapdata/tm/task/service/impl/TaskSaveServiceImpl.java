@@ -90,9 +90,6 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                                 }
                             })
                             .collect(Collectors.toList());
-                    if (CollectionUtils.isEmpty(collect)) {
-                        throw new BizException("DAG.MigrateTaskNotContainsTable");
-                    }
                     sourceNode.setTableNames(collect);
                 }
             }
