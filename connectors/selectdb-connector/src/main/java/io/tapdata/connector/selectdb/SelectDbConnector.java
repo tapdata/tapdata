@@ -12,6 +12,7 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
@@ -31,6 +32,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import io.tapdata.write.WriteValve;
 
 import java.io.IOException;
 import java.util.*;
@@ -62,7 +64,7 @@ public class SelectDbConnector extends ConnectorBase {
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     public static final int size = 50000;
     private static final SelectDbDDLInstance DDLInstance = SelectDbDDLInstance.getInstance();
-
+    private WriteValve valve;
 
     @Override
     public void onStart(TapConnectionContext connectorContext) {
@@ -93,9 +95,7 @@ public class SelectDbConnector extends ConnectorBase {
         } catch (Exception e) {
             TapLogger.error(TAG, "selectDbStreamLoader shutdown failed, {}", e.getMessage());
         }
-        if(tapEventCollector != null) {
-            tapEventCollector.stop();
-        }
+        Optional.ofNullable(this.valve).ifPresent(WriteValve::close);
     }
 
     @Override
@@ -170,10 +170,14 @@ public class SelectDbConnector extends ConnectorBase {
     }
 
     private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (Objects.isNull(tapFieldBaseEvent) && Objects.isNull(tapFieldBaseEvent.getTableId())){
+            throw new CoreException("");
+        }
         if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
             return null;
         }
         TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapFieldBaseEvent;
+        Optional.ofNullable(this.valve).ifPresent(va -> va.commit(tapFieldBaseEvent.getTableId()));
         return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
     }
 
@@ -239,23 +243,16 @@ public class SelectDbConnector extends ConnectorBase {
         return builder.toString();
     }
 
-    private TapEventCollector tapEventCollector;
-
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
-        if (tapEventCollector == null) {
-            synchronized (this) {
-                if (tapEventCollector == null) {
-                    tapEventCollector = TapEventCollector.create()
-                            .maxRecords(size)
-                            .idleSeconds(10)
-                            .table(tapTable)
-                            .writeListResultConsumer(writeListResultConsumer)
-                            .eventCollected(this::uploadEvents);
-                    tapEventCollector.start();
-                }
-            }
+        if (Objects.isNull(this.valve)) {
+            this.valve = WriteValve.open(
+                    50000,
+                    10,
+                    this::uploadEvents,
+                    writeListResultConsumer
+            );
         }
-        tapEventCollector.addTapEvents(tapRecordEvents);
+        this.valve.write(tapRecordEvents,tapTable);
     }
 
     /**
