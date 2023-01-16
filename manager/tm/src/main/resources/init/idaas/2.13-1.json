@@ -1,0 +1,145 @@
+
+[
+  {
+    "insert": "JavascriptFunctions",
+    "documents": [
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "DateUtil",
+        "methodName": "parse",
+        "desc" : "将各种格式的日期字符串转换为Date类型",
+        "example": "var dte = DateUtil.parse('2010-01-01 00:00:00'); \n\n // 高级用法 parse(dateString, timeoffset):转换的同时，指定时区偏移量 \n//东8区\nvar dte = DateUtil.parse('2010-01-01 00:00:00', 8);\n\n// 0时区\nvar dte = DateUtil.parse('2010-01-01 00:00:00', 0);"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "DateUtil",
+        "methodName": "determineDateFormat",
+        "desc" : "获取日期格式",
+        "example": "var format = DateUtil.determineDateFormat('2010-01-01 00:00:00');"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "DateUtil",
+        "methodName": "timeStamp2Date",
+        "desc" : "将时间戳按照指定格式转为日期字符串",
+        "example": "var dteStr = DateUtil.timeStamp2Date(1592233019140, 'yyyy-MM-dd HH:mm:ss');"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "DateUtil",
+        "methodName": "addYears/addMonths/addDays/addHours/addMinutes/addSeconds",
+        "desc" : "对日期的年月日时分秒进行加减运算",
+        "example": "var dte = DateUtil.addYears(new Date(), 1);\ndte = DateUtil.addYears(dte, -1);"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "DateUtil",
+        "methodName": "sameYear/sameMonth/sameDay/sameHour/sameMinute/sameSecond",
+        "desc" : "对日期的年月日时分秒进行比较运算",
+        "example": "if ( DataUtil.sameYear(new Date(), new Date()) ) {\n    ...\n}"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "idGen",
+        "methodName": "uuid",
+        "desc" : "生成uuid",
+        "example": "var uuid = idGen.uuid();"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "idGen",
+        "methodName": "objectId",
+        "desc" : "生成MongoDB ObjectId",
+        "example": "var oid = idGen.objectId();"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "idGen",
+        "methodName": "objectIdStr",
+        "desc" : "生成MongoDB ObjectId字符串部分",
+        "example": "var oidStr = idGen.objectIdStr();"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "",
+        "methodName": "split_chinese",
+        "desc" : "汉语分词工具",
+        "example": "split_chinese(String inputString, String language)\n参数说明\ninputString: 需要进行分词的字符串\nlanguage: inputString的语言字体，只可以是以下几种 \n简体中文: CH_S\n繁体中文: CH_T\n香港繁体: HK_T\n台湾繁体: TW_T\n返回值\n数组类型，表示分词后的结果集\nvar strs = split_chinese(“我是中国人”, “CH_S”);"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "networkUtil",
+        "methodName": "GetAddress",
+        "desc" : "网络工具",
+        "example": "获取第一张网卡的mac地址\nvar mac = networkUtil.GetAddress(\"mac\");\n\n 获取ip地址 \nvar ip = networkUtil.GetAddress(\"ip\");"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "HashMap",
+        "methodName": "put/remove",
+        "desc" : "哈希字典",
+        "example": "var map = new HashMap();\nmap.put(“name”, “test”);\nmap.remove(“name”);"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "ArrayList",
+        "methodName": "add/remove",
+        "desc" : "数组类型",
+        "example": "var list = new ArrayList();\nlist.add(“test1”);\nlist.remove(0);"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "Date",
+        "methodName": "add/remove",
+        "desc" : "日期类型",
+        "example": "var dte = new Date();\nvar year = dte.getYear()+1900;"
+      },
+
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "ScriptExecutorsManager",
+        "methodName": "getScriptExecutor",
+        "desc" : "获取数据源执行器",
+        "example": "var source = ScriptExecutorsManager.getScriptExecutor('mysql-connection-name');"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "ScriptExecutor",
+        "methodName": "execute",
+        "desc" : "数据库执行操作",
+        "example": "返回值：布尔类型，表示操作结果(true - 成功，false - 失败)\n\nexecuteObj参数说明\n\n● 结构化数据库 \n  ○ sql: 针对关系型数据库的sql执行语句var result = source.execute({sql: “update test.user set name='user001' where id = 1”});MongoDB数据库 \ndatabase: 操作的数据库名称\ncollection: 操作的集合名称\nop: 操作(insert/ update/ delete)\nfilter: 更新或者删除的条件\nopObject: 新增、更新、删除的具体数据\nupsert: 是否采用MongoDB的upsert模式，不存在进行新增，存在则更新，默认：false\nmulti: 是否更新多条记录，默认：false\nvar result = target.execute({\n    database: “test”,\n    collection: “user”,\n    op: “update”,\n    filter: {id: 1},\n    opObject: {name: “user001”, age: 20},\n    upsert: true\n});"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "ScriptExecutor",
+        "methodName": "executeQuery",
+        "desc" : "数据库查询操作",
+        "example": "返回值：数组类型，表示查询的结果集\n\nexecuteObj参数说明\n\n● 结构化数据库 \n  ○ sql: 查询语句\nvar users = source.executeQuery({sql: “select * from test.user where age>10”});\n● MongoDB \n  ○ database: 操作的数据库名称\n  ○ collection: 操作的集合名称\n  ○ filter: 更新或者删除的条件\n  ○ sort: 排序条件 （可选）\n  ○ limit: 限制输出条数（可选）\nvar users = target.executeQuery({\n    database: “test”,\n    collection: “user”,\n    filter: {age: {$gt: 10}}，\n    sort: {age: -1},\n    limit: 10\n});"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "ScriptExecutor",
+        "methodName": "call",
+        "desc" : "执行存储过程及函数",
+        "example": "该方法只有结构化数据库源才能使用，可执行指定的数据库存储过程及自定义函数\n返回值: 键值对类型, 根据存储过程定义的返回值，返回结果对象\n参数说明\n\n● funcName: 存储过程/函数名称\n● params: 传入的参数 \n  ○ mode: 入参类型，空值默认：in \n    ■ in: 传入\n    ■ out: 传出\n    ■ in/out: 传入并传出\n  ○ name: 参数名称\n  ○ value: 参数的值\n  ○ type: 参数类类型"
+      }
+    ]
+  }
+]
