@@ -10,6 +10,7 @@
 
 	<modules>
 		<module>coding-demo-connector</module>
+		<module>demo-connector</module>
 	</modules>
 
 	<properties>
