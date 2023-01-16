@@ -252,112 +252,100 @@ public class TablestoreConnector extends ConnectorBase {
                 long deleteCount = 0L;
                 for (TapRecordEvent recordEvent : tapRecordEvents) {
                     if (recordEvent instanceof TapInsertRecordEvent) {
-                        try {
-                            Map<String, Object> after = ((TapInsertRecordEvent) recordEvent).getAfter();
+                        Map<String, Object> after = ((TapInsertRecordEvent) recordEvent).getAfter();
 
-                            HashSet<String> resSet = new HashSet<>(primaryKeySet);
-                            RowPutChange putChange;
-                            resSet.retainAll(after.keySet());
-                            if (EmptyKit.isNotEmpty(resSet)) {
-                                PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
-                                for (String k : resSet) {
-                                    ColumnType columnType = ColumnType.valueOf(
-                                            Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
-                                                    .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
-                                                    .name());
-                                    Object value = transferValueType(columnType, after.get(k));
-                                    pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
-                                }
-                                putChange = new RowPutChange(tableId, pkBuilder.build());
-                            } else {
-                                putChange = new RowPutChange(tableId);
-                            }
-
-                            for (Map.Entry<String, Object> entry : after.entrySet()) {
-                                String fieldName = entry.getKey();
-                                if (resSet.contains(fieldName)) {
-                                    continue;
-                                }
-
+                        HashSet<String> resSet = new HashSet<>(primaryKeySet);
+                        RowPutChange putChange;
+                        resSet.retainAll(after.keySet());
+                        if (EmptyKit.isNotEmpty(resSet)) {
+                            PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
+                            for (String k : resSet) {
                                 ColumnType columnType = ColumnType.valueOf(
-                                        Optional.ofNullable(tableMeta.getDefinedColumnMap().get(fieldName))
-                                        .orElseThrow(() -> new RuntimeException("table definedColumnMap not find "+fieldName))
+                                        Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
+                                                .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
                                                 .name());
-                                Object value = transferValueType(columnType, entry.getValue());
-                                putChange.addColumn(fieldName, new ColumnValue(value, columnType));
+                                Object value = transferValueType(columnType, after.get(k));
+                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                             }
-                            client.putRow(new PutRowRequest(putChange));
-                            insertCount++;
-                        } catch (Exception e) {
-                            listResult.addError(recordEvent, e);
+                            putChange = new RowPutChange(tableId, pkBuilder.build());
+                        } else {
+                            putChange = new RowPutChange(tableId);
                         }
+
+                        for (Map.Entry<String, Object> entry : after.entrySet()) {
+                            String fieldName = entry.getKey();
+                            if (resSet.contains(fieldName)) {
+                                continue;
+                            }
+
+                            ColumnType columnType = ColumnType.valueOf(
+                                    Optional.ofNullable(tableMeta.getDefinedColumnMap().get(fieldName))
+                                    .orElseThrow(() -> new RuntimeException("table definedColumnMap not find "+fieldName))
+                                            .name());
+                            Object value = transferValueType(columnType, entry.getValue());
+                            putChange.addColumn(fieldName, new ColumnValue(value, columnType));
+                        }
+                        client.putRow(new PutRowRequest(putChange));
+                        insertCount++;
 
                     } else if (recordEvent instanceof TapUpdateRecordEvent) {
-                        try {
-                            Map<String, Object> after = ((TapUpdateRecordEvent) recordEvent).getAfter();
+                        Map<String, Object> after = ((TapUpdateRecordEvent) recordEvent).getAfter();
 
-                            HashSet<String> resSet = new HashSet<>(primaryKeySet);
-                            RowUpdateChange updateChange;
-                            resSet.retainAll(after.keySet());
-                            if (EmptyKit.isNotEmpty(resSet)) {
-                                PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
-                                for (String k : resSet) {
-                                    ColumnType columnType = ColumnType.valueOf(
-                                            Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
-                                                    .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
-                                                    .name());
-                                    Object value = transferValueType(columnType, after.get(k));
-                                    pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
-                                }
-                                updateChange = new RowUpdateChange(tableId, pkBuilder.build());
-                            } else {
-                                updateChange = new RowUpdateChange(tableId);
-                            }
-
-                            for (Map.Entry<String, Object> entry : after.entrySet()) {
-                                String fieldName = entry.getKey();
-                                if (resSet.contains(fieldName)) {
-                                    continue;
-                                }
+                        HashSet<String> resSet = new HashSet<>(primaryKeySet);
+                        RowUpdateChange updateChange;
+                        resSet.retainAll(after.keySet());
+                        if (EmptyKit.isNotEmpty(resSet)) {
+                            PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
+                            for (String k : resSet) {
                                 ColumnType columnType = ColumnType.valueOf(
-                                        Optional.ofNullable(tableMeta.getDefinedColumnMap().get(fieldName))
-                                                .orElseThrow(() -> new RuntimeException("table definedColumnMap not find "+fieldName))
+                                        Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
+                                                .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
                                                 .name());
-                                Object value = transferValueType(columnType, entry.getValue());
-                                updateChange.put(fieldName, new ColumnValue(value, columnType));
+                                Object value = transferValueType(columnType, after.get(k));
+                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                             }
-
-                            client.updateRow(new UpdateRowRequest(updateChange));
-                            updateCount++;
-                        }  catch (Exception e) {
-                            listResult.addError(recordEvent, e);
+                            updateChange = new RowUpdateChange(tableId, pkBuilder.build());
+                        } else {
+                            updateChange = new RowUpdateChange(tableId);
                         }
+
+                        for (Map.Entry<String, Object> entry : after.entrySet()) {
+                            String fieldName = entry.getKey();
+                            if (resSet.contains(fieldName)) {
+                                continue;
+                            }
+                            ColumnType columnType = ColumnType.valueOf(
+                                    Optional.ofNullable(tableMeta.getDefinedColumnMap().get(fieldName))
+                                            .orElseThrow(() -> new RuntimeException("table definedColumnMap not find "+fieldName))
+                                            .name());
+                            Object value = transferValueType(columnType, entry.getValue());
+                            updateChange.put(fieldName, new ColumnValue(value, columnType));
+                        }
+
+                        client.updateRow(new UpdateRowRequest(updateChange));
+                        updateCount++;
                     } else if (recordEvent instanceof TapDeleteRecordEvent) {
-                        try {
-                            Map<String, Object> before = ((TapDeleteRecordEvent) recordEvent).getBefore();
-                            RowDeleteChange deleteChange;
-                            HashSet<String> resSet = new HashSet<>(primaryKeySet);
-                            resSet.retainAll(before.keySet());
-                            if (EmptyKit.isNotEmpty(resSet)) {
-                                PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
-                                for (String k : resSet) {
-                                    ColumnType columnType = ColumnType.valueOf(
-                                            Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
-                                                    .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
-                                                    .name());
-                                    Object value = transferValueType(columnType, before.get(k));
-                                    pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
-                                }
-                                deleteChange = new RowDeleteChange(tableId, pkBuilder.build());
-                            } else {
-                                deleteChange = new RowDeleteChange(tableId);
+                        Map<String, Object> before = ((TapDeleteRecordEvent) recordEvent).getBefore();
+                        RowDeleteChange deleteChange;
+                        HashSet<String> resSet = new HashSet<>(primaryKeySet);
+                        resSet.retainAll(before.keySet());
+                        if (EmptyKit.isNotEmpty(resSet)) {
+                            PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
+                            for (String k : resSet) {
+                                ColumnType columnType = ColumnType.valueOf(
+                                        Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
+                                                .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
+                                                .name());
+                                Object value = transferValueType(columnType, before.get(k));
+                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                             }
-
-                            client.deleteRow(new DeleteRowRequest(deleteChange));
-                            deleteCount++;
-                        }  catch (Exception e) {
-                            listResult.addError(recordEvent, e);
+                            deleteChange = new RowDeleteChange(tableId, pkBuilder.build());
+                        } else {
+                            deleteChange = new RowDeleteChange(tableId);
                         }
+
+                        client.deleteRow(new DeleteRowRequest(deleteChange));
+                        deleteCount++;
                     }
                 }
 

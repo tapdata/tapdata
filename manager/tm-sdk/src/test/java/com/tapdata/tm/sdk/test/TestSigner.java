@@ -299,11 +299,4 @@ public class TestSigner {
 
     }
 
-    @Test
-    public void testEncodingQueryString() throws UnsupportedEncodingException {
-        String originVal = "xUb99rxvoOnZlG8bZDkk+jh20LM=";
-        String encodingVal = SignUtil.percentEncode(originVal);
-        Assert.assertEquals("xUb99rxvoOnZlG8bZDkk%2Bjh20LM%3D", encodingVal);
-    }
-
 }

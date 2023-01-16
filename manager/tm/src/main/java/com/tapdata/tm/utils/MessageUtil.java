@@ -83,7 +83,7 @@ public class MessageUtil {
 		if(msg == null) {
 			if (params != null && params.length > 0){
 				String paramsString =Streamable.of(params).stream().map(Object::toString).collect(Collectors.joining(","));
-				return paramsString;
+				return resourceId + ": " + paramsString;
 			}
 			return resourceId;
 		} if(params != null && params.length > 0){

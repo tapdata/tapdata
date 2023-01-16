@@ -496,18 +496,12 @@
       "defaultFraction": 4,
       "pattern": "yyyy"
     },
-    "time[($fraction)]": {
+    "time": {
       "to": "TapTime",
-      "fraction": [
-        0,
-        6
-      ],
-      "defaultFraction": 0,
       "range": [
-        "-838:59:59.999999",
-        "838:59:59.999999"
-      ],
-      "pattern": "HH:mm:ss.SSSSSS"
+        "-838:59:59",
+        "838:59:59"
+      ]
     },
     "datetime[($fraction)]": {
       "to": "TapDateTime",

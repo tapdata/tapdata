@@ -39,7 +39,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SendStatus;
-import com.tapdata.tm.sms.SmsService;
+import com.tapdata.tm.utils.SmsUtils;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +53,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -75,9 +74,6 @@ public class MessageService extends BaseService {
     MailUtils mailUtils;
     EventsService eventsService;
     SettingsService settingsService;
-
-    @Autowired
-    private SmsService smsService;
 
     private final static String MAIL_SUBJECT = "【Tapdata】";
     private final static String MAIL_CONTENT = "尊敬的用户您好，您在Tapdata Cloud上创建的Agent:";
@@ -176,7 +172,6 @@ public class MessageService extends BaseService {
             messageEntity.setLastUpdAt(new Date());
 
             messageEntity.setUserId(userDetail.getUserId());
-            messageEntity.setCustomId(userDetail.getCustomerId());
             repository.getMongoOperations().save(messageEntity);
             informUser(msgTypeEnum, systemEnum, messageMetadata, sourceId, messageEntity.getId().toString(), userDetail);
         } catch (Exception e) {
@@ -216,7 +211,6 @@ public class MessageService extends BaseService {
      * @param level
      * @param userDetail
      */
-    @Async("NotificationExecutor")
     public void addMigration(String serverName, String sourceId, MsgTypeEnum msgTypeEnum, Level level, UserDetail userDetail) {
         MessageEntity saveMessage = new MessageEntity();
 
@@ -526,8 +520,8 @@ public class MessageService extends BaseService {
         }
 
         Integer retry = 1;
-        String smsTemplateCode = smsService.getTemplateCode(msgType);
-        SendStatus sendStatus = smsService.sendShortMessage(smsTemplateCode, phone, systemEnum.getValue(), servername);
+        String smsTemplateCode = SmsUtils.getTemplateCode(msgType);
+        SendStatus sendStatus = SmsUtils.sendShortMessage(smsTemplateCode, phone, systemEnum.getValue(), servername);
         eventsService.recordEvents(MAIL_SUBJECT, smsContent, phone, messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_SMS);
     }
 
@@ -583,8 +577,8 @@ public class MessageService extends BaseService {
         if (sendSms) {
             Integer retry = 1;
             String phone = userDetail.getPhone();
-            String smsTemplateCode = smsService.getTemplateCode(msgType);
-            SendStatus sendStatus = smsService.sendShortMessage(smsTemplateCode, phone, systemEnum.getValue(), metadataName);
+            String smsTemplateCode = SmsUtils.getTemplateCode(msgType);
+            SendStatus sendStatus = SmsUtils.sendShortMessage(smsTemplateCode, phone, systemEnum.getValue(), metadataName);
             eventsService.recordEvents(MAIL_SUBJECT, smsContent, phone, messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_SMS);
         }
     }
@@ -599,7 +593,7 @@ public class MessageService extends BaseService {
      * @param messageDto
      * @return
      */
-    @Async("NotificationExecutor")
+    @Deprecated
     public MessageDto add(MessageDto messageDto) {
         try {
             MessageEntity messageEntity = new MessageEntity();
@@ -633,6 +627,7 @@ public class MessageService extends BaseService {
     /**
      * 根据设置通知用户,短信或者邮件
      */
+    @Deprecated
     private void informUser(MessageDto messageDto) {
         String msgType = messageDto.getMsg();
         String userId = messageDto.getUserId();
@@ -670,7 +665,7 @@ public class MessageService extends BaseService {
             smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
         } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
             emailTip = "状态已由运行中变为离线，可能会影响您的任务正常运行，请及时处理。";
-            smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
+            smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请即使处理";
         } else if (MsgTypeEnum.STOPPED_BY_ERROR.getValue().equals(msgType)) {
 
         }
@@ -694,8 +689,8 @@ public class MessageService extends BaseService {
         if (sendSms) {
             Integer retry = 1;
             String phone = userDetail.getPhone();
-            String smsTemplateCode = smsService.getTemplateCode(messageDto);
-            SendStatus sendStatus = smsService.sendShortMessage(smsTemplateCode, phone, system, metadataName);
+            String smsTemplateCode = SmsUtils.getTemplateCode(messageDto);
+            SendStatus sendStatus = SmsUtils.sendShortMessage(smsTemplateCode, phone, system, metadataName);
             eventsService.recordEvents(MAIL_SUBJECT, smsContent, phone, messageDto, sendStatus, retry, Type.NOTICE_SMS);
 
         }
@@ -706,9 +701,10 @@ public class MessageService extends BaseService {
         Boolean result = false;
         try {
             if (CollectionUtils.isNotEmpty(ids)) {
-                List<ObjectId> objectIds = ids.stream().map(ObjectId::new).collect(Collectors.toList());
-                Update update = Update.update("read", true);
-                messageRepository.update(new Query(Criteria.where("_id").in(objectIds)), update, userDetail);
+                ids.forEach(id -> {
+                    Update update = Update.update("read", true);
+                    messageRepository.getMongoOperations().updateFirst(new Query(Criteria.where("_id").is(id)), update, MessageEntity.class);
+                });
             }
             result = true;
         } catch (Exception e) {

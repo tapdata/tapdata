@@ -20,8 +20,7 @@ public enum Modular {
     METADATA_INSTANCES("MetadataInstances"),
     WORKERS("Workers"),
     SYSTEM("system"),
-    USER("user"),
-    CUSTOMER("customer");
+    USER("user");
 
     private final String value;
 
@@ -32,15 +31,5 @@ public enum Modular {
 
     public String getValue() {
         return value;
-    }
-
-    public static Modular of(String value) {
-        Modular[] modules = Modular.values();
-        for (int i = 0; i < modules.length; i++) {
-            if(modules[i].value.equals(value)) {
-                return modules[i];
-            }
-        }
-        return SYSTEM;
     }
 }

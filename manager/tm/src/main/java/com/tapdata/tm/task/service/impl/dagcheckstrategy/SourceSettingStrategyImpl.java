@@ -1,10 +1,8 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
-import com.google.common.collect.Sets;
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import cn.hutool.core.date.DateUtil;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -22,6 +20,7 @@ import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -39,134 +38,92 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
-        String taskId = taskDto.getId().toHexString();
+        ObjectId taskId = taskDto.getId();
         Date now = new Date();
 
         List<TaskDagCheckLog> result = Lists.newArrayList();
-        Set<String> nameSet = Sets.newHashSet();
-        DAG dag = taskDto.getDag();
+        Map<String, Integer> nameMap = Maps.newHashMap();
+        LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
 
-        if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getNodes())) {
-            return null;
+        if (CollectionUtils.isEmpty(sourceNode)) {
+            return Lists.newArrayList();
         }
 
-        String userId = userDetail.getUserId();
-        dag.getSources().forEach(node -> {
+        sourceNode.forEach(node -> {
             String name = node.getName();
-            String nodeId = node.getId();
+            Integer value;
+            String template;
+            Level grade;
+            if (nameMap.containsKey(name)) {
+                value = nameMap.get(name) + 1;
+                template = templateEnum.getErrorTemplate();
+                grade = Level.ERROR;
 
-            DataParentNode dataParentNode = (DataParentNode) node;
-
-            if (StringUtils.isEmpty(name)) {
-                TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                        .grade(Level.ERROR).nodeId(nodeId)
-                        .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}节点名称为空。", dataParentNode.getDatabaseType()))
-                        .build();
+                String content = MessageFormat.format(template, name);
+                TaskDagCheckLog log = new TaskDagCheckLog();
+                log.setTaskId(taskId.toHexString());
+                log.setCheckType(templateEnum.name());
                 log.setCreateAt(now);
-                log.setCreateUser(userId);
-                result.add(log);
-            }
+                log.setCreateUser(userDetail.getUserId());
+                log.setLog(content);
+                log.setGrade(grade);
+                log.setNodeId(node.getId());
 
-            if (StringUtils.isEmpty(dataParentNode.getConnectionId())) {
-                TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                        .grade(Level.ERROR).nodeId(nodeId)
-                        .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}未选择数据库。", name))
-                        .build();
-                log.setCreateAt(now);
-                log.setCreateUser(userId);
                 result.add(log);
-            }
-
-            List<String> tableNames;
-            String migrateSelectType = "";
-            String tableExpression = "";
-            if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-                DatabaseNode databaseNode = (DatabaseNode) node;
-                tableNames = databaseNode.getTableNames();
-                migrateSelectType = databaseNode.getMigrateTableSelectType();
-                tableExpression = databaseNode.getTableExpression();
             } else {
-                tableNames = Lists.newArrayList(((TableNode) node).getTableName());
+                value = NumberUtils.INTEGER_ZERO;
             }
-
-            if (CollectionUtils.isEmpty(tableNames)) {
-                if ("expression".equals(migrateSelectType)) {
-                    if (StringUtils.isEmpty(tableExpression)) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}过滤条件设置异常。", name))
-                                .build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
-                        result.add(log);
-                    }
-                } else {
-                    TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                            .grade(Level.ERROR).nodeId(nodeId)
-                            .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}未选择表。", name))
-                            .build();
-                    log.setCreateAt(now);
-                    log.setCreateUser(userId);
-                    result.add(log);
-                }
-            }
-
-            if (nameSet.contains(name)) {
-                TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                        .log(MessageFormat.format(templateEnum.getErrorTemplate(), name))
-                        .grade(Level.ERROR)
-                        .nodeId(node.getId()).build();
-
-                log.setCreateAt(now);
-                log.setCreateUser(userId);
-                result.add(log);
-            }
-            nameSet.add(name);
+            nameMap.put(name, value);
 
             // check schema
-            String connectionId = dataParentNode.getConnectionId();
+            String connectionId = node.getConnectionId();
             DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
             Optional.ofNullable(connectionDto).ifPresent(dto -> {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
                 if (CollectionUtils.isEmpty(tables)) {
-                    TaskDagCheckLog log = TaskDagCheckLog.builder()
-                            .taskId(taskId)
-                            .checkType(templateEnum.name())
-                            .log(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA, name))
-                            .grade(Level.ERROR)
-                            .nodeId(nodeId).build();
-                    log.setCreateAt(now);
-                    log.setCreateUser(userId);
-                    result.add(log);
+                    TaskDagCheckLog schemaLog = new TaskDagCheckLog();
+                    schemaLog.setTaskId(taskId.toHexString());
+                    schemaLog.setCheckType(templateEnum.name());
+                    schemaLog.setCreateAt(now);
+                    schemaLog.setCreateUser(userDetail.getUserId());
+                    schemaLog.setLog(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA, name));
+                    schemaLog.setGrade(Level.ERROR);
+                    schemaLog.setNodeId(node.getId());
+                    result.add(schemaLog);
                 } else {
                     if (!StringUtils.equals("finished", connectionDto.getLoadFieldsStatus())) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder()
-                                .taskId(taskId)
-                                .checkType(templateEnum.name())
-                                .log(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA_LOAD, name))
-                                .grade(Level.ERROR)
-                                .nodeId(nodeId).build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
-                        result.add(log);
+                        TaskDagCheckLog schemaLog = new TaskDagCheckLog();
+                        schemaLog.setTaskId(taskId.toHexString());
+                        schemaLog.setCheckType(templateEnum.name());
+                        schemaLog.setCreateAt(now);
+                        schemaLog.setCreateUser(userDetail.getUserId());
+                        schemaLog.setLog(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA_LOAD, name));
+                        schemaLog.setGrade(Level.ERROR);
+                        schemaLog.setNodeId(node.getId());
+                        result.add(schemaLog);
                     }
                 }
             });
+        });
 
-            if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                TaskDagCheckLog log = TaskDagCheckLog.builder()
-                        .taskId(taskId)
-                        .checkType(templateEnum.name())
-                        .log(MessageFormat.format(templateEnum.getInfoTemplate(), node.getName()))
-                        .grade(Level.INFO)
-                        .nodeId(node.getId()).build();
+        if (CollectionUtils.isEmpty(result)) {
+
+            sourceNode.forEach(node -> {
+                TaskDagCheckLog log = new TaskDagCheckLog();
+                String content = MessageFormat.format(templateEnum.getInfoTemplate(), node.getName());
+                log.setTaskId(taskId.toHexString());
+                log.setCheckType(templateEnum.name());
                 log.setCreateAt(now);
-                log.setCreateUser(userId);
+                log.setCreateUser(userDetail.getUserId());
+                log.setLog(content);
+                log.setGrade(Level.INFO);
+                log.setNodeId(taskDto.getDag().getSourceNode().getFirst().getId());
 
                 result.add(log);
-            }
-        });
+            });
+        }
+
         return result;
     }
 }

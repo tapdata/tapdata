@@ -137,7 +137,7 @@ drop table public.test_decode
 如果 tapdata 由于不可控异常（断电、进程崩溃等），导致cdc中断，会导致 slot 连接无法正确从 pg 主节点删除，将一直占用一个 slot 连接名额，需手动登录主节点，进行删除
 查询slot信息
 ```
-// 查看是否有slot_name以tapdata_cdc_开头的信息
+// 查看是否有slot_name=tapdata的信息
  TABLE pg_replication_slots;
 ```
 - **删除slot节点**<br>

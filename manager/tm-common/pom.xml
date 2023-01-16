@@ -17,6 +17,75 @@
     <maven.compiler.target>1.8</maven.compiler.target>
   </properties>
 
+  <dependencies>
+    <dependency>
+      <groupId>com.tapdata</groupId>
+      <artifactId>common</artifactId>
+      <version>2.2.2</version>
+    </dependency>
+    <dependency>
+      <groupId>io.github.openlg</groupId>
+      <artifactId>graphlib</artifactId>
+      <version>0.0.3</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jsr310</artifactId>
+      <version>2.12.6</version>
+    </dependency>
+    <dependency>
+      <groupId>org.mongodb</groupId>
+      <artifactId>mongodb-driver-core</artifactId>
+      <version>4.2.3</version>
+    </dependency>
+
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.13.1</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-collections4</artifactId>
+      <version>4.3</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+        <groupId>io.tapdata</groupId>
+        <artifactId>tapdata-pdk-runner</artifactId>
+        <version>1.2-SNAPSHOT</version>
+      <exclusions>
+        <exclusion>
+          <artifactId>commons-lang3</artifactId>
+          <groupId>org.apache.commons</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>com.github.oshi</groupId>
+      <artifactId>oshi-core</artifactId>
+      <version>5.8.5</version>
+    </dependency>
+    <dependency>
+      <groupId>cn.hutool</groupId>
+      <artifactId>hutool-all</artifactId>
+      <version>5.5.2</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.data</groupId>
+      <artifactId>spring-data-mongodb</artifactId>
+      <version>3.2.2</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.mongodb</groupId>
+          <artifactId>mongodb-driver-core</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+  </dependencies>
+
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -89,93 +158,13 @@
         <artifactId>commons-codec</artifactId>
         <version>1.15</version>
       </dependency>
-      <dependency>
-        <groupId>com.google.guava</groupId>
-        <artifactId>guava</artifactId>
-        <version>31.1-jre</version>
-      </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>31.1-jre</version>
+        </dependency>
     </dependencies>
   </dependencyManagement>
-
-  <dependencies>
-    <dependency>
-      <groupId>com.tapdata</groupId>
-      <artifactId>common</artifactId>
-      <version>2.2.2</version>
-    </dependency>
-    <dependency>
-      <groupId>ognl</groupId>
-      <artifactId>ognl</artifactId>
-      <version>3.1.26</version>
-    </dependency>
-    <dependency>
-      <groupId>io.github.openlg</groupId>
-      <artifactId>graphlib</artifactId>
-      <version>0.0.3</version>
-    </dependency>
-    <dependency>
-      <groupId>com.fasterxml.jackson.datatype</groupId>
-      <artifactId>jackson-datatype-jsr310</artifactId>
-      <version>2.12.6</version>
-    </dependency>
-    <dependency>
-      <groupId>org.mongodb</groupId>
-      <artifactId>mongodb-driver-core</artifactId>
-      <version>4.2.3</version>
-    </dependency>
-
-    <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>4.13.1</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.commons</groupId>
-      <artifactId>commons-collections4</artifactId>
-      <version>4.3</version>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-        <groupId>io.tapdata</groupId>
-        <artifactId>tapdata-pdk-runner</artifactId>
-        <version>1.2-SNAPSHOT</version>
-      <exclusions>
-        <exclusion>
-          <artifactId>commons-lang3</artifactId>
-          <groupId>org.apache.commons</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>com.github.oshi</groupId>
-      <artifactId>oshi-core</artifactId>
-      <version>5.8.5</version>
-    </dependency>
-    <dependency>
-      <groupId>cn.hutool</groupId>
-      <artifactId>hutool-all</artifactId>
-      <version>5.5.2</version>
-    </dependency>
-
-    <dependency>
-      <groupId>org.projectlombok</groupId>
-      <artifactId>lombok</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>org.springframework.data</groupId>
-      <artifactId>spring-data-mongodb</artifactId>
-      <version>3.2.2</version>
-      <exclusions>
-        <exclusion>
-          <groupId>org.mongodb</groupId>
-          <artifactId>mongodb-driver-core</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-
-  </dependencies>
 
   <distributionManagement>
     <repository>

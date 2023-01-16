@@ -1,6 +1,5 @@
 package com.tapdata.tm.commons.dag.nodes;
 
-import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 
@@ -16,7 +15,7 @@ public abstract class DataNode extends DataParentNode<Schema> {
     }
 
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
         return SchemaUtils.mergeSchema(inputSchemas, schema);
     }
 

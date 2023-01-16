@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.oauth2.entity.RegisteredClientEntity;
+import com.tapdata.tm.utils.Lists;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -112,7 +114,7 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
                 .stream().map(ClientAuthenticationMethod::getValue).collect(Collectors.toSet()));
         registeredClientEntity.setAuthorizationGrantTypes(registeredClient.getAuthorizationGrantTypes()
                 .stream().map(AuthorizationGrantType::getValue).collect(Collectors.toSet()));
-        registeredClientEntity.setRedirectUris(registeredClient.getRedirectUris());
+        registeredClientEntity.setRedirectUris(StringUtils.join(registeredClient.getRedirectUris(), ","));
         registeredClientEntity.setScopes(registeredClient.getScopes());
         registeredClientEntity.setClientSettings(writeMap(registeredClient.getClientSettings().settings()));
         registeredClientEntity.setTokenSettings(writeMap(registeredClient.getTokenSettings().settings()));
@@ -140,7 +142,7 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
                 .authorizationGrantTypes(authorizationGrantTypes ->
                         authorizationGrantTypes.addAll(Optional.ofNullable(registeredClientEntity.getAuthorizationGrantTypes()).orElse(Collections.emptySet())
                         .stream().map(AuthorizationGrantType::new).collect(Collectors.toSet())))
-                .redirectUris(re -> re.addAll(registeredClientEntity.getRedirectUris()))
+                .redirectUris(re -> re.addAll(Lists.newArrayList(registeredClientEntity.getRedirectUris())))
                 .scopes(scopes -> scopes.addAll(registeredClientEntity.getScopes()))
                 .build();
     }

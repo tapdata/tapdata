@@ -5,10 +5,8 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
-import com.tapdata.tm.dataflow.entity.DataFlow;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightDto;
-import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.dataflowinsight.dto.RuntimeMonitorReq;
 import com.tapdata.tm.dataflowinsight.dto.RuntimeMonitorResp;
 import com.tapdata.tm.dataflowinsight.entity.DataFlowInsightEntity;
@@ -16,40 +14,22 @@ import com.tapdata.tm.dataflowinsight.repository.DataFlowInsightRepository;
 import com.tapdata.tm.utils.MapUtils;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 import java.text.DecimalFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.IntStream;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.AddFieldsOperation;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
-import org.springframework.data.mongodb.core.aggregation.AggregationResults;
-import org.springframework.data.mongodb.core.aggregation.GroupOperation;
-import org.springframework.data.mongodb.core.aggregation.LookupOperation;
-import org.springframework.data.mongodb.core.aggregation.MatchOperation;
-import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
-import org.springframework.data.mongodb.core.aggregation.SortOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -72,16 +52,13 @@ public class DataFlowInsightService extends BaseService<DataFlowInsightDto, Data
     }});
 
 
-    private static final DateTimeFormatter secondSdf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final DateTimeFormatter minuteSdf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:00");
-    private static final DateTimeFormatter hourSdf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:00:00");
-    private static final DateTimeFormatter daySdf = DateTimeFormatter.ofPattern("yyyy-MM-dd 00:00:00");
+    private static final SimpleDateFormat secondSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final SimpleDateFormat minuteSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:00");
+    private static final SimpleDateFormat hourSdf = new SimpleDateFormat("yyyy-MM-dd HH:00:00");
+    private static final SimpleDateFormat daySdf = new SimpleDateFormat("yyyy-MM-dd 00:00:00");
 
     @Autowired
     private DataFlowService dataFlowService;
-
-    @Autowired
-    private MongoTemplate mongoTemplate;
 
     public DataFlowInsightService(@NonNull DataFlowInsightRepository repository) {
         super(repository, DataFlowInsightDto.class, DataFlowInsightEntity.class);
@@ -173,16 +150,16 @@ public class DataFlowInsightService extends BaseService<DataFlowInsightDto, Data
                     if (createTime != null){
                         switch (cacheKey) {
                             case "second":
-                                statsData.put("t", secondSdf.format(date2LocalDateTime(createTime)));
+                                statsData.put("t", secondSdf.format(createTime));
                                 break;
                             case "minute":
-                                statsData.put("t", minuteSdf.format(date2LocalDateTime(createTime)));
+                                statsData.put("t", minuteSdf.format(createTime));
                                 break;
                             case "hour":
-                                statsData.put("t", hourSdf.format(date2LocalDateTime(createTime)));
+                                statsData.put("t", hourSdf.format(createTime));
                                 break;
                             case "day":
-                                statsData.put("t", daySdf.format(date2LocalDateTime(createTime)));
+                                statsData.put("t", daySdf.format(createTime));
                                 break;
 
                         }
@@ -262,16 +239,16 @@ public class DataFlowInsightService extends BaseService<DataFlowInsightDto, Data
                     if (createTime != null){
                         switch (cacheKey) {
                             case "second":
-                                statsDataMap.put("t", secondSdf.format(date2LocalDateTime(createTime)));
+                                statsDataMap.put("t", secondSdf.format(createTime));
                                 break;
                             case "minute":
-                                statsDataMap.put("t", minuteSdf.format(date2LocalDateTime(createTime)));
+                                statsDataMap.put("t", minuteSdf.format(createTime));
                                 break;
                             case "hour":
-                                statsDataMap.put("t", hourSdf.format(date2LocalDateTime(createTime)));
+                                statsDataMap.put("t", hourSdf.format(createTime));
                                 break;
                             case "day":
-                                statsDataMap.put("t", daySdf.format(date2LocalDateTime(createTime)));
+                                statsDataMap.put("t", daySdf.format(createTime));
                                 break;
 
                         }
@@ -319,16 +296,16 @@ public class DataFlowInsightService extends BaseService<DataFlowInsightDto, Data
                     if (createTime != null){
                         switch (cacheKey) {
                             case "second":
-                                statsDataMap.put("t", secondSdf.format(date2LocalDateTime(createTime)));
+                                statsDataMap.put("t", secondSdf.format(createTime));
                                 break;
                             case "minute":
-                                statsDataMap.put("t", minuteSdf.format(date2LocalDateTime(createTime)));
+                                statsDataMap.put("t", minuteSdf.format(createTime));
                                 break;
                             case "hour":
-                                statsDataMap.put("t", hourSdf.format(date2LocalDateTime(createTime)));
+                                statsDataMap.put("t", hourSdf.format(createTime));
                                 break;
                             case "day":
-                                statsDataMap.put("t", daySdf.format(date2LocalDateTime(createTime)));
+                                statsDataMap.put("t", daySdf.format(createTime));
                                 break;
 
                         }
@@ -365,7 +342,7 @@ public class DataFlowInsightService extends BaseService<DataFlowInsightDto, Data
             return dataOverviewResult;
         }
 
-        dataOverviewResult.put("t", secondSdf.format(LocalDateTime.now()));
+        dataOverviewResult.put("t", secondSdf.format(new Date()));
         Map<String, Object> statsData = getStatsData(insightDtosWithDataOverview.get(0), stageId);
         dataOverviewResult.put("inputCount", MapUtils.getValueByPatchPath(statsData, "input/rows"));
         dataOverviewResult.put("outputCount", MapUtils.getValueByPatchPath(statsData, "output/rows"));
@@ -396,7 +373,7 @@ public class DataFlowInsightService extends BaseService<DataFlowInsightDto, Data
     private void sort(List<Map<String, Object>> list){
         list.sort((m1, m2) ->{
             try {
-                return LocalDateTime.parse(m1.get("t").toString(), secondSdf).compareTo(LocalDateTime.parse(m2.get("t").toString(), secondSdf));
+                return (int) (secondSdf.parse(m1.get("t").toString()).getTime() - secondSdf.parse(m2.get("t").toString()).getTime());
             } catch (Exception e) {
                 return 0;
             }
@@ -429,16 +406,16 @@ public class DataFlowInsightService extends BaseService<DataFlowInsightDto, Data
         }
         switch (cacheKey) {
             case "second":
-                t = secondSdf.format(date2LocalDateTime(new Date(currentTimeMillis.addAndGet( - 1000 * 5))));
+                t = secondSdf.format(new Date(currentTimeMillis.addAndGet( - 1000 * 5)));
                 break;
             case "minute":
-                t = minuteSdf.format(date2LocalDateTime(new Date(currentTimeMillis.addAndGet( - 1000 * 60))));
+                t = minuteSdf.format(new Date(currentTimeMillis.addAndGet( - 1000 * 60)));
                 break;
             case "hour":
-                t = hourSdf.format(date2LocalDateTime(new Date(currentTimeMillis.addAndGet( - 1000 * 60 * 60))));
+                t = hourSdf.format(new Date(currentTimeMillis.addAndGet( - 1000 * 60 * 60)));
                 break;
             case "day":
-                t = daySdf.format(date2LocalDateTime(new Date(currentTimeMillis.addAndGet( - 1000 * 60 * 60 * 24))));
+                t = daySdf.format(new Date(currentTimeMillis.addAndGet( - 1000 * 60 * 60 * 24)));
                 break;
 
         }
@@ -533,159 +510,5 @@ public class DataFlowInsightService extends BaseService<DataFlowInsightDto, Data
                 .limit(21);
 //        return userDetail != null ? convertToDto(findAll(query, userDetail), DataFlowInsightDto.class) : findAll(query);
         return findAll(query);
-    }
-
-    /**
-     * 当日：按照小时的粒度来展示，当日每小时的输入数据量
-     * 最近一周：按照天的粒度来展示，最近一周（当前日期往后推7天）每天的输入数据量
-     * 最近一月：按照天的粒度来展示，最近一个月（当前日期往后推30天）每天的输入数据量
-     *
-     * @param type 当日:day, 最近一周:week, 最近一月:month
-     **/
-    public DataFlowInsightStatisticsDto statistics(String type, UserDetail userDetail) {
-
-        DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = new DataFlowInsightStatisticsDto();
-        dataFlowInsightStatisticsDto.setGranularity(type);
-        String granularity;
-        DateTimeFormatter formatter, dateTimeFormatter;
-        LocalDate localDate = LocalDate.now();
-        int size;
-        ChronoUnit chronoUnit;
-        switch (type) {
-            case "day":
-                granularity = "hour";
-                localDate = localDate.minusDays(1);
-                formatter = DateTimeFormatter.ofPattern("yyyyMMddHH0000");
-                dateTimeFormatter = DateTimeFormatter.ofPattern("HH:00");
-                size = 24;
-                chronoUnit = ChronoUnit.HOURS;
-                break;
-            case "week":
-                granularity = "day";
-                localDate = localDate.minusDays(7);
-                formatter = DateTimeFormatter.ofPattern("yyyyMMdd000000");
-                dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-                size = 7;
-                chronoUnit = ChronoUnit.DAYS;
-                break;
-            case "month":
-                granularity = "day";
-                localDate = localDate.minusDays(30);
-                formatter = DateTimeFormatter.ofPattern("yyyyMMdd000000");
-                dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-                size = 30;
-                chronoUnit = ChronoUnit.DAYS;
-                break;
-            default:
-                return dataFlowInsightStatisticsDto;
-        }
-
-        Query query = new Query();
-        query.fields().include("stats.input.rows");
-        List<DataFlow> dataFlows = dataFlowService.findAll(query, userDetail);
-        List<String> dataFlowIdList = new ArrayList<>();
-        AtomicLong totalInputDataCount = new AtomicLong();
-        // dataFlow的stats中input.rows为0的不需要统计
-        dataFlows.stream().filter(dataFlow -> dataFlow.getStats() != null).forEach(dataFlow -> {
-            String rows = MapUtils.getAsStringByPath(dataFlow.getStats(), "/input/rows");
-            if (StringUtils.isBlank(rows) || Long.parseLong(rows) == 0) {
-                return;
-            }
-            totalInputDataCount.addAndGet(Long.parseLong(rows));
-            dataFlowIdList.add(dataFlow.getId().toHexString());
-        });
-        Map<String, Long> dataStatistics = new HashMap<>();
-        double ceil = Math.ceil(dataFlowIdList.size() / 50.0);
-        for (int i = 0; i < ceil; i++) {
-            setInputDataStatistics(dataFlowIdList.subList(i * 50, Math.min((i + 1) * 50, dataFlowIdList.size())), localDate, granularity, size, dataStatistics);
-        }
-
-        LocalDateTime localDateTime = LocalDateTime.of(LocalDate.now(), LocalTime.MAX);
-        List<DataFlowInsightStatisticsDto.DataStatisticInfo> dataStatisticInfos = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            dataStatisticInfos.add(new DataFlowInsightStatisticsDto.DataStatisticInfo(localDateTime.format(dateTimeFormatter), dataStatistics.getOrDefault(localDateTime.format(formatter), 0L)));
-            localDateTime = localDateTime.minus(1, chronoUnit);
-        }
-        dataStatisticInfos.sort(Comparator.comparing(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime));
-        dataFlowInsightStatisticsDto.setInputDataStatistics(dataStatisticInfos);
-        dataFlowInsightStatisticsDto.setTotalInputDataCount(totalInputDataCount.get());
-        return dataFlowInsightStatisticsDto;
-    }
-
-    private void setInputDataStatistics(List<String> dataFlowIdList, LocalDate localDate, String granularity, int size, Map<String, Long> dataStatistics){
-        Query query = Query.query(Criteria.where("granularity").is(granularity).and("dataFlowId").in(dataFlowIdList))
-                .with(Sort.by(Sort.Direction.DESC, "createTime"))
-                /*.limit(size)*/;
-        query.fields().include("dataFlowId", "statsTime", "statsData.input.rows", "createAt");
-        List<DataFlowInsightDto> dataFlowInsightDtos = findAll(query);
-        Map<String, Map<String, DataFlowInsightDto>> map = new HashMap<>();
-        // 取出dataflow下的输入统计
-        for (DataFlowInsightDto dataFlowInsightDto : dataFlowInsightDtos) {
-            if (!map.containsKey(dataFlowInsightDto.getDataFlowId())) {
-                map.put(dataFlowInsightDto.getDataFlowId(), new HashMap<>());
-            }
-            if (!map.get(dataFlowInsightDto.getDataFlowId()).containsKey(dataFlowInsightDto.getStatsTime())) {
-                map.get(dataFlowInsightDto.getDataFlowId()).put(dataFlowInsightDto.getStatsTime(), dataFlowInsightDto);
-            }
-        }
-
-        for (Map<String, DataFlowInsightDto> value : map.values()) {
-            List<DataFlowInsightDto> insightDtos = new ArrayList<>(value.values());
-            // 输入统计根据时间排序
-            insightDtos.sort((i1, i2) -> (int) (i2.getCreateAt().getTime() - i1.getCreateAt().getTime()));
-            if (CollectionUtils.isNotEmpty(insightDtos)){
-                Map<String, Long> rowsMap = new HashMap<>();
-                // 比指定时间更早的第一个时间点，用来比较指定时间内最早点的差值，比如00:00:00之前的一条数据，相减获得0点的数据输入值
-                AtomicInteger recentIndex = new AtomicInteger(-1);
-                IntStream.range(0, insightDtos.size() - 1).forEachOrdered(i -> {
-                    LocalDate date2LocalDate = date2LocalDate(insightDtos.get(i).getCreateAt());
-                    // 比较指定时间之后的输入数据差
-                    if (date2LocalDate != null && date2LocalDate.isAfter(localDate)) {
-                        String now = MapUtils.getAsStringByPath(insightDtos.get(i).getStatsData(), "/input/rows");
-                        String prev = MapUtils.getAsStringByPath(insightDtos.get(i + 1).getStatsData(), "/input/rows");
-                        if (StringUtils.isNotBlank(now) && StringUtils.isNotBlank(prev)) {
-                            long l = Long.parseLong(now) - Long.parseLong(prev);
-                            String key = insightDtos.get(i).getStatsTime();
-                            if (!rowsMap.containsKey(key)) {
-                                rowsMap.put(key, l > 0 ? l : 0);
-                            }
-                        }
-                    }else if (recentIndex.get() < 0){
-                        recentIndex.set(i);
-                    }
-                });
-                if (rowsMap.size() < size) {
-                    int index = recentIndex.get() > 0 ? recentIndex.get() - 1 : insightDtos.size() - 1;
-                    String key = insightDtos.get(index).getStatsTime();
-                    LocalDate date2LocalDate = date2LocalDate(insightDtos.get(index).getCreateAt());
-                    if (date2LocalDate != null && date2LocalDate.isAfter(localDate) && !rowsMap.containsKey(key)) {
-                        String rows = MapUtils.getAsStringByPath(insightDtos.get(index).getStatsData(), "/input/rows");
-                        rowsMap.put(key, StringUtils.isNotBlank(rows) ? Long.parseLong(rows) : 0);
-                    }
-                }
-
-                rowsMap.forEach((key, v) -> {
-                    if (!dataStatistics.containsKey(key)) {
-                        dataStatistics.put(key, v > 0 ? v : 0L);
-                    } else {
-                        dataStatistics.put(key, dataStatistics.get(key) + (v > 0 ? v : 0));
-                    }
-                });
-            }
-        }
-    }
-
-    private LocalDate date2LocalDate(Date date) {
-        if(date == null) {
-            return null;
-        }
-        return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-    }
-
-    private LocalDateTime date2LocalDateTime(Date date) {
-        if(date == null) {
-            return null;
-        }
-        return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
     }
 }

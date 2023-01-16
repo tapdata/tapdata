@@ -4,7 +4,6 @@ import io.tapdata.entity.logger.TapLogger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -88,31 +87,10 @@ public class RecordBuffer {
         } while (wPos != buf.length);
     }
 
-    private void getCurrentReadBufferIfNeed() throws InterruptedException {
+    public int read(byte[] buf) throws InterruptedException {
         if (currentReadBuffer == null) {
             currentReadBuffer = readQueue.take();
         }
-    }
-
-    public int read() throws InterruptedException {
-        getCurrentReadBufferIfNeed();
-        // add empty buffer as end flag
-        if (currentReadBuffer.limit() == 0) {
-            recycleBuffer(currentReadBuffer);
-            currentReadBuffer = null;
-            assert readQueue.size() == 0;
-            return -1;
-        }
-        int _byte = currentReadBuffer.get();
-        if (currentReadBuffer.remaining() == 0) {
-            recycleBuffer(currentReadBuffer);
-            currentReadBuffer = null;
-        }
-        return _byte;
-    }
-
-    public int read(byte[] buf) throws InterruptedException {
-        getCurrentReadBufferIfNeed();
         // add empty buffer as end flag
         if (currentReadBuffer.limit() == 0) {
             recycleBuffer(currentReadBuffer);
@@ -128,26 +106,6 @@ public class RecordBuffer {
             currentReadBuffer = null;
         }
         return nRead;
-    }
-
-    public int read(byte[] b, int off, int len) throws InterruptedException {
-        getCurrentReadBufferIfNeed();
-        if (currentReadBuffer.limit() == 0) {
-            recycleBuffer(currentReadBuffer);
-            currentReadBuffer = null;
-            return -1;
-        }
-        currentReadBuffer.get(b, off, len);
-        if (currentReadBuffer.remaining() == 0) {
-            recycleBuffer(currentReadBuffer);
-            currentReadBuffer = null;
-            getCurrentReadBufferIfNeed();
-            if (currentReadBuffer.limit() == 0) {
-                recycleBuffer(currentReadBuffer);
-                currentReadBuffer = null;
-            }
-        }
-        return b.length;
     }
 
     private void recycleBuffer(ByteBuffer buffer) throws InterruptedException {

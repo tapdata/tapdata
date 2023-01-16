@@ -21,22 +21,16 @@ def prepare_data():
     data = load_data_to_mem()
     sources = get_sources()
     for source in sources:
-        for i in range(3):
-            try:
-                db_client = newDB(source)
-                if db_client is None:
-                    break
-                # using load function from db utils in ../utils path
-                if not hasattr(db_client, "load"):
-                    break
+        db_client = newDB(source)
+        if db_client is None:
+            continue
+        # using load function from db utils in ../utils path
+        if not hasattr(db_client, "load"):
+            continue
 
-                for table, table_data in data.items():
-                    logger.info("loading data to datasource: {}, table: {}, count: {}", source, table, len(table_data))
-                    db_client.load(data=table_data, drop=True, table=table)
-                break
-            except Exception as e:
-                print(e)
-                continue
+        for table, table_data in data.items():
+            logger.info("loading data to datasource: {}, table: {}, count: {}", source, table, len(table_data))
+            db_client.load(data=table_data, drop=True, table=table)
 
 
 if __name__ == "__main__":

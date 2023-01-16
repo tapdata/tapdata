@@ -41,7 +41,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	protected final boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
 		try {
 			Log4jUtil.setThreadContext(processorBaseContext.getTaskDto());
-			if (!isRunning()) {
+			if (!isJetJobRunning()) {
 				return true;
 			}
 			TapdataEvent tapdataEvent = (TapdataEvent) item;

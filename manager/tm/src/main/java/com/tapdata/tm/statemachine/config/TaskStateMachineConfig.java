@@ -7,9 +7,6 @@
 package com.tapdata.tm.statemachine.config;
 
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.behavior.BehaviorCode;
-import com.tapdata.tm.behavior.entity.BehaviorEntity;
-import com.tapdata.tm.behavior.service.BehaviorService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.statemachine.annotation.EnableStateMachine;
@@ -21,14 +18,11 @@ import com.tapdata.tm.statemachine.model.StateContext;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.model.TaskStateContext;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.function.Function;
 
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
-import lombok.extern.slf4j.Slf4j;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -36,7 +30,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 @EnableStateMachine
-@Slf4j
 public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskState, DataFlowEvent> {
 
 
@@ -68,7 +61,6 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 				.transition(TaskState.RUNNING, TaskState.ERROR, DataFlowEvent.ERROR)
 				.transition(TaskState.RUNNING, TaskState.STOPPING, DataFlowEvent.STOP)
 				.transition(TaskState.RUNNING, TaskState.STOPPED, DataFlowEvent.FORCE_STOP)
-				.transition(TaskState.RUNNING, TaskState.RUNNING, DataFlowEvent.RUNNING)
 				.transition(TaskState.ERROR, TaskState.ERROR, DataFlowEvent.CONFIRM)
 				.transition(TaskState.ERROR, TaskState.SCHEDULING, DataFlowEvent.START)
 				.transition(TaskState.ERROR, TaskState.RENEWING, DataFlowEvent.RENEW)
@@ -106,9 +98,6 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 	@Autowired
 	private TaskRepository taskRepository;
 
-	@Autowired
-	private BehaviorService behaviorService;
-
 
 	public Function<StateContext<TaskState, DataFlowEvent>, StateMachineResult> commonAction() {
 		return (stateContext) ->{
@@ -116,28 +105,12 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 				Update update = Update.update("status", stateContext.getTarget().getName());
 				setOperTime(stateContext.getTarget().getName(), update);
 
-				TaskDto task = ((TaskStateContext) stateContext).getData();
-				Query query = Query.query(Criteria.where("_id").is(task.getId())
+				Query query = Query.query(Criteria.where("_id").is(((TaskStateContext) stateContext).getData().getId())
 						.and("status").is(stateContext.getSource().getName()));
 
 				UserDetail userDetail = stateContext.getUserDetail();
 				query = taskRepository.applyUserDetail(query, userDetail);
 				UpdateResult updateResult = mongoTemplate.updateFirst(query, update, TaskEntity.class);
-
-				try {
-					BehaviorEntity behavior = new BehaviorEntity();
-					behavior.setCode(BehaviorCode.taskStatusChange.name());
-					behavior.setAttrs(new HashMap<>());
-					behavior.getAttrs().put("id", task.getId());
-					behavior.getAttrs().put("status", stateContext.getSource().getName());
-					behavior.getAttrs().put("name", task.getName());
-					behavior.getAttrs().put("syncType", task.getSyncType());
-					behavior.getAttrs().put("type", task.getType());
-					behaviorService.trace(behavior, userDetail);
-				} catch (Exception e) {
-					log.error("Trace task status behavior failed", e);
-				}
-
 				if (updateResult.wasAcknowledged() && updateResult.getModifiedCount() > 0){
 					stateContext.setNeedPostProcessor(true);
 					((TaskStateContext)stateContext).getData().setStatus(stateContext.getTarget().getName());
@@ -151,8 +124,8 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 	private void setOperTime(String status, Update update){
 		Date date = new Date();
 		switch (status) {
-			case TaskDto.STATUS_WAIT_RUN:  //  scheduled对应scheduledTime
-				update.set("scheduledTime", date);
+			case TaskDto.STATUS_WAIT_RUN:  //  scheduled对应startTime和scheduledTime
+				update.set("startTime", date).set("scheduledTime", date);
 				break;
 			case TaskDto.STATUS_STOPPING:  // stopping对应stoppingTime
 				update.set("stoppingTime", date);
@@ -168,9 +141,6 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 				break;
 			case TaskDto.STATUS_COMPLETE:  //  error对应errorTime和finishTime
 				update.set("stopTime", date).set("finishTime", date);
-				break;
-			case TaskDto.STATUS_SCHEDULING:  //  error对应errorTime和finishTime
-				update.set("schedulingTime", date);
 				break;
 			default:
 				break;

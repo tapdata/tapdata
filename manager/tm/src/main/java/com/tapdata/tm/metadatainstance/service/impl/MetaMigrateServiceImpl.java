@@ -19,6 +19,7 @@ import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -121,7 +122,7 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
         DatabaseNode targetNode = dag.getTargetNode(nodeId);
 
         List<String> tableNames = sourceNode.getTableNames();
-        if (CollectionUtils.isEmpty(tableNames)) {
+        if (CollectionUtils.isEmpty(tableNames) && !StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
             return;
         }
 

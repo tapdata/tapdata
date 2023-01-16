@@ -10,11 +10,9 @@ import org.springframework.data.mongodb.core.mapping.Field;
  * @Date: 2021/9/14
  * @Description:
  */
-/*
 @Data
 public class StatsVo {
     private SourceVo source;
     private SourceVo target;
 
 }
-*/

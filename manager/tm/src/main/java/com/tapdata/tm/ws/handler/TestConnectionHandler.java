@@ -15,7 +15,6 @@ import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.commons.schema.DataSourceEnum;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
@@ -30,7 +29,6 @@ import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
-import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
@@ -76,7 +74,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 		messageInfo.setType("pipe");
 		String userId = context.getUserId();
 		if (StringUtils.isBlank(userId)){
-			WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("UserId is blank"));
+			WebSocketManager.sendMessage(context.getSender(), "UserId is blank");
 			return;
 		}
 		Map<String, Object> data = messageInfo.getData();
@@ -261,7 +259,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 		String uri = "";
 
 		String database_type = MapUtils.getAsString(data, "database_type");
-		if (DataSourceEnum.isMongoDB(database_type)) {
+		if ("mongodb".equals(database_type)) {
 			uri = MONGODB_URI_PREFIX;
 			String database_username = MapUtils.getAsString(data, "database_username");
 			String database_password = MapUtils.getAsString(data, "database_password");

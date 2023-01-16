@@ -19,7 +19,7 @@ package com.tapdata.tm.ds.utils;
 
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceEnum;
+import com.tapdata.tm.commons.schema.bean.DataSourceEnum;
 import com.tapdata.tm.utils.AES256Util;
 import org.apache.commons.lang3.StringUtils;
 
@@ -55,7 +55,7 @@ public class UriRootConvertUtils {
 
   public static String constructUri(DataSourceConnectionDto connectionDto) {
     StringBuilder uri = new StringBuilder(mongoPrefix);
-    if (DataSourceEnum.isMongoDB(connectionDto.getDatabase_type())) {
+    if (DataSourceEnum.mongodb.name().equals(connectionDto.getDatabase_type())) {
       if (StringUtils.isNotBlank(connectionDto.getDatabase_username())) {
         try {
           String encodeUserName = URLEncoder.encode(connectionDto.getDatabase_username(), "UTF-8");

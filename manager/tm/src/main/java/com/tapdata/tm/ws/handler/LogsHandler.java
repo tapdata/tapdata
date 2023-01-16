@@ -11,7 +11,6 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.changestream.config.ChangeStreamManager;
 import com.tapdata.tm.log.dto.LogDto;
-import com.tapdata.tm.log.entity.LogEntityElastic;
 import com.tapdata.tm.log.service.LogService;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.utils.MapUtils;
@@ -20,20 +19,12 @@ import com.tapdata.tm.ws.cs.LogsListener;
 import com.tapdata.tm.ws.dto.LogsCache;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
-import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
-
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
-import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.elasticsearch.core.SearchHits;
-import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.messaging.MessageListenerContainer;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -60,11 +51,8 @@ public class LogsHandler implements WebSocketHandler {
 	private static MessageListenerContainer container;
 
 	public static final Map<String, List<LogsCache>> logsMap = new ConcurrentHashMap<>();
-	public static final Map<String, List<String>> esLogsMap = new ConcurrentHashMap<>();
 
 	public static AtomicLong cacheEmptyTime = new AtomicLong();
-
-	private static Thread pollingQueryESThread = null;
 
 	public LogsHandler(MongoTemplate mongoTemplate, LogService logService) {
 		this.mongoTemplate = mongoTemplate;
@@ -76,7 +64,7 @@ public class LogsHandler implements WebSocketHandler {
 		MessageInfo messageInfo = context.getMessageInfo();
 		if (messageInfo == null){
 			try {
-				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Message data cannot be null"));
+				WebSocketManager.sendMessage(context.getSender(), "Message data cannot be null");
 			} catch (Exception e) {
 				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
 			}
@@ -87,7 +75,7 @@ public class LogsHandler implements WebSocketHandler {
 		String dataFlowId = MapUtils.getAsStringByPath(filter, "where/contextMap.dataFlowId/eq");
 		if (StringUtils.isBlank(dataFlowId)){
 			try {
-				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("DataFlowId is illegal"));
+				WebSocketManager.sendMessage(context.getSender(), "DataFlowId is illegal");
 			} catch (Exception e) {
 				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
@@ -99,16 +87,6 @@ public class LogsHandler implements WebSocketHandler {
 				return;
 			}
 		}
-
-		if (logService.useElastic()) {
-			handleMessageElastic(context, filter, dataFlowId);
-		} else {
-			handleMessageMongo(context, filter, dataFlowId);
-		}
-
-	}
-
-	public void handleMessageMongo(WebSocketContext context, Map<String, Object> filter, String dataFlowId) {
 		if (!logsMap.containsKey(dataFlowId)){
 			logsMap.putIfAbsent(dataFlowId, new ArrayList<>());
 		}
@@ -141,10 +119,7 @@ public class LogsHandler implements WebSocketHandler {
 			if (CollectionUtils.isNotEmpty(logs)){
 				logsCache.setLastTime(logs.get(0).getCreateAt().getTime());
 				LinkedBlockingQueue<Document> caches = logsCache.getCaches();
-				// after all the logs cached in queue are consumed, the logsCache will be disabled
-				// and com.tapdata.tm.ws.cs.LogsListener will send the log to ws session directly
-				// when it gets the log change stream.
-				while(caches.size() > 0) {
+				for (int i = 0; i < caches.size(); i++) {
 					try {
 						Document document = caches.poll();
 						if (document != null){
@@ -190,166 +165,6 @@ public class LogsHandler implements WebSocketHandler {
 		}
 	}
 
-	/**
-	 *
-	 * @param context
-	 * @param filter
-	 * @param dataFlowId
-	 */
-	public void handleMessageElastic(WebSocketContext context, Map<String, Object> filter, String dataFlowId) {
-
-		// add log cache for client
-		if (!logsMap.containsKey(dataFlowId)) {
-			logsMap.put(dataFlowId, new ArrayList<>());
-		}
-		LogsCache logsCache = new LogsCache(context.getSessionId(), context.getSender());
-		List<LogsCache> logsCaches = logsMap.get(dataFlowId);
-		boolean isExist = logsCaches.stream().anyMatch(logsCache1 -> context.getSessionId().equals(logsCache1.getSessionId()));
-		if (isExist){
-			log.info("LogsCache always exists,sender: {},dataFlowId: {}, sessionId: {}", context.getSender(), dataFlowId, context.getSessionId());
-			logsMap.values().stream()
-					.filter(CollectionUtils::isNotEmpty)
-					.forEach(value -> value.removeIf(cache -> context.getSessionId().equals(cache.getSessionId())));
-		}
-		logsCaches.add(logsCache);
-
-		// start polling query logs in es
-		startPollingQueryES();
-
-		// query last page logs and send to client
-		String order = MapUtils.getAsString(filter, "order");
-		Long limit = MapUtils.getAsLong(filter, "limit");
-		CriteriaQuery topNQuery = logService.find(dataFlowId, order, limit);
-		SearchHits<LogEntityElastic> searchHits = logService.find(topNQuery);
-		List<LogDto> logs = convertSearchHintsIntoDtoList(searchHits);
-		sendLogsMessage(dataFlowId, context.getSender(), logs);
-
-		// send cache logs to client and disable log cache for client
-		try {
-			LinkedBlockingQueue<Document> cache = logsCache.getCaches();
-			while(cache.size() > 0) {
-				try {
-					Document document = cache.poll();
-					if (document != null){
-						Date createTime = document.getDate("createTime");
-						if (createTime.getTime() - logsCache.getLastTime() > 0) {
-							sendLogsMessage(dataFlowId, context.getSender(), document);
-						}
-					}
-				} catch (Exception ignored){
-				}
-			}
-			logsCache.setEnabled(false);
-			log.info("Handler message end,sessionId: {}", context.getSessionId());
-		} catch (Throwable e) {
-			log.error("WebSocket send history log message failed,message: {}", e.getMessage(), e);
-			logsCache.setEnabled(false);
-		}
-
-	}
-
-	/**
-	 * polling query logs in es
-	 */
-	private void startPollingQueryES() {
-
-		if (pollingQueryESThread != null) {
-			if (Thread.State.TERMINATED == pollingQueryESThread.getState()) {
-				// thread recycle
-			} else {
-				return;
-			}
-		}
-
-		pollingQueryESThread = new Thread(() -> {
-			try {
-
-				AtomicLong cursorTimeForEs = new AtomicLong();
-
-				while (true) {
-
-					long currentPoint = System.currentTimeMillis() - 500;
-
-					if (MapUtils.isEmpty(logsMap)) {
-						cursorTimeForEs.set(currentPoint);
-						Thread.sleep(2000);
-						continue;
-					}
-
-					if (cursorTimeForEs.get() == 0) {
-						cursorTimeForEs.set(currentPoint - 2000);
-					}
-
-					org.springframework.data.elasticsearch.core.query.Criteria criteria =
-							org.springframework.data.elasticsearch.core.query.Criteria.where("createAt")
-									.greaterThanEqual(new Date(cursorTimeForEs.get())).lessThan(new Date(currentPoint));
-					CriteriaQuery query = new CriteriaQuery(criteria);
-					query.addSort(Sort.by(Sort.Order.asc("createAt")));
-
-					SearchHits<LogEntityElastic> result = logService.find(query);
-
-					List<LogDto> logs = convertSearchHintsIntoDtoList(result);
-
-					logs.forEach(log -> {
-
-						String dataFlowId = MapUtils.getAsStringByPath(log.getContextMap(), "dataFlowId");
-						if (StringUtils.isNotBlank(dataFlowId)){
-							List<LogsCache> logsCaches = logsMap.get(dataFlowId);
-							if (CollectionUtils.isEmpty(logsCaches)){
-								return;
-							}
-							for (LogsCache logsCache : new ArrayList<>(logsCaches)) {
-								LinkedBlockingQueue<Document> caches = logsCache.getCaches();
-								if (logsCache.getEnabled()){
-									caches.offer(Document.parse(JsonUtil.toJson(log)));
-								}else {
-									if (caches.size() > 0){
-										for (int i = 0; i < caches.size(); i++) {
-											Document document = caches.poll();
-											if (document != null){
-												LogsHandler.sendLogsMessage(dataFlowId, logsCache.getReceiver(), Collections.singletonList(document));
-											}
-										}
-									}
-									LogsHandler.sendLogsMessage(dataFlowId, logsCache.getReceiver(), Collections.singletonList(log));
-								}
-							}
-						}
-
-					});
-
-
-					cursorTimeForEs.set(currentPoint);
-					Thread.sleep(2000);
-				}
-
-			} catch (Exception e) {
-				log.error("Polling query logs in es failed", e);
-				pollingQueryESThread = null;
-			}
-		});
-
-		pollingQueryESThread.start();
-
-	}
-
-	private List<LogDto> convertSearchHintsIntoDtoList(SearchHits<LogEntityElastic> searchHits) {
-		List<LogDto> logs = new ArrayList<>();
-		searchHits.stream().iterator().forEachRemaining(searchHit -> {
-			LogEntityElastic entity = searchHit.getContent();
-			try {
-				LogDto dto = LogDto.class.getDeclaredConstructor().newInstance();
-				BeanUtils.copyProperties(entity, dto);
-				logs.add(dto);
-			} catch (Exception e) {
-				log.error("Convert dto " + LogDto.class + " failed.", e);
-			}
-		});
-
-		return logs;
-	}
-
-
 	public static void sendLogsMessage(String dataFlowId, String receiver, Object data){
 
 		try {
@@ -370,14 +185,6 @@ public class LogsHandler implements WebSocketHandler {
 					.forEach(value -> value.removeIf(logsCache -> id.equals(logsCache.getSessionId())));
 			logsMap.entrySet().removeIf(entry -> CollectionUtils.isEmpty(entry.getValue()));
 		}
-
-		if (MapUtils.isNotEmpty(esLogsMap) && StringUtils.isNotBlank(id)){
-			esLogsMap.values().stream()
-					.filter(CollectionUtils::isNotEmpty)
-					.forEach(value -> value.removeIf(id::equals));
-			esLogsMap.entrySet().removeIf(entry -> CollectionUtils.isEmpty(entry.getValue()));
-		}
-
 		if (MapUtils.isEmpty(logsMap)){
 			cacheEmptyTime.set(System.currentTimeMillis());
 		}

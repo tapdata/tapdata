@@ -1,6 +1,5 @@
 package io.tapdata.connector.doris.streamload;
 
-import io.tapdata.connector.doris.DorisContext;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
@@ -35,26 +34,7 @@ public class HttpPutBuilder {
 
     public HttpPutBuilder addCommonHeader() {
         header.put(HttpHeaders.EXPECT, "100-continue");
-        return this;
-    }
-
-    public HttpPutBuilder addHeader(String key, String value) {
-        header.put(key, value);
-        return this;
-    }
-
-    public HttpPutBuilder addFormat(DorisContext.WriteFormat writeFormat) {
-        header.put("format", writeFormat.name());
-        switch (writeFormat) {
-            case csv:
-                header.put("column_separator", Constants.FIELD_DELIMITER_DEFAULT);
-                header.put("line_delimiter", Constants.LINE_DELIMITER_DEFAULT);
-                break;
-            case json:
-                header.put("strip_outer_array", "true");
-                header.put("fuzzy_parse", "true");
-                break;
-        }
+        header.put("column_separator", Constants.FIELD_DELIMITER_DEFAULT);
         return this;
     }
 

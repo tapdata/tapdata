@@ -219,7 +219,7 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-index": 4,
-          "default": true,
+          "default": false,
           "x-reactions": [
             {
               "dependencies": [".valueType",".oneKey"],
@@ -295,19 +295,47 @@
             }
           ]
         },
-        "csvFormat": {
-          "type": "boolean",
-          "title": "${csvFormat}",
+        "valueTransferredString": {
+          "type": "string",
+          "title": "${valueTransferredString}",
           "x-decorator": "FormItem",
-          "x-component": "Switch",
+          "x-component": "Input",
           "x-index": 8,
-          "default": true,
+          "default": "\"",
+          "required": true,
           "x-reactions": [
             {
               "dependencies": [".valueData"],
               "fulfill": {
                 "state": {
                   "visible": "{{$deps[0] === 'Text'}}"
+                }
+              }
+            }
+          ]
+        },
+        "expireTime": {
+          "type": "string",
+          "title": "${expireTime}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "x-index": 9,
+          "default": 0,
+          "required": true
+        },
+        "resetExpire": {
+          "type": "boolean",
+          "title": "${resetExpire}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-index": 10,
+          "default": false,
+          "x-reactions": [
+            {
+              "dependencies": [".expireTime"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{$deps[0] !== 0}}"
                 }
               }
             }
@@ -339,7 +367,7 @@
       "keyExpression": "Key expression",
       "valueData": "Value display",
       "valueJoinString": "Value join string",
-      "csvFormat": "Csv Format",
+      "valueTransferredString": "Value transferred string",
       "expireTime": "Expire time(second)",
       "resetExpire": "Reset expire time when updated",
       "prompt": "Add"
@@ -365,7 +393,7 @@
       "keyExpression": "键表达式",
       "valueData": "值显示",
       "valueJoinString": "值连接符",
-      "csvFormat": "Csv格式化",
+      "valueTransferredString": "转义字符",
       "expireTime": "有效时间（秒）",
       "resetExpire": "更新时重置有效时间",
       "prompt": "添加"
@@ -391,7 +419,7 @@
       "keyExpression": "鍵運算式",
       "valueData": "值顯示",
       "valueJoinString": "值連接符",
-      "csvFormat": "Csv格式化",
+      "valueTransferredString": "轉義字元",
       "expireTime": "有效時間（秒）",
       "resetExpire": "更新時重置有效時間",
       "prompt": "添加"

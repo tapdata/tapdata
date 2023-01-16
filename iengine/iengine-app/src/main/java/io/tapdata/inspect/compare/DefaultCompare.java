@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.MysqlJson;
-import io.tapdata.entity.schema.value.DateTime;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -255,8 +254,6 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			return ((Date) val).toInstant().toString();
 		} else if (val instanceof Instant) {
 			return ((Instant) val).toString();
-		} else if (val instanceof DateTime) {
-			return ((DateTime) val).toInstant().toString();
 		}
 		return val;
 	}

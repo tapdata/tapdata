@@ -14,7 +14,6 @@ import com.tapdata.tm.ws.cs.EditFlushListener;
 import com.tapdata.tm.ws.dto.EditFlushCache;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
-import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
@@ -56,7 +55,7 @@ public class EditFlushHandler implements WebSocketHandler {
 		MessageInfo messageInfo = context.getMessageInfo();
 		if (messageInfo == null){
 			try {
-				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Message data cannot be null"));
+				WebSocketManager.sendMessage(context.getSender(), "Message data cannot be null");
 			} catch (Exception e) {
 				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
@@ -65,7 +64,7 @@ public class EditFlushHandler implements WebSocketHandler {
 
         if (StringUtils.isBlank(messageInfo.getTaskId())){
             try {
-                WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("task id is blank"));
+                WebSocketManager.sendMessage(context.getSender(), "task id is blank");
             } catch (Exception e) {
                 log.error("WebSocket send message failed, message: {}", e.getMessage());
             }

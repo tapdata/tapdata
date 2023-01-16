@@ -44,8 +44,6 @@ public class MysqlJdbcContext implements AutoCloseable {
 	private static final String DROP_TABLE_IF_EXISTS_SQL = "DROP TABLE IF EXISTS `%s`.`%s`";
 	private static final String TRUNCATE_TABLE_SQL = "TRUNCATE TABLE `%s`.`%s`";
 
-	public static final String FIELD_TEMPLATE = "`%s`";
-
 	private static final Map<String, String> DEFAULT_PROPERTIES = new HashMap<String, String>() {{
 		put("rewriteBatchedStatements", "true");
 		put("useCursorFetch", "true");
@@ -225,6 +223,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 					statementImpl.enableStreamingResults();
 				}
 			}
+			statement.setFetchSize(1000);
 			try (
 					ResultSet resultSet = statement.executeQuery(sql)
 			) {

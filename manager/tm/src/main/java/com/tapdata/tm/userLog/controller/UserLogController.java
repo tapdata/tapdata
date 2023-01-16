@@ -36,17 +36,14 @@ public class UserLogController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(userLogService.find(filter, getLoginUser()));
+        return success(userLogService.find(filter));
     }
 
     @Operation(summary = "添加操作日志")
     @PostMapping
     public ResponseMessage<Page<UserLogDto>> add(@RequestBody AddUserLogParam addUserLogParam) {
         try {
-            userLogService.addUserLog(Modular.of(addUserLogParam.getModular())
-                    , com.tapdata.tm.userLog.constant.Operation.of(addUserLogParam.getOperation()),
-                    getLoginUser(), addUserLogParam.getSourceId(), addUserLogParam.getParameter1(),
-                    addUserLogParam.getParameter2(), addUserLogParam.getRename());
+            userLogService.addUserLog(Modular.AGENT, com.tapdata.tm.userLog.constant.Operation.RENAME, getLoginUser(), addUserLogParam.getSourceId(), addUserLogParam.getParameter1(), addUserLogParam.getParameter2(), addUserLogParam.getRename());
         } catch (Exception e) {
             log.error("添加操作日志异常", e);
             return failed("添加操作日志异常");

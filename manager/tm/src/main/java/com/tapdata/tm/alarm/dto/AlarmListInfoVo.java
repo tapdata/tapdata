@@ -29,8 +29,6 @@ public class AlarmListInfoVo {
     private Date firstOccurrenceTime;
     @Schema(description = "告警最近发生时间")
     private Date lastOccurrenceTime;
-    @Schema(description = "下一次告警通知时间")
-    private Date lastNotifyTime;
     private String taskId;
     private String nodeId;
     private AlarmKeyEnum metric;

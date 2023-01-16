@@ -26,7 +26,6 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskCollectionObjService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -92,9 +91,9 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         }
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
-        FunctionUtils.ignoreAnyError(() -> {
-            String template = "Scheduling calculation results: {0}, all agent data: {1}.";
-            String msg = MessageFormat.format(template, calculationEngineVo.getProcessId() , JSON.toJSONString(calculationEngineVo.getThreadLog()));
+        CompletableFuture.runAsync(() -> {
+            String template = "Scheduling calculation results {0}.";
+            String msg = MessageFormat.format(template, JSON.toJSONString(calculationEngineVo));
             monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
         });
         if (StringUtils.isBlank(taskDto.getAgentId())) {
@@ -106,6 +105,12 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
         Update waitRunUpdate = Update.update("agentId", taskDto.getAgentId()).set("last_updated", now);
+        boolean needCreateRecord = false;
+        if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
+            taskDto.setTaskRecordId(new ObjectId().toHexString());
+            waitRunUpdate.set(TaskDto.LASTTASKRECORDID, taskDto.getTaskRecordId());
+            needCreateRecord = true;
+        }
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_SUCCESS, user);
 
@@ -115,9 +120,24 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         } else {
             taskService.update(query1, waitRunUpdate, user);
         }
-        sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user);
+        //发送websocket消息，提醒flowengin启动
+        DataSyncMq dataSyncMq = new DataSyncMq();
+        dataSyncMq.setTaskId(taskDto.getId().toHexString());
+        dataSyncMq.setOpType(DataSyncMq.OP_TYPE_START);
+        dataSyncMq.setType(MessageType.DATA_SYNC.getType());
 
-        if (taskDto.isNeedCreateRecord()) {
+        Map<String, Object> data;
+        String json = JsonUtil.toJsonUseJackson(dataSyncMq);
+        data = JsonUtil.parseJsonUseJackson(json, Map.class);
+        MessageQueueDto queueDto = new MessageQueueDto();
+        queueDto.setReceiver(taskDto.getAgentId());
+        queueDto.setData(data);
+        queueDto.setType("pipe");
+
+        log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
+        messageQueueService.sendMessage(queueDto);
+
+        if (needCreateRecord) {
             TaskEntity taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
             disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), now));
@@ -134,25 +154,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())),
                     Update.update("scheduleDate", System.currentTimeMillis()));
         }
-    }
-
-    public void sendStartMsg(String taskId, String agentId, UserDetail user) {
-        //发送websocket消息，提醒flowengin启动
-        DataSyncMq dataSyncMq = new DataSyncMq();
-        dataSyncMq.setTaskId(taskId);
-        dataSyncMq.setOpType(DataSyncMq.OP_TYPE_START);
-        dataSyncMq.setType(MessageType.DATA_SYNC.getType());
-
-        Map<String, Object> data;
-        String json = JsonUtil.toJsonUseJackson(dataSyncMq);
-        data = JsonUtil.parseJsonUseJackson(json, Map.class);
-        MessageQueueDto queueDto = new MessageQueueDto();
-        queueDto.setReceiver(agentId);
-        queueDto.setData(data);
-        queueDto.setType("pipe");
-
-        log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
-        messageQueueService.sendMessage(queueDto);
     }
 
     /**

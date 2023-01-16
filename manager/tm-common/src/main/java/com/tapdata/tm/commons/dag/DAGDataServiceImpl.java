@@ -91,7 +91,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         this.transformerDtoMap = transformerDtoMap;
     }
 
-    public void setMetaDataMap(MetadataInstancesDto metadataInstancesDto) {
+    private void setMetaDataMap(MetadataInstancesDto metadataInstancesDto) {
         if (metadataInstancesDto.getId() != null) {
             metadataMap.put(metadataInstancesDto.getId().toHexString(), metadataInstancesDto);
         }

@@ -162,7 +162,7 @@ public class JsProcessorNode extends ProcessorNode {
     }
 
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
         //js节点的模型可以是直接虚拟跑出来的。 跑出来就是正确的模型，由引擎负责传值给tm
         if (schema != null) {
             return schema;

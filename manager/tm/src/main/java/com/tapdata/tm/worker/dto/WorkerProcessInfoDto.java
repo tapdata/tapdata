@@ -5,7 +5,6 @@ import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import lombok.Data;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -16,7 +15,6 @@ import java.util.Map;
 public class WorkerProcessInfoDto {
 
     private int runningNum;
-    private Map<String, Long> runningTaskNum;
     private List<DataFlowDto> dataFlows;
     private SystemInfo systemInfo;
 

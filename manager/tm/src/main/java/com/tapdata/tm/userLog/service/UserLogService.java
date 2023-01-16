@@ -148,7 +148,7 @@ public class UserLogService extends BaseService {
         try {
             UserLogs userLogs = new UserLogs();
             userLogs.setModular(modular.getValue());
-            userLogs.setOperation(operation != null ? operation.getValue() : null);
+            userLogs.setOperation(operation.getValue());
             userLogs.setUserId(userDetail.getUserId());
             String userName = StringUtils.isEmpty(userDetail.getUsername()) ? userDetail.getEmail() : userDetail.getUsername();
             userLogs.setUsername(userName);
@@ -166,8 +166,7 @@ public class UserLogService extends BaseService {
             userLogs.setLastUpdAt(new Date());
             userLogs.setLastUpdBy(userDetail.getUsername());
             userLogs.setRename(rename);
-            //userLogRepository.getMongoOperations().insert(userLogs);
-            userLogRepository.insert(userLogs, userDetail);
+            userLogRepository.getMongoOperations().insert(userLogs);
 
         } catch (Exception e) {
             log.error("执行插入操作日志失败", e);
@@ -175,12 +174,12 @@ public class UserLogService extends BaseService {
     }
 
     public void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, String parameter2, Boolean rename) {
-        ObjectId sourceObjectId = sourceId != null ? new ObjectId(sourceId) : null;
+        ObjectId sourceObjectId = new ObjectId(sourceId);
         addUserLog(modular, OperationType, userDetail, sourceObjectId, UserLogType.USER_OPERATION, parameter1, parameter2, rename);
     }
 
     public void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1) {
-        ObjectId sourceObjectId = sourceId != null ? new ObjectId(sourceId) : null;
+        ObjectId sourceObjectId = new ObjectId(sourceId);
         addUserLog(modular, OperationType, userDetail, sourceObjectId, UserLogType.USER_OPERATION, parameter1, null, false);
     }
 

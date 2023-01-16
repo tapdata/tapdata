@@ -1,7 +1,6 @@
 package com.tapdata.tm.inspect.service;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -35,8 +34,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -254,52 +251,7 @@ public class InspectResultService extends BaseService<InspectResultDto, InspectR
      */
     public InspectResultDto upsertInspectResultByWhere(Where where, SaveInspectResultParam saveInspectResultParam, UserDetail userDetail) {
         InspectResultDto inspectResultDto = BeanUtil.copyProperties(saveInspectResultParam, InspectResultDto.class);
-
-        List<Stats> inspectResultStats = inspectResultDto.getStats() != null ? inspectResultDto.getStats() :
-                Collections.emptyList();
-
-        log.info("Update {} of inspect result stats", saveInspectResultParam.isPartStats() ? "part" : "all");
-
-        InspectResultDto resultDto = null;
-        if (saveInspectResultParam.isPartStats()) {
-
-            inspectResultDto.setStats(null);
-
-            resultDto = super.upsertByWhere(where, inspectResultDto, userDetail);
-
-            if (inspectResultStats.size() > 0) {
-                List<String> taskIds = inspectResultStats.stream().map(Stats::getTaskId).collect(Collectors.toList());
-                Update update = new Update().pull("stats", Criteria.where("taskId").in(taskIds).getCriteriaObject());
-                UpdateResult result = updateById(resultDto.getId(), update, userDetail);
-                if (log.isDebugEnabled()) {
-                    log.debug("Pull inspect result stats by task id: {}, result: {}", update.toString(), result);
-                }
-
-                update = new Update().push("stats").each(inspectResultStats);
-                result = updateById(resultDto.getId(), update, userDetail);
-                if (log.isDebugEnabled()) {
-                    log.debug("Push inspect result stats {}", result);
-                }
-            }
-            resultDto = super.findById(resultDto.getId());
-
-            AtomicLong sourceTotal = new AtomicLong(0);
-            AtomicLong targetTotal = new AtomicLong(0);
-            resultDto.getStats().forEach(stats -> {
-                sourceTotal.addAndGet(stats.getSourceTotal());
-                targetTotal.addAndGet(stats.getTargetTotal());
-            });
-            UpdateResult result = repository.update(Query.query(Criteria.where("_id").is(resultDto.getId())),
-                    Update.update("sourceTotal", sourceTotal.get()).set("targetTotal", targetTotal.get())
-                            .set("firstSourceTotal", sourceTotal.get()).set("firstTargetTotal", targetTotal.get())
-            );
-            log.debug("Update inspect result total statistics for source and target {}, result: {}",
-                    resultDto.getId(), result);
-        } else {
-            resultDto = super.upsertByWhere(where, inspectResultDto, userDetail);
-        }
-
-
+        InspectResultDto resultDto = super.upsertByWhere(where, inspectResultDto, userDetail);
         //需要把结果更新到inspect表
         String inspectId = resultDto.getInspect_id();
         List<Stats> statsList = inspectResultDto.getStats();

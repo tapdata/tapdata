@@ -58,7 +58,6 @@ public abstract class DataParentNode<S> extends Node<S> {
     private Boolean enableDDL;
 
     private List<String> disabledEvents;
-    @Deprecated
     private Boolean enableDynamicTable;
 	/** 是否开启全量并发写入*/
 	private Boolean initialConcurrent;
@@ -123,7 +122,6 @@ public abstract class DataParentNode<S> extends Node<S> {
             s.setOriginalName(tableName);
             s.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, tableName, getTaskId()));
             str.setSinkQulifiedName(s.getQualifiedName());
-            str.setSinkObjectName(tableName);
         }
 
         int userDeleteNum = 0;

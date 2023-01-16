@@ -47,7 +47,7 @@ public abstract class ProcessorNode extends Node<Schema> {
     }
 
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
         return SchemaUtils.mergeSchema(inputSchemas, schema);
     }
 

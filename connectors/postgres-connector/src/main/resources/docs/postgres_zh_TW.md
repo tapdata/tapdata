@@ -137,7 +137,7 @@ drop table public.test_decode
   如果 tapdata 由於不可控異常（斷電、進程崩潰等），導致cdc中斷，會導致 slot 連接無法正確從 pg 主節點刪除，將一直佔用一個 slot 連接名額，需手動登錄主節點，進行刪除
   查詢slot信息
 ```
-// 查看是否有slot_name以tapdata_cdc_开头的信息
+// 查看是否有slot_name=tapdata的信息
  TABLE pg_replication_slots;
 ```
 - **刪除slot節點**<br>

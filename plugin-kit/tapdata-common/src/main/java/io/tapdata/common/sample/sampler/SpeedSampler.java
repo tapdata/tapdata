@@ -30,7 +30,7 @@ public class SpeedSampler implements Sampler {
                 return  ((double) totalValue.sumThenReset() / time) * 1000;
             }
         }
-        return null;
+        return 0;
     }
 
 }

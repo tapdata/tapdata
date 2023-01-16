@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class URlEncodeTest {
+public class URlEncodeTest extends BaseJunit {
 
     @Test
     public void encode() throws UnsupportedEncodingException {
@@ -62,7 +62,7 @@ public class URlEncodeTest {
         Where where = parseWhere(s);
         Map jsonObject = (Map) where.get("_id");
         List jsonArray = (List) jsonObject.get("in");
-        //printResult(jsonArray);
+        printResult(jsonArray);
     }
 
     @Test

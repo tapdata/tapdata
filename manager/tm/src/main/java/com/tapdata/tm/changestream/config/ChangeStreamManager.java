@@ -8,9 +8,6 @@ package com.tapdata.tm.changestream.config;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
@@ -21,11 +18,8 @@ import org.springframework.data.mongodb.core.messaging.MessageListenerContainer;
 
 public class ChangeStreamManager {
 
-	private static final ThreadPoolExecutor changeStreamThreadPool = new ThreadPoolExecutor(5, 5,
-				0,TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
-
 	public static MessageListenerContainer start(String collectionName, Aggregation aggregation, FullDocument lookup, MongoTemplate mongoTemplate, MessageListener<ChangeStreamDocument<Document>, Document> listener){
-		MessageListenerContainer container = new MyMessageListenerContainer(mongoTemplate, changeStreamThreadPool);
+		MessageListenerContainer container = new DefaultMessageListenerContainer(mongoTemplate);
 		container.start();
 
 		ChangeStreamRequest.ChangeStreamRequestBuilder<Document> builder = ChangeStreamRequest.builder(listener)
@@ -42,7 +36,7 @@ public class ChangeStreamManager {
 	}
 
 	public static <T> MessageListenerContainer start(String collectionName, Aggregation aggregation, FullDocument lookup, MongoTemplate mongoTemplate, MessageListener<ChangeStreamDocument<Document>, T> listener, Class<T> tClass){
-		MessageListenerContainer container = new MyMessageListenerContainer(mongoTemplate,changeStreamThreadPool);
+		MessageListenerContainer container = new DefaultMessageListenerContainer(mongoTemplate);
 		container.start();
 
 		ChangeStreamRequest.ChangeStreamRequestBuilder<T> builder = ChangeStreamRequest.builder(listener)

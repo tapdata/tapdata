@@ -10,6 +10,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -59,7 +60,7 @@ public class TaskSampleHandler extends AbstractHandler {
     private Long snapshotDoneAt = null;
     private String currentSnapshotTable = null;
     private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
-    private Long currentSnapshotTableInsertRowTotal = null;
+    private Long currentSnapshotTableInsertRowTotal = 0L;
     private final Set<String> taskTables = new HashSet<>();
 
     private final HashMap<String, DataNodeSampleHandler> targetNodeHandlers = new HashMap<>();
@@ -109,7 +110,7 @@ public class TaskSampleHandler extends AbstractHandler {
     }
 
     public void doInit(Map<String, Number> values) {
-        collector.addSampler(TABLE_TOTAL, () -> CollectionUtils.isNotEmpty(taskTables) ? taskTables.size() : null);
+        collector.addSampler(TABLE_TOTAL, taskTables::size);
 
         inputDdlCounter = getCounterSampler(values, Constants.INPUT_DDL_TOTAL);
         inputInsertCounter = getCounterSampler(values, Constants.INPUT_INSERT_TOTAL);
@@ -186,7 +187,7 @@ public class TaskSampleHandler extends AbstractHandler {
         });
 
         // TODO(dexter): find a way to record the current table name
-        collector.addSampler(CURR_SNAPSHOT_TABLE, () -> null);
+        collector.addSampler(CURR_SNAPSHOT_TABLE, () -> -1);
         collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
             if (null == currentSnapshotTable) return null;
             return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
@@ -214,7 +215,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public void handleTableCountAccept(String table, long count) {
         snapshotRowTotal.inc(count);
-        currentSnapshotTableRowTotalMap.put(table, count > 0 ? count : null);
+        currentSnapshotTableRowTotalMap.put(table, count);
     }
 
     public void handleCreateTableEnd() {

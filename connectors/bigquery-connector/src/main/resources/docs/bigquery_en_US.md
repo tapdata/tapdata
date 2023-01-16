@@ -28,33 +28,33 @@ Obtain **service account**:
 
 - 2.If you have configured the corresponding service account (***Please skip steps 2-6 directly and start from step 7***), you need to create a new service account now. Click the **CREATE CREDENTIAL** option in the menu bar:
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount1.png)
+ ![](../img/serviceAccount1.png)
 
 - 3.Select **Service Account** to create a service account:
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount2.png)
+ ![](../img/serviceAccount2.png)
 
 - 4.Fill in the basic information of the service account:
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount3.png)
+ ![](../img/serviceAccount3.png)
 
 - 5.Associate this service account with the project and configure its access permission rules. Here we need to select BigQuery Admin permission under BigQuery;
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount4.png)
+ ![](../img/serviceAccount4.png)
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount5.png)
+ ![](../img/serviceAccount5.png)
 
 - 6.After configuration, click Create. We will return to the Credentital page, and we can see the service account we just created in the Service Account table:
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount6.png)
+ ![](../img/serviceAccount6.png)
 
 - 7.Click the created Service Account to enter the Service Account At this point, we begin to configure the access secret key, that is, we need to use the key information to create the data source. Select the key option and click Add Key. Create a new key;
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount7.png)
+ ![](../img/serviceAccount7.png)
 
 - 8.Click Create and select the secret key in JSON format. After saving to the local, open the JSON file, copy all the contents to the Tapdata creation connection page, and paste the copied contents into the service account text field;
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount8.png)
+ ![](../img/serviceAccount8.png)
 
 Get **Dataset ID**
 
@@ -62,4 +62,4 @@ Get **Dataset ID**
 
 - 2.You can directly obtain the dataset ID from the interface, as shown in the following figure. The hierarchical relationship is Item ID ->Dataset ID ->Datasheet ID:
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount9.png)
+ ![](../img/tableSetId.png)

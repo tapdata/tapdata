@@ -20,7 +20,6 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.util.Date;
 import java.util.List;
-import java.util.Set;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -172,41 +171,11 @@ public class DataSourceEntity extends BaseEntity {
     private String custom_ondata_script;
     private String clusterName;
     private String kafkaBootstrapServers;
-    private Set<String> kafkaRawTopics;
     private String kafkaPatternTopics;
-    private Integer kafkaConsumerRequestTimeout = 0;
-    private Boolean kafkaConsumerUseTransactional = false;
-    private Integer kafkaMaxPollRecords = 0;
-    private Integer kafkaPollTimeoutMS = 0;
-    private Integer kafkaMaxFetchBytes = 0;
-    private Integer kafkaMaxFetchWaitMS = 0;
-    private Boolean kafkaIgnoreInvalidRecord = false;
-    /**
-     * kafka target (Producer)
-     */
-    private Integer kafkaProducerRequestTimeout = 0;
-    private Boolean kafkaProducerUseTransactional = false;
-    private Integer kafkaRetries = 0;
-    private Integer kafkaBatchSize = 0;
-    private String kafkaAcks = "-1";
-    private Integer kafkaLingerMS = 0;
-    private Integer kafkaDeliveryTimeoutMS = 0;
-    private Integer kafkaMaxRequestSize = 0;
-    private Integer kafkaMaxBlockMS = 0;
-    private Integer kafkaBufferMemory = 0;
-    private String kafkaCompressionType = "";
-    private String kafkaPartitionKey = "";
-    private Boolean kafkaIgnorePushError = false;
-
-    private String kafkaSaslMechanism;
-    private Boolean krb5;
-    private String krb5Keytab;
-    private String krb5KeytabName;
-    private String krb5Conf;
-    private String krb5ConfName;
-    private String krb5Principal;
-    private String krb5ServiceName;
-
+    private Boolean kafkaIgnoreInvalidRecord;
+    private String kafkaAcks;
+    private String kafkaCompressionType;
+    private Boolean kafkaIgnorePushError;
     private String jiraUrl;
     private String jiraUsername;
     private String jiraPassword;
@@ -257,21 +226,6 @@ public class DataSourceEntity extends BaseEntity {
 
     private String initId;
     private String sourceType;
-
-    private String vika_space_name;
-    private String vika_space_id;
-
-    /**
-     * QingFlow 属性
-     */
-    private String qingFlowUserId;
-    private String qingFlowTagName;
-    private String qingFlowTagId;
-
-    /**
-     * Doris 使用 Stream  Load 需要用到 http 接口
-     */
-    private String dorisHttp;
     private String uniqueName;
 
     /** 共享缓存开关 */

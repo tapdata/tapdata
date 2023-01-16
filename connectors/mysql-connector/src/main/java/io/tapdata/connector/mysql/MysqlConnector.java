@@ -7,7 +7,6 @@ import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
-import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
@@ -30,8 +29,6 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -97,7 +94,7 @@ public class MysqlConnector extends ConnectorBase {
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTimeStr());
+
         codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
             if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
                 tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
@@ -122,21 +119,7 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
-    }
-
-
-    private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
-        RetryOptions retryOptions = RetryOptions.create();
-        retryOptions.setNeedRetry(true);
-        retryOptions.beforeRetryMethod(()->{
-            try {
-                this.onStart(tapConnectionContext);
-            } catch (Throwable ignore) {
-            }
-        });
-        return retryOptions;
     }
 
 

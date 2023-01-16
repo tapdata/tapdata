@@ -113,7 +113,5 @@ temp/
 tmp_dist/
 tap_table_ehcache/
 **/logs/
-imap-cache-data/
 CacheObserveLogs/
 /node_modules/
-/manager/tm/src/main/resources/test3/

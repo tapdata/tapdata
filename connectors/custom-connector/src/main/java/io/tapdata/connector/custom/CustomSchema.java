@@ -66,7 +66,7 @@ public class CustomSchema {
             ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
             scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(script, false));
             scriptEngine.put("core", core);
-//            scriptEngine.put("log", new CustomLog());
+            scriptEngine.put("log", new CustomLog());
             Thread t = new Thread(ScriptUtil.createScriptRunnable(scriptEngine, ScriptUtil.SOURCE_FUNCTION_NAME));
             TapLogger.info(TAG, "Running script, try to get data and build schema. \n {}", script);
             t.start();

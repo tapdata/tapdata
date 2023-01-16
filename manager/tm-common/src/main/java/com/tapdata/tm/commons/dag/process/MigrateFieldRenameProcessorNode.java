@@ -40,7 +40,7 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
     private LinkedList<TableFieldInfo> fieldsMapping;
 
     @Override
-    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
+    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
         if (CollectionUtils.isEmpty(inputSchemas)) {
             return Lists.newArrayList();
         }

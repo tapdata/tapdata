@@ -77,7 +77,7 @@ public class RedisConnector extends ConnectorBase {
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         connectorFunctions.supportWriteRecord(this::writeRecord);
 //        connectorFunctions.supportClearTable(this::clearTable);
-        connectorFunctions.supportDropTable(this::dropTable);
+//        connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateTable(this::createTable);
 
         // TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
@@ -122,11 +122,7 @@ public class RedisConnector extends ConnectorBase {
     }
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
-        if (EmptyKit.isNotBlank(redisConfig.getKeyTableName())) {
-            cleanOneKey(redisConfig.getKeyTableName());
-        } else {
-            cleanOneKey(tapDropTableEvent.getTableId());
-        }
+        cleanOneKey(redisConfig.getKeyTableName());
     }
 
     private void cleanOneKey(String keyName) {
@@ -146,7 +142,7 @@ public class RedisConnector extends ConnectorBase {
             case ZSET:
                 return;
         }
-        if (!redisConfig.getListHead()) {
+        if (!redisConfig.getListHead() || !redisConfig.getOneKey()) {
             return;
         }
         try (Jedis jedis = redisContext.getJedis()) {

@@ -512,8 +512,4 @@ public class ClientMongoOperator implements Serializable {
 		MongoDatabase mongoDatabase = mongoTemplate.getDb();
 		return GridFSBuckets.create(mongoDatabase);
 	}
-
-	public <T> T postOne(Map<String, Object> obj, String resource, Class<T> className) {
-		throw new UnsupportedOperationException();
-	}
 }

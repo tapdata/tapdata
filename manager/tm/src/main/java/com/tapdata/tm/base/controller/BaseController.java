@@ -89,7 +89,7 @@ public class BaseController {
 		String userIdFromHeader = request.getHeader("user_id");
 
 		if (!StringUtils.isBlank(userIdFromHeader)) {
-			log.debug("Load user by request header user_id({})", userIdFromHeader);
+			log.info("Load user by request header user_id({})", userIdFromHeader);
 			UserDetail userDetail = userService.loadUserByExternalId(userIdFromHeader);
 			if (userDetail != null) {
 				return userDetail;

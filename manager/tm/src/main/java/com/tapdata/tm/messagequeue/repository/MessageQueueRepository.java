@@ -15,9 +15,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.Assert;
 
-import java.util.Date;
-import java.util.HashMap;
-
 @Repository
 public class MessageQueueRepository extends BaseRepository<MessageQueue, ObjectId> {
 
@@ -30,10 +27,8 @@ public class MessageQueueRepository extends BaseRepository<MessageQueue, ObjectI
 		Assert.notNull(entity, "Entity must not be null!");
 
 		if (entityInformation.isNew(entity)) {
-			entity.setCreateAt(new Date());
 			mongoOperations.insert(entity, entityInformation.getCollectionName());
 		}else {
-			entity.setLastUpdAt(new Date());
 			Query query = getIdQuery(entity.getId());
 
 			Update update = buildUpdateSet(entity);
