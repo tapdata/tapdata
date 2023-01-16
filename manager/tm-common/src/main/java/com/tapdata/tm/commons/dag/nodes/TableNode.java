@@ -71,9 +71,6 @@ public class TableNode extends DataNode {
     /** 已有数据处理模式 保持已存在的数据 keepData，运行前删除已存在的数据 removeData，删除表结构 dropTable */
     @EqField
     private String existDataProcessMode = "keepData";
-    /** 数据写入策略配置，数据写入模式： 更新已存在或者插入新数据（updateOrInsert）， 追加写入(appendWrite)， 更新写入(updateWrite) */
-    @EqField
-    private String writeStrategy = "updateOrInsert";
 
     /**
      * 数据写入策略

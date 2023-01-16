@@ -69,7 +69,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			super.doInit(context);
 			Node<?> node = dataProcessorContext.getNode();
 			if (node instanceof TableNode) {
-				tableName = ((TableNode) node).getTableName();
+				lastTableName = ((TableNode) node).getTableName();
 				updateConditionFields = ((TableNode) node).getUpdateConditionFields();
 				writeStrategy = ((TableNode) node).getWriteStrategy();
 			}

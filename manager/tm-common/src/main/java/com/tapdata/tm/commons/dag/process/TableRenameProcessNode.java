@@ -4,15 +4,21 @@ package com.tapdata.tm.commons.dag.process;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,6 +44,13 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
      * 源表名-新表名
      */
     private LinkedHashSet<TableRenameTableInfo> tableNames;
+
+    private String prefix;
+    private String suffix;
+    private String replaceBefore;
+    private String replaceAfter;
+    private String transferCase;
+
 
 
     public Map<String, TableRenameTableInfo> originalMap () {
@@ -67,7 +80,7 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
         }
 
         inputSchemas.get(0).forEach(schema -> {
-            String originalName = schema.getOriginalName();
+            String originalName = schema.getAncestorsName();
             if (originalMap().containsKey(originalName)) {
                 String currentTableName = originalMap().get(originalName).getCurrentTableName();
                 schema.setName(currentTableName);
@@ -108,5 +121,76 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
 
         getSourceNode().stream().findFirst().ifPresent(node -> connectionId.set(node.getConnectionId()));
         return connectionId.get();
+    }
+
+
+    @Override
+    public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+        if (event instanceof TapCreateTableEvent) {
+            String tableName = event.getTableId();
+
+            List<Node> sources = this.getDag().getSources();
+            Node node = sources.get(0);
+            LinkedList<TableRenameProcessNode> linkedList = new LinkedList<>();
+            while (!node.getId().equals(this.getId())) {
+                if (node instanceof TableRenameProcessNode) {
+                    linkedList.add((TableRenameProcessNode) node);
+                }
+                List successors = node.successors();
+                if (CollectionUtils.isEmpty(successors)) {
+                    break;
+                }
+                node = (Node) successors.get(0);
+            }
+            TableRenameTableInfo tableInfo = null;
+            if (CollectionUtils.isNotEmpty(linkedList)) {
+                for (TableRenameProcessNode node1 : linkedList) {
+                    Map<String, TableRenameTableInfo> tableRenameTableInfoMap = node1.originalMap();
+                    TableRenameTableInfo tableInfo1 = tableRenameTableInfoMap.get(tableName);
+                    if (tableInfo1 != null) {
+                        tableInfo = tableInfo1;
+                    }
+                }
+            }
+
+            String lastTableName = tableName;
+            if (tableInfo != null) {
+                lastTableName = tableInfo.getCurrentTableName();
+            }
+
+            tableInfo = new TableRenameTableInfo(tableName, lastTableName, convertTableName(lastTableName));
+            tableNames.add(tableInfo);
+        } else if (event instanceof TapDropTableEvent) {
+            String tableName = event.getTableId();
+            for (TableRenameTableInfo tableInfo : tableNames) {
+                if (tableInfo.getOriginTableName().equals(tableName)) {
+                    tableNames.remove(tableInfo);
+                    break;
+                }
+            }
+        }
+    }
+
+    private String convertTableName(String tableName) {
+        if (StringUtils.isNotBlank(prefix)) {
+            tableName = prefix + tableName;
+        }
+
+        if (StringUtils.isNotBlank(suffix)) {
+            tableName = tableName + suffix;
+        }
+
+        if (StringUtils.isNotBlank(replaceBefore) && replaceAfter != null) {
+            tableName = tableName.replace(replaceBefore, replaceAfter);
+        }
+
+        if (StringUtils.isNotBlank(transferCase)) {
+            if (transferCase.equals("toUpperCase")) {
+                tableName = tableName.toUpperCase(Locale.ROOT);
+            } else if (transferCase.equals("toLowerCase")) {
+                tableName = tableName.toLowerCase(Locale.ROOT);
+            }
+        }
+        return tableName;
     }
 }

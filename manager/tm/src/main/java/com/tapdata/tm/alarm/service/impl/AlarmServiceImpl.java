@@ -161,10 +161,8 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void notifyAlarm() {
-        Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE);
-        criteria.orOperator(Criteria.where("lastNotifyTime").is(null),
-                Criteria.where("lastNotifyTime").lt(DateUtil.date())
-                        .andOperator(Criteria.where("lastNotifyTime").gt(DateUtil.offsetSecond(DateUtil.date(), -30)))
+        Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE)
+                .and("lastNotifyTime").lt(DateUtil.date()).gt(DateUtil.offsetSecond(DateUtil.date(), -30)
         );
         Query needNotifyQuery = new Query(criteria);
         List<AlarmInfo> alarmInfos = mongoTemplate.find(needNotifyQuery, AlarmInfo.class);
