@@ -10,9 +10,7 @@ import io.tapdata.connector.selectdb.util.CopyIntoUtils;
 import io.tapdata.connector.selectdb.util.HttpUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.ddl.table.*;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
@@ -71,7 +69,8 @@ public class SelectDbConnector extends ConnectorBase {
         this.copyIntoUtils = new CopyIntoUtils(connectorContext);
         this.selectDbContext = new SelectDbContext(connectorContext);
         this.selectDbConfig = new SelectDbConfig().load(connectorContext.getConnectionConfig());
-        this.selectDbTest = new SelectDbTest(selectDbConfig, testItem -> {}).initContext();
+        this.selectDbTest = new SelectDbTest(selectDbConfig, testItem -> {
+        }).initContext();
         if (EmptyKit.isNull(selectDbJdbcContext) || selectDbJdbcContext.isFinish()) {
             selectDbJdbcContext = (SelectDbJdbcContext) DataSourcePool.getJdbcContext(selectDbConfig, SelectDbJdbcContext.class, connectorContext.getId());
         }
@@ -170,8 +169,8 @@ public class SelectDbConnector extends ConnectorBase {
     }
 
     private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
-        if (Objects.isNull(tapFieldBaseEvent) && Objects.isNull(tapFieldBaseEvent.getTableId())){
-            throw new CoreException("");
+        if (Objects.isNull(tapFieldBaseEvent) && Objects.isNull(tapFieldBaseEvent.getTableId())) {
+            throw new CoreException("TapFieldBaseEvent and tapConnectorContext can not be empty.");
         }
         if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
             return null;
@@ -182,26 +181,38 @@ public class SelectDbConnector extends ConnectorBase {
     }
 
     private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (Objects.isNull(tapFieldBaseEvent) && Objects.isNull(tapFieldBaseEvent.getTableId())) {
+            throw new CoreException("TapFieldBaseEvent and tapConnectorContext can not be empty.");
+        }
         if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
             return null;
         }
         TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapFieldBaseEvent;
+        Optional.ofNullable(this.valve).ifPresent(va -> va.commit(tapFieldBaseEvent.getTableId()));
         return ddlSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
     }
 
     private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (Objects.isNull(tapFieldBaseEvent) && Objects.isNull(tapFieldBaseEvent.getTableId())) {
+            throw new CoreException("TapFieldBaseEvent and tapConnectorContext can not be empty.");
+        }
         if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
             return null;
         }
         TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
+        Optional.ofNullable(this.valve).ifPresent(va -> va.commit(tapFieldBaseEvent.getTableId()));
         return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
     }
 
     private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (Objects.isNull(tapFieldBaseEvent) && Objects.isNull(tapFieldBaseEvent.getTableId())) {
+            throw new CoreException("TapFieldBaseEvent and tapConnectorContext can not be empty.");
+        }
         if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
             return null;
         }
         TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
+        Optional.ofNullable(this.valve).ifPresent(va -> va.commit(tapFieldBaseEvent.getTableId()));
         return ddlSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
     }
 
@@ -252,7 +263,7 @@ public class SelectDbConnector extends ConnectorBase {
                     writeListResultConsumer
             );
         }
-        this.valve.write(tapRecordEvents,tapTable);
+        this.valve.write(tapRecordEvents, tapTable);
     }
 
     /**
@@ -404,7 +415,7 @@ public class SelectDbConnector extends ConnectorBase {
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
-                selectDbJdbcContext.execute("DROP TABLE IF EXISTS `" + selectDbConfig.getDatabase() + "`.`" + tapDropTableEvent.getTableId() + "`");
+            selectDbJdbcContext.execute("DROP TABLE IF EXISTS `" + selectDbConfig.getDatabase() + "`.`" + tapDropTableEvent.getTableId() + "`");
         } catch (Throwable e) {
             e.printStackTrace();
             throw new RuntimeException("Drop Table " + tapDropTableEvent.getTableId() + " Failed! \n ");

@@ -81,7 +81,7 @@ public class SelectDbDDLSqlMaker implements DDLSqlMaker {
         if (StringUtils.isBlank(tableId)) {
             throw new RuntimeException("Append alter column attr ddl sql failed, table name is blank");
         }
-        StringBuilder sql = new StringBuilder(String.format(ALTER_TABLE_PREFIX, database, tableId)).append(" modify");
+        StringBuilder sql = new StringBuilder(String.format(ALTER_TABLE_PREFIX, database, tableId)).append(" modify column");
         String fieldName = tapAlterFieldAttributesEvent.getFieldName();
         if (StringUtils.isNotBlank(fieldName)) {
             sql.append(" `").append(fieldName).append("`");
