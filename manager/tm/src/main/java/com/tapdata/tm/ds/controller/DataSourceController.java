@@ -28,6 +28,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
@@ -532,6 +533,14 @@ public class DataSourceController extends BaseController {
     public ResponseMessage<ConnectionStats> stats() {
 
         return success(dataSourceService.stats(getLoginUser()));
+
+    }
+
+    @Operation(summary = "加载部分表")
+    @PostMapping("load/part/tables/{connectionId}")
+    public ResponseMessage<Void> loadPartTables(@PathVariable("connectionId") String connectionId, @RequestBody List<TapTable> tables) {
+        dataSourceService.loadPartTables(connectionId, tables, getLoginUser());
+        return success();
 
     }
 
