@@ -664,6 +664,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					obsLogger.info("Create new table in memory, qualified name: " + qualifiedName);
 					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
+					TaskDto taskDto = dagDataService.getTaskById(processorBaseContext.getTaskDto().getId().toHexString());
+					taskDto.setDag(dag);
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
 					if (null == metadata.getId()) {
 						metadata.setId(new ObjectId());

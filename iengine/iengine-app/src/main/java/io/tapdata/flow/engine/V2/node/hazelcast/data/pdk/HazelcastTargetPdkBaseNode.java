@@ -63,7 +63,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	public static final int DEFAULT_TARGET_BATCH = 2000;
 	private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
-	protected String tableName;
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
 	private AtomicBoolean firstStreamEvent = new AtomicBoolean();
 	protected List<String> updateConditionFields;
@@ -497,14 +496,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	abstract void processEvents(List<TapEvent> tapEvents);
 
 	abstract void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents);
-
-	protected String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
-		if (StringUtils.isNotBlank(tableName)) {
-			return tableName;
-		} else {
-			return super.getTgtTableNameFromTapEvent(tapEvent);
-		}
-	}
 
 	protected void handleTapTablePrimaryKeys(TapTable tapTable) {
 		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.updateOrInsert.name())) {
