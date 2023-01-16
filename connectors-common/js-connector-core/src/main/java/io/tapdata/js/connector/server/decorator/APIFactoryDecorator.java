@@ -4,7 +4,7 @@ import io.tapdata.common.support.APIFactory;
 import io.tapdata.common.support.APIInvoker;
 import io.tapdata.common.support.APIResponseInterceptor;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.js.utils.ScriptUtil;
+import io.tapdata.common.util.ScriptUtil;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -32,12 +32,12 @@ public class APIFactoryDecorator extends APIFactoryDecoratorStruct {
         if (Objects.isNull(type)) type = APIFactory.TYPE_POSTMAN;
         if (Objects.isNull(apiContent)) {
             try {
-                apiContent = ScriptUtil.fileToString("connectors-javascript/coding-test-connector/src/main/resources/postman_api_collection.json");
+                apiContent = ScriptUtil.loadFileFromJarPath(APIFactory.DEFAULT_POST_MAN_FILE_PATH);//ScriptUtil.fileToString("/src/main/resources/postman_api_collection.json");
             } catch (IOException e) {
-                throw new CoreException("File get error,may be file connectors-javascript/coding-test-connector/src/main/resources/postman_api_collection.json not exists. ");
+                throw new CoreException("File get error,may be file connectors-javascript/../src/main/resources/postman_api_collection.json not exists. ");
             }
             if (Objects.isNull(apiContent)) {
-                throw new CoreException("File get error,may be file connectors-javascript/coding-test-connector/src/main/resources/postman_api_collection.json not exists. ");
+                throw new CoreException("File get error,may be file connectors-javascript/../src/main/resources/postman_api_collection.json not exists. ");
             }
         }
         APIInvoker loadAPI = new APIInvokerDecorator(super.loadAPI(apiContent, type, params));

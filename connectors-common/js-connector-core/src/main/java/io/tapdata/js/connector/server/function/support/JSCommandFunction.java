@@ -97,7 +97,7 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
                 .connection(commandInfo.getConnectionConfig())
                 .node(commandInfo.getNodeConfig())
                 .toMap();
-        super.javaScripter.scriptEngine().put("_tapConfig_", configMap);
+        super.javaScripter.put("_tapConfig_", configMap);
         try {
             Object invoker = super.javaScripter.invoker(
                     this.functionName.jsName(),

@@ -1,46 +1,53 @@
-package io.tapdata.js.utils;
+package io.tapdata.common.util;
+
+import io.tapdata.common.support.APIFactory;
 
 import java.io.*;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
 
 public class ScriptUtil {
 
-    public static void main(String[] args) {
-//        ScriptEngineManager engineManager = new ScriptEngineManager();
-//        ScriptEngine scriptEngine = engineManager.getEngineByName("nashorn");
-//        try {
-//            scriptEngine.eval("load('../../js/connector/iengine/connector.js');");
-//            Invocable inv = (Invocable) scriptEngine;
-//            Object retValue = inv.invokeFunction("discover_schema", null);
-//        } catch (ScriptException e) {
-//            e.printStackTrace();
-//        } catch (NoSuchMethodException e) {
-//            e.printStackTrace();
-//        }
-        String zhusi = "/**\n" +
-                "*    function aTest(){\n" +
-                "*      var a = 0;\n" +
-                "*    }/\n";
-        String scriptFun1 = "function \n\n" +
-                " discover_schema (connection) {\n" +
-                "    return [\"Pet\", \"User\"];\n" +
-                "}";
-        String scriptFun2 = "await function batch_read (connection,table,size) {\n" +
-                "    return [\"Pet\", \"User\"];\n" +
-                "}";
-        String scriptFun3 = "anysc function stream_read (connection,table,size,consumer) {\n" +
-                "    return [\"Pet\", \"User\"];\n" +
-                "var a = 12;" +
-                "}";
-        String scriptFun4 = "var write_record = async function write_record(connection,table,size,consumer) {\n" +
-                "    return [\"Pet\", \"User\"];\n" +
-                "}";
-        Map<String, String> stringStringMap = keepScriptToMap(zhusi + scriptFun1 + "\n" + scriptFun2 + "\n" + scriptFun3 + "\n" + scriptFun4);
-        stringStringMap.forEach((key, value) -> System.out.println(key));
-    }
+//    public static void main(String[] args) {
+////        ScriptEngineManager engineManager = new ScriptEngineManager();
+////        ScriptEngine scriptEngine = engineManager.getEngineByName("nashorn");
+////        try {
+////            scriptEngine.eval("load('../../js/connector/iengine/connector.js');");
+////            Invocable inv = (Invocable) scriptEngine;
+////            Object retValue = inv.invokeFunction("discover_schema", null);
+////        } catch (ScriptException e) {
+////            e.printStackTrace();
+////        } catch (NoSuchMethodException e) {
+////            e.printStackTrace();
+////        }
+//        String zhusi = "/**\n" +
+//                "*    function aTest(){\n" +
+//                "*      var a = 0;\n" +
+//                "*    }/\n";
+//        String scriptFun1 = "function \n\n" +
+//                " discover_schema (connection) {\n" +
+//                "    return [\"Pet\", \"User\"];\n" +
+//                "}";
+//        String scriptFun2 = "await function batch_read (connection,table,size) {\n" +
+//                "    return [\"Pet\", \"User\"];\n" +
+//                "}";
+//        String scriptFun3 = "anysc function stream_read (connection,table,size,consumer) {\n" +
+//                "    return [\"Pet\", \"User\"];\n" +
+//                "var a = 12;" +
+//                "}";
+//        String scriptFun4 = "var write_record = async function write_record(connection,table,size,consumer) {\n" +
+//                "    return [\"Pet\", \"User\"];\n" +
+//                "}";
+//        Map<String, String> stringStringMap = keepScriptToMap(zhusi + scriptFun1 + "\n" + scriptFun2 + "\n" + scriptFun3 + "\n" + scriptFun4);
+//        stringStringMap.forEach((key, value) -> System.out.println(key));
+//    }
 
     public static final String REGEX1 = "(function[\\s]+)(.*?)([\\s]*\\()(.*?)([\\s|\\n]*\\{)(.*?)(})";
     public static final String REGEX2 = "(function)(\\s+)(.*)([\\s]*)(\\()(.*)([\\s|\n]*)(\\{)(.*)(})";
@@ -130,5 +137,31 @@ public class ScriptUtil {
             inputStreams.add(new ByteArrayInputStream(("\n\n" + item).getBytes(StandardCharsets.UTF_8)));
         }
         return new SequenceInputStream(Collections.enumeration(inputStreams));
+    }
+
+
+    public static String loadFileFromJarPath(String fileName) throws IOException {
+        return ScriptUtil.fileToString(ScriptUtil.loadFileStreamFromJarPath(fileName));
+    }
+
+    public static InputStream loadFileStreamFromJarPath(String fileName) throws IOException {
+        URL resource = APIFactory.class.getClassLoader().getResource(fileName);
+        JarFile jarFile = new JarFile(resource.getPath().replace("file:/", "").replace("!/" + fileName, ""));
+        Stream<Map.Entry<ZipEntry, InputStream>> readingStream =
+                jarFile.stream().filter(entry -> !entry.isDirectory() && entry.getName().endsWith(fileName))
+                        .map(entry -> {
+                            try {
+                                return new AbstractMap.SimpleEntry<>(entry, jarFile.getInputStream(entry));
+                            } catch (IOException e) {
+                                return new AbstractMap.SimpleEntry<>(entry, null);
+                            }
+                        });
+        List<Map.Entry<ZipEntry, InputStream>> collect = readingStream.onClose(() -> {
+            try {
+                jarFile.close();
+            } catch (IOException ignored) {
+            }
+        }).collect(Collectors.toList());
+        return collect.get(0).getValue();
     }
 }

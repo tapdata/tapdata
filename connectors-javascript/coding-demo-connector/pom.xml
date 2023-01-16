@@ -9,9 +9,9 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>coding-test-connector</artifactId>
+    <artifactId>coding-demo-connector</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>coding-test-connector</name>
+    <name>coding-demo-connector</name>
     <packaging>jar</packaging>
 
     <properties>
@@ -77,23 +77,6 @@
                             </filters>
                         </configuration>
                     </execution>
-<!--                    <execution>-->
-<!--                        <phase>package</phase>-->
-<!--                        <goals>-->
-<!--                            <goal>shade</goal>-->
-<!--                        </goals>-->
-<!--                        <configuration>-->
-<!--                            <relocations>-->
-<!--                                <relocation>-->
-<!--                                    <pattern>${basedir}</pattern>-->
-<!--                                    <shadedPattern>_js</shadedPattern>-->
-<!--                                    <includes>-->
-<!--                                        <include>**/*.js</include>-->
-<!--                                    </includes>-->
-<!--                                </relocation>-->
-<!--                            </relocations>-->
-<!--                        </configuration>-->
-<!--                    </execution>-->
                 </executions>
             </plugin>
             <plugin>

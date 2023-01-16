@@ -1,9 +1,9 @@
 {
   "properties": {
-    "name": "CodingTest",
+    "name": "CodingDemo",
     "icon": "icon/coding.png",
     "doc" : "${doc}",
-    "id": "codingtest"
+    "id": "codingdemo"
   },
   "configOptions": {
     "pdkExpansion": [],

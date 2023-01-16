@@ -112,7 +112,9 @@ public class BaseDiscoverSchemaFunction extends FunctionBase {
     private void covertTable(List<TapTable> tables, Object value) {
         if (value instanceof String) {
             String table = (String) value;
-            tables.add(new TapTable(table, table));
+            TapTable tapTable = new TapTable(table, table);
+            tapTable.setNameFieldMap(new LinkedHashMap<>());
+            tables.add(tapTable);
         } else if (value instanceof Map) {
             Map<String, Object> tableMap = (Map<String, Object>) value;
             TapTable tapTable = new TapTable();

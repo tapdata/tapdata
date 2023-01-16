@@ -10,7 +10,7 @@ import io.tapdata.common.postman.enums.PostParam;
 import io.tapdata.common.postman.pageStage.PageStage;
 import io.tapdata.common.postman.pageStage.TapPage;
 import io.tapdata.common.postman.util.ApiMapUtil;
-import io.tapdata.common.postman.util.FileUtil;
+import io.tapdata.common.support.APIFactory;
 import io.tapdata.common.support.APIInvoker;
 import io.tapdata.common.support.APIIterateInterceptor;
 import io.tapdata.common.support.APIResponseInterceptor;
@@ -19,6 +19,7 @@ import io.tapdata.common.support.comom.APIIterateError;
 import io.tapdata.common.support.core.emun.TapApiTag;
 import io.tapdata.common.support.entitys.APIEntity;
 import io.tapdata.common.support.entitys.APIResponse;
+import io.tapdata.common.util.ScriptUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -61,12 +62,12 @@ public class PostManAPIInvoker
         if (Objects.nonNull(apiJson)) {
             json = (Map<String, Object>) fromJson(apiJson);
         } else {
-            if (!FileUtil.fileExists(this.analysis.sourcePath())) {
-                TapLogger.error(TAG, "Can't analysis api JSON document, please save this JSON file into " + this.analysis.sourcePath() + ". ");
-                return this;
-            }
+//            if (!FileUtil.fileExists(this.analysis.sourcePath())) {
+//                TapLogger.error(TAG, "Can't analysis api JSON document, please save this JSON file into " + this.analysis.sourcePath() + ". ");
+//                return this;
+//            }
             try {
-                json = (Map<String, Object>) fromJson(FileUtil.readString(this.analysis.sourcePath()));
+                json = (Map<String, Object>) fromJson(ScriptUtil.loadFileFromJarPath(APIFactory.DEFAULT_POST_MAN_FILE_PATH));
             } catch (Throwable ignored) {
                 TapLogger.error(TAG, "Can't analysis api JSON document, please save this JSON file into " + this.analysis.sourcePath() + ". ");
                 return this;

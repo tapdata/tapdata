@@ -166,6 +166,9 @@ public class LoadJavaScripter {
         Bindings bindings = this.scriptEngine.getBindings(scope);
         bindings.put(key, name);
     }
+    public void put(String key, Object javaValue){
+        Optional.ofNullable(this.scriptEngine).ifPresent(e -> e.put(key,javaValue));
+    }
 
     public void bindingGlobal(String key, Object binder) {
         this.binding(key, binder, ScriptContext.GLOBAL_SCOPE);
