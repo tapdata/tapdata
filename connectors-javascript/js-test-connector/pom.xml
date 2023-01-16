@@ -2,17 +2,16 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-<!--    <parent>-->
-<!--        <artifactId>connectors-javascript</artifactId>-->
-<!--        <groupId>io.tapdata</groupId>-->
-<!--        <version>1.0-SNAPSHOT</version>-->
-<!--    </parent>-->
-<!--    <modelVersion>4.0.0</modelVersion>-->
-
-<!--    <artifactId>demo-connector</artifactId>-->
-<!--    <version>1.0-SNAPSHOT</version>-->
-<!--    <name>demo-connector</name>-->
-<!--    <packaging>jar</packaging>-->
+    <parent>
+        <artifactId>connectors-javascript</artifactId>
+        <groupId>io.tapdata</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>js-test-connector</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <name>js-test-connector</name>
+    <packaging>jar</packaging>
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
