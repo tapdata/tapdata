@@ -136,6 +136,11 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
                 if (node instanceof TableRenameProcessNode) {
                     linkedList.add((TableRenameProcessNode) node);
                 }
+                List successors = node.successors();
+                if (CollectionUtils.isEmpty(successors)) {
+                    break;
+                }
+                node = (Node) successors.get(0);
             }
             TableRenameTableInfo tableInfo = null;
             if (CollectionUtils.isNotEmpty(linkedList)) {
@@ -180,9 +185,9 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
         }
 
         if (StringUtils.isNotBlank(transferCase)) {
-            if (transferCase.equals("UPPER")) {
+            if (transferCase.equals("toUpperCase")) {
                 tableName = tableName.toUpperCase(Locale.ROOT);
-            } else if (transferCase.equals("LOWER")) {
+            } else if (transferCase.equals("toLowerCase")) {
                 tableName = tableName.toLowerCase(Locale.ROOT);
             }
         }

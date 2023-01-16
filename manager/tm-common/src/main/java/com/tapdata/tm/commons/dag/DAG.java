@@ -1115,15 +1115,18 @@ public class DAG implements Serializable, Cloneable {
 
         if (event instanceof TapCreateTableEvent || event instanceof TapDropTableEvent) {
             if (node instanceof DatabaseNode ||  node instanceof MigrateProcessorNode) {
-                node.fieldDdlEvent(event);
+                next(event, node, results);
                 Dag dag = toDag();
                 DAG newDag = build(dag);
                 BeanUtils.copyProperties(newDag, this);
-            } else {
-                return;
             }
+            return;
         }
 
+        next(event, node, results);
+    }
+
+    private void next(TapDDLEvent event, Node node, List<Node> results) throws Exception {
         //递归找到所有需要ddl处理的节点
         List<Node> successors = node.successors();
         for (Node successor : successors) {
@@ -1138,11 +1141,11 @@ public class DAG implements Serializable, Cloneable {
     }
 
     private void nextDdlNode(Node node, List<Node> results) {
-        if (node.isDataNode()) {
-            return;
-        }
+//        if (node.isDataNode()) {
+//            return;
+//        }
 
-        if (node instanceof ProcessorNode) {
+        if (node instanceof ProcessorNode || node instanceof MigrateProcessorNode) {
             results.add(node);
             List<Node> successors = node.successors();
             for (Node successor : successors) {
