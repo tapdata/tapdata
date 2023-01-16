@@ -120,10 +120,10 @@ public class CommonDbTest implements AutoCloseable {
     protected Boolean testWritePrivilege() {
         try {
             List<String> sqls = new ArrayList<>();
-            if (jdbcContext.queryAllTables(Arrays.asList(TEST_WRITE_TABLE, TEST_WRITE_TABLE.toUpperCase())).size() > 0) {
-                sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
-            }
             String schemaPrefix = EmptyKit.isNotEmpty(commonDbConfig.getSchema()) ? ("\"" + commonDbConfig.getSchema() + "\".") : "";
+            if (jdbcContext.queryAllTables(Arrays.asList(TEST_WRITE_TABLE, TEST_WRITE_TABLE.toUpperCase())).size() > 0) {
+                sqls.add(String.format(TEST_DROP_TABLE, schemaPrefix + TEST_WRITE_TABLE));
+            }
             //create
             sqls.add(String.format(TEST_CREATE_TABLE, schemaPrefix + TEST_WRITE_TABLE));
             //insert

@@ -495,7 +495,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				break;
 			case CACHE_LOOKUP_PROCESSOR:
 			case JS_PROCESSOR:
+			case STANDARD_JS_PROCESSOR:
 			case MIGRATE_JS_PROCESSOR:
+			case STANDARD_MIGRATE_JS_PROCESSOR:
 				hazelcastNode = new HazelcastJavaScriptProcessorNode(
 								DataProcessorContext.newBuilder()
 												.withTaskDto(taskDto)

@@ -1,6 +1,13 @@
 package com.tapdata.tm.task.bean;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.tapdata.tm.commons.base.convert.DagDeserialize;
+import com.tapdata.tm.commons.base.convert.DagSerialize;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.task.dto.Status;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import lombok.Data;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -26,4 +33,13 @@ public class LogCollectorVo {
     private Date logTime;
     /** 保留的时长 单位 （天） 默认3天*/
     private Integer storageTime = 3;
+
+    /** 任务图*/
+    @JsonSerialize( using = DagSerialize.class)
+    @JsonDeserialize( using = DagDeserialize.class)
+    private DAG dag;
+
+    /** 增量时间点*/
+    @EqField
+    private List<TaskDto.SyncPoint> syncPoints;
 }

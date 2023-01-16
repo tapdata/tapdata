@@ -231,4 +231,11 @@ class WriteRecordTest {
         sqlMarker.executeOnce(joiner.toString());
     }
 
+    @Test
+    public void nullAble(){
+        Long in = null;
+        System.out.println(Optional.ofNullable(in).orElse(100L));
+
+        System.out.println((new Date()).toString());
+    }
 }

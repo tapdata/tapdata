@@ -26,7 +26,6 @@ import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -57,6 +56,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			shareCdcTtlDay = persistenceStorageConfig.getShareCdcTtlDay();
 		}
 		this.hazelcastConstruct = getHazelcastConstruct(context.hazelcastInstance(), shareCdcTtlDay, processorBaseContext.getTaskDto());
+		logger.info("Init log data storage finished, ttl day: " + shareCdcTtlDay);
+		obsLogger.info("Init log data storage finished, ttl day: " + shareCdcTtlDay);
 	}
 
 	private static HazelcastConstruct<Document> getHazelcastConstruct(HazelcastInstance hazelcastInstance, Integer shareCdcTtlDay, TaskDto taskDto) {

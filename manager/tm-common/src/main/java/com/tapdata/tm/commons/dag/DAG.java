@@ -896,8 +896,9 @@ public class DAG implements Serializable, Cloneable {
             }
 
             if (node instanceof DatabaseNode) {
-                List<String> tableNames = ((DatabaseNode) node).getTableNames();
-                if (CollectionUtils.isEmpty(tableNames)) {
+                DatabaseNode databaseNode = (DatabaseNode) node;
+                List<String> tableNames = databaseNode.getTableNames();
+                if (CollectionUtils.isEmpty(tableNames) && !"expression".equals(databaseNode.getMigrateTableSelectType())) {
                     Message message = new Message();
                     message.setCode("DAG.MigrateTaskNotContainsTable");
                     message.setMsg("task not contains tables");
