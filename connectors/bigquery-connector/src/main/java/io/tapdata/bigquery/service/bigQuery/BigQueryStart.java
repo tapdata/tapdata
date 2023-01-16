@@ -89,6 +89,23 @@ public abstract class BigQueryStart {
         if (null == tableSet || "".equals(tableSet)) {
             throw new CoreException("Credentials cannot be empty.");
         }
+
+        Object maxStreamAppendCount = connectionConfig.get("maxStreamAppendCount");
+        int maxStreamCount;
+        if (Objects.isNull(maxStreamAppendCount)){
+            maxStreamCount = 50000;
+        }else {
+            try {
+                maxStreamCount = Integer.parseInt(String.valueOf(maxStreamAppendCount));
+                if (maxStreamCount <= 0 || maxStreamCount > 50000) {
+                    maxStreamCount = 50000;
+                }
+            } catch (Exception e) {
+                maxStreamCount = 50000;
+            }
+        }
+        contextConfig.maxStreamAppendCount(maxStreamCount);
+
         this.$v2_config(contextConfig);
         //this.$v1_config(contextConfig);
         return contextConfig.serviceAccount(serviceAccount).tableSet(tableSet);

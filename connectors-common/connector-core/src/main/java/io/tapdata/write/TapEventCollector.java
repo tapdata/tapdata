@@ -7,21 +7,20 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static io.tapdata.base.ConnectorBase.toJson;
 
 final class TapEventCollector {
     private static final String TAG = TapEventCollector.class.getSimpleName();
 
     private long touch;
     private int initDelay = 0;
-    //private TapTable table;
+    private boolean autoCheckTable = false;
     private Map<String, TapTable> collectedTable = new ConcurrentHashMap<>();
     private int idleSeconds = 5;
     private int maxRecords = 1000;
@@ -67,6 +66,11 @@ final class TapEventCollector {
         return this;
     }
 
+    public TapEventCollector autoCheckTable(boolean autoCheckTable) {
+        this.autoCheckTable = autoCheckTable;
+        return this;
+    }
+
     public TapEventCollector eventCollected(EventCollector eventCollector) {
         this.eventCollector = eventCollector;
         return this;
@@ -85,14 +89,14 @@ final class TapEventCollector {
 
     public void stop() {
         if (Objects.nonNull(this.future)) {
-            this.uploadEvents();
+            this.tryUpload(true);
             this.future.cancel(true);
         }
     }
 
     public void monitorIdle() {
         synchronized (this.lock) {
-            if (Objects.nonNull(future)) {
+            if (Objects.isNull(future)) {
                 this.future = this.scheduledExecutorService.scheduleWithFixedDelay(() -> {
                     try {
                         this.tryUpload(true);
@@ -108,9 +112,9 @@ final class TapEventCollector {
         if (!this.isUploading && this.pendingUploadEvents != null) {
             //TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
             this.uploadEvents();
-        } else if (this.pendingUploadEvents == null && !this.events.isEmpty() && (forced || System.currentTimeMillis() - this.touch > this.idleSeconds * 1000L)) {
+        } else if (this.pendingUploadEvents == null && !this.events.isEmpty() && (forced || System.nanoTime() - this.touch > this.idleSeconds * 1000000000L)) {
 //            synchronized (this.pendingLock) {
-                this.pendingUploadEvents = this.events;
+            this.pendingUploadEvents = this.events;
 //            }
             this.events = new CopyOnWriteArrayList<>();
             //TapLogger.info(TAG, "Try upload forced {} delay {} pendingUploadEvents {}", forced, this.touch != null ? System.currentTimeMillis() - this.touch : 0, this.pendingUploadEvents.size());
@@ -118,11 +122,11 @@ final class TapEventCollector {
         }
     }
 
-    public void uploadEvents() {
+    public synchronized void uploadEvents() {
         this.uploadEvents(null);
     }
 
-    public void uploadEvents(List<String> tableIdList) {
+    public synchronized void uploadEvents(List<String> tableIdList) {
         this.isUploading = true;
         try {
             if (this.pendingUploadEvents != null) {
@@ -130,9 +134,9 @@ final class TapEventCollector {
                 int groupSize = 0;
                 if (this.eventCollector != null) {
 //                    synchronized (this.pendingLock) {
-                        eventGroup = this.pendingUploadEvents.stream()
-                                .filter(e -> Objects.nonNull(e) && (Objects.isNull(tableIdList) || tableIdList.contains(e.getTableId())))
-                                .collect(Collectors.groupingBy(TapBaseEvent::getTableId));
+                    eventGroup = this.pendingUploadEvents.stream()
+                            .filter(e -> Objects.nonNull(e) && (Objects.isNull(tableIdList) || tableIdList.contains(e.getTableId())))
+                            .collect(Collectors.groupingBy(TapBaseEvent::getTableId));
                     for (Map.Entry<String, List<TapRecordEvent>> entry : eventGroup.entrySet()) {
                         List<TapRecordEvent> eventList = entry.getValue();
                         groupSize += Objects.isNull(eventList) || eventList.isEmpty() ? 0 : eventList.size();
@@ -144,14 +148,14 @@ final class TapEventCollector {
 //                synchronized (this.pendingLock) {
                 if (Objects.isNull(tableIdList) || groupSize == this.pendingUploadEvents.size()) {
                     this.pendingUploadEvents = null;
-                }else {
+                } else {
                     this.pendingUploadEvents = this.pendingUploadEvents.stream()
                             .filter(e -> Objects.nonNull(e) && !tableIdList.contains(e.getTableId())).collect(Collectors.toCollection(CopyOnWriteArrayList::new));
                 }
 //                }
             }
         } finally {
-            touch = System.currentTimeMillis();
+            touch = System.nanoTime();
             this.isUploading = false;
         }
     }
@@ -160,16 +164,29 @@ final class TapEventCollector {
         if (Objects.isNull(table) || Objects.isNull(table.getId())) {
             throw new CoreException(" Unable to process event record, invalid TapTable or empty table name. ");
         }
-        if (eventList != null && !eventList.isEmpty()) {
+        if (Objects.nonNull(eventList) && !eventList.isEmpty()) {
             this.eventProcessor.covert(eventList, table);
             this.events.addAll(eventList);
             Optional.ofNullable(eventList.get(0))
                     .flatMap(event ->
                             Optional.ofNullable(event.getTableId()))
                     .ifPresent(tableId -> {
-                        TapTable agoTable = this.collectedTable.get(tableId);
-                        if (Objects.nonNull(agoTable)) {
-                            //TODO
+                        if (this.autoCheckTable) {
+                            TapTable agoTable = this.collectedTable.get(tableId);
+                            if (Objects.nonNull(agoTable)) {
+                                //TODO
+                                List<String> tabs = new ArrayList<>();
+                                tabs.add(tableId);
+                                try {
+                                    this.uploadEvents(tabs);
+                                } catch (Exception e) {
+                                    throw new CoreException(String.format(" The table structure has been changed, and the writing failed after data submission.\nchange ago: %s. \nchange after: %s.\n Please check the table structure. ERROR: %s",
+                                            toJson(agoTable),
+                                            toJson(table),
+                                            e.getMessage())
+                                    );
+                                }
+                            }
                         }
                         this.collectedTable.put(tableId, table);
                     });
