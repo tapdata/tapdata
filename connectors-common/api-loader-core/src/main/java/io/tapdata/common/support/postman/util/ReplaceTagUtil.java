@@ -63,7 +63,7 @@ public class ReplaceTagUtil {
                         if(indexOf<0) indexOf = agoUrl.indexOf(keyParam);
                         int indexOfEnd = agoUrl.indexOf("&", indexOf+1);
                         String keyValueAgo = agoUrl.substring(indexOf,indexOfEnd < 0 ? agoUrl.length():indexOfEnd);
-                        agoUrl = agoUrl.replaceAll(keyValueAgo,keyParam+value);
+                        agoUrl = agoUrl.replaceAll(keyValueAgo.replace("?","\\?"),keyParam+value);
                     }
 
                 }

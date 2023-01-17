@@ -156,9 +156,12 @@ public class PostManAnalysis
         if (Objects.isNull(this.apiContext)){
             this.apiContext = PostManApiContext.create();
         }
-        this.apiContext.info(ApiInfo.create(this.getMap(PostParam.INFO,json)))
-                .event(ApiEvent.create(this.getList(PostParam.EVENT,json)))
-                .variable(ApiVariable.create(this.getList(PostParam.VARIABLE,json)))
+        List<Object> listEvent = this.getList(PostParam.EVENT, json);
+        List<Object> varList = this.getList(PostParam.VARIABLE, json);
+        Map<String, Object> apiMapInfo = this.getMap(PostParam.INFO, json);
+        this.apiContext.info(ApiInfo.create(Optional.ofNullable(apiMapInfo).orElse(new HashMap<>())))
+                .event(ApiEvent.create(Optional.ofNullable(listEvent).orElse(new ArrayList<>())))
+                .variable(ApiVariable.create(Optional.ofNullable(varList).orElse(new ArrayList<>())))
                 .apis(apiMap)
                 .table(
                     apiMap.stream()
