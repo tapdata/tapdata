@@ -15,6 +15,7 @@
         <module>connectors-common</module>
         <module>connectors</module>
         <module>connectors-javascript</module>
+        <module>tapdata-cli</module>
     </modules>
 
     <build>
