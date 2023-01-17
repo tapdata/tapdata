@@ -70,4 +70,13 @@ public class TaskStatusRunningTests extends TaskStatusTests {
         TaskDto taskDto = taskService.findById(taskId);
         assertEquals(TaskDto.STATUS_SCHEDULING, taskDto.getStatus());
     }
+
+
+    @Test
+    public void testRunning() {
+        initTask(TaskDto.STATUS_RUNNING);
+        taskService.running(taskId, user);
+        TaskDto taskDto = taskService.findById(taskId);
+        assertEquals(TaskDto.STATUS_RUNNING, taskDto.getStatus());
+    }
 }

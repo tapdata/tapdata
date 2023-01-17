@@ -33,7 +33,7 @@ public class TableFields {
         String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
         if (Checker.isNotEmpty(defaultValue)) {
             defaultValue.replaceAll("'", "\\'");
-            if(tapField.getTapType() instanceof TapNumber){
+            if (tapField.getTapType() instanceof TapNumber) {
                 defaultValue = defaultValue.trim();
             }
             fieldSql += " DEFAULT '" + defaultValue + "'";

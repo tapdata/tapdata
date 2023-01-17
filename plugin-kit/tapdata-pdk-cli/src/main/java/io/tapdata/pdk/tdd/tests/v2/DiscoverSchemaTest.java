@@ -269,46 +269,41 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 AtomicReference<TapTable> tapTableAto = new AtomicReference<>();
 
                 long discoverStart = System.currentTimeMillis();
-                List<TapTable> consumer = new ArrayList<>();
-                connector.discoverSchema(connectorContext,new ArrayList<>(),1000, consumer::addAll);
-
-                long discoverEndTemp = System.currentTimeMillis();
-                //执行discoverSchema之后， 至少返回一张表
-                TapAssert.asserts(()->{
-                    Assertions.assertTrue(
-                            !consumer.isEmpty() && consumer.size()>1,
-                            TapSummary.format("discoverByTableName1.notAnyTable",discoverEndTemp-discoverStart));
-                }).acceptAsWarn(
+                connector.discoverSchema(connectorContext,new ArrayList<>(),1000,consumer->{
+                    long discoverEnd = System.currentTimeMillis();
+                    //执行discoverSchema之后， 至少返回一张表
+                    TapAssert.asserts(()->{
+                        Assertions.assertTrue(
+                            null!=consumer && !consumer.isEmpty() && consumer.size()>1,
+                            TapSummary.format("discoverByTableName1.notAnyTable",discoverEnd-discoverStart));
+                    }).acceptAsWarn(
                         testCase,
-                        TapSummary.format("discoverByTableName1.succeed",consumer.size(),discoverEndTemp-discoverStart)
-                );
-                if (!consumer.isEmpty() && consumer.size()>1) {
+                        TapSummary.format("discoverByTableName1.succeed",consumer.size(),discoverEnd-discoverStart)
+                    );
                     tableCount.set(consumer.size());
                     //通过指定第一张表之后的任意一张表名，
-                    nextTable.set(((new Random()).nextInt(tableCount.get() - 1) + 1));
+                    nextTable.set(((new Random()).nextInt(tableCount.get()-1)+1));
                     tapTableAto.set(consumer.get(nextTable.get()));
+                });
 
-
-                    //通过List<String> tables参数指定那张表，
-                    TapTable tapTable = tapTableAto.get();
-                    List<String> tables = list(tapTable.getId());
-                    try {
-                        //通过Consumer<List<TapTable>> consumer返回了这一张且仅此一张表为成功。
-                        long discoverStart2 = System.currentTimeMillis();
-                        connector.discoverSchema(connectorContext, tables, 1000, c -> {
-                            long discoverEnd = System.currentTimeMillis();
-                            TapAssert.asserts(() -> {
-                                Assertions.assertTrue(
-                                        null != c && c.size() == 1,
-                                        TapSummary.format("discoverByTableName1.notAnyTableAfter", tableCount, tapTable.getId(), discoverEnd - discoverStart2));
-                            }).acceptAsWarn(
-                                    testCase,
-                                    TapSummary.format("discoverByTableName1.succeedAfter", tableCount, tapTable.getId(), c.size(), discoverEnd - discoverStart2)
-                            );
-                        });
-                    } catch (Throwable e) {
-                    }
-                }
+                //通过List<String> tables参数指定那张表，
+                TapTable tapTable = tapTableAto.get();
+                List<String> tables = list(tapTable.getId());
+                try {
+                    //通过Consumer<List<TapTable>> consumer返回了这一张且仅此一张表为成功。
+                    long discoverStart2 = System.currentTimeMillis();
+                    connector.discoverSchema(connectorContext,tables,1000,c->{
+                        long discoverEnd = System.currentTimeMillis();
+                        TapAssert.asserts(()->{
+                            Assertions.assertTrue(
+                                null!=c && c.size()==1,
+                                TapSummary.format("discoverByTableName1.notAnyTableAfter",tableCount,tapTable.getId(),discoverEnd-discoverStart2));
+                        }).acceptAsWarn(
+                            testCase,
+                            TapSummary.format("discoverByTableName1.succeedAfter",tableCount,tapTable.getId(),c.size(),discoverEnd-discoverStart2)
+                        );
+                    });
+                }catch (Throwable e){ }
             }catch (Throwable e) {
                 throw new RuntimeException(e);
             }finally {

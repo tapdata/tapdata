@@ -70,7 +70,7 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
     }
 
     @Override
-    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
+    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
         if (CollectionUtils.isEmpty(inputSchemas)) {
             return Lists.newArrayList();
         }

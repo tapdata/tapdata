@@ -1,8 +1,8 @@
 package io.tapdata.quickapi.server;
 
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.common.support.entitys.APIResponse;
-import io.tapdata.common.postman.util.ApiMapUtil;
+import io.tapdata.common.api.APIResponse;
+import io.tapdata.common.support.postman.util.ApiMapUtil;
 
 import java.util.*;
 

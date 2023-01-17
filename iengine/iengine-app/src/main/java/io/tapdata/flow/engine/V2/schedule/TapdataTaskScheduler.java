@@ -9,8 +9,6 @@ import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
-import io.tapdata.aspect.TaskStopAspect;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
@@ -20,6 +18,7 @@ import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -75,6 +74,19 @@ public class TapdataTaskScheduler {
 
 	public final static String SCHEDULE_START_TASK_NAME = "scheduleStartTask";
 	public final static String SCHEDULE_STOP_TASK_NAME = "scheduleStopTask";
+	private static Map<String, Object> taskLock = new ConcurrentHashMap<>();
+
+	private Object lockTask(String taskId) {
+		Object lock = taskLock.get(taskId);
+		if (null == lock) {
+			return taskLock.computeIfAbsent(taskId, s -> new int[0]);
+		}
+		return lock;
+	}
+
+	private void unlockTask(String taskId) {
+		taskLock.remove(taskId);
+	}
 
 	@PostConstruct
 	public void init() {
@@ -173,23 +185,31 @@ public class TapdataTaskScheduler {
 
 	private void handleTaskOperation(TaskOperation taskOperation) {
 		taskOperationThreadPool.submit(() -> {
+			String taskId = null;
 			try {
 				if (taskOperation instanceof StartTaskOperation) {
 					StartTaskOperation startTaskOperation = (StartTaskOperation) taskOperation;
 					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
-					synchronized (startTaskOperation.getTaskDto().getId().toHexString().intern()) {
+					taskId = startTaskOperation.getTaskDto().getId().toHexString();
+					Object lock = lockTask(taskId);
+					synchronized (lock) {
 						taskOpCountDown.countDown();
 						startTask(startTaskOperation.getTaskDto());
 					}
 				} else if (taskOperation instanceof StopTaskOperation) {
 					StopTaskOperation stopTaskOperation = (StopTaskOperation) taskOperation;
 					Thread.currentThread().setName(String.format("Stop-Task-Operation-Handler-%s", stopTaskOperation.getTaskId()));
-					synchronized (stopTaskOperation.getTaskId().intern()) {
+					taskId = stopTaskOperation.getTaskId();
+					Object lock = lockTask(taskId);
+					synchronized (lock) {
 						taskOpCountDown.countDown();
 						stopTask(stopTaskOperation.getTaskId());
 					}
 				}
 			} finally {
+				if (StringUtils.isNotBlank(taskId)) {
+					unlockTask(taskId);
+				}
 				if (taskOpCountDown.getCount() > 0) {
 					taskOpCountDown.countDown();
 				}
@@ -231,6 +251,14 @@ public class TapdataTaskScheduler {
 		}
 	}
 
+	public void stopTaskIfNeed() {
+		if (StringUtils.isBlank(instanceNo)) {
+			return;
+		}
+		logger.info("Stop task which agent id is {} and status is {}", instanceNo, TaskDto.STATUS_STOPPING);
+		clientMongoOperator.postOne(null, ConnectorConstant.TASK_COLLECTION+"/stopTaskByAgentId/"+instanceNo, Object.class);
+	}
+
 	/**
 	 * 调度编排任务方法
 	 */
@@ -261,6 +289,23 @@ public class TapdataTaskScheduler {
 		}
 	}
 
+	/**
+	 * Will run when engine start in cloud mode
+	 * Run task(s) already started, find clause: status=running and agentID={@link TapdataTaskScheduler#instanceNo}
+	 */
+	public void runTaskIfNeedWhenEngineStart() {
+		if(!appType.isCloud()) return;
+		Query query = new Query(
+				new Criteria("agentId").is(instanceNo)
+						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
+		);
+		List<TaskDto> tasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+		if (CollectionUtils.isNotEmpty(tasks)) {
+			logger.info("Found task(s) already running before engine start, will run these task(s) immediately\n  {}", tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
+			tasks.forEach(this::sendStartTask);
+		}
+	}
+
 	private void startTask(TaskDto taskDto) {
 		final String taskId = taskDto.getId().toHexString();
 		if (taskClientMap.containsKey(taskId)) {
@@ -276,6 +321,12 @@ public class TapdataTaskScheduler {
 			return;
 		}
 		try {
+			// todo 后续处理
+//			String checkTaskCanStart = checkTaskCanStart(taskId);
+//			if (StringUtils.isNotBlank(checkTaskCanStart)) {
+//				logger.warn(checkTaskCanStart);
+//				return;
+//			}
 			Log4jUtil.setThreadContext(taskDto);
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
@@ -288,6 +339,16 @@ public class TapdataTaskScheduler {
 		} finally {
 			ThreadContext.clearAll();
 		}
+	}
+
+	private String checkTaskCanStart(String taskId) {
+		Query query = Query.query(where("_id").is(taskId));
+		query.fields().include("status").include("_id").include("name");
+		TaskDto taskDto = clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+		if (!taskDto.getStatus().equals(TaskDto.STATUS_WAIT_RUN) && !taskDto.getStatus().equals(TaskDto.STATUS_RUNNING)) {
+			return String.format("Found task[%s(%s)] status is %s, will not start this task", taskDto.getName(), taskDto.getId().toHexString(), taskDto.getStatus());
+		}
+		return "";
 	}
 
 	/**

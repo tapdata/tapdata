@@ -13,5 +13,4 @@ public class TapAPIErrorCodes {
     public static final int NEED_RETRY_FAILED = 1009;
 	public static final int ERROR_ALL_IPS_FAILED = 1010;
 	public static final int ERROR_UNKNOWN_TAP_TYPE = 1011;
-	public static final int ERROR_INSTANTIATE_ENGINE_CLASS_FAILED = 1012;
 }

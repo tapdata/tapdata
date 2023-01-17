@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag.process;
 
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
@@ -50,12 +51,12 @@ public class FieldProcessorNode extends ProcessorNode {
     }
 
     protected Schema superMergeSchema(List<Schema> inputSchemas, Schema schema) {
-        return super.mergeSchema(inputSchemas, schema);
+        return super.mergeSchema(inputSchemas, schema, null);
     }
 
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
-        Schema outputSchema = super.mergeSchema(inputSchemas, schema);
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
+        Schema outputSchema = super.mergeSchema(inputSchemas, schema, options);
 
         if (operations != null && operations.size() > 0) {
             operations.forEach(operation -> {
@@ -113,8 +114,8 @@ public class FieldProcessorNode extends ProcessorNode {
         private String type;
         @EqField
         private String originalDataType;
-
-
+        @EqField
+        private String original_field_name;
         private String java_type;
 
 
