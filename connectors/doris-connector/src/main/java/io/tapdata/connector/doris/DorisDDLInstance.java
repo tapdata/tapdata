@@ -70,7 +70,7 @@ public class DorisDDLInstance {
         }
         if (tapField.getDefaultValue() != null) {
             fieldStrs.add("DEFAULT");
-            fieldStrs.add(tapField.getDefaultValue().toString());
+            fieldStrs.add("'" + tapField.getDefaultValue().toString() + "'");
         }
         return StringUtils.join(fieldStrs, " ");
     }

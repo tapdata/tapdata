@@ -15,7 +15,8 @@
 		<module>sftp-file</module>
         <module>nfs-file</module>
         <module>s3fs-file</module>
-    </modules>
+		<module>oss-file</module>
+	</modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>

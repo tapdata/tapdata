@@ -17,7 +17,7 @@ public class CronUtil {
             Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
             JobDetail job = JobBuilder.newJob(InspectCronJob.class).withIdentity(id).build();
             if (scheduler.checkExists(job.getKey())){
-                log.info("id:  {}  job 定时任务已经存在，不再重复设置 ",id);
+                log.debug("id:  {}  job 定时任务已经存在，不再重复设置 ",id);
                 return;
             }
 
@@ -63,7 +63,6 @@ public class CronUtil {
         try {
             TriggerKey triggerKey = TriggerKey.triggerKey(triggerName);
             Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
-            Trigger abc = scheduler.getTrigger(triggerKey);
             scheduler.pauseTrigger(triggerKey);// 停止触发器
             scheduler.unscheduleJob(triggerKey);// 移除触发器
             scheduler.deleteJob(JobKey.jobKey(id));// 删除任务

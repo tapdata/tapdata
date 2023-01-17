@@ -34,17 +34,16 @@ public class TmAvailableRestTemplate extends RestTemplate {
     Assert.notNull(url, "'url' must not be null");
     Assert.notNull(method, "'method' must not be null");
     ClientHttpResponse response = null;
+    long ttl = 0;
     try {
 
-      if (TmStatusService.isNotAllowReport()) {
-        logger.warn("Tm not available, skip report, -> " + url);
-        return responseExtractor.extractData(getDefaultResponse());
-      }
       ClientHttpRequest request = createRequest(url, method);
       if (requestCallback != null) {
         requestCallback.doWithRequest(request);
       }
+      long start = System.currentTimeMillis();
       response = request.execute();
+      ttl = System.currentTimeMillis() - start;
       HttpStatus statusCode = response.getStatusCode();
       if (statusCode.is5xxServerError() && TmStatusService.isAvailable()) {
         logger.warn("Tm not available, status code is " + response.getStatusText());
@@ -67,7 +66,11 @@ public class TmAvailableRestTemplate extends RestTemplate {
         String query = url.getRawQuery();
         resource = (query != null ? resource.substring(0, resource.indexOf('?')) : resource);
         TmStatusService.setNotAvailable();
-        logger.warn("Tm disconnect, I/O error on " + method.name() + " request for \"" + resource + "\": " + ex.getMessage(), ex);
+        if ("Read timed out".equalsIgnoreCase(ex.getMessage())) {
+          logger.warn("Tm disconnect, I/O error on " + method.name() + " request for \"" + resource + "\", ttl: " + ttl + "ms ,: " + ex.getMessage());
+        } else {
+          logger.warn("Tm disconnect, I/O error on " + method.name() + " request for \"" + resource + "\", ttl: " + ttl + "ms ,: " + ex.getMessage(), ex);
+        }
       }
       if (responseExtractor != null) {
         try {

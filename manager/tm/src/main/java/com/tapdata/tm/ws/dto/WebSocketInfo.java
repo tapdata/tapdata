@@ -6,9 +6,12 @@
  */
 package com.tapdata.tm.ws.dto;
 
-import lombok.Getter;
-import lombok.Setter;
+import com.tapdata.tm.commons.websocket.ReturnCallback;
+import lombok.*;
 import org.springframework.web.socket.WebSocketSession;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class WebSocketInfo {
 	/**
