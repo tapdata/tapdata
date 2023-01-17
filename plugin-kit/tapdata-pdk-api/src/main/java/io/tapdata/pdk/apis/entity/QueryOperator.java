@@ -12,7 +12,7 @@ public class QueryOperator implements Serializable {
     private Object value;
     private int operator;
 
-    public QueryOperator(){
+    public QueryOperator() {
 
     }
 
@@ -86,7 +86,7 @@ public class QueryOperator implements Serializable {
                 break;
         }
         StringBuilder sb = new StringBuilder(quote + key + quote + operatorStr);
-        if(value instanceof Number) {
+        if (value instanceof Number) {
             sb.append(value);
         } else {
             sb.append("'").append(value.toString()).append("'");
