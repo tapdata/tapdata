@@ -85,7 +85,13 @@ public class QueryOperator implements Serializable {
                 operatorStr = "";
                 break;
         }
-        return quote + key + quote + operatorStr + "'" + value.toString() + "'";
+        StringBuilder sb = new StringBuilder(quote + key + quote + operatorStr);
+        if(value instanceof Number) {
+            sb.append(value);
+        } else {
+            sb.append("'").append(value.toString()).append("'");
+        }
+        return sb.toString();
     }
 
 }
