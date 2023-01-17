@@ -189,7 +189,10 @@ public abstract class BigQueryStart {
             if (connectorContext instanceof TapConnectorContext ){
                 DataMap nodeConfig = this.connectorContext.getNodeConfig();
                 if(Objects.isNull(nodeConfig)){
-                    TapLogger.error(TAG," Before creating a temporary table, you need to obtain the temporary table prefix name, but NodeConfig is empty .");
+                    //TapLogger.error(TAG," Before creating a temporary table, you need to obtain the temporary table prefix name, but NodeConfig is empty .");
+                    //@TODO
+                    nodeConfig = new DataMap();
+                    nodeConfig.put("cursorSchema",ContextConfig.TEMP_CURSOR_SCHEMA_NAME_DEFAULT);
                 }
                 String cursorSchema = nodeConfig.getString("cursorSchema");
                 if (Objects.isNull(cursorSchema) || "".equals(cursorSchema.trim())) {
