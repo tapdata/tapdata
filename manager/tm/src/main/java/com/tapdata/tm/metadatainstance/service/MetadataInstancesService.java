@@ -1992,4 +1992,15 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         }
         return types;
     }
+
+    public boolean checkTableExist(String connectionId, String tableName, UserDetail user) {
+        Criteria criteria = Criteria.where("original_name").is(tableName)
+                .and("is_deleted").ne(true)
+                .and("source._id").is(connectionId)
+                .and("sourceType").is(SourceTypeEnum.SOURCE.name())
+                .and("taskId").exists(false);
+        Query query = new Query(criteria);
+        long count = count(query, user);
+        return count > 0;
+    }
 }
