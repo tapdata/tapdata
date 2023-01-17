@@ -34,11 +34,11 @@
             <artifactId>tapdata-pdk-runner</artifactId>
 			<version>1.2-SNAPSHOT</version>
         </dependency>
-        <dependency>
-            <groupId>com.tapdata</groupId>
-            <artifactId>iengine-app</artifactId>
-            <version>0.5.2-SNAPSHOT</version>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>com.tapdata</groupId>-->
+<!--            <artifactId>iengine-app</artifactId>-->
+<!--            <version>0.5.2-SNAPSHOT</version>-->
+<!--        </dependency>-->
         <!-- https://mvnrepository.com/artifact/org.apache.maven.shared/maven-invoker -->
         <dependency>
             <groupId>org.apache.maven.shared</groupId>
