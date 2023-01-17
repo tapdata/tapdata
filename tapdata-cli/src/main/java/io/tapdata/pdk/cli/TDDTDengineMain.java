@@ -9,7 +9,7 @@ public class TDDTDengineMain {
     public static void main(String... args) throws ClassNotFoundException, SQLException {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         args = new String[]{
-                "test", "-c", "plugin-kit/tapdata-pdk-cli/src/main/resources/config/tdengine.json",
+                "test", "-c", "tapdata-cli/src/main/resources/config/tdengine.json",
                 "-t", "io.tapdata.pdk.tdd.tests.basic.BasicTest",
                 "-t", "io.tapdata.pdk.tdd.tests.v2.DiscoverSchemaTestV2",
                 "-t", "io.tapdata.pdk.tdd.tests.v2.DropTableFunctionTest",

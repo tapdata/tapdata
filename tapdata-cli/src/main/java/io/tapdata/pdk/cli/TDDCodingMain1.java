@@ -8,7 +8,7 @@ public class TDDCodingMain1 {
         args = new String[]{
                 "test",
                 "-c",
-                "plugin-kit/tapdata-pdk-cli/src/main/resources/config/coding.json",
+                "tapdata-cli/src/main/resources/config/coding.json",
                 "./connectors/dist/coding-connector-v1.0-SNAPSHOT.jar",
         };
         Main.registerCommands().execute(args);

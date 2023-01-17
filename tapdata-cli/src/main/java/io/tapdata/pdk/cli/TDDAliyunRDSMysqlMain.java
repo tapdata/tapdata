@@ -16,7 +16,7 @@ public class TDDAliyunRDSMysqlMain {
 //                "test", "-c", "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/tapdata-pdk-cli/src/main/resources/config/doris.json",
 				"test",
 				"-c",
-				"plugin-kit/tapdata-pdk-cli/src/main/resources/config/aliyun-rds-mysql.json",
+				"tapdata-cli/src/main/resources/config/aliyun-rds-mysql.json",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.CreateTableTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.basic.BasicTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.DMLTest",

@@ -8,7 +8,7 @@ public class TDDKafkaMain1 {
         args = new String[]{
             "test",
             "-c",
-            "plugin-kit/tapdata-pdk-cli/src/main/resources/config/kafka.json",
+            "tapdata-cli/src/main/resources/config/kafka.json",
             "./connectors/dist/kafka-connector-v1.0-SNAPSHOT.jar"
         };
         Main.registerCommands().execute(args);

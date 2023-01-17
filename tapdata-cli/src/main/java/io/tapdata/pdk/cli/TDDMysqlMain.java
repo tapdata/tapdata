@@ -17,7 +17,7 @@ public class TDDMysqlMain {
 //                "test", "-c", "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/tapdata-pdk-cli/src/main/resources/config/doris.json",
 				"test",
 				"-c",
-				"plugin-kit/tapdata-pdk-cli/src/main/resources/config/mysql.json",
+				"tapdata-cli/src/main/resources/config/mysql.json",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.CreateTableTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.basic.BasicTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.DMLTest",

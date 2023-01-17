@@ -16,7 +16,7 @@ public class TDDTencentDBMongoDBMain {
 //                "test", "-c", "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/tapdata-pdk-cli/src/main/resources/config/doris.json",
 				"test",
 				"-c",
-				"plugin-kit/tapdata-pdk-cli/src/main/resources/config/tencent-db-mongodb.json",
+				"tapdata-cli/src/main/resources/config/tencent-db-mongodb.json",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.CreateTableTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.basic.BasicTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.DMLTest",

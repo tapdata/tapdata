@@ -10,7 +10,7 @@ public class TDDPostgresMain {
 //                "test", "-c", "B:\\code\\tapdata\\idaas-pdk\\tapdata-pdk-cli\\src\\main\\resources\\config\\aerospike.json",
 //                "test", "-c", "B:\\code\\tapdata\\idaas-pdk\\tapdata-pdk-cli\\src\\main\\resources\\config\\doris.json",
 //                "test", "-c", "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/tapdata-pdk-cli/src/main/resources/config/doris.json",
-                "test", "-c", "plugin-kit/tapdata-pdk-cli/src/main/resources/config/postgres.json",
+                "test", "-c", "tapdata-cli/src/main/resources/config/postgres.json",
 //                "-t", "io.tapdata.pdk.tdd.tests.source.StreamReadTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.source.BatchReadTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.CreateTableTest",

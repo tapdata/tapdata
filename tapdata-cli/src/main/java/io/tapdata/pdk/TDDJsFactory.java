@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TDDJsFactory {
     public static final String baseJarPath = "./connectors/dist/";
-    public static final String baseConfPath = "plugin-kit/tapdata-pdk-cli/src/main/resources/config/";
+    public static final String baseConfPath = "tapdata-cli/src/main/resources/config/";
     private enum TddPath{
         QingFlow("coding-test-connector-v1.0-SNAPSHOT.jar","coding.json"),
         ;

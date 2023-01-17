@@ -8,7 +8,7 @@ public class TDDMysqlMain1 {
         args = new String[]{
             "test",
             "-c",
-            "plugin-kit/tapdata-pdk-cli/src/main/resources/config/mysql.json",
+            "tapdata-cli/src/main/resources/config/mysql.json",
             "./connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar",
         };
         Main.registerCommands().execute(args);

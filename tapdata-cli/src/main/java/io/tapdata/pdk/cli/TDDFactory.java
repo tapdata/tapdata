@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TDDFactory {
     public static final String baseJarPath = "./connectors/dist/";
-    public static final String baseConfPath = "plugin-kit/tapdata-pdk-cli/src/main/resources/config/";
+    public static final String baseConfPath = "tapdata-cli/src/main/resources/config/";
     private enum TddPath{
 //        MySql("mysql-connector-v1.0-SNAPSHOT.jar","mysql.json"),
 //        MongoDB("mongodb-connector-v1.0-SNAPSHOT.jar","mongodb.json"),

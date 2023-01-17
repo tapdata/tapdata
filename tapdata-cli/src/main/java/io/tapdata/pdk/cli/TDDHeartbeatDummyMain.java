@@ -12,7 +12,7 @@ public class TDDHeartbeatDummyMain {
     public static void main(String... args) {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         args = new String[]{
-                "test", "-c", "plugin-kit/tapdata-pdk-cli/src/main/resources/config/dummy_heartbeat.json",
+                "test", "-c", "tapdata-cli/src/main/resources/config/dummy_heartbeat.json",
                 "connectors/dummy-connector",
         };
 

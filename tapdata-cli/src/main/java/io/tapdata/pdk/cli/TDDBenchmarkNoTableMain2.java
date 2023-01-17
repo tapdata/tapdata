@@ -15,8 +15,8 @@ public class TDDBenchmarkNoTableMain2 {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         args = new String[]{
 //                "test", "-c", "B:\\code\\tapdata\\idaas-pdk\\tapdata-pdk-cli\\src\\main\\resources\\config\\aerospike.json",
-//                "test", "-c", "plugin-kit/tapdata-pdk-cli/src/main/resources/config/tddBenchmark.json",
-                "test", "-c", "plugin-kit/tapdata-pdk-cli/src/main/resources/config/mongodb.json",
+//                "test", "-c", "tapdata-cli/src/main/resources/config/tddBenchmark.json",
+                "test", "-c", "tapdata-cli/src/main/resources/config/mongodb.json",
                 "-t", "io.tapdata.pdk.tdd.tests.target.benchmark.BenchmarkNoTableTest",
 //                "B:\\code\\tapdata\\idaas-pdk\\dist\\aerospike-connector-v1.0-SNAPSHOT.jar",
 //                "B:\\code\\tapdata\\idaas-pdk\\dist\\doris-connector-v1.0-SNAPSHOT.jar",

@@ -10,7 +10,7 @@ public class TDDOceanbaseMain {
     public static void main(String[] args) {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         args = new String[]{
-                "test", "-c", "plugin-kit/tapdata-pdk-cli/src/main/resources/config/oceanbase.json",
+                "test", "-c", "tapdata-cli/src/main/resources/config/oceanbase.json",
                 "connectors/oceanbase-connector",
         };
         Main.registerCommands().execute(args);
