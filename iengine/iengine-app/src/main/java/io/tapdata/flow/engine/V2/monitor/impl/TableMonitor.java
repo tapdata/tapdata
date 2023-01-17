@@ -27,6 +27,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -49,7 +50,9 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 	private Set<String> removeTables;
 	private Connections connections;
 
-	public TableMonitor(TapTableMap<String, TapTable> tapTableMap, String associateId, TaskDto taskDto, Connections connections) {
+	private Predicate<String> dynamicTableFilter;
+
+	public TableMonitor(TapTableMap<String, TapTable> tapTableMap, String associateId, TaskDto taskDto, Connections connections, Predicate<String> dynamicTableFilter) {
 		if (null == tapTableMap) {
 			throw new RuntimeException("Missing Tap Table Map");
 		}
@@ -64,6 +67,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 		this.threadPool = new ScheduledThreadPoolExecutor(1);
 		this.tableResult = TableResult.create();
 		this.removeTables = new HashSet<>();
+		this.dynamicTableFilter = dynamicTableFilter;
 		verify();
 	}
 
@@ -115,7 +119,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 							}
 							dbTableNames = dbTableNames.stream().filter(tableFilter).collect(Collectors.toList());
 							for (String dbTableName : dbTableNames) {
-								if (finalTapTableNames.contains(dbTableName)) {
+								if (finalTapTableNames.contains(dbTableName) || !dynamicTableFilter.test(dbTableName)) {
 									finalTapTableNames.remove(dbTableName);
 									continue;
 								}

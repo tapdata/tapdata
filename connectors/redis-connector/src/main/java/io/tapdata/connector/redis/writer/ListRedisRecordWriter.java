@@ -19,8 +19,10 @@ public class ListRedisRecordWriter extends AbstractRedisRecordWriter {
     public ListRedisRecordWriter(RedisContext redisContext, TapTable tapTable) {
         super(redisContext, tapTable);
         keyName = tapTable.getId();
-        if (redisConfig.getOneKey() && EmptyKit.isNotBlank(redisConfig.getKeyTableName())) {
+        if (EmptyKit.isNotNull(redisConfig.getOneKey()) && redisConfig.getOneKey() && EmptyKit.isNotBlank(redisConfig.getKeyTableName())) {
             keyName = redisConfig.getKeyTableName();
+        } else {
+            redisConfig.setOneKey(true);
         }
     }
 

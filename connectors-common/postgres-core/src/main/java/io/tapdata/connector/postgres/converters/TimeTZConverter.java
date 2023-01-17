@@ -27,7 +27,7 @@ public class TimeTZConverter implements CustomConverter<SchemaBuilder, Relationa
                     return null;
                 }
                 OffsetTime offsetTime = (OffsetTime) x;
-                return offsetTime.toLocalTime().toSecondOfDay() * 1000L + offsetTime.getNano() / 1000000;
+                return offsetTime.toLocalTime().toSecondOfDay() * 1000000L + offsetTime.getNano() / 1000;
             });
         }
     }

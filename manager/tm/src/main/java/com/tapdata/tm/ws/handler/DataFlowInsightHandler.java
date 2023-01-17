@@ -20,6 +20,7 @@ import com.tapdata.tm.ws.dto.DataFlowInsightCache;
 import com.tapdata.tm.ws.dto.GranularityInfo;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
+import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
 import java.util.ArrayList;
@@ -61,7 +62,7 @@ public class DataFlowInsightHandler implements WebSocketHandler{
 		MessageInfo messageInfo = context.getMessageInfo();
 		if (messageInfo == null){
 			try {
-				WebSocketManager.sendMessage(context.getSender(), "Message data cannot be null");
+				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Message data cannot be null"));
 			} catch (Exception e) {
 				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
@@ -71,7 +72,7 @@ public class DataFlowInsightHandler implements WebSocketHandler{
 		if (StringUtils.isNotBlank(messageInfo.getDataFlowId())){
 			DataFlow dataFlow = mongoTemplate.findOne(Query.query(Criteria.where("_id").is(toObjectId(messageInfo.getDataFlowId())).and("user_id").is(context.getUserId())), DataFlow.class);
 			if (dataFlow == null){
-				WebSocketManager.sendMessage(context.getSender(), "DataFlow info was not found");
+				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("DataFlow info was not found"));
 				return;
 			}
 		}

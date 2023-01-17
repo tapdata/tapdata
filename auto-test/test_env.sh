@@ -76,7 +76,11 @@ IFS=$'\n'
 for i in $cases; do
     echo "will exec case: "$i
     rm -rf $i"_cases_result"
-    python3 runner.py --case $i --bench $bench &> $i"_cases_result"
+    if [[ "x"${SMART_CDC} == "xtrue" ]]; then
+        python3 runner.py --smart_cdc --case $i --bench $bench &> $i"_cases_result"
+    else
+        python3 runner.py --case $i --bench $bench &> $i"_cases_result"
+    fi
     cat $i"_cases_result"
     cat $i"_cases_result" >> cases_result
 done

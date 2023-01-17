@@ -42,7 +42,6 @@ public class DorisContext implements AutoCloseable {
                 statement = connection.createStatement();
             }
         } catch (Exception e) {
-            e.printStackTrace();
             throw new RuntimeException("Create Connection Failed!");
         }
     }
@@ -66,6 +65,23 @@ public class DorisContext implements AutoCloseable {
         }
     }
 
+    public TapConnectionContext getTapConnectionContext() {
+        return tapConnectionContext;
+    }
+
+    public WriteFormat getWriteFormat() {
+        if(null == tapConnectionContext) return WriteFormat.json;
+        DataMap nodeConfig = tapConnectionContext.getNodeConfig();
+        if(null == nodeConfig) return WriteFormat.json;
+        String writeFormat = nodeConfig.getString("writeFormat");
+        if(null == writeFormat || "".equals(writeFormat.trim())) return WriteFormat.json;
+        try {
+            return WriteFormat.valueOf(writeFormat);
+        } catch (IllegalArgumentException e) {
+            return WriteFormat.json;
+        }
+    }
+
     @Override
     public void close() throws Exception {
         if (!connection.isClosed()) {
@@ -74,5 +90,10 @@ public class DorisContext implements AutoCloseable {
             }
             connection.close();
         }
+    }
+
+    public enum WriteFormat{
+        json,
+        csv,
     }
 }

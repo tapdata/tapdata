@@ -27,7 +27,7 @@ public class TimeConverter implements CustomConverter<SchemaBuilder, RelationalC
                     return null;
                 }
                 Duration duration = (Duration) x;
-                return duration.getSeconds() * 1000 + duration.getNano() / 1000000;
+                return duration.getSeconds() * 1000000 + duration.getNano() / 1000;
             });
         }
     }

@@ -12,7 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public interface Command {
-    static final String TAG = Command.class.getSimpleName();
+    public static final String TAG = Command.class.getSimpleName();
 
     public static Command command(String command){
         if (Checker.isEmpty(command)) return null;
@@ -33,7 +33,7 @@ public interface Command {
     public static CommandResult command(TapConnectionContext tapConnectionContext, CommandInfo commandInfo){
         String command = commandInfo.getCommand();
         if(Checker.isEmpty(command)){
-            throw new CoreException("Command can not be NULL or not be empty.");
+            throw new CoreException("Command cannot be empty.");
         }
         if (Checker.isEmpty(command)) return null;
         Class clz = null;

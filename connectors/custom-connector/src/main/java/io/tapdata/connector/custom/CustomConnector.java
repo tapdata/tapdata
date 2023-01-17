@@ -4,7 +4,6 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.connector.custom.config.CustomConfig;
 import io.tapdata.connector.custom.core.Core;
 import io.tapdata.connector.custom.core.ScriptCore;
-import io.tapdata.connector.custom.util.CustomLog;
 import io.tapdata.connector.custom.util.ScriptUtil;
 import io.tapdata.constant.ConnectionTypeEnum;
 import io.tapdata.constant.SyncTypeEnum;
@@ -15,7 +14,10 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapDateValue;
+import io.tapdata.entity.schema.value.TapRawValue;
+import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -32,6 +34,8 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -55,7 +59,7 @@ public class CustomConnector extends ConnectorBase {
         initScriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
         initScriptEngine.eval(ScriptUtil.appendBeforeFunctionScript(customConfig.getCustomBeforeScript()) + "\n"
                 + ScriptUtil.appendAfterFunctionScript(customConfig.getCustomAfterScript()));
-        initScriptEngine.put("log", new CustomLog());
+//        initScriptEngine.put("log", new CustomLog());
     }
 
     @Override
@@ -68,7 +72,13 @@ public class CustomConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-
+        try {
+            if (initScriptEngine instanceof Closeable) {
+                ((Closeable) initScriptEngine).close();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void beforeStop() {
@@ -130,7 +140,7 @@ public class CustomConnector extends ConnectorBase {
         } else {
             scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
             scriptEngine.eval(ScriptUtil.appendTargetFunctionScript(customConfig.getTargetScript()));
-            scriptEngine.put("log", new CustomLog());
+//            scriptEngine.put("log", new CustomLog());
             writeEnginePool.put(threadName, scriptEngine);
         }
         List<Map<String, Object>> data = new ArrayList<>();
@@ -170,7 +180,7 @@ public class CustomConnector extends ConnectorBase {
         ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getHistoryScript(), true));
         scriptEngine.put("core", scriptCore);
-        scriptEngine.put("log", new CustomLog());
+//        scriptEngine.put("log", new CustomLog());
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         Runnable runnable = () -> {
             Invocable invocable = (Invocable) scriptEngine;
@@ -222,7 +232,7 @@ public class CustomConnector extends ConnectorBase {
         ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getCdcScript(), false));
         scriptEngine.put("core", scriptCore);
-        scriptEngine.put("log", new CustomLog());
+//        scriptEngine.put("log", new CustomLog());
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         Runnable runnable = () -> {
             Invocable invocable = (Invocable) scriptEngine;
