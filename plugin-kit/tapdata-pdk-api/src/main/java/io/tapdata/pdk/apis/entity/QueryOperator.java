@@ -12,7 +12,7 @@ public class QueryOperator implements Serializable {
     private Object value;
     private int operator;
 
-    public QueryOperator(){
+    public QueryOperator() {
 
     }
 
