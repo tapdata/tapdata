@@ -58,7 +58,7 @@ public class BigQueryConnectorV2 extends ConnectorBase {
     private final AtomicBoolean running = new AtomicBoolean(Boolean.TRUE);
     private String tableId;
     private WriteValve valve;
-
+    private final Object lock = new Object();
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
         this.writeRecord = (WriteRecord) WriteRecord.create(connectionContext).autoStart();
@@ -190,43 +190,45 @@ public class BigQueryConnectorV2 extends ConnectorBase {
         this.writeRecordStream(context, events, table, consumer);
     }
 
-    private synchronized void writeRecordStream(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
-        if (Objects.isNull(this.valve)) {
-            this.valve = WriteValve.open(
-                    BigQueryConnectorV2.STREAM_SIZE,
-                    BigQueryConnectorV2.CUMULATIVE_TIME_INTERVAL,
-                    (writeConsumer, writeList, targetTable) -> {
-                        try {
-                            writeConsumer.accept(this.stream.writeRecord(writeList, targetTable));
-                        } catch (Exception e) {
-                            TapLogger.error(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
-                        }
-                    },
-                    (writeList, targetTable) -> {
-                        LinkedHashMap<String, TapField> nameFieldMap = targetTable.getNameFieldMap();
-                        if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {
-                            throw new CoreException("TapTable not any fields.");
-                        }
-                        for (TapRecordEvent event : writeList) {
-                            if (Objects.isNull(event)) continue;
-                            Map<String, Object> record = new HashMap<>();
-                            if (event instanceof TapInsertRecordEvent) {
-                                Map<String, Object> recordMap = new HashMap<>();
-                                TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) event;
-                                record = insertRecordEvent.getAfter();
-                                Map<String, Object> finalRecord = record;
-                                nameFieldMap.forEach((key, f) -> {
-                                    Object value = finalRecord.get(key);
-                                    if (Objects.nonNull(value)) {
-                                        recordMap.put(key, SqlValueConvert.streamJsonArrayValue(value, f));
-                                    }
-                                });
-                                insertRecordEvent.after(recordMap);
+    private void writeRecordStream(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
+        synchronized (this.lock) {
+            if (Objects.isNull(this.valve)) {
+                this.valve = WriteValve.open(
+                        BigQueryConnectorV2.STREAM_SIZE,
+                        BigQueryConnectorV2.CUMULATIVE_TIME_INTERVAL,
+                        (writeConsumer, writeList, targetTable) -> {
+                            try {
+                                writeConsumer.accept(this.stream.writeRecord(writeList, targetTable));
+                            } catch (Exception e) {
+                                TapLogger.error(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
                             }
-                        }
-                    },
-                    consumer
-            ).initDelay(1).start();
+                        },
+                        (writeList, targetTable) -> {
+                            LinkedHashMap<String, TapField> nameFieldMap = targetTable.getNameFieldMap();
+                            if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {
+                                throw new CoreException("TapTable not any fields.");
+                            }
+                            for (TapRecordEvent event : writeList) {
+                                if (Objects.isNull(event)) continue;
+                                Map<String, Object> record = new HashMap<>();
+                                if (event instanceof TapInsertRecordEvent) {
+                                    Map<String, Object> recordMap = new HashMap<>();
+                                    TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) event;
+                                    record = insertRecordEvent.getAfter();
+                                    Map<String, Object> finalRecord = record;
+                                    nameFieldMap.forEach((key, f) -> {
+                                        Object value = finalRecord.get(key);
+                                        if (Objects.nonNull(value)) {
+                                            recordMap.put(key, SqlValueConvert.streamJsonArrayValue(value, f));
+                                        }
+                                    });
+                                    insertRecordEvent.after(recordMap);
+                                }
+                            }
+                        },
+                        consumer
+                ).initDelay(1).start();
+            }
         }
         this.valve.write(events,table);
     }

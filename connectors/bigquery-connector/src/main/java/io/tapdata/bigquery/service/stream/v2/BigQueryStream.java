@@ -17,6 +17,7 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class BigQueryStream extends BigQueryStart {
     public static final String TAG = BigQueryStream.class.getSimpleName();
@@ -24,7 +25,7 @@ public class BigQueryStream extends BigQueryStart {
     private TapTable tapTable;
     private MergeHandel merge;
     private StateMapOperator stateMap;
-    private String tempTableName;
+    private Map<String,String> tableWithTempTable = new ConcurrentHashMap<>();
     private final Object lock = new Object();
 
     public final Map<String, WriteCommittedStream> streamFactory = new HashMap<>();
@@ -96,10 +97,10 @@ public class BigQueryStream extends BigQueryStart {
         this.tapTable = table;
         eventAfter.convertData(events, this.merge,table);
         streamToBatchTime = Optional.ofNullable(streamToBatchTime).orElse(eventAfter.streamToBatchTime());
-        this.stateMap.saveForTable(tableId,MergeHandel.STREAM_TO_BATCH_TIME,streamToBatchTime);
         if (!eventAfter.appendData().isEmpty()) {
             synchronized (this.lock) {
                 this.createWriteCommittedStream(tableId).append(eventAfter.appendData());
+                this.stateMap.saveForTable(tableId,MergeHandel.STREAM_TO_BATCH_TIME,streamToBatchTime);
                 //this.batch.close();
             }
             //this.batch.close();
@@ -111,6 +112,7 @@ public class BigQueryStream extends BigQueryStart {
                 this.merge.createTemporaryTable(table, temporaryTableName);
                 this.stateMap.saveForTable(tableId,ContextConfig.TEMP_CURSOR_SCHEMA_NAME,temporaryTableName);
                 TapLogger.info(TAG, String.format(" The data has been written in stream mode,and will be written to a temporary table. A temporary table has been created for [ %s ] which name is: %s", tableId, temporaryTableName));
+                this.tableWithTempTable.put(tableId,temporaryTableName);
             }
             // 启动merge线程
 //            long delay = MergeHandel.FIRST_MERGE_DELAY_SECOND * 1000000000L;
@@ -148,16 +150,18 @@ public class BigQueryStream extends BigQueryStart {
             this.merge.mergeTemporaryTableToMainTable(table);
             this.merge.needMerge(table);
         }
+
         if (!eventAfter.mixedAndAppendData().isEmpty()) {
-            if (Objects.isNull(this.tempTableName)) {
-                Object tableName = this.stateMap.getOfTable(tableId,ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
-                if (Objects.isNull(tableName)) {
+            String tempTableId = this.tableWithTempTable.get(tableId);
+            if (Objects.isNull(tempTableId)) {
+                Object tempTableIdObj = this.stateMap.getOfTable(tableId,ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
+                if (Objects.isNull(tempTableIdObj)) {
                     throw new CoreException(" Coding error: The temporary table was not created or the temporary table name was not saved successfully. Please check the code implementation. ");
                 }
-                this.tempTableName = String.valueOf(tableName);
+                this.tableWithTempTable.put(tableId,tempTableId = String.valueOf(tempTableIdObj));
             }
             synchronized (this.lock) {
-                this.createWriteCommittedStream(this.tempTableName).appendJSON(eventAfter.mixedAndAppendData());
+                this.createWriteCommittedStream(tempTableId).appendJSON(eventAfter.mixedAndAppendData());
                 //this.batch.close();
             }
             //this.stream.close();
