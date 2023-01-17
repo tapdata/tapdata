@@ -1,5 +1,6 @@
 package com.tapdata.tm.ds.controller;
 
+import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -31,6 +32,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import lombok.Setter;
 import org.bson.Document;
@@ -538,7 +540,8 @@ public class DataSourceController extends BaseController {
 
     @Operation(summary = "加载部分表")
     @PostMapping("load/part/tables/{connectionId}")
-    public ResponseMessage<Void> loadPartTables(@PathVariable("connectionId") String connectionId, @RequestBody List<TapTable> tables) {
+    public ResponseMessage<Void> loadPartTables(@PathVariable("connectionId") String connectionId, @RequestBody String param) {
+        List<TapTable> tables = InstanceFactory.instance(JsonParser.class).fromJson(param, new TypeHolder<List<TapTable>>() {});
         dataSourceService.loadPartTables(connectionId, tables, getLoginUser());
         return success();
 
