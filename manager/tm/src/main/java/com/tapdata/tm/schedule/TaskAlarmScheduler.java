@@ -73,8 +73,8 @@ public class TaskAlarmScheduler {
     private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
 
 
-    @Scheduled(cron = "0 0/30 * * * ?")
-    @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+//    @Scheduled(cron = "0 0/30 * * * ?")
+//    @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskDataNodeConnectAlarm() throws InterruptedException {
         Thread.currentThread().setName("taskSchedule-taskDataNodeConnectAlarm");
 
@@ -192,6 +192,7 @@ public class TaskAlarmScheduler {
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(data.getId().toHexString())
                         .name(data.getName()).summary(summary).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
                         .build();
+                alarmInfo.setUserId(data.getUserId());
                 alarmService.save(alarmInfo);
             } else {
                 String orginAgentId = data.getAgentId();
@@ -209,6 +210,7 @@ public class TaskAlarmScheduler {
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(orginAgentId).taskId(data.getId().toHexString())
                         .name(data.getName()).summary(summary).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
                         .build();
+                alarmInfo.setUserId(data.getUserId());
                 alarmService.save(alarmInfo);
 
                 if (!isCloud) {
@@ -349,6 +351,7 @@ public class TaskAlarmScheduler {
                     .name(task.getName()).metric(alarmKeyEnum)
                     .nodeId(nodeId).node(nodeName)
                     .build();
+            alarmInfo.setUserId(task.getUserId());
             if (count >= alarmRuleDto.getPoint()) {
                 String summary;
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
@@ -427,6 +430,7 @@ public class TaskAlarmScheduler {
                     .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(task.getAgentId()).taskId(taskId)
                     .name(task.getName()).metric(AlarmKeyEnum.TASK_INCREMENT_DELAY)
                     .build();
+            alarmInfo.setUserId(task.getUserId());
             if (count >= alarmRuleDto.getPoint()) {
                 String summary;
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();

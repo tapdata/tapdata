@@ -2692,6 +2692,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .updatorName(userDetail.getUsername())
                     .agentId(dto.getAgentId())
                     .syncType(dto.getSyncType())
+                    .userId(dto.getUserId())
                     .build();
             disruptorService.sendMessage(DisruptorTopicEnum.TASK_STATUS, info);
         }

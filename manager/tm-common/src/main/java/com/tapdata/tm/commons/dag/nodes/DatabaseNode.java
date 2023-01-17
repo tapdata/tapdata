@@ -49,7 +49,6 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     private List<String> inputLanes;
     private List<String> outputLanes;
     private String existDataProcessMode = "keepData";
-    private Integer readBatchSize;
     private Integer readCdcInterval;
     private List<FieldProcess> fieldProcess;
 
@@ -66,6 +65,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     // 复制任务 全部 or 自定义
     private String migrateTableSelectType;
+    private String tableExpression;
 
     public DatabaseNode() {
         super("database");

@@ -92,7 +92,15 @@ public class AlarmServiceImpl implements AlarmService {
             info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
             info.setLastOccurrenceTime(date);
             if (Objects.nonNull(one.getLastNotifyTime()) && Objects.isNull(info.getLastNotifyTime())) {
-                info.setLastNotifyTime(one.getLastNotifyTime());
+                AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric(), info.getUserId());
+                if (Objects.nonNull(alarmSettingDto)) {
+                    DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
+                    if (date.after(lastNotifyTime)) {
+                        info.setLastNotifyTime(date);
+                    }
+                }
+            } else {
+                info.setLastNotifyTime(date);
             }
 
             mongoTemplate.save(info);
@@ -103,7 +111,7 @@ public class AlarmServiceImpl implements AlarmService {
         }
     }
 
-    private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type) {
+    private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
         boolean openTask = false;
         if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key)) {
             openTask = true;
@@ -117,7 +125,7 @@ public class AlarmServiceImpl implements AlarmService {
 
         boolean openSys = false;
 
-        List<AlarmSettingDto> all = alarmSettingService.findAll();
+        List<AlarmSettingDto> all = alarmSettingService.findAll(userDetail);
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
                     t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
@@ -186,27 +194,21 @@ public class AlarmServiceImpl implements AlarmService {
 
         for (AlarmInfo info : alarmInfos) {
             TaskDto taskDto = taskDtoMap.get(info.getTaskId());
+
+            UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
+
             if (Objects.isNull(taskDto)) {
-                CompletableFuture.runAsync(() -> close(new String[]{info.getId().toHexString()}, userDetailMap.get(taskDto.getUserId())));
+                CompletableFuture.runAsync(() -> close(new String[]{info.getId().toHexString()}, userDetail));
                 continue;
             }
 
-            FunctionUtils.ignoreAnyError(() -> sendMessage(info, taskDto));
-            FunctionUtils.ignoreAnyError(() -> sendMail(info, taskDto));
-
-            // update alarmInfo date
-            AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric());
-
-            if (ObjectUtils.allNotNull(alarmSettingDto)) {
-                DateTime lastNotifyTime = DateUtil.offset(DateUtil.date(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
-                info.setLastNotifyTime(lastNotifyTime);
-                mongoTemplate.save(info);
-            }
+            FunctionUtils.ignoreAnyError(() -> sendMessage(info, taskDto, userDetail));
+            FunctionUtils.ignoreAnyError(() -> sendMail(info, taskDto, userDetail));
         }
     }
 
-    private void sendMessage(AlarmInfo info, TaskDto taskDto) {
-        if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM)) {
+    private void sendMessage(AlarmInfo info, TaskDto taskDto, UserDetail userDetail) {
+        if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM, userDetail)) {
             String taskId = taskDto.getId().toHexString();
 
             Date date = DateUtil.date();
@@ -231,8 +233,8 @@ public class AlarmServiceImpl implements AlarmService {
         }
     }
 
-    private void sendMail(AlarmInfo info, TaskDto taskDto) {
-        if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL)) {
+    private void sendMail(AlarmInfo info, TaskDto taskDto, UserDetail userDetail) {
+        if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail)) {
             String title = null;
             String content = null;
             MailAccountDto mailAccount = getMailAccount();
