@@ -3,10 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MilestoneUtil;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataStartCdcEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -69,6 +66,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -548,7 +547,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			return;
 		}
 		Node node = getNode();
-		long loopTime = 1L;
+		AtomicLong loopTime = new AtomicLong(1L);
 		String tableName = ((TableNode) node).getTableName();
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 		Object streamOffsetObj = syncProgress.getStreamOffsetObj();
@@ -571,19 +570,32 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					Object value = defaultValue;
 					switch (tapType.getType()) {
 						case TapType.TYPE_NUMBER:
-							value = Double.valueOf(defaultValue);
+							if (defaultValue.contains(".")) {
+								value = Double.valueOf(defaultValue);
+							} else {
+								value = Long.valueOf(defaultValue);
+							}
 							break;
 						case TapType.TYPE_DATE:
+							LocalDate localDate;
+							String dateFormat = "yyyy-MM-dd";
 							try {
-								LocalDate localDate = LocalDate.parse(defaultValue, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+								localDate = LocalDate.parse(defaultValue, DateTimeFormatter.ofPattern(dateFormat));
 							} catch (Exception e) {
-								throw new RuntimeException("输入的字符串");
+								throw new RuntimeException("The input string format is incorrect, expected format: " + dateFormat + ", actual value:" + defaultValue);
 							}
-							ZonedDateTime gmtZonedDate = LocalDate.parse(defaultValue, DateTimeFormatter.ofPattern("yyyy-MM-dd")).atStartOfDay(ZoneId.of("GMT"));
+							ZonedDateTime gmtZonedDate = localDate.atStartOfDay(ZoneId.of("GMT"));
 							value = new DateTime(gmtZonedDate);
 							break;
 						case TapType.TYPE_DATETIME:
-							ZonedDateTime gmtZonedDateTime = LocalDateTime.parse(defaultValue, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).atZone(ZoneId.of("GMT"));
+							LocalDateTime localDateTime;
+							String datetimeFormat = "yyyy-MM-dd HH:mm:ss";
+							try {
+								localDateTime = LocalDateTime.parse(defaultValue, DateTimeFormatter.ofPattern(datetimeFormat));
+							} catch (Exception e) {
+								throw new RuntimeException("The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + defaultValue);
+							}
+							ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
 							value = new DateTime(gmtZonedDateTime);
 							break;
 						default:
@@ -600,6 +612,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		long cdcPollingInterval = ((TableNode) node).getCdcPollingInterval();
 		cdcPollingInterval = Math.max(cdcPollingInterval, CDC_POLLING_MIN_INTERVAL_MS);
+		long logInterval = TimeUnit.MINUTES.toMillis(5);
+		long logLoopTime = logInterval / cdcPollingInterval;
+		long heartbeatInterval = TimeUnit.MINUTES.toMillis(1);
+		long heartbeatTime = heartbeatInterval / cdcPollingInterval;
 		int cdcPollingBatchSize = ((TableNode) node).getCdcPollingBatchSize();
 		cdcPollingBatchSize = Math.max(cdcPollingBatchSize, CDC_POLLING_MIN_BATCH_SIZE);
 
@@ -609,7 +625,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (null == queryByAdvanceFilterFunction) {
 			throw new RuntimeException("Node " + connectorNode + " not support query by advance filter, cannot do polling cdc");
 		}
-		String logMsg = "Start run table " + tableName + " polling cdc with parameters. \n - Conditional field(s): " + streamOffsetObj;
+		String logMsg = "Start run table [" + tableName + "] polling cdc with parameters \n - Conditional field(s): " + streamOffsetObj;
 		logMsg += "\n - Loop polling interval: " + cdcPollingInterval + " ms\n - Batch size: " + cdcPollingBatchSize;
 		logger.info(logMsg);
 		obsLogger.info(logMsg);
@@ -623,7 +639,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 			tapAdvanceFilter.limit(cdcPollingBatchSize);
 			try {
-				if (loopTime == 1L || loopTime % 10 == 0) {
+				if (loopTime.get() == 1L || loopTime.get() % logLoopTime == 0) {
 					logger.info("Query by advance filter\n - loop time: " + loopTime + "\n - table: " + tapTable.getId()
 							+ "\n - filter: " + tapAdvanceFilter.getOperators()
 							+ "\n - limit: " + tapAdvanceFilter.getLimit() + "\n - sort: " + tapAdvanceFilter.getSortOnList());
@@ -633,6 +649,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 				PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 				int finalCdcPollingBatchSize = cdcPollingBatchSize;
+				AtomicBoolean hasData = new AtomicBoolean(false);
 				executeDataFuncAspect(
 						StreamReadFuncAspect.class,
 						() -> new StreamReadFuncAspect()
@@ -646,7 +663,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								pdkMethodInvoker.runnable(() -> {
 									Consumer<FilterResults> consumer = rs -> {
 										List<Map<String, Object>> results = rs.getResults();
+										if (CollectionUtils.isEmpty(results)) {
+											return;
+										}
 										for (Map<String, Object> result : results) {
+											hasData.compareAndSet(false, true);
 											TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent
 													.create()
 													.after(result)
@@ -674,6 +695,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, consumer);
 								})
 						));
+				if (!hasData.get() && (loopTime.get() == 1L || loopTime.get() % heartbeatTime == 0)) {
+					enqueue(TapdataHeartbeatEvent.create(System.currentTimeMillis(), syncProgress.getStreamOffsetObj(), SyncProgress.Type.POLLING_CDC));
+				}
 			} catch (Throwable e) {
 				throw new RuntimeException("Query by advance filter failed, table: " + tapTable.getId() + ", filer: " + tapAdvanceFilter.getOperators() + ", sort: " + tapAdvanceFilter.getSortOnList() + ", limit: " + tapAdvanceFilter.getLimit(), e);
 			}
@@ -682,7 +706,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			} catch (InterruptedException e) {
 				break;
 			}
-			loopTime++;
+			loopTime.incrementAndGet();
 		}
 	}
 

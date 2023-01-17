@@ -45,7 +45,6 @@ import org.bson.conversions.Bson;
 import org.bson.types.*;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -582,7 +581,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
 				TapField tapField = map.get(entry.getKey());
-				entry.setValue(setNumberValue(tapField,entry.getKey(),entry.getValue()));
+				entry.setValue(formatValue(tapField,entry.getKey(),entry.getValue()));
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
 		}
@@ -591,7 +590,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (ops != null) {
 			for (QueryOperator op : ops) {
 				TapField tapField = map.get(op.getKey());
-				op.setValue(setNumberValue(tapField,op.getKey(),op.getValue()));
+				op.setValue(formatValue(tapField,op.getKey(),op.getValue()));
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
 						bsonList.add(gt(op.getKey(), op.getValue()));
@@ -670,14 +669,16 @@ public class MongodbConnector extends ConnectorBase {
 		consumer.accept(filterResults);
 	}
 
-	private Object setNumberValue(TapField tapField,String key,Object value) {
+	private Object formatValue(TapField tapField, String key, Object value) {
 		if (tapField.getTapType() instanceof TapNumber && value instanceof String) {
 			if (value.toString().contains(".")) {
 				value = Double.valueOf(value.toString());
 			} else {
 				value = Long.valueOf(value.toString());
 			}
-
+		}
+		if (value instanceof DateTime) {
+			value = ((DateTime) value).toInstant();
 		}
 		return value;
 	}
