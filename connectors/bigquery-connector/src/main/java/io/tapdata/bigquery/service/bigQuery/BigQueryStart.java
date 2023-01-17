@@ -186,9 +186,33 @@ public abstract class BigQueryStart {
     protected String tempCursorSchema(String tableId, StateMapOperator stateMap){
         Object tempCursorSchema = stateMap.getString(tableId,ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
         if (Objects.isNull(tempCursorSchema)) {
-            tempCursorSchema = this.config.cursorSchema() + "_" + UUID.randomUUID().toString().replaceAll("-", "_");
+            if (connectorContext instanceof TapConnectorContext ){
+                DataMap nodeConfig = this.connectorContext.getNodeConfig();
+                if(Objects.isNull(nodeConfig)){
+                    TapLogger.error(TAG," Before creating a temporary table, you need to obtain the temporary table prefix name, but NodeConfig is empty .");
+                }
+                String cursorSchema = nodeConfig.getString("cursorSchema");
+                if (Objects.isNull(cursorSchema) || "".equals(cursorSchema.trim())) {
+                    cursorSchema = ContextConfig.TEMP_CURSOR_SCHEMA_NAME_DEFAULT;
+                    TapLogger.info(TAG, "The temporary table is named, and the default name has been selected as the prefix , named is " + cursorSchema);
+                }
+                this.config.cursorSchema(cursorSchema);
+
+                long time;
+                try {
+                    String mergeDelay = nodeConfig.getString("mergeDelay");
+                    time = Long.parseLong(mergeDelay);
+                } catch (Exception e) {
+                    time = ContextConfig.MERGE_DELAY_DEFAULT;
+                    TapLogger.info(TAG, " The merge delay interval is specified, and the default interval has been selected ,it is: " + time + "s.");
+                }
+                this.config.mergeDelay(time);
+            }
+            tempCursorSchema = this.config().cursorSchema() + "_" + UUID.randomUUID().toString().replaceAll("-", "_");
             TapLogger.info(TAG, "Cache Schema has created ,named is " + tempCursorSchema);
         }
         return String.valueOf(tempCursorSchema);
     }
+    public void setConfig(){}
+
 }

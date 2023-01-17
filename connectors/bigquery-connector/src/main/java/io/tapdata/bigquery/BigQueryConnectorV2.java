@@ -199,7 +199,7 @@ public class BigQueryConnectorV2 extends ConnectorBase {
                         try {
                             writeConsumer.accept(this.stream.writeRecord(writeList, targetTable));
                         } catch (Exception e) {
-                            TapLogger.warn(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
+                            TapLogger.error(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
                         }
                     },
                     (writeList, targetTable) -> {
