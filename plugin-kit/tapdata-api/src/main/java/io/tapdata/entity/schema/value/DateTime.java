@@ -126,7 +126,7 @@ public class DateTime {
         nano = instant.getNano();
     }
 
-    public static DateTime withTimeStr(String timeStr) {
+	public static DateTime withTimeStr(String timeStr) {
         if (timeStr == null)
             throw new IllegalArgumentException("DateTime constructor timeStr is null");
 

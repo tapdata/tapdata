@@ -18,6 +18,7 @@ import lombok.Setter;
 import lombok.ToString;
 import org.apache.commons.lang3.StringUtils;
 
+import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -286,7 +287,7 @@ public class TableNode extends DataNode {
     }
 
     @Data
-    public static class CdcPollingField {
+    public static class CdcPollingField implements Serializable {
         /** 指定的轮询字段 */
         private String field;
         /** 指定的轮询字段默认值 */
