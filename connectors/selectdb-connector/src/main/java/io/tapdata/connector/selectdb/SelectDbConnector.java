@@ -140,11 +140,23 @@ public class SelectDbConnector extends ConnectorBase {
                 return toJson(tapValue.getValue());
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapTimeValue.class, "datetime", tapValue -> {
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, "datetime", tapValue -> {
             if (tapValue != null && tapValue.getValue() != null) {
                 return tapValue.getValue();
             }
-            return null;
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, "datetimev2", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null) {
+                return formatTapDateTime(tapValue.getValue(), "YYYY-MM-DD HH:MM:SS.ssssss");
+            }
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapTimeValue.class, "datev2", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null) {
+                return formatTapDateTime(tapValue.getValue(), "YYYY-MM-DD");
+            }
+            return "null";
         });
 
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
@@ -254,14 +266,21 @@ public class SelectDbConnector extends ConnectorBase {
         return builder.toString();
     }
 
+    private final Object lock = new int[0];
+
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
         if (Objects.isNull(this.valve)) {
-            this.valve = WriteValve.open(
-                    50000,
-                    10,
-                    this::uploadEvents,
-                    writeListResultConsumer
-            );
+            synchronized (lock) {
+                if (Objects.isNull(this.valve)) {
+                    this.valve = WriteValve.open(
+                            50000,
+                            10,
+                            this::uploadEvents,
+                            writeListResultConsumer
+                    );
+                }
+            }
+
         }
         this.valve.write(tapRecordEvents, tapTable);
     }
@@ -276,7 +295,7 @@ public class SelectDbConnector extends ConnectorBase {
         try {
             writeListResultConsumer.accept(selectDbStreamLoader.writeRecord(events, table));
         } catch (IOException e) {
-            TapLogger.error(TAG, "" + e.getMessage());
+            TapLogger.error(TAG, "Data write failure" + e.getMessage());
         }
     }
 
@@ -372,27 +391,20 @@ public class SelectDbConnector extends ConnectorBase {
         String firstColumn = tapTable.getNameFieldMap().values().stream().findFirst().orElseGet(TapField::new).getName();
         String sql = "CREATE TABLE IF NOT EXISTS " + database + "." + tapTable.getId() + "(" +
                 DDLInstance.buildColumnDefinition(tapTable) + ")";
-        if (EmptyKit.isEmpty(primaryKeys)) {
-            sql += "DUPLICATE KEY (" + firstColumn + " ) " +
-                    "DISTRIBUTED BY HASH(" + firstColumn + " ) BUCKETS 10 ";
-        } else {
-            sql += "UNIQUE KEY (" + DDLInstance.buildDistributedKey(primaryKeys) + " ) " +
-                    "DISTRIBUTED BY HASH(" + DDLInstance.buildDistributedKey(primaryKeys) + " ) BUCKETS 10 ";
-        }
         try {
             List<String> sqls = TapSimplify.list();
+            if (EmptyKit.isEmpty(primaryKeys)) {
+                sql += "DUPLICATE KEY (" + firstColumn + " ) " +
+                        "DISTRIBUTED BY HASH(" + firstColumn + " ) BUCKETS 10 ";
+            } else if (EmptyKit.isNotNull(tapTable.getComment())) {
+                sql += "UNIQUE KEY (" + DDLInstance.buildDistributedKey(primaryKeys) + " ) " +
+                        "COMMENT \"" + tapTable.getComment() + "\"" +
+                        "DISTRIBUTED BY HASH(" + DDLInstance.buildDistributedKey(primaryKeys) + " ) BUCKETS 10 ";
+            } else {
+                sql += "UNIQUE KEY (" + DDLInstance.buildDistributedKey(primaryKeys) + " ) " +
+                        "DISTRIBUTED BY HASH(" + DDLInstance.buildDistributedKey(primaryKeys) + " ) BUCKETS 10 ";
+            }
             sqls.add(sql);
-            //comment on table and column
-            if (EmptyKit.isNotNull(tapTable.getComment())) {
-                sqls.add("COMMENT ON TABLE `" + selectDbConfig.getSchema() + "`.`" + tapTable.getId() + "` IS '" + tapTable.getComment() + "'");
-            }
-            Map<String, TapField> fieldMap = tapTable.getNameFieldMap();
-            for (String fieldName : fieldMap.keySet()) {
-                String fieldComment = fieldMap.get(fieldName).getComment();
-                if (EmptyKit.isNotNull(fieldComment)) {
-                    sqls.add("COMMENT ON COLUMN `" + selectDbConfig.getSchema() + "`.`" + tapTable.getId() + "`.`" + fieldName + "` IS '" + fieldComment + "'");
-                }
-            }
             selectDbJdbcContext.batchExecute(sqls);
         } catch (Throwable e) {
             e.printStackTrace();

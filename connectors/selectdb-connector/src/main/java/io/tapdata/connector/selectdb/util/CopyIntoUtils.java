@@ -62,7 +62,7 @@ public class CopyIntoUtils {
             throw new RuntimeException("load_url cannot be empty, or the host cannot connect.Please check your configuration.");
         }
         String uploadLoadUrl = String.format(UPLOAD_URL_PATTERN, selectdbHttp);
-        String uploadUuidName = UUID.randomUUID().toString() + "_" + System.currentTimeMillis() + ".csv";
+        String uploadUuidName = UUID.randomUUID().toString() + "_" + System.currentTimeMillis() + ".json";
         uuidName = uploadUuidName;
         String location = getUploadAddress(uploadLoadUrl, uuidName);
         put(location, uuidName, bytes);
@@ -78,12 +78,12 @@ public class CopyIntoUtils {
         String DUPLICATE_KEY_SQL = "{\"sql\": \"copy into " +
                 database + "." +
                 table.getId() + " from @~(\\\"" +
-                uuidName + "\\\") PROPERTIES (\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\"" +
+                uuidName + "\\\") PROPERTIES (\\\"file.strip_outer_array\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"json\\\",\\\"file.column_separator\\\"=\\\"" +
                 Constants.FIELD_DELIMITER_DEFAULT + "\\\")\"}";
         String UNIQUE_KEY_SQL = "{\"sql\": \"copy into " +
                 database + "." +
                 table.getId() + " from @~(\\\"" +
-                uuidName + "\\\") PROPERTIES (\\\"copy.use_delete_sign\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\"" +
+                uuidName + "\\\") PROPERTIES (\\\"file.strip_outer_array\\\"=\\\"true\\\",\\\"copy.use_delete_sign\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"json\\\",\\\"file.column_separator\\\"=\\\"" +
                 Constants.FIELD_DELIMITER_DEFAULT + "\\\")\"}";
 
         RequestBody body = RequestBody.create(mediaType, primaryKeys ? DUPLICATE_KEY_SQL : UNIQUE_KEY_SQL);
@@ -106,7 +106,7 @@ public class CopyIntoUtils {
             throw new RuntimeException("load_url cannot be empty, or the host cannot connect.Please check your configuration.");
         }
         String uploadLoadUrl = String.format(UPLOAD_URL_PATTERN, selectdbHttp);
-        String uploadUuidName = UUID.randomUUID().toString() + "_" + System.currentTimeMillis() + ".csv";
+        String uploadUuidName = UUID.randomUUID().toString() + "_" + System.currentTimeMillis() + ".json";
         uuidName = uploadUuidName;
         String location = getUploadAddress(uploadLoadUrl, uuidName);
         put(location, uuidName, bytes);
@@ -122,12 +122,12 @@ public class CopyIntoUtils {
         String DUPLICATE_KEY_SQL = "{\"sql\": \"copy into " +
                 database + "." +
                 table + " from @~(\\\"" +
-                uuidName + "\\\") PROPERTIES (\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\"" +
+                uuidName + "\\\") PROPERTIES (\\\"file.strip_outer_array\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"json\\\",\\\"file.column_separator\\\"=\\\"" +
                 Constants.FIELD_DELIMITER_DEFAULT + "\\\")\"}";
         String UNIQUE_KEY_SQL = "{\"sql\": \"copy into " +
                 database + "." +
                 table + " from @~(\\\"" +
-                uuidName + "\\\") PROPERTIES (\\\"copy.use_delete_sign\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"csv\\\",\\\"file.column_separator\\\"=\\\"" +
+                uuidName + "\\\") PROPERTIES (\\\"file.strip_outer_array\\\"=\\\"true\\\",\\\"copy.use_delete_sign\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"json\\\",\\\"file.column_separator\\\"=\\\"" +
                 Constants.FIELD_DELIMITER_DEFAULT + "\\\")\"}";
 
         RequestBody body = RequestBody.create(mediaType, primaryKeys ? DUPLICATE_KEY_SQL : UNIQUE_KEY_SQL);

@@ -1,6 +1,7 @@
 package io.tapdata.connector.selectdb.streamload;
 
 
+import com.alibaba.fastjson.JSON;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -11,54 +12,56 @@ import org.apache.commons.collections4.MapUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.Date;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.StringJoiner;
 
 /**
  * Author:Skeet
  * Date: 2022/12/14
  **/
 public class MessageSerializer {
-
-    public static byte[] serialize(TapTable table, TapRecordEvent recordEvent) throws IOException {
-        String value = "";
+    public static List<Map<String, Object>> serializeMap(TapTable table, TapRecordEvent recordEvent) throws IOException {
+        List<Map<String, Object>> list = new ArrayList<>();
         if (recordEvent instanceof TapInsertRecordEvent) {
             final TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) recordEvent;
             final Map<String, Object> after = insertRecordEvent.getAfter();
-            value += buildCSVString(table, after, false);
+            list.add(buildJsonMap(table, after, false));
         } else if (recordEvent instanceof TapUpdateRecordEvent) {
             final TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
             final Map<String, Object> before = updateRecordEvent.getBefore();
             final Map<String, Object> after = updateRecordEvent.getAfter();
-            value += buildCSVString(table, before, true);
-            value += Constants.LINE_DELIMITER_DEFAULT;
-            value += buildCSVString(table, after, false);
+            list.add(buildJsonMap(table, before, true));
+            list.add(buildJsonMap(table, after, false));
         } else {
             final TapDeleteRecordEvent deleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
             final Map<String, Object> before = deleteRecordEvent.getBefore();
-            value += buildCSVString(table, before, true);
+            list.add(buildJsonMap(table, before, true));
         }
-        return value.getBytes(StandardCharsets.UTF_8);
+        return list;
     }
 
-    public static String buildCSVString(TapTable table, Map<String, Object> values, boolean delete) throws IOException {
+    public static HashMap buildJsonMap(TapTable table, Map<String, Object> values, boolean delete) throws IOException {
+        HashMap<String, Object> jsonName = new HashMap<>();
         if (MapUtils.isNotEmpty(values)) {
-            Object value = "";
-            StringJoiner joiner = new StringJoiner(Constants.FIELD_DELIMITER_DEFAULT);
             final Map<String, TapField> tapFieldMap = table.getNameFieldMap();
             for (final Map.Entry<String, TapField> entry : tapFieldMap.entrySet()) {
                 if (values.containsKey(entry.getKey())) {
-                    value = values.getOrDefault(entry.getKey(), Constants.NULL_VALUE);
-                    // value get from the value map may be null
-                    if (value == null) {
-                        value = Constants.NULL_VALUE;
+                    Object o = values.get(entry.getKey());
+                    if (o instanceof Timestamp) {
+                        jsonName.put(entry.getKey(), o.toString());
+                    } else if (o instanceof Date) {
+                        jsonName.put(entry.getKey(), o.toString());
+                    } else {
+                        jsonName.put(entry.getKey(), values.get(entry.getKey()));
                     }
                 }
-                joiner.add(value.toString());
             }
-            joiner.add(delete ? "1" : "0");
-            return joiner.toString();
+            jsonName.put("__DORIS_DELETE_SIGN__", delete ? "1" : "0");
         }
-        return "";
+        return jsonName;
     }
 }
