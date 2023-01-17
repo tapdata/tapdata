@@ -17,6 +17,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -31,7 +32,7 @@ import org.springframework.stereotype.Service;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 @Service
@@ -53,11 +54,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         Update update = new Update().set("taskSnapshot.status", taskStatus);
 
         Date now = new Date();
-        if (StringUtils.equals(TaskDto.STATUS_RUNNING, taskStatus)) {
-            update.set("taskSnapshot.startTime", now);
-        } else {
-            update.set("taskSnapshot.last_updated", now);
-        }
+        update.set("taskSnapshot.last_updated", now);
         update.push("statusStack", new TaskRecord.TaskStatusUpdate(taskStatus, now));
         mongoTemplate.updateFirst(query, update, TaskRecord.class);
     }
@@ -89,13 +86,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         List<TaskRecord> taskRecords = partition.get(page - 1);
         List<String> userIds = taskRecords.stream().map(TaskRecord::getUserId).distinct().collect(Collectors.toList());
         List<UserDetail> users = userService.getUserByIdList(userIds);
-        Map<String, String> userMap = users.stream().collect(Collectors.toMap(UserDetail::getUserId, u -> {
-            if (StringUtils.isNotBlank(u.getUsername())) {
-                return u.getUsername();
-            } else {
-                return u.getEmail();
-            }
-        }));
+        Map<String, String> userMap = users.stream().collect(Collectors.toMap(UserDetail::getUserId, UserDetail::getUsername, (o1,o2) -> o1));
 
         List<TaskRecordListVo> collect = taskRecords.stream().map(r -> {
             String taskRecordId = r.getId().toHexString();
@@ -104,13 +95,6 @@ public class TaskRecordServiceImpl implements TaskRecordService {
             vo.setTaskId(r.getTaskId());
             vo.setTaskRecordId(taskRecordId);
             TaskEntity taskSnapshot = r.getTaskSnapshot();
-            if (Objects.nonNull(taskSnapshot.getStartTime())) {
-                vo.setStartDate(DateUtil.toLocalDateTime(taskSnapshot.getStartTime()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
-            }
-            List<String> of = Lists.of(TaskDto.STATUS_ERROR, TaskDto.STATUS_COMPLETE, TaskDto.STATUS_STOP);
-            if (Objects.nonNull(taskSnapshot.getLastUpdAt()) && of.contains(taskSnapshot.getStatus())) {
-                vo.setEndDate(DateUtil.toLocalDateTime(taskSnapshot.getLastUpdAt()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
-            }
             vo.setStatus(taskSnapshot.getStatus());
 
             Long inputTotal = r.getInputTotal();
@@ -135,19 +119,29 @@ public class TaskRecordServiceImpl implements TaskRecordService {
             }
 
             List<TaskRecord.TaskStatusUpdate> statusStack = r.getStatusStack();
-            if (null != statusStack && !statusStack.isEmpty()) {
-                Date lastStartDate = null;
-                int idx = statusStack.size() - 1;
-                while (idx >= 0) {
-                    TaskRecord.TaskStatusUpdate taskStatusUpdate = statusStack.get(idx);
-                    if (taskStatusUpdate.getStatus().equals(TaskDto.STATUS_RUNNING)) {
-                        lastStartDate = taskStatusUpdate.getTimestamp();
-                        break;
-                    }
-                    idx -= 1;
+            if (CollectionUtils.isNotEmpty(statusStack)) {
+                Map<String, List<Date>> statusDateMap = statusStack.stream()
+                        .collect(Collectors.groupingBy(TaskRecord.TaskStatusUpdate::getStatus,
+                                Collectors.mapping(TaskRecord.TaskStatusUpdate::getTimestamp, Collectors.toList())));
+                List<Date> startDates = statusDateMap.get(TaskDto.STATUS_RUNNING);
+                if (CollectionUtils.isNotEmpty(startDates)) {
+                    startDates.stream().max(Date::compareTo).ifPresent(date -> {
+                        vo.setLastStartDate(DateUtil.toLocalDateTime(date).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
+                    });
+
+                    startDates.stream().min(Date::compareTo).ifPresent(date -> {
+                        vo.setStartDate(DateUtil.toLocalDateTime(date).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
+                    });
                 }
-                if (null != lastStartDate) {
-                    vo.setLastStartDate(DateUtil.toLocalDateTime(lastStartDate).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
+
+                List<String> of = Lists.of(TaskDto.STATUS_ERROR, TaskDto.STATUS_COMPLETE, TaskDto.STATUS_STOP);
+                if (of.contains(taskSnapshot.getStatus())) {
+                    List<Date> endDates = statusDateMap.get(taskSnapshot.getStatus());
+                    if (CollectionUtils.isNotEmpty(endDates)) {
+                        endDates.stream().max(Date::compareTo).ifPresent(date -> {
+                            vo.setEndDate(DateUtil.toLocalDateTime(date).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
+                        });
+                    }
                 }
             }
 

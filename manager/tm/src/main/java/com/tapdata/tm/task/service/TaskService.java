@@ -1009,6 +1009,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public void renew(ObjectId id, UserDetail user) {
         TaskDto taskDto = checkExistById(id, user);
+        boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
+        if (needCreateRecord) {
+            String lastTaskRecordId = new ObjectId().toHexString();
+            Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId);
+            updateById(id.toHexString(), update, user);
+
+            taskDto.setTaskRecordId(lastTaskRecordId);
+            TaskEntity taskSnapshot = new TaskEntity();
+            BeanUtil.copyProperties(taskDto, taskSnapshot);
+
+            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
+                    new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+        }
 //        String status = taskDto.getStatus();
 //        if (TaskDto.STATUS_WAIT_START.equals(status)) {
 //            return;
@@ -1028,9 +1041,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW, user);
         if (stateMachineResult.isOk()) {
-            boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
-            taskDto.setNeedCreateRecord(needCreateRecord);
-
             log.debug("check task status complete, task name = {}", taskDto.getName());
             taskResetLogService.clearLogByTaskId(id.toHexString());
             sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_RESET);
@@ -1048,26 +1058,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         renewAgentMeasurement(taskDto.getId().toString());
         log.debug("renew task complete, task name = {}", taskDto.getName());
 
-        String lastTaskRecordId = new ObjectId().toString();
         //更新任务信息
-        Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId).unset("temp");
+        Update update = new Update().unset("temp");
         updateById(taskDto.getId(), update, user);
 
         //清除校验结果
         taskAutoInspectResultsService.cleanResultsByTask(taskDto);
-
-        if (taskDto.isNeedCreateRecord()) {
-            taskDto.setStatus(TaskDto.STATUS_WAIT_START);
-            taskDto.setAgentId(null);
-            taskDto.setTaskRecordId(lastTaskRecordId);
-            taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
-            taskDto.setAccessNodeProcessIdList(Lists.newArrayList());
-            TaskEntity taskSnapshot = new TaskEntity();
-            BeanUtil.copyProperties(taskDto, taskSnapshot);
-
-            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
-                    new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
-        }
 
         // publish queue
         renewNotSendMq(taskDto, user);
@@ -2709,8 +2705,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .unset("stopRetryTimes")
                     .unset("currentEventTimestamp")
                     .unset("scheduleDate")
-                    .unset("stopedDate")
-                    .set("needCreateRecord", taskDto.isNeedCreateRecord());
+                    .unset("stopedDate");
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
@@ -2844,7 +2839,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             String taskRecordId = new ObjectId().toHexString();
             update.set("taskRecordId", taskRecordId);
             taskDto.setTaskRecordId(taskRecordId);
-            taskDto.setNeedCreateRecord(true);
+
+            TaskEntity taskSnapshot = new TaskEntity();
+            BeanUtil.copyProperties(taskDto, taskSnapshot);
+            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), DateUtil.date()));
         }
         if (Objects.isNull(taskDto.getStartTime())) {
             DateTime date = DateUtil.date();
@@ -2947,6 +2945,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .updatorName(userDetail.getUsername())
                     .agentId(dto.getAgentId())
                     .syncType(dto.getSyncType())
+                    .userId(dto.getUserId())
                     .build();
             disruptorService.sendMessage(DisruptorTopicEnum.TASK_STATUS, info);
         }

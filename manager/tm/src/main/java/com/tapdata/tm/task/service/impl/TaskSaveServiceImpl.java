@@ -104,8 +104,8 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
     @Override
     public void supplementAlarm(TaskDto taskDto, UserDetail userDetail) {
-        List<AlarmSettingDto> settingDtos = alarmSettingService.findAll();
-        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAll();
+        List<AlarmSettingDto> settingDtos = alarmSettingService.findAll(userDetail);
+        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAll(userDetail);
 
         Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
         Map<AlarmKeyEnum, AlarmRuleDto> ruleDtoMap = ruleDtos.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
