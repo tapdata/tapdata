@@ -1320,8 +1320,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 //							}
 //						}
 						for (TapTable table : tables) {
-							String expression = definitionDto.getExpression();
-							PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+							if (table.getNameFieldMap() != null && table.getNameFieldMap().size() != 0) {
+								String expression = definitionDto.getExpression();
+								PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+							}
 						}
 
 						List<MetadataInstancesDto> newModels = tables.stream().map(tapTable -> {
