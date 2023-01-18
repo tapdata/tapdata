@@ -1,0 +1,67 @@
+{
+  "properties": {
+    "name": "Metabase",
+    "icon": "icon/demo.png",
+    "doc" : "${doc}",
+    "id": "metabase"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "title": "${userName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_username",
+          "x-index": 1
+        },
+        "password": {
+          "type": "string",
+          "title": "${password}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_password",
+          "x-index": 2
+        },
+        "matebaseDomainName": {
+          "required": true,
+          "type": "string",
+          "title": "${httpHost}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 3
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/demo_en_US.md",
+      "userName": "userName",
+      "password": "passWord",
+      "httpHost": "httpHost"
+    },
+    "zh_CN": {
+      "doc": "doc/demo_zh_CN.md",
+      "userName": "账号",
+      "password": "密码",
+      "httpHost": "HTTP地址"
+    },
+    "zh_TW": {
+      "doc": "doc/demo_zh_TW.md",
+      "userName": "賬號",
+      "password": "密碼",
+      "httpHost": "HTTP地址"
+    }
+  }
+}
