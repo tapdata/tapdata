@@ -712,10 +712,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	private void flushPollingCDCOffset(TapInsertRecordEvent tapEvent) {
-		TableNode node = (TableNode) getNode();
-		if (!isPollingCDC(node)) {
+		if (!isPollingCDC(getNode())) {
 			return;
 		}
+		TableNode node = (TableNode) getNode();
 		String tableName = node.getTableName();
 		Map streamOffsetMap = (Map) syncProgress.getStreamOffsetObj();
 		if (!streamOffsetMap.containsKey(tableName)) {
