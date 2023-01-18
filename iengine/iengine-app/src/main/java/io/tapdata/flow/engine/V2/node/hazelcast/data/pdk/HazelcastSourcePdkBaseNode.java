@@ -103,6 +103,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	// on cdc step if TableMap not exists heartbeat table, add heartbeat table to cdc whitelist and filter heartbeat records
 	protected ICdcDelay cdcDelayCalculation;
 	private final Object waitObj = new Object();
+	protected DatabaseTypeEnum.DatabaseType databaseType;
 	private boolean firstComplete = true;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
