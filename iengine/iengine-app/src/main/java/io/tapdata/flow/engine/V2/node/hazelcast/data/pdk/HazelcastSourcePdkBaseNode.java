@@ -85,7 +85,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	 * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
 	 * blocked when reading data from data source while jet using async when passing the event to next node.
 	 */
-	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(10);
+	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(1024);
 	protected StreamReadFuncAspect streamReadFuncAspect;
 	private TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
@@ -104,6 +104,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected ICdcDelay cdcDelayCalculation;
 	private final Object waitObj = new Object();
 	protected DatabaseTypeEnum.DatabaseType databaseType;
+	private boolean firstComplete = true;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -320,8 +321,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	final public boolean complete() {
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
-			Log4jUtil.setThreadContext(taskDto);
-			Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
+			if (firstComplete) {
+				Log4jUtil.setThreadContext(taskDto);
+				Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
+				firstComplete = false;
+			}
 			TapdataEvent dataEvent = null;
 			if (!isRunning()) {
 				return null == error;
@@ -331,7 +335,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				pendingEvent = null;
 			} else {
 				try {
-					dataEvent = eventQueue.poll(1, TimeUnit.SECONDS);
+					dataEvent = eventQueue.poll(500, TimeUnit.MILLISECONDS);
 				} catch (InterruptedException ignored) {
 				}
 				if (null != dataEvent) {
