@@ -21,9 +21,11 @@ import io.tapdata.js.connector.server.inteceptor.JSAPIInterceptorConfig;
 import io.tapdata.js.connector.server.inteceptor.JSAPIResponseInterceptor;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.write.WriteValve;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,6 +41,7 @@ public class JSConnector extends ConnectorBase {
     //private CacheContext cacheContext = new CacheContext();
 
     private final AtomicBoolean isAlive = new AtomicBoolean(true);
+
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -56,15 +59,15 @@ public class JSConnector extends ConnectorBase {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         this.instanceScript(null);
-        connectorFunctions.supportStreamRead(FunctionSupport.function(javaScripter, script -> JSStreamReadFunction.create(script, this.isAlive)))
-                .supportWriteRecord(FunctionSupport.function(javaScripter, script -> JSWriteRecordFunction.create(script, this.isAlive)))
-                .supportBatchRead(FunctionSupport.function(javaScripter, script -> JSBatchReadFunction.create(script, this.isAlive)))
-                .supportBatchCount(FunctionSupport.function(javaScripter, JSBatchCountFunction::create))
-                .supportRawDataCallbackFilterFunctionV2(FunctionSupport.function(javaScripter, JSRawDataCallbackFunction::create))
-                .supportCreateTableV2(FunctionSupport.function(javaScripter, JSCreateTableV2Function::create))
-                .supportTimestampToStreamOffset(FunctionSupport.function(javaScripter, JSTimestampToStreamOffsetFunction::create))
-                .supportCommandCallbackFunction(FunctionSupport.function(javaScripter, JSCommandFunction::create))
-                ;
+        connectorFunctions.supportStreamRead(FunctionSupport.function(this.javaScripter, script -> JSStreamReadFunction.create(script, this.isAlive)))
+                .supportWriteRecord(FunctionSupport.function(this.javaScripter, script -> JSWriteRecordFunction.create(this.isAlive).write(script)))
+                .supportBatchRead(FunctionSupport.function(this.javaScripter, script -> JSBatchReadFunction.create(script, this.isAlive)))
+                .supportBatchCount(FunctionSupport.function(this.javaScripter, JSBatchCountFunction::create))
+                .supportRawDataCallbackFilterFunctionV2(FunctionSupport.function(this.javaScripter, JSRawDataCallbackFunction::create))
+                .supportCreateTableV2(FunctionSupport.function(this.javaScripter, JSCreateTableV2Function::create))
+                .supportTimestampToStreamOffset(FunctionSupport.function(this.javaScripter, JSTimestampToStreamOffsetFunction::create))
+                .supportCommandCallbackFunction(FunctionSupport.function(this.javaScripter, JSCommandFunction::create))
+        ;
     }
 
     @Override
