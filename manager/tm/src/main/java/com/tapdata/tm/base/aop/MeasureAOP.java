@@ -67,6 +67,7 @@ public class MeasureAOP {
                             .param(param)
                             .build();
 
+                    alarmInfo.setUserId(taskDto.getUserId());
                     alarmService.save(alarmInfo);
                 }
 
@@ -81,6 +82,7 @@ public class MeasureAOP {
                             .name(taskDto.getName()).summary(summary).metric(AlarmKeyEnum.TASK_INCREMENT_START)
                             .param(param)
                             .build();
+                    alarmInfo.setUserId(taskDto.getUserId());
                     alarmService.save(alarmInfo);
                 }
 

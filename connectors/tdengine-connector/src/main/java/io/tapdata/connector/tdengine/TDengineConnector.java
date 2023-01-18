@@ -281,7 +281,7 @@ public class TDengineConnector extends ConnectorBase {
         Set<String> columnNames = tapTable.getNameFieldMap().keySet();
         List<FilterResult> filterResults = new LinkedList<>();
         for (TapFilter filter : filters) {
-            String sql = "SELECT * FROM \"" + tdengineConfig.getDatabase() + "\".\"" + tapTable.getId() + "\" WHERE " + CommonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "=");
+            String sql = "SELECT * FROM \"" + tdengineConfig.getDatabase() + "\".\"" + tapTable.getId() + "\" WHERE " + new CommonSqlMaker().buildKeyAndValue(filter.getMatch(), "AND", "=");
             FilterResult filterResult = new FilterResult();
             try {
                 tdengineJdbcContext.queryWithNext(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
@@ -295,7 +295,7 @@ public class TDengineConnector extends ConnectorBase {
     }
 
     private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
-        String sql = "SELECT * FROM \"" + tdengineConfig.getDatabase() + "\".\"" + table.getId() + "\" " + CommonSqlMaker.buildSqlByAdvanceFilter(filter);
+        String sql = "SELECT * FROM \"" + tdengineConfig.getDatabase() + "\".\"" + table.getId() + "\" " + new CommonSqlMaker().buildSqlByAdvanceFilter(filter);
         tdengineJdbcContext.query(sql, resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet.next()) {

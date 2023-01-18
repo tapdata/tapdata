@@ -393,6 +393,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 										.withNodes(nodes)
 										.withEdges(edges)
 										.withConfigurationCenter(config)
+										.withTargetConn(connection)
 										.withConnectionConfig(connection.getConfig())
 										.withDatabaseType(databaseType)
 										.withTapTableMap(tapTableMap)
