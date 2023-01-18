@@ -553,7 +553,15 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				try {
 					connectionString = new ConnectionString(uri);
 				} catch (Exception e) {
-					log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
+					if (uri.startsWith("mongodb+srv:")) {
+						try {
+							connectionString = new ConnectionString(uri.replace("mongodb+srv:", "mongodb:"));
+						} catch (Exception e1) {
+							log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
+						}
+					} else {
+						log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
+					}
 				}
 
 				if (connectionString != null) {
