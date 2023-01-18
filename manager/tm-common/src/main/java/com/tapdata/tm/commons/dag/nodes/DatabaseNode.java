@@ -73,7 +73,6 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     // 复制任务 1.all 2.custom => 1.all => custom 2.expression
     private String migrateTableSelectType;
-
     /**
      * migrateTableSelectType=expression的正则表达式
      */

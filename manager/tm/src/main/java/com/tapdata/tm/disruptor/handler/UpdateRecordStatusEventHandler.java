@@ -54,6 +54,7 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
                         .param(param)
                         .build();
 
+                alarmInfo.setUserId(data.getUserId());
                 alarmService.save(alarmInfo);
 
                 break;
@@ -67,6 +68,7 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
                         .name(data.getTaskName()).summary(errorSummary).metric(AlarmKeyEnum.TASK_STATUS_ERROR)
                         .build();
+                errorInfo.setUserId(data.getUserId());
                 alarmService.save(errorInfo);
                 break;
         }

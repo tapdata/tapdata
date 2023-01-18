@@ -24,13 +24,13 @@ public class AlarmRuleController extends BaseController {
     @Operation(summary = "alarm rule save")
     @PostMapping("/save")
     public ResponseMessage<Void> alarmRuleSave(@RequestBody List<AlarmRuleDto> rules) {
-        alarmRuleService.save(rules);
+        alarmRuleService.save(rules, getLoginUser());
         return success();
     }
 
     @Operation(summary = "find all")
     @GetMapping("/find")
     public ResponseMessage<List<AlarmRuleDto>> find(){
-        return success(alarmRuleService.findAll());
+        return success(alarmRuleService.findAll(getLoginUser()));
     }
 }
