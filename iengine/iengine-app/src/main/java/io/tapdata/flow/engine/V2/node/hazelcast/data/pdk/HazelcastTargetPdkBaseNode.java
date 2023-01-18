@@ -115,8 +115,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		this.updateMetadata = new ConcurrentHashMap<>();
 		this.removeMetadata = new CopyOnWriteArrayList<>();
 
-		this.targetBatch = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchSize()).orElse(DEFAULT_TARGET_BATCH);
-		this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
+		targetBatch = DEFAULT_TARGET_BATCH;
+		if (getNode() instanceof DataParentNode) {
+			this.targetBatch = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchSize()).orElse(DEFAULT_TARGET_BATCH);
+		}
+		targetBatchIntervalMs = DEFAULT_TARGET_BATCH_INTERVAL_MS;
+		if (getNode() instanceof DataParentNode) {
+			this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
+		}
 		logger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
 		obsLogger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
 		logger.info("Target node {}[{}] batch max wait interval ms: {}", getNode().getName(), getNode().getId(), targetBatchIntervalMs);

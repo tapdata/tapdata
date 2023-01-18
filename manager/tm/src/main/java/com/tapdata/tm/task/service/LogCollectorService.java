@@ -359,16 +359,15 @@ public class LogCollectorService {
             if (CollectionUtils.isNotEmpty(taskDtos)) {
                 List<SyncTaskVo> syncTaskVos = convertSubTask(taskDtos, ((LogCollectorNode) node).getConnectionIds());
                 logCollectorDetailVo.setTaskList(syncTaskVos);
-            }
-
-            TaskDto taskDto1 = taskDtos.get(0);
-            logCollectorDetailVo.setTaskId(taskDto1.getId().toHexString());
-            DAG dag1 = taskDto1.getDag();
-            if (dag1 != null) {
-                List<Edge> edges = dag1.getEdges();
-                Edge edge = edges.get(0);
-                Date eventTime = getAttrsValues(edge.getSource(), edge.getTarget(), "eventTime", taskDto1.getAttrs());
-                logCollectorDetailVo.setLogTime(eventTime);
+                TaskDto taskDto1 = taskDtos.get(0);
+                logCollectorDetailVo.setTaskId(taskDto1.getId().toHexString());
+                DAG dag1 = taskDto1.getDag();
+                if (dag1 != null) {
+                    List<Edge> edges = dag1.getEdges();
+                    Edge edge = edges.get(0);
+                    Date eventTime = getAttrsValues(edge.getSource(), edge.getTarget(), "eventTime", taskDto1.getAttrs());
+                    logCollectorDetailVo.setLogTime(eventTime);
+                }
             }
 
             return logCollectorDetailVo;
