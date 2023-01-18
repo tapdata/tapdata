@@ -64,7 +64,7 @@ public class LoadSchemaSchedule {
             return;
         }
 
-        int countThreshold = SettingsEnum.SCHEDULED_LOAD_SCHEMA_COUNT_THRESHOLD.getIntValue(3);
+        int countThreshold = SettingsEnum.SCHEDULED_LOAD_SCHEMA_COUNT_THRESHOLD.getIntValue(10000);
 
         int oneDay = 1000 * 60 * 60 * 24;
 
