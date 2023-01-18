@@ -11,6 +11,7 @@
 	<modules>
 		<module>coding-demo-connector</module>
 		<module>js-test-connector</module>
+		<module>fly-book-connector</module>
 <!--		<module>demo-connector</module>-->
 	</modules>
 
