@@ -1,7 +1,5 @@
 var batchStart = nowDate();
-
 function discover_schema(connectionConfig) {
-
     let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
     let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
         {"sessionToken": sessionToken.result.id});
@@ -25,7 +23,6 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
             break;
         }
     }
-
     let invoke = invoker.invoke(
         'TAP_TABLE[queryExportFormat](PAGE_NONE:data)queryExportFormat',
         {"card-id": parseInt(id),"sessionToken": sessionToken.result.id});
@@ -45,9 +42,5 @@ function connection_test(connectionConfig) {
     let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
     let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
         {"sessionToken": sessionToken.result.id});
-    return [{
-        "TEST": " Check the account read database permission.",
-        "CODE": invoke ? 1 : -1,
-        "RESULT": invoke ? "Pass" : "Not pass"
-    }];
+    return [{"TEST": " Check the account read database permission.", "CODE": invoke ? 1 : -1, "RESULT": invoke ? "Pass" : "Not pass"}];
 }
