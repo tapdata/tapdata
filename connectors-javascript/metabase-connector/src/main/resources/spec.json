@@ -1,7 +1,7 @@
 {
   "properties": {
     "name": "Metabase",
-    "icon": "icon/demo.png",
+    "icon": "icon/metabase.png",
     "doc" : "${doc}",
     "id": "metabase"
   },

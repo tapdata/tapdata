@@ -28,9 +28,6 @@ var batchStart = nowDate();
  * */
 function discover_schema(connectionConfig) {
 
-    /**
-     * 已实现discover_schema
-     * **/
     let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
 
     let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
