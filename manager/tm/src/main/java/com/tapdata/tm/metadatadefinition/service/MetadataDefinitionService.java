@@ -210,8 +210,20 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
             Object objCount = fields.get("objCount");
             if (objCount != null && (objCount.equals(true) || (Double) objCount == 1) && CollectionUtils.isNotEmpty(dtoPage.getItems())) {
                 discoveryService.addObjCount(dtoPage.getItems(), user);
+
+                if (CollectionUtils.isEmpty(dtoPage.getItems())) {
+                    List<MetadataDefinitionDto> delItems = new ArrayList<>();
+                    for (MetadataDefinitionDto item : dtoPage.getItems()) {
+                        if (StringUtils.isNotBlank(item.getLinkId()) && item.getObjCount() < 1) {
+                            delItems.add(item);
+                        }
+                    }
+                    dtoPage.getItems().removeAll(delItems);
+                }
             }
         }
+
+
 
         return dtoPage;
     }
