@@ -35,6 +35,8 @@ public class UserDetail implements Serializable, UserDetails {
 	private Notification notification;
 	private String externalUserId;
 
+	private String openid;
+
 	public UserDetail(String userId, String customerId, String username, String password, String customerType, Collection<? extends SimpleGrantedAuthority> authorities) {
 		this(userId, customerId, username, password, customerType, null, true, true, true, true, authorities);
 	}
@@ -84,6 +86,7 @@ public class UserDetail implements Serializable, UserDetails {
 		this.authorities = Collections.unmodifiableSet(sortAuthorities(authorities));
 		this.notification=user.getNotification();
 		this.externalUserId=user.getExternalUserId();
+		this.openid = user.getOpenid();
 	}
 
 	public boolean isRoot() {

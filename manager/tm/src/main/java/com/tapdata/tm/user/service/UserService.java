@@ -230,9 +230,9 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
                 user.setCustomId(customerDto.getId().toHexString());
 
                 Notification notification = new Notification();
-                notification.setConnected(new Connected(true, false));
-                notification.setStoppedByError(new StoppedByError(true, false));
-                notification.setConnectionInterrupted(new ConnectionInterrupted(true, false));
+                notification.setConnected(new Connected(true, false, false));
+                notification.setStoppedByError(new StoppedByError(true, false, false));
+                notification.setConnectionInterrupted(new ConnectionInterrupted(true, false, false));
                 user.setNotification(notification);
 
                 final String email = user.getEmail();
