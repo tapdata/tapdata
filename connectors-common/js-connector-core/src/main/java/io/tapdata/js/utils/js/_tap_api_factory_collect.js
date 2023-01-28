@@ -76,9 +76,9 @@ class TapApi {
     }
 }
 
-function loadAPI(apiContent, type, params) {
-    if (isParam(apiContent) && isParam(type) && isParam(params)) {
-        return new TapApi(tapAPI.loadAPI(apiContent, type, params));
+function loadAPI(params, apiContent) {
+    if (isParam(apiContent) && isParam(params) ){
+        return new TapApi(tapAPI.loadAPI(apiContent, params));
     } else if (isParam(params)) {
         return new TapApi(tapAPI.loadAPI(params));
     } else {
