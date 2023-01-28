@@ -2,7 +2,7 @@ name: LDP Continuous Integration With TEST
 
 on:
   push:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*", "feat-dependent-cli" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
   pull_request:
     branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
   schedule:
