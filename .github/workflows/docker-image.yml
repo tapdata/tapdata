@@ -2,7 +2,7 @@ name: LDP Continuous Integration With TEST
 
 on:
   push:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*", "feat-dependent-cli" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
   pull_request:
     branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
   schedule:
@@ -121,9 +121,6 @@ jobs:
       - name: compile opensource tapdata-cli module
         run:
           build/build.sh -c tapdata-cli
-      - name: Setup tmate session
-        if: ${{ failure() }}
-        uses: mxschmitt/action-tmate@v3
       - name: package module and make image
         run: |
           cur_timestamp=$((`date '+%s'`))
