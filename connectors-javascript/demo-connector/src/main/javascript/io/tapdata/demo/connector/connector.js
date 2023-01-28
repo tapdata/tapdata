@@ -73,7 +73,7 @@ function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSi
 function connection_test(connectionConfig) {
     return [{
         "TEST": "Example test item",
-        "CODE": 1 ,
+        "CODE": 1,
         "RESULT": "Pass"
     }];
 }
@@ -85,7 +85,7 @@ function connection_test(connectionConfig) {
  * @param nodeConfig
  * @param commandInfo
  * */
-function command_callback(connectionConfig, nodeConfig, commandInfo){
+function command_callback(connectionConfig, nodeConfig, commandInfo) {
 
 }
 
@@ -151,4 +151,26 @@ function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMa
 function write_record(connectionConfig, nodeConfig, eventDataList) {
 
     //return true;
+}
+
+/**
+ * This method is used to update the access key
+ *  @param connectionConfig :type is Object
+ *  @param nodeConfig :type is Object
+ *  @param apiResponse :The following valid data can be obtained from apiResponse : {
+ *              result :  type is Object, Return result of interface call
+ *              httpCode : type is Integer, Return http code of interface call
+ *          }
+ *
+ *  @return must be {} or null or {"key":"value",...}
+ *      - {} :  Type is Object, but not any key-value, indicates that the access key does not need to be updated, and each interface call directly uses the call result
+ *      - null : Semantics are the same as {}
+ *      - {"key":"value",...} : Type is Object and has key-value ,  At this point, these values will be used to call the interface again after the results are returned.
+ * */
+function update_token(connectionConfig, nodeConfig, apiResponse) {
+    // if (apiResponse.code === 401) {
+    //     let result = invoker.invokeV2("apiName");
+    //     return {"access_token": result.result.token};
+    // }
+    // return null;
 }

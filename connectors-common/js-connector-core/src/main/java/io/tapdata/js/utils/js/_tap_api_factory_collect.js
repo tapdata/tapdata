@@ -11,15 +11,34 @@ class TapApi {
         this.config = _tapConfig_;
     }
 
-    invoke(uriOrNameStr, paramsMap, methodStr, hasInvoker) {
+    invoke(uriOrNameStr, paramsMap, methodStr) {
         let result = null;
         if (!isParam(uriOrNameStr)) {
             log.error("No API name or URL was specified, unable to execute http request. ");
             return null;
         }
-        if (isParam(paramsMap) && isParam(methodStr) && isParam(hasInvoker)) {
-            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr, hasInvoker);
-        } else if (isParam(paramsMap) && isParam(methodStr)) {
+        if (isParam(paramsMap) && isParam(methodStr)) {
+            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr, true);
+        } else if (isParam(paramsMap)) {
+            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap),null,true);
+        } else {
+            result = this.invoker.invoke(uriOrNameStr, this.config,null,true);
+        }
+        return {
+            "result": tapUtil.toMap(result.result).data,
+            "httpCode": result.httpCode,
+            "headers": result.headers,
+            "error": result.error
+        };
+    }
+
+    invokeV2(uriOrNameStr, paramsMap, methodStr) {
+        let result = null;
+        if (!isParam(uriOrNameStr)) {
+            log.error("No API name or URL was specified, unable to execute http request. ");
+            return null;
+        }
+        if (isParam(paramsMap) && isParam(methodStr)) {
             result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr);
         } else if (isParam(paramsMap)) {
             result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap));
@@ -34,8 +53,8 @@ class TapApi {
         };
     }
 
-    addConfig(connection, node){
-        this.config = tapUtil.mixedData(connection,node);
+    addConfig(connection, node) {
+        this.config = tapUtil.mixedData(connection, node);
     }
 
     invokeAndCache(uriOrNameStr, paramsMap, methodStr, hasInvoker) {
@@ -77,7 +96,7 @@ class TapApi {
 }
 
 function loadAPI(params, apiContent) {
-    if (isParam(apiContent) && isParam(params) ){
+    if (isParam(apiContent) && isParam(params)) {
         return new TapApi(tapAPI.loadAPI(apiContent, params));
     } else if (isParam(params)) {
         return new TapApi(tapAPI.loadAPI(params));
@@ -115,6 +134,6 @@ function isAlive() {
     return nodeIsAlive.get();
 }
 
-function convertList(list,convertMatch){
+function convertList(list, convertMatch) {
     return tapUtil.convertList(list, convertMatch);
 }

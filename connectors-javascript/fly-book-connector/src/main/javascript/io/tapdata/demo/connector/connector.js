@@ -158,3 +158,11 @@ function write_record(connectionConfig, nodeConfig, eventDataList) {
     }
     return true;
 }
+
+function update_token(connectionConfig, nodeConfig, apiResponse) {
+    // if (apiResponse.code === 401) {
+    //     let result = invoker.invokeV2("apiName");
+    //     return {"access_token": result.result.token};
+    // }
+    // return null;
+}
