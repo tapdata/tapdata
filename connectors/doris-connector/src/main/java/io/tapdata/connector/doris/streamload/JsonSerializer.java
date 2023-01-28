@@ -70,7 +70,11 @@ public class JsonSerializer implements MessageSerializer {
 		LinkedHashMap<String, Object> linkedRecord = new LinkedHashMap<>();
 		for (String field : tapTable.getNameFieldMap().keySet()) {
 			Object value = record.get(field);
-			linkedRecord.put(field, value);
+			if (null == value) {
+				linkedRecord.put(field, null);
+			} else {
+				linkedRecord.put(field, value.toString());
+			}
 		}
 		linkedRecord.put(Constants.DORIS_DELETE_SIGN, delete ? 1 : 0);
 		return objectMapper.writeValueAsString(linkedRecord);

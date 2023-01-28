@@ -2,6 +2,7 @@
 package com.tapdata.tm.ds.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.schema.ScheduleTimeEnum;
 import com.tapdata.tm.commons.schema.bean.FileSources;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
@@ -311,6 +312,9 @@ public class DataSourceEntity extends BaseEntity {
     private Integer increaseReadSize;
 
     private Date loadSchemaTime;
+    /** 数据源大于一万张表的时候， 设置的每天的某个时间点加载一次 可以设置为0-24点直接的值
+     * @see ScheduleTimeEnum */
+    private String schemaUpdateHour;
 
     /**
      * 后续 开放可以多选 flow engine 的话，这里一定要删除

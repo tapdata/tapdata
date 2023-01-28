@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Date;
@@ -32,8 +33,14 @@ public class TaskRecord extends BaseEntity {
 
     @Data
     @AllArgsConstructor
-    public static class TaskStatusUpdate {
+    public static class TaskStatusUpdate implements Comparable<TaskStatusUpdate> {
         String status;
         Date timestamp;
+
+
+        @Override
+        public int compareTo(@NotNull TaskStatusUpdate o) {
+            return this.timestamp.compareTo(o.getTimestamp());
+        }
     }
 }
