@@ -34,7 +34,6 @@ public class QuickAPIResponseInterceptor implements APIResponseInterceptor {
         APIResponse interceptorResponse = response;
         ExpireHandel expireHandel = ExpireHandel.create(response, config.expireStatus(),config.tokenParams());
         if (expireHandel.builder()){
-
             List<APIEntity> apiEntities = invoker.tableApis();
             if ( !apiEntities.isEmpty() ){
                 APIEntity apiEntity = apiEntities.get(0);

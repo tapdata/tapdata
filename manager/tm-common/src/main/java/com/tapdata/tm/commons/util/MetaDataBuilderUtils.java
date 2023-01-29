@@ -175,6 +175,7 @@ public class MetaDataBuilderUtils {
         SourceDto sourceDto = new SourceDto();
         BeanUtils.copyProperties(source, sourceDto);
         sourceDto.set_id(source.getId().toHexString());
+        sourceDto.setUser_id(source.getUserId());
 
         // General properties
         handleSource(sourceDto);

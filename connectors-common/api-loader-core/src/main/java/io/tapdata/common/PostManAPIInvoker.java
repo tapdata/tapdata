@@ -57,23 +57,7 @@ public class PostManAPIInvoker
     }
 
     @Override
-    public APIInvoker analysis(String apiJson, Map<String, Object> params) {
-        Map<String, Object> json = null;
-        if (Objects.nonNull(apiJson)) {
-            json = (Map<String, Object>) fromJson(apiJson);
-        } else {
-//            if (!FileUtil.fileExists(this.analysis.sourcePath())) {
-//                TapLogger.error(TAG, "Can't analysis api JSON document, please save this JSON file into " + this.analysis.sourcePath() + ". ");
-//                return this;
-//            }
-            try {
-                json = (Map<String, Object>) fromJson(ScriptUtil.loadFileFromJarPath(APIFactory.DEFAULT_POST_MAN_FILE_PATH));
-            } catch (Throwable ignored) {
-                TapLogger.error(TAG, "Can't analysis api JSON document, please save this JSON file into " + this.analysis.sourcePath() + ". ");
-                return this;
-            }
-        }
-
+    public APIInvoker analysis(Map<String, Object> json, Map<String, Object> params) {
         List<Object> item = this.analysis.getList(PostParam.ITEM, json);
         Map<String, List<Object>> listMap = this.analysis.item(item);
         ApiMap apiMap = ApiMap.create();

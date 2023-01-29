@@ -1,5 +1,6 @@
 package io.tapdata.pdk;
 
+import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.pdk.cli.Main;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -12,7 +13,7 @@ public class TDDJsFactory {
     public static final String baseJarPath = "./connectors/dist/";
     public static final String baseConfPath = "tapdata-cli/src/main/resources/config/";
     private enum TddPath{
-        QingFlow("coding-test-connector-v1.0-SNAPSHOT.jar","coding.json"),
+        QingFlow("coding-demo-connector-v1.0-SNAPSHOT.jar","js-coding.json"),
         ;
         String path;
         String conf;
@@ -38,6 +39,7 @@ public class TDDJsFactory {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         CommonUtils.setProperty("TDD_AUTO_EXIT","0");
         args = new String[]{"test", "-c", null, null};
+        ConfigurationCenter.processId = "sam_flow_engine";
         for (TDDJsFactory.TddPath tddJarPath : TDDJsFactory.TddPath.values()) {
             args[2] = baseConfPath + tddJarPath.getConf();
             args[3] = baseJarPath + tddJarPath.getPath();

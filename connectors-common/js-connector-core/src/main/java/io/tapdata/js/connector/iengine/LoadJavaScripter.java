@@ -156,10 +156,17 @@ public class LoadJavaScripter {
     }
 
     public boolean functioned(String functionName) {
-        if (Objects.isNull(functionName)) return false;
-        if (Objects.isNull(this.scriptEngine)) return false;
-        Object functionObj = this.scriptEngine.get(functionName);
-        return functionObj instanceof Function;
+        if (Objects.isNull(functionName) || Objects.isNull(this.scriptEngine)) return false;
+        try{
+            Invocable invocable = (Invocable) this.scriptEngine;
+            invocable.invokeFunction(functionName);
+        }catch(NoSuchMethodException e){
+            return false;
+        } catch (ScriptException ignored) {
+        }
+        return true;
+        //Object functionObj = this.scriptEngine.get(functionName);
+        //return functionObj instanceof Function;
     }
 
     private void binding(String key, Object name, int scope) {
@@ -229,11 +236,10 @@ public class LoadJavaScripter {
         if (Objects.isNull(functionName)) return null;
         if (Objects.isNull(this.scriptEngine)) return null;
         //Function<Object[], Object> polyglotMapAndFunction;
-//        Object connectionConfig = this.scriptEngine.get(ExecuteConfig.CONNECTION_CONFIG);
-//        if (Objects.nonNull(connectionConfig) && connectionConfig instanceof Map){
-//
-//        }
-//        Object nodeConfigMap = this.scriptEngine.get(ExecuteConfig.NODE_CONFIG);
+        //Object connectionConfig = this.scriptEngine.get(ExecuteConfig.CONNECTION_CONFIG);
+        //if (Objects.nonNull(connectionConfig) && connectionConfig instanceof Map){
+        //}
+        //Object nodeConfigMap = this.scriptEngine.get(ExecuteConfig.NODE_CONFIG);
         try {
             Invocable invocable = (Invocable) this.scriptEngine;
             Object apply = invocable.invokeFunction(functionName, params);
