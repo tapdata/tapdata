@@ -20,9 +20,9 @@ class TapApi {
         if (isParam(paramsMap) && isParam(methodStr)) {
             result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr, true);
         } else if (isParam(paramsMap)) {
-            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap),null,true);
+            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap),'POST',true);
         } else {
-            result = this.invoker.invoke(uriOrNameStr, this.config,null,true);
+            result = this.invoker.invoke(uriOrNameStr, this.config,'POST',true);
         }
         return {
             "result": tapUtil.toMap(result.result).data,

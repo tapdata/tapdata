@@ -25,8 +25,8 @@ public class BaseUpdateTokenFunction extends FunctionBase implements FunctionSup
     }
     @Override
     public BaseUpdateTokenFunction function(LoadJavaScripter javaScripter) {
-        if (super.hasNotSupport(javaScripter)) return this;
-        return null;
+        if (super.hasNotSupport(javaScripter)) return null;
+        return this;
     }
 
     public Map<String,Object> exec(APIResponse response){
@@ -48,6 +48,6 @@ public class BaseUpdateTokenFunction extends FunctionBase implements FunctionSup
     }
 
     public static BaseUpdateTokenFunction create(LoadJavaScripter loadJavaScripter, TapConnectionContext connectionContext) {
-        return new BaseUpdateTokenFunction().function(loadJavaScripter).connectionContext(connectionContext);
+        return new BaseUpdateTokenFunction().connectionContext(connectionContext).function(loadJavaScripter);
     }
 }
