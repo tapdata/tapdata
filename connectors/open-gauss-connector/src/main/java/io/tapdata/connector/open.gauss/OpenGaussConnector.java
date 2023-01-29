@@ -1,4 +1,4 @@
-package io.tapdata.connector.postgres;
+package io.tapdata.connector.open.gauss;
 
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
@@ -6,6 +6,9 @@ import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlGenerator;
+import io.tapdata.connector.postgres.PostgresJdbcContext;
+import io.tapdata.connector.postgres.PostgresRecordWriter;
+import io.tapdata.connector.postgres.PostgresTest;
 import io.tapdata.connector.postgres.bean.PostgresColumn;
 import io.tapdata.connector.postgres.cdc.PostgresCdcRunner;
 import io.tapdata.connector.postgres.cdc.offset.PostgresOffset;
