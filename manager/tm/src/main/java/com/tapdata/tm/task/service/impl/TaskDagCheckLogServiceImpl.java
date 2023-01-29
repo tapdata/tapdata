@@ -7,6 +7,7 @@ import com.google.common.base.Splitter;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
@@ -133,9 +134,11 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         modelQuery.with(Sort.by("_id"));
         List<TaskDagCheckLog> modelLogs = find(modelQuery);
         // check task nodes has js node
-        boolean hasJsNode = taskDto.getDag().getNodes().stream().anyMatch(n -> (n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode) && ! (n instanceof CustomProcessorNode));
-        if (hasJsNode) {
-            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName());
+        Optional<Node> jsNode = taskDto.getDag().getNodes().stream()
+                .filter(n -> (n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode) && !(n instanceof CustomProcessorNode))
+                .findFirst();
+        if (jsNode.isPresent()) {
+            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName(), NodeEnum.valueOf(jsNode.get().getType()).getNodeName());
             Optional.ofNullable(jsNodeLog).ifPresent(modelLogs::addAll);
         }
 
@@ -143,7 +146,6 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, false);
 
         if (CollectionUtils.isNotEmpty(modelLogs)) {
-
             LinkedList<TaskLogInfoVo> collect = packCheckLogs(taskDto, modelLogs);
             result.setModelList(collect);
             boolean present = taskDto.getTransformed();
@@ -160,8 +162,11 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                     log = StringUtils.replace(log, "$taskName", taskDto.getName());
                     log = StringUtils.replace(log, "$date", DateUtil.toLocalDateTime(g.getCreateAt()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
 
-                    return new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), log);
+                    TaskLogInfoVo taskLogInfoVo = new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), log);
+                    taskLogInfoVo.setTime(g.getCreateAt());
+                    return taskLogInfoVo;
                 })
+                .sorted(Comparator.comparing(TaskLogInfoVo::getTime))
                 .collect(Collectors.toCollection(LinkedList::new));
     }
 
