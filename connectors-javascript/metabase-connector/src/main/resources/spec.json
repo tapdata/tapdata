@@ -16,6 +16,7 @@
       "type": "object",
       "properties": {
         "username": {
+          "required": true,
           "type": "string",
           "title": "${userName}",
           "x-decorator": "FormItem",
@@ -24,6 +25,7 @@
           "x-index": 1
         },
         "password": {
+          "required": true,
           "type": "string",
           "title": "${password}",
           "x-decorator": "FormItem",
