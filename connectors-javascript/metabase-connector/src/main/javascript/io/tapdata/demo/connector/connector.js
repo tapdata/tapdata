@@ -5,13 +5,17 @@ function discover_schema(connectionConfig) {
         {"sessionToken": sessionToken.result.id});
     let tableList = [];
     for (let index = 0; index < invoke.result.length; index++) {
-        tableList.push(invoke.result[index].name + "_" + invoke.result[index].id);
+        let name = clearSpecial(invoke.result[index].name)
+        tableList.push("Card_" + invoke.result[index].id + "_" + name + "" );
     }
     return tableList;
 }
 
-function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
+function clearSpecial(str) {
+    return str.replaceAll(/\^|\.|\s+|\*|\?|\!|\/|\\|\$|\—+|\@|\%|\*|\~|\;|\:|\'|\"|\#|\&|\||\，|\,|\。|\`|\！|\[|\]|\？|\{|\}|\(|\)|\（|\）|\＜|\＞|\<|\>|\≤|\≥|\《|\》|\-|\+|\=/g, "");
+}
 
+function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
     let sessionToken = invoker.invoke('TAP_GET_TOKEN session api', {});
     let data = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
         {"sessionToken": sessionToken.result.id});

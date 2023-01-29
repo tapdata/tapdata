@@ -63,6 +63,8 @@ public class ExpressionMatchingMap<T> {
     }
 
     public ExpressionMatchingMap(Map<String, T> map) {
+        if(map == null)
+            return;
         Set<Map.Entry<String, T>> entries = map.entrySet();
         for(Map.Entry<String, T> entry : entries) {
             String key = entry.getKey();
