@@ -1,0 +1,13 @@
+{
+  "connection": {
+    "host": "127.0.0.1",
+    "port": 15432,
+    "database": "postgres",
+    "schema": "public",
+    "user": "gaussdb",
+    "password": "Secretpassword@123",
+    "logPluginName": "decoderbufs"
+  },
+  "node": {
+  }
+}
