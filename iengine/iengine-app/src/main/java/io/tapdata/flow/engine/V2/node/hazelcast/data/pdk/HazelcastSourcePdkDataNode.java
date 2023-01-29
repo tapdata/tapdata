@@ -225,7 +225,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	logger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 																}
 																((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
-																flushPollingCDCOffset((TapInsertRecordEvent) events.get(events.size() - 1));
+																flushPollingCDCOffset(events);
 																List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
 
 																if (batchReadFuncAspect != null)
@@ -241,7 +241,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 														};
 														if (getNode() instanceof TableNode) {
 															TableNode tableNode = (TableNode) dataProcessorContext.getNode();
-															if (tableNode.getIsFilter() && CollectionUtils.isNotEmpty(tableNode.getConditions())) {
+															if (isTableFilter(tableNode) || isPollingCDC(tableNode)) {
 																TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
 																queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 																	List<TapEvent> tempList = new ArrayList<>();
@@ -314,6 +314,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			throw new NodeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType())
 					.context(getProcessorBaseContext());
 		}
+	}
+
+	private static boolean isTableFilter(TableNode tableNode) {
+		return tableNode.getIsFilter() && CollectionUtils.isNotEmpty(tableNode.getConditions());
 	}
 
 	@SneakyThrows
@@ -711,11 +715,19 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
-	private void flushPollingCDCOffset(TapInsertRecordEvent tapEvent) {
-		TableNode node = (TableNode) getNode();
-		if (!isPollingCDC(node)) {
+	private void flushPollingCDCOffset(List<TapEvent> tapEvents) {
+		if (CollectionUtils.isEmpty(tapEvents)) {
 			return;
 		}
+		TapEvent lastEvent = tapEvents.get(tapEvents.size() - 1);
+		flushPollingCDCOffset((TapInsertRecordEvent) lastEvent);
+	}
+
+	private void flushPollingCDCOffset(TapInsertRecordEvent tapEvent) {
+		if (!isPollingCDC(getNode())) {
+			return;
+		}
+		TableNode node = (TableNode) getNode();
 		String tableName = node.getTableName();
 		Map streamOffsetMap = (Map) syncProgress.getStreamOffsetObj();
 		if (!streamOffsetMap.containsKey(tableName)) {
@@ -760,20 +772,34 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	private TapAdvanceFilter batchFilterRead() {
+		TableNode tableNode = (TableNode) dataProcessorContext.getNode();
 		TapAdvanceFilter tapAdvanceFilter = new TapAdvanceFilter();
 		DataMap match = new DataMap();
-		TableNode tableNode = (TableNode) dataProcessorContext.getNode();
 		List<QueryOperator> queryOperators = new ArrayList<>();
-		for (QueryOperator queryOperator : tableNode.getConditions()) {
-			if (EQUAL_VALUE == queryOperator.getOperator()) {
-				match.put(queryOperator.getKey(), queryOperator.getValue());
-			} else {
-				queryOperators.add(queryOperator);
+		List<QueryOperator> conditions = tableNode.getConditions();
+		if (CollectionUtils.isNotEmpty(conditions)) {
+			for (QueryOperator queryOperator : conditions) {
+				if (EQUAL_VALUE == queryOperator.getOperator()) {
+					match.put(queryOperator.getKey(), queryOperator.getValue());
+				} else {
+					queryOperators.add(queryOperator);
+				}
+			}
+			tapAdvanceFilter.setMatch(match);
+			tapAdvanceFilter.setOperators(queryOperators);
+		}
+		Integer limit = tableNode.getLimit();
+		if (null == limit) {
+			limit = readBatchSize;
+		}
+		tapAdvanceFilter.setLimit(limit);
+
+		List<TableNode.CdcPollingField> cdcPollingFields = tableNode.getCdcPollingFields();
+		if (CollectionUtils.isNotEmpty(cdcPollingFields)) {
+			for (TableNode.CdcPollingField cdcPollingField : cdcPollingFields) {
+				tapAdvanceFilter.sort(SortOn.ascending(cdcPollingField.getField()));
 			}
 		}
-		tapAdvanceFilter.setMatch(match);
-		tapAdvanceFilter.setOperators(queryOperators);
-		tapAdvanceFilter.setLimit(tableNode.getLimit());
 		return tapAdvanceFilter;
 	}
 

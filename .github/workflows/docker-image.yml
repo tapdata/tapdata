@@ -118,6 +118,9 @@ jobs:
       - name: compile connectors module
         run:
           build/build.sh -c connectors
+      - name: compile opensource tapdata-cli module
+        run:
+          build/build.sh -c tapdata-cli
       - name: package module and make image
         run: |
           cur_timestamp=$((`date '+%s'`))
