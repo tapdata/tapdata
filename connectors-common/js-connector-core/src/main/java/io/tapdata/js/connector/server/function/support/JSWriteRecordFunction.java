@@ -6,6 +6,8 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.js.connector.base.EventTag;
+import io.tapdata.js.connector.base.EventType;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.FunctionSupport;
@@ -13,6 +15,7 @@ import io.tapdata.js.connector.server.function.JSFunctionNames;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.write.WriteValve;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
@@ -63,8 +66,11 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
+
         List<Map<String, Object>> machiningEvents = machiningEvents(tapRecordEvents, table.getId(), insert, update, delete);
+
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
+
         try {
             super.javaScripter.invoker(
                     JSFunctionNames.WriteRecordFunction.jsName(),
@@ -78,12 +84,6 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         writeListResultConsumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
     }
 
-    public static final String EVENT_TYPE_KEY = "event_type";
-    public static final String EVENT_TABLE_KEY = "event_table";
-    public static final String EVENT_DATA_KEY = "event_data";
-    public static final String EVENT_INSERT_KEY = "INSERT";
-    public static final String EVENT_UPDATE_KEY = "UPDATE";
-    public static final String EVENT_DELETE_KEY = "DELETE";
 
     private List<Map<String, Object>> machiningEvents(List<TapRecordEvent> tapRecordEvents, final String tableId, AtomicLong insert, AtomicLong update, AtomicLong delete) {
         List<Map<String, Object>> events = new ArrayList<>();
@@ -91,25 +91,30 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         tapRecordEvents.stream().filter(Objects::nonNull).forEach(tapRecord -> {
             Map<String, Object> event = new HashMap<>();
             if (tapRecord instanceof TapInsertRecordEvent) {
-                event.put(EVENT_TYPE_KEY, EVENT_INSERT_KEY);
-                event.put(EVENT_DATA_KEY, ((TapInsertRecordEvent) tapRecord).getAfter());
+                event.put(EventTag.EVENT_TYPE, EventType.insert);
+                event.put(EventTag.AFTER_DATA, ((TapInsertRecordEvent) tapRecord).getAfter());
                 insert.incrementAndGet();
             } else if (tapRecord instanceof TapUpdateRecordEvent) {
-                event.put(EVENT_TYPE_KEY, EVENT_UPDATE_KEY);
-                event.put(EVENT_DATA_KEY, ((TapUpdateRecordEvent) tapRecord).getAfter());
+                event.put(EventTag.EVENT_TYPE, EventType.update);
+                event.put(EventTag.BEFORE_DATA, ((TapUpdateRecordEvent) tapRecord).getBefore());
+                event.put(EventTag.AFTER_DATA, ((TapUpdateRecordEvent) tapRecord).getAfter());
                 update.incrementAndGet();
             } else if (tapRecord instanceof TapDeleteRecordEvent) {
-                event.put(EVENT_TYPE_KEY, EVENT_DELETE_KEY);
-                event.put(EVENT_DATA_KEY, ((TapDeleteRecordEvent) tapRecord).getBefore());
+                event.put(EventTag.EVENT_TYPE, EventType.delete);
+                event.put(EventTag.BEFORE_DATA, ((TapDeleteRecordEvent) tapRecord).getBefore());
                 delete.incrementAndGet();
             }
-            event.put(EVENT_TABLE_KEY, tableId);
+            event.put(EventTag.REFERENCE_TIME, tapRecord.getReferenceTime());
+            event.put(EventTag.TABLE_NAME, tableId);
             events.add(event);
         });
         return events;
     }
 
-    public static WriteRecordFunction create(LoadJavaScripter loadJavaScripter, AtomicBoolean isAlive) {
-        return new JSWriteRecordFunction().isAlive(isAlive).function(loadJavaScripter);
+    public static JSWriteRecordFunction create(AtomicBoolean isAlive) {
+        return new JSWriteRecordFunction().isAlive(isAlive);
+    }
+    public WriteRecordFunction write(LoadJavaScripter loadJavaScripter){
+        return this.function(loadJavaScripter);
     }
 }

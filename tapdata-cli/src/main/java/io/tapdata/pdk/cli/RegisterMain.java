@@ -1,5 +1,6 @@
 package io.tapdata.pdk.cli;
 
+import com.tapdata.constant.ConfigurationCenter;
 import org.apache.commons.io.FilenameUtils;
 
 import java.net.URL;
@@ -61,6 +62,7 @@ public class RegisterMain {
         TENCENT_DB_MONGODB(BASE_PATH + "connectors/dist/tencent-db-mongodb-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mongodb"),
         TENCENT_DB_POSTGRES(BASE_PATH + "connectors/dist/tencent-db-postgres-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-postgres"),
 		SelectDB(BASE_PATH + "connectors/dist/selectdb-connector-v1.0-SNAPSHOT.jar", "all", "selectdb"),
+		JsTest(BASE_PATH + "connectors/dist/js-test-connector-v1.0-SNAPSHOT.jar", "all", "jstest"),
 
         ;
 
@@ -104,7 +106,7 @@ public class RegisterMain {
         String server = System.getProperty("server", "http://localhost:3000");
         //String server = System.getProperty("server", "http://192.168.1.189:30205");
         Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "", "-t", server);
-
+        ConfigurationCenter.processId = "sam_flow_engine";
         String[] tags = System.getProperty("tags", "all").split(",");
         ConnectorEnums.addByTags(postList, tags);
 
@@ -118,12 +120,12 @@ public class RegisterMain {
         }
 
         try {
-            Path path = Paths.get(resource.getPath() + "../../../../");
+            Path path = Paths.get(resource.getPath() + "../../../");
             String basePath = path.toFile().getCanonicalPath() + "/";
             System.out.println("basePath:" + basePath);
             return basePath;
         } catch (Throwable throwable) {
-            return FilenameUtils.concat(resource.getPath(), "../../../../");
+            return FilenameUtils.concat(resource.getPath(), "../../../");
         }
 
     }

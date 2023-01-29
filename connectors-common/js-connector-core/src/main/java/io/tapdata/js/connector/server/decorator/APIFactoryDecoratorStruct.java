@@ -22,8 +22,8 @@ public class APIFactoryDecoratorStruct implements APIFactory {
     }
 
     @Override
-    public APIInvoker loadAPI(String apiContent, String type, Map<String, Object> params) {
-        return apiFactory.loadAPI(apiContent, type, params);
+    public APIInvoker loadAPI(String apiContent, Map<String, Object> params) {
+        return apiFactory.loadAPI(apiContent, params);
     }
 
     @Override

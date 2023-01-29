@@ -9,6 +9,7 @@ public enum JSFunctionNames {
     StreamReadFunction("stream_read", "StreamReadFunction", ""),
     WriteRecordFunction("write_record", "WriteRecordFunction", ""),
     BatchCountFunction("batch_count", "BatchCountFunction", ""),
+    WebHookFunction("web_hook_event", "RowDataCallbackFunctionV2", ""),
     CreateTableV2Function("create_table_v2", "CreateTableV2Function", ""),
     TimestampToStreamOffset("timestamp_to_stream_offset", "TimestampToStreamOffset", ""),
 
