@@ -28,8 +28,7 @@ public class APIFactoryDecorator extends APIFactoryDecoratorStruct {
     }
 
     @Override
-    public APIInvoker loadAPI(String apiContent, String type, Map<String, Object> params) {
-        if (Objects.isNull(type)) type = APIFactory.TYPE_POSTMAN;
+    public APIInvoker loadAPI(String apiContent, Map<String, Object> params) {
         if (Objects.isNull(apiContent)) {
             try {
                 apiContent = ScriptUtil.loadFileFromJarPath(APIFactory.DEFAULT_POST_MAN_FILE_PATH);//ScriptUtil.fileToString("/src/main/resources/postman_api_collection.json");
@@ -40,18 +39,18 @@ public class APIFactoryDecorator extends APIFactoryDecoratorStruct {
                 throw new CoreException("File get error,may be file connectors-javascript/../src/main/resources/postman_api_collection.json not exists. ");
             }
         }
-        APIInvoker loadAPI = new APIInvokerDecorator(super.loadAPI(apiContent, type, params));
+        APIInvoker loadAPI = new APIInvokerDecorator(super.loadAPI(apiContent, params));
         loadAPI.setAPIResponseInterceptor(this.interceptor);
         return loadAPI;
     }
 
     @Override
     public APIInvoker loadAPI(Map<String, Object> params) {
-        return this.loadAPI(null, null, params);
+        return this.loadAPI(null, params);
     }
 
     @Override
     public APIInvoker loadAPI() {
-        return this.loadAPI(null, null, new HashMap<>());
+        return this.loadAPI(null, new HashMap<>());
     }
 }

@@ -1476,7 +1476,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							update.put("loadSchemaTime", new Date());
 
 						}
-
 						Long schemaVersion = (Long) set.get("lastUpdate");
 						String loadFieldsStatus = (String) set.get("loadFieldsStatus");
 						Boolean loadSchemaField = set.get("loadSchemaField") != null ? ((Boolean) set.get("loadSchemaField")) : true;

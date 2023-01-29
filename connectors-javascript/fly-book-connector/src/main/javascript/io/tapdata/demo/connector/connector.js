@@ -39,9 +39,9 @@ function discover_schema(connectionConfig) {
  * @param pageSize Processing number of each batch of data in the full stage
  * @param batchReadSender  Sender of submitted data
  * */
-function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
-
-}
+// function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
+//
+// }
 
 
 /**
@@ -53,9 +53,9 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
  * @param pageSize
  * @param streamReadSender
  * */
-function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
-
-}
+// function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
+//
+// }
 
 
 /**
@@ -73,7 +73,7 @@ function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSi
 function connection_test(connectionConfig) {
     return [{
         "TEST": "Example test item",
-        "CODE": 1,
+        "CODE": 1 ,
         "RESULT": "Pass"
     }];
 }
@@ -85,9 +85,9 @@ function connection_test(connectionConfig) {
  * @param nodeConfig
  * @param commandInfo
  * */
-function command_callback(connectionConfig, nodeConfig, commandInfo) {
-
-}
+// function command_callback(connectionConfig, nodeConfig, commandInfo){
+//
+// }
 
 /**
  * @param connectionConfig
@@ -113,18 +113,18 @@ function command_callback(connectionConfig, nodeConfig, commandInfo) {
  *      ...
  *     ]
  * */
-function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMap) {
-
-    //return [
-    //     {
-    //         "EVENT_TYPE": "i/u/d",
-    //         "TABLE_NAME": "${example_table_name}",
-    //         "REFERENCE_TIME": Number(),
-    //         "AFTER_DATA": {},
-    //         "BEFORE_DATA":{}
-    //     }
-    //]
-}
+// function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMap) {
+//
+//     //return [
+//     //     {
+//     //         "EVENT_TYPE": "i/u/d",
+//     //         "TABLE_NAME": "${example_table_name}",
+//     //         "REFERENCE_TIME": Number(),
+//     //         "AFTER_DATA": {},
+//     //         "BEFORE_DATA":{}
+//     //     }
+//     //]
+// }
 
 /**
  * [
@@ -149,24 +149,16 @@ function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMa
  *  @return true or false, default true
  * */
 function write_record(connectionConfig, nodeConfig, eventDataList) {
-
-    //return true;
+    for (let index = 0; index < eventDataList.length; index++){
+        let event = eventDataList[index];
+        invoker.invoke("flyBookSendMessage",{
+            "content":event.content,
+            "receive_id":"ou_056b8040b36ba4ee19473e08cf56d673"
+        });
+    }
+    return true;
 }
 
-/**
- * This method is used to update the access key
- *  @param connectionConfig :type is Object
- *  @param nodeConfig :type is Object
- *  @param apiResponse :The following valid data can be obtained from apiResponse : {
- *              result :  type is Object, Return result of interface call
- *              httpCode : type is Integer, Return http code of interface call
- *          }
- *
- *  @return must be {} or null or {"key":"value",...}
- *      - {} :  Type is Object, but not any key-value, indicates that the access key does not need to be updated, and each interface call directly uses the call result
- *      - null : Semantics are the same as {}
- *      - {"key":"value",...} : Type is Object and has key-value ,  At this point, these values will be used to call the interface again after the results are returned.
- * */
 function update_token(connectionConfig, nodeConfig, apiResponse) {
     // if (apiResponse.code === 401) {
     //     let result = invoker.invokeV2("apiName");

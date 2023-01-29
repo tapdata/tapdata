@@ -218,4 +218,8 @@ public class PostManAnalysis {
             throw new CoreException(String.format("Http request failed ,the api name or url is [%s],method is [%s], error message : %s", uriOrName, method, e.getMessage()));
         }
     }
+
+    public static boolean isPostMan(Map<String,Object> json){
+        return Objects.nonNull(json) && Objects.nonNull(json.get(PostParam.INFO)) && json.get(PostParam.INFO) instanceof Map && Objects.nonNull(((Map<String,Object>)json.get(PostParam.INFO)).get(PostParam._POSTMAN_ID));
+    }
 }

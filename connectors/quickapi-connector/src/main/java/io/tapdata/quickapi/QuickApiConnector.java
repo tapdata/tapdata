@@ -61,7 +61,7 @@ public class QuickApiConnector extends ConnectorBase {
 					.expireStatus(expireStatus)
 					.tokenParams(tokenParams);
 			apiFactory = new APIFactoryImpl();
-			invoker = apiFactory.loadAPI(jsonTxt, apiType, apiParam);
+			invoker = apiFactory.loadAPI(jsonTxt, apiParam);
 			invoker.setAPIResponseInterceptor(QuickAPIResponseInterceptor.create(config,invoker));
 		}
 	}
