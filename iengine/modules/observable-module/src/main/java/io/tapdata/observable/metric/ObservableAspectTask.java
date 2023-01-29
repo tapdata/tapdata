@@ -1,21 +1,16 @@
 package io.tapdata.observable.metric;
 
-import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
-import io.tapdata.observable.metric.handler.DataNodeSampleHandler;
-import io.tapdata.observable.metric.handler.ProcessorNodeSampleHandler;
-import io.tapdata.observable.metric.handler.TaskSampleHandler;
 
 import java.util.*;
 
@@ -188,8 +183,11 @@ public class ObservableAspectTask extends AspectTask {
 				));
 				break;
 			case BatchReadFuncAspect.STATE_END:
-				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis()));
-				taskSampleHandler.handleBatchReadFuncEnd();
+				if (!aspect.getDataProcessorContext().getTaskDto().isManualStop()) {
+					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis()));
+					taskSampleHandler.handleBatchReadFuncEnd();
+					break;
+				}
 				break;
 		}
 

@@ -522,6 +522,7 @@ public class TapdataTaskScheduler {
 		if (null == taskDtoTaskClient) {
 			return;
 		}
+		taskDtoTaskClient.getTask().setManualStop(true);
 		stopTask(taskDtoTaskClient);
 	}
 
