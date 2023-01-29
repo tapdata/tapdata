@@ -1,0 +1,3309 @@
+[
+  {
+    "insert": "Permission",
+    "documents": [
+      {
+        "description": "控制台",
+        "name": "v2_dashboard",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_dashboard",
+            "path": "/dashboard"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "连接管理",
+        "name": "v2_datasource_menu",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_datasource_menu",
+            "path": "/connections"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "连接创建",
+        "name": "v2_datasource_creation",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_datasource_menu",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_datasource_creation",
+            "path": "/connections/create"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "连接编辑",
+        "name": "v2_datasource_edition",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_datasource_menu",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_datasource_edition",
+            "path": "/connections/:id/edit"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据管道",
+        "name": "v2_data_pipeline",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_pipeline",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据复制",
+        "name": "v2_data_replication",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_data_pipeline",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_replication",
+            "path": "/migrate"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据复制-监控",
+        "name": "v2_data_replication_monitor",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_data_replication",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_replication_monitor",
+            "path": "/migrate/monitor/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据复制-编辑 dag",
+        "name": "v2_data_replication_dag_edit",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_data_replication",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_replication_dag_edit",
+            "path": "/migrate/editor"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据复制-编辑",
+        "name": "v2_data_replication_edit",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_data_replication",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_replication_edit",
+            "path": "/migrate/editor/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据复制-详情",
+        "name": "v2_data_replication_details",
+        "need_permission": true,
+        "order": 4,
+        "parentId": "v2_data_replication",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_replication_details",
+            "path": "/migrate/viewer/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据复制-运行监控",
+        "name": "v2_data_replication_record_monitor",
+        "need_permission": true,
+        "order": 5,
+        "parentId": "v2_data_replication",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_replication_record_monitor",
+            "path": "/migrate/monitor-record/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据开发",
+        "name": "v2_data_flow",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_data_pipeline",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_flow",
+            "path": "/dataflow"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据开发-监控",
+        "name": "v2_data_flow_monitor",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_data_flow",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_flow_monitor",
+            "path": "/dataflow/monitor/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据开发-编辑 dag",
+        "name": "v2_data_flow_dag_edit",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_data_flow",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_flow_dag_edit",
+            "path": "/dataflow/editor"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据开发-编辑",
+        "name": "v2_data_flow_edit",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_data_flow",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_flow_edit",
+            "path": "/dataflow/editor/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据开发-详情",
+        "name": "v2_data_flow_details",
+        "need_permission": true,
+        "order": 4,
+        "parentId": "v2_data_flow",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_flow_details",
+            "path": "/dataflow/viewer/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据校验",
+        "name": "v2_data_check",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_data_pipeline",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_data_check",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据校验-列表",
+        "name": "v2_data_check_list",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_list",
+            "path": "/dataVerification"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据校验-创建",
+        "name": "v2_data_check_create",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_create",
+            "path": "/dataVerification/create"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据校验编辑",
+        "name": "v2_data_check_edit",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_edit",
+            "path": "/dataVerification/:id/edit"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "校验详情",
+        "name": "v2_data_check_details",
+        "need_permission": true,
+        "order": 4,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_details",
+            "path": "/dataVerification/:id/details"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "校验历史",
+        "name": "v2_data_check_history",
+        "need_permission": true,
+        "order": 5,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_history",
+            "path": "/dataVerification/:id/history"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "校验结果",
+        "name": "v2_data_check_result",
+        "need_permission": true,
+        "order": 6,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_result",
+            "path": "/dataVerification/dataVerifyResult/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "校验结果详情",
+        "name": "v2_data_check_result_details",
+        "need_permission": true,
+        "order": 7,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_result_details",
+            "path": "/dataVerification/dataVerifyResult/:id/details"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "校验结果历史",
+        "name": "v2_data_check_result_history",
+        "need_permission": true,
+        "order": 8,
+        "parentId": "v2_data_check",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_check_result_history",
+            "path": "/dataVerification/dataVerifyResult/:id/history"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "共享挖掘",
+        "name": "v2_log_collector",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_data_pipeline",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_log_collector",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "共享挖掘-列表",
+        "name": "v2_log_collector_menu",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_log_collector",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_log_collector_menu",
+            "path": "/sharedMining"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "共享挖掘-详情",
+        "name": "v2_log_collector_detail",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_log_collector",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_log_collector_detail",
+            "path": "/sharedMining/details/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "函数管理",
+        "name": "v2_function_management",
+        "need_permission": true,
+        "order": 4,
+        "parentId": "v2_data_pipeline",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_function_management",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "函数管理-列表",
+        "name": "v2_function_management_list",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_function_management",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_function_management_list",
+            "path": "/function"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "函数管理-创建",
+        "name": "v2_function_management_create",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_function_management",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_function_management_create",
+            "path": "/function/create"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "函数管理-导入",
+        "name": "v2_function_management_import",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_function_management",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_function_management_import",
+            "path": "/function/import"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "函数管理-编辑",
+        "name": "v2_function_management_edit",
+        "need_permission": true,
+        "order": 4,
+        "parentId": "v2_function_management",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_function_management_edit",
+            "path": "/function/edit/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "函数管理-详情",
+        "name": "v2_function_management_details",
+        "need_permission": true,
+        "order": 5,
+        "parentId": "v2_function_management",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_function_management_details",
+            "path": "/function/details/:id"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "自定义节点",
+        "name": "v2_custom_node",
+        "need_permission": true,
+        "order": 5,
+        "parentId": "v2_data_pipeline",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_custom_node",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "自定义节点-列表",
+        "name": "v2_custom_node_menu",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_custom_node",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_custom_node_menu",
+            "path": "/custom-node"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "共享缓存",
+        "name": "v2_shared_cache",
+        "need_permission": true,
+        "order": 6,
+        "parentId": "v2_data_pipeline",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_shared_cache",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "共享缓存-列表",
+        "name": "v2_shared_cache_menu",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_shared_cache",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_shared_cache_menu",
+            "path": "/shared-cache"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "共享缓存-创建",
+        "name": "v2_shared_cache_create",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_shared_cache",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_shared_cache_create",
+            "path": "/shared-cache/create"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "共享缓存-编辑",
+        "name": "v2_shared_cache_edit",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_shared_cache",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_shared_cache_edit",
+            "path": "/shared-cache/:id/edit"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据发现",
+        "name": "v2_data_discovery",
+        "need_permission": true,
+        "order": 4,
+        "parentId": "",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_data_discovery",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据对象",
+        "name": "v2_data_object",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_object",
+            "path": "/object"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据目录",
+        "name": "v2_data_catalogue",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_catalogue",
+            "path": "/catalogue"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "数据服务",
+        "name": "v2_data-server",
+        "need_permission": true,
+        "order": 5,
+        "parentId": "",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_data-server",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "服务管理",
+        "name": "v2_data-server-list",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_data-server",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data-server-list",
+            "path": "/data-server"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "api客户端",
+        "name": "v2_api-client",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_data-server",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_api-client",
+            "path": "/data-server"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "api服务端",
+        "name": "v2_api-servers",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_data-server",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_api-client",
+            "path": "/api-servers"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "服务审计",
+        "name": "v2_data_server_audit",
+        "need_permission": true,
+        "order": 4,
+        "parentId": "v2_data-server",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_data_server_audit",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "服务审计-列表",
+        "name": "v2_data_server_audit-list",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_data_server_audit",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_server_audit-list",
+            "path": "/data-server-audit"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "服务审计-详情",
+        "name": "v2_data_server_audit-details",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_data_server_audit",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_data_server_audit-details",
+            "path": "/data-server-audit/:id/details"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "服务监控",
+        "name": "v2_api_monitor",
+        "need_permission": true,
+        "order": 5,
+        "parentId": "v2_data-server",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_api_monitor",
+            "path": "/api-monitor"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "系统管理",
+        "name": "v2_system-management",
+        "need_permission": true,
+        "order": 6,
+        "parentId": "",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_system-management",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "集群管理",
+        "name": "v2_cluster-management_menu",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_system-management",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_cluster-management_menu",
+            "path": "/cluster"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "用户管理",
+        "name": "v2_user_management_menu",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_system-management",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_user_management_menu",
+            "path": "/user"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "角色管理",
+        "name": "v2_role_management",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_system-management",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_role_management",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "角色管理-列表",
+        "name": "v2_role_management_menu",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_role_management",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_role_management_menu",
+            "path": "/role"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "角色管理-创建",
+        "name": "v2_role_creation",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_role_management",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_role_creation",
+            "path": "/role/create"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "角色管理-编辑",
+        "name": "v2_role_edition",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_role_management",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_role_edition",
+            "path": "/role/:id/edit"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "设置",
+        "name": "v2_setting",
+        "need_permission": true,
+        "order": 7,
+        "parentId": "",
+        "resources": [
+          {
+            "type": "button",
+            "code": "v2_setting",
+            "path": ""
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "设置中心",
+        "name": "v2_setting-center",
+        "need_permission": true,
+        "order": 1,
+        "parentId": "v2_setting",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_setting-center",
+            "path": "/settingCenter"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "个人设置",
+        "name": "v2_account-setting",
+        "need_permission": true,
+        "order": 2,
+        "parentId": "v2_setting",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_account-setting",
+            "path": "/accountSetting"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "通知设置",
+        "name": "v2_notification-setting",
+        "need_permission": true,
+        "order": 3,
+        "parentId": "v2_setting",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_notification-setting",
+            "path": "/notificationSetting"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "系统设置",
+        "name": "v2_system_settings_menu",
+        "need_permission": true,
+        "order": 4,
+        "parentId": "v2_setting",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_system_settings_menu",
+            "path": "/settings"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      },
+      {
+        "description": "告警设置",
+        "name": "v2_alarm_settings_menu",
+        "need_permission": true,
+        "order": 5,
+        "parentId": "v2_setting",
+        "resources": [
+          {
+            "type": "page",
+            "code": "v2_alarm_settings_menu",
+            "path": "/alarmSetting"
+          }
+        ],
+        "status": "enable",
+        "type": "read",
+        "version": "v2"
+      }
+    ]
+  },
+
+  {
+    "insert": "RoleMapping",
+    "documents": [
+      {
+        "principalId": "v2_dashboard",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_creation",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_edition",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_pipeline",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_dag_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_record_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_dag_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_history",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result_history",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector_detail",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_import",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_custom_node",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_custom_node_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_discovery",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_object",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_catalogue",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server-list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api-client",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api-servers",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit-list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit-details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_system-management",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_cluster-management_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_user_management_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_management",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_management_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_creation",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_role_edition",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_setting-center",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_account-setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_notification-setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_system_settings_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_alarm_settings_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+
+      {
+        "principalId": "v2_dashboard",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_creation",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_datasource_edition",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_pipeline",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_dag_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_replication_record_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_dag_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_flow_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_history",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_check_result_history",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_log_collector_detail",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_import",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_function_management_details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_custom_node",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_custom_node_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_create",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_shared_cache_edit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_discovery",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_object",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_catalogue",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server-list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api-client",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api-servers",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit-list",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data_server_audit-details",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_api_monitor",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_system-management",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_cluster-management_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_setting-center",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_account-setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_notification-setting",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_system_settings_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_alarm_settings_menu",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "self_only": false
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "62bc5008d4958d013d97c7a6",
+        "principalType": "USER"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_SYNC",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_verify",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_quality",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_rules",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "time_to_live",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_lineage",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_explorer",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_doc_test",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_stats",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_clients",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_server",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_collect",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "schedule_jobs",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Cluster_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "agents",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "system_settings",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_search",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_search_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "shared_cache",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "shared_cache_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "custom_node",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "custom_node_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "function_manager",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "function_manager_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "log_collector",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "log_collector_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "notice",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "notice_settings",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_category_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_category_application",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "datasource_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_transmission_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_transmission",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_SYNC_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_SYNC_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_category_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_category_application",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_operation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_operation_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_import",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_job_export",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "SYNC_Function_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_verify_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Data_verify_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "verify_job_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "verify_job_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "verify_job_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "verify_job_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "verify_job_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_government_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_government",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_category_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_category_application",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_catalog_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "meta_data_deleting",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "meta_data_deleting_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "new_model_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_quality_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_quality_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_quality_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_quality_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_rules_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_rules_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_rule_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_rule_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "time_to_live_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "time_to_live_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "time_to_live_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "time_to_live_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_lineage_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_publish_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_publish",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_management_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_category_application",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_category_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_publish",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_publish_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_import",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_export",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_explorer_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_explorer_export",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_explorer_deleting",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_time_zone_editing",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_download",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_data_explorer_tagging",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_doc_test_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_doc_test_export",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_stats_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_clients_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_clients_amangement",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_server_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "API_server_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_collect_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "data_collect_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "system_management_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "system_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "schedule_jobs_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "schedule_jobs_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Cluster_management_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Cluster_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "Cluster_operation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "status_log",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "agents_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_management_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_category_management",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "user_category_application",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_management_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_management_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_creation",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_edition",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_edition_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_delete",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "role_delete_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "system_settings_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "system_settings_modification",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "chart",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "chart_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "dictionary_menu",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "dictionary",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      },
+      {
+        "roleId": {
+          "$oid": "5d31ae1ab953565ded04badd"
+        },
+        "principalId": "dictionary_all_data",
+        "self_only": false,
+        "principalType": "PERMISSION"
+      }
+    ]
+  }
+]

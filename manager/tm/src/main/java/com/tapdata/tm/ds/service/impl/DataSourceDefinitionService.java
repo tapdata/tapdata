@@ -114,7 +114,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
             userCriteria.and("customId").is(user.getCustomerId());
         }
 
-        if (!user.isRoot()) {
+        if (!user.isRoot() && !user.isFreeAuth()) {
             if (!queryObject.containsKey("user_id")) {
                 userCriteria.and("user_id").is(user.getUserId());
             }
@@ -251,7 +251,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
             userCriteria.and("customId").is(user.getCustomerId());
         }
 
-        if (!user.isRoot()) {
+        if (!user.isRoot() && !user.isFreeAuth()) {
             if (!where.containsKey("user_id")) {
                 userCriteria.and("user_id").is(user.getUserId());
             }
