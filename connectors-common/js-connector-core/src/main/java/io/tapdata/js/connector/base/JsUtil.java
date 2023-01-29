@@ -47,13 +47,16 @@ public class JsUtil {
         }
     }
     public Map<String,Object> mergeData(Object margeTarget,Object using){
-        if(margeTarget instanceof Map && using instanceof Map){
+        Map<String,Object> data = new HashMap<>();
+        if(margeTarget instanceof Map){
             Map<String, Object> target = (Map<String, Object>) margeTarget;
-            Map<String,Object> from = (Map<String, Object>) using;
-            target.putAll(from);
-            return target;
+            data.putAll(target);
         }
-        return null;
+        if( using instanceof Map){
+            Map<String,Object> from = (Map<String, Object>) using;
+            data.putAll(from);
+        }
+        return data;
     }
     public Map<String,Object> mixedData(Object margeTarget,Object using){
         Map<String ,Object> data = new HashMap<>();
