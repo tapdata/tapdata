@@ -110,12 +110,13 @@ public class JSConnector extends ConnectorBase {
                 }
             }
         }
+
         JSAPIInterceptorConfig config = JSAPIInterceptorConfig.config();
-        APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory)
-            .interceptor(JSAPIResponseInterceptor.create(config, apiInvoker)
-                .configMap(configMap)
-                .updateToken(FunctionSupport.function(this.javaScripter, script -> BaseUpdateTokenFunction.create(script,connectionContext)))
-        );
+        JSAPIResponseInterceptor interceptor = JSAPIResponseInterceptor.create(config, apiInvoker).configMap(configMap);
+        if (Objects.nonNull(connectionContext)){
+            interceptor.updateToken(FunctionSupport.function(this.javaScripter, script -> BaseUpdateTokenFunction.create(script,connectionContext)));
+        }
+        APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory).interceptor(interceptor);
         this.javaScripter.scriptEngine().put("tapAPI", factory);
         this.javaScripter.scriptEngine().put("log", new ConnectorLog());
         //this.javaScripter.scriptEngine().put("tapCache", this.cacheContext);
