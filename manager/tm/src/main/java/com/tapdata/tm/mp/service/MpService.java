@@ -163,8 +163,8 @@ public class MpService {
         message.setTemplate_id(ALARM_TEMPLATE_ID);
         message.setData(new HashMap<>());
         message.getData().put("first", new MpService.MsgArgument(title, null));
-        message.getData().put("content", new MpService.MsgArgument(content, "#FFFFFF"));
-        message.getData().put("occurtime", new MpService.MsgArgument(sdf.format(alarmTime), "#FFFFFF"));
+        message.getData().put("content", new MpService.MsgArgument(content, null));
+        message.getData().put("occurtime", new MpService.MsgArgument(sdf.format(alarmTime), null));
         message.getData().put("remark",
                 new MpService.MsgArgument("详情请登录“Tapdata Cloud V3.0 控制台”查看", "#FD9804"));
         this.sendMessage(openid, message);
