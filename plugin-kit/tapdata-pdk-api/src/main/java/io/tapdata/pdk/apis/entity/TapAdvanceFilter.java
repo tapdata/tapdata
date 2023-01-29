@@ -94,4 +94,16 @@ public class TapAdvanceFilter extends TapFilter {
     public void setProjection(Projection projection) {
         this.projection = projection;
     }
+
+    @Override
+    public String toString() {
+        return "TapAdvanceFilter{" +
+                "skip=" + skip +
+                ", limit=" + limit +
+                ", operators=" + operators +
+                ", sortOnList=" + sortOnList +
+                ", projection=" + projection +
+                ", match=" + match +
+                "} " + super.toString();
+    }
 }

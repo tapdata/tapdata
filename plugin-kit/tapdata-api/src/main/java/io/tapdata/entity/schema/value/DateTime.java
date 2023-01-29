@@ -3,10 +3,8 @@ package io.tapdata.entity.schema.value;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DecimalFormat;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Objects;
 import java.util.TimeZone;
@@ -126,7 +124,7 @@ public class DateTime {
         nano = instant.getNano();
     }
 
-    public static DateTime withTimeStr(String timeStr) {
+	public static DateTime withTimeStr(String timeStr) {
         if (timeStr == null)
             throw new IllegalArgumentException("DateTime constructor timeStr is null");
 
@@ -260,6 +258,10 @@ public class DateTime {
         return null;
     }
 
+    public String toFormatString(String format) {
+        return toZonedDateTime().format(DateTimeFormatter.ofPattern(format));
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -297,12 +299,5 @@ public class DateTime {
 
     public void setTimeZone(TimeZone timeZone) {
         this.timeZone = timeZone;
-    }
-
-
-    public static void main(String[] args) {
-        DateTime dateTime = new DateTime(1669695379255L);
-        dateTime.getNano();
-        dateTime.getSeconds();
     }
 }

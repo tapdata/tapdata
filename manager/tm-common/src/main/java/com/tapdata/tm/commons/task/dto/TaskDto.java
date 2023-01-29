@@ -129,8 +129,6 @@ public class TaskDto extends ParentTaskDto {
     private Long scheduleDate;
     private Long stopedDate;
 
-    private boolean needCreateRecord;
-
     /**
      * js 试运行id
      */

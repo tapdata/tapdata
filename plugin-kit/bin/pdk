@@ -15,7 +15,7 @@ done
 PRGDIR=`dirname "$PRG"`
 BASEDIR=`cd "$PRGDIR/.." >/dev/null; pwd`
 
-PLUGIN_CLI=$BASEDIR/tapdata-pdk-cli/target/appassembler/bin/tap-plugin
+PLUGIN_CLI=$BASEDIR/../tapdata-cli/target/appassembler/bin/tap-plugin
 
 if [ ! -f $PLUGIN_CLI ]; then
   echo "Building......"

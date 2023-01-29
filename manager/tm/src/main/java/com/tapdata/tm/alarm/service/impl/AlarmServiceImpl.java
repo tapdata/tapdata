@@ -4,7 +4,6 @@ import cn.hutool.core.date.DateField;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
-import cn.hutool.core.lang.Assert;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
@@ -26,6 +25,7 @@ import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MessageMetadata;
@@ -40,8 +40,8 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -56,7 +56,6 @@ import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -66,6 +65,7 @@ import java.util.stream.Collectors;
  * @date 2022/9/7
  */
 @Service
+@Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class AlarmServiceImpl implements AlarmService {
 
@@ -92,7 +92,7 @@ public class AlarmServiceImpl implements AlarmService {
             info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
             info.setLastOccurrenceTime(date);
             if (Objects.nonNull(one.getLastNotifyTime()) && Objects.isNull(info.getLastNotifyTime())) {
-                AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric());
+                AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric(), info.getUserId());
                 if (Objects.nonNull(alarmSettingDto)) {
                     DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
                     if (date.after(lastNotifyTime)) {
@@ -112,7 +112,7 @@ public class AlarmServiceImpl implements AlarmService {
         }
     }
 
-    private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type) {
+    private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
         boolean openTask = false;
         if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key)) {
             openTask = true;
@@ -126,7 +126,7 @@ public class AlarmServiceImpl implements AlarmService {
 
         boolean openSys = false;
 
-        List<AlarmSettingDto> all = alarmSettingService.findAll();
+        List<AlarmSettingDto> all = alarmSettingService.findAll(userDetail);
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
                     t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
@@ -170,10 +170,8 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void notifyAlarm() {
-        Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE);
-        criteria.andOperator(Criteria.where("lastNotifyTime").ne(null),
-                Criteria.where("lastNotifyTime").lt(DateUtil.date()),
-                Criteria.where("lastNotifyTime").gt(DateUtil.offsetSecond(DateUtil.date(), -30))
+        Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE)
+                .and("lastNotifyTime").lt(DateUtil.date()).gt(DateUtil.offsetSecond(DateUtil.date(), -30)
         );
         Query needNotifyQuery = new Query(criteria);
         List<AlarmInfo> alarmInfos = mongoTemplate.find(needNotifyQuery, AlarmInfo.class);
@@ -197,96 +195,118 @@ public class AlarmServiceImpl implements AlarmService {
 
         for (AlarmInfo info : alarmInfos) {
             TaskDto taskDto = taskDtoMap.get(info.getTaskId());
-            if (Objects.isNull(taskDto)) {
-                CompletableFuture.runAsync(() -> close(new String[]{info.getId().toHexString()}, userDetailMap.get(taskDto.getUserId())));
-                continue;
-            }
+            UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
 
-            FunctionUtils.ignoreAnyError(() -> sendMessage(info, taskDto));
-            FunctionUtils.ignoreAnyError(() -> sendMail(info, taskDto));
+            FunctionUtils.ignoreAnyError(() -> {
+                boolean reuslt = sendMessage(info, taskDto, userDetail);
+                if (!reuslt) {
+                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                    info.setLastNotifyTime(dateTime);
+                    save(info);
+                }
+            });
+            FunctionUtils.ignoreAnyError(() -> {
+                boolean reuslt = sendMail(info, taskDto, userDetail);
+                if (!reuslt) {
+                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                    info.setLastNotifyTime(dateTime);
+                    save(info);
+                }
+            });
         }
     }
 
-    private void sendMessage(AlarmInfo info, TaskDto taskDto) {
-        if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM)) {
-            String taskId = taskDto.getId().toHexString();
+    private boolean sendMessage(AlarmInfo info, TaskDto taskDto, UserDetail userDetail) {
+        try {
+            if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM, userDetail)) {
+                String taskId = taskDto.getId().toHexString();
 
-            Date date = DateUtil.date();
-            MessageEntity messageEntity = new MessageEntity();
-            messageEntity.setLevel(info.getLevel().name());
-            messageEntity.setAgentId(taskDto.getAgentId());
-            messageEntity.setServerName(taskDto.getAgentId());
-            messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
-            String summary = info.getSummary();
-            summary = summary + ", 通知时间：" + DateUtil.now();
-            String title = StringUtils.replace(summary,"$taskName", info.getName());
-            messageEntity.setTitle(title);
-//                messageEntity.setSourceId();
-            MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
-            messageEntity.setMessageMetadata(metadata);
-            messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
-            messageEntity.setCreateAt(date);
-            messageEntity.setLastUpdAt(date);
-            messageEntity.setUserId(taskDto.getUserId());
-            messageEntity.setRead(false);
-            messageService.addMessage(messageEntity);
+                Date date = DateUtil.date();
+                MessageEntity messageEntity = new MessageEntity();
+                messageEntity.setLevel(info.getLevel().name());
+                messageEntity.setAgentId(taskDto.getAgentId());
+                messageEntity.setServerName(taskDto.getAgentId());
+                messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
+                String summary = info.getSummary();
+                summary = summary + ", 通知时间：" + DateUtil.now();
+                String title = StringUtils.replace(summary, "$taskName", info.getName());
+                messageEntity.setTitle(title);
+                MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
+                messageEntity.setMessageMetadata(metadata);
+                messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
+                messageEntity.setCreateAt(date);
+                messageEntity.setLastUpdAt(date);
+                messageEntity.setUserId(taskDto.getUserId());
+                messageEntity.setRead(false);
+                messageService.addMessage(messageEntity);
+            }
+        } catch (Exception e) {
+            log.error("sendMessage error: {}", ThrowableUtils.getStackTraceByPn(e));
+            return false;
         }
+        return true;
     }
 
-    private void sendMail(AlarmInfo info, TaskDto taskDto) {
-        if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL)) {
-            String title = null;
-            String content = null;
-            MailAccountDto mailAccount = getMailAccount(taskDto.getUserId());
-            String dateTime = DateUtil.formatDateTime(info.getLastOccurrenceTime());
-            switch (info.getMetric()) {
-                case TASK_STATUS_STOP:
-                    boolean manual = info.getSummary().contains("已被用户");
-                    title = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName())
-                            : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
-                    content = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), dateTime, info.getParam().get("updatorName"))
-                            : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), info.getLastOccurrenceTime());
-                    break;
-                case TASK_STATUS_ERROR:
-                    title = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
-                    content = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), dateTime);
-                    break;
-                case TASK_FULL_COMPLETE:
-                    title = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE_TITLE, info.getName());
-                    content = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE, info.getName(), info.getParam().get("fullTime"));
-                    break;
-                case TASK_INCREMENT_START:
-                    title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START_TITLE, info.getName());
-                    content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START, info.getName(), info.getParam().get("cdcTime"));
-                    break;
-                case TASK_INCREMENT_DELAY:
-                    title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
-                    content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("time"));
-                    break;
-                case DATANODE_CANNOT_CONNECT:
-                    title = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT_TITLE, info.getName());
-                    content = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT, info.getName(), info.getNode(), dateTime);
-                    break;
-                case DATANODE_AVERAGE_HANDLE_CONSUME:
-                    title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
-                    content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), dateTime);
-                    break;
-                case PROCESSNODE_AVERAGE_HANDLE_CONSUME:
-                    title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
-                    content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(),
-                            info.getParam().get("interval"), info.getParam().get("current"), dateTime);
-                    break;
-                default:
+    private boolean sendMail(AlarmInfo info, TaskDto taskDto, UserDetail userDetail) {
+        try {
+            if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail)) {
+                String title = null;
+                String content = null;
+                MailAccountDto mailAccount = getMailAccount(taskDto.getUserId());
+                String dateTime = DateUtil.formatDateTime(info.getLastOccurrenceTime());
+                switch (info.getMetric()) {
+                    case TASK_STATUS_STOP:
+                        boolean manual = info.getSummary().contains("已被用户");
+                        title = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName())
+                                : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
+                        content = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), dateTime, info.getParam().get("updatorName"))
+                                : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), info.getLastOccurrenceTime());
+                        break;
+                    case TASK_STATUS_ERROR:
+                        title = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
+                        content = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), dateTime);
+                        break;
+                    case TASK_FULL_COMPLETE:
+                        title = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE_TITLE, info.getName());
+                        content = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE, info.getName(), info.getParam().get("fullTime"));
+                        break;
+                    case TASK_INCREMENT_START:
+                        title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START_TITLE, info.getName());
+                        content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START, info.getName(), info.getParam().get("cdcTime"));
+                        break;
+                    case TASK_INCREMENT_DELAY:
+                        title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
+                        content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("time"));
+                        break;
+                    case DATANODE_CANNOT_CONNECT:
+                        title = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT_TITLE, info.getName());
+                        content = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT, info.getName(), info.getNode(), dateTime);
+                        break;
+                    case DATANODE_AVERAGE_HANDLE_CONSUME:
+                        title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
+                        content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), dateTime);
+                        break;
+                    case PROCESSNODE_AVERAGE_HANDLE_CONSUME:
+                        title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
+                        content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(),
+                                info.getParam().get("interval"), info.getParam().get("current"), dateTime);
+                        break;
+                    default:
 
-            }
+                }
 
-            if (Objects.nonNull(title)) {
-                Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
-                AtomicReference<String> mailTitle = new AtomicReference<>(title);
-                Optional.ofNullable(prefix).ifPresent(pre -> mailTitle.updateAndGet(v -> pre.getValue() + v));
-                MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
+                if (Objects.nonNull(title)) {
+                    Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
+                    AtomicReference<String> mailTitle = new AtomicReference<>(title);
+                    Optional.ofNullable(prefix).ifPresent(pre -> mailTitle.updateAndGet(v -> pre.getValue() + v));
+                    MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
+                }
             }
+        } catch (Exception e) {
+            log.error("sendMail error: {}", ThrowableUtils.getStackTraceByPn(e));
+            return false;
         }
+        return true;
     }
 
     private DateField parseDateUnit(DateUnit dateUnit) {

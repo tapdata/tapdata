@@ -711,4 +711,14 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesService.dataType2TapType(dto, getLoginUser()));
     }
 
+
+    @Operation(summary = "校验物理表是否存在")
+    @GetMapping("check/table/exist")
+    public ResponseMessage<Map<String, Boolean>> checkTableExist(@RequestParam("connectionId") String connectionId, @RequestParam("tableName") String tableName) {
+        boolean exist = metadataInstancesService.checkTableExist(connectionId, tableName, getLoginUser());
+        HashMap<String, Boolean> returnMap = new HashMap<>();
+        returnMap.put("exist", exist);
+        return success(returnMap);
+    }
+
 }

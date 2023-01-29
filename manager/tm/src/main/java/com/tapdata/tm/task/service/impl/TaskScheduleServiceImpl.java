@@ -117,12 +117,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         }
         sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user);
 
-        if (taskDto.isNeedCreateRecord()) {
-            TaskEntity taskSnapshot = new TaskEntity();
-            BeanUtil.copyProperties(taskDto, taskSnapshot);
-            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), now));
-        }
-
         //数据发现的任务收集
         TaskDto newTaskDto = taskService.findById(taskDto.getId(), user);
         TaskCollectionObjDto taskCollectionObjDto = new TaskCollectionObjDto();
