@@ -500,6 +500,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		try {
 			sw.start();
 			running.set(false);
+			CommonUtils.ignoreAnyError(() -> {
+				TaskDto taskDto = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(processorBaseContext.getTaskDto().getId().toHexString()).getTask();
+				processorBaseContext.getTaskDto().setManualStop(taskDto.isManualStop());
+			}, TAG);
 			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
 			CommonUtils.handleAnyError(this::doClose, err -> {
 				obsLogger.warn(String.format("Close node failed: %s | Node: %s[%s] | Type: %s" , err.getMessage(), getNode().getName(), getNode().getId(), this.getClass().getName()));
