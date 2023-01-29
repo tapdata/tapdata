@@ -25,8 +25,8 @@ public class BaseUpdateTokenFunction extends FunctionBase implements FunctionSup
     }
     @Override
     public BaseUpdateTokenFunction function(LoadJavaScripter javaScripter) {
-        if (super.hasNotSupport(javaScripter)) return null;
-        return this;
+        if (super.hasNotSupport(javaScripter)) return this;
+        return null;
     }
 
     public Map<String,Object> exec(APIResponse response){
