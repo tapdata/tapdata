@@ -1,6 +1,6 @@
 {
   "properties": {
-    "name": "Aliyun RDS MySQL",
+    "name": "Aliyun RDS Mariadb",
     "icon": "icons/aliyun_rds_mariadb.png",
     "id": "aliyun-rds-mariadb",
     "doc": "${doc}"
