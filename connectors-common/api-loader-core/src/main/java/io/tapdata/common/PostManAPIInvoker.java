@@ -50,6 +50,7 @@ public class PostManAPIInvoker
     @Override
     public void setAPIResponseInterceptor(APIResponseInterceptor interceptor) {
         this.interceptor = interceptor;
+        this.interceptor.invoker(this);
     }
 
     public static PostManAPIInvoker create() {
@@ -116,6 +117,7 @@ public class PostManAPIInvoker
         }
         APIResponse response = this.analysis.http(uriOrName, method, params);
         if (invoker) {
+
             response = this.interceptor.intercept(response, uriOrName, method, params);
         }
         System.out.println("DEBUG-INFO: Results obtained from this execution: \n" + toJson(response));

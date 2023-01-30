@@ -3,6 +3,7 @@ package io.tapdata.js.connector.server.function.support;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.base.CustomEventMessage;
 import io.tapdata.js.connector.base.ScriptCore;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
@@ -18,6 +19,7 @@ import javax.script.ScriptEngine;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -59,8 +61,8 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
             try {
                 super.javaScripter.invoker(
                         JSFunctionNames.BatchReadFunction.jsName(),
-                        context.getConfigContext(),
-                        context.getNodeConfig(),
+                        Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
+                        Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
                         finalOffset,
                         table.getId(),
                         batchCount,

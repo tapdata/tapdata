@@ -6,6 +6,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.base.EventTag;
 import io.tapdata.js.connector.base.EventType;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
@@ -74,8 +75,8 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         try {
             super.javaScripter.invoker(
                     JSFunctionNames.WriteRecordFunction.jsName(),
-                    context.getConfigContext(),
-                    context.getNodeConfig(),
+                    Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
+                    Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
                     machiningEvents
             );
         } catch (Exception e) {

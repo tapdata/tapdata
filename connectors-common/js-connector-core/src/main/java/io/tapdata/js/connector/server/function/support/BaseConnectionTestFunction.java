@@ -1,6 +1,7 @@
 package io.tapdata.js.connector.server.function.support;
 
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.iengine.ScriptEngineInstance;
 import io.tapdata.js.connector.server.function.FunctionBase;
@@ -12,6 +13,7 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.testItem;
@@ -53,7 +55,7 @@ public class BaseConnectionTestFunction extends FunctionBase {
                 consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "TapConnectorContext cannot not be empty."));
                 return options;
             }
-            Object invoker = super.javaScripter.invoker(JSFunctionNames.CONNECTION_TEST.jsName(), context.getConnectionConfig());
+            Object invoker = super.javaScripter.invoker(JSFunctionNames.CONNECTION_TEST.jsName(), Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()));
             try {
                 List<Map<String, Object>> testList = (List<Map<String, Object>>) invoker;
                 testList.stream().filter(map -> {

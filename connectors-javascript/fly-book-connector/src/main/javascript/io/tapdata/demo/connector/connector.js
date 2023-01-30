@@ -7,7 +7,7 @@ function connection_test(connectionConfig) {
 }
 function write_record(connectionConfig, nodeConfig, eventDataList) {
     for (let index = 0; index < eventDataList.length; index++){
-        let event = eventDataList[index];
+        let event = eventDataList[index].AFTER_DATA;
         if ('undefined' == event.phone || null == event.phone) log.error('Receive user\'s open id cannot be empty.please make sure param [receiveId] is useful.');
         let receiveIdData = invoker.invoke("GetOpenIdByPhone",{'userPhone': [event.phone]});
         let receiveId = receiveIdData.result.data.user_list[0].user_id;
@@ -15,13 +15,14 @@ function write_record(connectionConfig, nodeConfig, eventDataList) {
             log.warn(' User: '+ phone +', this user is not in the visible range of the application. Please ensure that this user of the application is visible under the current version. You can view the visible range under the latest version in the application version management and release. If necessary, create a new version and add this user to the visible range. ' + ',message is: '+ connect);
             continue;
         }
-        if ('undefined' == event.connect || null == event.connect) log.error('receive message cannot be empty. please make sure param [connect] is useful.');
-        invoker.invoke("flyBookSendMessage",{"content": event.connect, "receive_id": receiveId});
+        if ('undefined' == event.content || null == event.content) log.error('receive message cannot be empty. please make sure param [connect] is useful.');
+        invoker.invoke("flyBookSendMessage",{"content": event.content, "receive_id": receiveId});
     }
     return true;
 }
 function update_token(connectionConfig, nodeConfig, apiResponse) {
-    if (apiResponse.result.data.code !== 99991663 && apiResponse.result.data.code !== 99991661) return null;
+    log.warn(''+apiResponse.result.code);
+    if (apiResponse.result.code != 99991663 && apiResponse.result.code != 99991661) return null;
     let result = invoker.invokeV2("GetAppToken");
     if (result.result.code === 0) return {"token": result.result.tenant_access_token};
     else log.error('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. ');

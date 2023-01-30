@@ -2,6 +2,7 @@ package io.tapdata.js.connector.server.function.support;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.base.CustomEventMessage;
 import io.tapdata.js.connector.base.ScriptCore;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
@@ -20,6 +21,7 @@ import javax.script.ScriptEngine;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,8 +70,8 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
                 while (this.isAlive.get()) {
                     super.javaScripter.invoker(
                             JSFunctionNames.StreamReadFunction.jsName(),
-                            nodeContext.getConfigContext(),
-                            nodeContext.getNodeConfig(),
+                            Optional.ofNullable(nodeContext.getConnectionConfig()).orElse(new DataMap()),
+                            Optional.ofNullable(nodeContext.getNodeConfig()).orElse(new DataMap()),
                             finalOffset,
                             tableList,
                             recordSize,

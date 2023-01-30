@@ -2,6 +2,7 @@ package io.tapdata.js.connector.server.function.support;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.ExecuteConfig;
 import io.tapdata.js.connector.server.function.FunctionBase;
@@ -15,6 +16,7 @@ import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public class JSCommandFunction extends FunctionBase implements FunctionSupport<CommandCallbackFunction> {
     private static final String TAG = JSCommandFunction.class.getSimpleName();
@@ -52,7 +54,7 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
         try {
             Object invoker = super.javaScripter.invoker(
                     JSFunctionNames.CommandV1.jsName(),
-                    context.getConnectionConfig(),
+                    Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
                     commandInfo
             );
             if (Objects.isNull(invoker)) {

@@ -18,7 +18,12 @@ public class JSAPIResponseInterceptor implements APIResponseInterceptor {
     private BaseUpdateTokenFunction updateTokenFunction;
 
     public static JSAPIResponseInterceptor create(JSAPIInterceptorConfig config, APIInvoker invoker) {
-        return new JSAPIResponseInterceptor().config(config).invoker(invoker);
+        JSAPIResponseInterceptor interceptor = new JSAPIResponseInterceptor().config(config);
+        interceptor.invoker(invoker);
+        return interceptor;
+    }
+    public static JSAPIResponseInterceptor create(JSAPIInterceptorConfig config) {
+        return new JSAPIResponseInterceptor().config(config);
     }
 
     public JSAPIResponseInterceptor configMap(Map<String,Object> configMap){
@@ -27,11 +32,6 @@ public class JSAPIResponseInterceptor implements APIResponseInterceptor {
     }
     public JSAPIResponseInterceptor updateToken(BaseUpdateTokenFunction updateTokenFunction){
         this.updateTokenFunction = updateTokenFunction;
-        return this;
-    }
-
-    public JSAPIResponseInterceptor invoker(APIInvoker invoker) {
-        this.invoker = invoker;
         return this;
     }
 
@@ -56,5 +56,9 @@ public class JSAPIResponseInterceptor implements APIResponseInterceptor {
             interceptorResponse = invoker.invoke(urlOrName, params, method, true);
         }
         return interceptorResponse;
+    }
+
+    public void invoker(APIInvoker invoker){
+        this.invoker = invoker;
     }
 }

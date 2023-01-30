@@ -35,7 +35,6 @@ import java.util.function.Consumer;
 public class JSConnector extends ConnectorBase {
     private static final String TAG = JSConnector.class.getSimpleName();
     private LoadJavaScripter javaScripter;
-    private APIInvoker apiInvoker;
     private Map<String, Object> apiParam = new HashMap<>();
     private APIFactory apiFactory = new APIFactoryImpl();
     //private CacheContext cacheContext = new CacheContext();
@@ -112,7 +111,7 @@ public class JSConnector extends ConnectorBase {
         }
 
         JSAPIInterceptorConfig config = JSAPIInterceptorConfig.config();
-        JSAPIResponseInterceptor interceptor = JSAPIResponseInterceptor.create(config, apiInvoker).configMap(configMap);
+        JSAPIResponseInterceptor interceptor = JSAPIResponseInterceptor.create(config).configMap(configMap);
         if (Objects.nonNull(connectionContext)){
             interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter,connectionContext));
         }
