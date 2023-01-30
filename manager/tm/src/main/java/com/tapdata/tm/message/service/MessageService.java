@@ -733,8 +733,8 @@ public class MessageService extends BaseService {
                         title, content, userDetail.getUsername(), userDetail.getUserId());
             }
             log.debug("Send weChat message");
-            mpService.sendAlarmMsg(openId, title, content, new Date());
-            eventsService.recordEvents(MAIL_SUBJECT, content, openId, messageDto, null, 0, Type.NOTICE_WECHAT);
+            SendStatus status = mpService.sendAlarmMsg(openId, title, content, new Date());
+            eventsService.recordEvents(MAIL_SUBJECT, content, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
         }
     }
 

@@ -60,6 +60,8 @@ public class MpService {
     @Autowired
     private MpAccessTokenRepository repository;
 
+    private MpAccessToken cachedAccessToken;
+
     /**
      * {{first.DATA}}
      *
@@ -105,47 +107,55 @@ public class MpService {
         /*Validate.isTrue(title.length() <= 10, "The message title must be less than 20 in length");
         Validate.isTrue(remark.length() <= 20, "The message title must be less than 20 in length");*/
 
-        MpAccessToken mpAccessToken = getAccessToken();
-        if (mpAccessToken == null) {
-            refreshAccessToken();
-            mpAccessToken = getAccessToken();
-        }
+        for (int i = 0; i < 5; i++) {
 
-        if (mpAccessToken == null) {
-            log.error("Send we chat message failed, can't found access token from mp.");
-            return;
-        }
-
-        String url = "https://api.weixin.qq.com/cgi-bin/message/template/send";
-        try {
-            URI uri = new URIBuilder(url)
-                    .addParameter("access_token", mpAccessToken.getAccessToken()).build();
-
-            String jsonData = JsonUtil.toJsonUseJackson(message);;
-
-            HttpPost httpPost = new HttpPost(uri);
-            StringEntity httpEntity = new StringEntity(jsonData, "UTF-8");
-            httpEntity.setContentType("application/json; charset=UTF-8;");
-            httpPost.setEntity(httpEntity);
-            CloseableHttpResponse response = httpClient.execute(httpPost);
-
-            String body = IOUtil.readAsString(response.getEntity().getContent());
-            if (response.getStatusLine().getStatusCode() == 200 && StringUtils.isNotBlank(body)) {
-                Map<String, ?> data = JsonUtil.parseJsonUseJackson(body, new TypeReference<Map<String, Object>>(){});
-                log.debug(body);
-            } else {
-                log.error("Send we chat message failed, response {} {}",
-                        response.getStatusLine().getStatusCode(), body);
+            MpAccessToken mpAccessToken = getAccessToken();
+            if (mpAccessToken == null) {
+                refreshAccessToken();
+                mpAccessToken = getAccessToken();
             }
-        } catch (URISyntaxException e) {
-            log.error("Build send message uri failed on send weChat message", e);
-        } catch (UnsupportedEncodingException e) {
-            log.error("Build send message body failed on send weChat message", e);
-        } catch (IOException e) {
-            log.error("Send weChat message failed", e);
+
+            if (mpAccessToken == null) {
+                log.error("Send we chat message failed, can't found access token from mp.");
+                return;
+            }
+
+            String url = "https://api.weixin.qq.com/cgi-bin/message/template/send";
+            try {
+                URI uri = new URIBuilder(url)
+                        .addParameter("access_token", mpAccessToken.getAccessToken()).build();
+
+                String jsonData = JsonUtil.toJsonUseJackson(message);;
+
+                HttpPost httpPost = new HttpPost(uri);
+                StringEntity httpEntity = new StringEntity(jsonData, "UTF-8");
+                httpEntity.setContentType("application/json; charset=UTF-8;");
+                httpPost.setEntity(httpEntity);
+                CloseableHttpResponse response = httpClient.execute(httpPost);
+
+                String body = IOUtil.readAsString(response.getEntity().getContent());
+                if (response.getStatusLine().getStatusCode() == 200 && StringUtils.isNotBlank(body)) {
+                    Map<String, ?> data = JsonUtil.parseJsonUseJackson(body, new TypeReference<Map<String, Object>>(){});
+                    log.debug(body);
+                    if (data != null && data.containsKey("errcode") && "40001".equals(data.get("errcode"))) {
+                        // invalid credential, access_token is invalid or not latest
+                        // sendMessage(openid, message);
+                        refreshAccessToken(true);
+                        continue;
+                    }
+                } else {
+                    log.error("Send we chat message failed, response {} {}",
+                            response.getStatusLine().getStatusCode(), body);
+                }
+                break;
+            } catch (URISyntaxException e) {
+                log.error("Build send message uri failed on send weChat message", e);
+            } catch (UnsupportedEncodingException e) {
+                log.error("Build send message body failed on send weChat message", e);
+            } catch (IOException e) {
+                log.error("Send weChat message failed", e);
+            }
         }
-
-
     }
 
     /**
@@ -179,6 +189,9 @@ public class MpService {
     @Scheduled(fixedDelay = 60000)
     @SchedulerLock(name="refreshWeChatAccessToken", lockAtLeastFor = "PT30S", lockAtMostFor = "PT30S")
     public void refreshAccessToken() {
+        refreshAccessToken(false);
+    }
+    public void refreshAccessToken(boolean force) {
 
         if (!this.enableWeChat()) {
             return;
@@ -186,7 +199,7 @@ public class MpService {
 
         MpAccessToken accessToken = getAccessToken();
         // 过期时间小于 5分钟
-        if (accessToken == null ||
+        if (force || accessToken == null ||
                 accessToken.getExpiresAt() - System.currentTimeMillis() <= 300000 ) {
 
             MpAccessToken mpAccessToken = requestNewAccessToken();
@@ -200,10 +213,26 @@ public class MpService {
 
     }
 
-    public MpAccessToken getAccessToken() {
+    @Scheduled(fixedDelay = 10000)
+    public void loadAccessTokenFromDB() {
+
         Query query = Query.query(Criteria.where("name").is("weChatAccessToken"));
         query.with(Sort.by(Sort.Order.desc("_id")));
-        return repository.findOne(query).orElse(null);
+        this.cachedAccessToken = repository.findOne(query).orElse(null);
+
+    }
+
+    public MpAccessToken getAccessToken() {
+
+        if (this.cachedAccessToken == null) {
+            Query query = Query.query(Criteria.where("name").is("weChatAccessToken"));
+            query.with(Sort.by(Sort.Order.desc("_id")));
+            this.cachedAccessToken = repository.findOne(query).orElse(null);
+        } else if (cachedAccessToken.getExpiresAt() < System.currentTimeMillis()) {
+            return null;
+        }
+
+        return this.cachedAccessToken;
     }
 
     private MpAccessToken requestNewAccessToken() {
