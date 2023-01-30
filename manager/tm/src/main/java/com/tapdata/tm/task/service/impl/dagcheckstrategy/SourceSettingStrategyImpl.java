@@ -113,7 +113,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 
             if (nameSet.contains(name)) {
                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                        .log(MessageFormat.format(templateEnum.getErrorTemplate(), name))
+                        .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：节点{0}检测未通过，异常项'{节点名称}'，异常原因：节点名称重复，请重新设置", name))
                         .grade(Level.ERROR)
                         .nodeId(node.getId()).build();
 
