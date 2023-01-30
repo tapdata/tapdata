@@ -15,20 +15,41 @@
     "connection": {
       "type": "object",
       "properties": {
+        "app_id": {
+          "type": "String",
+          "title": "${app_id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 10,
+          "required": true
+        },
+        "app_secret": {
+          "type": "String",
+          "title": "${app_secret}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true
+        }
       }
     }
   },
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "doc/demo_en_US.md",
-      "df_table_field_btn_add": "Add field"
+      "doc": "doc/FeiShu_en_US.md",
+      "app_id": "App Id",
+      "app_secret": "App Secret"
     },
     "zh_CN": {
-      "doc": "doc/demo_zh_CN.md"
+      "doc": "doc/FeiShu_zh_CN.md",
+      "app_id": "应用Id",
+      "app_secret": "应用Secret"
     },
     "zh_TW": {
-      "doc": "doc/demo_zh_TW.md"
+      "doc": "doc/FeiShu_zh_TW.md",
+      "app_id": "应用Id",
+      "app_secret": "应用Secret"
     }
   }
 }

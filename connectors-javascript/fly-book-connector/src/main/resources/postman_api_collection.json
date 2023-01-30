@@ -49,6 +49,82 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "GetOpenIdByPhone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"mobiles\": {{userPhone}}}"
+            },
+            "url": {
+              "raw": "https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id",
+              "protocol": "https",
+              "host": [
+                "open",
+                "feishu",
+                "cn"
+              ],
+              "path": [
+                "open-apis",
+                "contact",
+                "v3",
+                "users",
+                "batch_get_id"
+              ],
+              "query": [
+                {
+                  "key": "user_id_type",
+                  "value": "open_id"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GetAppToken",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"app_id\": \"{{app_id}}\",\n    \"app_secret\": \"{{app_secret}}\"\n}\n"
+            },
+            "url": {
+              "raw": "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+              "protocol": "https",
+              "host": [
+                "open",
+                "feishu",
+                "cn"
+              ],
+              "path": [
+                "open-apis",
+                "auth",
+                "v3",
+                "tenant_access_token",
+                "internal"
+              ]
+            }
+          },
+          "response": []
         }
       ]
     }
@@ -76,12 +152,24 @@
   "variable": [
     {
       "key": "receive_id",
-      "value": "ou_056b8040b36ba4ee19473e08cf56d673",
+      "value": "",
       "type": "default"
     },
     {
       "key": "token",
-      "value": "t-g0041ihHTVOCCMGGGFV4ESPJ5HKUXUTQMDM7FMFA"
+      "value": ""
+    },
+    {
+      "key": "app_id",
+      "value": ""
+    },
+    {
+      "key": "app_secret",
+      "value": ""
+    },
+    {
+      "key": "userPhone",
+      "value": ""
     }
   ]
 }

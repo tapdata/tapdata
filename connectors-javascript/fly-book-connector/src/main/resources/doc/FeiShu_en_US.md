@@ -18,6 +18,16 @@ At this time, the FeiShu data source is created successfully!
 
 If you need to send a message using FeiShu:
 
+***The message body structure should be as follows***：
+```json
+[
+  {
+    "phone": "15574565858",
+    "content": "{\"text\":\"<at user_id=\\\"ou_155184d1e73cbfb8973e5a9e698e74f2\\\">Tom</at> test content\"}"
+  }
+]
+```
+
 1. You need to use the user's registered mobile phone number to send the specified message to this person;
 
 2. You need to ensure that the user of the current mobile phone number exists in the visible range of this application. If it is not in the visible range of the current application version, you cannot send messages to this user. If necessary, you can view the visible range of the latest version in the application version management and release, and create a new version and add this user to the visible range.
