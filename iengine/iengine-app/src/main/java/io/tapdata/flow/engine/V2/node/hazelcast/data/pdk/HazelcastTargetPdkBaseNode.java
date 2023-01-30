@@ -182,7 +182,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				if (count > 0) {
 					for (TapdataEvent tapdataEvent : tapdataEvents) {
 						// Filter TapEvent
-						if (null != tapdataEvent.getTapEvent() && this.targetTapEventFilter.test(tapdataEvent.getTapEvent())) {
+						if (null != tapdataEvent.getTapEvent() && this.targetTapEventFilter.test(tapdataEvent)) {
 							if (tapdataEvent.getSyncStage().equals(SyncStage.CDC)) {
 								tapdataEvent = TapdataHeartbeatEvent.create(TapEventUtil.getTimestamp(tapdataEvent.getTapEvent()), tapdataEvent.getStreamOffset(), tapdataEvent.getNodeIds());
 							} else {
@@ -606,7 +606,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		 * 处理删除事件更新条件在事件中不存在对应的值
 		 */
 		@Override
-		public <E extends TapEvent> boolean test(E tapEvent) {
+		public <E extends TapdataEvent> boolean test(E tapdataEvent) {
+			if(null == tapdataEvent || null == tapdataEvent.getTapEvent()) return false;
+			if(SyncProgress.Type.LOG_COLLECTOR == tapdataEvent.getType()) return false;
+			TapEvent tapEvent = tapdataEvent.getTapEvent();
 			if (!(tapEvent instanceof TapDeleteRecordEvent)) return false;
 			TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) tapEvent;
 			this.tableName = getTgtTableNameFromTapEvent(tapEvent);
@@ -656,7 +659,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 
 		@Override
-		public <E extends TapEvent> void failHandler(E tapEvent) {
+		public <E extends TapdataEvent> void failHandler(E tapdataEvent) {
 			logger.warn("Found {}'s delete event will be ignore. Because there is no association field '{}' in before data: {}", this.tableName, this.missingField, this.record);
 			obsLogger.warn("Found {}'s delete event will be ignore. Because there is no association field '{}' in before data: {}", this.tableName, this.missingField, this.record);
 		}

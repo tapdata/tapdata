@@ -777,7 +777,7 @@
           {
             "type": "page",
             "code": "v2_api-client",
-            "path": "/data-server"
+            "path": "/api-client"
           }
         ],
         "status": "enable",
@@ -785,7 +785,7 @@
         "version": "v2"
       },
       {
-        "description": "api服务端",
+        "description": "api服务器",
         "name": "v2_api-servers",
         "need_permission": true,
         "order": 3,
@@ -793,7 +793,7 @@
         "resources": [
           {
             "type": "page",
-            "code": "v2_api-client",
+            "code": "v2_api-servers",
             "path": "/api-servers"
           }
         ],
