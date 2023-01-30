@@ -5,7 +5,7 @@ public enum QuickApiTestItem {
     TEST_JSON_FORMAT("Check Api JSON"),
     TEST_TAP_TABLE("Check TAP_TABLE label format"),
     TEST_TOKEN("Check Token environment variable"),
-    DEBUG_API("API connection debugging");
+    DEBUG_API("Attempt to call %s");
     String testName;
     QuickApiTestItem(String testName){
         this.testName = testName;

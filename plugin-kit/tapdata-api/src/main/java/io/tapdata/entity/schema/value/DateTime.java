@@ -12,10 +12,8 @@ import java.math.RoundingMode;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DecimalFormat;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Objects;
 import java.util.TimeZone;
@@ -205,7 +203,7 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
         }
     }
 
-    public static DateTime withTimeStr(String timeStr) {
+	public static DateTime withTimeStr(String timeStr) {
         if (timeStr == null)
             throw new IllegalArgumentException("DateTime constructor timeStr is null");
 
@@ -360,6 +358,10 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
             return timestamp;
         }
         return null;
+    }
+
+    public String toFormatString(String format) {
+        return toZonedDateTime().format(DateTimeFormatter.ofPattern(format));
     }
 
     @Override

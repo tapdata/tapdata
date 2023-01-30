@@ -94,4 +94,7 @@ public class ModulesDto extends BaseDto {
 
     @NotBlank
     private String connectionName;
+
+    /** 访问路径方式  默认值 default  自定义 customize*/
+    private String pathAccessMethod;
 }

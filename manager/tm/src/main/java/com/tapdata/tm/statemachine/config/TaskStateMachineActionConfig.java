@@ -36,7 +36,11 @@ import org.springframework.stereotype.Component;
 public class TaskStateMachineActionConfig {
 
 	private StateMachineService stateMachineService;
+
+	@Autowired
 	private WorkerService workerService;
+
+	@Autowired
 	private TaskService taskService;
 
 //	@OnAction(Transitions.SUBTASK_START)

@@ -242,6 +242,7 @@ public class ApiCallService {
             apiCallDetailVo.setMethod(apiCallEntity.getMethod());
             apiCallDetailVo.setCreateTime(apiCallEntity.getCreateAt());
             apiCallDetailVo.setCode(apiCallEntity.getCode());
+            apiCallDetailVo.setUserIp(apiCallEntity.getUserIp());
 
             apiCallDetailVoList.add(apiCallDetailVo);
         }

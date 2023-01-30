@@ -314,7 +314,7 @@ public class ClickhouseConnector extends ConnectorBase {
             }
             builder.append("\"");
         }
-        builder.append(" FROM ").append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), table.getId())).append(" ").append(CommonSqlMaker.buildSqlByAdvanceFilter(filter));
+        builder.append(" FROM ").append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), table.getId())).append(" ").append(new CommonSqlMaker().buildSqlByAdvanceFilter(filter));
         clickhouseJdbcContext.query(builder.toString(), resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet != null && resultSet.next()) {

@@ -110,4 +110,16 @@ public class TapAdvanceFilter extends TapFilter {
     public void setBatchSize(Integer batchSize) {
         this.batchSize = batchSize;
     }
+    @Override
+    public String toString() {
+        return "TapAdvanceFilter{" +
+                "skip=" + skip +
+                ", limit=" + limit +
+                ", batchSize=" + batchSize +
+                ", operators=" + operators +
+                ", sortOnList=" + sortOnList +
+                ", projection=" + projection +
+                ", match=" + match +
+                "} " + super.toString();
+    }
 }

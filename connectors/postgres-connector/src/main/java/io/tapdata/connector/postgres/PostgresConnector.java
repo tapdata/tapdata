@@ -341,7 +341,7 @@ public class PostgresConnector extends ConnectorBase {
         Set<String> columnNames = tapTable.getNameFieldMap().keySet();
         List<FilterResult> filterResults = new LinkedList<>();
         for (TapFilter filter : filters) {
-            String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\" WHERE " + CommonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "=");
+            String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\" WHERE " + new CommonSqlMaker().buildKeyAndValue(filter.getMatch(), "AND", "=");
             FilterResult filterResult = new FilterResult();
             try {
                 postgresJdbcContext.queryWithNext(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
@@ -369,7 +369,7 @@ public class PostgresConnector extends ConnectorBase {
             }
             builder.append("\"");
         }
-        builder.append(" FROM \"").append(postgresConfig.getSchema()).append("\".\"").append(table.getId()).append("\" ").append(CommonSqlMaker.buildSqlByAdvanceFilter(filter));
+        builder.append(" FROM \"").append(postgresConfig.getSchema()).append("\".\"").append(table.getId()).append("\" ").append(new CommonSqlMaker().buildSqlByAdvanceFilter(filter));
         postgresJdbcContext.query(builder.toString(), resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet.next()) {
@@ -395,7 +395,7 @@ public class PostgresConnector extends ConnectorBase {
         }
         Collection<String> primaryKeys = tapTable.primaryKeys();
         //pgsql UNIQUE INDEX use 'UNIQUE' not 'UNIQUE KEY' but here use 'PRIMARY KEY'
-        String sql = "CREATE TABLE IF NOT EXISTS \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" + CommonSqlMaker.buildColumnDefinition(tapTable, false);
+        String sql = "CREATE TABLE IF NOT EXISTS \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" + new CommonSqlMaker().buildColumnDefinition(tapTable, false);
         if (EmptyKit.isNotEmpty(tapTable.primaryKeys())) {
             sql += "," + " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\" )";
         }
@@ -511,7 +511,7 @@ public class PostgresConnector extends ConnectorBase {
         PostgresOffset postgresOffset;
         //beginning
         if (null == offsetState) {
-            postgresOffset = new PostgresOffset(CommonSqlMaker.getOrderByUniqueKey(tapTable), 0L);
+            postgresOffset = new PostgresOffset(new CommonSqlMaker().getOrderByUniqueKey(tapTable), 0L);
         }
         //with offset
         else {

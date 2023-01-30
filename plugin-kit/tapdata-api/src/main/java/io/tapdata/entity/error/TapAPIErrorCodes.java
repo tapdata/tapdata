@@ -19,4 +19,5 @@ public class TapAPIErrorCodes {
 	public static final int MIN_MAX_CANNOT_CONVERT_TO_DATETIME = 1015;
 	public static final int ERROR_PARTITION_FILTER_NULL = 1016;
 	public static final int ILLEGAL_OPERATOR_FOR_LEFT_BOUNDARY = 1017;
+	public static final int ERROR_INSTANTIATE_ENGINE_CLASS_FAILED = 1018;
 }

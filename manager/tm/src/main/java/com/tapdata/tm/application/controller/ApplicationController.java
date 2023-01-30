@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.NonNull;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.web.bind.annotation.*;
@@ -46,7 +47,13 @@ public class ApplicationController extends BaseController {
     @PostMapping
     public ResponseMessage<ApplicationDto> save(@RequestBody ApplicationDto metadataDefinition) {
         metadataDefinition.setId(null);
-        return success(applicationService.save(metadataDefinition, getLoginUser()));
+//        ObjectId objectId = new ObjectId();
+//        metadataDefinition.setId(objectId);
+//        metadataDefinition.setClientId(objectId.toHexString());
+        ApplicationDto dto = applicationService.save(metadataDefinition, getLoginUser());
+        dto.setClientId(dto.getId().toHexString());
+        applicationService.updateById(dto, getLoginUser());
+        return success(dto);
     }
 
     /**

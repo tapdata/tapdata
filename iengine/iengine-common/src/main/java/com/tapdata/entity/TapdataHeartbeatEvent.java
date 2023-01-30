@@ -1,5 +1,7 @@
 package com.tapdata.entity;
 
+import com.tapdata.entity.dataflow.SyncProgress;
+
 import java.io.Serializable;
 import java.util.List;
 
@@ -27,6 +29,14 @@ public class TapdataHeartbeatEvent extends TapdataEvent implements Serializable,
 		tapdataHeartbeatEvent.setSourceTime(timestamp);
 		tapdataHeartbeatEvent.setStreamOffset(streamOffset);
 		tapdataHeartbeatEvent.setNodeIds(nodeIds);
+		return tapdataHeartbeatEvent;
+	}
+
+	public static TapdataHeartbeatEvent create(Long timestamp, Object streamOffset, SyncProgress.Type type) {
+		TapdataHeartbeatEvent tapdataHeartbeatEvent = new TapdataHeartbeatEvent();
+		tapdataHeartbeatEvent.setSourceTime(timestamp);
+		tapdataHeartbeatEvent.setStreamOffset(streamOffset);
+		tapdataHeartbeatEvent.setType(type);
 		return tapdataHeartbeatEvent;
 	}
 

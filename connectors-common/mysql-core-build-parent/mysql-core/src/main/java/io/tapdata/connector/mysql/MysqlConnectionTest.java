@@ -164,6 +164,7 @@ public class MysqlConnectionTest extends CommonDbTest {
         if ("read".equals(mark)) {
             privilege = grantSql.contains("SELECT") || grantSql.contains("ALL PRIVILEGES");
         }
+        grantSql = grantSql.replaceAll("\\\\", "");
         if (grantSql.contains("*.* TO")) {
             if (privilege) {
                 return true;
@@ -173,8 +174,17 @@ public class MysqlConnectionTest extends CommonDbTest {
             if (privilege) {
                 return true;
             }
+        } else if (databaseName.contains("_") && grantSql.contains("`" + databaseName.replace("_", "\\_") + "`" + ".* TO")) {
+            if (privilege) {
+                return true;
+            }
         } else if (grantSql.contains("`" + databaseName + "`" + ".")) {
             String table = grantSql.substring(grantSql.indexOf(databaseName + "."), grantSql.indexOf("TO")).trim();
+            if (privilege) {
+                tableList.add(table);
+            }
+        } else if (databaseName.contains("_") && grantSql.contains("`" + databaseName.replace("_", "\\_") + "`" + ".")) {
+            String table = grantSql.substring(grantSql.indexOf(databaseName.replace("_", "\\_") + "."), grantSql.indexOf("TO")).trim();
             if (privilege) {
                 tableList.add(table);
             }

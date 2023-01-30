@@ -160,7 +160,7 @@ public class MongodbTest extends CommonDbTest {
             consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY));
             return true;
         } else {
-            consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_FAILED, "Source mongodb instance must be the shards or replica set."));
+            consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "Source mongodb instance must be the shards or replica set."));
             return false;
         }
     }

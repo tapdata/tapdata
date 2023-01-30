@@ -101,7 +101,7 @@ public class LogCollectorService {
         query.skip(skip);
         query.limit(limit);
         MongoUtils.applySort(query, sort);
-        query.fields().include("status", "name", "createTime", "dag", "statuses", "attrs");
+        query.fields().include("status", "name", "createTime", "dag", "statuses", "attrs", "syncPoints");
 
         List<TaskDto> allDto = taskService.findAllDto(query, user);
         long count = taskService.count(new Query(criteria), user);
@@ -308,6 +308,10 @@ public class LogCollectorService {
             update.set("syncPoints.dateTime", logCollectorEditVo.getSyncTime());
         }
 
+        if (CollectionUtils.isNotEmpty(logCollectorEditVo.getSyncPoints())) {
+            update.set("syncPoints", logCollectorEditVo.getSyncPoints());
+        }
+
         taskService.updateById(objectId, update, user);
 
         List<Node> sources = taskDto.getDag().getSources();
@@ -355,16 +359,15 @@ public class LogCollectorService {
             if (CollectionUtils.isNotEmpty(taskDtos)) {
                 List<SyncTaskVo> syncTaskVos = convertSubTask(taskDtos, ((LogCollectorNode) node).getConnectionIds());
                 logCollectorDetailVo.setTaskList(syncTaskVos);
-            }
-
-            TaskDto taskDto1 = taskDtos.get(0);
-            logCollectorDetailVo.setTaskId(taskDto1.getId().toHexString());
-            DAG dag1 = taskDto1.getDag();
-            if (dag1 != null) {
-                List<Edge> edges = dag1.getEdges();
-                Edge edge = edges.get(0);
-                Date eventTime = getAttrsValues(edge.getSource(), edge.getTarget(), "eventTime", taskDto1.getAttrs());
-                logCollectorDetailVo.setLogTime(eventTime);
+                TaskDto taskDto1 = taskDtos.get(0);
+                logCollectorDetailVo.setTaskId(taskDto1.getId().toHexString());
+                DAG dag1 = taskDto1.getDag();
+                if (dag1 != null) {
+                    List<Edge> edges = dag1.getEdges();
+                    Edge edge = edges.get(0);
+                    Date eventTime = getAttrsValues(edge.getSource(), edge.getTarget(), "eventTime", taskDto1.getAttrs());
+                    logCollectorDetailVo.setLogTime(eventTime);
+                }
             }
 
             return logCollectorDetailVo;
@@ -381,6 +384,8 @@ public class LogCollectorService {
         logCollectorVo.setCreateTime(taskDto.getCreateAt());
         logCollectorVo.setStatus(taskDto.getStatus());
         logCollectorVo.setStatuses(taskDto.getStatuses());
+        logCollectorVo.setDag(taskDto.getDag());
+        logCollectorVo.setSyncPoints(taskDto.getSyncPoints());
 //        List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
 //        if (CollectionUtils.isNotEmpty(syncPoints)) {
 //            TaskDto.SyncPoint syncPoint = syncPoints.get(0);

@@ -144,6 +144,7 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 	public enum Type {
 		NORMAL, // from normal task
 		SHARE_CDC, // from share cdc task
+		POLLING_CDC, // from polling cdc task
 	}
 
 	@Override

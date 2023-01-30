@@ -2,10 +2,8 @@ package com.tapdata.tm.commons.util;
 
 import com.google.common.base.Joiner;
 import com.mongodb.ConnectionString;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.DataSourceEnum;
 import com.tapdata.tm.commons.schema.bean.*;
 import lombok.Data;
 import org.apache.commons.collections4.CollectionUtils;
@@ -44,6 +42,8 @@ public class MetaDataBuilderUtils {
         metaTypePropertyMap.put(MetaType.ftp.name(), new MetaTypeProperty("CONN_", false));
         metaTypePropertyMap.put(MetaType.apiendpoint.name(), new MetaTypeProperty("CONN_", false));
         metaTypePropertyMap.put(MetaType.processor_node.name(), new MetaTypeProperty("PN_", true));
+        metaTypePropertyMap.put(MetaType.VikaDatasheet.name(), new MetaTypeProperty("VIKA_", true));
+        metaTypePropertyMap.put(MetaType.qingFlowApp.name(), new MetaTypeProperty("QINGFLOW_", true));
     }
 
     public static String generateQualifiedName(String metaType, String nodeId, String tableName) {
@@ -175,6 +175,7 @@ public class MetaDataBuilderUtils {
         SourceDto sourceDto = new SourceDto();
         BeanUtils.copyProperties(source, sourceDto);
         sourceDto.set_id(source.getId().toHexString());
+        sourceDto.setUser_id(source.getUserId());
 
         // General properties
         handleSource(sourceDto);

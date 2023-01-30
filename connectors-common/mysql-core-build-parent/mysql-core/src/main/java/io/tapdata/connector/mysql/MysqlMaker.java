@@ -11,6 +11,7 @@ import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -24,6 +25,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -96,7 +98,7 @@ public class MysqlMaker implements SqlMaker {
         }
         if (CollectionUtils.isNotEmpty(pks)) {
             for (String pk : pks) {
-                String orderStr = pk + " ASC";
+                String orderStr = String.format(MysqlJdbcContext.FIELD_TEMPLATE, pk) + " ASC";
                 if (orderList.contains(orderStr)) {
                     continue;
                 }
@@ -132,19 +134,34 @@ public class MysqlMaker implements SqlMaker {
         DataMap match = tapAdvanceFilter.getMatch();
         List<String> whereList = new ArrayList<>();
         if (MapUtils.isNotEmpty(match)) {
-            match.forEach((k,v)->{
-                String valueStr = MysqlUtil.object2String(v);
-                whereList.add(String.format("`%s`<=>%s", k, valueStr));
-            });
+            for (Map.Entry<String, Object> entry : match.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+                if (value instanceof Number) {
+                    whereList.add(key + "<=>" + value);
+                } else if (value instanceof DateTime) {
+                    whereList.add(key + "<=>'" + dateTimeToStr((DateTime) value, "yyyy-MM-dd HH:mm:ss") + "'");
+                } else {
+                    whereList.add(key + "<=>'" + value + "'");
+                }
+            }
         }
         List<QueryOperator> operators = tapAdvanceFilter.getOperators();
         if (CollectionUtils.isNotEmpty(operators)) {
-            operators.forEach(o -> {
-                String queryOperatorSql = getQueryOperatorSql(o);
-                if (StringUtils.isNotBlank(queryOperatorSql)) {
-                    whereList.add(queryOperatorSql);
+            for (QueryOperator operator : operators) {
+                String key = operator.getKey();
+                Object value = operator.getValue();
+                int op = operator.getOperator();
+                QueryOperatorEnum queryOperatorEnum = QueryOperatorEnum.fromOp(op);
+                String opStr = queryOperatorEnum.getOpStr();
+                if (value instanceof Number) {
+                    whereList.add(key + opStr + value);
+                }else if (value instanceof DateTime) {
+                    whereList.add(key + opStr + "'" + dateTimeToStr((DateTime) value, "yyyy-MM-dd HH:mm:ss") + "'");
+                } else {
+                    whereList.add(key + opStr + "'" + value + "'");
                 }
-            });
+            }
         }
         if (CollectionUtils.isNotEmpty(whereList)) {
             sql += " WHERE " + String.join(" AND ", whereList);
@@ -172,6 +189,10 @@ public class MysqlMaker implements SqlMaker {
             sql += " OFFSET " + skip;
         }
         return sql;
+    }
+
+    private static String dateTimeToStr(DateTime value, String formatter) {
+        return value.toZonedDateTime().format(DateTimeFormatter.ofPattern(formatter));
     }
 
     @Override

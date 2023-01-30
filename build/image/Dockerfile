@@ -7,7 +7,7 @@ COPY plugin-kit /tapdata/apps/plugin-kit
 COPY connectors-common /tapdata/apps/connectors-common
 COPY connectors /tapdata/apps/connectors
 COPY build /tapdata/apps/build
-
+COPY tapdata-cli /tapdata/apps/tapdata-cli
 COPY docker-entrypoint.sh /tapdata/docker-entrypoint.sh
 RUN chmod +x /tapdata/docker-entrypoint.sh
 

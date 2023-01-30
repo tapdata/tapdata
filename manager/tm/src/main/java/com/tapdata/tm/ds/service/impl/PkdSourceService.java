@@ -15,6 +15,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -65,7 +66,8 @@ public class PkdSourceService {
 
             // 只有 admin 用户的为 public 的 scope
             String scope = "customer";
-            if ("admin@admin.com".equals(user.getEmail())) {
+            //云版没有admin所以采用这种方式
+            if ("admin@admin.com".equals(user.getEmail()) || "18973231732".equals(user.getUsername())) {
                 scope = "public";
             }
             Criteria criteria = Criteria.where("scope").is(scope)
@@ -195,6 +197,7 @@ public class PkdSourceService {
                 break;
             default:
         }
+        query.with(Sort.by("createTime").descending());
 
         DataSourceDefinitionDto one = dataSourceDefinitionService.findOne(query);
 

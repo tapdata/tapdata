@@ -2,6 +2,7 @@
 package com.tapdata.tm.ds.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.schema.ScheduleTimeEnum;
 import com.tapdata.tm.commons.schema.bean.FileSources;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
@@ -20,6 +21,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -171,11 +173,41 @@ public class DataSourceEntity extends BaseEntity {
     private String custom_ondata_script;
     private String clusterName;
     private String kafkaBootstrapServers;
+    private Set<String> kafkaRawTopics;
     private String kafkaPatternTopics;
-    private Boolean kafkaIgnoreInvalidRecord;
-    private String kafkaAcks;
-    private String kafkaCompressionType;
-    private Boolean kafkaIgnorePushError;
+    private Integer kafkaConsumerRequestTimeout = 0;
+    private Boolean kafkaConsumerUseTransactional = false;
+    private Integer kafkaMaxPollRecords = 0;
+    private Integer kafkaPollTimeoutMS = 0;
+    private Integer kafkaMaxFetchBytes = 0;
+    private Integer kafkaMaxFetchWaitMS = 0;
+    private Boolean kafkaIgnoreInvalidRecord = false;
+    /**
+     * kafka target (Producer)
+     */
+    private Integer kafkaProducerRequestTimeout = 0;
+    private Boolean kafkaProducerUseTransactional = false;
+    private Integer kafkaRetries = 0;
+    private Integer kafkaBatchSize = 0;
+    private String kafkaAcks = "-1";
+    private Integer kafkaLingerMS = 0;
+    private Integer kafkaDeliveryTimeoutMS = 0;
+    private Integer kafkaMaxRequestSize = 0;
+    private Integer kafkaMaxBlockMS = 0;
+    private Integer kafkaBufferMemory = 0;
+    private String kafkaCompressionType = "";
+    private String kafkaPartitionKey = "";
+    private Boolean kafkaIgnorePushError = false;
+
+    private String kafkaSaslMechanism;
+    private Boolean krb5;
+    private String krb5Keytab;
+    private String krb5KeytabName;
+    private String krb5Conf;
+    private String krb5ConfName;
+    private String krb5Principal;
+    private String krb5ServiceName;
+
     private String jiraUrl;
     private String jiraUsername;
     private String jiraPassword;
@@ -226,6 +258,21 @@ public class DataSourceEntity extends BaseEntity {
 
     private String initId;
     private String sourceType;
+
+    private String vika_space_name;
+    private String vika_space_id;
+
+    /**
+     * QingFlow 属性
+     */
+    private String qingFlowUserId;
+    private String qingFlowTagName;
+    private String qingFlowTagId;
+
+    /**
+     * Doris 使用 Stream  Load 需要用到 http 接口
+     */
+    private String dorisHttp;
     private String uniqueName;
 
     /** 共享缓存开关 */
@@ -265,6 +312,9 @@ public class DataSourceEntity extends BaseEntity {
     private Integer increaseReadSize;
 
     private Date loadSchemaTime;
+    /** 数据源大于一万张表的时候， 设置的每天的某个时间点加载一次 可以设置为0-24点直接的值
+     * @see ScheduleTimeEnum */
+    private String schemaUpdateHour;
 
     /**
      * 后续 开放可以多选 flow engine 的话，这里一定要删除

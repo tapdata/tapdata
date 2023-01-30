@@ -1,19 +1,23 @@
 package com.tapdata.tm.base.controller;
 
+import cn.hutool.core.util.ReUtil;
+import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.dto.Field;
-import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MessageUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.AntPathMatcher;
+import org.springframework.util.PathMatcher;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -35,6 +39,59 @@ public class BaseController {
 	private UserService userService;
 	@Autowired
 	private AccessTokenService accessTokenService;
+
+	@Autowired
+	private ProductComponent productComponent;
+
+	private static final PathMatcher pathMatcher = new AntPathMatcher();
+
+	public static void main(String[] args) {
+		System.out.println(ReUtil.isMatch("get|post|put", "get1"));
+		System.out.println(ReUtil.isMatch("get|post|put", "get"));
+		System.out.println(ReUtil.isMatch("/api/MetadataInstances", "/api/MetadataInstances"));
+
+		AntPathMatcher antPathMatcher = new AntPathMatcher();
+		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstances/node/schemaPage"));
+		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstances"));
+		System.out.println(antPathMatcher.match("/api/MetadataInstances/**".toLowerCase(), "/api/metadatainstances".toLowerCase()));
+		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstances?id=1"));
+		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstance1"));
+	}
+
+	private static final Map<String, Set<String>> authWhiteListMap = new HashMap<String, Set<String>>() {{
+
+		put("GET", new HashSet<String>() {{
+//			add("/api/MetadataInstances/**");
+//			add("/api/MetadataDefinition/**");
+			add("/api/Javascript_functions/**");
+			add("/api/customNode/**");
+			add("/api/clusterStates/**");
+			add("/api/Workers/**");
+//			add("/api/discovery/**");
+//			add("/api/shareCache/**");
+		}});
+	}};
+
+	private static boolean isFreeAuth(String uri, String method) {
+		Set<String> uriSet = authWhiteListMap.get(method.trim().toUpperCase());
+		if (uriSet == null) {
+			return false;
+		}
+		for (String pattern : uriSet) {
+			if (pathMatcher.match(pattern, uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void judgeFreeAuth(String uri, String method, UserDetail userDetail) {
+		if (productComponent.isDAAS()) {
+			if (isFreeAuth(uri, method)) {
+ 				userDetail.setFreeAuth();
+			}
+		}
+	}
 
 	public Filter parseFilter(String filterJson) {
 		filterJson=replaceLoopBack(filterJson);
@@ -89,9 +146,10 @@ public class BaseController {
 		String userIdFromHeader = request.getHeader("user_id");
 
 		if (!StringUtils.isBlank(userIdFromHeader)) {
-			log.info("Load user by request header user_id({})", userIdFromHeader);
+			log.debug("Load user by request header user_id({})", userIdFromHeader);
 			UserDetail userDetail = userService.loadUserByExternalId(userIdFromHeader);
 			if (userDetail != null) {
+				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
 			throw new BizException("NotLogin");
@@ -114,6 +172,7 @@ public class BaseController {
 			}
 			UserDetail userDetail = userService.loadUserById(userId);
 			if (userDetail != null) {
+				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
 			throw new BizException("NotLogin");
@@ -139,6 +198,7 @@ public class BaseController {
 				}
 			}
 			if (userDetail != null) {
+				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
 				return userDetail;
 			}
 			throw new BizException("NotLogin");

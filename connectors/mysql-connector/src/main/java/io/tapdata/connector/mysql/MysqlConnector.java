@@ -31,6 +31,8 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import io.tapdata.pdk.apis.partition.ReadPartition;
@@ -127,7 +129,7 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
         connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
         connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
@@ -181,6 +183,19 @@ public class MysqlConnector extends ConnectorBase {
         Optional.ofNullable(maxObj.get()).ifPresent(max -> fieldMinMaxValue.max(max).detectType(max));
         return fieldMinMaxValue;
     }
+
+    private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+        RetryOptions retryOptions = RetryOptions.create();
+        retryOptions.setNeedRetry(true);
+        retryOptions.beforeRetryMethod(()->{
+            try {
+                this.onStart(tapConnectionContext);
+            } catch (Throwable ignore) {
+            }
+        });
+        return retryOptions;
+    }
+
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
         MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
