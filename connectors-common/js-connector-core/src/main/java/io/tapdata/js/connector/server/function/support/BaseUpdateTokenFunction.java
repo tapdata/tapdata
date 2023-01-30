@@ -34,7 +34,7 @@ public class BaseUpdateTokenFunction extends FunctionBase implements FunctionSup
             throw new CoreException("TapConnectorContext cannot not be empty.");
         }
         Object invoker = super.javaScripter.invoker(
-                JSFunctionNames.BatchCountFunction.jsName(),
+                JSFunctionNames.UPDATE_TOKEN.jsName(),
                 this.connectionContext.getConnectionConfig(),
                 this.connectionContext.getNodeConfig(),
                 response
