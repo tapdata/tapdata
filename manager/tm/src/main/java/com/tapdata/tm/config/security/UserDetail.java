@@ -35,6 +35,9 @@ public class UserDetail implements Serializable, UserDetails {
 	private Notification notification;
 	private String externalUserId;
 
+	private ThreadLocal<Boolean> authenticationThreadLocal = InheritableThreadLocal.withInitial(() -> false);
+
+
 	public UserDetail(String userId, String customerId, String username, String password, String customerType, Collection<? extends SimpleGrantedAuthority> authorities) {
 		this(userId, customerId, username, password, customerType, null, true, true, true, true, authorities);
 	}
@@ -89,6 +92,22 @@ public class UserDetail implements Serializable, UserDetails {
 	public boolean isRoot() {
 		return getAuthorities() != null &&
 			getAuthorities().stream().anyMatch(grantedAuthority -> "ADMIN".equals(grantedAuthority.getAuthority()));
+	}
+
+	public void setFreeAuth() {
+		authenticationThreadLocal.set(true);
+	}
+
+	public void setAuth() {
+		authenticationThreadLocal.set(false);
+	}
+
+	public void setFreeAuth(boolean auth) {
+		authenticationThreadLocal.set(auth);
+	}
+
+	public boolean isFreeAuth() {
+		return authenticationThreadLocal.get();
 	}
 
 	public Collection<? extends GrantedAuthority> getAuthorities() {

@@ -58,9 +58,9 @@ public class TaskRepository extends BaseRepository<TaskEntity, ObjectId> {
     public Update buildUpdateSet(TaskEntity entity, UserDetail userDetail) {
         Update update = new Update();
         Field[] files = ReflectionUtils.getAllDeclaredFields(TaskEntity.class);
-        if (userDetail != null){
-            applyUserDetail(entity, userDetail);
-        }
+//        if (userDetail != null){
+//            applyUserDetail(entity, userDetail);
+//        }
 
         for (Field field : files) {
             if ("$jacocoData".equals(field.getName())) {

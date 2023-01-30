@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -42,11 +43,12 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
                 .forEach(node -> {
                     String name = node.getName();
                     String nodeId = node.getId();
+                    String nodeName = NodeEnum.valueOf(node.getType()).getNodeName();
 
                     if (StringUtils.isEmpty(name)) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log("$date【$taskName】【JavaScript节点设置检测】：JavaScript节点节点名称为空。")
+                                .log(MessageFormat.format("$date【$taskName】【{0}节点设置检测】：节点名称为空。", nodeName))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -56,7 +58,7 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【字段编辑节点设置检测】：节点{0}检测通过", name))
+                                .log(MessageFormat.format("$date【$taskName】【{0}节点设置检测】：节点{1}检测通过", nodeName, name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

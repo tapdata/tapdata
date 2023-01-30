@@ -88,7 +88,7 @@ public class MergeTableNodeStrategyImpl implements DagLogStrategy {
 
     private boolean checkRelateIsEmpty (List<MergeTableProperties> mergeProperties) {
         if (CollectionUtils.isEmpty(mergeProperties)) {
-            return false;
+            return true;
         }
 
         boolean noRelate = false;
