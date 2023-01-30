@@ -21,7 +21,7 @@ function write_record(connectionConfig, nodeConfig, eventDataList) {
     return true;
 }
 function update_token(connectionConfig, nodeConfig, apiResponse) {
-    if (apiResponse.result.code !== 99991663) return null;
+    if (apiResponse.result.data.code !== 99991663 && apiResponse.result.data.code !== 99991661) return null;
     let result = invoker.invokeV2("GetAppToken");
     if (result.result.code === 0) return {"token": result.result.tenant_access_token};
     else log.error('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. ');
