@@ -32,7 +32,7 @@ class TapApi {
         };
     }
 
-    invokeV2(uriOrNameStr, paramsMap, methodStr) {
+    invokeWithoutIntercept(uriOrNameStr, paramsMap, methodStr) {
         let result = null;
         if (!isParam(uriOrNameStr)) {
             log.error("No API name or URL was specified, unable to execute http request. ");

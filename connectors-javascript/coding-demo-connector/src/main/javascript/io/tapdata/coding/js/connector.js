@@ -16,9 +16,9 @@ function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSi
 function connection_test(connectionConfig) {
     let issuesList = invoker.invoke('Issues');
     return [{
-        "TEST": " Check whether the interface call passes of Issues List API.",
-        "CODE": issuesList ? 1 : -1,
-        "RESULT": issuesList ? "Pass" : "Not pass"}];
+        "test": " Check whether the interface call passes of Issues List API.",
+        "code": issuesList ? 1 : -1,
+        "result": issuesList ? "Pass" : "Not pass"}];
 }
 function read(urlName, offset, sender, isStreamRead){
     iterateAllData(urlName, offset, (result, offsetNext, error) => {

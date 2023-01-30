@@ -42,8 +42,15 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
 
     @Override
     public WriteRecordFunction function(LoadJavaScripter javaScripter) {
-        if (super.hasNotSupport(javaScripter)) return null;
+        if (super.hasNotSupport(javaScripter)
+                && this.doNotSupport(JSFunctionNames.InsertRecordFunction)
+                && this.doNotSupport(JSFunctionNames.DeleteRecordFunction)
+                && this.doNotSupport(JSFunctionNames.UpdateRecordFunction) ) return null;
         return this::write;
+    }
+
+    private boolean doNotSupport(JSFunctionNames function){
+        return this.javaScripter.functioned(function.jsName());
     }
 
     private ConcurrentHashMap<String, ScriptEngine> writeEnginePool = new ConcurrentHashMap<>(16);

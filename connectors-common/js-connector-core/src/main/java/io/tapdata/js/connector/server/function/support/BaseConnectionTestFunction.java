@@ -21,9 +21,9 @@ import static io.tapdata.base.ConnectorBase.testItem;
 /**
  * testResult = [
  * {
- * "TEST":"Test Api 1 which is the test item' title. ",
- * "CODE":0,//default0(0:warn,1:succeed,-1:error),
- * "RESULT":"there is a warn message for this test item."
+ * "test":"Test Api 1 which is the test item' title. ",
+ * "code":0,//default0(0:warn,1:succeed,-1:error),
+ * "result":"there is a warn message for this test item."
  * }
  * ]
  */
@@ -44,9 +44,9 @@ public class BaseConnectionTestFunction extends FunctionBase {
         return function;
     }
 
-    public static final String TEST_RESULT_TITLE_KEY = "TEST";
-    public static final String TEST_RESULT_CODE_KEY = "CODE";
-    public static final String TEST_RESULT_MSG_KEY = "RESULT";
+    public static final String TEST_RESULT_TITLE_KEY = "test";
+    public static final String TEST_RESULT_CODE_KEY = "code";
+    public static final String TEST_RESULT_MSG_KEY = "result";
 
     public ConnectionOptions test(TapConnectionContext context, Consumer<TestItem> consumer) {
         ConnectionOptions options = new ConnectionOptions();
