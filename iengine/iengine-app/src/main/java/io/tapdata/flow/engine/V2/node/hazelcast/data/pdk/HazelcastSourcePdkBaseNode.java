@@ -566,7 +566,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				case NORMAL:
 					tapdataEvent = new TapdataEvent();
 					break;
-				case SHARE_CDC:
+				case LOG_COLLECTOR:
 					tapdataEvent = new TapdataShareLogEvent();
 					break;
 			}
@@ -768,7 +768,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	public enum SourceMode {
 		NORMAL,
-		SHARE_CDC,
+		LOG_COLLECTOR,
 	}
 
 

@@ -33,10 +33,11 @@ public class TapdataEvent implements Serializable, Cloneable {
 	private Object offset;
 	private Object batchOffset;
 	private Object streamOffset;
-	private SyncProgress.Type type = SyncProgress.Type.NORMAL;
+	protected SyncProgress.Type type;
 
 	public TapdataEvent() {
 		this.nodeIds = new ArrayList<>();
+		this.type = SyncProgress.Type.NORMAL;
 	}
 
 	@Deprecated
