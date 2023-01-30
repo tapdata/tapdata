@@ -179,7 +179,9 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
             removeFilter("customId", query);
             removeFilter("user_id", query);
             query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
-            query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
+            if ((!userDetail.isRoot()) && !userDetail.isFreeAuth()) {
+                query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
+            }
         }
         return query;
     }
