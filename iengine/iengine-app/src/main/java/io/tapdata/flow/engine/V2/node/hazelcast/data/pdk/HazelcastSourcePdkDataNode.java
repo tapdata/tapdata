@@ -560,61 +560,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			throw new IllegalArgumentException("Unrecognized polling cdc offset type, expecting: " + Map.class.getName() + ", actual: " + streamOffsetObj.getClass().getName());
 		}
 		Map<String, Object> tablePollingCDCOffset;
-		if (MapUtils.isEmpty((Map) streamOffsetObj) || !((Map) streamOffsetObj).containsKey(tableName)) {
-			if (syncType.equals(SyncTypeEnum.CDC)) {
-				tablePollingCDCOffset = new HashMap<>();
-				List<TableNode.CdcPollingField> cdcPollingFields = ((TableNode) node).getCdcPollingFields();
-				for (TableNode.CdcPollingField cdcPollingField : cdcPollingFields) {
-					String field = cdcPollingField.getField();
-					String defaultValue = cdcPollingField.getDefaultValue();
-					if (StringUtils.isEmpty(defaultValue)) {
-						throw new IllegalArgumentException("Polling cdc conditional field [" + field + "] must set a start default value");
-					}
-					TapField tapField = tapTable.getNameFieldMap().get(field);
-					TapType tapType = tapField.getTapType();
-					Object value = defaultValue;
-					switch (tapType.getType()) {
-						case TapType.TYPE_NUMBER:
-							if (defaultValue.contains(".")) {
-								value = Double.valueOf(defaultValue);
-							} else {
-								value = Long.valueOf(defaultValue);
-							}
-							break;
-						case TapType.TYPE_DATE:
-							LocalDate localDate;
-							String dateFormat = "yyyy-MM-dd";
-							try {
-								localDate = LocalDate.parse(defaultValue, DateTimeFormatter.ofPattern(dateFormat));
-							} catch (Exception e) {
-								throw new RuntimeException("The input string format is incorrect, expected format: " + dateFormat + ", actual value:" + defaultValue);
-							}
-							ZonedDateTime gmtZonedDate = localDate.atStartOfDay(ZoneId.of("GMT"));
-							value = new DateTime(gmtZonedDate);
-							break;
-						case TapType.TYPE_DATETIME:
-							LocalDateTime localDateTime;
-							String datetimeFormat = "yyyy-MM-dd HH:mm:ss";
-							try {
-								localDateTime = LocalDateTime.parse(defaultValue, DateTimeFormatter.ofPattern(datetimeFormat));
-							} catch (Exception e) {
-								throw new RuntimeException("The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + defaultValue);
-							}
-							ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
-							value = new DateTime(gmtZonedDateTime);
-							break;
-						default:
-							break;
-					}
-					tablePollingCDCOffset.put(field, value);
-				}
-				((Map) streamOffsetObj).put(tableName, tablePollingCDCOffset);
-			} else {
-				throw new IllegalArgumentException("Polling cdc offset is empty or cannot find offset by table name: " + tableName);
-			}
-		} else {
-			tablePollingCDCOffset = (Map<String, Object>) ((Map) streamOffsetObj).get(tableName);
-		}
+		tablePollingCDCOffset = getTablePollingCDCOffset((TableNode) node, tableName, tapTable, (Map) streamOffsetObj);
 		long cdcPollingInterval = ((TableNode) node).getCdcPollingInterval();
 		cdcPollingInterval = Math.max(cdcPollingInterval, CDC_POLLING_MIN_INTERVAL_MS);
 		long logInterval = TimeUnit.MINUTES.toMillis(5);
@@ -639,7 +585,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			for (Map.Entry<String, Object> entry : tablePollingCDCOffset.entrySet()) {
 				String field = entry.getKey();
 				Object value = entry.getValue();
-				tapAdvanceFilter.op(QueryOperator.gt(field, value));
+				if (null != value) {
+					tapAdvanceFilter.op(QueryOperator.gt(field, value));
+				}
 				tapAdvanceFilter.sort(SortOn.ascending(field));
 			}
 			tapAdvanceFilter.limit(cdcPollingBatchSize);
@@ -715,6 +663,72 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
+	private Map<String, Object> getTablePollingCDCOffset(TableNode node, String tableName, TapTable tapTable, Map streamOffsetObj) {
+		Map<String, Object> tablePollingCDCOffset;
+		if (MapUtils.isEmpty(streamOffsetObj) || !streamOffsetObj.containsKey(tableName)) {
+			tablePollingCDCOffset = new HashMap<>();
+			List<TableNode.CdcPollingField> cdcPollingFields = node.getCdcPollingFields();
+			for (TableNode.CdcPollingField cdcPollingField : cdcPollingFields) {
+				String field = cdcPollingField.getField();
+				String defaultValue = cdcPollingField.getDefaultValue();
+				if (syncType.equals(SyncTypeEnum.CDC) && StringUtils.isEmpty(defaultValue)) {
+					throw new IllegalArgumentException("Polling cdc conditional field [" + field + "] must set a start default value");
+				}
+				TapField tapField = tapTable.getNameFieldMap().get(field);
+				TapType tapType = tapField.getTapType();
+				Object convertValue = defaultValue;
+				if (null != convertValue) {
+					switch (tapType.getType()) {
+						case TapType.TYPE_NUMBER:
+							if (defaultValue.contains(".")) {
+								try {
+									convertValue = Double.valueOf(defaultValue);
+								} catch (NumberFormatException e) {
+									throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Double failed", e);
+								}
+							} else {
+								try {
+									convertValue = Long.valueOf(defaultValue);
+								} catch (NumberFormatException e) {
+									throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Long failed", e);
+								}
+							}
+							break;
+						case TapType.TYPE_DATE:
+							LocalDate localDate;
+							String dateFormat = "yyyy-MM-dd";
+							try {
+								localDate = LocalDate.parse(defaultValue, DateTimeFormatter.ofPattern(dateFormat));
+							} catch (Exception e) {
+								throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to LocalDate failed, format: " + dateFormat);
+							}
+							ZonedDateTime gmtZonedDate = localDate.atStartOfDay(ZoneId.of("GMT"));
+							convertValue = new DateTime(gmtZonedDate);
+							break;
+						case TapType.TYPE_DATETIME:
+							LocalDateTime localDateTime;
+							String datetimeFormat = "yyyy-MM-dd HH:mm:ss";
+							try {
+								localDateTime = LocalDateTime.parse(defaultValue, DateTimeFormatter.ofPattern(datetimeFormat));
+							} catch (Exception e) {
+								throw new RuntimeException("The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + defaultValue);
+							}
+							ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
+							convertValue = new DateTime(gmtZonedDateTime);
+							break;
+						default:
+							break;
+					}
+				}
+				tablePollingCDCOffset.put(field, convertValue);
+			}
+			streamOffsetObj.put(tableName, tablePollingCDCOffset);
+		} else {
+			tablePollingCDCOffset = (Map<String, Object>) streamOffsetObj.get(tableName);
+		}
+		return tablePollingCDCOffset;
+	}
+
 	private void flushPollingCDCOffset(List<TapEvent> tapEvents) {
 		if (CollectionUtils.isEmpty(tapEvents)) {
 			return;
@@ -774,30 +788,34 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private TapAdvanceFilter batchFilterRead() {
 		TableNode tableNode = (TableNode) dataProcessorContext.getNode();
 		TapAdvanceFilter tapAdvanceFilter = new TapAdvanceFilter();
-		DataMap match = new DataMap();
-		List<QueryOperator> queryOperators = new ArrayList<>();
-		List<QueryOperator> conditions = tableNode.getConditions();
-		if (CollectionUtils.isNotEmpty(conditions)) {
-			for (QueryOperator queryOperator : conditions) {
-				if (EQUAL_VALUE == queryOperator.getOperator()) {
-					match.put(queryOperator.getKey(), queryOperator.getValue());
-				} else {
-					queryOperators.add(queryOperator);
+		if (isTableFilter(tableNode)) {
+			List<QueryOperator> conditions = tableNode.getConditions();
+			if (CollectionUtils.isNotEmpty(conditions)) {
+				DataMap match = new DataMap();
+				List<QueryOperator> queryOperators = new ArrayList<>();
+				for (QueryOperator queryOperator : conditions) {
+					if (EQUAL_VALUE == queryOperator.getOperator()) {
+						match.put(queryOperator.getKey(), queryOperator.getValue());
+					} else {
+						queryOperators.add(queryOperator);
+					}
 				}
+				tapAdvanceFilter.setMatch(match);
+				tapAdvanceFilter.setOperators(queryOperators);
 			}
-			tapAdvanceFilter.setMatch(match);
-			tapAdvanceFilter.setOperators(queryOperators);
+			Integer limit = tableNode.getLimit();
+			if (null == limit) {
+				limit = readBatchSize;
+			}
+			tapAdvanceFilter.setLimit(limit);
 		}
-		Integer limit = tableNode.getLimit();
-		if (null == limit) {
-			limit = readBatchSize;
-		}
-		tapAdvanceFilter.setLimit(limit);
 
-		List<TableNode.CdcPollingField> cdcPollingFields = tableNode.getCdcPollingFields();
-		if (CollectionUtils.isNotEmpty(cdcPollingFields)) {
-			for (TableNode.CdcPollingField cdcPollingField : cdcPollingFields) {
-				tapAdvanceFilter.sort(SortOn.ascending(cdcPollingField.getField()));
+		if (isPollingCDC(tableNode)) {
+			List<TableNode.CdcPollingField> cdcPollingFields = tableNode.getCdcPollingFields();
+			if (CollectionUtils.isNotEmpty(cdcPollingFields)) {
+				for (TableNode.CdcPollingField cdcPollingField : cdcPollingFields) {
+					tapAdvanceFilter.sort(SortOn.ascending(cdcPollingField.getField()));
+				}
 			}
 		}
 		return tapAdvanceFilter;
