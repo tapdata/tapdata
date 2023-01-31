@@ -62,7 +62,6 @@ public class RegisterMain {
         TENCENT_DB_MONGODB(BASE_PATH + "connectors/dist/tencent-db-mongodb-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mongodb"),
         TENCENT_DB_POSTGRES(BASE_PATH + "connectors/dist/tencent-db-postgres-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-postgres"),
 		SelectDB(BASE_PATH + "connectors/dist/selectdb-connector-v1.0-SNAPSHOT.jar", "all", "selectdb"),
-		JsTest(BASE_PATH + "connectors/dist/js-test-connector-v1.0-SNAPSHOT.jar", "all", "jstest"),
         Metabase(BASE_PATH + "connectors/dist/metabase-connector-v1.0-SNAPSHOT.jar", "all", "metabase"),
         ;
 
