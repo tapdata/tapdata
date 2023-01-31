@@ -63,7 +63,7 @@ public class RegisterMain {
         TENCENT_DB_POSTGRES(BASE_PATH + "connectors/dist/tencent-db-postgres-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-postgres"),
 		SelectDB(BASE_PATH + "connectors/dist/selectdb-connector-v1.0-SNAPSHOT.jar", "all", "selectdb"),
         Metabase(BASE_PATH + "connectors/dist/metabase-connector-v1.0-SNAPSHOT.jar", "all", "metabase"),
-        FlyBook(BASE_PATH + "connectors/dist/fly-book-connector-v1.0-SNAPSHOT.jar", "all", "feishu"),
+        Lark(BASE_PATH + "connectors/dist/lark-connector-v1.0-SNAPSHOT.jar", "all", "lark"),
         ;
 
         private final String path;

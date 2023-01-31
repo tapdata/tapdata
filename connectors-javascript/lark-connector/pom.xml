@@ -9,9 +9,9 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>fly-book-connector</artifactId>
+    <artifactId>lark-connector</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>fly-book-connector</name>
+    <name>lark-connector</name>
     <packaging>jar</packaging>
 
     <properties>

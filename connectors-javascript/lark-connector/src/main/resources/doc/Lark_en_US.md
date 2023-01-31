@@ -1,4 +1,4 @@
-## Create FeiShu data source (target)
+## Create Lark data source (target)
 
 You need to go to https://open.feishu.cn/app Find the corresponding application and find it in the ***voucher and basic information*** of the application:
 
@@ -14,7 +14,7 @@ At this time, the FeiShu data source is created successfully!
 
 ### Precautions
 
-#### Use FeiShu to send the message
+#### Use Lark to send the message
 
 If you need to send a message using FeiShu:
 

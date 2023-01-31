@@ -1,9 +1,9 @@
 {
   "properties": {
-    "name": "FeiShu",
-    "icon": "icon/feishu.png",
+    "name": "Lark",
+    "icon": "icon/lark.png",
     "doc" : "${doc}",
-    "id": "feishu"
+    "id": "lark"
   },
   "configOptions": {
     "pdkExpansion": [],
@@ -37,17 +37,17 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "doc/FeiShu_en_US.md",
+      "doc": "doc/Lark_en_US.md",
       "app_id": "App Id",
       "app_secret": "App Secret"
     },
     "zh_CN": {
-      "doc": "doc/FeiShu_zh_CN.md",
+      "doc": "doc/Lark_zh_CN.md",
       "app_id": "应用Id",
       "app_secret": "应用Secret"
     },
     "zh_TW": {
-      "doc": "doc/FeiShu_zh_TW.md",
+      "doc": "doc/Lark_zh_TW.md",
       "app_id": "应用Id",
       "app_secret": "应用Secret"
     }

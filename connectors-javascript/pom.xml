@@ -10,7 +10,7 @@
 
 	<modules>
 		<module>metabase-connector</module>
-		<module>fly-book-connector</module>
+		<module>lark-connector</module>
 	</modules>
 
 	<properties>

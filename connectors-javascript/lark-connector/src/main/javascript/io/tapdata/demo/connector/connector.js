@@ -1,5 +1,5 @@
 function discover_schema(connectionConfig) {
-    return ['example_table'];
+    return ['example_table_lark'];
 }
 function connection_test(connectionConfig) {
     let result = invoker.invokeWithoutIntercept("GetAppToken");
