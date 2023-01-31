@@ -27,6 +27,7 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.flow.engine.V2.util.TapCache;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -115,10 +116,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected ObsLogger obsLogger;
 
+	private final TapCache<Boolean> isJobRunning = new TapCache<Boolean>().expireTime(2000).supplier(this::isJetJobRunning).disableCacheValue(false);
 
 	protected String lastTableName;
 
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
+//		isJobRunning = new TapCache<Boolean>().expireTime(2000).supplier(this::isJetJobRunning).disableCacheValue(false);
+
 		this.processorBaseContext = processorBaseContext;
 
 		this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
@@ -716,7 +720,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected boolean isRunning() {
-		return running.get() && !Thread.currentThread().isInterrupted() && isJetJobRunning();
+		return running.get() && !Thread.currentThread().isInterrupted() && isJobRunning.get();
 	}
 
 
