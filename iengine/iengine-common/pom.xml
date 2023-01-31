@@ -329,6 +329,11 @@
             <version>3.0.8</version>
             <!--      <type>bundle</type>-->
         </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>4.4</version>
+        </dependency>
     </dependencies>
 
     <distributionManagement>

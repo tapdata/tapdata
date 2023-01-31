@@ -45,6 +45,10 @@
             <artifactId>aws-java-sdk-s3</artifactId>
             <version>1.12.319</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

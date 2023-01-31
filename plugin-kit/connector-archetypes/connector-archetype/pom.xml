@@ -12,8 +12,15 @@
   <properties>
     <maven.deploy.skip>true</maven.deploy.skip>
   </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>4.4</version>
+        </dependency>
+    </dependencies>
 
-  <build>
+    <build>
     <extensions>
       <extension>
         <groupId>org.apache.maven.archetype</groupId>

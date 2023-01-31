@@ -52,7 +52,8 @@
 		<module>aws-rds-mysql-connector</module>
 		<module>tencent-db-mariadb-connector</module>
 		<module>aliyun-rds-mariadb-connector</module>
-	</modules>
+        <module>databend-connector</module>
+    </modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>
@@ -143,6 +144,12 @@
 
 		</dependencies>
 	</dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>

@@ -21,6 +21,12 @@
         <module>debezium-mysql</module>
         <module>mysql-core</module>
     </modules>
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+        </dependency>
+    </dependencies>
 
     <repositories>
         <repository>

@@ -45,6 +45,10 @@
             <artifactId>nfs-client</artifactId>
             <version>1.1.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
