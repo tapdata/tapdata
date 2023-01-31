@@ -204,7 +204,7 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	public void getRelateDatabaseField(TapConnectionContext connectionContext, TableFieldTypesGenerator tableFieldTypesGenerator, BsonValue value, String fieldName, TapTable table) {
-		if (value instanceof BsonDocument) {
+	if (value instanceof BsonDocument) {
 			BsonDocument bsonDocument = (BsonDocument) value;
 			for (Map.Entry<String, BsonValue> entry : bsonDocument.entrySet()) {
 				getRelateDatabaseField(connectionContext, tableFieldTypesGenerator, entry.getValue(), fieldName + "." + entry.getKey(), table);
@@ -252,8 +252,7 @@ public class MongodbConnector extends ConnectorBase {
 				field = TapSimplify.field(fieldName, bsonType.name());
 			}
 		} else {
-//			field = TapSimplify.field(fieldName, BsonType.NULL.name());
-			return;
+			field = TapSimplify.field(fieldName, BsonType.NULL.name());
 		}
 
 		if (COLLECTION_ID_FIELD.equals(fieldName)) {
@@ -467,7 +466,8 @@ public class MongodbConnector extends ConnectorBase {
 				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)
 				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
 				|| null != matchThrowable(throwable, MongoServerUnavailableException.class)
-				|| null != matchThrowable(throwable, MongoQueryException.class)) {
+				|| null != matchThrowable(throwable, MongoQueryException.class)
+				|| null != matchThrowable(throwable, MongoInterruptedException.class)) {
 			retryOptions.needRetry(true);
 			return retryOptions;
 		}

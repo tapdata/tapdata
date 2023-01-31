@@ -9,8 +9,10 @@
     <packaging>pom</packaging>
 
 	<modules>
-		<module>coding-demo-connector</module>
-		<module>js-test-connector</module>
+<!--		<module>coding-demo-connector</module>-->
+<!--		<module>js-test-connector</module>-->
+		<module>metabase-connector</module>
+		<module>fly-book-connector</module>
 <!--		<module>demo-connector</module>-->
 	</modules>
 

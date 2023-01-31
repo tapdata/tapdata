@@ -18,9 +18,11 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.toCollection;
 
 /**
  * @author jiuyetx
@@ -55,7 +57,11 @@ public class AlarmSettingServiceImpl implements AlarmSettingService {
             }
         }
 
-        return CglibUtil.copyList(alarmSettings, AlarmSettingDto::new);
+        List<AlarmSetting> list = alarmSettings.stream().collect(
+                collectingAndThen(
+                        toCollection(() -> new TreeSet<>(Comparator.comparing(AlarmSetting::getKey))), ArrayList::new));
+
+        return CglibUtil.copyList(list, AlarmSettingDto::new);
     }
 
     @Override

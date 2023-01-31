@@ -20,12 +20,14 @@ import java.util.function.BiConsumer;
 
 /**
  * 事项评论
- * */
-public class CommentsLoader extends CodingStarter implements CodingLoader<CommentParam>{
+ */
+public class CommentsLoader extends CodingStarter implements CodingLoader<CommentParam> {
     private static final String TAG = CommentsLoader.class.getSimpleName();
+
     public CommentsLoader(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);
     }
+
     public static CommentsLoader create(TapConnectionContext tapConnectionContext) {
         return new CommentsLoader(tapConnectionContext);
     }
@@ -35,11 +37,12 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
         long streamReadTime = 5 * 60 * 1000;
         return streamReadTime;
     }
+
     @Override
-    public List<Map<String,Object>> list(CommentParam param) {
-        Map<String,Object> resultMap = this.codingHttp(param).post();
+    public List<Map<String, Object>> list(CommentParam param) {
+        Map<String, Object> resultMap = this.codingHttp(param).post();
         Object response = resultMap.get("CommentList");
-        return null !=  response? (List<Map<String, Object>>) response : null;
+        return null != response ? (List<Map<String, Object>>) response : null;
     }
 
     @Override
@@ -47,14 +50,14 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
         CodingHttp codingHttp = this.codingHttp(param);
         List<Integer> issueCodes = param.issueCodes();
         List<Map<String, Object>> result = new ArrayList<>();
-        if (Checker.isEmpty(issueCodes)){
+        if (Checker.isEmpty(issueCodes)) {
             return result;
         }
-        issueCodes.forEach(issueCode->{
+        issueCodes.forEach(issueCode -> {
             param.issueCode(issueCode);
-            Map<String,Object> resultMap = codingHttp.buildBody("IssueCode",issueCode).post();
+            Map<String, Object> resultMap = codingHttp.buildBody("IssueCode", issueCode).post();
             Object response = resultMap.get("CommentList");
-            if (Checker.isNotEmpty(response)){
+            if (Checker.isNotEmpty(response)) {
                 result.addAll((List<Map<String, Object>>) response);
             }
         });
@@ -65,16 +68,16 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
     public CodingHttp codingHttp(CommentParam param) {
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         param.action("DescribeIterationList");
-        HttpEntity<String,String> header = HttpEntity.create()
-                .builder("Authorization",contextConfig.getToken());
-        HttpEntity<String,Object> body = HttpEntity.create()
-                .builderIfNotAbsent("Action","DescribeIssueCommentList")
-                .builder("ProjectName",contextConfig.getProjectName())
-                .builder("IssueCode",param.issueCode());
+        HttpEntity<String, String> header = HttpEntity.create()
+                .builder("Authorization", contextConfig.getToken());
+        HttpEntity<String, Object> body = HttpEntity.create()
+                .builderIfNotAbsent("Action", "DescribeIssueCommentList")
+                .builder("ProjectName", contextConfig.getProjectName())
+                .builder("IssueCode", param.issueCode());
         return CodingHttp.create(
                 header.getEntity(),
                 body.getEntity(),
-                String.format(OPEN_API_URL,contextConfig.getTeamName()));
+                String.format(OPEN_API_URL, contextConfig.getTeamName()));
     }
 
     @Override
@@ -85,38 +88,38 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
         CodingHttp codingHttp = this.codingHttp(param);
         List<Integer> issueCodes = contextConfig.issueCodes();
         List<TapEvent> events = new ArrayList<>();
-        if (Checker.isEmpty(issueCodes)){
+        if (Checker.isEmpty(issueCodes)) {
             throw new CoreException("Please select at least one issues to get the comment list.");
         }
         for (Integer issueCode : issueCodes) {
-            if (!this.sync()){
+            if (!this.sync()) {
                 this.connectorOut();
                 break;
             }
             param.issueCode(issueCode);
-            Map<String,Object> resultMap = codingHttp.buildBody("IssueCode",issueCode).post();
+            Map<String, Object> resultMap = codingHttp.buildBody("IssueCode", issueCode).post();
             Object response = resultMap.get("CommentList");
-            if (Checker.isNotEmpty(response)){
+            if (Checker.isNotEmpty(response)) {
                 List<Map<String, Object>> result = (List<Map<String, Object>>) response;
                 for (Map<String, Object> stringObjectMap : result) {
                     Object updatedAtObj = stringObjectMap.get("UpdatedAt");
-                    Long updatedAt = Checker.isEmpty(updatedAtObj) ? System.currentTimeMillis() : (Long)updatedAtObj;
-                    events.add(TapSimplify.insertRecordEvent(stringObjectMap,"Comments").referenceTime(updatedAt));
+                    Long updatedAt = Checker.isEmpty(updatedAtObj) ? System.currentTimeMillis() : (Long) updatedAtObj;
+                    events.add(TapSimplify.insertRecordEvent(stringObjectMap, "Comments").referenceTime(updatedAt));
                     CodingOffset codingOffset = (CodingOffset) offset;
                     Map<Object, Object> offset1 = codingOffset.offset();
-                    if (Checker.isEmpty(offset1)){
+                    if (Checker.isEmpty(offset1)) {
                         codingOffset.offset(new HashMap<>());
                     }
-                    codingOffset.offset().put(issueCode,updatedAt);
-                    codingOffset.getTableUpdateTimeMap().put("Comments",updatedAt);
+                    codingOffset.offset().put(issueCode, updatedAt);
+                    codingOffset.getTableUpdateTimeMap().put("Comments", updatedAt);
                     if (result.size() == batchCount) {
-                        consumer.accept(events,offset);
+                        consumer.accept(events, offset);
                         events = new ArrayList<>();
                     }
                 }
             }
         }
-        if (events.size() > 0)  consumer.accept(events, offset);
+        if (events.size() > 0) consumer.accept(events, offset);
     }
 
     @Override

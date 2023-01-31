@@ -140,6 +140,8 @@ public class TaskDto extends ParentTaskDto {
 
     private int stopRetryTimes;
 
+    private boolean isManualStop;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());

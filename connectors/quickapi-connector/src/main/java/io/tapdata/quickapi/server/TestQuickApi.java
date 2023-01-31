@@ -25,7 +25,7 @@ public class TestQuickApi extends QuickApiBase {
     public TestQuickApi(TapConnectionContext connectionContext) {
         super(connectionContext);
         apiFactory = new APIFactoryImpl();
-        invoker = apiFactory.loadAPI(super.config.jsonTxt(), super.config.apiType(), null);
+        invoker = apiFactory.loadAPI(super.config.jsonTxt(), null);
         invoker.setAPIResponseInterceptor(QuickAPIResponseInterceptor.create(config, invoker));
     }
 

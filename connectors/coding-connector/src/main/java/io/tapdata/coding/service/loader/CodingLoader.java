@@ -23,53 +23,52 @@ import java.util.function.BiConsumer;
 public interface CodingLoader<T extends Param> {
 
     static final String TAG = CodingLoader.class.getSimpleName();
-    public Long streamReadTime();
 
-//    public void stopRead();
+    public Long streamReadTime();
 
     public CodingStarter connectorInit(CodingConnector codingConnector);
 
     public CodingStarter connectorOut();
 
-    public static CodingLoader<Param> loader(TapConnectionContext tapConnectionContext, String tableName){
+    public static CodingLoader<Param> loader(TapConnectionContext tapConnectionContext, String tableName) {
         Class clz = null;
         try {
-            clz = Class.forName( "io.tapdata.coding.service.loader." + tableName+"Loader");//CodingLoader.class.getPackage().getName()
+            clz = Class.forName("io.tapdata.coding.service.loader." + tableName + "Loader");//CodingLoader.class.getPackage().getName()
             Constructor com = clz.getConstructor(TapConnectionContext.class);
-            return (CodingLoader)com.newInstance(tapConnectionContext);
+            return (CodingLoader) com.newInstance(tapConnectionContext);
         } catch (ClassNotFoundException e0) {
-            TapLogger.debug(TAG, "ClassNotFoundException for Schema {}",tableName);
-        }catch (NoSuchMethodException e1) {
-            TapLogger.debug(TAG, "NoSuchMethodException for Schema {}",tableName);
+            TapLogger.debug(TAG, "ClassNotFoundException for Schema {}", tableName);
+        } catch (NoSuchMethodException e1) {
+            TapLogger.debug(TAG, "NoSuchMethodException for Schema {}", tableName);
         } catch (InstantiationException e2) {
-            TapLogger.debug(TAG, "InstantiationException for Schema {}",tableName);
+            TapLogger.debug(TAG, "InstantiationException for Schema {}", tableName);
         } catch (IllegalAccessException e3) {
-            TapLogger.debug(TAG, "IllegalAccessException for Schema {}",tableName);
+            TapLogger.debug(TAG, "IllegalAccessException for Schema {}", tableName);
         } catch (InvocationTargetException e4) {
             TapLogger.debug(TAG, "InvocationTargetException for Schema {}", tableName);
         }
         return null;
     }
 
-    public static List<CodingLoader<Param>> loader(TapConnectionContext tapConnectionContext, List<String> tableName){
+    public static List<CodingLoader<Param>> loader(TapConnectionContext tapConnectionContext, List<String> tableName) {
         List<CodingLoader<Param>> loaders = new ArrayList<>();
         if (Checker.isEmpty(tableName)) return loaders;
         for (String table : tableName) {
-            CodingLoader<Param> loader = CodingLoader.loader(tapConnectionContext,table);
-            if (Checker.isNotEmpty(loader)){
+            CodingLoader<Param> loader = CodingLoader.loader(tapConnectionContext, table);
+            if (Checker.isNotEmpty(loader)) {
                 loaders.add(loader);
             }
         }
         return loaders;
     }
 
-    public List<Map<String,Object>> list(T param);
+    public List<Map<String, Object>> list(T param);
 
-    public List<Map<String,Object>> all(T param);
+    public List<Map<String, Object>> all(T param);
 
     public CodingHttp codingHttp(T param);
 
-    public default Map<String,Object> get(T param){
+    public default Map<String, Object> get(T param) {
         return null;
     }
 
@@ -81,28 +80,29 @@ public interface CodingLoader<T extends Param> {
 
     public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData);
 
-    public default CodingEvent getRowDataCallBackEvent(Map<String, Object> eventData){
+    public default CodingEvent getRowDataCallBackEvent(Map<String, Object> eventData) {
         if (Checker.isEmpty(eventData)) {
-            throw new CoreException("Row data call back event data is empty or null.");
+            throw new CoreException("Row data call back event data is empty.");
         }
         Object event = eventData.get("event");
         if (Checker.isEmpty(event)) {
-            throw new CoreException("Row data call back event type is empty or null.");
+            throw new CoreException("Row data call back event type is empty.");
         }
         String webHookEventType = String.valueOf(event);
         return CodingEvent.event(webHookEventType);
     }
 
-    public default String longToDateStr(Long date){
+    public default String longToDateStr(Long date) {
         if (null == date) return "1000-01-01";
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
         String dateStr = formatter.format(new Date(date));
-        return dateStr.length()>10?"9999-12-31":dateStr;
+        return dateStr.length() > 10 ? "9999-12-31" : dateStr;
     }
-    public default String longToDateTimeStr(Long date){
+
+    public default String longToDateTimeStr(Long date) {
         if (null == date) return "1000-01-01 00:00:00";
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
         String dateStr = formatter.format(new Date(date));
-        return dateStr.length()>19?"9999-12-31 23:59:59":dateStr;
+        return dateStr.length() > 19 ? "9999-12-31 23:59:59" : dateStr;
     }
 }
