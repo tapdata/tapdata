@@ -22,7 +22,8 @@ public abstract class CodingStarter {
     protected TapConnectionContext tapConnectionContext;
 
     CodingConnector codingConnector;
-    public CodingStarter connectorInit(CodingConnector codingConnector){
+
+    public CodingStarter connectorInit(CodingConnector codingConnector) {
         this.codingConnector = codingConnector;
         return this;
     }
@@ -32,29 +33,30 @@ public abstract class CodingStarter {
         return this;
     }
 
-    public boolean sync(){
-        synchronized (codingConnector){
+    public boolean sync() {
+        synchronized (codingConnector) {
             return null != codingConnector && codingConnector.isAlive();
         }
     }
 
     protected boolean isVerify;
-    CodingStarter(TapConnectionContext tapConnectionContext){
+
+    CodingStarter(TapConnectionContext tapConnectionContext) {
         this.tapConnectionContext = tapConnectionContext;
         this.isVerify = Boolean.FALSE;
     }
 
-    protected static Entry entry(String key, Object value){
-        return new Entry(key,value);
+    protected static Entry entry(String key, Object value) {
+        return new Entry(key, value);
     }
 
-    public String tokenSetter(String token){
+    public String tokenSetter(String token) {
         return Checker.isNotEmpty(token) ?
                 (token.startsWith(TOKEN_PREF) ? token : TOKEN_PREF + token)
                 : token;
     }
 
-    public ContextConfig veryContextConfigAndNodeConfig(){
+    public ContextConfig veryContextConfigAndNodeConfig() {
         this.verifyConnectionConfig();
         DataMap connectionConfigConfigMap = this.tapConnectionContext.getConnectionConfig();
         String projectName = connectionConfigConfigMap.getString("projectName");
@@ -70,11 +72,11 @@ public abstract class CodingStarter {
                 .streamReadType(streamReadType)
                 .connectionMode(connectionMode);
         if (this.tapConnectionContext instanceof TapConnectorContext) {
-            DataMap nodeConfigMap = ((TapConnectorContext)this.tapConnectionContext).getNodeConfig();
+            DataMap nodeConfigMap = ((TapConnectorContext) this.tapConnectionContext).getNodeConfig();
             if (null == nodeConfigMap) {
                 config.issueType(IssueType.ALL);
                 config.iterationCodes("-1");
-            }else{
+            } else {
                 String iterationCodeArr = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
                 if (null != iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
                 String issueType = nodeConfigMap.getString("issueType");
@@ -91,15 +93,15 @@ public abstract class CodingStarter {
     /**
      * 校验connectionConfig配置字段
      */
-    public void verifyConnectionConfig(){
-        if(this.isVerify){
+    public void verifyConnectionConfig() {
+        if (this.isVerify) {
             return;
         }
-        if (null == this.tapConnectionContext){
+        if (null == this.tapConnectionContext) {
             throw new IllegalArgumentException("TapConnectorContext cannot be null");
         }
         DataMap connectionConfig = this.tapConnectionContext.getConnectionConfig();
-        if (null == connectionConfig ){
+        if (null == connectionConfig) {
             throw new IllegalArgumentException("TapTable' DataMap cannot be null");
         }
         String projectName = connectionConfig.getString("projectName");
@@ -107,19 +109,19 @@ public abstract class CodingStarter {
         String teamName = connectionConfig.getString("teamName");
         String streamReadType = connectionConfig.getString("streamReadType");
         String connectionMode = connectionConfig.getString("connectionMode");
-        if ( null == projectName || "".equals(projectName)){
+        if (null == projectName || "".equals(projectName)) {
             TapLogger.debug(TAG, "Connection parameter exception: {} ", projectName);
         }
-        if ( null == token || "".equals(token) ){
+        if (null == token || "".equals(token)) {
             TapLogger.debug(TAG, "Connection parameter exception: {} ", token);
         }
-        if ( null == teamName || "".equals(teamName) ){
+        if (null == teamName || "".equals(teamName)) {
             TapLogger.debug(TAG, "Connection parameter exception: {} ", teamName);
         }
-        if ( null == streamReadType || "".equals(streamReadType) ){
+        if (null == streamReadType || "".equals(streamReadType)) {
             TapLogger.info(TAG, "Connection parameter streamReadType exception: {} ", token);
         }
-        if ( null == connectionMode || "".equals(connectionMode) ){
+        if (null == connectionMode || "".equals(connectionMode)) {
             TapLogger.info(TAG, "Connection parameter connectionMode exception: {} ", teamName);
         }
         this.isVerify = Boolean.TRUE;

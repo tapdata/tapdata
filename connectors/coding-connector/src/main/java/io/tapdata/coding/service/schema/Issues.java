@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Map;
 
 public class Issues implements SchemaStart {
     public final Boolean use = true;
@@ -37,10 +36,12 @@ public class Issues implements SchemaStart {
     public String tableName() {
         return "Issues";
     }
+
     @Override
     public boolean connection(TapConnectionContext tapConnectionContext) {
         return false;
     }
+
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
         return table(tableName())
@@ -89,39 +90,39 @@ public class Issues implements SchemaStart {
 //                .add(field("EpicCode", JAVA_Integer))                                        //所属史诗Code
                 .add(field("Epic", JAVA_Map))                                                    //所属史诗
 //                .add(field("IterationCode", JAVA_Integer))                                   //所属迭代Code
-                .add(field("Iteration", JAVA_Map)) ;                                              //所属迭代;
+                .add(field("Iteration", JAVA_Map));                                              //所属迭代;
     }
 
 
     @Override
     public TapTable csv(TapConnectionContext connectionContext) {
         TapTable tapTable = table(tableName())
-                .add(field("Code",              "Integer").isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
-                .add(field("ProjectName",       "StringMinor").isPrimaryKey(true).primaryKeyPos(2))    //项目名称
-                .add(field("TeamName",          "StringMinor").isPrimaryKey(true).primaryKeyPos(1))    //团队名称
-                .add(field("Type",              "StringMinor"))                                        //事项类型：DEFECT - 缺陷;REQUIREMENT - 需求;MISSION - 任务;EPIC - 史诗;SUB_TASK - 子工作项
-                .add(field("Name",              "StringMinor"))                                        //名称
-                .add(field("Description",       "StringLonger"))                                       //描述
-                .add(field("IssueStatusName",   "StringMinor"))                                        //事项状态名称
-                .add(field("CreatedAt",               JAVA_Long))                                             //创建时间
-                .add(field("CreatorId",         "Integer"))                                            //创建人Id
-                .add(field("UpdatedAt",               JAVA_Long))                                             //修改时间
-                .add(field("IterationName",     "StringNormal"))                                       //所属迭代
-                .add(field("AssigneeName",      "StringNormal"))                                       //处理人
-                .add(field("DefectTypeName",    "StringNormal"))                                       //缺陷类型
-                .add(field("ParentCode",        "Integer"))                                            //缺陷类型
-                .add(field("StartDate",               JAVA_Long))                                             //开始日期时间戳
-                .add(field("DueDate",                 JAVA_Long))                                             //截止日期时间戳
-                .add(field("Priority",          "StringNormal"))                                       //优先级
+                .add(field("Code", "Integer").isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
+                .add(field("ProjectName", "StringMinor").isPrimaryKey(true).primaryKeyPos(2))    //项目名称
+                .add(field("TeamName", "StringMinor").isPrimaryKey(true).primaryKeyPos(1))    //团队名称
+                .add(field("Type", "StringMinor"))                                        //事项类型：DEFECT - 缺陷;REQUIREMENT - 需求;MISSION - 任务;EPIC - 史诗;SUB_TASK - 子工作项
+                .add(field("Name", "StringMinor"))                                        //名称
+                .add(field("Description", "StringLonger"))                                       //描述
+                .add(field("IssueStatusName", "StringMinor"))                                        //事项状态名称
+                .add(field("CreatedAt", JAVA_Long))                                             //创建时间
+                .add(field("CreatorId", "Integer"))                                            //创建人Id
+                .add(field("UpdatedAt", JAVA_Long))                                             //修改时间
+                .add(field("IterationName", "StringNormal"))                                       //所属迭代
+                .add(field("AssigneeName", "StringNormal"))                                       //处理人
+                .add(field("DefectTypeName", "StringNormal"))                                       //缺陷类型
+                .add(field("ParentCode", "Integer"))                                            //缺陷类型
+                .add(field("StartDate", JAVA_Long))                                             //开始日期时间戳
+                .add(field("DueDate", JAVA_Long))                                             //截止日期时间戳
+                .add(field("Priority", "StringNormal"))                                       //优先级
                 .add(field("ProjectModuleName", "StringNormal"))                                       //项目模块
-                .add(field("LabelName",         "StringNormal"))                                       //标签s
-                .add(field("WatcherName",       "StringNormal"))                                       //关注人s
-                .add(field("WorkingHours",      "WorkingHours"))                                       //工时（小时）
+                .add(field("LabelName", "StringNormal"))                                       //标签s
+                .add(field("WatcherName", "StringNormal"))                                       //关注人s
+                .add(field("WorkingHours", "WorkingHours"))                                       //工时（小时）
                 ;
         // 查询自定义属性列表
-        Map<Integer, Map<String,Object>> customFields = new HashMap<>();
+        Map<Integer, Map<String, Object>> customFields = new HashMap<>();
         List<Map<String, Object>> allIssueType = IssuesLoader.create(connectionContext).getAllIssueType();
-        if (Checker.isEmpty(allIssueType)){
+        if (Checker.isEmpty(allIssueType)) {
             throw new CoreException("Get issue type list error.");
         }
         ContextConfig contextConfig = IssuesLoader.create(connectionContext).veryContextConfigAndNodeConfig();
@@ -135,7 +136,7 @@ public class Issues implements SchemaStart {
                 }
             }
         }
-        customFields.forEach((fieldId,obj)->{
+        customFields.forEach((fieldId, obj) -> {
             /***
              *  {
              *      "Id": 63054716,
@@ -175,7 +176,7 @@ public class Issues implements SchemaStart {
                     Object componentTypeObj = issueField.get("ComponentType");
                     tapTable.add(field(
                             Constants.CUSTOM_FIELD_SUFFIX + String.valueOf(filedName),
-                            CustomFieldType.type(Checker.isEmpty(componentTypeObj)?null:String.valueOf(componentTypeObj))));
+                            CustomFieldType.type(Checker.isEmpty(componentTypeObj) ? null : String.valueOf(componentTypeObj))));
                 }
             }
         });
@@ -187,21 +188,21 @@ public class Issues implements SchemaStart {
         return null;
     }
 
-    private Map<Integer,Map<String,Object>> getIssueCustomFieldMap(String issueType, ContextConfig contextConfig){
-        HttpEntity<String,String> heard = HttpEntity.create().builder("Authorization",contextConfig.getToken());
-        HttpEntity<String,Object> body = HttpEntity.create()
-                .builder("Action","DescribeProjectIssueFieldList")
-                .builder("ProjectName",contextConfig.getProjectName())
-                .builder("IssueType",issueType);
+    private Map<Integer, Map<String, Object>> getIssueCustomFieldMap(String issueType, ContextConfig contextConfig) {
+        HttpEntity<String, String> heard = HttpEntity.create().builder("Authorization", contextConfig.getToken());
+        HttpEntity<String, Object> body = HttpEntity.create()
+                .builder("Action", "DescribeProjectIssueFieldList")
+                .builder("ProjectName", contextConfig.getProjectName())
+                .builder("IssueType", issueType);
         Map<String, Object> post = CodingHttp.create(heard.getEntity(), body.getEntity(), String.format(CodingStarter.OPEN_API_URL, contextConfig.getTeamName())).post();
         Object response = post.get("Response");
-        Map<String,Object> responseMap = (Map<String, Object>) response;
-        if (null == response ){
-            throw new CoreException("HTTP request exception, Issue CustomField acquisition failed: " + CodingStarter.OPEN_API_URL+"?Action=DescribeProjectIssueFieldList");
+        Map<String, Object> responseMap = (Map<String, Object>) response;
+        if (null == response) {
+            throw new CoreException("HTTP request exception, Issue CustomField acquisition failed: " + CodingStarter.OPEN_API_URL + "?Action=DescribeProjectIssueFieldList");
         }
         Object data = responseMap.get("ProjectIssueFieldList");
-        if (null != data && data instanceof JSONArray){
-            if (((JSONArray)data).size()>0) {
+        if (null != data && data instanceof JSONArray) {
+            if (((JSONArray) data).size() > 0) {
                 List<Map<String, Object>> list = (List<Map<String, Object>>) data;
                 return list.stream().collect(Collectors.toMap(item -> (Integer) item.get("IssueFieldId"), item -> item));
             }
@@ -210,31 +211,31 @@ public class Issues implements SchemaStart {
     }
 
     //CustomFields
-    private Map<String,Object> setCustomField(Map<String,Object> stringObjectMap,ContextConfig contextConfig){
+    private Map<String, Object> setCustomField(Map<String, Object> stringObjectMap, ContextConfig contextConfig) {
         Object issueType = stringObjectMap.get("Type");
-        if (Checker.isEmpty(issueType)){
+        if (Checker.isEmpty(issueType)) {
             return null;
         }
         Map<Integer, Map<String, Object>> issueCustomFieldMap = this.getIssueCustomFieldMap((String) issueType, contextConfig);
-        if (Checker.isEmpty(issueCustomFieldMap)){
+        if (Checker.isEmpty(issueCustomFieldMap)) {
             return null;
         }
         Object customFieldsObj = stringObjectMap.get("CustomFields");
-        if (null == customFieldsObj){
+        if (null == customFieldsObj) {
             return null;
         }
-        List<Map<String,Object>> customFields = (List<Map<String,Object>>)customFieldsObj;
-        if (null == customFields || customFields.size()<=0){
+        List<Map<String, Object>> customFields = (List<Map<String, Object>>) customFieldsObj;
+        if (null == customFields || customFields.size() <= 0) {
             return null;
         }
-        Map<String,Object> result = new HashMap<>();
-        customFields.forEach(field->{
+        Map<String, Object> result = new HashMap<>();
+        customFields.forEach(field -> {
             // @TODO
             Object id = field.get("Id");
             if (Checker.isNotEmpty(id)) {
-                Map<String,Object> fieldDetialMap = issueCustomFieldMap.get(id);
-                if (Checker.isNotEmpty(fieldDetialMap)){
-                    Map<String, Object> fieldMap = (Map<String,Object>)fieldDetialMap.get("IssueField");
+                Map<String, Object> fieldDetialMap = issueCustomFieldMap.get(id);
+                if (Checker.isNotEmpty(fieldDetialMap)) {
+                    Map<String, Object> fieldMap = (Map<String, Object>) fieldDetialMap.get("IssueField");
                     //Object componentTypeObj = issueCustomFieldMap.get("ComponentType");
                     //Class feature = CustomFieldType.feature(Checker.isEmpty(componentTypeObj)?null:String.valueOf(componentTypeObj));
                     Object valueString = field.get("ValueString");
@@ -242,17 +243,17 @@ public class Issues implements SchemaStart {
                         Object jsonObject = null;
                         try {
                             jsonObject = JSONUtil.parseObj(valueString.toString());
-                            Object nameObj = ((Map<String,Object>)jsonObject).get("Name");
-                            if (Checker.isNotEmpty(nameObj)){
+                            Object nameObj = ((Map<String, Object>) jsonObject).get("Name");
+                            if (Checker.isNotEmpty(nameObj)) {
                                 result.put(Constants.CUSTOM_FIELD_SUFFIX + fieldMap.get("Name"), nameObj);
-                            }else {
+                            } else {
                                 result.put(Constants.CUSTOM_FIELD_SUFFIX + fieldMap.get("Name"), jsonObject);
                             }
-                        }catch (Exception e){
+                        } catch (Exception e) {
                             try {
                                 jsonObject = JSONUtil.parseArray(valueString.toString());
                                 StringJoiner joiner = new StringJoiner(Constants.ARRAY_SPLIT_CHAR);
-                                ((List<Object>)jsonObject).forEach(obj->{
+                                ((List<Object>) jsonObject).forEach(obj -> {
                                     if (Checker.isNotEmpty(obj)) {
                                         if (obj instanceof Map || obj instanceof JSONObject) {
                                             Object name = ((Map) obj).get("Name");
@@ -267,7 +268,7 @@ public class Issues implements SchemaStart {
                                     }
                                 });
                                 result.put(Constants.CUSTOM_FIELD_SUFFIX + fieldMap.get("Name"), joiner.toString());
-                            }catch (Exception e1){
+                            } catch (Exception e1) {
                                 jsonObject = String.valueOf(valueString);
                                 result.put(Constants.CUSTOM_FIELD_SUFFIX + fieldMap.get("Name"), jsonObject);
                             }
@@ -276,44 +277,45 @@ public class Issues implements SchemaStart {
                 }
             }
         });
-        if (result.size()>0) {
+        if (result.size() > 0) {
             stringObjectMap.putAll(result);
         }
         return result;
     }
 
-    private void putMap(Map<String,Object> map,Map<String,Object> targetMap,String ... keys){
+    private void putMap(Map<String, Object> map, Map<String, Object> targetMap, String... keys) {
         for (String key : keys) {
-            Map<String, Object> entry = getEntry(key.replaceAll("\\.",""),key, map);
+            Map<String, Object> entry = getEntry(key.replaceAll("\\.", ""), key, map);
             if (Checker.isNotEmpty(entry)) {
                 targetMap.putAll(entry);
             }
         }
     }
-    private Map<String,Object> getEntry(final String finalKey,String key,Map<String,Object> map){
-        int index = key.contains(".")?key.indexOf("."):key.length();
+
+    private Map<String, Object> getEntry(final String finalKey, String key, Map<String, Object> map) {
+        int index = key.contains(".") ? key.indexOf(".") : key.length();
         String currentKey = key.substring(0, index);
         Object value = map.get(currentKey);
-        if (Checker.isEmpty(value)){
+        if (Checker.isEmpty(value)) {
             return null;
         }
-        if (index<key.length()-1){
+        if (index < key.length() - 1) {
             String nextKey = key.substring(index + 1);
-            if ((value instanceof JSONObject) || (value instanceof Map)){
-                Map<String,Object> obj = (Map<String,Object>)value;
-                return getEntry(finalKey,nextKey,obj);
-            }else if(value instanceof JSONArray || value instanceof List){
+            if ((value instanceof JSONObject) || (value instanceof Map)) {
+                Map<String, Object> obj = (Map<String, Object>) value;
+                return getEntry(finalKey, nextKey, obj);
+            } else if (value instanceof JSONArray || value instanceof List) {
                 try {
                     List<Map<String, Object>> list = (List<Map<String, Object>>) value;
                     StringJoiner joiner = new StringJoiner(Constants.ARRAY_SPLIT_CHAR);
-                    list.forEach(l->{
+                    list.forEach(l -> {
                         Object nextKeyObj = l.get(nextKey);
                         if (Checker.isNotEmpty(nextKeyObj)) {
                             joiner.add(String.valueOf(nextKeyObj));
                         }
                     });
-                    return map(entry(finalKey,joiner.toString()));
-                }catch (Exception e){
+                    return map(entry(finalKey, joiner.toString()));
+                } catch (Exception e) {
                     //@TODO 多层list嵌套时目前不支持解析，返回null
                     return null;
                     //List<List<Object>> catchList = (List<List<Object>>) value;
@@ -321,10 +323,10 @@ public class Issues implements SchemaStart {
                     //
                     //});
                 }
-            }else {
+            } else {
                 return null;
             }
         }
-        return map(entry(finalKey,value));
+        return map(entry(finalKey, value));
     }
 }

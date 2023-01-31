@@ -12,7 +12,6 @@ public class TapEventTypes {
 //    public static final String UPDATE_WORK_INFORMATION = "UPDATE_WORK_INFORMATION";     //更新工时信息
 
 
-
     public static final String DELETED_EVENT = "DELETED_EVENT";
     public static final String CREATED_EVENT = "CREATED_EVENT";
     public static final String UPDATE_EVENT = "UPDATED_EVENT";

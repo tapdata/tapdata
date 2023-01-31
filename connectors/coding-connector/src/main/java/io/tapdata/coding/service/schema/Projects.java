@@ -3,9 +3,10 @@ package io.tapdata.coding.service.schema;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-
-import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.entity.simplify.TapSimplify.field;
+import static io.tapdata.entity.simplify.TapSimplify.table;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
+
 public class Projects implements SchemaStart {
     public final Boolean use = false;
 
@@ -18,10 +19,12 @@ public class Projects implements SchemaStart {
     public String tableName() {
         return "Projects";
     }
+
     @Override
     public boolean connection(TapConnectionContext tapConnectionContext) {
         return false;
     }
+
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
         /**
