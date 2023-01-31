@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 
 import static io.tapdata.coding.enums.TapEventTypes.*;
 import static io.tapdata.entity.simplify.TapSimplify.map;
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 /**
  * @author GavinX
@@ -927,7 +928,10 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             batchReadPageSize = null != dataMap.get("PageSize") ? (int) (dataMap.get("PageSize")) : batchReadPageSize;
             for (Map<String, Object> stringObjectMap : resultList) {
                 Object code = stringObjectMap.get("Code");
-
+                if (Objects.isNull(code)) {
+                    TapLogger.warn(TAG, String.format("Cannot get issue's Code from issue, issue is %s.", toJson(stringObjectMap)));
+                    continue;
+                }
                 //Map<String,Object> issueDetail = instance.attributeAssignment(stringObjectMap);
                 Map<String, Object> issueDetail = this.get(IssueParam.create().issueCode((Integer) code));// stringObjectMap;
                 //if (null == issueDetail){
