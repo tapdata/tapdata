@@ -197,6 +197,10 @@ public class MpService {
             return;
         }
 
+        if (force) {
+            this.cachedAccessToken = null;
+        }
+
         MpAccessToken accessToken = getAccessToken();
         // 过期时间小于 5分钟
         if (force || accessToken == null ||
