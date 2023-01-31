@@ -205,6 +205,7 @@ public class MpService {
             MpAccessToken mpAccessToken = requestNewAccessToken();
             if (mpAccessToken != null) {
                 mpAccessToken.setName("weChatAccessToken");
+                this.cachedAccessToken = mpAccessToken;
                 Query query = Query.query(Criteria.where("name").is("weChatAccessToken"));
                 repository.upsert(query, mpAccessToken);
             }
