@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
@@ -266,21 +267,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
-			long lastProcessTime = System.currentTimeMillis();
 			while (isRunning()) {
-				TapdataEvent tapdataEvent = tapEventQueue.poll(1L, TimeUnit.SECONDS);
-				if (null != tapdataEvent) {
-					tapdataEvents.add(tapdataEvent);
-				}
-				if (tapdataEvents.size() >= this.targetBatch) {
+				int drain = Queues.drain(tapEventQueue, tapdataEvents, targetBatch, targetBatchIntervalMs, TimeUnit.MILLISECONDS);
+				if (drain > 0) {
 					processTargetEvents(tapdataEvents);
 					tapdataEvents.clear();
-					lastProcessTime = System.currentTimeMillis();
-				}
-				if (System.currentTimeMillis() - lastProcessTime >= targetBatchIntervalMs && CollectionUtils.isNotEmpty(tapdataEvents)) {
-					processTargetEvents(tapdataEvents);
-					tapdataEvents.clear();
-					lastProcessTime = System.currentTimeMillis();
 				}
 			}
 		} catch (InterruptedException ignored) {
