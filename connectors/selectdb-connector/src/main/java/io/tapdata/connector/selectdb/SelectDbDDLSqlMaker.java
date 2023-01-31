@@ -14,6 +14,8 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 
+import static io.tapdata.base.ConnectorBase.list;
+
 /**
  * Author:Skeet
  * Date: 2023/1/13
@@ -80,6 +82,12 @@ public class SelectDbDDLSqlMaker implements DDLSqlMaker {
         }
         String database = tapConnectorContext.getConnectionConfig().getString("database");
         String tableId = tapAlterFieldAttributesEvent.getTableId();
+        String before = tapConnectorContext.getTableMap().get(tableId).getNameFieldMap()
+                .get(tapAlterFieldAttributesEvent.getFieldName()).getDataType();
+        String after = tapAlterFieldAttributesEvent.getDataTypeChange().getAfter();
+        if (after == null || after.equals(before)) {
+            return list();
+        }
         if (StringUtils.isBlank(tableId)) {
             throw new RuntimeException("Append alter column attr ddl sql failed, table name is blank");
         }
@@ -145,7 +153,7 @@ public class SelectDbDDLSqlMaker implements DDLSqlMaker {
             throw new RuntimeException("Append alter column name ddl sql failed, field is blank");
         }
         TapField field = tapFieldOptional.get();
-        sql += " change `" + before + "` " + "`" + after + "` " + field.getDataType();
+        sql += " rename column `" + before + "` " + "`" + after + "` ";
         if (null != field.getAutoInc() && field.getAutoInc()) {
             if (field.getPrimaryKeyPos() == 1) {
                 sql += " auto_increment";
@@ -153,29 +161,29 @@ public class SelectDbDDLSqlMaker implements DDLSqlMaker {
                 TapLogger.warn(TAG, "Field \"{}\" cannot be auto increment in mysql, there can be only one auto column and it must be defined the first key", field.getName());
             }
         }
-        if (field.getNullable()) {
-            sql += " null";
-        } else {
-            sql += " not null";
-        }
+//        if (field.getNullable()) {
+//            sql += " null";
+//        } else {
+//            sql += " not null";
+//        }
         // default value
-        String defaultValue = field.getDefaultValue() == null ? "" : field.getDefaultValue().toString();
-        if (StringUtils.isNotBlank(defaultValue)) {
-            sql += " default '" + defaultValue + "'";
-        }
+//        String defaultValue = field.getDefaultValue() == null ? "" : field.getDefaultValue().toString();
+//        if (StringUtils.isNotBlank(defaultValue)) {
+//            sql += " default '" + defaultValue + "'";
+//        }
 
         // comment
-        String comment = field.getComment();
-        if (StringUtils.isNotBlank(comment)) {
-            // try to escape the single quote in comments
-            comment = comment.replace("'", "\\'");
-            sql += " comment '" + comment + "'";
-        }
+//        String comment = field.getComment();
+//        if (StringUtils.isNotBlank(comment)) {
+//            // try to escape the single quote in comments
+//            comment = comment.replace("'", "\\'");
+//            sql += " comment '" + comment + "'";
+//        }
 
-        Boolean primaryKey = field.getPrimaryKey();
-        if (null != primaryKey && primaryKey) {
-            sql += " key";
-        }
+//        Boolean primaryKey = field.getPrimaryKey();
+//        if (null != primaryKey && primaryKey) {
+//            sql += " key";
+//        }
         return Collections.singletonList(sql);
     }
 
