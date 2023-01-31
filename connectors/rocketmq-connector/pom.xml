@@ -43,14 +43,6 @@
             <artifactId>rocketmq-tools</artifactId>
             <version>4.9.3</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-        </dependency>
     </dependencies>
 
     <build>

@@ -45,10 +45,6 @@
             <artifactId>jsch</artifactId>
             <version>0.1.55</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-        </dependency>
     </dependencies>
     <build>
         <plugins>

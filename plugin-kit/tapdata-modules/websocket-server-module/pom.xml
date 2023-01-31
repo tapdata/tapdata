@@ -31,11 +31,6 @@
             <artifactId>netty-all</artifactId>
             <version>4.1.80.Final</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-            <version>4.4</version>
-        </dependency>
     </dependencies>
     <build>
         <plugins>

@@ -92,10 +92,6 @@
             <groupId>io.debezium</groupId>
             <artifactId>debezium-connector-postgres</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-        </dependency>
     </dependencies>
     <build>
         <plugins>

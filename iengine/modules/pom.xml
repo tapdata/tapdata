@@ -24,10 +24,5 @@
             <artifactId>api</artifactId>
             <version>0.5.2-SNAPSHOT</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-            <version>4.4</version>
-        </dependency>
     </dependencies>
 </project>
