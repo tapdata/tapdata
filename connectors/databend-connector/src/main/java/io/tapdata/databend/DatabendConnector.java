@@ -220,7 +220,7 @@ public class DatabendConnector extends ConnectorBase {
             }
             builder.append("\"");
         }
-        builder.append(" FROM ").append(TapTableWriter.sqlQuota(".", databendConfig.getDatabase(), table.getId())).append(" ").append(CommonSqlMaker.buildSqlByAdvanceFilter(filter));
+        builder.append(" FROM ").append(TapTableWriter.sqlQuota(".", databendConfig.getDatabase(), table.getId())).append(" ").append(new CommonSqlMaker().buildSqlByAdvanceFilter(filter));
         databendJdbcContext.query(builder.toString(), resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet != null && resultSet.next()) {
