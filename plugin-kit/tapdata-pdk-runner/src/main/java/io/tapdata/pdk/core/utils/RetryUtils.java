@@ -6,6 +6,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
@@ -103,7 +104,7 @@ public class RetryUtils extends CommonUtils {
 							}
 						}
 					}
-					callBeforeRetryMethodIfNeed(retryOptions, logTag);
+					callBeforeRetryMethodIfNeed(retryOptions, logTag, node);
 				} else {
 					if (errThrowable instanceof CoreException) {
 						throw (CoreException) errThrowable;
@@ -143,11 +144,15 @@ public class RetryUtils extends CommonUtils {
 		}
 	}
 
-	private static void callBeforeRetryMethodIfNeed(RetryOptions retryOptions, String logTag) {
+	private static void callBeforeRetryMethodIfNeed(RetryOptions retryOptions, String logTag, Node node) {
 		if (null == retryOptions) {
 			return;
 		}
 		if (null == retryOptions.getBeforeRetryMethod()) {
+			if(node instanceof ConnectorNode) {
+				CommonUtils.ignoreAnyError(() -> ((ConnectorNode) node).connectorStop(), RetryUtils.class.getSimpleName());
+				CommonUtils.ignoreAnyError(() -> ((ConnectorNode) node).connectorInit(), RetryUtils.class.getSimpleName());
+			}
 			return;
 		}
 		CommonUtils.ignoreAnyError(() -> retryOptions.getBeforeRetryMethod().run(), logTag);
