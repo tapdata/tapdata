@@ -855,7 +855,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected boolean isPollingCDC(Node<?> node) {
-		return !syncType.equals(SyncTypeEnum.INITIAL_SYNC) && node instanceof TableNode && ((TableNode) node).getCdcMode().equals("polling");
+		return !SyncTypeEnum.INITIAL_SYNC.equals(syncType) && node instanceof TableNode && "polling".equals(((TableNode) node).getCdcMode());
 	}
 
 	@Override
