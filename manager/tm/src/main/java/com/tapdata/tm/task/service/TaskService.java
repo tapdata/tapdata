@@ -231,7 +231,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setTransformTaskId(new ObjectId().toHexString());
 
         //模型推演
-        //setDefault(taskDto);
+        setDefault(taskDto);
         taskDto = save(taskDto, user);
         if (dag != null) {
             dag.setTaskId(taskDto.getId());
@@ -335,7 +335,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     protected void beforeSave(TaskDto task, UserDetail user) {
-        setDefault(task);
+        //setDefault(task);
 
         DAG dag = task.getDag();
         if (dag == null) {
