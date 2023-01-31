@@ -21,6 +21,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-api</artifactId>
+            <version>1.2-SNAPSHOT</version>
         </dependency>
     </dependencies>
     <build>
@@ -67,10 +68,9 @@
     </build>
     <distributionManagement>
         <repository>
-            <!--必须与 settings.xml 的 id 一致-->
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+            <id>github</id>
+            <name>GitHub OWNER Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/tapdata/tapdata</url>
         </repository>
     </distributionManagement>
 </project>
