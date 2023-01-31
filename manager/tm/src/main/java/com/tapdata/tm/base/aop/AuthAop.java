@@ -48,6 +48,11 @@ public class AuthAop {
     }
   }
 
+  @Around("execution(public * com.tapdata.tm.base.reporitory.BaseRepository.findAll(..)) && target(com.tapdata.tm.worker.repository.WorkerRepository) && args(.., userDetail)")
+  public Object workerRepository_findAll(ProceedingJoinPoint pjp, UserDetail userDetail) throws Throwable {
+    return ignoreUserIdWhenUpdate(pjp, userDetail);
+  }
+
   @Around("execution(public * com.tapdata.tm.base.reporitory.BaseRepository.buildUpdateSet(..)) && target(com.tapdata.tm.ds.repository.DataSourceRepository) && args(.., userDetail)")
   public Object dataSourceRepository_buildUpdateSet(ProceedingJoinPoint pjp, UserDetail userDetail) throws Throwable {
     return ignoreUserIdWhenUpdate(pjp, userDetail);

@@ -1,4 +1,5 @@
 package io.tapdata.coding.enums;
+
 /**
  * @author Gavin
  * @Description CodingTestItem
@@ -11,7 +12,7 @@ public enum CodingTestItem {
     ;
     String content;
 
-    CodingTestItem(String content){
+    CodingTestItem(String content) {
         this.content = content;
     }
 
