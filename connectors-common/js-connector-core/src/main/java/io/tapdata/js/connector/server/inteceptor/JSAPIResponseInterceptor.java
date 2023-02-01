@@ -19,7 +19,7 @@ public class JSAPIResponseInterceptor implements APIResponseInterceptor {
 
     public static JSAPIResponseInterceptor create(JSAPIInterceptorConfig config, APIInvoker invoker) {
         JSAPIResponseInterceptor interceptor = new JSAPIResponseInterceptor().config(config);
-        interceptor.invoker(invoker);
+        interceptor.setInvoker(invoker);
         return interceptor;
     }
     public static JSAPIResponseInterceptor create(JSAPIInterceptorConfig config) {
@@ -58,7 +58,7 @@ public class JSAPIResponseInterceptor implements APIResponseInterceptor {
         return interceptorResponse;
     }
 
-    public void invoker(APIInvoker invoker){
+    public void setInvoker(APIInvoker invoker){
         this.invoker = invoker;
     }
 }

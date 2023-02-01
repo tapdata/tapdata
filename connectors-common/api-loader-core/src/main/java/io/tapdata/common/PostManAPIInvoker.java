@@ -50,7 +50,7 @@ public class PostManAPIInvoker
     @Override
     public void setAPIResponseInterceptor(APIResponseInterceptor interceptor) {
         this.interceptor = interceptor;
-        this.interceptor.invoker(this);
+        this.interceptor.setInvoker(this);
     }
 
     public static PostManAPIInvoker create() {
