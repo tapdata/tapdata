@@ -86,27 +86,27 @@
     "default": "en_US",
     "en_US": {
       "doc": "docs/selectdb_en_US.md",
-      "host": "FE Host",
-      "port": "JDBC Port",
-      "selectDbHttp": "Http Host",
+      "host": "Repo IP",
+      "port": "MySQL Port",
+      "selectDbHttp": "HTTP Port",
       "database": "database",
       "user": "user",
       "password": "password"
     },
     "zh_CN": {
       "doc": "docs/selectdb_zh_CN.md",
-      "host": "FE地址",
-      "port": "JDBC端口",
-      "selectDbHttp": "Http接口地址",
+      "host": "仓库公网 IP",
+      "port": "MySQL 协议端口",
+      "selectDbHttp": "HTTP 协议端口",
       "database": "数据库",
       "user": "账号",
       "password": "密码"
     },
     "zh_TW": {
       "doc": "docs/selectdb_zh_TW.md",
-      "host": "FE地址",
-      "port": "JDBC端口",
-      "selectDbHttp": "Http接口地址",
+      "host": "仓库公网 IP",
+      "port": "MySQL 协议端口",
+      "selectDbHttp": "HTTP 协议端口",
       "database": "數據庫",
       "user": "賬號",
       "password": "密碼"

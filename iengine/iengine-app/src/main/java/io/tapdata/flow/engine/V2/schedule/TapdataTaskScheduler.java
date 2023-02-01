@@ -5,12 +5,14 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.AppType;
+import com.tapdata.entity.ResponseBody;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
+import io.tapdata.exception.RestException;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -18,6 +20,7 @@ import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -49,6 +52,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 @Component
 @DependsOn("connectorManager")
 public class TapdataTaskScheduler {
+	public static final String TAG = TapdataTaskScheduler.class.getSimpleName();
 	private Logger logger = LogManager.getLogger(TapdataTaskScheduler.class);
 	private Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
 	private String instanceNo;
@@ -110,7 +114,7 @@ public class TapdataTaskScheduler {
 					query.fields().include("id").include("status");
 					final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 					if (CollectionUtil.isNotEmpty(subTaskDtos)) {
-						stopTask(subTaskDtoTaskClient);
+						stopTaskCallAssignApi(subTaskDtoTaskClient, StopTaskResource.STOPPED);
 					} else {
 						TmStatusService.setAllowReport(taskId);
 					}
@@ -294,7 +298,7 @@ public class TapdataTaskScheduler {
 	 * Run task(s) already started, find clause: status=running and agentID={@link TapdataTaskScheduler#instanceNo}
 	 */
 	public void runTaskIfNeedWhenEngineStart() {
-		if(!appType.isCloud()) return;
+		if (!appType.isCloud()) return;
 		Query query = new Query(
 				new Criteria("agentId").is(instanceNo)
 						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
@@ -393,12 +397,16 @@ public class TapdataTaskScheduler {
 					continue;
 				}
 				final String status = taskClient.getStatus();
+				StopTaskResource stopTaskResource = null;
 				if (TaskDto.STATUS_ERROR.equals(status)) {
-					errorTask(taskClient);
+					stopTaskResource = StopTaskResource.RUN_ERROR;
 				} else if (TaskDto.STATUS_STOP.equals(status) || TaskDto.STATUS_STOPPING.equals(status)) {
-					stopTask(taskClient);
+					stopTaskResource = StopTaskResource.STOPPED;
 				} else if (TaskDto.STATUS_COMPLETE.equals(status)) {
-					completeTask(taskClient);
+					stopTaskResource = StopTaskResource.COMPLETE;
+				}
+				if (null != stopTaskResource) {
+					stopTaskCallAssignApi(taskClient, stopTaskResource);
 				}
 			}
 		} catch (Exception e) {
@@ -411,23 +419,6 @@ public class TapdataTaskScheduler {
 		if (StringUtils.isNotEmpty(cacheName)) {
 			messageDao.updateCacheStatus(cacheName, taskClient.getStatus());
 			messageDao.destroyCache(taskClient.getTask(), cacheName);
-		}
-	}
-
-	private void errorTask(TaskClient<TaskDto> taskClient) {
-		if (taskClient == null || taskClient.getTask() == null || StringUtils.isBlank(taskClient.getTask().getId().toHexString())) {
-			return;
-		}
-		final boolean stop = taskClient.stop();
-		if (stop) {
-			final String taskId = taskClient.getTask().getId().toHexString();
-			try {
-				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
-			} catch (Exception e) {
-				logger.warn(e.getMessage(), e);
-			}
-			removeTask(taskId);
-			destroyCache(taskClient);
 		}
 	}
 
@@ -475,37 +466,43 @@ public class TapdataTaskScheduler {
 		return CollectionUtil.isNotEmpty(subTaskDtos) ? subTaskDtos.get(0) : null;
 	}
 
-	public void stopTask(TaskClient<TaskDto> taskClient) {
+	public void stopTaskCallAssignApi(TaskClient<TaskDto> taskClient, StopTaskResource stopTaskResource) {
 		if (taskClient == null || taskClient.getTask() == null || StringUtils.isBlank(taskClient.getTask().getId().toHexString())) {
 			return;
 		}
 		final boolean stop = taskClient.stop();
 		if (stop) {
 			final String taskId = taskClient.getTask().getId().toHexString();
+			String resource = ConnectorConstant.TASK_COLLECTION + "/" + stopTaskResource.getResource();
 			try {
-				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+				try {
+					clientMongoOperator.updateById(new Update(), resource, taskId, TaskDto.class);
+				} catch (Exception e) {
+					if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
+						// 违反TM状态机，不再进行修改任务状态的重试
+						logger.warn("Call api to stop task status to " + resource + " failed, message: " + e.getMessage(), e);
+					} else {
+						throw new RuntimeException(String.format("Call stop task api failed, api uri: %s, task: %s[%s]",
+								resource, taskClient.getTask().getName(), taskClient.getTask().getId()), e);
+					}
+				}
+				try {
+					removeTask(taskId);
+					logger.info(String.format("Remove memory task client succeed, task: %s[%s]",
+							taskClient.getTask().getName(), taskClient.getTask().getId()));
+				} catch (Exception e) {
+					throw new RuntimeException(String.format("Remove memory task client failed, task: %s[%s]",
+							taskClient.getTask().getName(), taskClient.getTask().getId()), e);
+				}
+				try {
+					destroyCache(taskClient);
+					logger.info(String.format("Destroy memory task client cache succeed, task: %s[%s]", taskClient.getTask().getName(), taskClient.getTask().getId()));
+				} catch (Exception e) {
+					throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskClient.getTask().getId()), e);
+				}
 			} catch (Exception e) {
 				logger.warn(e.getMessage(), e);
 			}
-			removeTask(taskId);
-			destroyCache(taskClient);
-		}
-	}
-
-	private void completeTask(TaskClient<TaskDto> taskClient) {
-		if (taskClient == null || taskClient.getTask() == null || StringUtils.isBlank(taskClient.getTask().getId().toHexString())) {
-			return;
-		}
-		boolean stop = taskClient.stop();
-		if (stop) {
-			final String taskId = taskClient.getTask().getId().toHexString();
-			try {
-				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/complete", taskId, TaskDto.class);
-			} catch (Exception e) {
-				logger.warn(e.getMessage(), e);
-			}
-			removeTask(taskId);
-			destroyCache(taskClient);
 		}
 	}
 
@@ -523,10 +520,33 @@ public class TapdataTaskScheduler {
 			return;
 		}
 		taskDtoTaskClient.getTask().setManualStop(true);
-		stopTask(taskDtoTaskClient);
+		stopTaskCallAssignApi(taskDtoTaskClient, StopTaskResource.STOPPED);
+	}
+
+	public TaskClient<TaskDto> getTaskClient(String taskId) {
+		if (null == taskClientMap) {
+			return null;
+		}
+		return taskClientMap.get(taskId);
 	}
 
 	public Map<String, TaskClient<TaskDto>> getTaskClientMap() {
 		return taskClientMap;
+	}
+
+	private enum StopTaskResource {
+		STOPPED("stopped"),
+		RUN_ERROR("runError"),
+		COMPLETE("complete"),
+		;
+		private String resource;
+
+		StopTaskResource(String resource) {
+			this.resource = resource;
+		}
+
+		public String getResource() {
+			return resource;
+		}
 	}
 }
