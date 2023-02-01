@@ -2,6 +2,7 @@ package io.tapdata.coding.entity;
 
 import java.util.HashMap;
 import java.util.Map;
+
 /**
  * Coding offset.
  *
@@ -10,12 +11,13 @@ import java.util.Map;
  */
 public class CodingOffset {
     private Map<String, Long> tableUpdateTimeMap;
-    private Map<Object,Object> offset;
+    private Map<Object, Object> offset;
+
     public CodingOffset() {
         tableUpdateTimeMap = new HashMap<>();
     }
 
-    public static CodingOffset create(Map<String, Long> tableUpdateTimeMap){
+    public static CodingOffset create(Map<String, Long> tableUpdateTimeMap) {
         CodingOffset offset = new CodingOffset();
         offset.setTableUpdateTimeMap(tableUpdateTimeMap);
         return offset;
@@ -28,11 +30,13 @@ public class CodingOffset {
     public void setTableUpdateTimeMap(Map<String, Long> tableUpdateTimeMap) {
         this.tableUpdateTimeMap = tableUpdateTimeMap;
     }
-    public Map<Object,Object> offset(){
+
+    public Map<Object, Object> offset() {
         if (null == offset) offset = new HashMap<>();
         return this.offset;
     }
-    public CodingOffset offset(Map<Object,Object> offset){
+
+    public CodingOffset offset(Map<Object, Object> offset) {
         this.offset = offset;
         return this;
     }

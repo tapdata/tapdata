@@ -146,7 +146,7 @@ public class ScriptUtil {
 
     public static InputStream loadFileStreamFromJarPath(String fileName) throws IOException {
         URL resource = APIFactory.class.getClassLoader().getResource(fileName);
-        JarFile jarFile = new JarFile(resource.getPath().replace("file:/", "").replace("!/" + fileName, ""));
+        JarFile jarFile = new JarFile(resource.getPath().replace("file:/", "/").replace("!/" + fileName, ""));
         Stream<Map.Entry<ZipEntry, InputStream>> readingStream =
                 jarFile.stream().filter(entry -> !entry.isDirectory() && entry.getName().endsWith(fileName))
                         .map(entry -> {

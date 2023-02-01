@@ -246,7 +246,9 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         Map notDeleteMap = new HashMap();
         notDeleteMap.put("$ne", true);
         where.put("is_deleted", notDeleteMap);
-        where.put("user_id", userDetail.getUserId());
+        if (!userDetail.isRoot() && !userDetail.isFreeAuth()) {
+            where.put("user_id", userDetail.getUserId());
+        }
         Page<InspectDto> page = find(filter);
 
         List<InspectDto> inspectDtoList = page.getItems();

@@ -92,4 +92,15 @@
             <scope>compile</scope>
         </dependency>
     </dependencies>
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/java</directory>
+                <includes>
+                    <include>**/*.js</include>
+                </includes>
+                <targetPath>./</targetPath>
+            </resource>
+        </resources>
+    </build>
 </project>

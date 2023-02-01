@@ -1,6 +1,7 @@
 package com.tapdata.tm.alarmrule.service.impl;
 
 import cn.hutool.extra.cglib.CglibUtil;
+import com.tapdata.tm.Settings.entity.AlarmSetting;
 import com.tapdata.tm.alarmrule.entity.AlarmRule;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
@@ -15,7 +16,13 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.TreeSet;
+
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.toCollection;
 
 /**
  * @author jiuyetx
@@ -50,6 +57,10 @@ public class AlarmRuleServiceImpl implements AlarmRuleService {
             }
         }
 
-        return CglibUtil.copyList(alarmRules, AlarmRuleDto::new);
+        List<AlarmRule> list = alarmRules.stream().collect(
+                collectingAndThen(
+                        toCollection(() -> new TreeSet<>(Comparator.comparing(AlarmRule::getKey))), ArrayList::new));
+
+        return CglibUtil.copyList(list, AlarmRuleDto::new);
     }
 }
