@@ -2,6 +2,7 @@ package com.tapdata.tm.monitor.service;
 
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
+import com.google.common.util.concurrent.AtomicDouble;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
@@ -903,7 +904,7 @@ public class MeasurementServiceV2 {
             return new Page<>(0, Collections.emptyList());
         }
 
-        query.with(Sort.by(Sort.Direction.DESC, "ss.vs.snapshotInsertRowTotal"));
+        query.with(Sort.by(Sort.Direction.DESC, "ss.vs.snapshotSyncRate"));
         query.with(tmPageable);
         List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
 
@@ -953,8 +954,11 @@ public class MeasurementServiceV2 {
             AtomicLong snapshotRowTotal = new AtomicLong(0L);
             Optional.ofNullable(vs.getOrDefault("snapshotRowTotal", 0)).ifPresent(number -> snapshotRowTotal.set(number.longValue()));
 
+            Number snapshotSyncRate = vs.get("snapshotSyncRate");
             BigDecimal syncRate;
-            if (snapshotRowTotal.get() != 0L) {
+            if (Objects.nonNull(snapshotSyncRate)) {
+                syncRate = BigDecimal.valueOf(snapshotSyncRate.doubleValue());
+            } else if (snapshotRowTotal.get() != 0L) {
                 syncRate = new BigDecimal(snapshotInsertRowTotal.get()).divide(new BigDecimal(snapshotRowTotal.get()), 2, RoundingMode.HALF_UP);
             } else {
                 syncRate = BigDecimal.ZERO;
