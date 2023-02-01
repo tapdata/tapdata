@@ -34,6 +34,7 @@ public class LoadJavaScripter {
 
     public static final String NASHORN_ENGINE = "nashorn";
     public static final String GRAAL_ENGINE = "graal.js";
+    private boolean hasLoadBaseJs = false;
 
     private String jarFilePath;
     private String flooder;
@@ -72,15 +73,18 @@ public class LoadJavaScripter {
         while (resources.hasMoreElements()) {
             list.add(resources.nextElement());
         }
-        try {
-            for (URL url : list) {
-                List<Map.Entry<InputStream, File>> files = this.javaFiles(url,null,"io/tapdata/js/utils/js");
-                for (Map.Entry<InputStream, File> file : files) {
-                    this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
+        if (!this.hasLoadBaseJs){
+            try {
+                for (URL url : list) {
+                    List<Map.Entry<InputStream, File>> files = this.javaFiles(url,null,"io/tapdata/js/utils/js");
+                    for (Map.Entry<InputStream, File> file : files) {
+                        this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
+                    }
                 }
+                this.hasLoadBaseJs = true;
+            } catch (Exception e) {
+                TapLogger.warn(TAG, String.format("Unable to load configuration javascript to jsEngine. %s.",e.getMessage()));
             }
-        } catch (Exception e) {
-            TapLogger.warn(TAG, String.format("Unable to load configuration javascript to jsEngine. %s.",e.getMessage()));
         }
         try {
             for (URL url : list) {
