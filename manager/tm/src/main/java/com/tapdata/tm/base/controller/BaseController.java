@@ -70,6 +70,13 @@ public class BaseController {
 //			add("/api/discovery/**");
 //			add("/api/shareCache/**");
 		}});
+
+		put("PATCH", new HashSet<String>() {{
+			add("/api/Javascript_functions/**");
+			add("/api/customNode/**");
+			add("/api/clusterStates/**");
+			add("/api/Workers/**");
+		}});
 	}};
 
 	private static boolean isFreeAuth(String uri, String method) {
