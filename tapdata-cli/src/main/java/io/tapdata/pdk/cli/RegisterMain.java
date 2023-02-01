@@ -1,6 +1,7 @@
 package io.tapdata.pdk.cli;
 
 import com.tapdata.constant.ConfigurationCenter;
+import io.tapdata.pdk.cli.support.LoggerManager;
 import org.apache.commons.io.FilenameUtils;
 
 import java.net.URL;
@@ -110,7 +111,7 @@ public class RegisterMain {
         ConfigurationCenter.processId = "sam_flow_engine";
         String[] tags = System.getProperty("tags", "all").split(",");
         ConnectorEnums.addByTags(postList, tags);
-
+        LoggerManager.changeLogLeave(LoggerManager.LogLeave.DENY);
         Main.registerCommands().execute(postList.toArray(new String[0]));
     }
 
