@@ -17,7 +17,7 @@ Mysql5.7，Mysql8.0
 
 ### **3. Prerequisites (as a goal)**
 
-#### **3.1 数据库权限**
+#### **3.1 Database Permission**
 
 Grant full permissions to a database:
 
@@ -35,9 +35,9 @@ GRANT PROCESS ON *.* TO 'tapdata' IDENTIFIED BY 'password';
 
 ```
 Connection name : Tapdata
-FE Host : 39.108.5.66
-JDBC Port : 16604
-SelectDBHttp : 39.108.5.66:42188
+Repo IP : 39.108.5.66
+MySQL Port : 16604
+HTTP Port : 42188
 Database : TEST
 User : admin
 Password : admin

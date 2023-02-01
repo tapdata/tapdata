@@ -523,6 +523,13 @@ public class TapdataTaskScheduler {
 		stopTaskCallAssignApi(taskDtoTaskClient, StopTaskResource.STOPPED);
 	}
 
+	public TaskClient<TaskDto> getTaskClient(String taskId) {
+		if (null == taskClientMap) {
+			return null;
+		}
+		return taskClientMap.get(taskId);
+	}
+
 	public Map<String, TaskClient<TaskDto>> getTaskClientMap() {
 		return taskClientMap;
 	}

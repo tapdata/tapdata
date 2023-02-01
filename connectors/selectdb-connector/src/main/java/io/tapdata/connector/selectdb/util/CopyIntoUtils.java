@@ -50,7 +50,7 @@ public class CopyIntoUtils {
         user = connectionConfig.getString("user");
         password = connectionConfig.getString("password");
         database = connectionConfig.getString("database");
-        selectdbHttp = connectionConfig.getString("selectDbHttp");
+        selectdbHttp = String.format("%s:%s", connectionConfig.getString("host"), connectionConfig.getString("selectDbHttp"));
     }
 
     public CopyIntoUtils(boolean key) {

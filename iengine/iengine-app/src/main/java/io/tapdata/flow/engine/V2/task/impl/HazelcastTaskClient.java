@@ -140,4 +140,8 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	public Throwable getError() {
 		return error;
 	}
+
+	public MonitorManager getTaskMonitorManager() {
+		return monitorManager;
+	}
 }
