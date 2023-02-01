@@ -1,14 +1,15 @@
-package io.tapdata.pdk.debug.support;
+package io.tapdata.pdk.run.support;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.debug.base.PDKBaseDebug;
-import io.tapdata.pdk.debug.base.ReadStopException;
+import io.tapdata.pdk.run.base.PDKBaseRun;
+import io.tapdata.pdk.run.base.ReadStopException;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
@@ -28,8 +29,8 @@ import static io.tapdata.entity.simplify.TapSimplify.toJson;
  *
  * */
 @DisplayName("batchRead")
-@TapGo(sort = 1)
-public class BatchReadDebug extends PDKBaseDebug {
+@TapGo(sort = 2)
+public class BatchReadRun extends PDKBaseRun {
     @DisplayName("batchRead.afterInsert")
     @TapTestCase(sort = 1)
     @Test
@@ -63,19 +64,19 @@ public class BatchReadDebug extends PDKBaseDebug {
                             throw new ReadStopException();
                         }
                     });
+                    super.connectorOnStop(prepare);
                 }catch (Throwable throwable){
+                    super.connectorOnStop(prepare);
                     if (!(throwable instanceof ReadStopException)){
                         String message = throwable.getMessage();
                         System.out.println(message);
                     }else {
-                        String result = toJson(list);
+                        String result = toJson(list, JsonParser.ToJsonFeature.PrettyFormat,JsonParser.ToJsonFeature.WriteMapNullValue);
                         System.out.println(result);
                     }
                 }
             } catch (Throwable exception) {
 
-            }finally {
-                super.connectorOnStop(prepare);
             }
         });
     }

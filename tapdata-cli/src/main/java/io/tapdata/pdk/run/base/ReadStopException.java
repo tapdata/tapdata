@@ -1,4 +1,4 @@
-package io.tapdata.pdk.debug.base;
+package io.tapdata.pdk.run.base;
 
 public class ReadStopException extends RuntimeException{
 }

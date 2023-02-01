@@ -1,11 +1,12 @@
-package io.tapdata.pdk.debug.support;
+package io.tapdata.pdk.run.support;
 
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.debug.base.PDKBaseDebug;
-import io.tapdata.pdk.debug.base.ReadStopException;
+import io.tapdata.pdk.run.base.PDKBaseRun;
+import io.tapdata.pdk.run.base.ReadStopException;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
@@ -22,7 +23,7 @@ import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 @DisplayName("batchRead")
 @TapGo(sort = 1)
-public class ConnectionTestDebug extends PDKBaseDebug {
+public class ConnectionTestRun extends PDKBaseRun {
     @DisplayName("batchRead.afterInsert")
     @TapTestCase(sort = 1)
     @Test
@@ -33,7 +34,7 @@ public class ConnectionTestDebug extends PDKBaseDebug {
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 Method testCase = super.getMethod("connectionTest");
-                super.connectorOnStart(prepare);
+                //super.connectorOnStart(prepare);
                 execute.testCase(testCase);
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnector connector = connectorNode.getConnector();
@@ -46,13 +47,13 @@ public class ConnectionTestDebug extends PDKBaseDebug {
             } catch (Throwable exception) {
                 if (!(exception instanceof ReadStopException)) {
                     String message = exception.getMessage();
-                    System.out.printf("[DEBUG-%s] Error - %s%n", super.testNodeId, message);
+                    System.out.printf("[DEBUG-%s] Error - %s, %s\n", super.testNodeId, message, list.isEmpty()?"Didn't get any results before this error.":"The following results were received before this error:\n"+toJson(list, JsonParser.ToJsonFeature.PrettyFormat,JsonParser.ToJsonFeature.WriteMapNullValue));
                 } else {
-                    String result = toJson(list);
-                    System.out.println(result);
+                    String result = toJson(list, JsonParser.ToJsonFeature.PrettyFormat,JsonParser.ToJsonFeature.WriteMapNullValue);
+                    System.out.printf("[DEBUG-%s] Succeed - %s \n", super.testNodeId, result);
                 }
             } finally {
-                super.connectorOnStop(prepare);
+                //super.connectorOnStop(prepare);
             }
         });
     }

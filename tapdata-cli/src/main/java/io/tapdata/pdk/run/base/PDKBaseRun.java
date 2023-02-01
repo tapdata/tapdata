@@ -1,4 +1,4 @@
-package io.tapdata.pdk.debug.base;
+package io.tapdata.pdk.run.base;
 
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
@@ -19,11 +19,11 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-public class PDKBaseDebug extends PDKTestBase {
-    private static final String TAG = PDKBaseDebug.class.getSimpleName();
+public class PDKBaseRun extends PDKTestBase {
+    private static final String TAG = PDKBaseRun.class.getSimpleName();
     protected LinkedHashMap<String, Object> debugConfig = new LinkedHashMap<>();
 
-    public PDKBaseDebug() {
+    public PDKBaseRun() {
         super();
         Map<String, DataMap> testConfigMap = readTestConfig(super.testConfigFile);
         assertNotNull(testConfigMap, "testConfigFile " + super.testConfigFile + " read to json failed");
