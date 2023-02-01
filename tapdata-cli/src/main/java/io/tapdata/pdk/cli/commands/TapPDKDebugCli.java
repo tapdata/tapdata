@@ -13,6 +13,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.cli.CommonCli;
+import io.tapdata.pdk.cli.support.LoggerManager;
 import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
@@ -132,21 +133,7 @@ public class TapPDKDebugCli extends CommonCli {
 
     public Integer execute() {
         TapLogger.enable(false);
-
-        CommonUtils.ignoreAnyError(() -> {
-            StaticLoggerBinder staticLoggerBinder = StaticLoggerBinder.getSingleton();
-            Field field = staticLoggerBinder.getClass().getDeclaredField("defaultLoggerContext");
-            field.setAccessible(true);
-            LoggerContext loggerContext = (LoggerContext) field.get(staticLoggerBinder);
-            loggerContext.addTurboFilter(new TurboFilter() {
-                @Override
-                public FilterReply decide(Marker marker, Logger logger, Level level, String s, Object[] objects, Throwable throwable) {
-                    return FilterReply.DENY;
-                }
-            });
-        }, TAG);
-
-
+        LoggerManager.changeLogLeave(LoggerManager.LogLeave.DENY);
         TapSummary.create().showLogo();
         CommonUtils.setProperty("refresh_local_jars", "true");
         if (verbose)

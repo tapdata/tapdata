@@ -1,12 +1,8 @@
 package io.tapdata.pdk.debug.support;
 
-import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.debug.base.PDKBaseDebug;
 import io.tapdata.pdk.debug.base.ReadStopException;
@@ -20,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
@@ -31,7 +26,7 @@ public class ConnectionTestDebug extends PDKBaseDebug {
     @DisplayName("batchRead.afterInsert")
     @TapTestCase(sort = 1)
     @Test
-    public void connectionTest(){
+    public void connectionTest() {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             List<TestItem> list = new ArrayList<>();
             PDKTestBase.TestNode prepare = prepare(nodeInfo);
@@ -43,20 +38,21 @@ public class ConnectionTestDebug extends PDKBaseDebug {
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnector connector = connectorNode.getConnector();
                 TapConnectorContext context = connectorNode.getConnectorContext();
-                connector.connectionTest(context, consumer->{
-                    if (Objects.nonNull(consumer)){
+                connector.connectionTest(context, consumer -> {
+                    if (Objects.nonNull(consumer)) {
                         list.add(consumer);
                     }
                 });
             } catch (Throwable exception) {
-                super.connectorOnStop(prepare);
-                if (!(exception instanceof ReadStopException)){
+                if (!(exception instanceof ReadStopException)) {
                     String message = exception.getMessage();
-                    System.out.println(message);
-                }else {
+                    System.out.printf("[DEBUG-%s] Error - %s%n", super.testNodeId, message);
+                } else {
                     String result = toJson(list);
                     System.out.println(result);
                 }
+            } finally {
+                super.connectorOnStop(prepare);
             }
         });
     }
