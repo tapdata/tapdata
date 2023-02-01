@@ -44,7 +44,7 @@ public class LoadJavaScripter {
 
     public static final String eval = "" +
             "var tapAPI = Java.type(\"io.tapdata.js.connector.server.decorator.APIFactoryDecorator\");";
-    public static final String LOAD_BASE = "load('connectors-common/js-connector-core/src/main/java/io/tapdata/js/utils/js/_tap_api_factory_collect.js');";
+    public static final String LOAD_BASE = "load('connectors-common/js-connector-core/target/classes/io/tapdata/js/utils/js/_tap_api_factory_collect.js');";
 
     public LoadJavaScripter params(String jarFilePath, String flooder) {
         this.jarFilePath = jarFilePath;
