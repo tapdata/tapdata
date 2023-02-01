@@ -16,6 +16,7 @@ import io.tapdata.js.connector.iengine.ScriptEngineInstance;
 import io.tapdata.js.connector.server.decorator.APIFactoryDecorator;
 import io.tapdata.js.connector.server.function.ExecuteConfig;
 import io.tapdata.js.connector.server.function.FunctionSupport;
+import io.tapdata.js.connector.server.function.base.SchemaAccept;
 import io.tapdata.js.connector.server.function.support.*;
 import io.tapdata.js.connector.server.inteceptor.JSAPIInterceptorConfig;
 import io.tapdata.js.connector.server.inteceptor.JSAPIResponseInterceptor;

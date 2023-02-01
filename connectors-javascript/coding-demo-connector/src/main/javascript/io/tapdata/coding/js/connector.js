@@ -1,5 +1,6 @@
 var batchStart = nowDate();
-function discover_schema(connectionConfig) {
+function discover_schema(connectionConfig,schemaSender) {
+    schemaSender.send(['ACC']);
     return ['Issues'];
 }
 function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
