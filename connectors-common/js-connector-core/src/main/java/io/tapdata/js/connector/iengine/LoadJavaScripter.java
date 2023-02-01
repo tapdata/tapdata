@@ -84,10 +84,11 @@ public class LoadJavaScripter {
         }
         try {
             for (URL url : list) {
-                List<Map.Entry<InputStream, File>> files = javaScriptFiles(url);
+                List<Map.Entry<InputStream, File>> files = this.javaScriptFiles(url);
                 for (Map.Entry<InputStream, File> file : files) {
-                    String path = file.getValue().getPath().replaceAll("\\\\", "/");
-                    this.scriptEngine.eval("load('" + path + "');");
+                    //String path = file.getValue().getPath().replaceAll("\\\\", "/");
+                    //this.scriptEngine.eval("load('" + path + "');");
+                    this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
                 }
             }
             return this.scriptEngine;
