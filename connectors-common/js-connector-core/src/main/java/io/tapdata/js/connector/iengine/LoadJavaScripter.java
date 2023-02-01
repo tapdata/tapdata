@@ -118,7 +118,7 @@ public class LoadJavaScripter {
 
     private List<Map.Entry<InputStream, File>> getAllFileFromJar(String path) {
         List<Map.Entry<InputStream, File>> fileList = new ArrayList<>();
-        String pathJar = Objects.nonNull(jarFilePath) && !"".equals(jarFilePath) ? jarFilePath : path.replace("file:/", "").replace("!/" + flooder, "");
+        String pathJar = Objects.nonNull(jarFilePath) && !"".equals(jarFilePath) ? jarFilePath : path.replace("file:/", "/").replace("!/" + flooder, "");
         try {
             List<Map.Entry<ZipEntry, InputStream>> collect =
                     readJarFile(new JarFile(pathJar), flooder).collect(Collectors.toList());
