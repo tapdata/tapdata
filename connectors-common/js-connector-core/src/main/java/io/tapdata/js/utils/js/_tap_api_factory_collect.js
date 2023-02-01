@@ -137,3 +137,10 @@ function isAlive() {
 function convertList(list, convertMatch) {
     return tapUtil.convertList(list, convertMatch);
 }
+
+function keys(map){
+    return tapUtil.entityKeys(map);
+}
+function values(map){
+    return tapUtil.entityValues(map);
+}

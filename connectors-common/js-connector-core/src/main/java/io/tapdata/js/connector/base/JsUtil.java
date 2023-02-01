@@ -88,4 +88,24 @@ public class JsUtil {
             return list;
         }
     }
+
+    public List<String> entityKeys(Object map){
+        if (Objects.isNull(map)) return new ArrayList<>();
+        if (map instanceof Map){
+            Map<String,Object> objectMap = (Map<String, Object>) map;
+            return new ArrayList<>(objectMap.keySet());
+        }else{
+            return new ArrayList<>();
+        }
+    }
+
+    public List<Object> entityValues(Object map){
+        if (Objects.isNull(map)) return new ArrayList<>();
+        if (map instanceof Map){
+            Map<String,Object> objectMap = (Map<String, Object>) map;
+            return new ArrayList<>(objectMap.values());
+        }else{
+            return new ArrayList<>();
+        }
+    }
 }
