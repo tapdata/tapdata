@@ -35,6 +35,7 @@ public class LoadJavaScripter {
     public static final String NASHORN_ENGINE = "nashorn";
     public static final String GRAAL_ENGINE = "graal.js";
     private boolean hasLoadBaseJs = false;
+    private boolean hasLoadJs = false;
 
     private String jarFilePath;
     private String flooder;
@@ -86,19 +87,22 @@ public class LoadJavaScripter {
                 TapLogger.warn(TAG, String.format("Unable to load configuration javascript to jsEngine. %s.",e.getMessage()));
             }
         }
-        try {
-            for (URL url : list) {
-                List<Map.Entry<InputStream, File>> files = this.javaScriptFiles(url);
-                for (Map.Entry<InputStream, File> file : files) {
-                    //String path = file.getValue().getPath().replaceAll("\\\\", "/");
-                    //this.scriptEngine.eval("load('" + path + "');");
-                    this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
+        if (!this.hasLoadJs) {
+            try {
+                for (URL url : list) {
+                    List<Map.Entry<InputStream, File>> files = this.javaScriptFiles(url);
+                    for (Map.Entry<InputStream, File> file : files) {
+                        //String path = file.getValue().getPath().replaceAll("\\\\", "/");
+                        //this.scriptEngine.eval("load('" + path + "');");
+                        this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
+                    }
                 }
+                return this.scriptEngine;
+            } catch (Exception error) {
+                throw new CoreException("Error java script code, message: " + error.getMessage());
             }
-            return this.scriptEngine;
-        } catch (Exception error) {
-            throw new CoreException("Error java script code, message: " + error.getMessage());
         }
+        return this.scriptEngine;
     }
 
     private List<Map.Entry<InputStream, File>> javaFiles(URL url, String flooder,String fileFlooder){
