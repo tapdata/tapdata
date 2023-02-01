@@ -99,7 +99,7 @@
                 <includes>
                     <include>**/*.js</include>
                 </includes>
-                <targetPath>./${parent.artifactId}/${project.artifactId}/src/main/java/</targetPath>
+                <targetPath>./</targetPath>
             </resource>
         </resources>
     </build>
