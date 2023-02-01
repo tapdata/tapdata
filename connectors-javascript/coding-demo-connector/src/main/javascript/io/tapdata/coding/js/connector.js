@@ -23,10 +23,14 @@ function connection_test(connectionConfig) {
 function read(urlName, offset, sender, isStreamRead){
     iterateAllData(urlName, offset, (result, offsetNext, error) => {
         offsetNext.PageNumber = ( !isStreamRead || (isStreamRead && result.Response.Data.TotalPage >= result.Response.Data.PageNumber )) ? offsetNext.PageNumber + 1 : 1;
-        if(isStreamRead && isParam(result.Response.Data.List) && result.Response.Data.TotalPage < result.Response.Data.PageNumber)
-            offset.Conditions = [{Key:'UPDATED_AT',Value: formatDate(result.Response.Data.List[result.Response.Data.List.length-1].UpdatedAt) + '_' + nowDate()}];
-        sender.send(result.Response.Data.List, offsetNext, isStreamRead);
-        return offsetNext.PageNumber <= result.Response.Data.TotalPage && isAlive();
+        try {
+            if(isStreamRead && isParam(result.Response.Data.List) && result.Response.Data.TotalPage < result.Response.Data.PageNumber)
+                offset.Conditions = [{Key:'UPDATED_AT',Value: formatDate(result.Response.Data.List[result.Response.Data.List.length-1].UpdatedAt) + '_' + nowDate()}];
+            sender.send(result.Response.Data.List, offsetNext, isStreamRead);
+            return offsetNext.PageNumber <= result.Response.Data.TotalPage && isAlive();
+        }catch (e){
+            throw e+"\n Http response is: " + tapUtil.fromJson(result);
+        }
     });
 }
 function command_callback(connectionConfig, nodeConfig, commandInfo){

@@ -84,6 +84,13 @@ function connection_test(connectionConfig) {
  * @param connectionConfig
  * @param nodeConfig
  * @param commandInfo
+ *
+ *  "commandInfo": {
+ *      "command": String,   //command类型
+ *      "action": String,    //action类型
+ *      "argMap": Object,    //查询参数
+ *      "time": Number       //command发起时间
+ *  }
  * */
 function command_callback(connectionConfig, nodeConfig, commandInfo) {
 

@@ -10,6 +10,7 @@
 
 	<modules>
 		<module>metabase-connector</module>
+		<module>coding-demo-connector</module>
 		<module>lark-connector</module>
 	</modules>
 
