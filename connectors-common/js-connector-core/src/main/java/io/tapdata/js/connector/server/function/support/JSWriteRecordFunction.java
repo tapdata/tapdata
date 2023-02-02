@@ -7,6 +7,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.base.EventTag;
 import io.tapdata.js.connector.base.EventType;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
@@ -95,12 +96,15 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
     private void exec(TapConnectorContext context, List<Map<String, Object>> execData, JSFunctionNames function,AtomicLong insert, AtomicLong update, AtomicLong delete ) {
         if (!this.doNotSupport(function)) {
             try {
-                Object invoker = super.javaScripter.invoker(
-                        JSFunctionNames.InsertRecordFunction.jsName(),
-                        Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
-                        Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
-                        execData
-                );
+                Object invoker;
+                synchronized (JSConnector.execLock) {
+                    invoker = super.javaScripter.invoker(
+                            JSFunctionNames.InsertRecordFunction.jsName(),
+                            Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
+                            Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
+                            execData
+                    );
+                }
                 try {
                     List<Map<String,Object>> succeedData = (List<Map<String, Object>>) invoker;
                     Map<String, List<Map<String, Object>>> stringListMap = succeedData.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(map -> String.valueOf(map.get(EventTag.EVENT_TYPE))));

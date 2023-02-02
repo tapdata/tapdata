@@ -3,6 +3,7 @@ package io.tapdata.js.connector.server.function.support;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.base.CustomEventMessage;
 import io.tapdata.js.connector.base.ScriptCore;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
@@ -68,15 +69,17 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
         Runnable runnable = () -> {
             try {
                 while (this.isAlive.get()) {
-                    super.javaScripter.invoker(
-                            JSFunctionNames.StreamReadFunction.jsName(),
-                            Optional.ofNullable(nodeContext.getConnectionConfig()).orElse(new DataMap()),
-                            Optional.ofNullable(nodeContext.getNodeConfig()).orElse(new DataMap()),
-                            finalOffset,
-                            tableList,
-                            recordSize,
-                            sender
-                    );
+                    synchronized (JSConnector.execLock) {
+                        super.javaScripter.invoker(
+                                JSFunctionNames.StreamReadFunction.jsName(),
+                                Optional.ofNullable(nodeContext.getConnectionConfig()).orElse(new DataMap()),
+                                Optional.ofNullable(nodeContext.getNodeConfig()).orElse(new DataMap()),
+                                finalOffset,
+                                tableList,
+                                recordSize,
+                                sender
+                        );
+                    }
                     synchronized (this.lock) {
                         this.lock.wait(JSStreamReadFunction.STREAM_READ_DELAY_SEC);
                     }

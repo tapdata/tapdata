@@ -4,6 +4,7 @@ import io.tapdata.common.support.entitys.APIResponse;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.FunctionSupport;
@@ -41,12 +42,15 @@ public class BaseUpdateTokenFunction extends FunctionBase implements FunctionSup
         responseData.put("headers",response.headers());
         responseData.put("httpCode",response.httpCode());
         responseData.put("error",response.error());
-        Object invoker = super.javaScripter.invoker(
-                JSFunctionNames.UPDATE_TOKEN.jsName(),
-                Optional.ofNullable(this.connectionContext.getConnectionConfig()).orElse(new DataMap()),
-                Optional.ofNullable(this.connectionContext.getNodeConfig()).orElse(new DataMap()),
-                responseData
-        );
+        Object invoker;
+        synchronized (JSConnector.execLock) {
+            invoker = super.javaScripter.invoker(
+                    JSFunctionNames.UPDATE_TOKEN.jsName(),
+                    Optional.ofNullable(this.connectionContext.getConnectionConfig()).orElse(new DataMap()),
+                    Optional.ofNullable(this.connectionContext.getNodeConfig()).orElse(new DataMap()),
+                    responseData
+            );
+        }
         try {
             return Objects.isNull(invoker)? null : (Map<String, Object>) invoker;
         } catch (Exception e) {

@@ -29,6 +29,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.write.WriteValve;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -41,6 +42,8 @@ public class JSConnector extends ConnectorBase {
     //private CacheContext cacheContext = new CacheContext();
 
     private final AtomicBoolean isAlive = new AtomicBoolean(true);
+
+    public static final Object execLock = new Object();
 
 
     @Override
