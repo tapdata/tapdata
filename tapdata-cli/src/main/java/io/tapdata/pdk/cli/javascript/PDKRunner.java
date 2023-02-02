@@ -9,7 +9,7 @@ import java.lang.reflect.Field;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class PDKDebug {
+public class PDKRunner {
     public static final String BASE_JAR_PATH = "./connectors/dist/";
     public static final String BASE_CONF_PATH = "tapdata-cli/src/main/resources/debug/";
 
@@ -46,9 +46,9 @@ public class PDKDebug {
         CommonUtils.setProperty("TDD_AUTO_EXIT", "0");
         args = new String[]{"debug", "-c", null, null};
         ConfigurationCenter.processId = "sam_flow_engine";
-        for (PDKDebug.TddPath tddJarPath : PDKDebug.TddPath.values()) {
-            args[2] = PDKDebug.BASE_CONF_PATH + tddJarPath.getConf();
-            args[3] = PDKDebug.BASE_JAR_PATH + tddJarPath.getPath();
+        for (PDKRunner.TddPath tddJarPath : PDKRunner.TddPath.values()) {
+            args[2] = PDKRunner.BASE_CONF_PATH + tddJarPath.getConf();
+            args[3] = PDKRunner.BASE_JAR_PATH + tddJarPath.getPath();
             Main.registerCommands().execute(args);
             try {
                 TapConnectorManager instance = TapConnectorManager.getInstance();

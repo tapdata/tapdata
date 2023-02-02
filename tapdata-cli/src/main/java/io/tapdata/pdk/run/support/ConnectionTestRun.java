@@ -29,32 +29,29 @@ public class ConnectionTestRun extends PDKBaseRun {
     @Test
     public void connectionTest() {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
-            List<TestItem> list = new ArrayList<>();
-            PDKTestBase.TestNode prepare = prepare(nodeInfo);
-            RecordEventExecute execute = prepare.recordEventExecute();
-            try {
-                Method testCase = super.getMethod("connectionTest");
-                //super.connectorOnStart(prepare);
-                execute.testCase(testCase);
-                ConnectorNode connectorNode = prepare.connectorNode();
-                TapConnector connector = connectorNode.getConnector();
-                TapConnectorContext context = connectorNode.getConnectorContext();
-                connector.connectionTest(context, consumer -> {
-                    if (Objects.nonNull(consumer)) {
-                        list.add(consumer);
-                    }
-                });
-            } catch (Throwable exception) {
-                if (!(exception instanceof ReadStopException)) {
-                    String message = exception.getMessage();
-                    System.out.printf("[DEBUG-%s] Error - %s, %s\n", super.testNodeId, message, list.isEmpty()?"Didn't get any results before this error.":"The following results were received before this error:\n"+toJson(list, JsonParser.ToJsonFeature.PrettyFormat,JsonParser.ToJsonFeature.WriteMapNullValue));
-                } else {
-                    String result = toJson(list, JsonParser.ToJsonFeature.PrettyFormat,JsonParser.ToJsonFeature.WriteMapNullValue);
-                    System.out.printf("[DEBUG-%s] Succeed - %s \n", super.testNodeId, result);
-                }
-            } finally {
-                //super.connectorOnStop(prepare);
-            }
+//            List<TestItem> list = new ArrayList<>();
+//            PDKTestBase.TestNode prepare = prepare(nodeInfo);
+//            RecordEventExecute execute = prepare.recordEventExecute();
+//            try {
+//                Method testCase = super.getMethod("connectionTest");
+//                execute.testCase(testCase);
+//                ConnectorNode connectorNode = prepare.connectorNode();
+//                TapConnector connector = connectorNode.getConnector();
+//                TapConnectorContext context = connectorNode.getConnectorContext();
+//                connector.connectionTest(context, consumer -> {
+//                    if (Objects.nonNull(consumer)) {
+//                        list.add(consumer);
+//                    }
+//                });
+//            } catch (Throwable exception) {
+//                if (!(exception instanceof ReadStopException)) {
+//                    String message = exception.getMessage();
+//                    System.out.printf("[DEBUG-%s] Error - %s, %s\n", super.testNodeId, message, list.isEmpty()?"Didn't get any results before this error.":"The following results were received before this error:\n"+toJson(list, JsonParser.ToJsonFeature.PrettyFormat,JsonParser.ToJsonFeature.WriteMapNullValue));
+//                } else {
+//                    String result = toJson(list, JsonParser.ToJsonFeature.PrettyFormat,JsonParser.ToJsonFeature.WriteMapNullValue);
+//                    System.out.printf("[DEBUG-%s] Succeed - %s \n", super.testNodeId, result);
+//                }
+//            }
         });
     }
 }

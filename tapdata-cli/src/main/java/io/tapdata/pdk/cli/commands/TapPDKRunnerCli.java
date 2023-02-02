@@ -12,6 +12,7 @@ import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.run.base.RunnerSummary;
 import io.tapdata.pdk.run.support.BatchReadRun;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
@@ -50,7 +51,7 @@ import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
         description = "Debug javaScript code.",
         subcommands = MainCli.class
 )
-public class TapPDKDebugCli extends CommonCli {
+public class TapPDKRunnerCli extends CommonCli {
     private static final String TAG = TDDCli.class.getSimpleName();
     @CommandLine.Parameters(paramLabel = "FILE", description = "One ore more pdk jar files")
     File file;
@@ -72,7 +73,7 @@ public class TapPDKDebugCli extends CommonCli {
     @CommandLine.Option(names = {"-p", "--path"}, usageHelp = false, description = "TapData cli path,need test package ,path split as .")
     private String packagePath = BatchReadRun.class.getPackage().getName();
     @CommandLine.Option(names = {"-log", "--logPath"}, usageHelp = false, description = "TapData cli log,need test to log test result ,path to log ,default ./tapdata-pdk-cli/tss-logs/")
-    private String logPath = TapSummary.basePath("tdd-logs");
+    private String logPath = RunnerSummary.basePath("runner-logs");
 
     /**
      * 默认true，或设置TDD_AUTO_EXIT=1，CommonUtils.setProperty("TDD_AUTO_EXIT","1")
@@ -84,17 +85,17 @@ public class TapPDKDebugCli extends CommonCli {
     public static final String LEVEL_INTERMEDIATE = "intermediate";
     public static final String LEVEL_EXPERT = "expert";
 
-    private List<TapSummary> testResultSummaries = new ArrayList<>();
+    private List<RunnerSummary> testResultSummaries = new ArrayList<>();
     private SummaryGeneratingListener listener = new SummaryGeneratingListener();
 
-    public void runOne(String testClass, TapSummary testResultSummary) {
+    public void runOne(String testClass, RunnerSummary testResultSummary) {
         LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
                 .selectors(selectClass("io.tapdata.pdk.tdd.tests." + testClass))
                 .build();
         runTests(request, testResultSummary);
     }
 
-    public void runLevel(List<DiscoverySelector> selectors, TapSummary testResultSummary) {
+    public void runLevel(List<DiscoverySelector> selectors, RunnerSummary testResultSummary) {
         testResultSummary.setLanType(new Locale(lan)).showCapabilities(nodeInfo());
         for (DiscoverySelector selector : selectors) {
             LauncherDiscoveryRequestBuilder request = LauncherDiscoveryRequestBuilder.request();
@@ -104,12 +105,12 @@ public class TapPDKDebugCli extends CommonCli {
         testResultSummary.endingShow(testResultSummary, file.getName());
         testResultSummary.asFileV2(file.getName());
 
-        TapSummary.hasPass = "SUCCEED";
-        TapSummary.capabilitiesResult = new HashMap<>();
+        RunnerSummary.hasPass = "SUCCEED";
+        RunnerSummary.capabilitiesResult = new HashMap<>();
         if (this.autoExit) System.exit(0);
     }
 
-    private void runTests(LauncherDiscoveryRequest request, TapSummary testResultSummary) {
+    private void runTests(LauncherDiscoveryRequest request, RunnerSummary testResultSummary) {
         Launcher launcher = LauncherFactory.create();
         //TestPlan testPlan = launcher.discover(request);
         launcher.registerTestExecutionListeners(listener);
@@ -117,14 +118,14 @@ public class TapPDKDebugCli extends CommonCli {
 
         String pdkId = CommonUtils.getProperty("pdk_test_pdk_id", null);
         TestExecutionSummary summary = listener.getSummary();
-        testResultSummary.summary = summary;
+        testResultSummary.summary(summary);
         testResultSummary.setLanType(new Locale(lan)).showTestResult(testResultSummary);
     }
 
     public Integer execute() {
         TapLogger.enable(false);
         LoggerManager.changeLogLeave(LoggerManager.LogLeave.DENY);
-        TapSummary.create().showLogo();
+        RunnerSummary.create().showLogo();
         CommonUtils.setProperty("refresh_local_jars", "true");
         if (verbose)
             CommonUtils.setProperty("tap_verbose", "true");
@@ -266,19 +267,19 @@ public class TapPDKDebugCli extends CommonCli {
                 runLevelWithNodeInfo(tapNodeInfo);
             }
         }
-        TapSummary.create(testResultSummaries).showTestResultAll(nodeInfo(), jarFile);
+        RunnerSummary.create(testResultSummaries).showTestResultAll(nodeInfo(), jarFile);
         if (this.autoExit) System.exit(0);
     }
 
     private void runLevelWithNodeInfo(TapNodeInfo tapNodeInfo) throws Throwable {
         CommonUtils.setProperty("pdk_test_pdk_id", tapNodeInfo.getTapNodeSpecification().getId());
-        TapSummary testResultSummary = TapSummary.create();
-        testResultSummary.tapNodeInfo = tapNodeInfo;
+        RunnerSummary testResultSummary = RunnerSummary.create();
+        testResultSummary.tapNodeInfo(tapNodeInfo);
         testResultSummaries.add(testResultSummary);
         runLevel(generateTestTargets(tapNodeInfo, testResultSummary), testResultSummary);
     }
 
-    private List<DiscoverySelector> generateTestTargets(TapNodeInfo tapNodeInfo, TapSummary testResultSummary) throws Throwable {
+    private List<DiscoverySelector> generateTestTargets(TapNodeInfo tapNodeInfo, RunnerSummary testResultSummary) throws Throwable {
         io.tapdata.pdk.apis.TapConnector connector = (io.tapdata.pdk.apis.TapConnector) tapNodeInfo.getNodeClass().getConstructor().newInstance();
         ConnectorFunctions connectorFunctions = new ConnectorFunctions();
         TapCodecsRegistry codecRegistry = new TapCodecsRegistry();
@@ -305,11 +306,11 @@ public class TapPDKDebugCli extends CommonCli {
                         try {
                             if (!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
                                 allFound = false;
-                                testResultSummary.doNotSupportFunTest.put(testClass, TapSummary.format(supportFunction.getErrorMessage()));
+                                testResultSummary.doNotSupportFunTest().put(testClass, RunnerSummary.format(supportFunction.getErrorMessage()));
                             }
                         } catch (NoSuchMethodException e) {
                             allFound = false;
-                            testResultSummary.doNotSupportFunTest.put(testClass, TapSummary.format(supportFunction.getErrorMessage()));
+                            testResultSummary.doNotSupportFunTest().put(testClass, RunnerSummary.format(supportFunction.getErrorMessage()));
                         }
                         if (!allFound) {
                             Set<Class<? extends PDKTestBase>> classes = subTest(testClass);
@@ -325,7 +326,6 @@ public class TapPDKDebugCli extends CommonCli {
                     supportTest.add(testClass);
                 }
             }
-
             supportTest.stream().sorted((cla1, cla2) -> {
                 Annotation annotation1 = cla1.getAnnotation(TapGo.class);
                 Annotation annotation2 = cla2.getAnnotation(TapGo.class);
@@ -335,9 +335,9 @@ public class TapPDKDebugCli extends CommonCli {
         return selectors;
     }
 
-    private void selectorsAddClass(List<DiscoverySelector> selectors, Class<?> theClass, TapSummary testResultSummary) {
+    private void selectorsAddClass(List<DiscoverySelector> selectors, Class<?> theClass, RunnerSummary testResultSummary) {
         selectors.add(DiscoverySelectors.selectClass(theClass));
-        testResultSummary.testClasses.add(theClass);
+        testResultSummary.testClasses().add(theClass);
     }
 
     private TapNodeInfo nodeInfo() {

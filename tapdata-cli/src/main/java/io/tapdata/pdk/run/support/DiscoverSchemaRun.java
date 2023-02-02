@@ -6,12 +6,10 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
 import io.tapdata.pdk.run.base.ReadStopException;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
-import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
@@ -23,24 +21,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
+
 /**
  *
  * */
 @DisplayName("batchRead")
-@TapGo(sort = 2)
-public class BatchReadRun extends PDKBaseRun {
+@TapGo(sort = 3)
+public class DiscoverSchemaRun extends PDKBaseRun {
     @DisplayName("batchRead.afterInsert")
     @TapTestCase(sort = 1)
     @Test
-    void batchRead() {
+    public void discoverSchema(){
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             List<TapEvent> list = new ArrayList<>();
             PDKTestBase.TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
-                Method testCase = super.getMethod("batchRead");
+                Method testCase = super.getMethod("discoverSchema");
                 super.connectorOnStart(prepare);
                 execute.testCase(testCase);
 
@@ -57,42 +55,27 @@ public class BatchReadRun extends PDKBaseRun {
                 final Object offset = batchReadConfig.get("offset");
                 TapTable table = new TapTable(tableName,tableName);
 
-//                try {
+                try {
                     batchReadFun.batchRead(context, table, offset, batchSize, (events, obj) -> {
                         if (null != events && !events.isEmpty()) {
                             list.addAll(events);
                             throw new ReadStopException();
                         }
                     });
-//                    super.connectorOnStop(prepare);
-//                }catch (Throwable throwable){
-//
-//
-//                }
-            } catch (Throwable throwable) {
-                if (!(throwable instanceof ReadStopException)){
-                    String message = throwable.getMessage();
-                    System.out.println(message);
-                }else {
-                    String result = toJson(list, JsonParser.ToJsonFeature.PrettyFormat,JsonParser.ToJsonFeature.WriteMapNullValue);
-                    System.out.println(result);
+                    super.connectorOnStop(prepare);
+                }catch (Throwable throwable){
+                    super.connectorOnStop(prepare);
+                    if (!(throwable instanceof ReadStopException)){
+                        String message = throwable.getMessage();
+                        System.out.println(message);
+                    }else {
+                        String result = toJson(list, JsonParser.ToJsonFeature.PrettyFormat,JsonParser.ToJsonFeature.WriteMapNullValue);
+                        System.out.println(result);
+                    }
                 }
-            }finally {
-                super.connectorOnStop(prepare);
+            } catch (Throwable exception) {
+
             }
         });
     }
-
-    public static List<SupportFunction> testFunctions() {
-        return list(support(BatchReadFunction.class,TapSummary.format("BatchReadFunctionNeed")));
-    }
-
-
-    //TapAssert.asserts(() ->
-    //        Assertions.assertTrue(
-    //                list.size() >= 1,
-    //                TapSummary.format("batchRead.batchRead.error", recordCount, batchSize, recordCount, null == list ? 0 : list.size())
-    //        )
-    //).acceptAsWarn(testCase, TapSummary.format("batchRead.batchRead.succeed", recordCount, batchSize, recordCount, null == list ? 0 : list.size()));
-
 }
