@@ -2,6 +2,8 @@ package io.tapdata.js.connector.server.function.support;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.ExecuteConfig;
 import io.tapdata.js.connector.server.function.FunctionBase;
@@ -50,20 +52,25 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
             throw new CoreException("Command info cannot be empty.");
         }
         try {
-            Object invoker = super.javaScripter.invoker(
-                    JSFunctionNames.CommandV1.jsName(),
-                    context.getConnectionConfig(),
-                    commandInfo
-            );
+            Object invoker;
+            synchronized (JSConnector.execLock) {
+                invoker = super.javaScripter.invoker(
+                        JSFunctionNames.CommandV1.jsName(),
+                        Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
+                        commandInfo
+                );
+            }
             if (Objects.isNull(invoker)) {
                 Map<String, Object> data = new HashMap<>();
                 data.put("data", invoker);
                 commandResult.result(data);
             } else {
-                invoker = super.javaScripter.invoker(
-                        JSFunctionNames.CommandV2.jsName(),
-                        invoker
-                );
+                synchronized (JSConnector.execLock) {
+                    invoker = super.javaScripter.invoker(
+                            JSFunctionNames.CommandV2.jsName(),
+                            invoker
+                    );
+                }
                 if (invoker instanceof Map) {
                     commandResult.result((Map<String, Object>) invoker);
                 } else {
@@ -99,12 +106,15 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
                 .toMap();
         super.javaScripter.put("_tapConfig_", configMap);
         try {
-            Object invoker = super.javaScripter.invoker(
-                    this.functionName.jsName(),
-                    commandInfo.getConnectionConfig(),
-                    commandInfo.getNodeConfig(),
-                    commandMap
-            );
+            Object invoker;
+            synchronized (JSConnector.execLock) {
+                invoker = super.javaScripter.invoker(
+                        this.functionName.jsName(),
+                        commandInfo.getConnectionConfig(),
+                        commandInfo.getNodeConfig(),
+                        commandMap
+                );
+            }
             if (invoker instanceof Map) {
                 commandResult.result((Map<String, Object>) invoker);
             } else {

@@ -69,13 +69,15 @@ public class FieldAddDelStrategyImpl implements DagLogStrategy {
                     boolean fieldEmpty = false;
                     if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
                         List<FieldProcessorNode.Operation> operations = node.getOperations();
-                        Map<String, String> collect = operations.stream()
-                                .collect(Collectors.toMap(FieldProcessorNode.Operation::getField, FieldProcessorNode.Operation::getOp, (e1, e2) -> e1));
+                        if (CollectionUtils.isNotEmpty(operations)) {
+                            Map<String, String> collect = operations.stream()
+                                    .collect(Collectors.toMap(FieldProcessorNode.Operation::getField, FieldProcessorNode.Operation::getOp, (e1, e2) -> e1));
 
-                        List<String> fields = metadataInstancesDtos.get(0).getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
-                        fields.removeIf(field -> collect.containsKey(field) && collect.get(field).equals("REMOVE"));
-                        if ((node.isDeleteAllFields() || CollectionUtils.isEmpty(fields)) && !collect.containsValue("CREATE")) {
-                            fieldEmpty = true;
+                            List<String> fields = metadataInstancesDtos.get(0).getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
+                            fields.removeIf(field -> collect.containsKey(field) && collect.get(field).equals("REMOVE"));
+                            if ((node.isDeleteAllFields() || CollectionUtils.isEmpty(fields)) && !collect.containsValue("CREATE")) {
+                                fieldEmpty = true;
+                            }
                         }
                     }
 

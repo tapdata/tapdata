@@ -3,6 +3,7 @@ package io.tapdata.js.connector.server.function.support;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.FunctionSupport;
@@ -34,12 +35,15 @@ public class JSBatchCountFunction extends FunctionBase implements FunctionSuppor
         if (Objects.isNull(table)) {
             throw new CoreException("Table lists cannot not be empty.");
         }
-        Object invoker = super.javaScripter.invoker(
-                JSFunctionNames.BatchCountFunction.jsName(),
-                context.getConfigContext(),
-                context.getNodeConfig(),
-                table.getId()
-        );
+        Object invoker;
+        synchronized (JSConnector.execLock) {
+            invoker = super.javaScripter.invoker(
+                    JSFunctionNames.BatchCountFunction.jsName(),
+                    context.getConfigContext(),
+                    context.getNodeConfig(),
+                    table.getId()
+            );
+        }
         if (Objects.isNull(invoker)) {
             TapLogger.info(TAG, "JavaScript execution result cannot be NULL or empty, please return Long type result.");
             return 0L;
