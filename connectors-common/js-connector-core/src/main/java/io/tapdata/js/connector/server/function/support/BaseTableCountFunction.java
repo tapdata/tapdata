@@ -3,6 +3,7 @@ package io.tapdata.js.connector.server.function.support;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.enums.JSTableKeys;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.iengine.ScriptEngineInstance;
@@ -51,11 +52,14 @@ public class BaseTableCountFunction extends FunctionBase {
             return 0;
         }
         SchemaCount schemaSender = new SchemaCount();
-        Object invoker = this.javaScripter.invoker(
-                JSFunctionNames.DISCOVER_SCHEMA.jsName(),
-                Optional.ofNullable(connectionContext.getConnectionConfig()).orElse(new DataMap()),
-                schemaSender
-        );
+        Object invoker;
+        synchronized (JSConnector.execLock) {
+            invoker = this.javaScripter.invoker(
+                    JSFunctionNames.DISCOVER_SCHEMA.jsName(),
+                    Optional.ofNullable(connectionContext.getConnectionConfig()).orElse(new DataMap()),
+                    schemaSender
+            );
+        }
         schemaSender.send(invoker);
         return schemaSender.get();
     }

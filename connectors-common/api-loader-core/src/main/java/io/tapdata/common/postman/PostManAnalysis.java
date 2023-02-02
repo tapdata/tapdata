@@ -12,6 +12,7 @@ import io.tapdata.common.support.APIFactory;
 import io.tapdata.common.support.core.emun.TapApiTag;
 import io.tapdata.common.support.entitys.APIResponse;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.simplify.TapSimplify;
 import okhttp3.*;
 
 import java.io.IOException;
@@ -215,7 +216,7 @@ public class PostManAnalysis {
         try {
             return this.http(this.httpPrepare(uriOrName, method, params));
         } catch (IOException e) {
-            throw new CoreException(String.format("Http request failed ,the api name or url is [%s],method is [%s], error message : %s", uriOrName, method, e.getMessage()));
+            throw new CoreException(String.format("Http request failed ,the api name or url is [%s],method is [%s], params are [%s], error message : %s", uriOrName, method, TapSimplify.toJson(params), e.getMessage()));
         }
     }
 

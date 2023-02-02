@@ -263,7 +263,7 @@ public class LoadJavaScripter {
         }
     }
 
-    public Object invokerGraal(String functionName, Object... params) {
+    public synchronized Object invokerGraal(String functionName, Object... params) {
         if (Objects.isNull(functionName)) return null;
         if (Objects.isNull(this.scriptEngine)) return null;
         //Function<Object[], Object> polyglotMapAndFunction;

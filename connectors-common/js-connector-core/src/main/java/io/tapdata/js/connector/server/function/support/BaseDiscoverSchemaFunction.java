@@ -4,6 +4,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.enums.JSTableKeys;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.iengine.ScriptEngineInstance;
@@ -94,10 +95,13 @@ public class BaseDiscoverSchemaFunction extends FunctionBase {
         }
         SchemaSender schemaAccept = new SchemaAccept();
         schemaAccept.setConsumer(consumer);
-        Object invoker = this.javaScripter.invoker(
-                JSFunctionNames.DISCOVER_SCHEMA.jsName(),
-                Optional.ofNullable(connectionContext.getConnectionConfig()).orElse(new DataMap()),
-                schemaAccept);
+        Object invoker;
+        synchronized (JSConnector.execLock){
+            invoker = this.javaScripter.invoker(
+                    JSFunctionNames.DISCOVER_SCHEMA.jsName(),
+                    Optional.ofNullable(connectionContext.getConnectionConfig()).orElse(new DataMap()),
+                    schemaAccept);
+        }
         schemaAccept.send(invoker);
     }
 }
