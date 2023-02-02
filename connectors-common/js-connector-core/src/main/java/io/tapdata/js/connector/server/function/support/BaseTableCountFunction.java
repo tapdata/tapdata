@@ -2,11 +2,14 @@ package io.tapdata.js.connector.server.function.support;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.enums.JSTableKeys;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.iengine.ScriptEngineInstance;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.JSFunctionNames;
+import io.tapdata.js.connector.server.function.base.SchemaCount;
+import io.tapdata.js.connector.server.function.base.SchemaSender;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.util.*;
@@ -47,42 +50,13 @@ public class BaseTableCountFunction extends FunctionBase {
             TapLogger.info(TAG,"Not found 'discover_schema' which the implementation of a named function in js file [connector.js], cannot load and scan tables.");
             return 0;
         }
-        Object invoker = this.javaScripter.invoker(JSFunctionNames.DISCOVER_SCHEMA.jsName(), connectionContext);
-        if (Objects.isNull(invoker)){
-            TapLogger.info(TAG,"No table information was loaded after discoverSchema was executed.");
-            return 0;
-        }
-        Set<Map.Entry<String, Object>> discoverSchema = new HashSet<>();
-        AtomicInteger tableNum = new AtomicInteger();
-        try {
-            if (invoker instanceof Map){
-                discoverSchema = ((Map<String,Object>)invoker).entrySet();
-            }else if (invoker instanceof Collection){
-                Collection<Object> tableCollection = (Collection<Object>) invoker;
-                tableNum.set(tableCollection.size());
-            }else {
-                tableNum.getAndIncrement();
-            }
-        }catch (Exception e){
-            tableNum.getAndIncrement();
-        }
-        if (!discoverSchema.isEmpty()) {
-            discoverSchema.stream().filter(Objects::nonNull).forEach(entry -> {
-                Object entryValue = entry.getValue();
-                if (entryValue instanceof String){
-                    tableNum.getAndIncrement();
-                }else if (entryValue instanceof Map) {
-                    Map<String,Object> tableMap = (Map<String, Object>) entryValue;
-                    Object tableIdObj = tableMap.get(JSTableKeys.TABLE_NAME);
-                    if (Objects.nonNull(tableIdObj)){
-                        tableNum.getAndIncrement();
-                    }
-                }else if(entryValue instanceof Collection){
-                    Collection<Object> collection = (Collection<Object>) entryValue;
-                    collection.stream().filter(obj->Objects.nonNull(obj)&&"".equals(String.valueOf(obj))).forEach(table-> tableNum.getAndIncrement());
-                }
-            });
-        }
-        return tableNum.get();
+        SchemaCount schemaSender = new SchemaCount();
+        Object invoker = this.javaScripter.invoker(
+                JSFunctionNames.DISCOVER_SCHEMA.jsName(),
+                Optional.ofNullable(connectionContext.getConnectionConfig()).orElse(new DataMap()),
+                schemaSender
+        );
+        schemaSender.send(invoker);
+        return schemaSender.get();
     }
 }
