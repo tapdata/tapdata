@@ -6,7 +6,6 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.base.EventTag;
 import io.tapdata.js.connector.base.EventType;
@@ -74,45 +73,20 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
 
         try {
-            super.javaScripter.invoker(
-                    JSFunctionNames.WriteRecordFunction.jsName(),
-                    context.getConfigContext(),
-                    context.getNodeConfig(),
-                    machiningEvents
-            );
+            synchronized (JSConnector.execLock) {
+                super.javaScripter.invoker(
+                        JSFunctionNames.WriteRecordFunction.jsName(),
+                        context.getConfigContext(),
+                        context.getNodeConfig(),
+                        machiningEvents
+                );
+            }
         } catch (Exception e) {
             throw new CoreException(String.format("Exceptions occurred when executing writeRecord to write data. The operations of adding %s, modifying %s, and deleting %s failed.", insert.get(), update.get(), delete.get()));
         }
         writeListResultConsumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
     }
 
-    private void exec(TapConnectorContext context, List<Map<String, Object>> execData, JSFunctionNames function,AtomicLong insert, AtomicLong update, AtomicLong delete ) {
-        if (!this.doNotSupport(function)) {
-            try {
-                Object invoker;
-                synchronized (JSConnector.execLock) {
-                    invoker = super.javaScripter.invoker(
-                            JSFunctionNames.InsertRecordFunction.jsName(),
-                            Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
-                            Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
-                            execData
-                    );
-                }
-                try {
-                    List<Map<String,Object>> succeedData = (List<Map<String, Object>>) invoker;
-                    Map<String, List<Map<String, Object>>> stringListMap = succeedData.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(map -> String.valueOf(map.get(EventTag.EVENT_TYPE))));
-                    List<Map<String, Object>> insertData = stringListMap.get(EventType.insert);
-                    List<Map<String, Object>> updateData = stringListMap.get(EventType.update);
-                    List<Map<String, Object>> deleteData = stringListMap.get(EventType.delete);
-                    insert.addAndGet(Objects.isNull(insertData)?0:insertData.size());
-                    update.addAndGet(Objects.isNull(updateData)?0:updateData.size());
-                    delete.addAndGet(Objects.isNull(deleteData)?0:deleteData.size());
-                }catch (Exception ignored){}
-            } catch (Exception e) {
-                throw new CoreException(String.format("Exceptions occurred when executing %s to write data. The operations of adding %s, modifying %s, and deleting %s failed,msg: %s.", function.jsName(), insert.get(), update.get(), delete.get(), e.getMessage()));
-            }
-        }
-    }
 
     private List<Map<String, Object>> machiningEvents(List<TapRecordEvent> tapRecordEvents, final String tableId, AtomicLong insert, AtomicLong update, AtomicLong delete) {
         List<Map<String, Object>> events = new ArrayList<>();
