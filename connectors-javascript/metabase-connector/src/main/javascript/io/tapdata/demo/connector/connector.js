@@ -12,7 +12,7 @@ function discover_schema(connectionConfig) {
         let entity = invokeCard.result[0];
         let fieldKeys = keys(entity);
         let fieldsValues = values(entity);
-        let name = clearSpecial(entity.name);
+        let name = clearSpecial(invoke.result[index].name);
         let table = new Map();
         table.set("name", "Card_" + invoke.result[index].id + "_" + name + "");
         let fields = new Map();
