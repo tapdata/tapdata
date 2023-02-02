@@ -120,7 +120,7 @@
         <!--    <hazelcast.version>5.0.2</hazelcast.version>-->
         <!-- hazelcast with tapdata persistence -->
         <hazelcast.version>5.1-BETA-1-SNAPSHOT</hazelcast.version>
-        <hazelcast-persistence.version>5.1-BETA-3-SNAPSHOT</hazelcast-persistence.version>
+        <hazelcast-persistence.version>5.1-BETA-4-SNAPSHOT</hazelcast-persistence.version>
 
         <protobuf-dynamic.version>1.0.1</protobuf-dynamic.version>
 
@@ -865,19 +865,19 @@
 
     <repositories>
         <repository>
-            <id>github</id>
-            <url>https://maven.pkg.github.com/tapdata/tapdata</url>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
             <id>tapdata-tapdata-maven</id>
             <name>maven</name>
             <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/tapdata/tapdata</url>
             <snapshots>
                 <enabled>true</enabled>
             </snapshots>
