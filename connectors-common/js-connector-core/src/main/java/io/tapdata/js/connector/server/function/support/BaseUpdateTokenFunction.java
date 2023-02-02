@@ -11,8 +11,10 @@ import io.tapdata.js.connector.server.function.FunctionSupport;
 import io.tapdata.js.connector.server.function.JSFunctionNames;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public class BaseUpdateTokenFunction extends FunctionBase implements FunctionSupport<BaseUpdateTokenFunction> {
     private static final String TAG = BaseUpdateTokenFunction.class.getSimpleName();
