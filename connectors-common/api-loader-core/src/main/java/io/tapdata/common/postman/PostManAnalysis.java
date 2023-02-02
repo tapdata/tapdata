@@ -17,13 +17,17 @@ import okhttp3.*;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static io.tapdata.base.ConnectorBase.*;
 
 public class PostManAnalysis {
     private static final String TAG = PostManAnalysis.class.getSimpleName();
-
+    private Map<String,Object> httpConfig;
+    public void setHttpConfig(Map<String, Object> httpConfig){
+        this.httpConfig = httpConfig;
+    }
     public boolean filterUselessApi() {
         //是否过滤没有被标记的api
         return false;
@@ -179,7 +183,7 @@ public class PostManAnalysis {
     }
 
     public APIResponse http(Request request) throws IOException {
-        OkHttpClient client = new OkHttpClient().newBuilder().build();
+        OkHttpClient client = this.configHttp(new OkHttpClient().newBuilder()).build();
         Response response = client.newCall(request).execute();
         Map<String, Object> result = new HashMap<>();
         Optional.ofNullable(response.body()).ifPresent(body -> {
@@ -201,6 +205,17 @@ public class PostManAnalysis {
         return APIResponse.create().httpCode(response.code())
                 .result(result)
                 .headers(getHeaderMap(response.headers()));
+    }
+
+    private OkHttpClient.Builder configHttp(OkHttpClient.Builder builder){
+        if (Objects.nonNull(this.httpConfig)){
+            try {
+                int timeout = (Integer) this.httpConfig.get("timeout");
+                builder.connectTimeout(timeout, TimeUnit.MILLISECONDS);
+                builder.readTimeout(timeout,TimeUnit.MILLISECONDS);
+            }catch (Exception ignored){ }
+        }
+        return builder;
     }
 
     public Map<String, Object> getHeaderMap(Headers headers) {

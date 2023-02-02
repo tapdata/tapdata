@@ -9,6 +9,7 @@ import io.tapdata.common.support.entitys.APIResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
@@ -46,6 +47,8 @@ public interface APIInvoker {
 	public List<String> tokenApiNames();
 
 	public Map<String,Object> variable();
+
+	public void setConfig(Object configMap);
 
 	public void pageStage(TapConnectorContext connectorContext,
 							   TapTable table,
