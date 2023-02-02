@@ -141,6 +141,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> nodeConfig = null;
 		if (node instanceof TableNode) {
 			nodeConfig = ((TableNode) node).getNodeConfig();
+		} else if(node instanceof DatabaseNode) {
+			nodeConfig = ((DatabaseNode) node).getNodeConfig();
 		}
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
 				PdkUtil.createNode(taskDto.getId().toHexString(),

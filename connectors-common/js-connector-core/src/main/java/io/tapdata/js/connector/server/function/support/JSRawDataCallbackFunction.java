@@ -5,6 +5,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.base.EventTag;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.FunctionBase;
@@ -57,13 +58,16 @@ public class JSRawDataCallbackFunction extends FunctionBase implements FunctionS
     private List<TapEvent> webHookEvent(TapConnectorContext context, List<String> tableNameList, Map<String, Object> dataMap) {
         this.javaScripter.scriptEngine().put("eventType", this.eventType);
         try {
-            Object invoker = super.javaScripter.invoker(
-                    this.functionName.jsName(),
-                    Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
-                    Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
-                    Optional.ofNullable(tableNameList).orElse(new ArrayList<>()),
-                    Optional.ofNullable(dataMap).orElse(new HashMap<>())
-            );
+            Object invoker;
+            synchronized (JSConnector.execLock) {
+                invoker = super.javaScripter.invoker(
+                        this.functionName.jsName(),
+                        Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
+                        Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
+                        Optional.ofNullable(tableNameList).orElse(new ArrayList<>()),
+                        Optional.ofNullable(dataMap).orElse(new HashMap<>())
+                );
+            }
             this.dataIndex = 1;
             if (invoker instanceof Collection) {
                 Collection<Object> eventList = (Collection<Object>) invoker;

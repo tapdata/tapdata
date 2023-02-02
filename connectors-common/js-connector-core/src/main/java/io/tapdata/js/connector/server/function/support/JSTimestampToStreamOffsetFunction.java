@@ -2,6 +2,7 @@ package io.tapdata.js.connector.server.function.support;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.FunctionSupport;
@@ -33,10 +34,13 @@ public class JSTimestampToStreamOffsetFunction extends FunctionBase implements F
         if (Objects.isNull(context)) {
             throw new CoreException("TapConnectorContext cannot be empty.");
         }
-        Object invoker = super.javaScripter.invoker(
-                JSFunctionNames.BatchCountFunction.jsName(),
-                time
-        );
+        Object invoker;
+        synchronized (JSConnector.execLock) {
+            invoker = super.javaScripter.invoker(
+                    JSFunctionNames.BatchCountFunction.jsName(),
+                    time
+            );
+        }
         if (Objects.isNull(invoker)) {
             TapLogger.info(TAG, "JavaScript execution result is empty, The current timestamp is returned.");
             return System.currentTimeMillis();

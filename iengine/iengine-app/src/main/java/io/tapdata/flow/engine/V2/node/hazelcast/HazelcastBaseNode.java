@@ -52,6 +52,7 @@ import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
+import io.tapdata.flow.engine.V2.util.TapCache;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneFactory;
@@ -120,6 +121,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected MonitorManager monitorManager;
 	private JetJobStatusMonitor jetJobStatusMonitor;
 
+	private final TapCache<Boolean> isJobRunning = new TapCache<Boolean>().expireTime(2000).supplier(this::isJetJobRunning).disableCacheValue(false);
 
 	protected String lastTableName;
 

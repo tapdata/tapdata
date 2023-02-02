@@ -275,6 +275,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			SyncProgress.Type type = syncProgress.getType();
 			switch (type) {
 				case NORMAL:
+				case LOG_COLLECTOR:
 					if (StringUtils.isNotBlank(streamOffset)) {
 						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
 					} else {
@@ -593,7 +594,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				case NORMAL:
 					tapdataEvent = new TapdataEvent();
 					break;
-				case SHARE_CDC:
+				case LOG_COLLECTOR:
 					tapdataEvent = new TapdataShareLogEvent();
 					break;
 			}
@@ -862,7 +863,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected boolean isPollingCDC(Node<?> node) {
-		return !syncType.equals(SyncTypeEnum.INITIAL_SYNC) && node instanceof TableNode && ((TableNode) node).getCdcMode().equals("polling");
+		return !SyncTypeEnum.INITIAL_SYNC.equals(syncType) && node instanceof TableNode && "polling".equals(((TableNode) node).getCdcMode());
 	}
 
 	@Override
@@ -890,7 +891,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	public enum SourceMode {
 		NORMAL,
-		SHARE_CDC,
+		LOG_COLLECTOR,
 	}
 
 	public SyncProgress getSyncProgress() {

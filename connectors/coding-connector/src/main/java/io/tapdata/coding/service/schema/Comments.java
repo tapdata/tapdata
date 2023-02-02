@@ -3,13 +3,14 @@ package io.tapdata.coding.service.schema;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-
 import static io.tapdata.entity.simplify.TapSimplify.field;
 import static io.tapdata.entity.simplify.TapSimplify.table;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Integer;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 public class Comments implements SchemaStart {
     public final Boolean use = false;
+
     @Override
     public Boolean use() {
         return use;
@@ -35,6 +36,6 @@ public class Comments implements SchemaStart {
                 .add(field("IssueCode", JAVA_Integer))
                 .add(field("Content", "StringLonger"))
                 .add(field("CreatedAt", JAVA_Long))
-                .add(field("UpdatedAt", JAVA_Long))   ;
+                .add(field("UpdatedAt", JAVA_Long));
     }
 }

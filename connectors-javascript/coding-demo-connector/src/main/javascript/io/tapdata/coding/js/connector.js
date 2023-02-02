@@ -1,5 +1,6 @@
 var batchStart = nowDate();
-function discover_schema(connectionConfig) {
+function discover_schema(connectionConfig,schemaSender) {
+    schemaSender.send(['ACC']);
     return ['Issues'];
 }
 function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
@@ -31,7 +32,7 @@ function read(urlName, offset, sender, isStreamRead){
 }
 function command_callback(connectionConfig, nodeConfig, commandInfo){
     invoker.addConfig(connectionConfig,nodeConfig);
-    let userInfo = (invoker.invoke('MyUserInfo')).result;
+    let userInfo = (invoker.httpConfig({"timeout":3000}).invoke('MyUserInfo')).result;
     if (commandInfo.command === 'DescribeUserProjects') {
         let data = invoker.invoke("DescribeUserProjects", { userId: userInfo.Response.User.Id});
         return {
