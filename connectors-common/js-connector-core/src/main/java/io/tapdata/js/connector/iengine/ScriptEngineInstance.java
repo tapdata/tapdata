@@ -5,12 +5,15 @@ import io.tapdata.js.connector.JSConnector;
 
 import java.net.URL;
 import java.util.Enumeration;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ScriptEngineInstance {
     public static final String JS_FLOODER = "connectors-javascript";
 
     public LoadJavaScripter script;
+    public static final Map<String,LoadJavaScripter> scriptContext = new ConcurrentHashMap<>();
 
     private static ScriptEngineInstance instance;
 
@@ -30,7 +33,12 @@ public class ScriptEngineInstance {
     }
 
     private void scriptInstance() {
-        this.script = LoadJavaScripter.loader("", JS_FLOODER);
+        String threadName = Thread.currentThread().getName();
+        this.script = ScriptEngineInstance.scriptContext.get(threadName);
+        if (Objects.isNull(this.script)){
+            this.script = LoadJavaScripter.loader("", JS_FLOODER);
+            ScriptEngineInstance.scriptContext.put(threadName,this.script);
+        }
     }
 
     public LoadJavaScripter script() {
