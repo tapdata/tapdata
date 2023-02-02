@@ -108,4 +108,19 @@ public class JsUtil {
             return new ArrayList<>();
         }
     }
+
+    public void sleep(Object timeOut){
+        long time = 0;
+        if (Objects.isNull(timeOut)) return;
+        else if (timeOut instanceof Integer){
+            time = (Integer)timeOut;
+        }else if (timeOut instanceof Long){
+            time = (Long)timeOut;
+        }
+        try {
+            Thread.sleep(time);
+        } catch (InterruptedException ignored) {
+
+        }
+    }
 }

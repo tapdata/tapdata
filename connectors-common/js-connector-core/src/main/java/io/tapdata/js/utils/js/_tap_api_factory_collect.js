@@ -144,3 +144,6 @@ function keys(map){
 function values(map){
     return tapUtil.entityValues(map);
 }
+function sleeped(timeout){
+    tapUtil.sleep(timeout);
+}
