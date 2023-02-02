@@ -5,10 +5,24 @@ function isParam(param) {
 class TapApi {
     invoker;
     config;
+    httpConfigParam = {
+        'timeout' : 3000
+    };
 
     constructor(invoker) {
         this.invoker = invoker;
         this.config = _tapConfig_;
+    }
+    setTimeOut(milliseconds){
+        if (Number.isNaN(milliseconds)){
+            return;
+        }
+        this.httpConfigParam.timeout = milliseconds;
+        return this;
+    }
+    httpConfig(configMap){
+        this.httpConfigParam = configMap;
+        return this;
     }
 
     invoke(uriOrNameStr, paramsMap, methodStr) {
@@ -17,12 +31,13 @@ class TapApi {
             log.error("No API name or URL was specified, unable to execute http request. ");
             return null;
         }
+        this.invoker.setConfig(this.httpConfig);
         if (isParam(paramsMap) && isParam(methodStr)) {
             result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr, true);
         } else if (isParam(paramsMap)) {
-            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap),'POST',true);
+            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), 'POST', true);
         } else {
-            result = this.invoker.invoke(uriOrNameStr, this.config,'POST',true);
+            result = this.invoker.invoke(uriOrNameStr, this.config, 'POST', true);
         }
         return {
             "result": tapUtil.toMap(result.result).data,

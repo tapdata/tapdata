@@ -32,7 +32,7 @@ function read(urlName, offset, sender, isStreamRead){
 }
 function command_callback(connectionConfig, nodeConfig, commandInfo){
     invoker.addConfig(connectionConfig,nodeConfig);
-    let userInfo = (invoker.invoke('MyUserInfo')).result;
+    let userInfo = (invoker.httpConfig({"timeout":3000}).invoke('MyUserInfo')).result;
     if (commandInfo.command === 'DescribeUserProjects') {
         let data = invoker.invoke("DescribeUserProjects", { userId: userInfo.Response.User.Id});
         return {
