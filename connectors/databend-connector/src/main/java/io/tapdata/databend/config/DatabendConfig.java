@@ -11,7 +11,7 @@ public class DatabendConfig extends CommonDbConfig implements Serializable {
 
     public DatabendConfig() {
         setDbType("databend");
-        setJdbcDriver("com.databend.jdbc.Driver");
+        setJdbcDriver("com.databend.jdbc.DatabendDriver");
     }
     public DatabendConfig load(Map<String, Object> map) {
         return (DatabendConfig) super.load(map);
