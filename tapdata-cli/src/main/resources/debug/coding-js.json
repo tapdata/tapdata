@@ -59,6 +59,9 @@
       "tableName": "Issues",
       "pageSize": 500
     },
+    "batch_count": {
+      "tableName": "Issues"
+    },
     "stream_read": {
       "offset": {},
       "tableNameList": [
@@ -79,11 +82,7 @@
         "Issues"
       ],
       "eventDataMap": {
-        "event_type": "i",
-        "after_data": {},
-        "before_data": {},
-        "reference_time": 0,
-        "table_name": "example_table_lark"
+
       }
     }
   }
