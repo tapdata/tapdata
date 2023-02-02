@@ -6,6 +6,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.base.EventTag;
 import io.tapdata.js.connector.base.EventType;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
@@ -72,12 +73,14 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
 
         try {
-            super.javaScripter.invoker(
-                    JSFunctionNames.WriteRecordFunction.jsName(),
-                    context.getConfigContext(),
-                    context.getNodeConfig(),
-                    machiningEvents
-            );
+            synchronized (JSConnector.execLock) {
+                super.javaScripter.invoker(
+                        JSFunctionNames.WriteRecordFunction.jsName(),
+                        context.getConfigContext(),
+                        context.getNodeConfig(),
+                        machiningEvents
+                );
+            }
         } catch (Exception e) {
             throw new CoreException(String.format("Exceptions occurred when executing writeRecord to write data. The operations of adding %s, modifying %s, and deleting %s failed.", insert.get(), update.get(), delete.get()));
         }
