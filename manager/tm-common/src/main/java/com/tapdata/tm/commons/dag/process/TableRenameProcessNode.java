@@ -158,7 +158,12 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
                 lastTableName = tableInfo.getCurrentTableName();
             }
 
-            tableInfo = new TableRenameTableInfo(tableName, lastTableName, convertTableName(lastTableName));
+            String currentTableName = convertTableName(lastTableName);
+            tableInfo = new TableRenameTableInfo(tableName, lastTableName, currentTableName);
+            boolean exist = tableNames.stream().anyMatch(t -> t.getCurrentTableName().equals(currentTableName));
+            if (exist) {
+                throw new IllegalArgumentException("The new table [" + currentTableName + "] already exists when it is converted as  [" + currentTableName + "]");
+            }
             tableNames.add(tableInfo);
         } else if (event instanceof TapDropTableEvent) {
             String tableName = event.getTableId();

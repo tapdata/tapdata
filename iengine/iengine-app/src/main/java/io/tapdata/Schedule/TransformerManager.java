@@ -506,8 +506,6 @@ public class TransformerManager {
 //      JOB_MAP.forEach((jobId, tansformer) -> {
 //        flushJobStats(tansformer);
 //      });
-
-			changeLogLevel();
 		} catch (Exception e) {
 			logger.error("Flush jobs' stats to db failed {}", e.getMessage(), e);
 		}
@@ -893,7 +891,8 @@ public class TransformerManager {
 //    }
 //  }
 
-	private void changeLogLevel() {
+	@Scheduled(fixedDelay = 5000L)
+	public void changeLogLevel() {
 
 		Setting levelSetting = settingService.getSetting("logLevel");
 		String scriptEngineHttpApender = settingService.getString("scriptEngineHttpAppender", "false");
