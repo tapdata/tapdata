@@ -218,7 +218,7 @@ public class MpService {
 
     }
 
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelay = 1000)
     public void loadAccessTokenFromDB() {
 
         Query query = Query.query(Criteria.where("name").is("weChatAccessToken"));
