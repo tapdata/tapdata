@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
@@ -60,6 +61,9 @@ public class LoadJavaScripter {
     public boolean hasLoad() {
         return this.hasLoadJs;
     }
+    public void reload() {
+        this.hasLoadJs = false;
+    }
 
     public static LoadJavaScripter loader(String jarFilePath, String flooder) {
         LoadJavaScripter loadJavaScripter = new LoadJavaScripter();
@@ -101,6 +105,7 @@ public class LoadJavaScripter {
                         this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
                     }
                 }
+                this.hasLoadJs = true;
                 return this.scriptEngine;
             } catch (Exception error) {
                 throw new CoreException("Error java script code, message: " + error.getMessage());

@@ -120,7 +120,7 @@ public class PostManAPIInvoker
 
             response = this.interceptor.intercept(response, uriOrName, method, params);
         }
-        System.out.println("DEBUG-INFO: Results obtained from this execution: \n" + toJson(response));
+        //System.out.println("DEBUG-INFO: Results obtained from this execution: \n" + toJson(response));
         return response;
     }
 

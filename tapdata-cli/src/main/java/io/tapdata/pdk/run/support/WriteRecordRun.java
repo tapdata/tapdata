@@ -1,17 +1,15 @@
 package io.tapdata.pdk.run.support;
 
-import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
+import io.tapdata.pdk.run.base.RunnerSummary;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
@@ -26,18 +24,18 @@ import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 
-@DisplayName("")
-@TapGo
+@DisplayName("writeRecordRun")
+@TapGo(sort = 7)
 public class WriteRecordRun extends PDKBaseRun {
-    @DisplayName("batchRead.afterInsert")
+    @DisplayName("writeRecordRun.run")
     @TapTestCase(sort = 1)
     @Test
-    void writeRecord() {
+    void writeRecord() throws NoSuchMethodException {
+        Method testCase = super.getMethod("writeRecord");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
-                Method testCase = super.getMethod("command");
                 super.connectorOnStart(prepare);
                 execute.testCase(testCase);
 
@@ -73,12 +71,10 @@ public class WriteRecordRun extends PDKBaseRun {
                         recordEvents.setErrorMap(events.getErrorMap());
                         eventResult.put(tableId, recordEvents);
                     });
-                    String result = toJson(eventResult, JsonParser.ToJsonFeature.PrettyFormat, JsonParser.ToJsonFeature.WriteMapNullValue);
-                    System.out.println(result);
+                    super.runSucceed(testCase, RunnerSummary.format("formatValue",super.formatPatten(eventResult)));
                 }
             } catch (Throwable throwable) {
-                String message = throwable.getMessage();
-                System.out.println(message);
+                super.runError(testCase, RunnerSummary.format("formatValue",throwable.getMessage()));
             } finally {
                 super.connectorOnStop(prepare);
             }
@@ -115,6 +111,6 @@ public class WriteRecordRun extends PDKBaseRun {
     }
 
     public static List<SupportFunction> testFunctions() {
-        return list(support(BatchReadFunction.class, TapSummary.format("BatchReadFunctionNeed")));
+        return list(support(WriteRecordFunction.class, RunnerSummary.format("jsFunctionInNeed","any one or more of writer_record and insert_record and update_record and delete_record")));
     }
 }

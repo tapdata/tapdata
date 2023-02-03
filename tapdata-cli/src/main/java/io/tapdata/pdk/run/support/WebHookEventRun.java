@@ -1,16 +1,13 @@
 package io.tapdata.pdk.run.support;
 
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
-import io.tapdata.pdk.run.base.ReadStopException;
+import io.tapdata.pdk.run.base.RunnerSummary;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
@@ -20,25 +17,25 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
-import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
-@DisplayName("")
-@TapGo
+@DisplayName("webHookEventRun")
+@TapGo(sort = 8)
 public class WebHookEventRun extends PDKBaseRun {
-    @DisplayName("batchRead.afterInsert")
+    @DisplayName("webHookEventRun.run")
     @TapTestCase(sort = 1)
     @Test
-    void webhook() {
+    void webhook() throws NoSuchMethodException {
+        Method testCase = super.getMethod("webhook");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
-                Method testCase = super.getMethod("webhook");
                 super.connectorOnStart(prepare);
                 execute.testCase(testCase);
 
@@ -49,23 +46,21 @@ public class WebHookEventRun extends PDKBaseRun {
                     return;
                 }
                 RawDataCallbackFilterFunctionV2 webhook = functions.getRawDataCallbackFilterFunctionV2();
-                Map<String,Object> batchReadConfig = (Map<String,Object>)super.debugConfig.get("batch_read");
-                final List<String> tableNames = (List<String>)batchReadConfig.get("tableNameList");
-                final Map<String,Object> dataMap = (Map<String,Object>)batchReadConfig.get("eventDataMap");
+                Map<String, Object> batchReadConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get("web_hook_event")).orElse(new HashMap<>());
+                final List<String> tableNames = (List<String>) batchReadConfig.get("tableNameList");
+                final Map<String, Object> dataMap = (Map<String, Object>) batchReadConfig.get("eventDataMap");
 
                 List<TapEvent> filter = webhook.filter(context, tableNames, dataMap);
-                String result = toJson(filter, JsonParser.ToJsonFeature.PrettyFormat,JsonParser.ToJsonFeature.WriteMapNullValue);
-                System.out.println(result);
+                super.runSucceed(testCase, RunnerSummary.format("formatValue",super.formatPatten(filter)));
             } catch (Throwable throwable) {
-                String message = throwable.getMessage();
-                System.out.println(message);
-            }finally {
+                super.runError(testCase, RunnerSummary.format("formatValue",throwable.getMessage()));
+            } finally {
                 super.connectorOnStop(prepare);
             }
         });
     }
 
     public static List<SupportFunction> testFunctions() {
-        return list(support(BatchReadFunction.class, TapSummary.format("BatchReadFunctionNeed")));
+        return list(support(RawDataCallbackFilterFunctionV2.class, RunnerSummary.format("jsFunctionInNeed","web_hook_event")));
     }
 }

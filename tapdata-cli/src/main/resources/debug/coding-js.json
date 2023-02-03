@@ -71,7 +71,7 @@
     },
     "command_callback": {
       "commandInfo": {
-        "command": "",
+        "command": "DescribeUserProjects",
         "action": "",
         "argMap": {},
         "time": 0

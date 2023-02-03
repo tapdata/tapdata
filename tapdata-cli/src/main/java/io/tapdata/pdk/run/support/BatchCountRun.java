@@ -3,8 +3,14 @@ package io.tapdata.pdk.run.support;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.cli.javascript.PDKRunner;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
+import io.tapdata.pdk.run.base.RunnerSummary;
+import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
@@ -12,47 +18,52 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
-@DisplayName("batchRead")
-@TapGo(sort = 3)
+import static io.tapdata.entity.simplify.TapSimplify.list;
+
+@DisplayName("batchCountRun")
+@TapGo(sort = 4)
 public class BatchCountRun extends PDKBaseRun {
-    @DisplayName("batchRead.afterInsert")
+    @DisplayName("batchCountRun.run")
     @TapTestCase(sort = 1)
     @Test
-    public void batchCount() {
+    public void batchCount() throws NoSuchMethodException {
+        Method testCase = super.getMethod("batchCount");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKBaseRun.TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
-                Method testCase = super.getMethod("batchCount");
                 super.connectorOnStart(prepare);
                 execute.testCase(testCase);
 
                 ConnectorNode connectorNode = prepare.connectorNode();
                 ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
                 BatchCountFunction batchCountFunction = connectorFunctions.getBatchCountFunction();
-                if (Objects.nonNull(batchCountFunction)){
-                    Map<String,Object> batchCountConfig = (Map<String,Object>)super.debugConfig.get("batch_count");
+                if (Objects.nonNull(batchCountFunction)) {
+                    Map<String, Object> batchCountConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get("batch_count")).orElse(new HashMap<>());
                     Object tableName = batchCountConfig.get("tableName");
-                    if (Objects.isNull(tableName)){
-                        //Error cannot get tableName in proprities
-
+                    if (Objects.isNull(tableName)) {
+                        super.runError(testCase, RunnerSummary.format("batchCountRun.noTable"));
                         return;
                     }
-                    TapTable table = new TapTable(String.valueOf(tableName),String.valueOf(tableName));
+                    TapTable table = new TapTable(String.valueOf(tableName), String.valueOf(tableName));
                     long count = batchCountFunction.count(connectorNode.getConnectorContext(), table);
-
-                    System.out.println("[SUCCEED] Table count of table " + String.valueOf(tableName) + "is "+ count);
-                }else {
+                    //System.out.println("[SUCCEED] Table count of table " + String.valueOf(tableName) + "is "+ count);
+                    super.runSucceed(testCase,RunnerSummary.format("batchCountRun.succeed",tableName,count));
+                } else {
                     //Error cannot support batch count function
+                    super.runError(testCase, RunnerSummary.format("batchCountRun.noFunction"));
                 }
             } catch (Throwable exception) {
-
-            }finally {
+                super.runError(testCase, RunnerSummary.format("formatValue"));
+            } finally {
                 super.connectorOnStop(prepare);
             }
         });
+    }
+
+    public static List<SupportFunction> testFunctions() {
+        return list(support(BatchCountFunction.class, RunnerSummary.format("jsFunctionInNeed","batch_count")));
     }
 }

@@ -90,7 +90,7 @@ public class TapPDKRunnerCli extends CommonCli {
 
     public void runOne(String testClass, RunnerSummary testResultSummary) {
         LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
-                .selectors(selectClass("io.tapdata.pdk.tdd.tests." + testClass))
+                .selectors(selectClass("io.tapdata.pdk.run.support." + testClass))
                 .build();
         runTests(request, testResultSummary);
     }
@@ -166,8 +166,6 @@ public class TapPDKRunnerCli extends CommonCli {
                     if (!pomFile.endsWith("pom.xml")) {
                         pomFile = pomFile + File.separator + "pom.xml";
                     }
-//                    int state = mavenCli.doMain(new String[]{"install", "-f", pomFile}, "./", System.out, System.out);
-
                     InvocationRequest request = new DefaultInvocationRequest();
                     request.setPomFile(new File(pomFile));
                     request.setGoals(Collections.singletonList("install"));
@@ -213,30 +211,11 @@ public class TapPDKRunnerCli extends CommonCli {
             } else {
                 MavenXpp3Reader reader = new MavenXpp3Reader();
                 Model model = reader.read(new FileReader(FilenameUtils.concat(file.getAbsolutePath(), "pom.xml")));
-//                System.out.println("file " + file.getAbsolutePath());
-//                jarFile = FilenameUtils.concat("./", "./connectors/dist/" + model.getArtifactId() + "-v" + model.getVersion() + ".jar");
                 jarFile = CommonUtils.getProperty("pdk_external_jar_path", "../connectors/dist") + "/" + model.getArtifactId() + "-v" + model.getVersion() + ".jar";
                 System.out.println("------------- Maven package successfully -------------");
                 System.out.println("Connector jar is " + jarFile);
-//                System.setProperty("maven.multiModuleProjectDirectory", ".");
                 Thread.currentThread().setContextClassLoader(TDDCli.class.getClassLoader());
             }
-
-//            MavenCli mavenCli = new MavenCli();
-//            int state = mavenCli.doMain(new String[]{"clean", "install", "-DskipTests", "-P", "not_encrypt", "-U"}, file.getAbsolutePath(), System.out, System.out);
-//            if (0 == state){
-//                MavenXpp3Reader reader = new MavenXpp3Reader();
-//                Model model = reader.read(new FileReader(FilenameUtils.concat(file.getAbsolutePath(), "pom.xml")));
-//                jarFile = FilenameUtils.concat("./", "./dist/" + model.getArtifactId() + "-v" + model.getVersion() + ".jar");
-//                System.out.println("------------- Maven package successfully -------------");
-//                System.out.println("Connector jar is " + jarFile);
-////                System.setProperty("maven.multiModuleProjectDirectory", ".");
-//                Thread.currentThread().setContextClassLoader(TDDCli.class.getClassLoader());
-//            } else {
-//                System.out.println("");
-//                System.out.println("------------- Maven package Failed --------------");
-//                System.exit(0);
-//            }
         } else {
             throw new IllegalArgumentException("File " + file.getAbsolutePath() + " is not exist");
         }
@@ -263,7 +242,6 @@ public class TapPDKRunnerCli extends CommonCli {
                     break;
                 }
             } else {
-//                PDKLogger.enable(true);
                 runLevelWithNodeInfo(tapNodeInfo);
             }
         }

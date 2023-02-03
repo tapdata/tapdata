@@ -169,4 +169,5 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
     public WriteRecordFunction write(LoadJavaScripter loadJavaScripter) {
         return this.function(loadJavaScripter);
     }
+
 }

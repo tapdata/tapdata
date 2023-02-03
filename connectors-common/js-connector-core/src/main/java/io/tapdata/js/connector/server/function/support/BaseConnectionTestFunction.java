@@ -4,7 +4,6 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
-import io.tapdata.js.connector.iengine.ScriptEngineInstance;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.JSFunctionNames;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -37,9 +36,6 @@ public class BaseConnectionTestFunction extends FunctionBase {
     }
 
     public static BaseConnectionTestFunction connection(LoadJavaScripter script) {
-        if (Objects.isNull(script)) {
-            script = ScriptEngineInstance.instance().script();
-        }
         BaseConnectionTestFunction function = new BaseConnectionTestFunction();
         function.javaScripter(script);
         return function;
