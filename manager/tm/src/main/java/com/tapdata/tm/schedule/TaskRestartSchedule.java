@@ -120,7 +120,12 @@ public class TaskRestartSchedule {
                 continue;
             }
 
-            List<Worker> workerList = userWorkerMap.get(user.getUserId());
+            List<Worker> workerList = null;
+            if (isCloud) {
+                workerList = userWorkerMap.get(user.getUserId());
+            } else {
+                workerList = userWorkerMap.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
+            }
             if (CollectionUtils.isEmpty(workerList)) {
                 continue;
             }
