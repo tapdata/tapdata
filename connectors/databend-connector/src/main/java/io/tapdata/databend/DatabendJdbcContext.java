@@ -72,7 +72,7 @@ public class DatabendJdbcContext extends JdbcContext {
         List<DataMap> columnList = TapSimplify.list();
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
         try {
-            query(String.format(Databend_ALL_COLUMN, getConfig().getDatabase(), tableSql), resultSet -> columnList.addAll(DbKit.getDataFromResultSet(resultSet)));
+            query(String.format(Databend_ALL_COLUMN, getConfig().getDatabase()), resultSet -> columnList.addAll(DbKit.getDataFromResultSet(resultSet)));
         } catch (Throwable e) {
             TapLogger.error(TAG, "Databend Execute queryAllColumns failed, error: " + e.getMessage(), e);
         }

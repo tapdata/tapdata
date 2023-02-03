@@ -14,6 +14,7 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.testItem;

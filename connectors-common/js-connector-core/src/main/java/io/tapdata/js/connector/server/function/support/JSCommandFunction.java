@@ -17,6 +17,7 @@ import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public class JSCommandFunction extends FunctionBase implements FunctionSupport<CommandCallbackFunction> {
     private static final String TAG = JSCommandFunction.class.getSimpleName();
