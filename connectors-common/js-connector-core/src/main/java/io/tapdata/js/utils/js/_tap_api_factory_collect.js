@@ -15,7 +15,7 @@ class TapApi {
     }
     setTimeOut(milliseconds){
         if (Number.isNaN(milliseconds)){
-            return;
+            return this;
         }
         this.httpConfigParam.timeout = milliseconds;
         return this;
@@ -31,7 +31,7 @@ class TapApi {
             log.error("No API name or URL was specified, unable to execute http request. ");
             return null;
         }
-        this.invoker.setConfig(this.httpConfig);
+        this.invoker.setConfig(this.httpConfigParam);
         if (isParam(paramsMap) && isParam(methodStr)) {
             result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr, true);
         } else if (isParam(paramsMap)) {

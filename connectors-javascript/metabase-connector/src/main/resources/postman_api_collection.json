@@ -29,20 +29,7 @@
             }
           }
         },
-        "url": {
-          "raw": "http://36.134.131.197:12345/api/session",
-          "protocol": "http",
-          "host": [
-            "36.134.131.197",
-            "12345",
-            "api",
-            "session"
-          ],
-          "path": [
-            "api",
-            "session"
-          ]
-        }
+        "url": "{{matebaseDomainName}}/api/session"
       },
       "response": []
     },
@@ -69,20 +56,7 @@
           "mode": "raw",
           "raw": ""
         },
-        "url": {
-          "raw": "http://36.134.131.197:12345/api/card",
-          "protocol": "http",
-          "host": [
-            "36.134.131.197",
-            "12345",
-            "api",
-            "card"
-          ],
-          "path": [
-            "api",
-            "card"
-          ]
-        }
+        "url": "{{matebaseDomainName}}/api/card"
       },
       "response": []
     },
@@ -104,7 +78,7 @@
           }
         ],
         "url": {
-          "raw": "{{matebaseDomainName}}/api/card/:card-id/query/:export-format",
+          "raw": "{{matebaseDomainName}}/api/card/:card-id/query",
           "host": [
             "{{matebaseDomainName}}"
           ],
@@ -112,17 +86,12 @@
             "api",
             "card",
             ":card-id",
-            "query",
-            ":export-format"
+            "query"
           ],
           "variable": [
             {
               "key": "card-id",
-              "value": "{{card-id}}"
-            },
-            {
-              "key": "export-format",
-              "value": "json"
+              "value": "275"
             }
           ]
         }
@@ -163,7 +132,7 @@
     },
     {
       "key": "matebaseDomainName",
-      "value": "http://36.134.131.197:12345",
+      "value": "",
       "type": "string"
     },
     {

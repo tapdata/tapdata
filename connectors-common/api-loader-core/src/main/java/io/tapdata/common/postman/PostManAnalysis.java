@@ -210,8 +210,9 @@ public class PostManAnalysis {
     private OkHttpClient.Builder configHttp(OkHttpClient.Builder builder){
         if (Objects.nonNull(this.httpConfig)){
             try {
-                int timeout = (Integer) this.httpConfig.get("timeout");
+                int timeout = Integer.parseInt(String.valueOf(this.httpConfig.get("timeout")));
                 builder.connectTimeout(timeout, TimeUnit.MILLISECONDS);
+                builder.writeTimeout(timeout,TimeUnit.MILLISECONDS);
                 builder.readTimeout(timeout,TimeUnit.MILLISECONDS);
             }catch (Exception ignored){ }
         }
