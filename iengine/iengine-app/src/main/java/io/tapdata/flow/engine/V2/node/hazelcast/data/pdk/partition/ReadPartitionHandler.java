@@ -291,20 +291,23 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 				sourcePdkDataNode.getObsLogger().info("Read partition {} finished, takes {}, event(during sending) count {}", readPartition, (System.currentTimeMillis() - time), counter.longValue());
 			}
 		}
-		PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).get(table);
-		if(partitionTableOffset == null) {
-			partitionTableOffset = new PartitionTableOffset();
-			((Map<String, PartitionTableOffset>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).put(table, partitionTableOffset);
+		synchronized (pdkSourceContext) {
+			PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).get(table);
+			if(partitionTableOffset == null) {
+				partitionTableOffset = new PartitionTableOffset();
+				((Map<String, PartitionTableOffset>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).put(table, partitionTableOffset);
+			}
+			Map<String, Long> completedPartitions = partitionTableOffset.getCompletedPartitions();
+			if(completedPartitions == null) {
+				completedPartitions = new ConcurrentHashMap<>();
+				completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
+				partitionTableOffset.setCompletedPartitions(completedPartitions);
+			} else {
+				completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
+			}
+			sourcePdkDataNode.getObsLogger().info("Finished partition {} completedPartitions {}", readPartition, completedPartitions.size());
 		}
-		Map<String, Long> completedPartitions = partitionTableOffset.getCompletedPartitions();
-		if(completedPartitions == null) {
-			completedPartitions = new ConcurrentHashMap<>();
-			completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
-			partitionTableOffset.setCompletedPartitions(completedPartitions);
-		} else {
-			completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
-		}
-		sourcePdkDataNode.getObsLogger().info("Finished partition {} completedPartitions {}", readPartition, completedPartitions.size());
+
 		storageFactory.deleteKVStorage(kvStorageDuringSendingId);
 		storageFactory.deleteKVStorage(kvStorageId);
 		storageFactory.deleteKVStorage(sequenceStorageId);
