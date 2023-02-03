@@ -39,7 +39,6 @@ public class PostManAPIInvoker
     private static final String TAG = PostManAPIInvoker.class.getSimpleName();
 
     private PostManAnalysis analysis;
-    private Map<String,Object> httpConfig;
 
     public PostManAPIInvoker analysis(PostManAnalysis analysis) {
         this.analysis = analysis;
@@ -131,9 +130,8 @@ public class PostManAPIInvoker
             return;
         }
         if (configMap instanceof Map){
-            this.httpConfig = new HashMap<>();
-            this.httpConfig.putAll((Map<String, Object>) configMap);
-            this.analysis.setHttpConfig(this.httpConfig);
+            Map<String, Object> httpConfig = new HashMap<>((Map<String, Object>) fromJson(toJson(configMap)));
+            this.analysis.setHttpConfig(httpConfig);
         }
     }
 
