@@ -158,7 +158,10 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
             metadataDefinitionDto.setReadOnly(true);
             metadataDefinitionDto.setLinkId(connectionDto.getId().toHexString());
 
-            metadataDefinitionDto.setParent_id(pdkIdMap.get(connectionDto.getDefinitionPdkId()).getId().toHexString());
+            MetadataDefinitionDto metadataDefinitionDto1 = pdkIdMap.get(connectionDto.getDefinitionPdkId());
+            if (metadataDefinitionDto1 != null) {
+                metadataDefinitionDto.setParent_id(pdkIdMap.get(connectionDto.getDefinitionPdkId()).getId().toHexString());
+            }
             insertConnections.add(metadataDefinitionDto);
         }
         metadataDefinitionService.save(insertConnections, user);

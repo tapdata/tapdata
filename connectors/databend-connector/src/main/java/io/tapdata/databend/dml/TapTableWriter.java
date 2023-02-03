@@ -19,8 +19,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
- * @version v1.0 2022/9/20 16:42 Create
+ * @author <a href="mailto:hantmac@outlook.com">hantmac</a>
+ * @version v1.0 2023/01/30 16:46 Create
  */
 public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<TapRecordEvent>> {
 

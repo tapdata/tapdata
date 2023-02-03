@@ -211,16 +211,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				}
 			}, TAG);
 			CommonUtils.handleAnyError(() -> {
-				if (this.monitorManager != null) {
-					this.monitorManager.close();
-					logger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
-					obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
-				}
-			}, err -> {
-				logger.warn("Close monitor failed: " + err.getMessage());
-				obsLogger.warn("Close monitor failed: " + err.getMessage());
-			});
-			CommonUtils.handleAnyError(() -> {
 				Optional.ofNullable(getConnectorNode())
 						.ifPresent(connectorNode -> {
 							PDKInvocationMonitor.stop(getConnectorNode());
