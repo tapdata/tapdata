@@ -45,7 +45,7 @@ public class ScriptEngineInstance {
         return this.script;
     }
 
-    public void loadScript() {
+    public synchronized void loadScript() {
         try {
             ClassLoader classLoader = JSConnector.class.getClassLoader();
             Enumeration<URL> resources = classLoader.getResources(JS_FLOODER + "/");

@@ -13,6 +13,7 @@ import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -87,6 +88,19 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
 //                                    }
 //                                });
                                 tapNodeSpecification.setDataTypesMap(matchingMap);
+                            }
+                            DefaultExpressionMatchingMap dataTypesMap = tapNodeSpecification.getDataTypesMap();
+                            if(dataTypesMap == null || dataTypesMap.isEmpty()) {
+                                try(InputStream dataTypeInputStream = this.getClass().getClassLoader().getResourceAsStream("default-data-types.json")) {
+                                    if(dataTypeInputStream != null) {
+                                        String dataTypesJson = IOUtils.toString(dataTypeInputStream, StandardCharsets.UTF_8);
+                                        if(StringUtils.isNotBlank(dataTypesJson)) {
+                                            TapNodeContainer container = InstanceFactory.instance(JsonParser.class).fromJson(dataTypesJson, TapNodeContainer.class);
+                                            if(container != null && container.getDataTypes() != null)
+                                                tapNodeSpecification.setDataTypesMap(DefaultExpressionMatchingMap.map(container.getDataTypes()));
+                                        }
+                                    }
+                                }
                             }
                             ClassLoader classLoader = clazz.getClassLoader();
 

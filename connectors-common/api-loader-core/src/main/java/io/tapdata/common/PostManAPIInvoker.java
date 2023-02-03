@@ -131,7 +131,8 @@ public class PostManAPIInvoker
             return;
         }
         if (configMap instanceof Map){
-            this.httpConfig = (Map<String, Object>) configMap;
+            this.httpConfig = new HashMap<>();
+            this.httpConfig.putAll((Map<String, Object>) configMap);
             this.analysis.setHttpConfig(this.httpConfig);
         }
     }
