@@ -56,7 +56,9 @@ public class LoadJavaScripter {
         this.flooder = flooder;
         return this;
     }
-
+    public boolean hasLoad(){
+        return this.hasLoadJs;
+    }
     public static LoadJavaScripter loader(String jarFilePath, String flooder) {
         LoadJavaScripter loadJavaScripter = new LoadJavaScripter();
         return loadJavaScripter.params(jarFilePath, flooder).init();
@@ -69,7 +71,7 @@ public class LoadJavaScripter {
         return this;
     }
 
-    public ScriptEngine load(Enumeration<URL> resources) {
+    public synchronized ScriptEngine load(Enumeration<URL> resources) {
         List<URL> list = new ArrayList<>();
         while (resources.hasMoreElements()) {
             list.add(resources.nextElement());

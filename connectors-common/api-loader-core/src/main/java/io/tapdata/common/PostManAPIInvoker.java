@@ -119,7 +119,7 @@ public class PostManAPIInvoker
         if (invoker) {
             response = this.interceptor.intercept(response, uriOrName, method, params);
         }
-        System.out.println("DEBUG-INFO: Results obtained from this execution: \n" + toJson(response));
+        //System.out.println("DEBUG-INFO: Results obtained from this execution: \n" + toJson(response));
         return response;
     }
 
@@ -129,7 +129,8 @@ public class PostManAPIInvoker
             return;
         }
         if (configMap instanceof Map){
-            this.httpConfig = (Map<String, Object>) configMap;
+            this.httpConfig = new HashMap<>();
+            this.httpConfig.putAll((Map<String, Object>) configMap);
             this.analysis.setHttpConfig(this.httpConfig);
         }
     }

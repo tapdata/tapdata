@@ -62,7 +62,9 @@ public class JSConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
-        this.instanceScript(null);
+        synchronized (JSConnector.execLock){
+            this.instanceScript(null);
+        }
         connectorFunctions.supportStreamRead(FunctionSupport.function(this.javaScripter, script -> JSStreamReadFunction.create(script, this.isAlive)))
                 .supportWriteRecord(FunctionSupport.function(this.javaScripter, script -> JSWriteRecordFunction.create(this.isAlive).write(script)))
                 .supportBatchRead(FunctionSupport.function(this.javaScripter, script -> JSBatchReadFunction.create(script, this.isAlive)))
@@ -115,18 +117,20 @@ public class JSConnector extends ConnectorBase {
             }
         }
 
-        JSAPIInterceptorConfig config = JSAPIInterceptorConfig.config();
-        JSAPIResponseInterceptor interceptor = JSAPIResponseInterceptor.create(config, apiInvoker).configMap(configMap);
-        if (Objects.nonNull(connectionContext)){
-            interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter,connectionContext));
+        if(!this.javaScripter.hasLoad()) {
+            JSAPIInterceptorConfig config = JSAPIInterceptorConfig.config();
+            JSAPIResponseInterceptor interceptor = JSAPIResponseInterceptor.create(config, apiInvoker).configMap(configMap);
+            if (Objects.nonNull(connectionContext)) {
+                interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, connectionContext));
+            }
+            APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory).interceptor(interceptor);
+            this.javaScripter.scriptEngine().put("tapAPI", factory);
+            this.javaScripter.scriptEngine().put("log", new ConnectorLog());
+            //this.javaScripter.scriptEngine().put("tapCache", this.cacheContext);
+            this.javaScripter.scriptEngine().put("tapUtil", new JsUtil());
+            this.javaScripter.scriptEngine().put("nodeIsAlive", isAlive);
+            this.javaScripter.scriptEngine().put("_tapConfig_", configMap);
+            engineInstance.loadScript();
         }
-        APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory).interceptor(interceptor);
-        this.javaScripter.scriptEngine().put("tapAPI", factory);
-        this.javaScripter.scriptEngine().put("log", new ConnectorLog());
-        //this.javaScripter.scriptEngine().put("tapCache", this.cacheContext);
-        this.javaScripter.scriptEngine().put("tapUtil", new JsUtil());
-        this.javaScripter.scriptEngine().put("nodeIsAlive", isAlive);
-        this.javaScripter.scriptEngine().put("_tapConfig_", configMap);
-        engineInstance.loadScript();
     }
 }

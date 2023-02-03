@@ -1,5 +1,12 @@
 var batchStart = nowDate();
 
+function table_count(connectionConfig) {
+    let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
+    let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
+        {"sessionToken": sessionToken.result.id});
+    return invoke.result.length;
+}
+
 function discover_schema(connectionConfig, schemaSender) {
     let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
     let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
@@ -8,7 +15,7 @@ function discover_schema(connectionConfig, schemaSender) {
     for (let index = 0; index < invoke.result.length; index++) {
         let invokeCard;
         try {
-            invokeCard = invoker.httpConfig({timeout:3000}).invoke(
+            invokeCard = invoker.httpConfig({timeout: 3000}).invoke(
                 'TAP_TABLE[queryExportFormat](PAGE_NONE:data)queryExportFormat',
                 {"card-id": parseInt(invoke.result[index].id), "sessionToken": sessionToken.result.id});
         } catch (e) {
@@ -25,25 +32,34 @@ function discover_schema(connectionConfig, schemaSender) {
         for (let j = 0; j < fieldKeys.length; j++) {
             let keyName = fieldKeys[j];
             let keyProps = new Map();
-            if (typeof (fieldsValues[j]) === 'undefined') {
+            if (typeof (fieldsValues[j]) == 'undefined') {
                 keyProps.set("type", "Null");
-            } else if (typeof (fieldsValues[j]) === 'string') {
+            } else if (typeof (fieldsValues[j]) == 'string') {
                 keyProps.set("type", "String");
             } else if (Array.isArray(fieldsValues[j])) {
                 keyProps.set("type", "Array");
-            } else if (typeof (fieldsValues[j]) === 'number') {
-                keyProps.set("type", "Long");
-            } else if (typeof (fieldsValues[j]) === 'boolean') {
+            } else if (typeof (fieldsValues[j]) == 'number') {
+                keyProps.set("type", "Number");
+            } else if (typeof (fieldsValues[j]) == 'boolean') {
                 keyProps.set("type", "Boolean");
-            } else if (typeof (fieldsValues[j]) === 'object') {
+            } else if (typeof (fieldsValues[j]) == 'object') {
                 keyProps.set("type", "Object");
-            } else if (typeof (fieldsValues[j]) === 'null') {
+            } else if (typeof (fieldsValues[j]) == 'NULL') {
                 keyProps.set("type", "Null");
+            } else {
+                keyProps.set("type", "Object");
             }
             fields.set(keyName, keyProps);
         }
         table.set("fields", fields);
-        schemaSender.send([table]);
+        tableList.push(table);
+        if (index !== 0 && index % 50 === 0) {
+            schemaSender.send(tableList);
+            tableList = [];
+        }
+    }
+    if (tableList.length > 0){
+        schemaSender.send(tableList);
     }
 }
 
