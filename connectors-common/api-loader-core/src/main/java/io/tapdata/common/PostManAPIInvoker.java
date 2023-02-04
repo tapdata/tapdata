@@ -51,6 +51,7 @@ public class PostManAPIInvoker
     @Override
     public void setAPIResponseInterceptor(APIResponseInterceptor interceptor) {
         this.interceptor = interceptor;
+        this.interceptor.setInvoker(this);
     }
 
     public static PostManAPIInvoker create() {
@@ -117,9 +118,10 @@ public class PostManAPIInvoker
         }
         APIResponse response = this.analysis.http(uriOrName, method, params);
         if (invoker) {
+
             response = this.interceptor.intercept(response, uriOrName, method, params);
         }
-        System.out.println("DEBUG-INFO: Results obtained from this execution: \n" + toJson(response));
+        //System.out.println("DEBUG-INFO: Results obtained from this execution: \n" + toJson(response));
         return response;
     }
 
@@ -129,8 +131,8 @@ public class PostManAPIInvoker
             return;
         }
         if (configMap instanceof Map){
-            this.httpConfig = (Map<String, Object>) configMap;
-            this.analysis.setHttpConfig(this.httpConfig);
+            Map<String, Object> httpConfig = new HashMap<>((Map<String, Object>) fromJson(toJson(configMap)));
+            this.analysis.setHttpConfig(httpConfig);
         }
     }
 

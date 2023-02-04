@@ -384,7 +384,7 @@ public class PdkSchemaConvert {
                 field.setPrimaryKeyPosition(tapField.getPrimaryKeyPos());
                 field.setForeignKeyTable(tapField.getForeignKeyTable());
                 field.setForeignKeyColumn(tapField.getForeignKeyField());
-                field.setAutoincrement(tapField.getAutoInc() ? "YES" : "NO");
+                field.setAutoincrement(tapField.getAutoInc() != null && tapField.getAutoInc() ? "YES" : "NO");
                 field.setComment(tapField.getComment());
                 field.setPkConstraintName(tapField.getConstraint());
                 field.setPrimaryKey(tapField.getPrimaryKey());

@@ -37,16 +37,16 @@ public class JSRawDataCallbackFunction extends FunctionBase implements FunctionS
     /**
      * [
      * {
-     * "EVENT_TYPE" : "I",                    //I U D
-     * "TABLE_NAME" : "example_table_name",  //table name
-     * "DATA":{
+     * "event_type" : "I",                    //I U D
+     * "table_name" : "example_table_name",  //table name
+     * "data":{
      * ...
      * }
      * },
      * {
-     * "EVENT_TYPE" : "U",                    //I U D
-     * "TABLE_NAME" : "example_table_name",  //table name
-     * "DATA":{
+     * "event_type" : "U",                    //I U D
+     * "table_name" : "example_table_name",  //table name
+     * "data":{
      * ...
      * }
      * }
@@ -91,29 +91,29 @@ public class JSRawDataCallbackFunction extends FunctionBase implements FunctionS
             Map<String, Object> result = (Map<String, Object>) eventDataFromJs;
             Object eventType = result.get(EventTag.EVENT_TYPE);
             if (Objects.isNull(eventType) || this.eventType.isEventType(String.valueOf(eventType))) {
-                throw new CoreException("Article " + this.dataIndex + " Record: Please use EVENT_TYPE to indicate event type (i/u/d). ");
+                throw new CoreException("Article " + this.dataIndex + " Record: Please use event_type to indicate event type (i/u/d). ");
             }
             Object tableName = result.get(EventTag.TABLE_NAME);
             if (Objects.isNull(tableName) || "".equals(tableName)) {
-                throw new CoreException("Article " + this.dataIndex + " Record: Please use TABLE_NAME to indicate table name. ");
+                throw new CoreException("Article " + this.dataIndex + " Record: Please use table_name to indicate table name. ");
             }
             Object after = result.get(EventTag.AFTER_DATA);
             if (Objects.isNull(after) && this.eventType.update.equals(eventType)) {
-                throw new CoreException("Article " + this.dataIndex + " Record: An update data event was received, but not used AFTER_DATA describes the update data. ");
+                throw new CoreException("Article " + this.dataIndex + " Record: An update data event was received, but not used after_data describes the update data. ");
             }
             if (!(after instanceof Map)) {
-                throw new CoreException("Article " + this.dataIndex + " Record: Wrong data representation, need to use k-v map to represent AFTER_DATA. ");
+                throw new CoreException("Article " + this.dataIndex + " Record: Wrong data representation, need to use k-v map to represent after_data. ");
             }
             Object before = result.get(EventTag.BEFORE_DATA);
             if (Objects.isNull(before) && (this.eventType.insert.equals(eventType) || this.eventType.delete.equals(eventType))) {
                 throw new CoreException(
                         this.eventType.insert.equals(eventType) ?
-                                "Article " + this.dataIndex + " Record: insert event was received, but not used AFTER_DATA describes the insert data. " :
-                                "Article " + this.dataIndex + " Record: delete event was received, but not used AFTER_DATA describes the delete data. "
+                                "Article " + this.dataIndex + " Record: insert event was received, but not used after_data describes the insert data. " :
+                                "Article " + this.dataIndex + " Record: delete event was received, but not used after_data describes the delete data. "
                 );
             }
             if (!(before instanceof Map)) {
-                throw new CoreException("Article " + this.dataIndex + " Record: Wrong data representation, need to use k-v map to represent BEFORE_DATA. ");
+                throw new CoreException("Article " + this.dataIndex + " Record: Wrong data representation, need to use k-v map to represent before_data. ");
             }
             Object referenceTimeObj = result.get(EventTag.REFERENCE_TIME);
             Long referenceTime = System.currentTimeMillis();
@@ -134,11 +134,11 @@ public class JSRawDataCallbackFunction extends FunctionBase implements FunctionS
         } else {
             throw new CoreException("Article " + this.dataIndex + " Record:  The event format is incorrect. Please use the following rules to organize the returned results :\n" +
                     "{\n" +
-                    "\"EVENT_TYPE\": String('i/u/d'),\n" +
-                    " \"TABLE_NAME\": String('example_table_name'), " +
-                    "\n\"BEFORE_DATA\": {}," +
-                    "\n\"AFTER_DATA\": {}," +
-                    "\n\"REFERENCE_TIME\": Number(time_stamp)" +
+                    "\"event_type\": String('i/u/d'),\n" +
+                    " \"table_name\": String('example_table_name'), " +
+                    "\n\"before_data\": {}," +
+                    "\n\"after_data\": {}," +
+                    "\n\"reference_time\": Number(time_stamp)" +
                     "}\n");
         }
     }
