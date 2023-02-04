@@ -503,6 +503,16 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			logger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
 			obsLogger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
 		});
+		CommonUtils.handleAnyError(() -> {
+			if (this.monitorManager != null) {
+				this.monitorManager.close();
+				logger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
+				obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
+			}
+		}, err -> {
+			logger.warn("Close monitor failed: " + err.getMessage());
+			obsLogger.warn("Close monitor failed: " + err.getMessage());
+		});
 	}
 
 	@Override
@@ -512,8 +522,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			sw.start();
 			running.set(false);
 			CommonUtils.ignoreAnyError(() -> {
-				TaskDto taskDto = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(processorBaseContext.getTaskDto().getId().toHexString()).getTask();
-				processorBaseContext.getTaskDto().setManualStop(taskDto.isManualStop());
+				TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(processorBaseContext.getTaskDto().getId().toHexString());
+				if (taskDtoTaskClient != null) {
+					TaskDto taskDto = taskDtoTaskClient.getTask();
+					processorBaseContext.getTaskDto().setManualStop(taskDto.isManualStop());
+				}
 			}, TAG);
 			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
 			CommonUtils.handleAnyError(this::doClose, err -> {

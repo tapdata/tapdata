@@ -8,9 +8,11 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.discovery.service.DiscoveryService;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.entity.MetadataDefinitionEntity;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
@@ -52,6 +54,9 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     @Autowired
     private DiscoveryService discoveryService;
+
+    @Autowired
+    private DataSourceDefinitionService definitionService;
 
     public MetadataDefinitionService(@NonNull MetadataDefinitionRepository repository) {
         super(repository, MetadataDefinitionDto.class, MetadataDefinitionEntity.class);
@@ -211,10 +216,26 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
             if (objCount != null && (objCount.equals(true) || (Double) objCount == 1) && CollectionUtils.isNotEmpty(dtoPage.getItems())) {
                 discoveryService.addObjCount(dtoPage.getItems(), user);
 
-                if (CollectionUtils.isEmpty(dtoPage.getItems())) {
+                if (CollectionUtils.isNotEmpty(dtoPage.getItems())) {
                     List<MetadataDefinitionDto> delItems = new ArrayList<>();
+                    List<ObjectId> pdkIdDirectories = new ArrayList<>();
+                    Criteria criteriaDefinition = Criteria.where("pdkType").is("pdk")
+                            .and("is_deleted").ne(true);
+                    Query queryDefinition = new Query(criteriaDefinition);
+                    queryDefinition.fields().include("pdkId");
+                    List<DataSourceDefinitionDto> dataSourceDefinitionDtos = definitionService.findAllDto(queryDefinition, user);
+                    if (CollectionUtils.isNotEmpty(dataSourceDefinitionDtos)) {
+                        List<String> pdkIds = dataSourceDefinitionDtos.stream().map(DataSourceDefinitionDto::getPdkId).distinct().collect(Collectors.toList());
+                        Criteria in = Criteria.where("item_type").is("default").and("value").in(pdkIds);
+                        Query query1 = new Query(in);
+                        query1.fields().include("_id");
+                        List<MetadataDefinitionDto> pdkDirectories = findAllDto(query1, user);
+                        if (CollectionUtils.isNotEmpty(pdkDirectories)) {
+                            pdkIdDirectories = pdkDirectories.stream().map(BaseDto::getId).collect(Collectors.toList());
+                        }
+                    }
                     for (MetadataDefinitionDto item : dtoPage.getItems()) {
-                        if (StringUtils.isNotBlank(item.getLinkId()) && item.getObjCount() < 1) {
+                        if ((StringUtils.isNotBlank(item.getLinkId()) || pdkIdDirectories.contains(item.getId())) && item.getObjCount() < 1) {
                             delItems.add(item);
                         }
                     }

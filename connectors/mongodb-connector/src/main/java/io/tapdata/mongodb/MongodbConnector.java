@@ -807,7 +807,10 @@ public class MongodbConnector extends ConnectorBase {
 		try {
 			mongodbStreamReader.read(connectorContext, tableList, offset, eventBatchSize, consumer);
 		} catch (Exception e) {
-			mongodbStreamReader.onDestroy();
+			try {
+				mongodbStreamReader.onDestroy();
+			} catch (Exception ignored) {
+			}
 			mongodbStreamReader = null;
 			throw new RuntimeException(e);
 		}

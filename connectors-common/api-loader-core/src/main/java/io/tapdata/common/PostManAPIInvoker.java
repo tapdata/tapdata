@@ -39,6 +39,7 @@ public class PostManAPIInvoker
     private static final String TAG = PostManAPIInvoker.class.getSimpleName();
 
     private PostManAnalysis analysis;
+    private Map<String,Object> httpConfig;
 
     public PostManAPIInvoker analysis(PostManAnalysis analysis) {
         this.analysis = analysis;

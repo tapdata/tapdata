@@ -298,8 +298,6 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         }
         inspectDto.setAgentTags(agentTags);
 
-        workerService.scheduleTaskToEngine(inspectDto, user);
-
       /*  if (Mode.MANUAL.getValue().equals(inspectDto.getMode())){
             inspectDto.setStatus(InspectStatusEnum.SCHEDULING.getValue());
         }
@@ -390,11 +388,11 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
             retDto = updateDto;
 
             if (InspectStatusEnum.ERROR.getValue().equals(status)) {
-                log.info("校验 出错 inspect:{}");
+                log.info("校验 出错 inspect:{}", updateDto);
                 messageService.addInspect(name, id, MsgTypeEnum.INSPECT_ERROR, Level.ERROR, user);
             } else if (InspectStatusEnum.DONE.getValue().equals(status)) {
-                log.info("校验 完成 inspect:{}");
-                if (InspectResultEnum.FAILED.equals(result)) {
+                log.info("校验 完成 inspect:{}", updateDto);
+                if (InspectResultEnum.FAILED.getValue().equals(result)) {
                     messageService.addInspect(name, id, MsgTypeEnum.INSPECT_VALUE, Level.ERROR, user);
                 }
             }
@@ -416,8 +414,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         inspectDto = findById(objectId);
 
         InspectStatusEnum inspectStatus = InspectStatusEnum.of(inspectDto.getStatus());
-        if (inspectStatus == InspectStatusEnum.RUNNING ||
-                inspectStatus == InspectStatusEnum.SCHEDULING || inspectStatus == InspectStatusEnum.WAITING) {
+        if (inspectStatus == InspectStatusEnum.RUNNING || inspectStatus == InspectStatusEnum.WAITING) {
             throw new BizException("Inspect.Start.Failed", (inspectStatus == InspectStatusEnum.RUNNING ? "" : "等待") + "运行中的任务不能再次启动");
         }
 

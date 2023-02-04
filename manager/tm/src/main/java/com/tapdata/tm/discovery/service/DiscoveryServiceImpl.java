@@ -132,7 +132,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 //                    Criteria.where("originalName").regex(queryKey,"i"),
 //                    Criteria.where("name").regex(queryKey,"i"),
 //                    Criteria.where("comment").regex(queryKey,"i"),
-//                    Criteria.where("source.database_name").regex(queryKey,"i"),
+//                    Criteria.where("source.name").regex(queryKey,"i"),
 //                    Criteria.where("source.name").regex(queryKey,"i"),
 //                    Criteria.where("alias_name").regex(queryKey,"i"));
 //        }
@@ -230,7 +230,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 //                    Criteria.where("original_name").regex(param.getQueryKey()),
 //                    Criteria.where("name").regex(param.getQueryKey()),
 //                    Criteria.where("comment").regex(param.getQueryKey()),
-//                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+//                    Criteria.where("source.name").regex(param.getQueryKey()),
 //                    Criteria.where("alias_name").regex(param.getQueryKey()));
 //
 //            taskCriteria.orOperator(
@@ -405,7 +405,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(
@@ -981,7 +981,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(
@@ -1199,7 +1199,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(
