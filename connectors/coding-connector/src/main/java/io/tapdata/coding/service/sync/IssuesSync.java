@@ -39,28 +39,27 @@ public class IssuesSync extends SyncAbstract implements Sync {
             Long readEndTime,
             int readSize,
             Object offsetState,
-            BiConsumer<List<TapEvent>, Object> consumer,ContextConfig contextConfig,List<Map<String,Object>> coditions){
-        Queue<Map<String,Object>> queuePage = new ConcurrentLinkedQueue();
+            BiConsumer<List<TapEvent>, Object> consumer, ContextConfig contextConfig, List<Map<String, Object>> coditions) {
+        Queue<Map<String, Object>> queuePage = new ConcurrentLinkedQueue();
         AtomicBoolean pageFlag = new AtomicBoolean(true);
 
-        Queue<Map<String,Object>> queueItem = new ConcurrentLinkedQueue();
+        Queue<Map<String, Object>> queueItem = new ConcurrentLinkedQueue();
         AtomicInteger itemThreadCount = new AtomicInteger(0);
 
 
-
         final List<TapEvent>[] events = new List[]{new CopyOnWriteArrayList()};
-        HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",contextConfig.getToken());
+        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", contextConfig.getToken());
         String projectName = contextConfig.getProjectName();
-        HttpEntity<String,Object> pageBody = HttpEntity.create()
-                .builder("Action","DescribeIssueListWithPage")
-                .builder("ProjectName",projectName)
-                .builder("SortKey","UPDATED_AT")
-                .builder("PageSize",readSize)
-                .builder("SortValue","ASC");
-        if (Checker.isNotEmpty(contextConfig) && Checker.isNotEmpty(contextConfig.getIssueType())){
+        HttpEntity<String, Object> pageBody = HttpEntity.create()
+                .builder("Action", "DescribeIssueListWithPage")
+                .builder("ProjectName", projectName)
+                .builder("SortKey", "UPDATED_AT")
+                .builder("PageSize", readSize)
+                .builder("SortValue", "ASC");
+        if (Checker.isNotEmpty(contextConfig) && Checker.isNotEmpty(contextConfig.getIssueType())) {
             pageBody.builder("IssueType", IssueType.verifyType(contextConfig.getIssueType().getName()));
-        }else {
-            pageBody.builder("IssueType","ALL");
+        } else {
+            pageBody.builder("IssueType", "ALL");
         }
 
         String iterationCodes = contextConfig.getIterationCodes();
@@ -73,64 +72,64 @@ public class IssuesSync extends SyncAbstract implements Sync {
                 coditions.add(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)));
             }
         }
-        pageBody.builder("Conditions",coditions);
+        pageBody.builder("Conditions", coditions);
         String teamName = contextConfig.getTeamName();
         if (Checker.isEmpty(offsetState)) {
             offsetState = new CodingOffset();
         }
-        CodingOffset offset = (CodingOffset)offsetState;
+        CodingOffset offset = (CodingOffset) offsetState;
 
         //分页线程
-        new Thread(()->{
+        new Thread(() -> {
             pageFlag.set(true);
-            int currentQueryCount = 0,queryIndex = 0 ;
+            int currentQueryCount = 0, queryIndex = 0;
             int batchReadPageSize = readSizeBatch;
-            do{
+            do {
                 /**
                  * start page ,and add page to queuePage;
                  * */
-                pageBody.builder("PageNumber",queryIndex++);
-                Map<String,Object> dataMap = loader.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
+                pageBody.builder("PageNumber", queryIndex++);
+                Map<String, Object> dataMap = loader.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
                 if (null == dataMap || null == dataMap.get("List")) {
-                    TapLogger.error("", "Paging result request failed, the Issue list is empty: page index = {}",queryIndex);
+                    TapLogger.error("", "Paging result request failed, the Issue list is empty: page index = {}", queryIndex);
                     pageFlag.set(false);
-                    throw new RuntimeException("Paging result request failed, the Issue list is empty: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
+                    throw new RuntimeException("Paging result request failed, the Issue list is empty: " + CodingStarter.OPEN_API_URL + "?Action=DescribeIssueListWithPage");
                 }
-                List<Map<String,Object>> resultList = (List<Map<String,Object>>) dataMap.get("List");
+                List<Map<String, Object>> resultList = (List<Map<String, Object>>) dataMap.get("List");
                 currentQueryCount = resultList.size();
-                batchReadPageSize = null != dataMap.get("PageSize") ? (int)(dataMap.get("PageSize")) : batchReadPageSize;
+                batchReadPageSize = null != dataMap.get("PageSize") ? (int) (dataMap.get("PageSize")) : batchReadPageSize;
                 queuePage.addAll(resultList);
-            }while (currentQueryCount >= batchReadPageSize );
+            } while (currentQueryCount >= batchReadPageSize);
 
             pageFlag.set(false);
-        },"PAGE_THREAD");
+        }, "PAGE_THREAD");
 
-        Runnable runnable = ()->{
+        Runnable runnable = () -> {
             itemThreadCount.getAndAdd(1);
             /**
              * start page ,and add page to queuePage;
              * */
-            while (!queuePage.isEmpty() || pageFlag.get()){
+            while (!queuePage.isEmpty() || pageFlag.get()) {
                 Map<String, Object> peek = queuePage.poll();
                 Object code = peek.get("Code");
-                Map<String,Object> issueDetail = loader.get(IssueParam.create().issueCode((Integer)code));
-                if (Checker.isNotEmpty(issueDetail)){
+                Map<String, Object> issueDetail = loader.get(IssueParam.create().issueCode((Integer) code));
+                if (Checker.isNotEmpty(issueDetail)) {
                     queueItem.add(issueDetail);
                 }
             }
             itemThreadCount.getAndAdd(-1);
         };
         //详情查询线程
-        new Thread(runnable,"ITEM_THREAD_1");
-        new Thread(runnable,"ITEM_THREAD_2");
+        new Thread(runnable, "ITEM_THREAD_1");
+        new Thread(runnable, "ITEM_THREAD_2");
 
         //主线程生成事件
-        while (pageFlag.get() || itemThreadCount.get()>0 || !queuePage.isEmpty() || !queueItem.isEmpty()){
+        while (pageFlag.get() || itemThreadCount.get() > 0 || !queuePage.isEmpty() || !queueItem.isEmpty()) {
             /**
              * 从queueItem取数据生成事件
              * **/
-            Map<String,Object> issueDetail = queueItem.poll();
-            if (Checker.isNotEmptyCollection(issueDetail)){
+            Map<String, Object> issueDetail = queueItem.poll();
+            if (Checker.isNotEmptyCollection(issueDetail)) {
                 Long referenceTime = (Long) issueDetail.get("UpdatedAt");
                 Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
                 Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);

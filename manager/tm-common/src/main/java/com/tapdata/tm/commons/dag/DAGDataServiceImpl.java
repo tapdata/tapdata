@@ -494,7 +494,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         TapTable tapTable = PdkSchemaConvert.toPdk(schema);
 
-        PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+        if (tapTable.getNameFieldMap() != null && tapTable.getNameFieldMap().size() != 0) {
+            PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+        }
 
         //这里最好是将那些旧参数也带过来
         Schema schema1 = PdkSchemaConvert.fromPdkSchema(tapTable);
@@ -567,17 +569,20 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (nameFieldMap != null && nameFieldMap.size() != 0) {
 
-        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
-        TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap
-                , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
-        LinkedHashMap<String, TapField> data = convert.getData();
+            TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
+            TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap
+                    , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
+            LinkedHashMap<String, TapField> data = convert.getData();
 
-        data.forEach((k, v) -> {
-            TapField tapField = nameFieldMap.get(k);
-            tapField.setDataType(v.getDataType());
-            tapField.setTapType(v.getTapType());
-        });
+            data.forEach((k, v) -> {
+                TapField tapField = nameFieldMap.get(k);
+                tapField.setDataType(v.getDataType());
+                tapField.setTapType(v.getTapType());
+            });
+        }
+
         tapTable.setNameFieldMap(nameFieldMap);
 
 

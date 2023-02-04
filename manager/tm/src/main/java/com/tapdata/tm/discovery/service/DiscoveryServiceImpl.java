@@ -132,7 +132,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 //                    Criteria.where("originalName").regex(queryKey,"i"),
 //                    Criteria.where("name").regex(queryKey,"i"),
 //                    Criteria.where("comment").regex(queryKey,"i"),
-//                    Criteria.where("source.database_name").regex(queryKey,"i"),
+//                    Criteria.where("source.name").regex(queryKey,"i"),
 //                    Criteria.where("source.name").regex(queryKey,"i"),
 //                    Criteria.where("alias_name").regex(queryKey,"i"));
 //        }
@@ -230,7 +230,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 //                    Criteria.where("original_name").regex(param.getQueryKey()),
 //                    Criteria.where("name").regex(param.getQueryKey()),
 //                    Criteria.where("comment").regex(param.getQueryKey()),
-//                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+//                    Criteria.where("source.name").regex(param.getQueryKey()),
 //                    Criteria.where("alias_name").regex(param.getQueryKey()));
 //
 //            taskCriteria.orOperator(
@@ -393,7 +393,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         if (StringUtils.isNotBlank(param.getSourceType())) {
             metadataCriteria.and("source.database_type").is(param.getSourceType());
             taskCriteria.and("agentId").is(param.getSourceType());
-            apiCriteria.and("_id").is("123");
+//            apiCriteria.and("_id").is("123");
         } else {
             taskCriteria.and("agentId").exists(true);
         }
@@ -405,7 +405,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(
@@ -510,6 +510,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         List<UnionQueryResult> unionQueryResults = new ArrayList<>();
         if (metaTotal >= skip + param.getPageSize()) {
             Query query = new Query(metadataCriteria);
+            metaDataRepository.applyUserDetail(query, user);
             query.skip(skip);
             query.limit(param.getPageSize());
             List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
@@ -518,6 +519,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             if (metaTotal <= skip) {
                 //只需要查询task
                 Query query = new Query(taskCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip - metaTotal);
                 query.limit(param.getPageSize());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
@@ -525,11 +527,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             } else {
                 //需要两个表
                 Query query = new Query(metadataCriteria);
+                metaDataRepository.applyUserDetail(query, user);
                 query.skip(skip);
                 query.limit(param.getPageSize());
                 List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
 
                 Query queryTask = new Query(taskCriteria);
+                taskRepository.applyUserDetail(queryTask, user);
                 queryTask.skip(skip - metaTotal);
                 queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
@@ -541,6 +545,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             if (metaTotal + taskTotal <= skip) {
                 //只需要查询api
                 Query query = new Query(apiCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip- metaTotal - taskTotal);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
@@ -550,12 +555,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 //需要查询task+api
 
                 Query query = new Query(taskCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip - metaTotal);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryApi = new Query(apiCriteria);
+                taskRepository.applyUserDetail(queryApi, user);
                 queryApi.skip(skip - metaTotal - taskTotal);
                 queryApi.limit(param.getPageSize() - taskUnionQueryResults.size());
                 queryApi.with(Sort.by("createTime").descending());
@@ -566,18 +573,21 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 //需要查询meta task api
 
                 Query query = new Query(metadataCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> metaUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
 
                 Query queryTask = new Query(taskCriteria);
+                taskRepository.applyUserDetail(queryTask, user);
                 queryTask.skip(skip - metaTotal);
                 queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
                 queryTask.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryApi = new Query(apiCriteria);
+                taskRepository.applyUserDetail(queryApi, user);
                 queryApi.skip(skip - metaTotal - taskTotal);
                 queryApi.with(Sort.by("createTime").descending());
                 queryApi.limit(param.getPageSize() - metaUnionQueryResults.size() + taskUnionQueryResults.size());
@@ -971,7 +981,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(
@@ -1050,6 +1060,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         List<UnionQueryResult> unionQueryResults = new ArrayList<>();
         if (metaTotal >= skip + param.getPageSize()) {
             Query query = new Query(metadataCriteria);
+            metaDataRepository.applyUserDetail(query, user);
             query.skip(skip);
             query.limit(param.getPageSize());
             query.with(Sort.by("createTime").descending());
@@ -1059,6 +1070,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             if (metaTotal <= skip) {
                 //只需要查询task
                 Query query = new Query(taskCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip - metaTotal);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
@@ -1067,12 +1079,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             } else {
                 //需要两个表
                 Query query = new Query(metadataCriteria);
+                metaDataRepository.applyUserDetail(query, user);
                 query.skip(skip);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
 
                 Query queryTask = new Query(taskCriteria);
+                taskRepository.applyUserDetail(queryTask, user);
                 queryTask.skip(skip - metaTotal);
                 queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
                 queryTask.with(Sort.by("createTime").descending());
@@ -1085,6 +1099,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             if (metaTotal + taskTotal <= skip) {
                 //只需要查询api
                 Query query = new Query(apiCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip- metaTotal - taskTotal);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
@@ -1094,12 +1109,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 //需要查询task+api
 
                 Query query = new Query(taskCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip - metaTotal);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryTask = new Query(apiCriteria);
+                taskRepository.applyUserDetail(queryTask, user);
                 queryTask.skip(skip - metaTotal - taskTotal);
                 queryTask.limit(param.getPageSize() - taskUnionQueryResults.size());
                 queryTask.with(Sort.by("createTime").descending());
@@ -1110,6 +1127,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 //需要查询meta task api
 
                 Query query = new Query(metadataCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
@@ -1117,12 +1135,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 List<UnionQueryResult> metaUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
 
                 Query queryTask = new Query(taskCriteria);
+                taskRepository.applyUserDetail(queryTask, user);
                 queryTask.skip(skip - metaTotal);
                 queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
                 queryTask.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryApi = new Query(apiCriteria);
+                taskRepository.applyUserDetail(queryApi, user);
                 queryApi.skip(skip - metaTotal - taskTotal);
                 queryApi.limit(param.getPageSize() - metaUnionQueryResults.size() + taskUnionQueryResults.size());
                 queryApi.with(Sort.by("createTime").descending());
@@ -1179,7 +1199,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(

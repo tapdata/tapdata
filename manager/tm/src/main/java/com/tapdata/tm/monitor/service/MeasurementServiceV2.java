@@ -2,6 +2,7 @@ package com.tapdata.tm.monitor.service;
 
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
+import com.google.common.util.concurrent.AtomicDouble;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
@@ -44,6 +45,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -902,6 +904,7 @@ public class MeasurementServiceV2 {
             return new Page<>(0, Collections.emptyList());
         }
 
+        query.with(Sort.by(Sort.Direction.DESC, "ss.vs.snapshotSyncRate"));
         query.with(tmPageable);
         List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
 
@@ -946,14 +949,19 @@ public class MeasurementServiceV2 {
             }
 
             Map<String, Number> vs = samples.get(0).getVs();
-            long snapshotInsertRowTotal = vs.get("snapshotInsertRowTotal").longValue();
-            long snapshotRowTotal = vs.get("snapshotRowTotal").longValue();
+            AtomicLong snapshotInsertRowTotal = new AtomicLong(0L);
+            Optional.ofNullable(vs.getOrDefault("snapshotInsertRowTotal", 0)).ifPresent(number -> snapshotInsertRowTotal.set(number.longValue()));
+            AtomicLong snapshotRowTotal = new AtomicLong(0L);
+            Optional.ofNullable(vs.getOrDefault("snapshotRowTotal", 0)).ifPresent(number -> snapshotRowTotal.set(number.longValue()));
 
+            Number snapshotSyncRate = vs.get("snapshotSyncRate");
             BigDecimal syncRate;
-            if (snapshotRowTotal != 0) {
-                syncRate = new BigDecimal(snapshotInsertRowTotal).divide(new BigDecimal(snapshotRowTotal), 2, RoundingMode.HALF_UP);
+            if (Objects.nonNull(snapshotSyncRate)) {
+                syncRate = BigDecimal.valueOf(snapshotSyncRate.doubleValue());
+            } else if (snapshotRowTotal.get() != 0L) {
+                syncRate = new BigDecimal(snapshotInsertRowTotal.get()).divide(new BigDecimal(snapshotRowTotal.get()), 2, RoundingMode.HALF_UP);
             } else {
-                syncRate = BigDecimal.ONE;
+                syncRate = BigDecimal.ZERO;
             }
 
             String fullSyncStatus;
@@ -979,7 +987,9 @@ public class MeasurementServiceV2 {
             result.add(vo);
         }
 
-        return new Page<>(count, result);
+        return new Page<>(count, result.stream()
+                .sorted(Comparator.comparing(TableSyncStaticVo::getSyncRate).reversed())
+                .collect(Collectors.toList()));
     }
 
     /**

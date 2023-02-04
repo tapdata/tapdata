@@ -465,6 +465,13 @@ public class MetadataInstancesController extends BaseController {
     }
 
 
+    @DeleteMapping("logic/schema/{taskId}")
+    public ResponseMessage<Void> deleteLogicModel(@PathVariable("taskId") String taskId, @RequestParam("nodeId") String nodeId) {
+        metadataInstancesService.deleteLogicModel(taskId, nodeId);
+        return success();
+    }
+
+
     /**
      * 判断某张表是否支持数据校验
      *
@@ -709,6 +716,16 @@ public class MetadataInstancesController extends BaseController {
     @PostMapping("dataType2TapType")
     public ResponseMessage<Map<String, TapType>> dataType2TapType(@RequestBody DataType2TapTypeDto dto) {
         return success(metadataInstancesService.dataType2TapType(dto, getLoginUser()));
+    }
+
+
+    @Operation(summary = "校验物理表是否存在")
+    @GetMapping("check/table/exist")
+    public ResponseMessage<Map<String, Boolean>> checkTableExist(@RequestParam("connectionId") String connectionId, @RequestParam("tableName") String tableName) {
+        boolean exist = metadataInstancesService.checkTableExist(connectionId, tableName, getLoginUser());
+        HashMap<String, Boolean> returnMap = new HashMap<>();
+        returnMap.put("exist", exist);
+        return success(returnMap);
     }
 
 }

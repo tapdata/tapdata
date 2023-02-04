@@ -7,24 +7,30 @@ public class Param {
     int offset;
     //每页数量，默认 20
     int limit;
-    public int offset(){
+
+    public int offset() {
         return offset;
     }
-    public String action(){
+
+    public String action() {
         return action;
     }
-    public int limit(){
+
+    public int limit() {
         return limit;
     }
-    public Param offset(int offset){
+
+    public Param offset(int offset) {
         this.offset = offset;
         return this;
     }
-    public Param action(String action){
+
+    public Param action(String action) {
         this.action = action;
         return this;
     }
-    public Param limit(int limit){
+
+    public Param limit(int limit) {
         this.limit = limit;
         return this;
     }

@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.process.FieldCalcProcessorNode;
+import com.tapdata.tm.commons.dag.process.FieldModTypeProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
@@ -41,7 +42,7 @@ public class FieldModTypeStrategyImpl implements DagLogStrategy {
         }
 
         dag.getNodes().stream()
-                .filter(node -> node instanceof FieldCalcProcessorNode)
+                .filter(node -> node instanceof FieldModTypeProcessorNode)
                 .forEach(node -> {
                     String name = node.getName();
                     String nodeId = node.getId();

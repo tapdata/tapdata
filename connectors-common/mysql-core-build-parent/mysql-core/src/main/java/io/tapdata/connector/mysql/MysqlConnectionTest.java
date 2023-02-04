@@ -164,6 +164,7 @@ public class MysqlConnectionTest extends CommonDbTest {
         if ("read".equals(mark)) {
             privilege = grantSql.contains("SELECT") || grantSql.contains("ALL PRIVILEGES");
         }
+        grantSql = grantSql.replaceAll("\\\\", "");
         if (grantSql.contains("*.* TO")) {
             if (privilege) {
                 return true;

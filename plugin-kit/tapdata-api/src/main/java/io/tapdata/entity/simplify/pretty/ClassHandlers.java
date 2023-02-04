@@ -25,7 +25,7 @@ public class ClassHandlers {
             List<Function<?, ?>> objectHandlers = classHandlersMap.get(t.getClass());
             if(objectHandlers != null) {
                 for(Function objectHandler : objectHandlers) {
-                    Object result = objectHandler.apply(t);
+                     Object result = objectHandler.apply(t);
                     if(result != null)
                         return result;
                 }

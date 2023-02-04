@@ -10,21 +10,25 @@ import java.util.Map;
 
 public interface ConnectionMode {
     static final String TAG = ConnectionMode.class.getSimpleName();
+
     public List<TapTable> discoverSchema(List<String> tables, int tableSize);
-    public Map<String,Object> attributeAssignment(Map<String,Object> obj);
+
+    public Map<String, Object> attributeAssignment(Map<String, Object> obj);
+
     public ConnectionMode config(TapConnectionContext connectionContext);
-    public static ConnectionMode getInstanceByName(TapConnectionContext connectionContext,String name){
+
+    public static ConnectionMode getInstanceByName(TapConnectionContext connectionContext, String name) {
         if (Checker.isEmpty(name)) return null;
         Class clz = null;
         try {
-            clz = Class.forName( "io.tapdata.coding.service.connectionMode." + name);//ConnectionMode.class.getPackage().getName()
-            return ((ConnectionMode)clz.newInstance()).config(connectionContext);
+            clz = Class.forName("io.tapdata.coding.service.connectionMode." + name);//ConnectionMode.class.getPackage().getName()
+            return ((ConnectionMode) clz.newInstance()).config(connectionContext);
         } catch (ClassNotFoundException e) {
-            TapLogger.debug(TAG, "ClassNotFoundException for connectionMode {}",name);
+            TapLogger.debug(TAG, "ClassNotFoundException for connectionMode {}", name);
         } catch (InstantiationException e1) {
-            TapLogger.debug(TAG, "InstantiationException for connectionMode {}",name);
+            TapLogger.debug(TAG, "InstantiationException for connectionMode {}", name);
         } catch (IllegalAccessException e2) {
-            TapLogger.debug(TAG, "IllegalAccessException for connectionMode {}",name);
+            TapLogger.debug(TAG, "IllegalAccessException for connectionMode {}", name);
         }
         return null;
     }

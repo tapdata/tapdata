@@ -63,6 +63,7 @@ public class ShareCdcUtil {
 			}
 //      setDefaultPersistenceConfig(settingService, clientMongoOperator);
 			PersistenceStorage persistenceStorage = PersistenceStorage.getInstance();
+			persistenceStorage.logger(logger);
 			PersistenceStorageConfig persistenceStorageConfig = PersistenceStorageConfig.getInstance();
 			Map<String, List<String>> changeMap = new HashMap<>();
 

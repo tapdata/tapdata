@@ -52,6 +52,8 @@ import java.util.List;
 public class ApplicationEntity extends BaseEntity {
 
     private String name;
+
+    private String clientId;
     private String clientKey;
     private String javaScriptKey;
     private String restApiKey;

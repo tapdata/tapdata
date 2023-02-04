@@ -1,0 +1,34 @@
+{
+  "properties": {
+    "name": "Demo",
+    "icon": "icon/demo.png",
+    "doc" : "${doc}",
+    "id": "demo"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/demo_en_US.md",
+      "df_table_field_btn_add": "Add field"
+    },
+    "zh_CN": {
+      "doc": "doc/demo_zh_CN.md"
+    },
+    "zh_TW": {
+      "doc": "doc/demo_zh_TW.md"
+    }
+  }
+}

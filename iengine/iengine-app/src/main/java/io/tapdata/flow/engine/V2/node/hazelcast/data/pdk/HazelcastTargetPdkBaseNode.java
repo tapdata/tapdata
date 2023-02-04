@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
@@ -115,8 +116,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		this.updateMetadata = new ConcurrentHashMap<>();
 		this.removeMetadata = new CopyOnWriteArrayList<>();
 
-		this.targetBatch = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchSize()).orElse(DEFAULT_TARGET_BATCH);
-		this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
+		targetBatch = DEFAULT_TARGET_BATCH;
+		if (getNode() instanceof DataParentNode) {
+			this.targetBatch = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchSize()).orElse(DEFAULT_TARGET_BATCH);
+		}
+		targetBatchIntervalMs = DEFAULT_TARGET_BATCH_INTERVAL_MS;
+		if (getNode() instanceof DataParentNode) {
+			this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
+		}
 		logger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
 		obsLogger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
 		logger.info("Target node {}[{}] batch max wait interval ms: {}", getNode().getName(), getNode().getId(), targetBatchIntervalMs);
@@ -176,7 +183,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				if (count > 0) {
 					for (TapdataEvent tapdataEvent : tapdataEvents) {
 						// Filter TapEvent
-						if (null != tapdataEvent.getTapEvent() && this.targetTapEventFilter.test(tapdataEvent.getTapEvent())) {
+						if (null != tapdataEvent.getTapEvent() && this.targetTapEventFilter.test(tapdataEvent)) {
 							if (tapdataEvent.getSyncStage().equals(SyncStage.CDC)) {
 								tapdataEvent = TapdataHeartbeatEvent.create(TapEventUtil.getTimestamp(tapdataEvent.getTapEvent()), tapdataEvent.getStreamOffset(), tapdataEvent.getNodeIds());
 							} else {
@@ -260,21 +267,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
-			long lastProcessTime = System.currentTimeMillis();
 			while (isRunning()) {
-				TapdataEvent tapdataEvent = tapEventQueue.poll(1L, TimeUnit.SECONDS);
-				if (null != tapdataEvent) {
-					tapdataEvents.add(tapdataEvent);
-				}
-				if (tapdataEvents.size() >= this.targetBatch) {
+				int drain = Queues.drain(tapEventQueue, tapdataEvents, targetBatch, targetBatchIntervalMs, TimeUnit.MILLISECONDS);
+				if (drain > 0) {
 					processTargetEvents(tapdataEvents);
 					tapdataEvents.clear();
-					lastProcessTime = System.currentTimeMillis();
-				}
-				if (System.currentTimeMillis() - lastProcessTime >= targetBatchIntervalMs && CollectionUtils.isNotEmpty(tapdataEvents)) {
-					processTargetEvents(tapdataEvents);
-					tapdataEvents.clear();
-					lastProcessTime = System.currentTimeMillis();
 				}
 			}
 		} catch (InterruptedException ignored) {
@@ -469,6 +466,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (null != tapdataEvent.getStreamOffset()) {
 				syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
 			}
+			syncProgress.setSourceTime(tapdataEvent.getSourceTime());
+			syncProgress.setEventTime(tapdataEvent.getSourceTime());
 			flushOffset.set(true);
 		} else {
 			if (null == tapdataEvent.getSyncStage()) return;
@@ -598,7 +597,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		 * 处理删除事件更新条件在事件中不存在对应的值
 		 */
 		@Override
-		public <E extends TapEvent> boolean test(E tapEvent) {
+		public <E extends TapdataEvent> boolean test(E tapdataEvent) {
+			if(null == tapdataEvent || null == tapdataEvent.getTapEvent()) return false;
+			if(SyncProgress.Type.LOG_COLLECTOR == tapdataEvent.getType()) return false;
+			TapEvent tapEvent = tapdataEvent.getTapEvent();
 			if (!(tapEvent instanceof TapDeleteRecordEvent)) return false;
 			TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) tapEvent;
 			this.tableName = getTgtTableNameFromTapEvent(tapEvent);
@@ -648,7 +650,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 
 		@Override
-		public <E extends TapEvent> void failHandler(E tapEvent) {
+		public <E extends TapdataEvent> void failHandler(E tapdataEvent) {
 			logger.warn("Found {}'s delete event will be ignore. Because there is no association field '{}' in before data: {}", this.tableName, this.missingField, this.record);
 			obsLogger.warn("Found {}'s delete event will be ignore. Because there is no association field '{}' in before data: {}", this.tableName, this.missingField, this.record);
 		}

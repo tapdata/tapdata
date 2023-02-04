@@ -33,7 +33,9 @@ public enum SettingsEnum {
     SHARE_CDC_TTL_DAY("share_cdc","share_cdc_ttl_day"),
 
     WORKER_HEART_OVERTIME(CategoryEnum.WORKER.getValue(), KeyEnum.WORKER_HEART_TIMEOUT.getValue()),
-    SMTP_PASSWORD("SMTP", "smtp.server.password")
+    SMTP_PASSWORD("SMTP", "smtp.server.password"),
+
+    SCHEDULED_LOAD_SCHEMA_COUNT_THRESHOLD("schema", "scheduled.load.schema.count.threshold")
     ;
 
     @Getter
@@ -67,7 +69,11 @@ public enum SettingsEnum {
         if (StringUtils.isBlank(value)) {
             return defualt;
         }
-        return Integer.parseInt(value.trim());
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (Exception e) {
+            return defualt;
+        }
     }
 
 

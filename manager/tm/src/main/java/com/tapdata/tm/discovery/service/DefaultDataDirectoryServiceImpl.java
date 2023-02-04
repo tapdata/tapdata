@@ -3,6 +3,7 @@ import com.google.common.collect.Lists;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 
@@ -11,6 +12,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
@@ -21,6 +23,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PostConstruct;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -31,6 +34,8 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
     private DataSourceService dataSourceService;
     private DataSourceDefinitionService definitionService;
     private MetadataDefinitionService metadataDefinitionService;
+
+    private UserService userService;
 
     @Override
     public void addConnection(String connectionId, UserDetail user) {
@@ -153,7 +158,10 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
             metadataDefinitionDto.setReadOnly(true);
             metadataDefinitionDto.setLinkId(connectionDto.getId().toHexString());
 
-            metadataDefinitionDto.setParent_id(pdkIdMap.get(connectionDto.getDefinitionPdkId()).getId().toHexString());
+            MetadataDefinitionDto metadataDefinitionDto1 = pdkIdMap.get(connectionDto.getDefinitionPdkId());
+            if (metadataDefinitionDto1 != null) {
+                metadataDefinitionDto.setParent_id(pdkIdMap.get(connectionDto.getDefinitionPdkId()).getId().toHexString());
+            }
             insertConnections.add(metadataDefinitionDto);
         }
         metadataDefinitionService.save(insertConnections, user);
@@ -252,6 +260,26 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
         metadataDefinitionDto.setReadOnly(true);
         metadataDefinitionDto.setParent_id(root.getId().toHexString());
         metadataDefinitionService.save(metadataDefinitionDto, user);
+    }
+
+    @Override
+    public void init() {
+        Query query = new Query();
+        query.fields().include("user_id");
+        List<DataSourceConnectionDto> all = dataSourceService.findAll(query);
+        Set<String> userSet = all.stream().map(BaseDto::getUserId).collect(Collectors.toSet());
+        if (CollectionUtils.isEmpty(userSet)) {
+            return;
+        }
+
+        List<UserDetail> userList = userService.getUserByIdList(new ArrayList<>(userSet));
+        for (UserDetail userDetail : userList) {
+            deleteDefault(userDetail);
+            addPdkIds(userDetail);
+            addConnections(userDetail);
+            addJobs(userDetail);
+            addApi(userDetail);
+        }
     }
 
 

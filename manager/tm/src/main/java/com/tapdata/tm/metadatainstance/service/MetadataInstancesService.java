@@ -38,6 +38,7 @@ import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
 import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
@@ -1991,5 +1992,22 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             types.put(f.getDataType(), f.getTapType());
         }
         return types;
+    }
+
+    public boolean checkTableExist(String connectionId, String tableName, UserDetail user) {
+        Criteria criteria = Criteria.where("original_name").is(tableName)
+                .and("is_deleted").ne(true)
+                .and("source._id").is(connectionId)
+                .and("sourceType").is(SourceTypeEnum.SOURCE.name())
+                .and("taskId").exists(false);
+        Query query = new Query(criteria);
+        long count = count(query, user);
+        return count > 0;
+    }
+
+    public void deleteLogicModel(String taskId, String nodeId) {
+        Criteria criteria = Criteria.where("taskId").is(taskId).and("nodeId").is(nodeId);
+        Query query = new Query(criteria);
+        deleteAll(query);
     }
 }

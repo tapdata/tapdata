@@ -1,0 +1,180 @@
+{
+  "info": {
+    "_postman_id": "8240e0b3-2fa6-4d00-8933-cccf994125e8",
+    "name": "api",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "16923698"
+  },
+  "item": [
+    {
+      "name": "TAP_GET_TOKEN session api",
+      "protocolProfileBehavior": {
+        "disabledSystemHeaders": {}
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "disabled": true
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"username\": \"{{username}}\", \r\n    \"password\": \"{{password}}\"\r\n\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://36.134.131.197:12345/api/session",
+          "protocol": "http",
+          "host": [
+            "36.134.131.197",
+            "12345",
+            "api",
+            "session"
+          ],
+          "path": [
+            "api",
+            "session"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "TAP_TABLE[allCard](PAGE_NONE)allCard",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "X-Metabase-Session",
+            "value": "{{sessionToken}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": ""
+        },
+        "url": {
+          "raw": "http://36.134.131.197:12345/api/card",
+          "protocol": "http",
+          "host": [
+            "36.134.131.197",
+            "12345",
+            "api",
+            "card"
+          ],
+          "path": [
+            "api",
+            "card"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "TAP_TABLE[queryExportFormat](PAGE_NONE:data)queryExportFormat",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Metabase-Session",
+            "value": "{{sessionToken}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text",
+            "disabled": true
+          }
+        ],
+        "url": {
+          "raw": "{{matebaseDomainName}}/api/card/:card-id/query/:export-format",
+          "host": [
+            "{{matebaseDomainName}}"
+          ],
+          "path": [
+            "api",
+            "card",
+            ":card-id",
+            "query",
+            ":export-format"
+          ],
+          "variable": [
+            {
+              "key": "card-id",
+              "value": "{{card-id}}"
+            },
+            {
+              "key": "export-format",
+              "value": "json"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "username",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "matebaseDomainName",
+      "value": "http://36.134.131.197:12345",
+      "type": "string"
+    },
+    {
+      "key": "sessionToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "card-id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
