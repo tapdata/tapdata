@@ -28,13 +28,13 @@ public class DatabendTest extends CommonDbTest {
                 sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
             }
             //create
-            sqls.add(String.format(TEST_CK_CREATE_TABLE, TEST_WRITE_TABLE));
+            sqls.add(String.format(TEST_DB_CREATE_TABLE, TEST_WRITE_TABLE));
             //insert
-            sqls.add(String.format(TEST_CK_WRITE_RECORD, TEST_WRITE_TABLE));
+            sqls.add(String.format(TEST_DB_WRITE_RECORD, TEST_WRITE_TABLE));
             //update
-//            sqls.add(String.format(TEST_CK_UPDATE_RECORD, TEST_WRITE_TABLE));
+//            sqls.add(String.format(TEST_DB_UPDATE_RECORD, TEST_WRITE_TABLE));
             //delete
-//            sqls.add(String.format(TEST_CK_DELETE_RECORD, TEST_WRITE_TABLE));
+//            sqls.add(String.format(TEST_DB_DELETE_RECORD, TEST_WRITE_TABLE));
             //drop
             sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
             jdbcContext.batchExecute(sqls);
@@ -45,9 +45,9 @@ public class DatabendTest extends CommonDbTest {
         return true;
     }
 
-    private static final String TEST_CK_CREATE_TABLE = "create table %s(col1 int,col2 int)";
-    private static final String TEST_CK_WRITE_RECORD = "insert into %s values(1,2)";
+    private static final String TEST_DB_CREATE_TABLE = "create table %s(col1 int,col2 int)";
+    private static final String TEST_DB_WRITE_RECORD = "insert into %s values(1,2)";
     //TODO: wait new databend version that support update and alter
-//    private static final String TEST_CK_UPDATE_RECORD = "alter table %s update col2=1 where 1=1";
-//    private static final String TEST_CK_DELETE_RECORD = "alter table %s delete where 1=1";
+//    private static final String TEST_DB_UPDATE_RECORD = "alter table %s update col2=1 where 1=1";
+//    private static final String TEST_DB_DELETE_RECORD = "alter table %s delete where 1=1";
 }

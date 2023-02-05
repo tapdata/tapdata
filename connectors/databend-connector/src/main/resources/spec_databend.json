@@ -52,7 +52,7 @@
           "x-index": 3,
           "required": true
         },
-        "username": {
+        "user": {
           "type": "string",
           "title": "${user}",
           "x-decorator": "FormItem",
