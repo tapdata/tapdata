@@ -776,7 +776,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			throw new RuntimeException("Update memory node failed, error: " + e.getMessage(), e);
 		}
 		try {
-			updateTapTable(tapdataEvent, getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()));
+			String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent());
+			updateTapTable(tapdataEvent, tgtTableNameFromTapEvent);
 		} catch (Exception e) {
 			throw new RuntimeException("Update memory TapTable failed, error: " + e.getMessage(), e);
 		}
@@ -818,6 +819,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tableName = getNode().getId();
 		}
 		String qualifiedName = tapTableMap.getQualifiedName(tableName);
+		if (StringUtils.isBlank(qualifiedName)) {
+			throw new RuntimeException("Get metadata qualified name failed, cannot found by table name: " + tableName);
+		}
 		if (tapEvent instanceof TapCreateTableEvent) {
 			Object insertMetadata = tapEvent.getInfo(INSERT_METADATA_INFO_KEY);
 			if (insertMetadata instanceof List) {
@@ -876,7 +880,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (!(dagDataService instanceof DAGDataServiceImpl)) {
 			return StringUtils.isNotBlank(lastTableName) ? lastTableName : tableId;
 		}
-		return  ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(getNode().getId(), tableId);
+		String nodeId = getNode().getId();
+		return  ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(nodeId, tableId);
 	}
 
 	public static class TapValueTransform {
