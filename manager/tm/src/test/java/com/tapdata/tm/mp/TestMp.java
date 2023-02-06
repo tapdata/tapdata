@@ -141,4 +141,40 @@ public class TestMp {
             log.error("Send weChat message failed", e);
         }
     }
+
+    @Test
+    public void validateAccessToken() {
+        Logger log = LoggerFactory.getLogger(TestMp.class);
+        CloseableHttpClient httpClient = HttpClientBuilder.create().build();
+
+        String accessToken = "65_A9wc3lydta7AGfuQ3yz-yfzhKn6SW6ir3-A88wGVC48MnXe9vYfA4mg8Aneblo4JBISIgFrtHeu3jOoW4jlHSPCJ5jPwB_i8hSlXDePlO6D0u06j9-vcxYTeA_UTTEbAEADDO";
+
+        String getAccessTokenUrl = "https://api.weixin.qq.com/cgi-bin/user/get";
+
+        try {
+            URI uri = new URIBuilder(getAccessTokenUrl)
+                    .addParameter("access_token", accessToken).build();
+
+            HttpGet httpGet = new HttpGet(uri);
+            CloseableHttpResponse response = httpClient.execute(httpGet);
+
+            String body = IOUtil.readAsString(response.getEntity().getContent());
+            log.debug(body);
+            if (response.getStatusLine().getStatusCode() == 200 && StringUtils.isNotBlank(body)) {
+                Map<String, ?> data = JsonUtil.parseJsonUseJackson(body, new TypeReference<Map<String, Object>>(){});
+                String errCode = data != null && data.get("errcode") != null ? data.get("errcode").toString() : null;
+                String errMsg = data != null && data.get("errmsg") != null ? data.get("errmsg").toString() : null;
+                if (!"0".equals(errCode)) {
+                    Assertions.fail(errMsg);
+                }
+            } else {
+                Assertions.fail(body);
+            }
+
+        } catch (URISyntaxException e) {
+            log.error("Build get access token uri failed on refresh weChat access token", e);
+        } catch (IOException e) {
+            log.error("Refresh access token failed", e);
+        }
+    }
 }

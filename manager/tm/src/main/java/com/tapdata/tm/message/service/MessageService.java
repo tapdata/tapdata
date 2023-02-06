@@ -702,7 +702,7 @@ public class MessageService extends BaseService {
         //发送邮件
         if (sendEmail) {
             Integer retry = 1;
-            log.info("发送邮件通知");
+            log.info("发送邮件通知{}", userDetail.getEmail());
             String username = "Hi, " + (messageDto.getUsername() == null ? "" : messageDto.getUsername()) + ": ";
 //            Object hostUrl = settingsService.getByCategoryAndKey("SMTP", "emailHref");
 //            String clickHref = hostUrl + "monitor?id=" + sourceId + "{sourceId}&isMoniting=true&mapping=cluster-clone";
@@ -717,6 +717,7 @@ public class MessageService extends BaseService {
         if (sendSms) {
             Integer retry = 1;
             String phone = userDetail.getPhone();
+            log.info("发送短信通知{}", phone);
             String smsTemplateCode = smsService.getTemplateCode(messageDto);
             SendStatus sendStatus = smsService.sendShortMessage(smsTemplateCode, phone, system, metadataName);
             eventsService.recordEvents(MAIL_SUBJECT, smsContent, phone, messageDto, sendStatus, retry, Type.NOTICE_SMS);
@@ -732,7 +733,7 @@ public class MessageService extends BaseService {
                 log.info("Send alarm message ({}, {}) to user ({}, {}).",
                         title, content, userDetail.getUsername(), userDetail.getUserId());
             }
-            log.debug("Send weChat message");
+            log.info("Send weChat message {}", openId);
             SendStatus status = mpService.sendAlarmMsg(openId, title, content, new Date());
             eventsService.recordEvents(MAIL_SUBJECT, content, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
         }

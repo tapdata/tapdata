@@ -15,12 +15,10 @@ import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.http.*;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.entity.BasicHttpEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -30,7 +28,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -59,8 +56,6 @@ public class MpService {
 
     @Autowired
     private MpAccessTokenRepository repository;
-
-    private MpAccessToken cachedAccessToken;
 
     /**
      * {{first.DATA}}
@@ -127,6 +122,8 @@ public class MpService {
 
                 String jsonData = JsonUtil.toJsonUseJackson(message);;
 
+                log.debug("{}/5 Send notify to weChat {}: {}", i+1, openid, jsonData);
+
                 HttpPost httpPost = new HttpPost(uri);
                 StringEntity httpEntity = new StringEntity(jsonData, "UTF-8");
                 httpEntity.setContentType("application/json; charset=UTF-8;");
@@ -137,17 +134,27 @@ public class MpService {
                 if (response.getStatusLine().getStatusCode() == 200 && StringUtils.isNotBlank(body)) {
                     Map<String, ?> data = JsonUtil.parseJsonUseJackson(body, new TypeReference<Map<String, Object>>(){});
                     log.debug(body);
-                    if (data != null && data.containsKey("errcode") && "40001".equals(data.get("errcode"))) {
+                    Object errorCode = data != null ? data.get("errcode") : null;
+                    if (errorCode != null && "40001".equals(errorCode.toString())) {
                         // invalid credential, access_token is invalid or not latest
-                        // sendMessage(openid, message);
+                        // refresh access token and try send
                         refreshAccessToken(true);
-                        continue;
+                    } else if (data.get("errcode") != null && "0".equals(data.get("errcode").toString())){
+                        break;
+                    } else {
+                        log.error("Send weChat message failed and try send, response {}", body);
                     }
                 } else {
-                    log.error("Send we chat message failed, response {} {}",
+                    log.error("Send weChat message failed, response {} {}",
                             response.getStatusLine().getStatusCode(), body);
                 }
-                break;
+
+                try {
+                    // try send on after 5 second
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    log.error("Interrupted weChat send message thread.");
+                }
             } catch (URISyntaxException e) {
                 log.error("Build send message uri failed on send weChat message", e);
             } catch (UnsupportedEncodingException e) {
@@ -184,21 +191,18 @@ public class MpService {
     }
 
     /**
-     * 每分钟检查一次 access token的有效期，如果 access token 在5分钟内过期就执行刷新动作
+     * 轮询检查 access token的有效期，如果 access token 在5分钟内过期就执行刷新动作
      */
-    @Scheduled(fixedDelay = 60000)
+    @Scheduled(fixedDelay = 30000)
     @SchedulerLock(name="refreshWeChatAccessToken", lockAtLeastFor = "PT30S", lockAtMostFor = "PT30S")
-    public void refreshAccessToken() {
+    public synchronized void refreshAccessToken() {
         refreshAccessToken(false);
     }
-    public void refreshAccessToken(boolean force) {
+
+    public synchronized void refreshAccessToken(boolean force) {
 
         if (!this.enableWeChat()) {
             return;
-        }
-
-        if (force) {
-            this.cachedAccessToken = null;
         }
 
         MpAccessToken accessToken = getAccessToken();
@@ -209,35 +213,20 @@ public class MpService {
             MpAccessToken mpAccessToken = requestNewAccessToken();
             if (mpAccessToken != null) {
                 mpAccessToken.setName("weChatAccessToken");
-                this.cachedAccessToken = mpAccessToken;
+                mpAccessToken.setLastUpdAt(new Date());
                 Query query = Query.query(Criteria.where("name").is("weChatAccessToken"));
                 repository.upsert(query, mpAccessToken);
             }
-
+        } else {
+            log.debug("WeChat access token is valid");
         }
-
-    }
-
-    @Scheduled(fixedDelay = 1000)
-    public void loadAccessTokenFromDB() {
-
-        Query query = Query.query(Criteria.where("name").is("weChatAccessToken"));
-        query.with(Sort.by(Sort.Order.desc("_id")));
-        this.cachedAccessToken = repository.findOne(query).orElse(null);
 
     }
 
     public MpAccessToken getAccessToken() {
-
-        if (this.cachedAccessToken == null) {
-            Query query = Query.query(Criteria.where("name").is("weChatAccessToken"));
-            query.with(Sort.by(Sort.Order.desc("_id")));
-            this.cachedAccessToken = repository.findOne(query).orElse(null);
-        } else if (cachedAccessToken.getExpiresAt() < System.currentTimeMillis()) {
-            return null;
-        }
-
-        return this.cachedAccessToken;
+        Query query = Query.query(Criteria.where("name").is("weChatAccessToken"));
+        query.with(Sort.by(Sort.Order.desc("_id")));
+        return repository.findOne(query).orElse(null);
     }
 
     private MpAccessToken requestNewAccessToken() {
@@ -255,6 +244,7 @@ public class MpService {
             CloseableHttpResponse response = httpClient.execute(httpGet);
 
             String body = IOUtil.readAsString(response.getEntity().getContent());
+            log.debug("Refresh token response data {}", body);
             if (response.getStatusLine().getStatusCode() == 200 && StringUtils.isNotBlank(body)) {
                 Map<String, ?> data = JsonUtil.parseJsonUseJackson(body, new TypeReference<Map<String, Object>>(){});
                 if (data != null && data.containsKey("access_token")) {
