@@ -48,6 +48,9 @@ public class PatchesRunner implements ApplicationRunner {
     @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
     private List<String> productList;
 
+    @Value("${spring.data.mongodb.uri}")
+    private String mongodbUri;
+
     @Override
     public void run(ApplicationArguments args) throws Exception {
         if (productList.contains("dfs")) {
@@ -58,6 +61,8 @@ public class PatchesRunner implements ApplicationRunner {
             appType = AppType.DAAS;
         }
         patchType = new PatchType(appType, PatchTypeEnums.Script);
+
+        setPatchConstant();
 
         PatchVersion appVersion = getAppVersion();
         PatchVersion currentVersion = getCurrentVersion();
@@ -83,6 +88,10 @@ public class PatchesRunner implements ApplicationRunner {
         }
         setAppVersion(patchType, currentVersion);
         logger.info("Patch {} {} completed.", patchType, currentVersion);
+    }
+
+    private void setPatchConstant() {
+        PatchConstant.mongodbUri = mongodbUri;
     }
 
     /**
