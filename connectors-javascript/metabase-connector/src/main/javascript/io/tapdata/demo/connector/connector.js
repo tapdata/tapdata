@@ -19,7 +19,6 @@ function discover_schema(connectionConfig, schemaSender) {
     let tableList = [];
     for (let index = 0; index < invoke.result.length; index++) {
         let invokeCard;
-        log.warn("New Card," + " Card id:" + invoke.result[index].id);
         try {
             invokeCard = invoker.setTimeOut(10000).invoke(
                 'TAP_TABLE[queryExportFormat](PAGE_NONE:data)queryExportFormat',
