@@ -49,7 +49,6 @@ public class BatchCountRun extends PDKBaseRun {
                     }
                     TapTable table = new TapTable(String.valueOf(tableName), String.valueOf(tableName));
                     long count = batchCountFunction.count(connectorNode.getConnectorContext(), table);
-                    //System.out.println("[SUCCEED] Table count of table " + String.valueOf(tableName) + "is "+ count);
                     super.runSucceed(testCase,RunnerSummary.format("batchCountRun.succeed",tableName,count));
                 } else {
                     //Error cannot support batch count function

@@ -6,6 +6,9 @@ import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -44,12 +47,16 @@ public class PDKRunner {
     public static void main(String[] args) {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         CommonUtils.setProperty("TDD_AUTO_EXIT", "0");
-        args = new String[]{"debug", "-c", null, null};
+        args = new String[]{"run", "-r", "-c"};
+        List<String> argList = new ArrayList<>(Arrays.asList(args));
+
         ConfigurationCenter.processId = "sam_flow_engine";
         for (PDKRunner.TddPath tddJarPath : PDKRunner.TddPath.values()) {
-            args[2] = PDKRunner.BASE_CONF_PATH + tddJarPath.getConf();
-            args[3] = PDKRunner.BASE_JAR_PATH + tddJarPath.getPath();
-            Main.registerCommands().execute(args);
+            argList.add(PDKRunner.BASE_CONF_PATH + tddJarPath.getConf());
+            argList.add(PDKRunner.BASE_JAR_PATH + tddJarPath.getPath());
+            String[] strs = new String[argList.size()];
+            argList.toArray(strs);
+            Main.registerCommands().execute(strs);
             try {
                 TapConnectorManager instance = TapConnectorManager.getInstance();
                 Class<?> cla = TapConnectorManager.class;

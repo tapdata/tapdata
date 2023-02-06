@@ -53,7 +53,7 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
             throw new CoreException("TapTable cannot not be empty.");
         }
         ScriptEngine scriptEngine = javaScripter.scriptEngine();
-        ScriptCore scriptCore = new ScriptCore(table.getId());
+        ScriptCore scriptCore = new ScriptCore();
         scriptEngine.put("core", scriptCore);
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         BatchReadSender sender = new BatchReadSender().core(scriptCore);

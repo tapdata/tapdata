@@ -69,11 +69,11 @@ public interface RunAssert {
     }
 
     public static void error(Method testCase, String message) {
-        RunAssert.asserts(() -> { }).accept(testCase, ERROR, message);
+        RunAssert.asserts(() -> { throw new RuntimeException(message); }).accept(testCase, ERROR, message);
     }
 
     public static void warn(Method testCase, String message) {
-        RunAssert.asserts(() -> { }).accept(testCase, WARN, message);
+        RunAssert.asserts(() -> { throw new RuntimeException(message); }).accept(testCase, WARN, message);
     }
 
     public default void accept(Method testCase, int assertGarde, String succeedMag) {
@@ -90,7 +90,7 @@ public interface RunAssert {
             return;
         } catch (Exception e) {
             change(e, e.getMessage(), assertGarde, testCase);
-            throw e;
+            return;
         }
         change(null, succeedMag, SUCCEED, testCase);
     }

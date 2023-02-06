@@ -62,6 +62,15 @@ public class RunnerSummary {
         return this.doNotSupportFunTest;
     }
 
+    List<String> skipCase = new ArrayList<>();
+    public List<String> skipCase(){
+        return this.skipCase;
+    }
+    public void skipCase(String caseName){
+        this.skipCase.add(caseName);
+    }
+
+
     //存放所有测试类的最终测试结果
     Map<Class<? extends PDKTestBase>, Integer> resultExecution = new HashMap<>();
 
@@ -80,8 +89,8 @@ public class RunnerSummary {
     List<RunnerSummary> summarys;
     private static final String LANG_PATH = "i18n.lang_runner";
     private Locale langType = Locale.SIMPLIFIED_CHINESE;
-    private final String AREA_SPLIT = "------------------------------------------------------------------------------------";
-    private final String AREA_SPLIT_SIMPLE = "————————————————————————————————————————————————————————————————————————————————————";
+    private static final String AREA_SPLIT = "------------------------------------------------------------------------------------";
+    private static final String AREA_SPLIT_SIMPLE = "————————————————————————————————————————————————————————————————————————————————————";
 
     public RunnerSummary setLanType(Locale langType) {
         this.langType = langType;
@@ -106,6 +115,7 @@ public class RunnerSummary {
     public void showTestResultAll(TapNodeInfo nodeInfo, String fileName) {
         if (null != summarys && !summarys.isEmpty()) {
             summarys.stream().filter(Objects::nonNull).forEach(summary -> {
+                this.showSkipCase();
                 showTest(summary);
                 this.showNotSupport(summary);
             });
@@ -133,9 +143,22 @@ public class RunnerSummary {
         return builder.toString();
     }
 
+    public StringBuilder showSkipCase() {
+        StringBuilder builder = new StringBuilder();
+        if (null != this.skipCase && !this.skipCase.isEmpty()) {
+            builder.append(AREA_SPLIT).append("\n");
+            builder.append("☆The following js method name or class path cannot find a matching execution target: \n");
+            this.skipCase.forEach(name->builder.append("\t[").append(name).append("]\n"));
+            builder.append("Please specify the name correctly. The supported js method name/class path name as described in the above table。\n");
+            builder.append(AREA_SPLIT).append("\n");
+        }
+        System.out.println(builder.toString());
+        return resultBuilder.append(builder);
+    }
     private StringBuilder showNotSupport(RunnerSummary summary) {
-        StringBuilder builder = new StringBuilder(AREA_SPLIT + "\n");
+        StringBuilder builder = new StringBuilder();
         if (null != summary.doNotSupportFunTest && !summary.doNotSupportFunTest.isEmpty()) {
+            builder.append(AREA_SPLIT).append("\n");
             Iterator<Map.Entry<Class, String>> iterator = summary.doNotSupportFunTest.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<Class, String> next = iterator.next();
@@ -197,8 +220,8 @@ public class RunnerSummary {
                     builder.append(AREA_SPLIT_SIMPLE).append("\n");
                 }
             }
+            builder.append(AREA_SPLIT).append("\n");
         }
-        builder.append(AREA_SPLIT).append("\n");
         return builder;
     }
 
@@ -206,10 +229,10 @@ public class RunnerSummary {
         Map<Class<? extends PDKTestBase>, Integer> resultExecution = summary.resultExecution;
         Map<Class, CapabilitiesExecutionMsg> result = summary.capabilitiesResult;
         if (null == result || result.isEmpty()) return;
-        StringBuilder builder = new StringBuilder(AREA_SPLIT);
-        builder.append("\n");
+        StringBuilder builder = new StringBuilder();
         int allTestResult = CapabilitiesExecutionMsg.SUCCEED;//default 0 === succeed
         for (Map.Entry<Class, CapabilitiesExecutionMsg> entry : result.entrySet()) {
+            builder.append(AREA_SPLIT).append("\n");
             Class cla = entry.getKey();
             CapabilitiesExecutionMsg res = entry.getValue();
 
@@ -296,6 +319,7 @@ public class RunnerSummary {
                 allTestResult = resResult;
             }
             resultExecution.put(cla, allTestResult);
+            builder.append(AREA_SPLIT).append("\n");
         }
         if (CapabilitiesExecutionMsg.ERROR == allTestResult && !Case.ERROR.equals(RunnerSummary.hasPass)) {
             RunnerSummary.hasPass = Case.ERROR;
@@ -304,12 +328,8 @@ public class RunnerSummary {
                 RunnerSummary.hasPass = Case.WARN;
             }
         }
-        builder.append(AREA_SPLIT).append("\n");
-
         String finalStr = this.replaceAsLang(builder.toString());
-
         System.out.print(finalStr);
-
         resultBuilder.append(finalStr);
     }
 
@@ -328,7 +348,10 @@ public class RunnerSummary {
 
     public void asFileV2(String file) {
         String path = CommonUtils.getProperty("tap_log_path");
-        String fileName = tapNodeInfo.getTapNodeSpecification().getId() + "-connector-v1.0-TDD-TEST-" + dateTime() + ".log";
+        if (Objects.isNull(path) || "".equals(path.trim())){
+            return;
+        }
+        String fileName = tapNodeInfo.getTapNodeSpecification().getId() + "-js-connector-v1.0-TDD-TEST-" + dateTime() + ".log";
         path += fileName;
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(path), StandardCharsets.UTF_8)) {
             writer.write(
@@ -436,11 +459,11 @@ public class RunnerSummary {
 //        return txt.replaceAll("\\n","\n|");
     }
 
-    public void showLogo() {
+    public static void showLogo() {
         System.out.println(showLogoV2());
     }
 
-    private String showLogoV2() {
+    private static String showLogoV2() {
         String logo = "\n" + AREA_SPLIT + "\n" +
                 "[.___________.    ___      .______    _______       ___   .___________.    ___     ]\n" +
                 "[|           |   /   \\     |   _  \\  |       \\     /   \\  |           |   /   \\    ]\n" +
@@ -477,27 +500,7 @@ public class RunnerSummary {
         StringBuilder builder = this.showNotSupport(summary);
         System.out.println(builder.toString());
         resultBuilder.append(builder);
-
-        StringBuilder builderEnd = new StringBuilder("\n\n====================================================================================\n");
-        String end = endingShowV2(fileName);
-        String connectorName = tapNodeInfo.getTapNodeSpecification().getId();
-        int totalCase = summaryData.totalCase();
-        int exeCase = summaryData.exeCase();
-        int error = summaryData.error();
-        int succeed = summaryData.succeed();
-        int warn = summaryData.warn();
-        int dump = summaryData.dump();
-        builderEnd.append(RunnerSummary.format("SUMMARY_END", connectorName, totalCase, exeCase, succeed, warn, error, dump))
-                .append("————————————————————————————————————————————————————————————————————————————————————\n")
-                .append(end)
-                .append("\n")
-                .append("====================================================================================\n");
-
-        System.out.println(builderEnd.toString());
-        resultBuilder.append(builderEnd)
-                .append("\n")
-                .append(DateUtil.dateTimeToStr());
-
+        resultBuilder.append(DateUtil.dateTimeToStr());
     }
 
     public String endingShowV2(String fileName) {

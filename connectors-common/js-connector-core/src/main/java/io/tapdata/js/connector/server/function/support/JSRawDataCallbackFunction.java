@@ -3,10 +3,8 @@ package io.tapdata.js.connector.server.function.support;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.JSConnector;
-import io.tapdata.js.connector.base.EventTag;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.FunctionSupport;
@@ -53,7 +51,7 @@ public class JSRawDataCallbackFunction extends FunctionBase implements FunctionS
      * ]
      */
     private final io.tapdata.js.connector.base.EventType eventType = new io.tapdata.js.connector.base.EventType();
-    private int dataIndex = 1;
+    private Integer dataIndex = new Integer(1);
 
     private List<TapEvent> webHookEvent(TapConnectorContext context, List<String> tableNameList, Map<String, Object> dataMap) {
         this.javaScripter.scriptEngine().put("eventType", this.eventType);
@@ -73,10 +71,14 @@ public class JSRawDataCallbackFunction extends FunctionBase implements FunctionS
                 Collection<Object> eventList = (Collection<Object>) invoker;
                 return eventList.stream()
                         .filter(Objects::nonNull)
-                        .map(this::setEvent)
+                        .map(m -> {
+                            TapEvent event = this.eventType.setEvent(m, this.dataIndex, TAG);
+                            this.dataIndex++;
+                            return event;
+                        })
                         .collect(Collectors.toList());
             } else if (invoker instanceof Map) {
-                return list(this.setEvent(invoker));
+                return list(this.eventType.setEvent(invoker, this.dataIndex, TAG));
             } else {
                 throw new CoreException("Method '" + this.functionName.jsName() + "' failed to execute. Unable to get the return result. The final result will be null.");
             }
@@ -86,62 +88,6 @@ public class JSRawDataCallbackFunction extends FunctionBase implements FunctionS
         return null;
     }
 
-    private TapEvent setEvent(Object eventDataFromJs) {
-        if (eventDataFromJs instanceof Map) {
-            Map<String, Object> result = (Map<String, Object>) eventDataFromJs;
-            Object eventType = result.get(EventTag.EVENT_TYPE);
-            if (Objects.isNull(eventType) || this.eventType.isEventType(String.valueOf(eventType))) {
-                throw new CoreException("Article " + this.dataIndex + " Record: Please use event_type to indicate event type (i/u/d). ");
-            }
-            Object tableName = result.get(EventTag.TABLE_NAME);
-            if (Objects.isNull(tableName) || "".equals(tableName)) {
-                throw new CoreException("Article " + this.dataIndex + " Record: Please use table_name to indicate table name. ");
-            }
-            Object after = result.get(EventTag.AFTER_DATA);
-            if (Objects.isNull(after) && this.eventType.update.equals(eventType)) {
-                throw new CoreException("Article " + this.dataIndex + " Record: An update data event was received, but not used after_data describes the update data. ");
-            }
-            if (!(after instanceof Map)) {
-                throw new CoreException("Article " + this.dataIndex + " Record: Wrong data representation, need to use k-v map to represent after_data. ");
-            }
-            Object before = result.get(EventTag.BEFORE_DATA);
-            if (Objects.isNull(before) && (this.eventType.insert.equals(eventType) || this.eventType.delete.equals(eventType))) {
-                throw new CoreException(
-                        this.eventType.insert.equals(eventType) ?
-                                "Article " + this.dataIndex + " Record: insert event was received, but not used after_data describes the insert data. " :
-                                "Article " + this.dataIndex + " Record: delete event was received, but not used after_data describes the delete data. "
-                );
-            }
-            if (!(before instanceof Map)) {
-                throw new CoreException("Article " + this.dataIndex + " Record: Wrong data representation, need to use k-v map to represent before_data. ");
-            }
-            Object referenceTimeObj = result.get(EventTag.REFERENCE_TIME);
-            Long referenceTime = System.currentTimeMillis();
-            if (Objects.isNull(referenceTimeObj) || !(referenceTimeObj instanceof Long)) {
-                TapLogger.warn(TAG, "Article " + this.dataIndex + " Record: ");
-            } else {
-                referenceTime = Long.valueOf(String.valueOf(referenceTime));
-            }
-            this.dataIndex++;
-            switch (String.valueOf(eventType)) {
-                case "d":
-                    return TapSimplify.deleteDMLEvent((Map<String, Object>) before, String.valueOf(tableName)).referenceTime(referenceTime);
-                case "u":
-                    return TapSimplify.updateDMLEvent((Map<String, Object>) before, (Map<String, Object>) after, String.valueOf(tableName)).referenceTime(referenceTime);
-                default:
-                    return TapSimplify.insertRecordEvent((Map<String, Object>) before, String.valueOf(tableName)).referenceTime(referenceTime);
-            }
-        } else {
-            throw new CoreException("Article " + this.dataIndex + " Record:  The event format is incorrect. Please use the following rules to organize the returned results :\n" +
-                    "{\n" +
-                    "\"event_type\": String('i/u/d'),\n" +
-                    " \"table_name\": String('example_table_name'), " +
-                    "\n\"before_data\": {}," +
-                    "\n\"after_data\": {}," +
-                    "\n\"reference_time\": Number(time_stamp)" +
-                    "}\n");
-        }
-    }
 
     public static RawDataCallbackFilterFunctionV2 create(LoadJavaScripter loadJavaScripter) {
         return new JSRawDataCallbackFunction().function(loadJavaScripter);
