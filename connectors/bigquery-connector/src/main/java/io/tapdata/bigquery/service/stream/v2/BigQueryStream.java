@@ -25,7 +25,7 @@ public class BigQueryStream extends BigQueryStart {
     private TapTable tapTable;
     private MergeHandel merge;
     private StateMapOperator stateMap;
-    private Map<String,String> tableWithTempTable = new ConcurrentHashMap<>();
+    private Map<String, String> tableWithTempTable = new ConcurrentHashMap<>();
     private final Object lock = new Object();
 
     public final Map<String, WriteCommittedStream> streamFactory = new HashMap<>();
@@ -87,20 +87,20 @@ public class BigQueryStream extends BigQueryStart {
 
     public WriteListResult<TapRecordEvent> writeRecord(List<TapRecordEvent> events, TapTable table) throws InterruptedException, IOException, Descriptors.DescriptorValidationException {
         String tableId = table.getId();
-        Long streamToBatchTime = this.stateMap.getLong(tableId,MergeHandel.STREAM_TO_BATCH_TIME);
+        Long streamToBatchTime = this.stateMap.getLong(tableId, MergeHandel.STREAM_TO_BATCH_TIME);
         boolean needCreateTemporaryTable = Objects.isNull(streamToBatchTime);
-        Long mergeId = this.stateMap.getLong(tableId,MergeHandel.MERGE_KEY_ID);
+        Long mergeId = this.stateMap.getLong(tableId, MergeHandel.MERGE_KEY_ID);
         EventAfter eventAfter = new EventAfter(streamToBatchTime)
                 .hasMerged(Objects.nonNull(mergeId))
                 .table(table);
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
         this.tapTable = table;
-        eventAfter.convertData(events, this.merge,table);
+        eventAfter.convertData(events, this.merge, table);
         streamToBatchTime = Optional.ofNullable(streamToBatchTime).orElse(eventAfter.streamToBatchTime());
         if (!eventAfter.appendData().isEmpty()) {
             synchronized (this.lock) {
                 this.createWriteCommittedStream(tableId).append(eventAfter.appendData());
-                this.stateMap.saveForTable(tableId,MergeHandel.STREAM_TO_BATCH_TIME,streamToBatchTime);
+                this.stateMap.saveForTable(tableId, MergeHandel.STREAM_TO_BATCH_TIME, streamToBatchTime);
                 //this.batch.close();
             }
             //this.batch.close();
@@ -108,11 +108,11 @@ public class BigQueryStream extends BigQueryStart {
         if (!eventAfter.isAppend()) {
             // 创建临时表
             if (needCreateTemporaryTable) {
-                String temporaryTableName = super.tempCursorSchema(tableId,this.stateMap);
+                String temporaryTableName = super.tempCursorSchema(tableId, this.stateMap);
                 this.merge.createTemporaryTable(table, temporaryTableName);
-                this.stateMap.saveForTable(tableId,ContextConfig.TEMP_CURSOR_SCHEMA_NAME,temporaryTableName);
+                this.stateMap.saveForTable(tableId, ContextConfig.TEMP_CURSOR_SCHEMA_NAME, temporaryTableName);
                 TapLogger.info(TAG, String.format(" The data has been written in stream mode,and will be written to a temporary table. A temporary table has been created for [ %s ] which name is: %s", tableId, temporaryTableName));
-                this.tableWithTempTable.put(tableId,temporaryTableName);
+                this.tableWithTempTable.put(tableId, temporaryTableName);
             }
             // 启动merge线程
 //            long delay = MergeHandel.FIRST_MERGE_DELAY_SECOND * 1000000000L;
@@ -154,19 +154,19 @@ public class BigQueryStream extends BigQueryStart {
         if (!eventAfter.mixedAndAppendData().isEmpty()) {
             String tempTableId = this.tableWithTempTable.get(tableId);
             if (Objects.isNull(tempTableId)) {
-                Object tempTableIdObj = this.stateMap.getOfTable(tableId,ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
+                Object tempTableIdObj = this.stateMap.getOfTable(tableId, ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
                 if (Objects.isNull(tempTableIdObj)) {
                     throw new CoreException(" Coding error: The temporary table was not created or the temporary table name was not saved successfully. Please check the code implementation. ");
                 }
-                this.tableWithTempTable.put(tableId,tempTableId = String.valueOf(tempTableIdObj));
+                this.tableWithTempTable.put(tableId, tempTableId = String.valueOf(tempTableIdObj));
             }
             synchronized (this.lock) {
                 this.createWriteCommittedStream(tempTableId).appendJSON(eventAfter.mixedAndAppendData());
                 //this.batch.close();
             }
             //this.stream.close();
-            Optional.ofNullable(eventAfter.mergeKeyId()).ifPresent(e -> this.stateMap.saveForTable(tableId,MergeHandel.MERGE_KEY_ID, e));
-            Optional.ofNullable(eventAfter.streamToBatchTime()).ifPresent(e -> this.stateMap.saveForTable(tableId,MergeHandel.STREAM_TO_BATCH_TIME, e));
+            Optional.ofNullable(eventAfter.mergeKeyId()).ifPresent(e -> this.stateMap.saveForTable(tableId, MergeHandel.MERGE_KEY_ID, e));
+            Optional.ofNullable(eventAfter.streamToBatchTime()).ifPresent(e -> this.stateMap.saveForTable(tableId, MergeHandel.STREAM_TO_BATCH_TIME, e));
         }
         return result.removedCount(eventAfter.delete())
                 .insertedCount(eventAfter.insert())
@@ -237,7 +237,7 @@ public class BigQueryStream extends BigQueryStart {
             return this;
         }
 
-        public EventAfter convertData(List<TapRecordEvent> events, MergeHandel mergeHandel,TapTable table) {
+        public EventAfter convertData(List<TapRecordEvent> events, MergeHandel mergeHandel, TapTable table) {
             for (TapRecordEvent event : events) {
                 Map<String, Object> record = new HashMap<>();
                 if (event instanceof TapInsertRecordEvent) {
@@ -259,7 +259,7 @@ public class BigQueryStream extends BigQueryStart {
                 if (this.isAppend) {
                     this.appendData.add(record);
                 } else {
-                    TapInsertRecordEvent temporaryEvent = mergeHandel.temporaryEvent(event,table);
+                    TapInsertRecordEvent temporaryEvent = mergeHandel.temporaryEvent(event, table);
                     Optional.ofNullable(temporaryEvent).ifPresent(e -> {
                         Map<String, Object> after = e.getAfter();
                         this.mixedAndAppendData.add(after);

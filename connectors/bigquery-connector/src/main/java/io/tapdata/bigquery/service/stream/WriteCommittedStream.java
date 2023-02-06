@@ -248,7 +248,7 @@ public class WriteCommittedStream {
             GoogleCredentials credentials =
                     ServiceAccountCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8)));
             this.streamWriter = JsonStreamWriter
-                    .newBuilder(writeStream.getName(), writeStream.getTableSchema())
+                    .newBuilder(writeStream.getName(), writeStream.getTableSchema(),client)
                     .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
                     .build();
         }

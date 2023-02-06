@@ -15,6 +15,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -80,12 +81,12 @@ public class MergeHandel extends BigQueryStart {
                     " WHEN MATCHED AND tab." + MergeHandel.MERGE_KEY_TYPE + " in ( \"" + MergeHandel.MERGE_VALUE_TYPE_UPDATE + "\" ,\"" + MergeHandel.MERGE_VALUE_TYPE_INSERT + "\" ) THEN " + //
                     "   UPDATE SET %s ";
 
-    private String assembleMergeSql(SQLBuilder builder, String projectAndSetId, Object finalMergeKeyId, Object mergeKeyIdLast) {
+    private String assembleMergeSql(SQLBuilder builder, Object finalMergeKeyId, Object mergeKeyIdLast, String mainTableId, String mergeTableId) {
         return String.format(
                 MergeHandel.MERGE_SQL,
-                projectAndSetId + this.mainTable.getId(),
+                mainTableId,//projectAndSetId + this.mainTable.getId(),
                 builder.keys(),
-                projectAndSetId + super.config().tempCursorSchema(),
+                mergeTableId,//projectAndSetId + super.config().tempCursorSchema(),
                 finalMergeKeyId,
                 mergeKeyIdLast,
                 builder.whereSql(),
@@ -254,13 +255,13 @@ public class MergeHandel extends BigQueryStart {
         }
     }
 
-    public List<TapRecordEvent> temporaryEvents(List<TapRecordEvent> eventList,TapTable table) {
+    public List<TapRecordEvent> temporaryEvents(List<TapRecordEvent> eventList, TapTable table) {
         List<TapRecordEvent> insertRecordEvent = new ArrayList<>();
-        eventList.stream().filter(Objects::nonNull).forEach(event -> Optional.ofNullable(this.temporaryEvent(event,table)).ifPresent(insertRecordEvent::add));
+        eventList.stream().filter(Objects::nonNull).forEach(event -> Optional.ofNullable(this.temporaryEvent(event, table)).ifPresent(insertRecordEvent::add));
         return insertRecordEvent;
     }
 
-    public TapInsertRecordEvent temporaryEvent(TapRecordEvent event,TapTable table) {
+    public TapInsertRecordEvent temporaryEvent(TapRecordEvent event, TapTable table) {
         TapInsertRecordEvent insert;
         Map<String, Object> after = new HashMap<>();
         String tableId = event.getTableId();
@@ -272,17 +273,17 @@ public class MergeHandel extends BigQueryStart {
         } else if (event instanceof TapUpdateRecordEvent) {
             TapUpdateRecordEvent recordEvent = (TapUpdateRecordEvent) event;
             after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_UPDATE);
-            Map<String,Object> beforeMap = recordEvent.getBefore();
-            if (Objects.isNull(beforeMap) || beforeMap.isEmpty()){
+            Map<String, Object> beforeMap = recordEvent.getBefore();
+            if (Objects.isNull(beforeMap) || beforeMap.isEmpty()) {
                 //TapLogger.warn(TAG,String.format("TapUpdateRecordEvent of table [%s] ,before data is empty.",tableId));
                 //在after中获取主键的值作为before
                 beforeMap = event.getFilter(table.primaryKeys(true));
             }
             //@TODO 主键值不存在时，作为插入
-            if (Objects.isNull(beforeMap)|| beforeMap.isEmpty()){
+            if (Objects.isNull(beforeMap) || beforeMap.isEmpty()) {
                 after.put(MergeHandel.MERGE_KEY_TYPE, MergeHandel.MERGE_VALUE_TYPE_INSERT);
                 after.put(MergeHandel.MERGE_KEY_DATA_BEFORE, recordEvent.getAfter());
-            }else {
+            } else {
                 after.put(MergeHandel.MERGE_KEY_DATA_BEFORE, beforeMap);
                 if (Objects.isNull(recordEvent.getAfter()) || recordEvent.getAfter().isEmpty()) {
                     TapLogger.warn(TAG, String.format("TapUpdateRecordEvent of table [%s] ,after data is empty.", tableId));
@@ -361,18 +362,19 @@ public class MergeHandel extends BigQueryStart {
             throw new CoreException(String.format("Drop temporary table error,table name is: %s, error is: %s.", temporaryTableId, e.getMessage()));
         }
     }
+
     public boolean dropTemporaryTable(List<String> temporaryTableId) {
         if (Objects.isNull(temporaryTableId) || temporaryTableId.isEmpty()) {
             throw new CoreException("Drop event error,table name cannot be empty.");
         }
         try {
             StringJoiner joiner = new StringJoiner(";");
-            temporaryTableId.stream().filter(Objects::nonNull).forEach(tab->{
+            temporaryTableId.stream().filter(Objects::nonNull).forEach(tab -> {
                 joiner.add(String.format(
                         MergeHandel.DROP_TABLE_SQL
                         , super.config().projectId()
                         , super.config().tableSet()
-                        , tab )
+                        , tab)
                 );
             });
             BigQueryResult bigQueryResult = super.sqlMarker.executeOnce(joiner.toString());
@@ -381,10 +383,11 @@ public class MergeHandel extends BigQueryStart {
             throw new CoreException(String.format("Drop temporary table error,table name is: %s, error is: %s.", temporaryTableId.toString(), e.getMessage()));
         }
     }
-    public boolean dropTemporaryTableByMainTable(String mainTableId){
+
+    public boolean dropTemporaryTableByMainTable(String mainTableId) {
         String cursorSchema = this.stateMap.getString(mainTableId, ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
         if (Objects.isNull(cursorSchema) || "".equals(cursorSchema.trim())) {
-            TapLogger.info(TAG,String.format(" A temporary table deletion operation was canceled because a temporary table matching %s table was found ",mainTableId));
+            TapLogger.info(TAG, String.format(" A temporary table deletion operation was canceled because a temporary table matching %s table was found ", mainTableId));
         }
         return this.dropTemporaryTable(cursorSchema);
     }
@@ -405,7 +408,7 @@ public class MergeHandel extends BigQueryStart {
                         try {
                             this.mergeTableOnce();
                         } catch (Throwable throwable) {
-                            TapLogger.warn(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
+                            TapLogger.warn(TAG, "An exception occurred during data merge, temporary table: {}, target table: {}, {}", this.stateMap.getOfTable(mainTable.getId(), ContextConfig.TEMP_CURSOR_SCHEMA_NAME), mainTable.getId(), throwable.getMessage());
                         }
                     }
                 }, 0, this.mergeDelaySeconds, TimeUnit.SECONDS);
@@ -457,11 +460,12 @@ public class MergeHandel extends BigQueryStart {
         Long time = this.needMergeTime(tableName);
         if (Objects.isNull(time)) return;
         TapTable tapTable = this.mergeTable.get(tableName);
-        if (Objects.isNull(tapTable)){
-            TapLogger.warn(TAG,"A merge operation was rejected.");
+        if (Objects.isNull(tapTable)) {
+            TapLogger.warn(TAG, "A merge operation was rejected.");
         }
         Object mergeKeyId = this.stateMap.getOfTable(tableName, MergeHandel.MERGE_KEY_ID);
         Object mergeKeyIdLast = this.stateMap.getOfTable(tableName, MergeHandel.MERGE_KEY_ID_LAST);
+        Object mergeTableId = this.stateMap.getOfTable(tableName, ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
         if (Objects.isNull(mergeKeyIdLast)) {
             mergeKeyIdLast = 0L;
         }
@@ -475,7 +479,7 @@ public class MergeHandel extends BigQueryStart {
         } catch (Exception e) {
             mergeKeyIdLast = 0L;
         }
-        super.sqlMarker.executeOnce(this.assembleMergeSql(builder, projectAndSetId, finalMergeKeyId, mergeKeyIdLast));
+        super.sqlMarker.executeOnce(this.assembleMergeSql(builder, finalMergeKeyId, mergeKeyIdLast, projectAndSetId + tableName, projectAndSetId + String.valueOf(mergeTableId)));
         this.stateMap.saveForTable(tableName, MergeHandel.MERGE_KEY_ID_LAST, finalMergeKeyId);
         this.cleanTemporaryTable(tableName);
     }
