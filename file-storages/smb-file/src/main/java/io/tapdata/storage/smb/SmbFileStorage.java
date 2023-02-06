@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -76,7 +77,7 @@ public class SmbFileStorage implements TapFileStorage {
                     .name(path.substring(path.lastIndexOf("\\") + 1))
                     .path(path)
                     .length(fileInfo.getStandardInformation().getAllocationSize())
-                    .lastModified(fileInfo.getBasicInformation().getLastWriteTime().getWindowsTimeStamp());
+                    .lastModified(fileInfo.getBasicInformation().getLastWriteTime().toEpoch(TimeUnit.MILLISECONDS));
             return tapFile;
         }
     }
@@ -87,14 +88,21 @@ public class SmbFileStorage implements TapFileStorage {
                 .name(smbFile.getFileName())
                 .path(path)
                 .length(smbFile.getAllocationSize())
-                .lastModified(smbFile.getLastWriteTime().getWindowsTimeStamp());
+                .lastModified(smbFile.getLastWriteTime().toEpoch(TimeUnit.MILLISECONDS));
         return tapFile;
     }
 
     @Override
-    public InputStream readFile(String path) {
-        return share.openFile(path, EnumSet.of(AccessMask.GENERIC_READ), null,
-                SMB2ShareAccess.ALL, SMB2CreateDisposition.FILE_OPEN, null).getInputStream();
+    public void readFile(String path, Consumer<InputStream> consumer) throws IOException {
+        if (!isFileExist(path)) {
+            return;
+        }
+        try (
+                InputStream is = share.openFile(path, EnumSet.of(AccessMask.GENERIC_READ), null,
+                        SMB2ShareAccess.ALL, SMB2CreateDisposition.FILE_OPEN, null).getInputStream()
+        ) {
+            consumer.accept(is);
+        }
     }
 
     @Override

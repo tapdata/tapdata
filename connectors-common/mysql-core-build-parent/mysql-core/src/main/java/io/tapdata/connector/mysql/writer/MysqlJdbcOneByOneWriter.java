@@ -1,6 +1,6 @@
 package io.tapdata.connector.mysql.writer;
 
-import io.tapdata.connector.mysql.MysqlJdbcContext;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -17,6 +17,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -28,8 +29,18 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 
 	private static final String TAG = MysqlJdbcOneByOneWriter.class.getSimpleName();
 
-	public MysqlJdbcOneByOneWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
+	/**
+	 * Use {@link MysqlSqlBatchWriter}
+	 * @param mysqlJdbcContext
+	 * @throws Throwable
+	 */
+	@Deprecated
+	private MysqlJdbcOneByOneWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
 		super(mysqlJdbcContext);
+	}
+
+	public MysqlJdbcOneByOneWriter(MysqlJdbcContext mysqlJdbcContext, Map<String, JdbcCache> jdbcCacheMap) throws Throwable {
+		super(mysqlJdbcContext, jdbcCacheMap);
 	}
 
 	@Override
@@ -60,13 +71,13 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 					throw e;
 				}
 			}
-			MysqlJdbcContext.tryCommit(connection);
+//			getJdbcCache().getConnection().commit();
 		} catch (Throwable e) {
 			writeListResult.setInsertedCount(0);
 			writeListResult.setModifiedCount(0);
 			writeListResult.setRemovedCount(0);
 			if (null != errorRecord) writeListResult.addError(errorRecord, e);
-			MysqlJdbcContext.tryRollBack(connection);
+//			getJdbcCache().getConnection().rollback();
 			throw e;
 		}
 		return writeListResult;
@@ -89,7 +100,11 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		}
 		int row;
 		try {
-			row = doInsert(tapConnectorContext, tapTable, tapRecordEvent);
+			if (rowExists(tapConnectorContext, tapTable, tapRecordEvent)) {
+				row = doUpdate(tapConnectorContext, tapTable, tapRecordEvent);
+			} else {
+				row = doInsert(tapConnectorContext, tapTable, tapRecordEvent);
+			}
 		} catch (Throwable e) {
 			if (e.getCause() instanceof SQLIntegrityConstraintViolationException) {
 				if (rowExists(tapConnectorContext, tapTable, tapRecordEvent)) {

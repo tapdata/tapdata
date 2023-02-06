@@ -1,0 +1,305 @@
+
+[
+  {
+    "insert": "JavascriptFunctions",
+    "documents": [
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "DateUtil",
+        "methodName": "parse",
+        "desc" : "将各种格式的日期字符串转换为Date类型",
+        "example": "var dte = DateUtil.parse('2010-01-01 00:00:00'); \n\n // 高级用法 parse(dateString, timeoffset):转换的同时，指定时区偏移量 \n//东8区\nvar dte = DateUtil.parse('2010-01-01 00:00:00', 8);\n\n// 0时区\nvar dte = DateUtil.parse('2010-01-01 00:00:00', 0);"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "DateUtil",
+        "methodName": "determineDateFormat",
+        "desc" : "获取日期格式",
+        "example": "var format = DateUtil.determineDateFormat('2010-01-01 00:00:00');"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "DateUtil",
+        "methodName": "timeStamp2Date",
+        "desc" : "将时间戳按照指定格式转为日期字符串",
+        "example": "var dteStr = DateUtil.timeStamp2Date(1592233019140, 'yyyy-MM-dd HH:mm:ss');"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "DateUtil",
+        "methodName": "addYears/addMonths/addDays/addHours/addMinutes/addSeconds",
+        "desc" : "对日期的年月日时分秒进行加减运算",
+        "example": "var dte = DateUtil.addYears(new Date(), 1);\ndte = DateUtil.addYears(dte, -1);"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "DateUtil",
+        "methodName": "sameYear/sameMonth/sameDay/sameHour/sameMinute/sameSecond",
+        "desc" : "对日期的年月日时分秒进行比较运算",
+        "example": "if ( DataUtil.sameYear(new Date(), new Date()) ) {\n    ...\n}"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "UUIDGenerator",
+        "methodName": "uuid",
+        "desc" : "生成uuid",
+        "example": "var uuid = UUIDGenerator.uuid();"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "UUIDGenerator",
+        "methodName": "objectId",
+        "desc" : "生成MongoDB ObjectId",
+        "example": "var oid = UUIDGenerator.objectId();"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "UUIDGenerator",
+        "methodName": "objectIdStr",
+        "desc" : "生成MongoDB ObjectId字符串部分",
+        "example": "var oidStr = UUIDGenerator.objectIdStr();"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "idGen",
+        "methodName": "uuid",
+        "desc" : "生成uuid",
+        "example": "var uuid = idGen.uuid();"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "idGen",
+        "methodName": "objectId",
+        "desc" : "生成MongoDB ObjectId",
+        "example": "var oid = idGen.objectId();"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "idGen",
+        "methodName": "objectIdStr",
+        "desc" : "生成MongoDB ObjectId字符串部分",
+        "example": "var oidStr = idGen.objectIdStr();"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "HashMap",
+        "methodName": "put/remove",
+        "desc" : "哈希字典",
+        "example": "var map = new HashMap();\nmap.put(\"name\", \"test\");\nmap.remove(\"name\");"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "ArrayList",
+        "methodName": "add/remove",
+        "desc" : "数组类型",
+        "example": "var list = new ArrayList();\nlist.add(\"test1\");\nlist.remove(0);"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "Date",
+        "methodName": "add/remove",
+        "desc" : "日期类型",
+        "example": "var dte = new Date();\nvar year = dte.getYear()+1900;"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "uuid",
+        "methodName": "",
+        "desc" : "获取随机字符串",
+        "example": "var str = uuid();"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "JSONUtil",
+        "methodName": "json2List/obj2Json/obj2JsonPretty/json2Map",
+        "desc" : "json格式转换",
+        "example": "var d = new Date();\n var json = JSONUtil.obj2Json(d)"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "HanLPUtil",
+        "methodName": "hanLPParticiple",
+        "desc" : "汉语分词工具",
+        "example": "var d = HanLPUtil.hanLPParticiple('你好', 'HK_T')"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "split_chinese",
+        "methodName": "",
+        "desc" : "汉语分词工具",
+        "example": "split_chinese(String inputString, String language)\n参数说明\ninputString: 需要进行分词的字符串\nlanguage: inputString的语言字体，只可以是以下几种 \n简体中文: CH_S\n繁体中文: CH_T\n香港繁体: HK_T\n台湾繁体: TW_T\n返回值\n数组类型，表示分词后的结果集\nvar strs = split_chinese(\"我是中国人\", \"CH_S\");"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "util",
+        "methodName": "strToBase64/base64ToStr/unwind",
+        "desc" : "常用工具类",
+        "example": "//将字符串装换为base64格式\nvar b = util.strToBase64('aa');\n//将json数组按照层级拆分\nvar list = util.unwind(map, 'a.b.c');"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "MD5Util",
+        "methodName": "crypt",
+        "desc" : "md5加密工具",
+        "example": "//获取字符串的md5签名，第二个参数为是否装换大写\nvar b = MD5Util.crypt('aa', true);"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "MD5",
+        "methodName": "",
+        "desc" : "md5加密工具",
+        "example": "//获取字符串的md5签名，第二个参数为是否装换大写\nvar b = MD5('aa', true);"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "Collections",
+        "methodName": "sort/get/emptySet/emptyList",
+        "desc" : "集合工具类",
+        "example": "//给list排序\nCollections.sort(list);\n //获取空集合\n var set = Collections.emptySet();"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "MapUtil",
+        "methodName": "getValueByKey/needSplit/removeValueByKey/containsKey/getValuePositionInMap/deepCloneMap/copyToNewMap/putValueInMap/recursiveFlatMap/obj2Map",
+        "desc" : "字典工具类",
+        "example": "//从给定的map中获取指定层级的值\nvar a = MapUtil.getValueByKey(map, 'a.b.c');"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "sleep",
+        "methodName": "",
+        "desc" : "程序休眠",
+        "example": "//程序休眠10ms\nsleep(10);"
+      },
+
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "networkUtil",
+        "methodName": "GetAddress",
+        "desc" : "网络工具",
+        "example": "获取第一张网卡的mac地址\nvar mac = networkUtil.GetAddress(\"mac\");\n\n 获取ip地址 \nvar ip = networkUtil.GetAddress(\"ip\");"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "rest",
+        "methodName": "get/post/patch/delete",
+        "desc" : "http请求工具",
+        "example": "rest.get(url, header)\nrest.get(url, header, returnType)\nrest.get(url, header, connectTimeOut, readTimeOut)\nrest.get(url, header, returnType, connectTimeOut, readTimeOut)\n\n// 调用http的 get 方法\n// returnType: 返回的结果类型，默认为array\n// connectTimeOut：连接超时时间，单位毫秒(ms)，默认为 10000 ms，需要指定连接超时时间时可以使用该参数\n// readTimeOut：读取超时时间，单位毫秒(ms)，默认为 30000 ms，需要指定读取超时时间时可以使用该参数\n\nvar result = rest.get('http://127.0.0.1:1234/users?id=1', {}, '[array/object/string]', 30, 300);rest.post(url, parameters)\nrest.post(url, parameters, headers, returnType)\nrest.post(url, parameters, connectTimeOut, readTimeOut)\nrest.post(url, parameters, headers, returnType, connectTimeOut, readTimeOut)\n\n// 调用http的 post 方法\n// returnType: 返回的结果类型，默认为array\n// connectTimeOut：连接超时时间，单位毫秒(ms)，默认为 10000 ms，需要指定连接超时时间时可以使用该参数\n// readTimeOut：读取超时时间，单位毫秒(ms)，默认为 30000 ms，需要指定读取超时时间时可以使用该参数\n\nvar result = rest.post('http://127.0.0.1:1234/users/find', {}, {}, '[array/object/string]', 30, 300);rest.patch(url, parameters)\nrest.patch(url, parameters, headers)\nrest.patch(url, parameters, connectTimeOut, readTimeOut)\nrest.patch(url, parameters, headers, connectTimeOut, readTimeOut)\n\n// 调用http的 patch 方法\n// connectTimeOut：连接超时时间，单位毫秒(ms)，默认为 10000 ms，需要指定连接超时时间时可以使用该参数\n// readTimeOut：读取超时时间，单位毫秒(ms)，默认为 30000 ms，需要指定读取超时时间时可以使用该参数\n\nvar result = rest.patch('http://127.0.0.1:1234/users?where[user_id]=1', {status: 0}, {}, 30, 300);rest.delete(url)\nrest.delete(url, headers)\nrest.delete(url, connectTimeOut, readTimeOut)\nrest.delete(url, headers, connectTimeOut, readTimeOut)\n\n// 调用http的 delete 方法\n// connectTimeOut：连接超时时间，单位毫秒(ms)，默认为 10000 ms，需要指定连接超时时间时可以使用该参数\n// readTimeOut：读取超时时间，单位毫秒(ms)，默认为 30000 ms，需要指定读取超时时间时可以使用该参数\n\nvar result = rest.delete('http://127.0.0.1:1234/users?where[user_id]=1', {}, 30, 300);"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "mongo",
+        "methodName": "getData/insert/update/delete",
+        "desc" : "mongodb操作工具",
+        "example": "mongo.getData(uri, collection)\nmongo.getData(uri, collection, filter)\nmongo.getData(uri, collection, filter, limit, sort)\n\n// MongoDB 查询数据\n\nvar result = mongo.getData('mongodb://127.0.0.1:27017/test', 'users', {id: 1}, 10, {add_time: -1});mongo.insert(url, collection, inserts)\n\n// MongoDB 插入数据\n// inserts 表示插入的数据，可以传入数组或者对象\n\nmongo.insert('mongodb://127.0.0.1:27017/test', 'users', [{id: 1, name: 'test1'}, {id: 2, name: 'test2'}]);mongo.update(url, collection, filter, update)\n\n// MongoDB更新数据\n\nvar modifyCount = mongo.update('mongodb://127.0.0.1:27017/test', 'users', {id: 1}, {name: 'test3'});mongo.delete(url, collection, filter)\n\n// MongoDB删除数据\n\nvar deleteCount = mongo.delete('mongodb://127.0.0.1:27017/test', 'users', {id: 1});"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "ScriptExecutorsManager",
+        "methodName": "getScriptExecutor",
+        "desc" : "获取数据源执行器",
+        "example": "var source = ScriptExecutorsManager.getScriptExecutor('mysql-connection-name');"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "ScriptExecutor",
+        "methodName": "execute",
+        "desc" : "数据库执行操作",
+        "example": "返回值：布尔类型，表示操作结果(true - 成功，false - 失败)\n\nexecuteObj参数说明\n\n● 结构化数据库 \n  ○ sql: 针对关系型数据库的sql执行语句var result = source.execute({sql: \"update test.user set name='user001' where id = 1\"});MongoDB数据库 \ndatabase: 操作的数据库名称\ncollection: 操作的集合名称\nop: 操作(insert/ update/ delete)\nfilter: 更新或者删除的条件\nopObject: 新增、更新、删除的具体数据\nupsert: 是否采用MongoDB的upsert模式，不存在进行新增，存在则更新，默认：false\nmulti: 是否更新多条记录，默认：false\nvar result = target.execute({\n    database: \"test\",\n    collection: \"user\",\n    op: \"update\",\n    filter: {id: 1},\n    opObject: {name: \"user001\", age: 20},\n    upsert: true\n});"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "ScriptExecutor",
+        "methodName": "executeQuery",
+        "desc" : "数据库查询操作",
+        "example": "返回值：数组类型，表示查询的结果集\n\nexecuteObj参数说明\n\n● 结构化数据库 \n  ○ sql: 查询语句\nvar users = source.executeQuery({sql: \"select * from test.user where age>10\"});\n● MongoDB \n  ○ database: 操作的数据库名称\n  ○ collection: 操作的集合名称\n  ○ filter: 更新或者删除的条件\n  ○ sort: 排序条件 （可选）\n  ○ limit: 限制输出条数（可选）\nvar users = target.executeQuery({\n    database: \"test\",\n    collection: \"user\",\n    filter: {age: {$gt: 10}}，\n    sort: {age: -1},\n    limit: 10\n});"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "ScriptExecutor",
+        "methodName": "call",
+        "desc" : "执行存储过程及函数",
+        "example": "该方法只有结构化数据库源才能使用，可执行指定的数据库存储过程及自定义函数\n返回值: 键值对类型, 根据存储过程定义的返回值，返回结果对象\n参数说明\n\n● funcName: 存储过程/函数名称\n● params: 传入的参数 \n  ○ mode: 入参类型，空值默认：in \n    ■ in: 传入\n    ■ out: 传出\n    ■ in/out: 传入并传出\n  ○ name: 参数名称\n  ○ value: 参数的值\n  ○ type: 参数类类型"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "source",
+        "methodName": "execute",
+        "desc" : "内置源节点的数据库执行操作",
+        "example": "返回值：布尔类型，表示操作结果(true - 成功，false - 失败)\n\nexecuteObj参数说明\n\n● 结构化数据库 \n  ○ sql: 针对关系型数据库的sql执行语句var result = source.execute({sql: \"update test.user set name='user001' where id = 1\"});MongoDB数据库 \ndatabase: 操作的数据库名称\ncollection: 操作的集合名称\nop: 操作(insert/ update/ delete)\nfilter: 更新或者删除的条件\nopObject: 新增、更新、删除的具体数据\nupsert: 是否采用MongoDB的upsert模式，不存在进行新增，存在则更新，默认：false\nmulti: 是否更新多条记录，默认：false\nvar result = target.execute({\n    database: \"test\",\n    collection: \"user\",\n    op: \"update\",\n    filter: {id: 1},\n    opObject: {name: \"user001\", age: 20},\n    upsert: true\n});"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "source",
+        "methodName": "executeQuery",
+        "desc" : "内置源节点数据库查询操作",
+        "example": "返回值：数组类型，表示查询的结果集\n\nexecuteObj参数说明\n\n● 结构化数据库 \n  ○ sql: 查询语句\nvar users = source.executeQuery({sql: \"select * from test.user where age>10\"});\n● MongoDB \n  ○ database: 操作的数据库名称\n  ○ collection: 操作的集合名称\n  ○ filter: 更新或者删除的条件\n  ○ sort: 排序条件 （可选）\n  ○ limit: 限制输出条数（可选）\nvar users = target.executeQuery({\n    database: \"test\",\n    collection: \"user\",\n    filter: {age: {$gt: 10}}，\n    sort: {age: -1},\n    limit: 10\n});"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "source",
+        "methodName": "call",
+        "desc" : "内置源节点执行存储过程及函数",
+        "example": "该方法只有结构化数据库源才能使用，可执行指定的数据库存储过程及自定义函数\n返回值: 键值对类型, 根据存储过程定义的返回值，返回结果对象\n参数说明\n\n● funcName: 存储过程/函数名称\n● params: 传入的参数 \n  ○ mode: 入参类型，空值默认：in \n    ■ in: 传入\n    ■ out: 传出\n    ■ in/out: 传入并传出\n  ○ name: 参数名称\n  ○ value: 参数的值\n  ○ type: 参数类类型"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "target",
+        "methodName": "execute",
+        "desc" : "内置目标节点的数据库执行操作",
+        "example": "返回值：布尔类型，表示操作结果(true - 成功，false - 失败)\n\nexecuteObj参数说明\n\n● 结构化数据库 \n  ○ sql: 针对关系型数据库的sql执行语句var result = source.execute({sql: \"update test.user set name='user001' where id = 1\"});MongoDB数据库 \ndatabase: 操作的数据库名称\ncollection: 操作的集合名称\nop: 操作(insert/ update/ delete)\nfilter: 更新或者删除的条件\nopObject: 新增、更新、删除的具体数据\nupsert: 是否采用MongoDB的upsert模式，不存在进行新增，存在则更新，默认：false\nmulti: 是否更新多条记录，默认：false\nvar result = target.execute({\n    database: \"test\",\n    collection: \"user\",\n    op: \"update\",\n    filter: {id: 1},\n    opObject: {name: \"user001\", age: 20},\n    upsert: true\n});"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "target",
+        "methodName": "executeQuery",
+        "desc" : "内置目标节点数据库查询操作",
+        "example": "返回值：数组类型，表示查询的结果集\n\nexecuteObj参数说明\n\n● 结构化数据库 \n  ○ sql: 查询语句\nvar users = source.executeQuery({sql: \"select * from test.user where age>10\"});\n● MongoDB \n  ○ database: 操作的数据库名称\n  ○ collection: 操作的集合名称\n  ○ filter: 更新或者删除的条件\n  ○ sort: 排序条件 （可选）\n  ○ limit: 限制输出条数（可选）\nvar users = target.executeQuery({\n    database: \"test\",\n    collection: \"user\",\n    filter: {age: {$gt: 10}}，\n    sort: {age: -1},\n    limit: 10\n});"
+      },
+      {
+        "type": "system",
+        "category" : "enhanced",
+        "className": "target",
+        "methodName": "call",
+        "desc" : "内置目标节点执行存储过程及函数",
+        "example": "该方法只有结构化数据库源才能使用，可执行指定的数据库存储过程及自定义函数\n返回值: 键值对类型, 根据存储过程定义的返回值，返回结果对象\n参数说明\n\n● funcName: 存储过程/函数名称\n● params: 传入的参数 \n  ○ mode: 入参类型，空值默认：in \n    ■ in: 传入\n    ■ out: 传出\n    ■ in/out: 传入并传出\n  ○ name: 参数名称\n  ○ value: 参数的值\n  ○ type: 参数类类型"
+      }
+    ]
+  }
+]

@@ -86,9 +86,8 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 				}
 			}
 		} catch (Exception e) {
-			logger.error("Target process failed {}", e.getMessage(), e);
-			obsLogger.error(MessageFormat.format("Target process failed {0}", e.getMessage()), e);
-			throw sneakyThrow(e);
+			String msg = String.format("Target process failed: %s", e.getMessage());
+			errorHandle(new RuntimeException(msg, e), msg);
 		}
 	}
 

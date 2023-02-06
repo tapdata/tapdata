@@ -29,6 +29,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -113,7 +114,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
             userCriteria.and("customId").is(user.getCustomerId());
         }
 
-        if (!user.isRoot()) {
+        if (!user.isRoot() && !user.isFreeAuth()) {
             if (!queryObject.containsKey("user_id")) {
                 userCriteria.and("user_id").is(user.getUserId());
             }
@@ -212,7 +213,9 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
             Object o = messages.get(language);
             LinkedHashMap<String, Object> msgJson = JSON.parseObject(JSON.toJSONString(o), new TypeReference<LinkedHashMap<String, Object>>(){});
 
-            msgJson.forEach((key, value) -> content[0] = content[0].replaceAll(new StringJoiner(key).add("\\$\\{").add("}").toString(), value.toString()));
+            if (msgJson != null && content.length > 0 && content[0] != null) {
+                msgJson.forEach((key, value) -> content[0] = content[0].replaceAll(new StringJoiner(key).add("\\$\\{").add("}").toString(), value.toString()));
+            }
             LinkedHashMap<String, Object> temp = JSON.parseObject(content[0], new TypeReference<LinkedHashMap<String, Object>>(){});
 
             dataSourceDefinition.setProperties(temp);
@@ -248,7 +251,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
             userCriteria.and("customId").is(user.getCustomerId());
         }
 
-        if (!user.isRoot()) {
+        if (!user.isRoot() && !user.isFreeAuth()) {
             if (!where.containsKey("user_id")) {
                 userCriteria.and("user_id").is(user.getUserId());
             }
@@ -303,7 +306,9 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         Criteria scopeCriteria = Criteria.where("scope").is("public");
         Criteria criteria = Criteria.where("type").in(dataSourceType).and("pdkHash").exists(true);;
         criteria.orOperator(customCriteria, userCriteria, supplierCriteria, scopeCriteria);
-        return findAll(Query.query(criteria));
+        Query query = Query.query(criteria);
+        query.with(Sort.by("createTime").descending());
+        return findAll(query);
     }
 
 

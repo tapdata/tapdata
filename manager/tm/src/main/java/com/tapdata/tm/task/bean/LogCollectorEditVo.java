@@ -1,6 +1,10 @@
 package com.tapdata.tm.task.bean;
 
+import com.tapdata.tm.commons.dag.EqField;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import lombok.Data;
+
+import java.util.List;
 
 /**
  * @Author: Zed
@@ -23,4 +27,8 @@ public class LogCollectorEditVo {
     private String syncTineZone;
 
     private String syncTime;
+
+    /** 增量时间点*/
+    @EqField
+    private List<TaskDto.SyncPoint> syncPoints;
 }

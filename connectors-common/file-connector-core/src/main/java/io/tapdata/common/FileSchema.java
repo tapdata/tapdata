@@ -5,11 +5,9 @@ import io.tapdata.file.TapFileStorage;
 import io.tapdata.kit.EmptyKit;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
 public abstract class FileSchema {
 
@@ -21,16 +19,21 @@ public abstract class FileSchema {
         this.storage = storage;
     }
 
-    public Map<String, Object> sampleEveryFileData(ConcurrentMap<String, TapFile> csvFileMap) {
+    public Map<String, Object> sampleEveryFileData(ConcurrentMap<String, TapFile> fileMap) {
         Map<String, Object> sampleResult = new LinkedHashMap<>();
         ExecutorService executorService = Executors.newFixedThreadPool(5);
         CountDownLatch countDownLatch = new CountDownLatch(5);
+        List<Exception> exceptionList = new CopyOnWriteArrayList<>();
         for (int i = 0; i < 5; i++) {
             executorService.submit(() -> {
                 try {
                     TapFile file;
-                    while ((file = getOutFile(csvFileMap)) != null) {
-                        sampleOneFile(sampleResult, file);
+                    while ((file = getOutFile(fileMap)) != null) {
+                        try {
+                            sampleOneFile(sampleResult, file);
+                        } catch (Exception e) {
+                            exceptionList.add(e);
+                        }
                     }
                 } finally {
                     countDownLatch.countDown();
@@ -43,10 +46,13 @@ public abstract class FileSchema {
             throw new RuntimeException(e);
         }
         executorService.shutdown();
+        if (EmptyKit.isNotEmpty(exceptionList)) {
+            throw new RuntimeException("sample every file error: {}", exceptionList.get(0));
+        }
         return sampleResult;
     }
 
-    protected abstract void sampleOneFile(Map<String, Object> sampleResult, TapFile tapFile);
+    protected abstract void sampleOneFile(Map<String, Object> sampleResult, TapFile tapFile) throws Exception;
 
     protected synchronized TapFile getOutFile(ConcurrentMap<String, TapFile> fileMap) {
         if (EmptyKit.isNotEmpty(fileMap)) {

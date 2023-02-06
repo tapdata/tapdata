@@ -2,9 +2,6 @@ package io.debezium.connector.mysql.utils;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
-
-import io.debezium.connector.mysql.GtidSet;
 
 /**
  * GTID 合并工具
@@ -20,14 +17,13 @@ public class MergeGTIDUtils {
         OverMaxMerge,
     }
 
-    private Map<String, Intervals> data = new HashMap<>();
+    private final Map<String, Intervals> data = new HashMap<>();
 
     public MergeGTIDUtils add(String serverId, long begin, long end, Mode mode) {
         Intervals intervals = data.get(serverId);
         if (null == intervals) {
             data.put(serverId, new Intervals(begin, end));
-        }
-        else {
+        } else {
             intervals.add(begin, end, mode);
         }
         return this;
@@ -123,8 +119,7 @@ public class MergeGTIDUtils {
                 this.start = begin;
                 this.end = end;
                 return this;
-            }
-            else if (this.start == end) {
+            } else if (this.start == end) {
                 this.start = begin;
                 return this;
             }
@@ -132,8 +127,7 @@ public class MergeGTIDUtils {
             if (this.end < begin) {
                 if (null == this.next) {
                     this.next = new Intervals(begin, end);
-                }
-                else {
+                } else {
                     this.next.add(begin, end, mode);
                 }
                 return this;
@@ -145,7 +139,7 @@ public class MergeGTIDUtils {
             }
 
             if (this.end < end) {
-                if (null != this.next) {
+                if (null == this.next) {
                     switch (mode) {
                         case OverMaxError:
                             throw new RuntimeException("Over max: " + this.end);
@@ -155,8 +149,7 @@ public class MergeGTIDUtils {
                             this.end = end;
                             break;
                     }
-                }
-                else {
+                } else {
                     this.end = end;
                 }
             }
@@ -178,37 +171,15 @@ public class MergeGTIDUtils {
                     split[i] = Long.parseLong(is[i]);
                 }
                 if (split.length == 1) {
-                    split = new long[]{ split[0], split[0] };
+                    split = new long[]{split[0], split[0]};
                 }
                 if (null == ins) {
                     ins = new Intervals(split[0], split[1]);
-                }
-                else {
+                } else {
                     ins.add(split[0], split[1], Mode.OverMaxMerge);
                 }
             }
             return ins;
         }
-    }
-
-    public static void main(String[] args) {
-        Mode mode = Mode.OverMaxIgnore;
-        String serverId = UUID.randomUUID().toString();
-
-        MergeGTIDUtils merger = new MergeGTIDUtils();
-        System.out.println(merger.add(serverId, 30, 40, mode)); // 前置
-        System.out.println(merger.add(serverId, 10, 20, mode)); // 前置
-        System.out.println(merger.add(serverId, 50, 60, mode)); // 后置1
-        System.out.println(merger.add(serverId, 70, 80, mode)); // 后置2
-        System.out.println(merger.add(serverId, 90, 99, mode)); // 后置3
-        System.out.println(merger.add(serverId, 38, 55, mode)); // 连接两段
-        System.out.println(merger.add(serverId, 25, 85, mode)); // 包含多段
-        System.out.println(merger.add(serverId, 28, 33, mode)); // 被包含
-        System.out.println(merger.add(serverId, 20, 22, mode)); // 边界1
-        System.out.println(merger.add(serverId, 24, 25, mode)); // 边界2
-        System.out.println(merger.add(serverId, 22, 24, mode)); // 边界3
-
-        GtidSet gtidSet = new GtidSet(merger.toString());
-        System.out.println(gtidSet);
     }
 }

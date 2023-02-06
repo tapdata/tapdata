@@ -162,7 +162,12 @@ public class DataFlowAop {
                 operationType = Operation.PAUSE;
                 log.info("暂停了任务");
                 break;
+            case "force stopping":
+                operationType = Operation.FORCE_STOP;
+                log.info("强制停止了任务");
+                break;
             default:
+
                 log.error(" 任务操作状态参数不对status：{}", status);
         }
         userLogService.addUserLog(Modular.MIGRATION, operationType, userDetail, id, dataFlowDto.getName());

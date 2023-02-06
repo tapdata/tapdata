@@ -50,8 +50,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	protected void updateNodeConfig() {
-		super.updateNodeConfig();
+	protected void updateNodeConfig(TapdataEvent tapdataEvent) {
+		super.updateNodeConfig(tapdataEvent);
 		try {
 			initDataFlowProcessor();
 		} catch (Exception e) {

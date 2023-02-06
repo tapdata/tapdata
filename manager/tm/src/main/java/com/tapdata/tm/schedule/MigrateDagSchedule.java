@@ -1,6 +1,7 @@
 package com.tapdata.tm.schedule;
 
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.FunctionUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -18,6 +19,12 @@ public class MigrateDagSchedule {
     @Scheduled(fixedDelay = 10 * 1000)
     @SchedulerLock(name = "migrateDagPlanStartLock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void migrateDagPlanStart() {
-        taskService.startPlanMigrateDagTask();
+        FunctionUtils.ignoreAnyError(() -> taskService.startPlanMigrateDagTask());
+    }
+
+    @Scheduled(fixedDelay = 10 * 1000)
+    @SchedulerLock(name = "startPlanCronTaskLock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    public void startPlanCronTask() {
+        FunctionUtils.ignoreAnyError(() -> taskService.startPlanCronTask());
     }
 }

@@ -9,6 +9,8 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.*;
@@ -32,6 +34,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -54,8 +57,14 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 @Setter(onMethod_ = {@Autowired})
 public class ClusterStateService extends BaseService<ClusterStateDto, ClusterStateEntity, ObjectId, ClusterStateRepository> {
 
-    private WorkerService workerService;
-    private ClusterOperationService clusterOperationService;
+    @Autowired(required = false)
+    @Lazy
+    WorkerService workerService;
+
+    @Autowired
+    ClusterOperationService clusterOperationService;
+
+    @Autowired
     private MessageService messageService;
     private SettingsService settingsService;
     private MongoTemplate mongoTemplate;
@@ -95,13 +104,13 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             update.set("updateTime", new Date());
             update.set("updateVersion", version);
 //            workerService.update(workQuery, update);
-            workerService.updateAll(query,update);
+            workerService.update(query,update, userDetail);
             retResult = "1";
         } else {
             List<String> downList = Arrays.asList("tapdata", "tapdata.exe", "tapdata-agent", "log4j2.yml");
             clusterStateDtoList.forEach(clusterStateDto -> {
                 addNewClusterOperation(clusterStateDto, param, downList);
-                updateWorker(processId, param.getVersion());
+                updateWorker(processId, param.getVersion(), userDetail);
             });
 
         }
@@ -236,7 +245,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         repository.getMongoOperations().insert(cluserOperationEntity);
     }
 
-    private void updateWorker(String processId, String version) {
+    private void updateWorker(String processId, String version, UserDetail user) {
         Query query = Query.query(Criteria.where("process_id").is(processId));
         Update update = new Update();
         update.set("updateVersion", version);
@@ -245,7 +254,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         update.set("updateStatus", "preparing");
         update.set("updateMsg", "preparing");
         update.set("updatePingTime", new Date().getTime());
-        workerService.updateAll(query,update);
+        workerService.update(query, update, user);
     }
 
     /**
@@ -278,7 +287,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         Update update = Update.fromDocument(doc);
         update.set("status", "running");
         update.set("uuid",uuid);
-        update.set("insertTime", now);
+        update.setOnInsert("insertTime", now);
         update.set("ttl", new Date(newTtl.longValue()));
         update.set("last_updated",new Date());
         log.info("insert ClusterState data:{} ", JSON.toJSONString(update));
@@ -347,4 +356,29 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         mongoTemplate.updateFirst(query, update, ClusterStateEntity.class);
     }
 
+    public Page<ClusterStateDto> getAll(Filter filter) {
+        Page<ClusterStateDto> page = this.find(filter);
+
+        Optional.ofNullable(page).flatMap(p -> Optional.ofNullable(p.getItems())).ifPresent(items -> {
+            List<String> processIds = items.stream().map(n -> n.getSystemInfo().getProcess_id()).collect(Collectors.toList());
+
+            List<String> availableProcessIds = Lists.newArrayList();
+            List<Worker> workers = workerService.findAvailableAgentBySystem(processIds);
+            Optional.ofNullable(workers).ifPresent(w -> w.forEach(k -> availableProcessIds.add(k.getProcessId())));
+
+            items.forEach(m -> {
+                Optional.ofNullable(m.getManagement()).ifPresent(management -> management.setServiceStatus(management.getStatus()));
+                Optional.ofNullable(m.getApiServer()).ifPresent(api -> api.setServiceStatus(api.getStatus()));
+                Optional.ofNullable(m.getEngine()).ifPresent(fe -> {
+                    if (availableProcessIds.contains(m.getSystemInfo().getProcess_id())) {
+                        fe.setServiceStatus(fe.getStatus());
+                    } else {
+                        fe.setServiceStatus("stopped");
+                    }
+
+                });
+            });
+        });
+        return page;
+    }
 }

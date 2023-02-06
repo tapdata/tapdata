@@ -58,22 +58,22 @@ public class TablestoreConnector extends ConnectorBase {
         clientConfiguration.setConnectionTimeoutInMillisecond(5000);
         clientConfiguration.setSocketTimeoutInMillisecond(5000);
         clientConfiguration.setRetryStrategy(new AlwaysRetryStrategy());
-        if (Objects.isNull(tablestoreConfig.getToken())) {
-            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(),
-                    tablestoreConfig.getKey(), tablestoreConfig.getInstance(), clientConfiguration);
+        if (Objects.isNull(tablestoreConfig.getAccessKeyToken())) {
+            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(),
+                    tablestoreConfig.getAccessKeySecret(), tablestoreConfig.getInstance(), clientConfiguration);
         } else {
-            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(),
-                    tablestoreConfig.getKey(), tablestoreConfig.getInstance(), clientConfiguration, tablestoreConfig.getToken());
+            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(),
+                    tablestoreConfig.getAccessKeySecret(), tablestoreConfig.getInstance(), clientConfiguration, tablestoreConfig.getAccessKeyToken());
         }
     }
 
     private SyncClient createInternalClient() {
-        if (Objects.isNull(tablestoreConfig.getToken())) {
-            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(), tablestoreConfig.getKey(),
+        if (Objects.isNull(tablestoreConfig.getAccessKeyToken())) {
+            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(), tablestoreConfig.getAccessKeySecret(),
                     tablestoreConfig.getInstance());
         } else {
-            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(), tablestoreConfig.getKey(),
-                    tablestoreConfig.getInstance(), tablestoreConfig.getToken());
+            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(), tablestoreConfig.getAccessKeySecret(),
+                    tablestoreConfig.getInstance(), tablestoreConfig.getAccessKeyToken());
         }
     }
 
@@ -95,7 +95,6 @@ public class TablestoreConnector extends ConnectorBase {
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportCreateTableV2(this::createTableV2);
-        connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, ColumnType.STRING.name(), tapRawValue -> {
@@ -238,7 +237,7 @@ public class TablestoreConnector extends ConnectorBase {
         return 0;
     }
 
-    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable, Exception {
         String tableId = tapTable.getId();
         if ("NORMAL".equals(tablestoreConfig.getClientType())) {
             DescribeTableRequest request = new DescribeTableRequest(tableId);
@@ -262,9 +261,11 @@ public class TablestoreConnector extends ConnectorBase {
                             if (EmptyKit.isNotEmpty(resSet)) {
                                 PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
                                 for (String k : resSet) {
-                                    ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
-                                    Object value = after.get(k);
-                                    transferValueType(columnType, value);
+                                    ColumnType columnType = ColumnType.valueOf(
+                                            Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
+                                                    .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
+                                                    .name());
+                                    Object value = transferValueType(columnType, after.get(k));
                                     pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                                 }
                                 putChange = new RowPutChange(tableId, pkBuilder.build());
@@ -277,9 +278,12 @@ public class TablestoreConnector extends ConnectorBase {
                                 if (resSet.contains(fieldName)) {
                                     continue;
                                 }
-                                ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
-                                Object value = entry.getValue();
-                                value = transferValueType(columnType, value);
+
+                                ColumnType columnType = ColumnType.valueOf(
+                                        Optional.ofNullable(tableMeta.getDefinedColumnMap().get(fieldName))
+                                        .orElseThrow(() -> new RuntimeException("table definedColumnMap not find "+fieldName))
+                                                .name());
+                                Object value = transferValueType(columnType, entry.getValue());
                                 putChange.addColumn(fieldName, new ColumnValue(value, columnType));
                             }
                             client.putRow(new PutRowRequest(putChange));
@@ -298,9 +302,11 @@ public class TablestoreConnector extends ConnectorBase {
                             if (EmptyKit.isNotEmpty(resSet)) {
                                 PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
                                 for (String k : resSet) {
-                                    ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
-                                    Object value = after.get(k);
-                                    transferValueType(columnType, value);
+                                    ColumnType columnType = ColumnType.valueOf(
+                                            Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
+                                                    .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
+                                                    .name());
+                                    Object value = transferValueType(columnType, after.get(k));
                                     pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                                 }
                                 updateChange = new RowUpdateChange(tableId, pkBuilder.build());
@@ -313,9 +319,11 @@ public class TablestoreConnector extends ConnectorBase {
                                 if (resSet.contains(fieldName)) {
                                     continue;
                                 }
-                                ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
-                                Object value = entry.getValue();
-                                value = transferValueType(columnType, value);
+                                ColumnType columnType = ColumnType.valueOf(
+                                        Optional.ofNullable(tableMeta.getDefinedColumnMap().get(fieldName))
+                                                .orElseThrow(() -> new RuntimeException("table definedColumnMap not find "+fieldName))
+                                                .name());
+                                Object value = transferValueType(columnType, entry.getValue());
                                 updateChange.put(fieldName, new ColumnValue(value, columnType));
                             }
 
@@ -333,9 +341,11 @@ public class TablestoreConnector extends ConnectorBase {
                             if (EmptyKit.isNotEmpty(resSet)) {
                                 PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
                                 for (String k : resSet) {
-                                    ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
-                                    Object value = before.get(k);
-                                    transferValueType(columnType, value);
+                                    ColumnType columnType = ColumnType.valueOf(
+                                            Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
+                                                    .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
+                                                    .name());
+                                    Object value = transferValueType(columnType, before.get(k));
                                     pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                                 }
                                 deleteChange = new RowDeleteChange(tableId, pkBuilder.build());
@@ -382,6 +392,10 @@ public class TablestoreConnector extends ConnectorBase {
 
                 Collection<String> primaryKeyList = tapTable.primaryKeys(true);
 
+                if (EmptyKit.isEmpty(primaryKeyList) || primaryKeyList.size() > 4) {
+                    throw new Exception("create table error, The primary key of the data table must be specified when creating the data table. The primary key contains 1 to 4 primary key columns, each of which has a name and type.");
+                }
+
                 for (TapField field : tapTable.getNameFieldMap().values()) {
                     String dataType = field.getDataType();
                     if (primaryKeyList.contains(field.getName())) {
@@ -395,7 +409,7 @@ public class TablestoreConnector extends ConnectorBase {
                 int maxVersions = 1;
                 TableOptions tableOptions = new TableOptions(timeToLive, maxVersions);
 
-                ArrayList<IndexMeta> indexMetas = new ArrayList<IndexMeta>();
+                ArrayList<IndexMeta> indexMetas = new ArrayList<>();
                 if (Objects.nonNull(tapTable.getIndexList())) {
                     for (TapIndex index : tapTable.getIndexList()) {
                         IndexMeta indexMeta = new IndexMeta(index.getName());
@@ -427,30 +441,28 @@ public class TablestoreConnector extends ConnectorBase {
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
         String tableId = tapClearTableEvent.getTableId();
         if ("NORMAL".equals(tablestoreConfig.getClientType())) {
-            DescribeTableRequest request = new DescribeTableRequest(tableId);
-            DescribeTableResponse response = client.describeTable(request);
-            TableMeta tableMeta = response.getTableMeta();
-            if (Objects.nonNull(tableMeta)) {
-                DeleteRowRequest deleteRowRequest = new DeleteRowRequest(new RowDeleteChange(tableId));
-                client.deleteRow(deleteRowRequest);
-            }
-        } else if ("TIMESERIES".equals(tablestoreConfig.getClientType())) {
-
+            ListTableResponse listTableResponse = client.listTable();
+            List<String> tableNames = listTableResponse.getTableNames();
+            Optional.ofNullable(tableNames).ifPresent(list -> {
+                        if (list.contains(tableId)) {
+                        }
+                    }
+            );
         }
     }
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) throws Throwable {
         String tableId = tapDropTableEvent.getTableId();
         if ("NORMAL".equals(tablestoreConfig.getClientType())) {
-            DescribeTableRequest request = new DescribeTableRequest(tableId);
-            DescribeTableResponse response = client.describeTable(request);
-            TableMeta tableMeta = response.getTableMeta();
-            if (Objects.nonNull(tableMeta)) {
-                DeleteTableRequest deleteTableRequest = new DeleteTableRequest(tableId);
-                client.deleteTable(deleteTableRequest);
-            }
-        } else if ("TIMESERIES".equals(tablestoreConfig.getClientType())) {
-
+            ListTableResponse listTableResponse = client.listTable();
+            List<String> tableNames = listTableResponse.getTableNames();
+            Optional.ofNullable(tableNames).ifPresent(list -> {
+                        if (list.contains(tableId)) {
+                            DeleteTableRequest deleteTableRequest = new DeleteTableRequest(tableId);
+                            client.deleteTable(deleteTableRequest);
+                        }
+                    }
+            );
         }
     }
 }

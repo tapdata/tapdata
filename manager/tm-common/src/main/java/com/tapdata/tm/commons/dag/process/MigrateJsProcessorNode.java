@@ -96,10 +96,9 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
         taskDtoCopy.setDag(build);
-        taskDtoCopy.setId(new ObjectId());
+        taskDtoCopy.setId(Optional.of(new ObjectId(taskDto.getTransformTaskId())).orElseGet(ObjectId::new));
         taskDtoCopy.setName(taskDto.getName() + "(100)");
         taskDtoCopy.setParentSyncType(taskDto.getSyncType());
-
 
         List<Schema> result = Lists.newArrayList();
         List<MigrateJsResultVo> jsResult;
@@ -185,7 +184,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
                     });
                 }
 
-                List<TapIndex> indexList = tapTable.getIndexList();
+                List<TapIndex> indexList = Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>());
                 if (!removeIndexMap.isEmpty()) {
                     indexList.removeIf(i -> removeIndexMap.containsKey(i.getName()));
                 }
@@ -195,6 +194,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
                     addIndexMap.entrySet().removeIf(e -> existIndexNameSet.contains(e.getKey()));
                     indexList.addAll(addIndexMap.values());
                 }
+                tapTable.setIndexList(indexList);
 
                 Schema jsSchema = PdkSchemaConvert.fromPdkSchema(tapTable);
                 jsSchema.setDatabaseId(schema.getDatabaseId());
@@ -250,7 +250,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
     }
 
     @Override
-    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
+    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
         //js节点的模型可以是直接虚拟跑出来的。 跑出来就是正确的模型，由引擎负责传值给tm
         if (CollectionUtils.isNotEmpty(schemas)) {
             return schemas;
@@ -268,6 +268,12 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
     public MigrateJsProcessorNode() {
         super(NodeEnum.migrate_js_processor.name(), NodeCatalog.processor);
     }
+
+
+    public MigrateJsProcessorNode(String type, NodeCatalog catalog) {
+        super(type, catalog);
+    }
+
 
     @Override
     public boolean equals(Object o) {

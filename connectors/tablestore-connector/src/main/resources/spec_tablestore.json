@@ -27,47 +27,32 @@
           "apiServerKey": "database_instance",
           "x-index": 2
         },
-        "id": {
+        "accessKeyId": {
           "required": true,
           "type": "string",
-          "title": "${id}",
+          "title": "${accessKeyId}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_id",
           "x-index": 3
         },
-        "key": {
+        "accessKeySecret": {
           "required": true,
           "type": "string",
-          "title": "${key}",
+          "title": "${accessKeySecret}",
           "x-decorator": "FormItem",
           "x-component": "Password",
           "apiServerKey": "database_key",
           "x-index": 4
         },
-        "token": {
+        "accessKeyToken": {
           "required": false,
           "type": "string",
-          "title": "${token}",
+          "title": "${accessKeyToken}",
           "x-decorator": "FormItem",
           "x-component": "Password",
           "apiServerKey": "database_token",
           "x-index": 5
-        },
-        "clientType": {
-          "required": true,
-          "type": "string",
-          "title": "${clientType}",
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "apiServerKey": "database_token",
-          "x-index": 6,
-          "enum": [
-            {
-              "label": "宽表模型",
-              "value": "NORMAL"
-            }
-          ]
         }
       }
     }
@@ -78,28 +63,25 @@
       "doc": "docs/tablestore_en_US.md",
       "endpoint": "endpoint",
       "instance": "instance",
-      "id" : "AccessKey ID",
-      "key" : "AccessKey Secret",
-      "token" : "AccessKey Token",
-      "clientType" : "Client Type"
+      "accessKeyId" : "AccessKey ID",
+      "accessKeySecret" : "AccessKey Secret",
+      "accessKeyToken" : "AccessKey Token"
     },
     "zh_CN": {
       "doc": "docs/tablestore_zh_CN.md",
       "endpoint": "服务地址",
       "instance": "实例名称",
-      "id" : "访问账号",
-      "key" : "密码",
-      "token" : "安全令牌",
-      "clientType" : "模型类型"
+      "accessKeyId" : "AccessKey ID",
+      "accessKeySecret" : "AccessKey Secret",
+      "accessKeyToken" : "AccessKey Token"
     },
     "zh_TW": {
       "doc": "docs/tablestore_zh_TW.md",
       "endpoint": "服务地址",
       "instance": "实例名称",
-      "id" : "访问賬號",
-      "key" : "密碼",
-      "token" : "安全令牌",
-      "clientType" : "模型类型"
+      "accessKeyId" : "AccessKey ID",
+      "accessKeySecret" : "AccessKey Secret",
+      "accessKeyToken" : "AccessKey Token"
     }
   },
   "dataTypes": {

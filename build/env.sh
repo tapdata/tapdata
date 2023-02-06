@@ -11,7 +11,7 @@ export iengine_mem="0.2"
 export build_container_name="tapdata-build-container"
 export dev_container_name="tapdata-all-in-one-dev"
 export use_container_name="tapdata-all-in-one-use"
-export tapdata_build_image="ghcr.io/tapdata/tapdata/tldp/build:0.3"
+export tapdata_build_image="ghcr.io/tapdata/tapdata/tldp/build:0.6"
 export LC_ALL=en_US.UTF-8
 export _in_docker=""
 if [[ -f "/.dockerenv" ]]; then

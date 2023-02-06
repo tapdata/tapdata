@@ -1,10 +1,8 @@
 package io.tapdata.connector.excel.util;
 
 import io.tapdata.kit.EmptyKit;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.DateUtil;
-import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -47,7 +45,29 @@ public class ExcelUtil {
         return res;
     }
 
+    public static Map<CellRangeAddress, Cell> getMergedDataMap(Sheet sheet) {
+        return sheet.getMergedRegions().stream().collect(Collectors.toMap(v -> v, v -> sheet.getRow(v.getFirstRow()).getCell(v.getFirstColumn())));
+    }
+
+    public static Object getMergedCellValue(List<CellRangeAddress> mergedList, Map<CellRangeAddress, Cell> mergedDataMap, Cell cell, FormulaEvaluator formulaEvaluator) {
+        if (EmptyKit.isNull(cell)) {
+            return null;
+        }
+        if (EmptyKit.isEmpty(mergedList)) {
+            return getCellValue(cell, formulaEvaluator);
+        }
+        for (CellRangeAddress merge : mergedList) {
+            if (merge.isInRange(cell)) {
+                return getCellValue(mergedDataMap.get(merge), formulaEvaluator);
+            }
+        }
+        return getCellValue(cell, formulaEvaluator);
+    }
+
     public static Object getCellValue(Cell cell, FormulaEvaluator formulaEvaluator) {
+        if (EmptyKit.isNull(cell)) {
+            return null;
+        }
         switch (cell.getCellType()) {
             case BOOLEAN:
                 return cell.getBooleanCellValue();

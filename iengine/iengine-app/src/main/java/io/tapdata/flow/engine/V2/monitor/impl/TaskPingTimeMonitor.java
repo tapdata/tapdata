@@ -122,4 +122,9 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 			}
 		}
 	}
+
+	@Override
+	public String describe() {
+		return "Report task ping time monitor";
+	}
 }

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.MysqlJson;
+import io.tapdata.entity.schema.value.DateTime;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -22,10 +23,22 @@ import java.util.stream.Collectors;
  */
 public class DefaultCompare implements CompareFunction<Map<String, Object>, String> {
 
-	private List<String> columns;
-	private Logger logger = LogManager.getLogger(DefaultCompare.class);
+	private final Logger logger = LogManager.getLogger(DefaultCompare.class);
+
+	private List<String> sourceColumns;
+	private List<String> targetColumns;
 
 	public DefaultCompare() {
+	}
+
+	public DefaultCompare(List<String> sourceColumns, List<String> targetColumns) {
+		this.sourceColumns = sourceColumns;
+		this.targetColumns = targetColumns;
+		if (null != sourceColumns && null != targetColumns) {
+			if (sourceColumns.size() != targetColumns.size()) {
+				throw new RuntimeException("The number of fields from the source and target is inconsistent: " + sourceColumns.size() + ", " + targetColumns.size());
+			}
+		}
 	}
 
 	@Override
@@ -39,16 +52,29 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			return "Target record is null";
 		}
 
-		Set<String> comparedFields = new HashSet<>();
-		// compare base on t1's columns
-		columns = t1.keySet().stream().sorted().collect(Collectors.toList());
-		Set<String> differentFields = columns.parallelStream().map(key -> {
-			Object val1 = t1.get(key);
-			Object val2 = t2.get(key);
-
-			comparedFields.add(key);
-			return compare(val1, val2) ? key : null;
-		}).filter(Objects::nonNull).collect(Collectors.toSet());
+		boolean isSetColumns = null != sourceColumns && null != targetColumns;
+		Set<String> differentFields;
+		if (isSetColumns) {
+			differentFields = new LinkedHashSet<>();
+			for (int i = 0, len = sourceColumns.size(); i < len; i ++) {
+				Object val1 = t1.get(sourceColumns.get(i));
+				Object val2 = t2.get(targetColumns.get(i));
+				if (compare(val1, val2)) {
+					differentFields.add(String.valueOf(i));
+				}
+			}
+		} else {
+			// compare base on t1's columns
+			Set<String> sets = new LinkedHashSet<>();
+			sets.addAll(t1.keySet());
+			sets.addAll(t2.keySet());
+			List<String> columns = sets.stream().sorted().collect(Collectors.toList());
+			differentFields = columns.parallelStream().map(key -> {
+				Object val1 = t1.get(key);
+				Object val2 = t2.get(key);
+				return compare(val1, val2) ? key : null;
+			}).filter(Objects::nonNull).collect(Collectors.toSet());
+		}
 
 		if (differentFields.size() != 0) {
 			if (logger.isDebugEnabled()) {
@@ -69,7 +95,11 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 		if (differentFields.isEmpty()) {
 			return null;
 		} else {
-			return "Different fields:" + String.join(",", differentFields);
+			if (isSetColumns) {
+				return "Different index:" + String.join(",", differentFields);
+			} else {
+				return "Different fields:" + String.join(",", differentFields);
+			}
 		}
 	}
 
@@ -225,6 +255,8 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			return ((Date) val).toInstant().toString();
 		} else if (val instanceof Instant) {
 			return ((Instant) val).toString();
+		} else if (val instanceof DateTime) {
+			return ((DateTime) val).toInstant().toString();
 		}
 		return val;
 	}

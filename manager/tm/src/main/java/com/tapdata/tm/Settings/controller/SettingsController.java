@@ -1,5 +1,6 @@
 package com.tapdata.tm.Settings.controller;
 
+import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
@@ -90,21 +91,29 @@ public class SettingsController extends BaseController {
     @Operation(summary = "alarm save")
     @PostMapping("/alarm_save")
     public ResponseMessage<Void> alarmSave(@RequestBody List<AlarmSettingDto> alarms) {
-        alarmSettingService.save(alarms);
+        alarmSettingService.save(alarms, getLoginUser());
         return success();
     }
 
     @Operation(summary = "find all alarms")
     @GetMapping("/alarm_find")
     public ResponseMessage<List<AlarmSettingDto>> findAllAlarmList() {
-        return success(alarmSettingService.findAll());
+        return success(alarmSettingService.findAll(getLoginUser()));
     }
 
     @Operation(summary = "update rule by key")
     @PostMapping("/alarm_update")
     public ResponseMessage<Void> updateAlarm(@RequestBody UpdateRuleDto ruleDto) {
-        alarmSettingService.updateSystemNotify(ruleDto);
+        alarmSettingService.updateSystemNotify(ruleDto, getLoginUser());
 
+        return success();
+    }
+
+
+    @Operation(summary = "test send mail")
+    @PostMapping("testEmail")
+    public ResponseMessage<Void> testSendMail(@RequestBody TestMailDto testMailDto) {
+        settingsService.testSendMail(testMailDto);
         return success();
     }
 }

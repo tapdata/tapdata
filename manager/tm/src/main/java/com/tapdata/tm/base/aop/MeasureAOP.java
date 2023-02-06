@@ -67,6 +67,7 @@ public class MeasureAOP {
                             .param(param)
                             .build();
 
+                    alarmInfo.setUserId(taskDto.getUserId());
                     alarmService.save(alarmInfo);
                 }
 
@@ -81,22 +82,20 @@ public class MeasureAOP {
                             .name(taskDto.getName()).summary(summary).metric(AlarmKeyEnum.TASK_INCREMENT_START)
                             .param(param)
                             .build();
+                    alarmInfo.setUserId(taskDto.getUserId());
                     alarmService.save(alarmInfo);
                 }
 
                 Update update = new Update();
 
-                if (Objects.nonNull(snapshotStartAt)) {
-                    update.set("snapshotStartAt", snapshotStartAt);
-                }
-                if (Objects.nonNull(snapshotDoneAt)) {
+                if (Objects.nonNull(snapshotDoneAt) && !snapshotDoneAt.equals(taskDto.getSnapshotDoneAt())) {
                     update.set("snapshotDoneAt", snapshotDoneAt);
                 }
-                if (Objects.nonNull(currentEventTimestamp)) {
+                if (Objects.nonNull(currentEventTimestamp) && !currentEventTimestamp.equals(taskDto.getCurrentEventTimestamp())) {
                     update.set("currentEventTimestamp", currentEventTimestamp);
                 }
 
-                if (ObjectUtils.allNotNull(snapshotStartAt, snapshotDoneAt, currentEventTimestamp)) {
+                if (update.getUpdateObject().size() > 0) {
                     taskService.update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId))), update);
                 }
             }

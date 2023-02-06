@@ -1,11 +1,34 @@
 package io.tapdata.pdk.apis.entity;
 
 public class TestItem {
-    public static final String ITEM_CONNECTION = "Connection login";
-    public static final String ITEM_VERSION = "DataSource version";
+    /**
+     * Check whether the connector support the version.
+     */
+    public static final String ITEM_VERSION = "Version";
+    /**
+     * Check is connection available.
+     */
+    public static final String ITEM_CONNECTION = "Connection";
+    /**
+     * Check can login.
+     */
     public static final String ITEM_LOGIN = "Login";
-    public static final String ITEM_READ = "Check Read privilege";
-    public static final String ITEM_WRITE = "Check Write privilege";
+    /**
+     * Check permission for whether read is supported.
+     */
+    public static final String ITEM_READ = "Read";
+    /**
+     * Check permission for whether write is supported.
+     */
+    public static final String ITEM_WRITE = "Write";
+    /**
+     * Check permission for whether read log is supported.
+     */
+//    public static final String ITEM_CONNECTION = "Connection login";
+//    public static final String ITEM_VERSION = "DataSource version";
+//    public static final String ITEM_LOGIN = "Login";
+//    public static final String ITEM_READ = "Check Read privilege";
+//    public static final String ITEM_WRITE = "Check Write privilege";
     public static final String ITEM_READ_LOG = "Read log";
 
     public TestItem(String item, int result, String information) {

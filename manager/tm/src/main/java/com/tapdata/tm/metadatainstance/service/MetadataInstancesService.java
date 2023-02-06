@@ -5,7 +5,6 @@ import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -27,10 +26,7 @@ import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
-import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
-import com.tapdata.tm.commons.util.MetaType;
-import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -42,9 +38,13 @@ import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
 import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.*;
+import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MetadataUtil;
+import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SchemaTransformUtils;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -788,7 +788,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
     public int bulkSave(List<MetadataInstancesDto> metadataInstancesDtos,
+                        MetadataInstancesDto dataSourceMetadataInstance,
                         DataSourceConnectionDto dataSourceConnectionDto,
+                        DAG.Options options,
                         UserDetail userDetail,
                         Map<String, MetadataInstancesEntity> existsMetadataInstances) {
 
@@ -813,6 +815,70 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 historyModel.setVersionUserId(userDetail.getUserId());
                 historyModel.setVersionUserName(userDetail.getUsername());
                 historyModel.setHistories(null);
+
+                Map<String, Field> existsFieldMap = existsMetadataInstance.getFields().stream()
+                        .collect(Collectors.toMap(Field::getOriginalFieldName, f -> f, (f1, f2) -> f1));
+
+                HashMap<String, Field> fields = new HashMap<>();
+                metadataInstancesDto.getFields().forEach(field -> {
+                    if (existsFieldMap.containsKey(field.getOriginalFieldName())) {
+                        Field existsField = existsFieldMap.get(field.getOriginalFieldName());
+                        field.setId(existsField.getId());
+
+                        boolean isManual = Field.SOURCE_MANUAL.equals(existsField.getSource());
+                        if (isManual) {
+                            field.setDataType(existsField.getDataType());
+                            field.setPrecision(existsField.getPrecision());
+                            field.setScale(existsField.getScale());
+                        }
+                    }
+                    if (StringUtils.isBlank(field.getId())) {
+                        field.setId(new ObjectId().toHexString());
+                    }
+
+                    // Make sure the target model fields do not have the same name
+                    if (!fields.containsKey(field.getFieldName())) {
+                        fields.put(field.getFieldName(), field);
+                    }
+                });
+
+                // 未设置 rollback 时，默认保留用户配置过的字段
+                // rollback = 'all' or (rollback = 'table' and rollbackTable = metadataInstancesDto.getOriginalName()) , 回滚当前表
+                String rollback = options != null ? options.getRollback() : null;
+                String rollbackTable = options != null ? options.getRollbackTable() : null;
+                String fieldsNameTransform = options != null ? options.getFieldsNameTransform() : null;
+                if ("all".equalsIgnoreCase(rollback) ||
+                        ("table".equalsIgnoreCase(rollback) &&
+                                metadataInstancesDto.getOriginalName().equalsIgnoreCase(rollbackTable))) {
+
+                    metadataInstancesDto.getFields().forEach(field -> {
+                        if (existsFieldMap.containsKey(field.getOriginalFieldName())) {
+                            Field existsField = existsFieldMap.get(field.getOriginalFieldName());
+                            /*if ("manual".equalsIgnoreCase(existsField.getSource())
+                                    && existsField.getIsAutoAllowed() != null && !existsField.getIsAutoAllowed()) {*/
+                            String transformDataType = field.getDataType();
+                                BeanUtils.copyProperties(existsField, field);
+                                if ("table".equalsIgnoreCase(rollback) && StringUtils.isNotBlank(fieldsNameTransform)) {
+                                    if ("toUpperCase".equalsIgnoreCase(fieldsNameTransform)) {
+                                        field.setFieldName(field.getOriginalFieldName().toUpperCase());
+                                    } else if("toLowerCase".equalsIgnoreCase(fieldsNameTransform)) {
+                                        field.setFieldName(field.getOriginalFieldName().toLowerCase());
+                                    } else {
+                                        field.setFieldName(field.getOriginalFieldName());
+                                    }
+                                } else {
+                                    field.setFieldName(field.getOriginalFieldName());
+                                }
+                                field.setJavaType(field.getOriginalJavaType());
+                                field.setPrecision(field.getOriPrecision());
+                                field.setDataType(transformDataType); //field.getOriginalDataType());
+                                field.setDeleted(false);
+                            //}
+                            field.setId(existsField.getId());
+                        }
+                    });
+                }
+
                 Update update = new Update();
                 update.set("version", newVersion);
                 ArrayList<MetadataInstancesDto> hisModels = new ArrayList<>();
@@ -844,6 +910,13 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
                 //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
                 beforeSave(metadataInstancesDto, userDetail);
+                if ("vika".equals(dataSourceConnectionDto.getDatabase_type())) {
+                    metadataInstance.setFields(null);
+                    metadataInstance.setMetaType(MetaType.VikaDatasheet.name());
+                } else if ("qingflow".equals(dataSourceConnectionDto.getDatabase_type())) {
+                    metadataInstance.setFields(null);
+                    metadataInstance.setMetaType(MetaType.qingFlowApp.name());
+                }
                 Update update = repository.buildUpdateSet(metadataInstance, userDetail);
                 Query where = Query.query(Criteria.where("qualified_name").is(metadataInstance.getQualifiedName()));
                 repository.applyUserDetail(where, userDetail);
@@ -873,7 +946,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         if (CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
 
 
-            List<MetadataInstancesDto> logicMetas = new ArrayList<>();
+            List<MetadataInstancesDto> sourceMetas = new ArrayList<>();
             if (saveHistory) {
                 for (MetadataInstancesDto insertMetaDataDto : insertMetaDataDtos) {
                     String qualifiedName = insertMetaDataDto.getQualifiedName();
@@ -886,13 +959,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         metadataInstancesDto.setSourceType(com.tapdata.tm.commons.schema.bean.SourceTypeEnum.SOURCE.name());
                         metadataInstancesDto.setCreateSource("auto");
                         metadataInstancesDto.setTaskId(null);
-                        logicMetas.add(metadataInstancesDto);
+                        metadataInstancesDto.setId(null);
+                        sourceMetas.add(metadataInstancesDto);
                         //qualifiedNames.add(oldQualifiedName);
                     }
                 }
             }
 
-            insertMetaDataDtos.addAll(logicMetas);
+            insertMetaDataDtos.addAll(sourceMetas);
 
 
             //动态新增表做的兼容处理
@@ -956,6 +1030,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     if (metadataInstancesDto != null) {
                         metadataInstancesDto.setFields(value.getFields());
                         metadataInstancesDto.setIndexes(value.getIndexes());
+                        metadataInstancesDto.setIndices(value.getIndices());
                         metadataInstancesDto.setDeleted(false);
                         metadataInstancesDto.setCreateSource(value.getCreateSource());
                         metadataInstancesDto.setVersion(value.getVersion());
@@ -1336,6 +1411,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findAllDto(Query.query(criteria), userDetail);
     }
 
+    public List<MetadataInstancesDto> findByTaskId(String taskId, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("taskId").is(taskId);
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
     public List<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto) {
         Page<MetadataInstancesDto> page = findByNodeId(nodeId, fields, user, taskDto, null, 1, 0);
         return page.getItems();
@@ -1385,20 +1468,21 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     // todo 下面逻辑可能会出现问题，相当于copy一份原表名的模型，数据上存在"错误"，加入表A改名B 表B改名A
                     if (node instanceof TableRenameProcessNode) {
                         LinkedHashSet<TableRenameTableInfo> tableNames = ((TableRenameProcessNode) node).getTableNames();
-                        for (TableRenameTableInfo tableName : tableNames) {
-                            MetadataInstancesDto metadataInstancesDto = currentMap.get(tableName.getCurrentTableName());
-                            if (metadataInstancesDto != null) {
-                                MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
-                                MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
-                                BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto1);
-                                BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto2);
-                                metadataInstancesDto1.setOriginalName(tableName.getOriginTableName());
-                                metadataInstancesDto2.setOriginalName(tableName.getPreviousTableName());
-                                all.add(metadataInstancesDto1);
-                                all.add(metadataInstancesDto2);
+                        if (CollectionUtils.isNotEmpty(tableNames)) {
+                            for (TableRenameTableInfo tableName : tableNames) {
+                                MetadataInstancesDto metadataInstancesDto = currentMap.get(tableName.getCurrentTableName());
+                                if (metadataInstancesDto != null) {
+                                    MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+                                    MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+                                    BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto1);
+                                    BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto2);
+                                    metadataInstancesDto1.setOriginalName(tableName.getOriginTableName());
+                                    metadataInstancesDto2.setOriginalName(tableName.getPreviousTableName());
+                                    all.add(metadataInstancesDto1);
+                                    all.add(metadataInstancesDto2);
+                                }
                             }
                         }
-
                     }
                     metadatas.addAll(all);
                 } else if (Node.NodeCatalog.processor.equals(node.getCatalog())) {
@@ -1437,14 +1521,17 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         tableNames = tableNames.stream().filter(s -> s.contains(tableFilter)).collect(Collectors.toList());
                     }
 
-                    FunctionUtils.isTure(CollectionUtils.isEmpty(tableNames)).throwMessage("SystemError", "dag node tableNames is null");
+                    if (CollectionUtils.isEmpty(tableNames)) {
+                        metadatas = Lists.newArrayList();
+                    } else{
+                        criteriaTable.and("source._id").is(tableNode.getConnectionId())
+                                .and("originalName").in(tableNames)
+                                .and("taskId").is(taskId)
+                                .and("is_deleted").ne(true);
+                        metadatas = findAllDto(queryMetadata, user);
+                        totals = tableNames.size();
+                    }
 
-                    criteriaTable.and("source._id").is(tableNode.getConnectionId())
-                            .and("originalName").in(tableNames)
-                            .and("taskId").is(taskId)
-                            .and("is_deleted").ne(true);
-                    metadatas = findAllDto(queryMetadata, user);
-                    totals = tableNames.size();
                 } else if (node instanceof LogCollectorNode) {
                     LogCollectorNode logNode = (LogCollectorNode) node;
                     List<String> connectionIds = logNode.getConnectionIds();
@@ -1641,6 +1728,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
     public void batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, boolean cover) {
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+            metadataInstancesDto.setListtags(null);
             long count = count(new Query(new Criteria().orOperator(Criteria.where("_id").is(metadataInstancesDto.getId()),
                     Criteria.where("qualified_name").is(metadataInstancesDto.getQualifiedName()))));
             if (count == 0) {
@@ -1661,6 +1749,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         List<MetadataInstancesDto> items = list.getItems();
         for (MetadataInstancesDto item : items) {
             List<Field> fields = item.getFields();
+            if (null == fields) continue;
+
             List<String> deleteFieldNames = fields.stream().filter(Field::isDeleted).map(Field::getFieldName).collect(Collectors.toList());
             item.setFields(fields.stream().filter(f->!f.isDeleted()).collect(Collectors.toList()));
             List<TableIndex> indices = item.getIndices();
@@ -1702,7 +1792,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         );
 
         DataSourceConnectionDto dataSource = dataSourceService.findById(toObjectId(node.getConnectionId()));
-        if (!"all".equals(node.getMigrateTableSelectType())) {
+        if ("expression".equals(node.getMigrateTableSelectType())) {
+            filter.getWhere().and("qualified_name", new Document("$regex", node.getTableExpression()));
+        } else {
             List<String> qualifiedNames = new ArrayList<>();
             for (String tableName : node.getTableNames()) {
                 qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), dataSource, tableName));
@@ -1900,5 +1992,22 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             types.put(f.getDataType(), f.getTapType());
         }
         return types;
+    }
+
+    public boolean checkTableExist(String connectionId, String tableName, UserDetail user) {
+        Criteria criteria = Criteria.where("original_name").is(tableName)
+                .and("is_deleted").ne(true)
+                .and("source._id").is(connectionId)
+                .and("sourceType").is(SourceTypeEnum.SOURCE.name())
+                .and("taskId").exists(false);
+        Query query = new Query(criteria);
+        long count = count(query, user);
+        return count > 0;
+    }
+
+    public void deleteLogicModel(String taskId, String nodeId) {
+        Criteria criteria = Criteria.where("taskId").is(taskId).and("nodeId").is(nodeId);
+        Query query = new Query(criteria);
+        deleteAll(query);
     }
 }

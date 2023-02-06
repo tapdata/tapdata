@@ -6,6 +6,7 @@ import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.task.entity.TaskAutoInspectGroupTableResultEntity;
 import com.tapdata.tm.task.entity.TaskAutoInspectResultEntity;
 import org.bson.types.ObjectId;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -73,6 +74,7 @@ public class TaskAutoInspectResultRepository extends BaseRepository<TaskAutoInsp
                 group.sum(ConditionalOperators.when(Criteria.where("status").is(ResultStatus.ToBeCompared)).then(1).otherwise(0)).as("toBeCompared")
                         .first("sourceConn.name").as("sourceConnName")
                         .first("targetConn.name").as("targetConnName"),
+                Aggregation.sort(Sort.Direction.ASC, "originalTableName"),
                 Aggregation.skip(skip),
                 Aggregation.limit(limit)
         ), entityInformation.getCollectionName(), TaskAutoInspectGroupTableResultEntity.class).getMappedResults();

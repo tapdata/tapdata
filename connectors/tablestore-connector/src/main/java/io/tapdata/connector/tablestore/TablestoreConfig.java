@@ -12,9 +12,9 @@ public class TablestoreConfig {
 
     private String endpoint;
     private String instance;
-    private String id;
-    private String key;
-    private String token;
+    private String accessKeyId;
+    private String accessKeySecret;
+    private String accessKeyToken;
     private String clientType;
 
     public TablestoreConfig load(Map<String, Object> map) {
@@ -45,32 +45,32 @@ public class TablestoreConfig {
         this.instance = instance;
     }
 
-    public String getId() {
-        return id;
+    public String getAccessKeyId() {
+        return accessKeyId;
     }
 
-    public void setId(String id) {
-        this.id = id;
+    public void setAccessKeyId(String accessKeyId) {
+        this.accessKeyId = accessKeyId;
     }
 
-    public String getKey() {
-        return key;
+    public String getAccessKeySecret() {
+        return accessKeySecret;
     }
 
-    public void setKey(String key) {
-        this.key = key;
+    public void setAccessKeySecret(String accessKeySecret) {
+        this.accessKeySecret = accessKeySecret;
     }
 
-    public String getToken() {
-        return token;
+    public String getAccessKeyToken() {
+        return accessKeyToken;
     }
 
-    public void setToken(String token) {
-        this.token = token;
+    public void setAccessKeyToken(String accessKeyToken) {
+        this.accessKeyToken = accessKeyToken;
     }
 
     public String getClientType() {
-        return clientType;
+        return "NORMAL";
     }
 
     public void setClientType(String clientType) {

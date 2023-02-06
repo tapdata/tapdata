@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -44,7 +43,18 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
-		this.hazelcastConstruct = getHazelcastConstruct(context.hazelcastInstance(), externalStorageDto, processorBaseContext.getTaskDto());
+		Integer shareCdcTtlDay;
+		List<Node<?>> predecessors = GraphUtil.predecessors(processorBaseContext.getNode(), n -> n instanceof LogCollectorNode);
+		if (CollectionUtils.isNotEmpty(predecessors)) {
+			Node<?> firstPreNode = predecessors.get(0);
+			shareCdcTtlDay = ((LogCollectorNode) firstPreNode).getStorageTime();
+		} else {
+			PersistenceStorageConfig persistenceStorageConfig = PersistenceStorageConfig.getInstance();
+			shareCdcTtlDay = persistenceStorageConfig.getShareCdcTtlDay();
+		}
+		this.hazelcastConstruct = getHazelcastConstruct(context.hazelcastInstance(), shareCdcTtlDay, processorBaseContext.getTaskDto());
+		logger.info("Init log data storage finished, ttl day: " + shareCdcTtlDay);
+		obsLogger.info("Init log data storage finished, ttl day: " + shareCdcTtlDay);
 	}
 
 	private static HazelcastConstruct<Document> getHazelcastConstruct(HazelcastInstance hazelcastInstance, ExternalStorageDto externalStorageDto, TaskDto taskDto) {

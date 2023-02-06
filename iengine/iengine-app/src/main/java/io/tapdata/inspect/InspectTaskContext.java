@@ -18,11 +18,12 @@ public class InspectTaskContext extends InspectContext {
 			Connections source,
 			Connections target,
 			String inspectResultParentId,
+			String inspectDifferenceMode,
 			ProgressUpdate progressUpdateCallback,
 			ConnectorNode sourceConnectorNode,
 			ConnectorNode targetConnectorNode,
 			ClientMongoOperator clientMongoOperator
 	) {
-		super(name, task, source, target, inspectResultParentId, progressUpdateCallback, sourceConnectorNode, targetConnectorNode, clientMongoOperator);
+		super(name, task, source, target, inspectResultParentId, inspectDifferenceMode, progressUpdateCallback, sourceConnectorNode, targetConnectorNode, clientMongoOperator);
 	}
 }

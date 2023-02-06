@@ -168,7 +168,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	protected void updateNodeConfig() {
+	protected void updateNodeConfig(TapdataEvent tapdataEvent) {
 		try {
 			initNode();
 		} catch (Exception e) {

@@ -218,6 +218,11 @@ public class CollectorFactory {
         if (result.isEmpty()) {
             return null;
         }
+        long count = result.entrySet().stream().filter(map -> Objects.isNull(map.getValue())).count();
+        if (count == result.size()) {
+            return null;
+        }
+
         StatisticRequest statisticRequest = new StatisticRequest();
         statisticRequest.setTags(collector.tags());
         Statistic statistic = new Statistic();
@@ -243,6 +248,11 @@ public class CollectorFactory {
         if (result.isEmpty()) {
             return null;
         }
+        long count = result.entrySet().stream().filter(map -> Objects.isNull(map.getValue())).count();
+        if (count == result.size()) {
+            return null;
+        }
+
         SampleRequest sampleRequest = new SampleRequest();
         sampleRequest.setTags(collector.tags());
         Sample sample = new Sample();

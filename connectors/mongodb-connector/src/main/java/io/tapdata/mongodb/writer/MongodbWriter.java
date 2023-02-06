@@ -85,10 +85,11 @@ public class MongodbWriter {
 
 		MongoCollection<Document> collection = getMongoCollection(table.getId());
 
-		final Collection<String> pks = table.primaryKeys(true);
-
+		Object pksCache = table.primaryKeys(true);
+		if (null == pksCache) pksCache = table.primaryKeys();
+		final Collection<String> pks = (Collection<String>)pksCache;
 		// daas  data will cache local
-		if(!is_cloud) {
+		if (!is_cloud) {
 			MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
 		}
 		for (TapRecordEvent recordEvent : tapRecordEvents) {

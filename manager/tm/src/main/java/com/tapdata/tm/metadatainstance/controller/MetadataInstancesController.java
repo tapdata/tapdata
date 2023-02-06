@@ -3,6 +3,7 @@ package com.tapdata.tm.metadatainstance.controller;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -37,6 +38,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.MediaType;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
@@ -51,6 +53,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Collectors;
 
 
@@ -462,6 +465,13 @@ public class MetadataInstancesController extends BaseController {
     }
 
 
+    @DeleteMapping("logic/schema/{taskId}")
+    public ResponseMessage<Void> deleteLogicModel(@PathVariable("taskId") String taskId, @RequestParam("nodeId") String nodeId) {
+        metadataInstancesService.deleteLogicModel(taskId, nodeId);
+        return success();
+    }
+
+
     /**
      * 判断某张表是否支持数据校验
      *
@@ -706,6 +716,16 @@ public class MetadataInstancesController extends BaseController {
     @PostMapping("dataType2TapType")
     public ResponseMessage<Map<String, TapType>> dataType2TapType(@RequestBody DataType2TapTypeDto dto) {
         return success(metadataInstancesService.dataType2TapType(dto, getLoginUser()));
+    }
+
+
+    @Operation(summary = "校验物理表是否存在")
+    @GetMapping("check/table/exist")
+    public ResponseMessage<Map<String, Boolean>> checkTableExist(@RequestParam("connectionId") String connectionId, @RequestParam("tableName") String tableName) {
+        boolean exist = metadataInstancesService.checkTableExist(connectionId, tableName, getLoginUser());
+        HashMap<String, Boolean> returnMap = new HashMap<>();
+        returnMap.put("exist", exist);
+        return success(returnMap);
     }
 
 }

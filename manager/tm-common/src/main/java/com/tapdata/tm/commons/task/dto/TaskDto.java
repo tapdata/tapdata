@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Data;
+import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -126,9 +127,20 @@ public class TaskDto extends ParentTaskDto {
     private Long snapshotDoneAt;
 
     private Long scheduleDate;
-    private Date monitorStartDate;
+    private Long stopedDate;
 
-    private boolean needCreateRecord;
+    /**
+     * js 试运行id
+     */
+    private String testTaskId;
+    /**
+     * js模型推演id
+     */
+    private String transformTaskId;
+
+    private int stopRetryTimes;
+
+    private boolean isManualStop;
 
     public DAG getDag() {
         if (dag != null) {
@@ -141,8 +153,10 @@ public class TaskDto extends ParentTaskDto {
 
     @Data
     public static class SyncPoint implements Serializable {
-        /** 数据源id */
         @EqField
+        private String nodeId;
+        private String nodeName;
+        /** 数据源id */
         private String connectionId;
         /** 数据源名称 */
         private String connectionName;

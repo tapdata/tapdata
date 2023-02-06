@@ -43,7 +43,7 @@ public class ApplicationService extends BaseService<ApplicationDto, ApplicationE
     public ApplicationDto updateById(ApplicationDto applicationDto, UserDetail userDetail) {
         String id = applicationDto.getId().toString();
         Query query = Query.query(Criteria.where("id").is(id));
-        if (userDetail.isRoot()) {
+        if (userDetail.isRoot() && !userDetail.isFreeAuth()) {
             update(query, applicationDto);
         } else {
             updateByWhere(query, applicationDto, userDetail);

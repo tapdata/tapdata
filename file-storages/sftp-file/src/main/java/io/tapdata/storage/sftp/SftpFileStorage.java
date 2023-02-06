@@ -74,8 +74,15 @@ public class SftpFileStorage implements TapFileStorage {
     }
 
     @Override
-    public InputStream readFile(String path) throws SftpException {
-        return channel.get(path);
+    public void readFile(String path, Consumer<InputStream> consumer) throws Exception {
+        if (!isFileExist(path)) {
+            return;
+        }
+        try (
+                InputStream is = channel.get(path)
+        ) {
+            consumer.accept(is);
+        }
     }
 
     @Override

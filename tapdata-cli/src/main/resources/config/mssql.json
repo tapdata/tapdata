@@ -1,0 +1,16 @@
+{
+  "connection": {
+    "name": "sqlserver_2019_no_cdc",
+    "database_type": "database_type",
+    "database_host": "192.168.1.183",
+    "database_port": "11434",
+    "database_name": "master",
+    "database_owner": "dbo",
+    "database_username": "sa",
+    "plain_password": "Gotapd8-",
+    "connection_type": "source_and_target"
+  },
+  "node": {
+
+  }
+}

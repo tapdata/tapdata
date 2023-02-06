@@ -16,12 +16,16 @@ public class FtpConfig implements Serializable {
     private String ftpAccount;
     private String encoding;
     private Boolean ftpPassiveMode = true;
+    private int ftpConnectTimeout = 60;
+    private int ftpDataTimeout = 0;
 
     private static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
 
     public FtpConfig load(Map<String, Object> params) {
         assert beanUtils != null;
         beanUtils.mapToBean(params, this);
+        setFtpDataTimeout(ftpDataTimeout <= 0 ? -1 : 1000 * ftpDataTimeout);
+        setFtpConnectTimeout(1000 * ftpConnectTimeout);
         return this;
     }
 
@@ -87,5 +91,21 @@ public class FtpConfig implements Serializable {
 
     public void setFtpPassiveMode(Boolean ftpPassiveMode) {
         this.ftpPassiveMode = ftpPassiveMode;
+    }
+
+    public int getFtpConnectTimeout() {
+        return ftpConnectTimeout;
+    }
+
+    public void setFtpConnectTimeout(int ftpConnectTimeout) {
+        this.ftpConnectTimeout = ftpConnectTimeout;
+    }
+
+    public int getFtpDataTimeout() {
+        return ftpDataTimeout;
+    }
+
+    public void setFtpDataTimeout(int ftpDataTimeout) {
+        this.ftpDataTimeout = ftpDataTimeout;
     }
 }

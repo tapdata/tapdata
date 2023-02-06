@@ -43,8 +43,8 @@ public class AppenderFactory implements Serializable {
 	}
 
 	private final Logger logger = LogManager.getLogger(AppenderFactory.class);
-	private final static int BATCH_SIZE = 1000;
-	private final static int BATCH_INTERVAL = 5000;
+	private final static int BATCH_SIZE = 100;
+	private final static int BATCH_INTERVAL = 500;
 	private final static String APPEND_LOG_THREAD_NAME = "append-observe-logs-thread";
 	private final static String CACHE_QUEUE_DIR = "CacheObserveLogs";
 
@@ -83,7 +83,7 @@ public class AppenderFactory implements Serializable {
 					if (success) {
 						logsDtos.add(builder.build());
 					} else {
-						emptyWaiting.tryAcquire(1, 3, TimeUnit.SECONDS);
+						emptyWaiting.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
 					}
 					if (logsDtos.size() >= BATCH_SIZE || System.currentTimeMillis() - lastFlushAt >= BATCH_INTERVAL) {
 						if (logsDtos.size() == 0) {
@@ -98,8 +98,7 @@ public class AppenderFactory implements Serializable {
 						lastFlushAt = System.currentTimeMillis();
 					}
 				} catch (Exception e) {
-					logger.warn("failed to append task logs, error: {}", e.getMessage());
-					e.printStackTrace();
+					logger.warn("failed to append task logs, error: {}", e.getMessage(), e);
 				}
 			}
 		});

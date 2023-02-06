@@ -6,11 +6,14 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
+import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
+import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.repository.SettingsRepository;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.utils.EncrptAndDencryUtil;
 
 import java.util.*;
@@ -24,6 +27,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.jsoup.Jsoup;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -79,6 +83,14 @@ public class SettingsService {
         }
 
         return value;
+    }
+
+    public boolean isCloud() {
+        Object buildProfile = getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
+        if (Objects.isNull(buildProfile)) {
+            buildProfile = "DAAS";
+        }
+        return buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
     }
 
     public Settings getByCategoryAndKey(CategoryEnum category, KeyEnum key) {
@@ -240,4 +252,23 @@ public class SettingsService {
         return mongoTemplate.find(new Query(), Settings.class);
     }
 
+    public void testSendMail(TestMailDto testMailDto) {
+        MailAccountDto mailAccount = getMailAccount(testMailDto);
+
+        if ("*****".equals(mailAccount.getPass())) {
+            String value = SettingsEnum.SMTP_PASSWORD.getValue();
+            mailAccount.setPass(value);
+        }
+
+        MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), testMailDto.getTitle(), testMailDto.getText());
+
+    }
+
+    private MailAccountDto getMailAccount(TestMailDto testMailDto) {
+
+        String[] split = testMailDto.getEmail_Receivers().split(",");
+        return MailAccountDto.builder().host(testMailDto.getSMTP_Server_Host()).port(Integer.valueOf(testMailDto.getSMTP_Server_Port()))
+                .from(testMailDto.getEmail_Send_Address()).user(testMailDto.getSMTP_Server_User()).pass(testMailDto.getSMTP_Server_password())
+                .receivers(Arrays.asList(split)).protocol(testMailDto.getEmail_Communication_Protocol()).build();
+    }
 }

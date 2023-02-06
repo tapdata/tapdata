@@ -139,6 +139,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 			final JetDag jetDag = task2HazelcastDAG(taskDto);
 
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).info("The engine receives "+ taskDto.getName() +" task data from TM and will continue to run tasks by jet");
+
 			JobConfig jobConfig = new JobConfig();
 			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
@@ -496,7 +498,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				break;
 			case CACHE_LOOKUP_PROCESSOR:
 			case JS_PROCESSOR:
+			case STANDARD_JS_PROCESSOR:
 			case MIGRATE_JS_PROCESSOR:
+			case STANDARD_MIGRATE_JS_PROCESSOR:
 				hazelcastNode = new HazelcastJavaScriptProcessorNode(
 						DataProcessorContext.newBuilder()
 								.withTaskDto(taskDto)
@@ -618,6 +622,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						DataProcessorContext.newBuilder()
 								.withTaskDto(taskDto)
 								.withNode(node)
+								.withTapTableMap(tapTableMap)
 								.build()
 				);
 				break;

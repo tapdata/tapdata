@@ -12,6 +12,7 @@ import com.tapdata.tm.task.service.TaskService;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -34,6 +35,7 @@ import static com.tapdata.tm.dataflow.dto.DataFlowStatus.*;
  * @Description:
  */
 @Service
+@Slf4j
 public class DataflowChartService {
     @Autowired
     private DataFlowService dataFlowService;
@@ -134,7 +136,6 @@ public class DataflowChartService {
 
     /**
      *  数据复制预览
-     * @param user
      * @return
      */
   /*  private Map<String, Object> dataCopyPreview(UserDetail user) {
@@ -228,7 +229,7 @@ public class DataflowChartService {
         List<DataFlow> dataFlows = dataFlowService.findAll(query, user);
         List<DataFlowDto> dataFlowDtos = dataFlowService.convertToDto(dataFlows, DataFlowDto.class);
 
-
+        int lagTime = SettingsEnum.JOB_LAG_TIME.getIntValue(0);
         Map<String, String> rsObj = new HashMap<>();
         for (DataFlowDto dataFlowDto : dataFlowDtos) {
             String id = dataFlowDto.getId().toHexString();
@@ -237,7 +238,7 @@ public class DataflowChartService {
                     && dataFlowDto.getSetting().get("lagTimeFalg") != null && dataFlowDto.getSetting().get("lagTime") != null) {
                 userLag = (int)dataFlowDto.getSetting().get("lagTime");
             } else {
-                userLag = SettingsEnum.JOB_LAG_TIME.getIntValue(0);
+                userLag = lagTime;
             }
 
             if (dataFlowDto.getStats() != null && dataFlowDto.getStats().get("stagesMetrics") != null) {
@@ -354,11 +355,11 @@ public class DataflowChartService {
     }
 
 
-   /* private Map<String, Integer> chart7(UserDetail user) {
+    private Map<String, Integer> chart7(UserDetail user) {
         List<InspectDto> inspectDtos = inspectService.findAll(new Where(), user);
-        if (CollectionUtils.isNotEmpty(inspectDtos)) {
+        /*if (CollectionUtils.isNotEmpty(inspectDtos)) {
             inspectService.joinResult(inspectDtos);
-        }
+        }*/
 
         int error = 0;
         int passed = 0;
@@ -383,7 +384,7 @@ public class DataflowChartService {
         chart7.put("valueDiff", valueDiff);
         return chart7;
 
-    }*/
+    }
 
    /* private Map<String, Object> chart8(UserDetail user) {
         Criteria criteria = Criteria.where("user_id").is(user.getUserId());

@@ -4,9 +4,14 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 
+import java.text.DecimalFormat;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,7 +37,7 @@ public class CommonSqlMaker {
      * @param tapTable Table Object
      * @return substring of SQL
      */
-    public static String buildColumnDefinition(TapTable tapTable, boolean needComment) {
+    public String buildColumnDefinition(TapTable tapTable, boolean needComment) {
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         return nameFieldMap.entrySet().stream().sorted(Comparator.comparing(v ->
                 EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(v -> { //pos may be null
@@ -52,13 +57,13 @@ public class CommonSqlMaker {
         }).collect(Collectors.joining(", "));
     }
 
-    private static void buildNullDefinition(StringBuilder builder, TapField tapField) {
+    private void buildNullDefinition(StringBuilder builder, TapField tapField) {
         if ((EmptyKit.isNotNull(tapField.getNullable()) && !tapField.getNullable()) || tapField.getPrimaryKey()) {
             builder.append("NOT NULL").append(' ');
         }
     }
 
-    private static void buildDefaultDefinition(StringBuilder builder, TapField tapField) {
+    private void buildDefaultDefinition(StringBuilder builder, TapField tapField) {
         if (EmptyKit.isNotNull(tapField.getDefaultValue()) && !"".equals(tapField.getDefaultValue())) {
             builder.append("DEFAULT").append(' ');
             if (tapField.getDefaultValue() instanceof Number) {
@@ -69,7 +74,7 @@ public class CommonSqlMaker {
         }
     }
 
-    private static void buildCommentDefinition(StringBuilder builder, TapField tapField) {
+    private void buildCommentDefinition(StringBuilder builder, TapField tapField) {
         if (EmptyKit.isNotBlank(tapField.getComment())) {
             String comment = tapField.getComment();
             comment = comment.replace("'", "\\'");
@@ -83,7 +88,7 @@ public class CommonSqlMaker {
      * @param filter condition of advance query
      * @return where substring
      */
-    public static String buildSqlByAdvanceFilter(TapAdvanceFilter filter) {
+    public String buildSqlByAdvanceFilter(TapAdvanceFilter filter) {
         StringBuilder builder = new StringBuilder();
         buildWhereClause(builder, filter);
         buildOrderClause(builder, filter);
@@ -91,10 +96,10 @@ public class CommonSqlMaker {
         return builder.toString();
     }
 
-    public static void buildWhereClause(StringBuilder builder, TapAdvanceFilter filter) {
+    public void buildWhereClause(StringBuilder builder, TapAdvanceFilter filter) {
         if (EmptyKit.isNotEmpty(filter.getMatch()) || EmptyKit.isNotEmpty(filter.getOperators())) {
             builder.append("WHERE ");
-            builder.append(CommonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "="));
+            builder.append(buildKeyAndValue(filter.getMatch(), "AND", "="));
         }
         if (EmptyKit.isNotEmpty(filter.getOperators())) {
             if (EmptyKit.isNotEmpty(filter.getMatch())) {
@@ -104,14 +109,14 @@ public class CommonSqlMaker {
         }
     }
 
-    public static void buildOrderClause(StringBuilder builder, TapAdvanceFilter filter) {
+    public void buildOrderClause(StringBuilder builder, TapAdvanceFilter filter) {
         if (EmptyKit.isNotEmpty(filter.getSortOnList())) {
             builder.append("ORDER BY ");
             builder.append(filter.getSortOnList().stream().map(v -> v.toString("\"")).collect(Collectors.joining(", "))).append(' ');
         }
     }
 
-    public static void buildLimitOffsetClause(StringBuilder builder, TapAdvanceFilter filter) {
+    public void buildLimitOffsetClause(StringBuilder builder, TapAdvanceFilter filter) {
         if (EmptyKit.isNotNull(filter.getLimit())) {
             builder.append("LIMIT ").append(filter.getLimit()).append(' ');
         }
@@ -120,7 +125,7 @@ public class CommonSqlMaker {
         }
     }
 
-    public static void buildRowNumberClause(StringBuilder builder, TapAdvanceFilter filter) {
+    public void buildRowNumberClause(StringBuilder builder, TapAdvanceFilter filter) {
         builder.append(") ");
         if (EmptyKit.isNotNull(filter.getSkip()) || EmptyKit.isNotNull(filter.getLimit())) {
             builder.append("WHERE ");
@@ -147,15 +152,17 @@ public class CommonSqlMaker {
      * @param splitSymbol split symbol
      * @return substring of sql
      */
-    public static String buildKeyAndValue(Map<String, Object> record, String splitSymbol, String operator) {
+    public String buildKeyAndValue(Map<String, Object> record, String splitSymbol, String operator) {
         StringBuilder builder = new StringBuilder();
         if (EmptyKit.isNotEmpty(record)) {
             record.forEach((fieldName, value) -> {
                 builder.append('\"').append(fieldName).append('\"').append(operator);
-                if (!(value instanceof Number)) {
-                    builder.append('\'').append(value).append('\'');
-                } else {
+                if (value instanceof Number) {
                     builder.append(value);
+                } else if (value instanceof DateTime) {
+                    builder.append(toTimestampString((DateTime) value));
+                } else {
+                    builder.append('\'').append(value).append('\'');
                 }
                 builder.append(' ').append(splitSymbol).append(' ');
             });
@@ -164,13 +171,35 @@ public class CommonSqlMaker {
         return builder.toString();
     }
 
+    public String toTimestampString(DateTime dateTime) {
+        StringBuilder sb = new StringBuilder("'" + formatTapDateTime(dateTime, "yyyy-MM-dd HH:mm:ss"));
+        if (dateTime.getNano() > 0) {
+            DecimalFormat decimalFormat = new DecimalFormat("000000000");
+            sb.append(".").append(decimalFormat.format(dateTime.getNano()).replaceAll("(0)+$", ""));
+        }
+        sb.append('\'');
+        return sb.toString();
+    }
+
+    public String formatTapDateTime(DateTime dateTime, String pattern) {
+        try {
+            DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(pattern);
+            final ZoneId zoneId = dateTime.getTimeZone() != null ? dateTime.getTimeZone().toZoneId() : ZoneId.of("GMT");
+            LocalDateTime localDateTime = LocalDateTime.ofInstant(dateTime.toInstant(), zoneId);
+            return dateTimeFormatter.format(localDateTime);
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     /**
      * order by used in batchRead offset
      *
      * @param tapTable table
      * @return order by clause
      */
-    public static String getOrderByUniqueKey(TapTable tapTable) {
+    public String getOrderByUniqueKey(TapTable tapTable) {
         StringBuilder orderBy = new StringBuilder();
         orderBy.append(" ORDER BY ");
         List<TapIndex> indexList = tapTable.getIndexList();

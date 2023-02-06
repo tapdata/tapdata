@@ -36,6 +36,10 @@
             {
               "label": "S3FS",
               "value": "s3fs"
+            },
+            {
+              "label": "OSS",
+              "value": "oss"
             }
           ],
           "x-reactions": [
@@ -48,7 +52,7 @@
               }
             },
             {
-              "target": "*(ftpHost,ftpPort,ftpUsername,ftpPassword,ftpPassiveMode)",
+              "target": "*(ftpHost,ftpPort,ftpUsername,ftpPassword,ftpPassiveMode,ftpConnectTimeout,ftpDataTimeout)",
               "fulfill": {
                 "state": {
                   "visible": "{{$self.value==='ftp'}}"
@@ -76,6 +80,14 @@
               "fulfill": {
                 "state": {
                   "visible": "{{$self.value==='s3fs'}}"
+                }
+              }
+            },
+            {
+              "target": "*(accessKey,secretKey,endpoint,bucket)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='oss'}}"
                 }
               }
             }
@@ -149,6 +161,26 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-index": 70
+        },
+        "ftpConnectTimeout": {
+          "required": true,
+          "type": "string",
+          "title": "${ftpConnectTimeout}",
+          "default": 60,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "ftpConnectTimeout",
+          "x-index": 72
+        },
+        "ftpDataTimeout": {
+          "required": true,
+          "type": "string",
+          "title": "${ftpDataTimeout}",
+          "default": 0,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "ftpDataTimeout",
+          "x-index": 75
         },
         "sftpHost": {
           "required": true,
@@ -374,6 +406,8 @@
       "ftpUsername": "Username",
       "ftpPassword": "Password",
       "ftpPassiveMode": "Passive Mode",
+      "ftpConnectTimeout": "Connect Timeout(second)",
+      "ftpDataTimeout": "Data Timeout(second)",
       "sftpHost": "Host",
       "sftpPort": "Port",
       "sftpUsername": "Username",
@@ -404,6 +438,8 @@
       "ftpUsername": "用户名",
       "ftpPassword": "口令",
       "ftpPassiveMode": "被动连接模式",
+      "ftpConnectTimeout": "连接超时（秒）",
+      "ftpDataTimeout": "传输超时（秒）",
       "sftpHost": "地址",
       "sftpPort": "端口",
       "sftpUsername": "用户名",
@@ -434,6 +470,8 @@
       "ftpUsername": "用戶名",
       "ftpPassword": "口令",
       "ftpPassiveMode": "被動連接模式",
+      "ftpConnectTimeout": "連接超時（秒）",
+      "ftpDataTimeout": "傳輸超時（秒）",
       "sftpHost": "地址",
       "sftpPort": "端口",
       "sftpUsername": "用戶名",

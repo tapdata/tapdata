@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.DataSourcePool;
+import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.mysql.SqlMaker;
 import io.tapdata.connector.tidb.ddl.TidbSqlMaker;
 import io.tapdata.connector.tidb.dml.TidbRecordWrite;
@@ -59,7 +60,9 @@ public class TidbConnector extends ConnectorBase {
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
-        tidbConfig = (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
+        this.tidbConfig = (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
+        this.tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {},null);
+
         if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
             tidbContext = (TidbContext) DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, tapConnectionContext.getId());
         }
@@ -92,6 +95,7 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> tidbContext.getConnection(), c));
 
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
@@ -333,13 +337,6 @@ public class TidbConnector extends ConnectorBase {
         consumer.accept(testConnection);
     }
 
-    private static String toHHmmss(long time) {
-        String timeTemp;
-        int hours = (int) (time % (1000 * 60 * 60 * 24) / (1000 * 60 * 60));
-        int minutes = (int) (time % (1000 * 60 * 60) / (1000 * 60));
-        int seconds = (int) (time % (1000 * 60) / 1000);
-        timeTemp = (hours < 10 ? ("0" + hours) : hours) + ":" + (minutes < 10 ? ("0" + minutes) : minutes) + ":" + (seconds < 10 ? ("0" + seconds) : seconds);
-        return timeTemp;
-    }
+
 }
 

@@ -5,7 +5,6 @@ import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -17,6 +16,7 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -24,15 +24,11 @@ import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
-import com.tapdata.tm.task.vo.JsResultDto;
-import com.tapdata.tm.task.vo.JsResultVo;
-import com.tapdata.tm.task.vo.TaskDetailVo;
-import com.tapdata.tm.task.vo.TaskRecordListVo;
+import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -283,6 +279,14 @@ public class TaskController extends BaseController {
 
             // set hostName;
             workerService.setHostName(taskDto);
+
+            // supplement startTime
+            if (Objects.isNull(taskDto.getStartTime())) {
+                TaskDto taskRecord = taskRecordService.queryTask(taskDto.getTaskRecordId(), user.getUserId());
+                if (Objects.nonNull(taskRecord)) {
+                    taskDto.setStartTime(taskRecord.getStartTime());
+                }
+            }
         }
         return success(taskDto);
     }
@@ -685,16 +689,20 @@ public class TaskController extends BaseController {
     }
 
     @PutMapping("batchStart")
-    public ResponseMessage<List<MutiResponseMessage>> batchStart(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
+    public ResponseMessage<List<MutiResponseMessage>> batchStart(@RequestParam("taskIds") List<String> taskIds,
+                                                                 HttpServletRequest request,
+                                                                 HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchStart(taskObjectIds, getLoginUser(), request);
+        List<MutiResponseMessage> responseMessages = taskService.batchStart(taskObjectIds, getLoginUser(), request, response);
         return success(responseMessages);
     }
 
     @PutMapping("batchStop")
-    public ResponseMessage<List<MutiResponseMessage>> batchStop(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
+    public ResponseMessage<List<MutiResponseMessage>> batchStop(@RequestParam("taskIds") List<String> taskIds,
+                                                                HttpServletRequest request,
+                                                                HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchStop(taskObjectIds, getLoginUser(), request);
+        List<MutiResponseMessage> responseMessages = taskService.batchStop(taskObjectIds, getLoginUser(), request, response);
 
         //add message
         List<TaskEntity> taskEntityList = taskService.findByIds(taskObjectIds);
@@ -711,19 +719,21 @@ public class TaskController extends BaseController {
     }
 
     @DeleteMapping("batchDelete")
-    public ResponseMessage<List<MutiResponseMessage>> batchDelete(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
+    public ResponseMessage<List<MutiResponseMessage>> batchDelete(@RequestParam("taskIds") List<String> taskIds,
+                                                                  HttpServletRequest request,
+                                                                  HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskObjectIds, getLoginUser(), request);
-
-
+        List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskObjectIds, getLoginUser(), request, response);
         return success(responseMessages);
     }
 
     @Operation(summary = "重置任务接口")
     @PatchMapping("batchRenew")
-    public ResponseMessage<List<MutiResponseMessage>> batchRenew(@RequestParam("taskIds") List<String> taskIds, HttpServletRequest request) {
+    public ResponseMessage<List<MutiResponseMessage>> batchRenew(@RequestParam("taskIds") List<String> taskIds,
+                                                                 HttpServletRequest request,
+                                                                 HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchRenew(taskObjectIds, getLoginUser(), request);
+        List<MutiResponseMessage> responseMessages = taskService.batchRenew(taskObjectIds, getLoginUser(), request, response);
         return success(responseMessages);
     }
 
@@ -753,32 +763,11 @@ public class TaskController extends BaseController {
 
         DAG dag = taskDto.getDag();
         if (dag != null) {
-            List<Edge> edges = dag.getEdges();
-            String sourceNodeId = "";
-            String targetNodeId = "";
-            if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && CollectionUtils.isNotEmpty(edges)) {
-                sourceNodeId = edges.get(0).getSource();
-                targetNodeId = edges.get(edges.size() - 1).getTarget();
-            }
-
-            List<String> tableNames = Lists.newArrayList();
             List<Node> nodes = dag.getNodes();
             if (CollectionUtils.isNotEmpty(nodes)) {
                 for (Node node : nodes) {
                     if (node instanceof DatabaseNode) {
                         DatabaseNode databaseNode = ((DatabaseNode) node);
-                        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !StringUtils.equals("custom", databaseNode.getMigrateTableSelectType())) {
-                            if (databaseNode.getId().equals(sourceNodeId) && CollectionUtils.isEmpty(databaseNode.getTableNames())) {
-                                tableNames = metadataInstancesService.tables(databaseNode.getConnectionId(), SourceTypeEnum.SOURCE.name());
-                                databaseNode.setTableNames(tableNames);
-                            }
-                            if (databaseNode.getId().equals(targetNodeId) && CollectionUtils.isEmpty(databaseNode.getSyncObjects().get(0).getObjectNames())) {
-                                if (CollectionUtils.isEmpty(tableNames)) {
-                                    tableNames = metadataInstancesService.tables(databaseNode.getConnectionId(), SourceTypeEnum.SOURCE.name());
-                                }
-                                databaseNode.getSyncObjects().get(0).setObjectNames(tableNames);
-                            }
-                        }
 
                         if ("all".equals(taskDto.getRollback())) {
                             databaseNode.setFieldProcess(null);
@@ -897,11 +886,10 @@ public class TaskController extends BaseController {
     @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
-                                        @RequestParam String listtags) {
-        List<com.tapdata.tm.commons.schema.Tag> tags = Lists.newArrayList();
+                                        @RequestParam(value = "listtags", required = false) String listtags) {
+        List<String> tags = Lists.newArrayList();
         if (StringUtils.isNoneBlank(listtags)) {
-            List<String> array = JSON.parseArray(listtags, String.class);
-            tags = array.stream().map(s -> new com.tapdata.tm.commons.schema.Tag(s, s)).collect(Collectors.toList());
+            tags = JSON.parseArray(listtags, String.class);
         }
         taskService.batchUpTask(file, getLoginUser(), cover, tags);
         return success();
@@ -1022,7 +1010,7 @@ public class TaskController extends BaseController {
     public ResponseMessage<Page<TaskRecordListVo>> records(@PathVariable(value = "id") String taskId,
                                                            @RequestParam(defaultValue = "1") Integer page,
                                                            @RequestParam(defaultValue = "20") Integer size) {
-        return success(taskRecordService.queryRecords(taskId, page, size));
+        return success(taskRecordService.queryRecords(new TaskRecordDto(taskId, page, size)));
     }
 
     @Operation(summary = "任务日志设置")
@@ -1043,10 +1031,30 @@ public class TaskController extends BaseController {
         return success();
     }
 
+    @Operation(summary = "任务统计数据接口")
+    @GetMapping("/stats")
+    public ResponseMessage<TaskStatsDto> stats() {
+        return success(taskService.stats(getLoginUser()));
+    }
+
+
+    @Operation(summary = "任务数据量统计")
+    @GetMapping("/stats/transport")
+    public ResponseMessage<DataFlowInsightStatisticsDto> statsTransport(@RequestParam("granularity") String granularity) {
+        return success(taskService.statsTransport(getLoginUser()));
+    }
+
+
 
     @PatchMapping("rename/{taskId}")
     public ResponseMessage<Void> rename(@PathVariable("taskId") String taskId, @RequestParam("newName") String newName) {
         taskService.rename(taskId, newName, getLoginUser());
+        return success();
+    }
+
+    @PostMapping("/stopTaskByAgentId/{agentId}")
+    public ResponseMessage<Void> stopTaskByAgentId(@PathVariable("agentId") String agentId) {
+        taskService.stopTaskIfNeedByAgentId(agentId, getLoginUser());
         return success();
     }
 }

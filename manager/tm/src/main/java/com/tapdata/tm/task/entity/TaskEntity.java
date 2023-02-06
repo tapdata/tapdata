@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
+import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -64,9 +65,9 @@ public class TaskEntity extends BaseEntity {
     /** 全量一批读取条数 */
     private Integer readBatchSize;
     /** 写入批量条数 */
-    private int writeBatchSize;
+    private Integer writeBatchSize;
     /** 写入每批最大等待时间 */
-    private long writeBatchWaitMs;
+    private Long writeBatchWaitMs;
 
     /** 增量同步间隔*/
     private Integer increaseSyncInterval;
@@ -166,7 +167,7 @@ public class TaskEntity extends BaseEntity {
     private Long lastStartDate;
     private Date stopTime;
     private Long scheduleDate;
-    private Date monitorStartDate;
+    private Long stopedDate;
 
     private HashSet<String> heartbeatTasks;
 
@@ -184,6 +185,7 @@ public class TaskEntity extends BaseEntity {
 
     //private Date startTime;
     private Date scheduledTime;
+    private Date schedulingTime;
     private Date stoppingTime;
     private Date runningTime;
     private Date errorTime;
@@ -224,6 +226,13 @@ public class TaskEntity extends BaseEntity {
     private Long snapshotDoneAt;
 
     private boolean needCreateRecord;
+
+    private boolean crontabExpressionFlag;
+
+    private String testTaskId;
+    private String transformTaskId;
+    private int stopRetryTimes;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

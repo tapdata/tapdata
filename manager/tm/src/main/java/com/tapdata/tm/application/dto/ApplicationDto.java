@@ -14,6 +14,8 @@ import java.util.List;
 @Data
 public class ApplicationDto extends BaseDto {
     private String name;
+
+    private String clientId;
     private String clientKey;
     private String javaScriptKey;
     private String restApiKey;

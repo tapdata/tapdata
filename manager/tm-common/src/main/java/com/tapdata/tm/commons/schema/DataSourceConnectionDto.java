@@ -24,6 +24,7 @@ public class DataSourceConnectionDto extends BaseDto {
 
         public static final String STATUS_INVALID = "invalid";
         public static final String STATUS_READY = "ready";
+        public static final String STATUS_TESTING = "testing";
 
         /** 数据源连接名称 */
         private String name;
@@ -67,6 +68,7 @@ public class DataSourceConnectionDto extends BaseDto {
         private String schemaVersion;
         /** 状态  ready invalid */
         private String status;
+        private String lastStatus;
         /**  */
         private Long tableCount;
         /** 检测时间 */
@@ -278,6 +280,11 @@ public class DataSourceConnectionDto extends BaseDto {
         private String shareCDCExternalStorageId;
 
         private Date loadSchemaTime;
+
+        /** 数据源大于一万张表的时候， 设置的每天的某个时间点加载一次 可以设置为0-24点直接的值
+         * @see ScheduleTimeEnum*/
+        private String schemaUpdateHour;
+
 
         /**
          * 后续 开放可以多选 flow engine 的话，这里一定要删除

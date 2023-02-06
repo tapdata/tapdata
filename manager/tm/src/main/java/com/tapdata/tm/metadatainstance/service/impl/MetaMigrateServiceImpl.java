@@ -19,7 +19,6 @@ import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -80,7 +79,10 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
 //                    f.setDataType(field.getFieldType());
                     f.setUseDefaultValue(field.isUseDefaultValue());
                     FunctionUtils.isTureOrFalse(field.isUseDefaultValue()).trueOrFalseHandle(
-                            () -> f.setDefaultValue(Objects.isNull(field.getDefaultValue()) ? f.getOriginalDefaultValue() : field.getDefaultValue()),
+                            () -> {
+                                f.setDefaultValue(Objects.isNull(field.getDefaultValue()) ? f.getOriginalDefaultValue() : field.getDefaultValue());
+                                f.setSource("manual");
+                            },
                             () -> f.setDefaultValue(null));
                 }
             });
@@ -94,7 +96,10 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
                     f.setDataType(field.getFieldType());
                     f.setUseDefaultValue(field.isUseDefaultValue());
                     FunctionUtils.isTureOrFalse(field.isUseDefaultValue()).trueOrFalseHandle(
-                            () -> f.setDefaultValue(f.getOriginalDefaultValue()),
+                            () -> {
+                                f.setDefaultValue(f.getOriginalDefaultValue());
+                                f.setSource("manual");
+                            },
                             () -> f.setDefaultValue(null));
                 }
             });
@@ -116,7 +121,7 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
         DatabaseNode targetNode = dag.getTargetNode(nodeId);
 
         List<String> tableNames = sourceNode.getTableNames();
-        if (CollectionUtils.isEmpty(tableNames) && !StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
+        if (CollectionUtils.isEmpty(tableNames)) {
             return;
         }
 

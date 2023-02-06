@@ -21,6 +21,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.dom4j.io.SAXReader;
 
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.Collections;
@@ -43,21 +44,24 @@ public class XmlConnector extends FileConnector {
     }
 
     @Override
-    protected void readOneFile(FileOffset fileOffset, TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer, AtomicReference<List<TapEvent>> tapEvents) {
-        try (
-                Reader reader = new InputStreamReader(storage.readFile(fileOffset.getPath()), fileConfig.getFileEncoding())
-        ) {
-            SAXReader saxReader = new SAXReader();
-            saxReader.setDefaultHandler(new BigSaxDataHandler()
-                    .withPath(((XmlConfig) fileConfig).getXPath())
-                    .withFlag(this::isAlive)
-                    .withLastModified(storage.getFile(fileOffset.getPath()).getLastModified())
-                    .withConfig(fileOffset, tapTable, eventBatchSize, eventsOffsetConsumer, tapEvents));
-            saxReader.read(reader);
-        } catch (StopException ignored) {
-        } catch (Exception e) {
-            TapLogger.error(TAG, "read xml file error!", e);
-        }
+    protected void readOneFile(FileOffset fileOffset, TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer, AtomicReference<List<TapEvent>> tapEvents) throws Exception {
+        long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
+        storage.readFile(fileOffset.getPath(), is -> {
+            try (
+                    Reader reader = new InputStreamReader(is, fileConfig.getFileEncoding())
+            ) {
+                SAXReader saxReader = new SAXReader();
+                saxReader.setDefaultHandler(new BigSaxDataHandler()
+                        .withPath(((XmlConfig) fileConfig).getXPath())
+                        .withFlag(this::isAlive)
+                        .withLastModified(lastModified)
+                        .withConfig(fileOffset, tapTable, eventBatchSize, eventsOffsetConsumer, tapEvents));
+                saxReader.read(reader);
+            } catch (StopException ignored) {
+            } catch (Exception e) {
+                TapLogger.error(TAG, "read xml file error!", e);
+            }
+        });
     }
 
     @Override
@@ -79,12 +83,15 @@ public class XmlConnector extends FileConnector {
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         initConnection(connectionContext);
+        if (EmptyKit.isBlank(fileConfig.getModelName())) {
+            return;
+        }
         TapTable tapTable = table(fileConfig.getModelName());
-        ConcurrentMap<String, TapFile> csvFileMap = getFilteredFiles();
+        ConcurrentMap<String, TapFile> xmlFileMap = getFilteredFiles();
         XmlSchema xmlSchema = new XmlSchema((XmlConfig) fileConfig, storage);
-        Map<String, Object> sample = xmlSchema.sampleEveryFileData(csvFileMap);
+        Map<String, Object> sample = xmlSchema.sampleEveryFileData(xmlFileMap);
         if (EmptyKit.isEmpty(sample)) {
-            throw new RuntimeException("Load schema from csv files error: no headers and contents!");
+            throw new RuntimeException("Load schema from xml files error: no headers and contents!");
         }
         makeTapTable(tapTable, sample, fileConfig.getJustString());
         consumer.accept(Collections.singletonList(tapTable));

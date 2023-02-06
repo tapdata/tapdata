@@ -1,0 +1,11 @@
+{
+  "connection": {
+    "mqQueueString": "",
+    "brokerURL": "tcp://192.168.1.183:61616",
+    "mqUsername": "admin",
+    "mqPassword": "admin"
+  },
+  "node": {
+
+  }
+}

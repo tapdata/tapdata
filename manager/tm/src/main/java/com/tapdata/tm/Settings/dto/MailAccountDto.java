@@ -20,4 +20,5 @@ public class MailAccountDto {
     private String user;
     private String pass;
     private List<String> receivers;
+    private String protocol;
 }

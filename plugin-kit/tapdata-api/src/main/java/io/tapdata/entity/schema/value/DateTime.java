@@ -2,10 +2,9 @@ package io.tapdata.entity.schema.value;
 
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.text.DecimalFormat;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Objects;
 import java.util.TimeZone;
@@ -125,7 +124,7 @@ public class DateTime {
         nano = instant.getNano();
     }
 
-    public static DateTime withTimeStr(String timeStr) {
+	public static DateTime withTimeStr(String timeStr) {
         if (timeStr == null)
             throw new IllegalArgumentException("DateTime constructor timeStr is null");
 
@@ -154,7 +153,13 @@ public class DateTime {
         } else {
             dateTime.nano = 0;
         }
-        scaleArr = scaleArr[0].split(":");
+        boolean negative = false;
+        if (scaleArr[0].startsWith("-")) {
+            negative = true;
+            scaleArr = scaleArr[0].substring(1).split(":");
+        } else {
+            scaleArr = scaleArr[0].split(":");
+        }
         switch (scaleArr.length) {
             case 1:
                 dateTime.seconds = Long.parseLong(scaleArr[0]);
@@ -163,12 +168,36 @@ public class DateTime {
                 dateTime.seconds = Long.parseLong(scaleArr[0]) * 60 + Long.parseLong(scaleArr[1]);
                 break;
             case 3:
-                dateTime.seconds = Long.parseLong(scaleArr[0]) * 60 *60 + Long.parseLong(scaleArr[1]) * 60 + Long.parseLong(scaleArr[2]);
+                dateTime.seconds = Long.parseLong(scaleArr[0]) * 60 * 60 + Long.parseLong(scaleArr[1]) * 60 + Long.parseLong(scaleArr[2]);
                 break;
             default:
                 throw new IllegalArgumentException("DateTime constructor illegal timeStr: " + timeStr);
         }
+        if (negative) {
+            dateTime.seconds *= -1;
+            dateTime.nano *= -1;
+        }
         return dateTime;
+    }
+
+    public String toTimeStr() {
+        DecimalFormat decimalFormat = new DecimalFormat("00");
+        long realSecond;
+        boolean negative = false;
+        if (seconds < 0 || nano < 0) {
+            realSecond = seconds * (-1);
+            negative = true;
+        } else {
+            realSecond = seconds;
+        }
+        int hour = (int) (realSecond / (60 * 60));
+        int minute = (int) (realSecond % (60 * 60) / 60);
+        int second = (int) (realSecond % 60);
+        String timeStr = decimalFormat.format(hour) + ":" + decimalFormat.format(minute) + ":" + decimalFormat.format(second);
+        if (nano != 0) {
+            timeStr += ("" + (double) Math.abs(nano) / 1000000000L).substring(1);
+        }
+        return (negative ? "-" : "") + timeStr;
     }
 
     public Instant toInstant() {
@@ -227,6 +256,10 @@ public class DateTime {
             return timestamp;
         }
         return null;
+    }
+
+    public String toFormatString(String format) {
+        return toZonedDateTime().format(DateTimeFormatter.ofPattern(format));
     }
 
     @Override

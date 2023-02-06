@@ -5,6 +5,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.schema.TapTable;
 import org.apache.commons.collections.CollectionUtils;
@@ -45,6 +46,15 @@ public class TapTableUtil {
 		return getTapTableMapByNodeId(null, nodeId, time);
 	}
 
+	public static TapTable getTapTableByConnectionId(String connectionId, String tableName) {
+		return BeanUtil.getBean(ClientMongoOperator.class).findOne(Query.query(
+			where("meta_type").is("table")
+				.and("sourceType").is(SourceTypeEnum.SOURCE.name())
+				.and("original_name").is(tableName)
+				.and("source.id").is(connectionId)
+		), ConnectorConstant.METADATA_INSTANCE_COLLECTION + "/tapTables", TapTable.class);
+	}
+
 	public static TapTableMap<String, TapTable> getTapTableMapByNodeId(String prefix, String nodeId, Long time) {
 		Map<String, String> tableNameQualifiedNameMap = getTableNameQualifiedNameMap(nodeId);
 		return TapTableMap.create(prefix, nodeId, tableNameQualifiedNameMap, time);
@@ -67,7 +77,7 @@ public class TapTableUtil {
 		Object schema = node.getSchema();
 		if (schema == null) {
 			List inputSchema = node.getInputSchema();
-			schema = node.mergeSchema(inputSchema, null);
+			schema = node.mergeSchema(inputSchema, null, null);
 		}
 		List<Schema> schemaList = null;
 		if (schema != null) {

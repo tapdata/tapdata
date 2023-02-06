@@ -4,6 +4,7 @@ import io.tapdata.entity.logger.TapLogger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -25,13 +26,17 @@ public class RecordBuffer {
         TapLogger.info(TAG, "init RecordBuffer capacity {}, count {}", capacity, queueSize);
         assert capacity > 0;
         assert queueSize > 1;
-        this.writeQueue = new ArrayBlockingQueue<>(queueSize);
-        for (int index = 0; index < queueSize; index++) {
-            this.writeQueue.add(ByteBuffer.allocate(capacity));
-        }
-        readQueue = new LinkedBlockingDeque<>();
         this.bufferCapacity = capacity;
         this.queueSize = queueSize;
+        init();
+    }
+
+    public void init() {
+        this.writeQueue = new ArrayBlockingQueue<>(queueSize);
+        for (int index = 0; index < queueSize; index++) {
+            this.writeQueue.add(ByteBuffer.allocate(bufferCapacity));
+        }
+        readQueue = new LinkedBlockingDeque<>();
     }
 
     public void startBufferData() {
@@ -83,10 +88,31 @@ public class RecordBuffer {
         } while (wPos != buf.length);
     }
 
-    public int read(byte[] buf) throws InterruptedException {
+    private void getCurrentReadBufferIfNeed() throws InterruptedException {
         if (currentReadBuffer == null) {
             currentReadBuffer = readQueue.take();
         }
+    }
+
+    public int read() throws InterruptedException {
+        getCurrentReadBufferIfNeed();
+        // add empty buffer as end flag
+        if (currentReadBuffer.limit() == 0) {
+            recycleBuffer(currentReadBuffer);
+            currentReadBuffer = null;
+            assert readQueue.size() == 0;
+            return -1;
+        }
+        int _byte = currentReadBuffer.get();
+        if (currentReadBuffer.remaining() == 0) {
+            recycleBuffer(currentReadBuffer);
+            currentReadBuffer = null;
+        }
+        return _byte;
+    }
+
+    public int read(byte[] buf) throws InterruptedException {
+        getCurrentReadBufferIfNeed();
         // add empty buffer as end flag
         if (currentReadBuffer.limit() == 0) {
             recycleBuffer(currentReadBuffer);
@@ -104,9 +130,33 @@ public class RecordBuffer {
         return nRead;
     }
 
+    public int read(byte[] b, int off, int len) throws InterruptedException {
+        getCurrentReadBufferIfNeed();
+        if (currentReadBuffer.limit() == 0) {
+            recycleBuffer(currentReadBuffer);
+            currentReadBuffer = null;
+            return -1;
+        }
+        currentReadBuffer.get(b, off, len);
+        if (currentReadBuffer.remaining() == 0) {
+            recycleBuffer(currentReadBuffer);
+            currentReadBuffer = null;
+            getCurrentReadBufferIfNeed();
+            if (currentReadBuffer.limit() == 0) {
+                recycleBuffer(currentReadBuffer);
+                currentReadBuffer = null;
+            }
+        }
+        return b.length;
+    }
+
     private void recycleBuffer(ByteBuffer buffer) throws InterruptedException {
         buffer.clear();
         writeQueue.put(buffer);
+    }
+
+    public int currentBufferRemaining() {
+        return null == currentWriteBuffer ? Constants.CACHE_BUFFER_SIZE : currentWriteBuffer.remaining();
     }
 
     public int getWriteQueueSize() {

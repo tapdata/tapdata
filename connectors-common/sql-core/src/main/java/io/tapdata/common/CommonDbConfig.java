@@ -8,6 +8,7 @@ import io.tapdata.kit.EmptyKit;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Properties;
 
 /**
  * common relation database config
@@ -18,8 +19,8 @@ import java.util.Map;
 public class CommonDbConfig implements Serializable {
 
     private static final String TAG = CommonDbConfig.class.getSimpleName();
-    private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class); //json util
-    private static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
+    protected static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class); //json util
+    protected static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
 
     private String __connectionType;
     private String dbType;
@@ -31,6 +32,7 @@ public class CommonDbConfig implements Serializable {
     private String password;
     private String extParams;
     private String jdbcDriver;
+    private Properties properties;
 
     //pattern for jdbc-url
     public String getDatabaseUrlPattern() {
@@ -159,5 +161,13 @@ public class CommonDbConfig implements Serializable {
 
     public void setJdbcDriver(String jdbcDriver) {
         this.jdbcDriver = jdbcDriver;
+    }
+
+    public Properties getProperties() {
+        return properties;
+    }
+
+    public void setProperties(Properties properties) {
+        this.properties = properties;
     }
 }

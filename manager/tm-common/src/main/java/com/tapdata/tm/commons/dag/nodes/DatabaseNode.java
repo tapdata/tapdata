@@ -5,10 +5,16 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.BatchTypeOperation;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.dag.vo.TableOperation;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -48,7 +54,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     private List<String> inputLanes;
     private List<String> outputLanes;
     private String existDataProcessMode = "keepData";
-    private Integer readBatchSize;
+    private String dropType;
     private Integer readCdcInterval;
     private List<FieldProcess> fieldProcess;
 
@@ -58,21 +64,30 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     private List<SyncObjects> syncObjects;
     private List<BatchTypeOperation> batchOperationList;
 
+    private List<TableOperation> tableOperations;
+
     //包含的表名，用于数据挖掘，在加载schema的时候存入
     private List<String> tableNames;
 
     private Integer rows;
 
-    // 复制任务 全部 or 自定义
+    // 复制任务 1.all 2.custom => 1.all => custom 2.expression
     private String migrateTableSelectType;
+    /**
+     * migrateTableSelectType=expression的正则表达式
+     */
+    private String tableExpression;
+
+    private Map<String, Object> nodeConfig;
+
+    public static final String SELF_TYPE = "database";
 
     public DatabaseNode() {
         super("database");
     }
 
-
     @Override
-    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
+    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
         //把inputSchemas的deleted的field给过滤掉
         if (TaskDto.SYNC_TYPE_SYNC.equals(getDag().getSyncType())) {
             for (List<Schema> inputSchema : inputSchemas) {
@@ -97,6 +112,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         String currentDbName = schemas.size() > 0 ? schemas.get(0).getDatabase() : null;
         List<String> inputFields = inputSchemas.stream().flatMap(Collection::stream).map(Schema::getFields).flatMap(Collection::stream).map(Field::getFieldName).collect(Collectors.toList());
         List<String> inputFieldOriginalNames = inputSchemas.stream().flatMap(Collection::stream).map(Schema::getFields).flatMap(Collection::stream).map(Field::getOriginalFieldName).collect(Collectors.toList());
+        Map<String, String> fieldMapping = inputSchemas.stream().flatMap(Collection::stream).map(Schema::getFields).flatMap(Collection::stream).filter(s -> !s.isDeleted()).collect(Collectors.toMap(Field::getOriginalFieldName, Field::getFieldName, (k1, k2) -> k1));
+
         Map<String, Schema> inputTables = inputSchemas.stream().flatMap(Collection::stream).peek(s -> {
 
             transformResults(targetFieldMap.get(s.getOriginalName()), dataSource, _metaType, schemaTransformerResults, currentDbName, s);
@@ -105,7 +122,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                 (s1, s2) -> SchemaUtils.mergeSchema(Collections.singletonList(s1), s2)));
 
         if (listener != null) {
-            listener.schemaTransformResult(getId(), schemaTransformerResults);
+            listener.schemaTransformResult(getId(), this, schemaTransformerResults);
         }
         List<Schema> outputSchema;
         if (schemas.size() == 0) {
@@ -125,7 +142,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         for (Schema schema : outputSchema) {
             schema.setFields(transformFields(inputFields, schema, inputFieldOriginalNames));
             //  has migrateFieldNode && field not show => will del index where contain field
-            schema.setIndices(updateIndexDelField(schema.getIndices(), inputFieldOriginalNames));
+            schema.setIndices(updateIndexDelField(schema.getIndices(), fieldMapping));
             long count = schema.getFields().stream().filter(Field::isDeleted).count();
             long count1 = schema.getFields().stream().filter(f -> !f.isDeleted()).filter(field -> field.getFieldName().contains(".")).count();
             for (SchemaTransformerResult result : schemaTransformerResults) {
@@ -139,7 +156,10 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         return outputSchema;
     }
 
-    private List<TableIndex> updateIndexDelField(List<TableIndex> indices, List<String> inputFieldOriginalNames) {
+    private List<TableIndex> updateIndexDelField(List<TableIndex> indices, Map<String, String> filedMapping) {
+        if (!haveTableEditNode(this)) {
+            return indices;
+        }
         if (CollectionUtils.isEmpty(indices)) {
             return indices;
         }
@@ -147,8 +167,17 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         while (indexIterator.hasNext()) {
             TableIndex tableIndex = indexIterator.next();
             List<TableIndexColumn> columns = tableIndex.getColumns();
+            List<TableIndexColumn> removeC = new ArrayList<>();
+            for (TableIndexColumn column : columns) {
+                String newFiledName = filedMapping.get(column.getColumnName());
+                if (newFiledName != null) {
+                    column.setColumnName(newFiledName);
+                } else {
+                    removeC.add(column);
+                }
+            }
 
-            columns.removeIf(column -> inputFieldOriginalNames.contains(column.getColumnName()));
+            columns.removeAll(removeC);
 
             if (CollectionUtils.isEmpty(columns)) {
                 indexIterator.remove();
@@ -157,6 +186,22 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
         return indices;
     }
+
+    public boolean haveTableEditNode(Node node) {
+        if (node instanceof MigrateFieldRenameProcessorNode) {
+            return true;
+        }
+
+        List predecessors = node.predecessors();
+        for (Object predecessor : predecessors) {
+            boolean haveTableEditNode = haveTableEditNode((Node) predecessor);
+            if (haveTableEditNode) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @SneakyThrows
     public void transformSchema(DAG.Options options) {
 
