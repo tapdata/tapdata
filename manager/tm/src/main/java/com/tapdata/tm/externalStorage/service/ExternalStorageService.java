@@ -90,9 +90,16 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		if (StringUtils.isBlank(id)) {
 			return null;
 		}
-		Criteria criteria = new Criteria().orOperator(
+		Criteria esIdOrCriteria = new Criteria().orOperator(
 				Criteria.where("dag.nodes.externalStorageId").is(id),
 				Criteria.where("shareCDCExternalStorageId").is(id)
+		);
+		Criteria taskStatusCriteria = new Criteria().and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
+		Criteria taskIsDeletedCriteria = new Criteria("is_deleted").is(false);
+		Criteria criteria = new Criteria().andOperator(
+				taskStatusCriteria,
+				taskIsDeletedCriteria,
+				esIdOrCriteria
 		);
 		Query query = new Query(criteria);
 		query.fields().include("_id").include("name");
