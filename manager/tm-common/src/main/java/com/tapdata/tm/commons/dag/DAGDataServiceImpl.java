@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.dag;
 
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
@@ -1116,6 +1117,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             if (tableInfo != null) {
                 tableName = tableInfo.getCurrentTableName();
             }
+        } else if (node instanceof TableNode) {
+            tableName = ((TableNode) node).getTableName();
         }
         return tableName;
     }
