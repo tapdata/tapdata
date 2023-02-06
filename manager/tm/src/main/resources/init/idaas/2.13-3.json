@@ -1,0 +1,20 @@
+[
+  {
+    "update": "Role",
+    "updates": [
+      {
+        "q": {
+          "_id": {
+            "$oid": "5d31ae1ab953565ded04badd"
+          }
+        },
+        "u": {
+          "$set": {
+            "name": "DefaultRoleForNewUser"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]

@@ -398,6 +398,10 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             taskCriteria.and("agentId").exists(true);
         }
 
+        if (!user.isRoot()) {
+            taskCriteria.and("user_id").is(user.getUserId());
+        }
+
 
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
@@ -963,6 +967,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setTotal(0);
 
         Criteria taskCriteria = Criteria.where("is_deleted").ne(true).and("agentId").exists(true);
+        if (!user.isRoot()) {
+            taskCriteria.and("user_id").is(user.getUserId());
+        }
         Criteria apiCriteria = Criteria.where("status").is("active").and("is_deleted").ne(true);
 
         Criteria metadataCriteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
@@ -1457,6 +1464,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
                 .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
                 .and("agentId").exists(true);
+        if (!user.isRoot()) {
+            criteriaTask.and("user_id").is(user.getUserId());
+        }
         MatchOperation matchTask = Aggregation.match(criteriaTask);
         GroupOperation gTask = Aggregation.group("syncType").count().as("count");
 
