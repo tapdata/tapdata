@@ -398,6 +398,10 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             taskCriteria.and("agentId").exists(true);
         }
 
+        if (!user.isRoot()) {
+            taskCriteria.and("user_id").is(user.getUserId());
+        }
+
 
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
@@ -963,6 +967,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setTotal(0);
 
         Criteria taskCriteria = Criteria.where("is_deleted").ne(true).and("agentId").exists(true);
+        if (!user.isRoot()) {
+            taskCriteria.and("user_id").is(user.getUserId());
+        }
         Criteria apiCriteria = Criteria.where("status").is("active").and("is_deleted").ne(true);
 
         Criteria metadataCriteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
@@ -1014,33 +1021,38 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     taskCriteria.and("listtags.id").in(tagIds);
                     apiCriteria.and("listtags.id").in(tagIds);
                 } else {
-                    DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(null, definitionDto.getId());
-                    switch (defaultObjEnum) {
-                        case storage:
-                            taskCriteria.and("_id").is("1231231231");
-                            apiCriteria.and("_id").is("1231231231");
-                            List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
-                            if (CollectionUtils.isNotEmpty(linkIds)) {
-                                metadataCriteria.and("source._id").in(linkIds);
-                            } else {
-                                return page;
-                            }
-                            break;
-                        case job:
-                            metadataCriteria.and("_id").is("1231231231");
-                            apiCriteria.and("_id").is("1231231231");
-                            if ("sync".equals(definitionDto.getValue())) {
-                                taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_SYNC);
-                            } else if ("migrate".equals(definitionDto.getValue())) {
-                                taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE);
-                            } else {
-                                taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
-                            }
-                            break;
-                        case api:
-                            metadataCriteria.and("_id").is("1231231231");
-                            taskCriteria.and("_id").is("1231231231");
-                            break;
+                    if (!definitionDto.getItemType().contains("Root")) {
+                        DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(null, definitionDto.getId());
+                        switch (defaultObjEnum) {
+                            case storage:
+                                taskCriteria.and("_id").is("1231231231");
+                                apiCriteria.and("_id").is("1231231231");
+                                List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
+                                if (CollectionUtils.isNotEmpty(linkIds)) {
+                                    metadataCriteria.and("source._id").in(linkIds);
+                                } else {
+                                    return page;
+                                }
+                                break;
+                            case job:
+                                metadataCriteria.and("_id").is("1231231231");
+                                apiCriteria.and("_id").is("1231231231");
+                                if ("sync".equals(definitionDto.getValue())) {
+                                    taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_SYNC);
+                                } else if ("migrate".equals(definitionDto.getValue())) {
+                                    taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE);
+                                } else {
+                                    taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
+                                }
+                                break;
+                            case api:
+                                metadataCriteria.and("_id").is("1231231231");
+                                taskCriteria.and("_id").is("1231231231");
+                                break;
+                            default:
+                                break;
+
+                        }
                     }
                 }
             }
@@ -1228,33 +1240,35 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     taskCriteria.and("listtags.id").in(tagIds);
                     apiCriteria.and("listtags.id").in(tagIds);
                 } else {
-                    DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(null, definitionDto.getId());
-                    switch (defaultObjEnum) {
-                        case storage:
-                            taskCriteria.and("_id").is("1231231231");
-                            apiCriteria.and("_id").is("1231231231");
-                            List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
-                            if (CollectionUtils.isNotEmpty(linkIds)) {
-                                metadataCriteria.and("source._id").in(linkIds);
-                            } else {
-                                return page;
-                            }
-                            break;
-                        case job:
-                            metadataCriteria.and("_id").is("1231231231");
-                            apiCriteria.and("_id").is("1231231231");
-                            if ("sync".equals(definitionDto.getValue())) {
-                                taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_SYNC);
-                            } else if ("migrate".equals(definitionDto.getValue())) {
-                                taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE);
-                            } else {
-                                taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
-                            }
-                            break;
-                        case api:
-                            metadataCriteria.and("_id").is("1231231231");
-                            taskCriteria.and("_id").is("1231231231");
-                            break;
+                    if (!definitionDto.getValue().equals("Root")) {
+                        DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(null, definitionDto.getId());
+                        switch (defaultObjEnum) {
+                            case storage:
+                                taskCriteria.and("_id").is("1231231231");
+                                apiCriteria.and("_id").is("1231231231");
+                                List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
+                                if (CollectionUtils.isNotEmpty(linkIds)) {
+                                    metadataCriteria.and("source._id").in(linkIds);
+                                } else {
+                                    return page;
+                                }
+                                break;
+                            case job:
+                                metadataCriteria.and("_id").is("1231231231");
+                                apiCriteria.and("_id").is("1231231231");
+                                if ("sync".equals(definitionDto.getValue())) {
+                                    taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_SYNC);
+                                } else if ("migrate".equals(definitionDto.getValue())) {
+                                    taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE);
+                                } else {
+                                    taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
+                                }
+                                break;
+                            case api:
+                                metadataCriteria.and("_id").is("1231231231");
+                                taskCriteria.and("_id").is("1231231231");
+                                break;
+                        }
                     }
                 }
             }
@@ -1457,6 +1471,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
                 .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
                 .and("agentId").exists(true);
+        if (!user.isRoot()) {
+            criteriaTask.and("user_id").is(user.getUserId());
+        }
         MatchOperation matchTask = Aggregation.match(criteriaTask);
         GroupOperation gTask = Aggregation.group("syncType").count().as("count");
 
@@ -1505,23 +1522,35 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                             long count3 = modulesService.count(new Query(apiCriteria), user);
                             count = count1 + count2 + count3;
                         } else {
-                            DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(metadataDefinitionDtoMap, tagDto.getId());
-                            switch (defaultObjEnum) {
-                                case storage:
-                                    List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
-                                    for (String linkId : linkIds) {
-                                        count += connectMap.getOrDefault(linkId, 0L);
-                                    }
-                                    break;
-                                case job:
-                                    for (MetadataDefinitionDto metadataDefinitionDto : andChild) {
-                                        count += taskMap.getOrDefault(metadataDefinitionDto.getValue(), 0L);
-                                    }
-                                    break;
-                                case api:
-                                    Criteria apiCriteria = Criteria.where("status").is("active");
-                                    count = modulesService.count(new Query(apiCriteria), user);
-                                    break;
+                            if (!tagDto.getValue().equals("Root")) {
+                                DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(metadataDefinitionDtoMap, tagDto.getId());
+                                switch (defaultObjEnum) {
+                                    case storage:
+                                        List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
+                                        for (String linkId : linkIds) {
+                                            count += connectMap.getOrDefault(linkId, 0L);
+                                        }
+                                        break;
+                                    case job:
+                                        for (MetadataDefinitionDto metadataDefinitionDto : andChild) {
+                                            count += taskMap.getOrDefault(metadataDefinitionDto.getValue(), 0L);
+                                        }
+                                        break;
+                                    case api:
+                                        Criteria apiCriteria = Criteria.where("status").is("active").and("is_deleted").ne(true);
+                                        count = modulesService.count(new Query(apiCriteria), user);
+                                        break;
+                                }
+                            } else {
+                                List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
+                                for (String linkId : linkIds) {
+                                    count += connectMap.getOrDefault(linkId, 0L);
+                                }
+                                for (MetadataDefinitionDto metadataDefinitionDto : andChild) {
+                                    count += taskMap.getOrDefault(metadataDefinitionDto.getValue(), 0L);
+                                }
+                                Criteria apiCriteria = Criteria.where("status").is("active").and("is_deleted").ne(true);;
+                                count += modulesService.count(new Query(apiCriteria), user);
                             }
 
 

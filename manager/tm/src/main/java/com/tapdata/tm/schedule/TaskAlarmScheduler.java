@@ -225,7 +225,7 @@ public class TaskAlarmScheduler {
                 alarmService.save(alarmInfo);
 
                 if (!isCloud) {
-                    taskService.run(data, userDetailMap.get(data.getUserId()));
+                    taskService.start(data, userDetailMap.get(data.getUserId()), "11");
                 }
             }
         }

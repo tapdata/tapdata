@@ -28,7 +28,9 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 
 	private TaskService<TaskDto> taskService;
 
-	private Map<String, TaskDto> taskClientMap = new ConcurrentHashMap<>();
+	private final Map<String, TaskDto> taskDtoMap = new ConcurrentHashMap<>();
+
+	private static final Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
 
 
 	@Override
@@ -51,7 +53,7 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 		taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
 
 		String taskId = taskDto.getId().toHexString();
-		if (taskClientMap.putIfAbsent(taskId, taskDto) != null) {
+		if (taskDtoMap.putIfAbsent(taskId, taskDto) != null) {
 			logger.warn("{} task is running, skip", taskId);
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_RUN, "task is running...");
 		}
@@ -59,8 +61,9 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 		TaskClient<TaskDto> taskClient = null;
 		try {
 			taskClient = taskService.startTestTask(taskDto);
+			taskClientMap.put(taskId, taskClient);
 			taskClient.join();
-			AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
+			AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()).error(taskClient.getError()));
 		} catch (Throwable throwable) {
 			logger.error(taskId + " task error", throwable);
 			if (taskClient != null) {
@@ -68,12 +71,19 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 			}
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_RUN, throwable.getMessage());
 		} finally {
-			taskClientMap.remove(taskId);
+			taskDtoMap.remove(taskId);
 		}
 
 		logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 
 		return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.TEST_RUN, true);
+	}
+
+	public static void setError(String taskId, Throwable error) {
+		TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
+		if (taskDtoTaskClient != null) {
+			taskDtoTaskClient.error(error);
+		}
 	}
 
 }

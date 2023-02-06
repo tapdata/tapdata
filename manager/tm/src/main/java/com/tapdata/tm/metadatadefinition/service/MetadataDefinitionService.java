@@ -21,6 +21,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +58,9 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     @Autowired
     private DataSourceDefinitionService definitionService;
+
+    @Autowired
+    private UserService userService;
 
     public MetadataDefinitionService(@NonNull MetadataDefinitionRepository repository) {
         super(repository, MetadataDefinitionDto.class, MetadataDefinitionEntity.class);
@@ -244,8 +248,22 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
             }
         }
 
-
-
+        List<String> userIdList = dtoPage.getItems().stream()
+                .filter(d -> d.getItemType().contains("root"))
+                .map(BaseDto::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (CollectionUtils.isNotEmpty(userIdList)) {
+            Map<String, UserDetail> userMap = userService.getUserMapByIdList(userIdList);
+            for (MetadataDefinitionDto item : dtoPage.getItems()) {
+                if (item.getItemType().contains("root")) {
+                    UserDetail userDetail = userMap.get(item.getUserId());
+                    if (userDetail != null) {
+                        item.setUserName(StringUtils.isBlank(userDetail.getUsername()) ? userDetail.getEmail() : userDetail.getUsername());
+                    }
+                }
+            }
+        }
         return dtoPage;
     }
 }
