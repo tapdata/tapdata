@@ -132,7 +132,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 //                    Criteria.where("originalName").regex(queryKey,"i"),
 //                    Criteria.where("name").regex(queryKey,"i"),
 //                    Criteria.where("comment").regex(queryKey,"i"),
-//                    Criteria.where("source.database_name").regex(queryKey,"i"),
+//                    Criteria.where("source.name").regex(queryKey,"i"),
 //                    Criteria.where("source.name").regex(queryKey,"i"),
 //                    Criteria.where("alias_name").regex(queryKey,"i"));
 //        }
@@ -230,7 +230,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 //                    Criteria.where("original_name").regex(param.getQueryKey()),
 //                    Criteria.where("name").regex(param.getQueryKey()),
 //                    Criteria.where("comment").regex(param.getQueryKey()),
-//                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+//                    Criteria.where("source.name").regex(param.getQueryKey()),
 //                    Criteria.where("alias_name").regex(param.getQueryKey()));
 //
 //            taskCriteria.orOperator(
@@ -398,6 +398,10 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             taskCriteria.and("agentId").exists(true);
         }
 
+        if (!user.isRoot()) {
+            taskCriteria.and("user_id").is(user.getUserId());
+        }
+
 
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
@@ -405,7 +409,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(
@@ -963,6 +967,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setTotal(0);
 
         Criteria taskCriteria = Criteria.where("is_deleted").ne(true).and("agentId").exists(true);
+        if (!user.isRoot()) {
+            taskCriteria.and("user_id").is(user.getUserId());
+        }
         Criteria apiCriteria = Criteria.where("status").is("active").and("is_deleted").ne(true);
 
         Criteria metadataCriteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
@@ -981,7 +988,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(
@@ -1199,7 +1206,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(
@@ -1457,6 +1464,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
                 .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
                 .and("agentId").exists(true);
+        if (!user.isRoot()) {
+            criteriaTask.and("user_id").is(user.getUserId());
+        }
         MatchOperation matchTask = Aggregation.match(criteriaTask);
         GroupOperation gTask = Aggregation.group("syncType").count().as("count");
 

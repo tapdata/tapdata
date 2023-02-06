@@ -465,6 +465,13 @@ public class MetadataInstancesController extends BaseController {
     }
 
 
+    @DeleteMapping("logic/schema/{taskId}")
+    public ResponseMessage<Void> deleteLogicModel(@PathVariable("taskId") String taskId, @RequestParam("nodeId") String nodeId) {
+        metadataInstancesService.deleteLogicModel(taskId, nodeId);
+        return success();
+    }
+
+
     /**
      * 判断某张表是否支持数据校验
      *

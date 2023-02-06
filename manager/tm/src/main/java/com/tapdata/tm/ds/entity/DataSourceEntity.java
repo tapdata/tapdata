@@ -79,6 +79,7 @@ public class DataSourceEntity extends BaseEntity {
     private String schemaVersion;
     /** 状态  ready invalid */
     private String status;
+    private String lastStatus;
     /**  */
     private Long tableCount;
     /** 检测时间 */

@@ -1,6 +1,8 @@
 package io.tapdata.js.connector.iengine;
 
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.postman.util.FileUtil;
+import io.tapdata.common.util.ScriptUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
@@ -11,6 +13,7 @@ import io.tapdata.js.connector.server.function.ExecuteConfig;
 
 import javax.script.*;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -31,6 +34,8 @@ public class LoadJavaScripter {
 
     public static final String NASHORN_ENGINE = "nashorn";
     public static final String GRAAL_ENGINE = "graal.js";
+    private boolean hasLoadBaseJs = false;
+    private boolean hasLoadJs = false;
 
     private String jarFilePath;
     private String flooder;
@@ -61,11 +66,6 @@ public class LoadJavaScripter {
 
     public LoadJavaScripter init() {
         this.scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(ENGINE_TYPE));
-        try {
-            this.scriptEngine.eval(LoadJavaScripter.LOAD_BASE);
-        } catch (ScriptException e) {
-            TapLogger.warn(TAG, "Unable to load configuration javascript to jsEngine. ");
-        }
         return this;
     }
 
@@ -74,29 +74,54 @@ public class LoadJavaScripter {
         while (resources.hasMoreElements()) {
             list.add(resources.nextElement());
         }
-        try {
-            for (URL url : list) {
-                List<Map.Entry<InputStream, File>> files = javaScriptFiles(url);
-                for (Map.Entry<InputStream, File> file : files) {
-                    String path = file.getValue().getPath().replaceAll("\\\\", "/");
-                    this.scriptEngine.eval("load('" + path + "');");
+        if (!this.hasLoadBaseJs){
+            try {
+                for (URL url : list) {
+                    List<Map.Entry<InputStream, File>> files = this.javaFiles(url,null,"io/tapdata/js/utils/js");
+                    for (Map.Entry<InputStream, File> file : files) {
+                        this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
+                    }
                 }
+                this.hasLoadBaseJs = true;
+            } catch (Exception e) {
+                TapLogger.warn(TAG, String.format("Unable to load configuration javascript to jsEngine. %s.",e.getMessage()));
             }
-            return this.scriptEngine;
-        } catch (Exception error) {
-            throw new CoreException("Error java script code, message: " + error.getMessage());
         }
+        if (!this.hasLoadJs) {
+            try {
+                for (URL url : list) {
+                    List<Map.Entry<InputStream, File>> files = this.javaScriptFiles(url);
+                    for (Map.Entry<InputStream, File> file : files) {
+                        //String path = file.getValue().getPath().replaceAll("\\\\", "/");
+                        //this.scriptEngine.eval("load('" + path + "');");
+                        this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
+                    }
+                }
+                return this.scriptEngine;
+            } catch (Exception error) {
+                throw new CoreException("Error java script code, message: " + error.getMessage());
+            }
+        }
+        return this.scriptEngine;
     }
 
-    //根据父路径加载全部JS文件并返回
-    //connector.js必须放在最后
-    //不存在connector.js就报错
-    private List<Map.Entry<InputStream, File>> javaScriptFiles(URL url) {
+    private List<Map.Entry<InputStream, File>> javaFiles(URL url, String flooder,String fileFlooder){
+        List<Map.Entry<InputStream, File>> fileList = new ArrayList<>();
+        String path = url.getPath();
+        try {
+            List<Map.Entry<InputStream, File>> collect = getAllFileFromJar(path,Optional.ofNullable(flooder).orElse(this.flooder),Optional.ofNullable(fileFlooder).orElse(this.flooder));
+            fileList.addAll(collect);
+        } catch (Exception ignored) {
+            throw new CoreException(String.format("Unable to get the file list, the file directory is: %s. ", path));
+        }
+        return fileList;
+    }
+    private List<Map.Entry<InputStream, File>> javaScriptFiles(URL url, String flooder,String fileFlooder){
         Map.Entry<InputStream, File> connectorFile = null;
         List<Map.Entry<InputStream, File>> fileList = new ArrayList<>();
         String path = url.getPath();
         try {
-            List<Map.Entry<InputStream, File>> collect = getAllFileFromJar(path);
+            List<Map.Entry<InputStream, File>> collect = getAllFileFromJar(path,Optional.ofNullable(flooder).orElse(this.flooder),Optional.ofNullable(flooder).orElse(this.flooder));
             for (Map.Entry<InputStream, File> entry : collect) {
                 File file = entry.getValue();
                 if (this.fileIsConnectorJs(file)) {
@@ -115,13 +140,19 @@ public class LoadJavaScripter {
         fileList.add(connectorFile);
         return fileList;
     }
+    //根据父路径加载全部JS文件并返回
+    //connector.js必须放在最后
+    //不存在connector.js就报错
+    private List<Map.Entry<InputStream, File>> javaScriptFiles(URL url) {
+        return this.javaScriptFiles(url,null,null);
+    }
 
-    private List<Map.Entry<InputStream, File>> getAllFileFromJar(String path) {
+    private List<Map.Entry<InputStream, File>> getAllFileFromJar(String path, String flooder, String fileFlooder) {
         List<Map.Entry<InputStream, File>> fileList = new ArrayList<>();
-        String pathJar = Objects.nonNull(jarFilePath) && !"".equals(jarFilePath) ? jarFilePath : path.replace("file:/", "").replace("!/" + flooder, "");
+        String pathJar = Objects.nonNull(jarFilePath) && !"".equals(jarFilePath) ? jarFilePath : path.replace("file:/", "/").replace("!/" + flooder, "");
         try {
             List<Map.Entry<ZipEntry, InputStream>> collect =
-                    readJarFile(new JarFile(pathJar), flooder).collect(Collectors.toList());
+                    readJarFile(new JarFile(pathJar), fileFlooder).collect(Collectors.toList());
             for (Map.Entry<ZipEntry, InputStream> entry : collect) {
                 String key = entry.getKey().getName();
                 InputStream stream = entry.getValue();
@@ -232,7 +263,7 @@ public class LoadJavaScripter {
         }
     }
 
-    public Object invokerGraal(String functionName, Object... params) {
+    public synchronized Object invokerGraal(String functionName, Object... params) {
         if (Objects.isNull(functionName)) return null;
         if (Objects.isNull(this.scriptEngine)) return null;
         //Function<Object[], Object> polyglotMapAndFunction;

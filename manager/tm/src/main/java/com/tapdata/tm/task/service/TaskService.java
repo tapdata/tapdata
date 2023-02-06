@@ -219,9 +219,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Query query = new Query(criteria);
             query.fields().include("name");
             TaskDto old = findOne(query, user);
-            String name = old.getName();
-            if (StringUtils.isNotBlank(name) && StringUtils.isNotBlank(taskDto.getName()) && !name.equals(taskDto.getName())) {
-                rename = true;
+            if (old != null) {
+                String name = old.getName();
+                if (StringUtils.isNotBlank(name) && StringUtils.isNotBlank(taskDto.getName()) && !name.equals(taskDto.getName())) {
+                    rename = true;
+                }
             }
         }
 
@@ -231,7 +233,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setTransformTaskId(new ObjectId().toHexString());
 
         //模型推演
-        //setDefault(taskDto);
+        setDefault(taskDto);
         taskDto = save(taskDto, user);
         if (dag != null) {
             dag.setTaskId(taskDto.getId());
@@ -335,7 +337,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     protected void beforeSave(TaskDto task, UserDetail user) {
-        setDefault(task);
+        //setDefault(task);
 
         DAG dag = task.getDag();
         if (dag == null) {
@@ -400,17 +402,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         if (taskDto.getId() != null) {
             oldTaskDto = findById(taskDto.getId(), user);
-            taskDto.setSyncType(oldTaskDto.getSyncType());
-            taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
-            taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
+            if (oldTaskDto != null) {
+                taskDto.setSyncType(oldTaskDto.getSyncType());
+                taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
+                taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
 
-            if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
-                taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
-                taskDto.setAccessNodeProcessId(oldTaskDto.getAccessNodeProcessId());
-                taskDto.setAccessNodeProcessIdList(oldTaskDto.getAccessNodeProcessIdList());
+                if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
+                    taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
+                    taskDto.setAccessNodeProcessId(oldTaskDto.getAccessNodeProcessId());
+                    taskDto.setAccessNodeProcessIdList(oldTaskDto.getAccessNodeProcessIdList());
+                }
+
+                log.debug("old task = {}", oldTaskDto);
             }
-
-            log.debug("old task = {}", oldTaskDto);
         }
 
         if (oldTaskDto == null) {
@@ -2398,8 +2402,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         for (TaskDto taskDto : taskDtos) {
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
-            query.fields().include("id");
-            TaskDto one = findOne(query);
+            query.fields().include("_id", "user_id");
+            TaskDto one = findOne(query, user);
 
             taskDto.setListtags(null);
             taskDto.setStatus(TaskDto.STATUS_EDIT);
@@ -2411,6 +2415,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             if (attrs != null) {
                 attrs.remove("edgeMilestones");
                 attrs.remove("syncProgress");
+            }
+
+            if (one == null) {
+                TaskDto one1 = findOne(new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true)));
+                if (one1 != null) {
+                    taskDto.setId(null);
+                }
             }
 
             if (one == null || cover) {
@@ -2427,6 +2438,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     taskDto.setListtags(tagList);
                 }
                 if (one == null) {
+                    if (taskDto.getId() == null) {
+                        taskDto.setId(new ObjectId());
+                    }
                     //taskDto.setId(null);
                     TaskEntity taskEntity = repository.importEntity(convertToEntity(TaskEntity.class, taskDto), user);
                     taskDto = convertToDto(taskEntity, TaskDto.class);
@@ -2839,7 +2853,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第一位 是否需要共享挖掘处理， 1 是   0 否
      *                  第二位 是否开启打点任务      1 是   0 否
      */
-    private void start(TaskDto taskDto, UserDetail user, String startFlag) {
+    public void start(TaskDto taskDto, UserDetail user, String startFlag) {
         Update update = Update.update("lastStartDate", System.currentTimeMillis());
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             String taskRecordId = new ObjectId().toHexString();
@@ -3380,7 +3394,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
-                run(taskDto, finalUserMap.get(taskDto.getUserId()));
+                start(taskDto, finalUserMap.get(taskDto.getUserId()), "11");
                 //启动过后，应该更新掉这个自动启动计划
                 Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
                 updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));

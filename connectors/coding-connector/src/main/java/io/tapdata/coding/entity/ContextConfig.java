@@ -1,15 +1,18 @@
 package io.tapdata.coding.entity;
 
 import io.tapdata.coding.enums.IssueType;
-import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.tool.Checker;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class ContextConfig {
-    public static ContextConfig create(){
+    public static ContextConfig create() {
         return new ContextConfig();
     }
+
     private String projectName;
     private Long projectId;
     private String token;
@@ -21,48 +24,57 @@ public class ContextConfig {
 
     private List<Integer> issueCodes;
 
-    public ContextConfig projectName(String projectName){
+    public ContextConfig projectName(String projectName) {
         this.projectName = projectName;
         return this;
     }
-    public ContextConfig projectId(Long projectId){
+
+    public ContextConfig projectId(Long projectId) {
         this.projectId = projectId;
         return this;
     }
-    public ContextConfig streamReadType(String streamReadType){
+
+    public ContextConfig streamReadType(String streamReadType) {
         this.streamReadType = streamReadType;
         return this;
     }
 
-    public ContextConfig connectionMode(String connectionMode){
+    public ContextConfig connectionMode(String connectionMode) {
         this.connectionMode = connectionMode;
         return this;
     }
-    public ContextConfig token(String token){
+
+    public ContextConfig token(String token) {
         this.token = token;
         return this;
     }
-    public ContextConfig teamName(String teamName){
+
+    public ContextConfig teamName(String teamName) {
         this.teamName = teamName;
         return this;
     }
-    public ContextConfig iterationCodes(String iterationCodes){
+
+    public ContextConfig iterationCodes(String iterationCodes) {
         this.iterationCodes = iterationCodes;
         return this;
     }
-    public ContextConfig issueType(String issueTypeName){
+
+    public ContextConfig issueType(String issueTypeName) {
         this.issueType = IssueType.issueType(issueTypeName);
         return this;
     }
-    public ContextConfig issueType(IssueType issueType){
+
+    public ContextConfig issueType(IssueType issueType) {
         this.issueType = issueType;
         return this;
     }
-    public ContextConfig issueCodes(List<Integer> issueCodes){
+
+    public ContextConfig issueCodes(List<Integer> issueCodes) {
         this.issueCodes = issueCodes;
         return this;
     }
-    public ContextConfig issueCodes(String issueCodes){
+
+    public ContextConfig issueCodes(String issueCodes) {
         if (Checker.isNotEmpty(issueCodes)) {
             Set<Integer> list = new HashSet<Integer>();
             String[] issueCodeArr = issueCodes.split(",");
@@ -141,6 +153,7 @@ public class ContextConfig {
     public void setStreamReadType(String streamReadType) {
         this.streamReadType = streamReadType;
     }
+
     public List<Integer> issueCodes() {
         return this.issueCodes;
     }

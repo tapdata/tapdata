@@ -40,7 +40,7 @@ public class ConnectionNode extends Node {
     public ConnectionOptions connectionTest(Consumer<TestItem> consumer) throws Throwable {
         String gitBuildTime = connectionContext.getSpecification().getManifest().get("Git-Build-Time");
         consumer.accept(new TestItem(PDK_VERSION_TEST, TestItem.RESULT_SUCCESSFULLY,
-                String.format(PDK_VERSION_MESSAGE, connectionContext.getSpecification().getVersion(),
+                String.format(PDK_VERSION_MESSAGE, "",
                         gitBuildTime.substring(0, gitBuildTime.length() - 5).replace("T", " "))));
         return connector.connectionTest(connectionContext, consumer);
     }

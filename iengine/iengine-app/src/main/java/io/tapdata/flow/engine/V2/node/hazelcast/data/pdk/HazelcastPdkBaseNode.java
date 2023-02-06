@@ -53,7 +53,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
-	protected MonitorManager monitorManager;
 	protected SyncProgress syncProgress;
 	protected String associateId;
 	protected TapLogger.LogListener logListener;
@@ -140,6 +139,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> nodeConfig = null;
 		if (node instanceof TableNode) {
 			nodeConfig = ((TableNode) node).getNodeConfig();
+		} else if(node instanceof DatabaseNode) {
+			nodeConfig = ((DatabaseNode) node).getNodeConfig();
 		}
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
 				PdkUtil.createNode(taskDto.getId().toHexString(),
@@ -209,16 +210,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 					}
 				}
 			}, TAG);
-			CommonUtils.handleAnyError(() -> {
-				if (this.monitorManager != null) {
-					this.monitorManager.close();
-					logger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
-					obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
-				}
-			}, err -> {
-				logger.warn("Close monitor failed: " + err.getMessage());
-				obsLogger.warn("Close monitor failed: " + err.getMessage());
-			});
 			CommonUtils.handleAnyError(() -> {
 				Optional.ofNullable(getConnectorNode())
 						.ifPresent(connectorNode -> {

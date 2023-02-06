@@ -114,16 +114,10 @@ public class TMApplication {
 		TapRuntime.getInstance();
 		TapLogger.debug(TAG, "TapRuntime initialized");
 
-//		new Thread(() -> {
-//			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
-//			UserDetail userDetail = userService.loadUserByUsername("admin@admin.com");
-//
-//			bean.deleteDefault(userDetail);
-//			bean.addPdkIds(userDetail);
-//			bean.addConnections(userDetail);
-//			bean.addJobs(userDetail);
-//			bean.addApi(userDetail);
-//		}).start();
+		new Thread(() -> {
+			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
+			bean.init();
+		}).start();
 
 	}
 }

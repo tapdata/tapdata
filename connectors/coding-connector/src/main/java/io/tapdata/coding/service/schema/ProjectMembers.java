@@ -7,7 +7,9 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Array;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Integer;
+
 public class ProjectMembers implements SchemaStart {
     public final Boolean use = true;
 
@@ -20,10 +22,12 @@ public class ProjectMembers implements SchemaStart {
     public String tableName() {
         return "ProjectMembers";
     }
+
     @Override
     public boolean connection(TapConnectionContext tapConnectionContext) {
         return false;
     }
+
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
         /**
@@ -64,22 +68,21 @@ public class ProjectMembers implements SchemaStart {
                 .add(field("PhoneValidation", JAVA_Integer))
                 .add(field("Status", JAVA_Integer))
                 .add(field("GlobalKey", "StringMinor"))
-                .add(field("RolesRoles", JAVA_Array)) ;
+                .add(field("RolesRoles", JAVA_Array));
 
     }
 
     /**
      * "member":{
-     *      *         "id": 8647278,
-     *      *         "login": "vMBtGCrzEP",
-     *      *         "avatar_url": "https://coding-net-production-static-ci.codehub.cn/a0835321-9657-48ce-950a-d196b75e4ed3.png?imageView2/1/w/0/h/0",
-     *      *         "url": "https://testhookgavin.coding.net/api/user/key/vMBtGCrzEP",
-     *      *         "html_url": "https://testhookgavin.coding.net/u/vMBtGCrzEP",
-     *      *         "name": "邱迎豪",
-     *      *         "name_pinyin": "qyh|qiuyinghao"
+     * *         "id": 8647278,
+     * *         "login": "vMBtGCrzEP",
+     * *         "avatar_url": "https://coding-net-production-static-ci.codehub.cn/a0835321-9657-48ce-950a-d196b75e4ed3.png?imageView2/1/w/0/h/0",
+     * *         "url": "https://testhookgavin.coding.net/api/user/key/vMBtGCrzEP",
+     * *         "html_url": "https://testhookgavin.coding.net/u/vMBtGCrzEP",
+     * *         "name": "邱迎豪",
+     * *         "name_pinyin": "qyh|qiuyinghao"
      * }
-     *
-     * */
+     */
     @Override
     public Map<String, Object> autoSchema(Map<String, Object> eventData) {
         return eventMapToSchemaMap(eventData, TapSimplify.map(

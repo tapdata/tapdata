@@ -115,7 +115,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 //@Setter(onMethod_ = {@Autowired})
 public class DataSourceService extends BaseService<DataSourceConnectionDto, DataSourceEntity, ObjectId, DataSourceRepository> {
 
-	private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])([a-zA-Z0-9_\\s-]|[\u4e00-\u9fa5])*$";
+	private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])[\\s\\S]*$";
 	@Value("${gateway.secret:}")
 	private String gatewaySecret;
 	@Value("#{'${spring.profiles.include:idaas}'.split(',')}")
@@ -215,10 +215,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				&& CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
 
 		ObjectId id = updateDto.getId();
+		DataSourceConnectionDto oldConnection = null;
+		if (Objects.nonNull(id)) {
+			oldConnection = findById(id);
+			if (DataSourceConnectionDto.STATUS_TESTING.equals(updateDto.getStatus()) && !DataSourceConnectionDto.STATUS_TESTING.equals(oldConnection.getStatus())) {
+				updateDto.setLastStatus(oldConnection.getStatus());
+			}
+		}
 		Map<String, Object> config = updateDto.getConfig();
-		if (Objects.nonNull(id) && Objects.nonNull(config)) {
-			DataSourceConnectionDto connectionDto = findById(id);
-			Map<String, Object> dataConfig = connectionDto.getConfig();
+		if (oldConnection != null && Objects.nonNull(config)) {
+
+			Map<String, Object> dataConfig = oldConnection.getConfig();
 			if (dataConfig.containsKey("password") && !config.containsKey("password")) {
 				config.put("password", dataConfig.get("password"));
 			} else if (dataConfig.containsKey("mqPassword") && !config.containsKey("mqPassword")) {

@@ -34,9 +34,9 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
     let temp = invoke.result;
     for (let index = 0; index < temp.length; index++) {
         log.warn(typeof temp[index]);
-        temp[index]['Question Name'] = thisCard.name;
-        temp[index]['Question ID'] = thisCard.id;
-        temp[index]['Current Date'] = nowDate();
+        temp[index]['Question_Name'] = thisCard.name;
+        temp[index]['Question_ID'] = thisCard.id;
+        temp[index]['Current_Date'] = nowDate();
         resut.push(temp[index]);
     }
     batchReadSender.send(resut, {}, false);
