@@ -129,10 +129,10 @@ public class RetryUtils extends CommonUtils {
 	}
 
 	private static void throwIfNeed(RetryOptions retryOptions, String message, Throwable errThrowable) {
+		if (null == retryOptions) {
+			return;
+		}
 		try {
-			if (null == retryOptions) {
-				throw errThrowable;
-			}
 			if (!retryOptions.isNeedRetry()) {
 				throw errThrowable;
 			}
@@ -145,10 +145,7 @@ public class RetryUtils extends CommonUtils {
 	}
 
 	private static void callBeforeRetryMethodIfNeed(RetryOptions retryOptions, String logTag, Node node) {
-		if (null == retryOptions) {
-			return;
-		}
-		if (null == retryOptions.getBeforeRetryMethod()) {
+		if (null == retryOptions || null == retryOptions.getBeforeRetryMethod()) {
 			if(node instanceof ConnectorNode) {
 				CommonUtils.ignoreAnyError(() -> ((ConnectorNode) node).connectorStop(), RetryUtils.class.getSimpleName());
 				CommonUtils.ignoreAnyError(() -> ((ConnectorNode) node).connectorInit(), RetryUtils.class.getSimpleName());
