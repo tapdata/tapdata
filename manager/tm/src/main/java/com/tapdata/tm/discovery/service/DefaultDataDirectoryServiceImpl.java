@@ -174,7 +174,7 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
         Criteria criteriaDefinition = Criteria.where("pdkType").is("pdk")
                 .and("is_deleted").ne(true);
         Query queryDefinition = new Query(criteriaDefinition);
-        List<DataSourceDefinitionDto> dataSourceDefinitionDtos = definitionService.findAllDto(queryDefinition, user);
+        List<DataSourceDefinitionDto> dataSourceDefinitionDtos = definitionService.findAll(queryDefinition);
         List<String> pdkIds = dataSourceDefinitionDtos.stream().map(DataSourceDefinitionDto::getPdkId).distinct().collect(Collectors.toList());
 
         //检查是否存在storage目录。如果不存在的话则需要创建storage的目录
@@ -267,12 +267,30 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
         Query query = new Query();
         query.fields().include("user_id");
         List<DataSourceConnectionDto> all = dataSourceService.findAll(query);
-        Set<String> userSet = all.stream().map(BaseDto::getUserId).collect(Collectors.toSet());
-        if (CollectionUtils.isEmpty(userSet)) {
+        List<String> userIdList = all.stream().map(BaseDto::getUserId).distinct().collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(userIdList)) {
             return;
         }
 
-        List<UserDetail> userList = userService.getUserByIdList(new ArrayList<>(userSet));
+        List<UserDetail> userList = userService.getUserByIdList(userIdList);
+
+
+        UserDetail admin = null;
+        for (UserDetail userDetail : userList) {
+            if ("admin@admin.com".equals(userDetail.getEmail())) {
+                admin = userDetail;
+                deleteDefault(userDetail);
+                addPdkIds(userDetail);
+                addConnections(userDetail);
+                addJobs(userDetail);
+                addApi(userDetail);
+            }
+        }
+
+        if (admin != null) {
+            userList.remove(admin);
+        }
+
         for (UserDetail userDetail : userList) {
             deleteDefault(userDetail);
             addPdkIds(userDetail);
