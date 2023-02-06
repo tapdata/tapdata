@@ -876,13 +876,6 @@
             </snapshots>
         </repository>
         <repository>
-            <id>github</id>
-            <url>https://maven.pkg.github.com/tapdata/tapdata</url>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
             <id>private-repository</id>
             <name>Hazelcast Private Repository</name>
             <url>https://repository.hazelcast.com/release/</url>

@@ -62,6 +62,7 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.websocket.handler.TestRunTaskHandler;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -155,7 +156,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 		// 如果为迁移任务、且源节点为数据库类型
 		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
-		this.monitorManager = new MonitorManager();
+		if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
+				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+			this.monitorManager = new MonitorManager();
+		}
 
 		// Init external storage config
 		externalStorageDto = ExternalStorageUtil.getExternalStorage(
@@ -200,8 +204,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			} else {
 				AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 			}
-			monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
-			jetJobStatusMonitor = (JetJobStatusMonitor) monitorManager.getMonitorByType(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR);
+			if (monitorManager != null) {
+				monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
+				jetJobStatusMonitor = (JetJobStatusMonitor) monitorManager.getMonitorByType(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR);
+			}
 			doInit(context);
 		} catch (Throwable e) {
 			errorHandle(e, "Node init failed: " + e.getMessage());
@@ -688,6 +694,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			currentEx = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
 			obsLogger.error(errorMessage, throwable);
 		}
+		TaskDto taskDto = processorBaseContext.getTaskDto();
+		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN)) {
+			TestRunTaskHandler.setError(taskDto.getId().toHexString(), currentEx);
+		}
+
 		try {
 			if (null == error) {
 				this.error = currentEx;
@@ -699,7 +710,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				logger.error(errorMessage, currentEx);
 				obsLogger.error(errorMessage, currentEx);
 				this.running.set(false);
-				TaskDto taskDto = processorBaseContext.getTaskDto();
 
 				// jetContext async injection, Attempt 5 times to get the instance every 500ms
 				com.hazelcast.jet.Job hazelcastJob = null;
