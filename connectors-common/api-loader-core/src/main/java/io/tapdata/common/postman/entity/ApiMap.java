@@ -121,7 +121,7 @@ public class ApiMap extends HashSet<ApiMap.ApiEntity>{
             Api baseApi = null;
             Request baseRequest = null;
             List<Header> baseHeard = null;
-            Body baseBody = null;
+            Body<?> baseBody = null;
             Request request = Request.create();
             Url url = null;
             if (Objects.isNull(this.api)){
@@ -148,7 +148,7 @@ public class ApiMap extends HashSet<ApiMap.ApiEntity>{
                 baseHeard.stream().filter(Objects::nonNull).forEach(heard-> headers.add(heard.variableAssignment(params)));
             }
 
-            Body body = baseBody.variableAssignment(params);
+            Body<?> body = baseBody.variableAssignment(params);
             request.url(assignmentUrl)
                     .description(baseRequest.description())
                     .method(baseRequest.method())

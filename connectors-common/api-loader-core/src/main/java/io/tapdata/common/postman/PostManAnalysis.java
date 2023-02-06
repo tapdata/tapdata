@@ -138,17 +138,19 @@ public class PostManAnalysis {
         if (Objects.nonNull(apiHeader) && !apiHeader.isEmpty()) {
             apiHeader.stream().filter(Objects::nonNull).forEach(head -> headMap.put(head.key(), head.value()));
         }
-        MediaType mediaType = MediaType.parse("application/json");
         String url = apiUrl.raw();
-        Body apiBody = apiRequest.body();
-        Map<String, Object> bodyMap = null;
-        try {
-            bodyMap = (Map<String, Object>) fromJson(apiBody.raw());
-        } finally {
-            if (Objects.isNull(bodyMap)) {
-                bodyMap = new HashMap<>();
-            }
-        }
+        Body<?> apiBody = apiRequest.body();
+        String contentType = apiBody.contentType();
+        MediaType mediaType = MediaType.parse(contentType);
+        Map<String, Object> bodyMap = new HashMap<>();;
+//        try {
+//            Object raw = apiBody.raw();
+//            bodyMap = (Map<String, Object>) fromJson();
+//        } finally {
+//            if (Objects.isNull(bodyMap)) {
+//                bodyMap = new HashMap<>();
+//            }
+//        }
         List<Map<String, Object>> query = apiUrl.query();
         for (Map<String, Object> queryMap : query) {
             String key = String.valueOf(queryMap.get(PostParam.KEY));
@@ -169,13 +171,12 @@ public class PostManAnalysis {
             }
         }
         bodyMap.putAll(params);
-        RequestBody body = RequestBody.create(mediaType, toJson(bodyMap));
         Request.Builder builder = new Request.Builder()
                 .url(url)
                 .headers(Headers.of(headMap))
-                .addHeader("Content-Type", "application/json");
+                .addHeader("Content-Type", contentType);
         if ("POST".equals(apiMethod) || "PATCH".equals(apiMethod) || "PUT".equals(apiMethod)) {
-            builder.method(apiMethod, body);
+            builder.method(apiMethod, RequestBody.create(mediaType, apiBody.bodyJson(bodyMap)));
         } else {
             builder.get();
         }

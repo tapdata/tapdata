@@ -96,9 +96,9 @@ public class PostManAPIInvoker
         if (Objects.isNull(this.analysis.apiContext())) {
             this.analysis.apiContext(PostManApiContext.create());
         }
-        this.analysis.apiContext().info(ApiInfo.create(this.analysis.getMap(PostParam.INFO, json)))
-                .event(ApiEvent.create(this.analysis.getList(PostParam.EVENT, json)))
-                .variable(ApiVariable.create(this.analysis.getList(PostParam.VARIABLE, json)))
+        this.analysis.apiContext().info(ApiInfo.create(Optional.ofNullable(this.analysis.getMap(PostParam.INFO, json)).orElse(new HashMap<>())))
+                .event(ApiEvent.create(Optional.ofNullable(this.analysis.getList(PostParam.EVENT, json)).orElse(new ArrayList<>())))
+                .variable(ApiVariable.create(Optional.ofNullable(this.analysis.getList(PostParam.VARIABLE, json)).orElse(new ArrayList<>())))
                 .apis(apiMap)
                 .table(
                         apiMap.stream()

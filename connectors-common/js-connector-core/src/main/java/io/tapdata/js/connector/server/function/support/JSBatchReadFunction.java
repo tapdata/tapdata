@@ -60,7 +60,7 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
         final Object finalOffset = offset;
         Runnable runnable = () -> {
             try {
-                synchronized (JSConnector.execLock) {
+//                synchronized (JSConnector.execLock) {
                     super.javaScripter.invoker(
                             JSFunctionNames.BatchReadFunction.jsName(),
                             Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
@@ -70,7 +70,7 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
                             batchCount,
                             sender
                     );
-                }
+//                }
                 Thread.currentThread().stop();
             } catch (Exception e) {
                 scriptException.set(e);

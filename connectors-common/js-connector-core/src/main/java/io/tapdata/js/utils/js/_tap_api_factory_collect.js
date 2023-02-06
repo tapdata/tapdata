@@ -31,6 +31,7 @@ class TapApi {
             log.error("No API name or URL was specified, unable to execute http request. ");
             return null;
         }
+        this.config = _tapConfig_;
         this.invoker.setConfig(this.httpConfig);
         if (isParam(paramsMap) && isParam(methodStr)) {
             result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr, true);
@@ -53,6 +54,8 @@ class TapApi {
             log.error("No API name or URL was specified, unable to execute http request. ");
             return null;
         }
+        this.config = _tapConfig_;
+        this.invoker.setConfig(this.httpConfig);
         if (isParam(paramsMap) && isParam(methodStr)) {
             result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr);
         } else if (isParam(paramsMap)) {

@@ -138,6 +138,8 @@ public class JSConnector extends ConnectorBase {
             Object configMapObj = this.javaScripter.scriptEngine().get("_tapConfig_");
             if (Objects.nonNull(configMapObj) && ((Map<String, Object>) configMapObj).isEmpty() && !configMap.isEmpty()) {
                 ((Map<String, Object>) configMapObj).putAll(configMap);
+            }else {
+                this.javaScripter.scriptEngine().put("_tapConfig_", configMap);
             }
         }
     }
