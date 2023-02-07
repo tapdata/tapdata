@@ -64,20 +64,17 @@ public class StreamReadSender implements APISender {
         if (Objects.isNull(obj)) return -1;
         return toJson(obj).hashCode();
     }
-
+    
     @Override
     public List<Object> covertList(Object obj, String tableName) {
         List<Object> list = new ArrayList<>();
-        EventType eventType = new EventType();
-        int index = 1;
         if (obj instanceof Collection) {
             Collection<Object> collection = (Collection<Object>) obj;
             for (Object data : collection) {
-                list.add(eventType.setEvent(EventType.defaultEventData(data, tableName),index,TAG));
-                index++;
+                list.add(EventType.defaultEventData(data, tableName));
             }
         } else if (obj instanceof Map) {
-            list.add(eventType.setEvent(EventType.defaultEventData(obj, tableName),index,TAG));
+            list.add(EventType.defaultEventData(obj, tableName));
         } else {
             throw new CoreException("");
         }

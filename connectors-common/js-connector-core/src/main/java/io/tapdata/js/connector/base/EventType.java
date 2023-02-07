@@ -86,7 +86,7 @@ public class EventType {
                 case "u":
                     return TapSimplify.updateDMLEvent((Map<String, Object>) before, (Map<String, Object>) after, String.valueOf(tableName)).referenceTime(referenceTime);
                 default:
-                    return TapSimplify.insertRecordEvent((Map<String, Object>) before, String.valueOf(tableName)).referenceTime(referenceTime);
+                    return TapSimplify.insertRecordEvent((Map<String, Object>) after, String.valueOf(tableName)).referenceTime(referenceTime);
             }
         } else {
             throw new CoreException("Article " + dataIndex + " Record:  The event format is incorrect. Please use the following rules to organize the returned results :\n" +
