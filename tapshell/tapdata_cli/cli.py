@@ -3065,26 +3065,27 @@ class DataSource:
             asyncio.run(l())
         except Exception as e:
             logger.warn("load schema exception, err is: {}", e)
+            return False
         logger.info("datasource valid finished, will check table schema now, please wait for a while ...")
         start_time = time.time()
-
-        for _ in range(96):
-            try:
-                time.sleep(5)
-                res = DataSourceApi().get(self.id)
-                if res["data"] is None:
-                    break
-                if res["data"]["loadFieldsStatus"] in ["invalid", "finished", "error"]:
-                    break
-                if "loadFieldsStatus" not in res["data"]:
-                    continue
-                loadCount = res["data"].get("loadCount", 0)
-                tableCount = res["data"].get("tableCount", 1)
-                logger.info("table schema check percent is: {}%", int(loadCount / tableCount * 100), wrap=False)
-            except Exception as e:
-                print(e)
-        logger.info("datasource table schema check finished, cost time: {} seconds", int(time.time() - start_time))
-        return res
+        if self.id is not None:
+            for _ in range(96):
+                try:
+                    time.sleep(5)
+                    res = DataSourceApi().get(self.id)
+                    if res["data"] is None:
+                        break
+                    if res["data"]["loadFieldsStatus"] in ["invalid", "finished", "error"]:
+                        break
+                    if "loadFieldsStatus" not in res["data"]:
+                        continue
+                    loadCount = res["data"].get("loadCount", 0)
+                    tableCount = res["data"].get("tableCount", 1)
+                    logger.info("table schema check percent is: {}%", int(loadCount / tableCount * 100), wrap=False)
+                except Exception as e:
+                    print(traceback.format_exc())
+            logger.info("datasource table schema check finished, cost time: {} seconds", int(time.time() - start_time))
+            return res
 
 
 class Connection:
@@ -3222,7 +3223,7 @@ class Connection:
                     return res
 
         try:
-            asyncio.get_event_loop().run_until_complete(l())
+            asyncio.run(l())
         except Exception as e:
             logger.warn("load schema exception, err is: {}", e)
 
