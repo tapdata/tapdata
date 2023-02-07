@@ -117,8 +117,7 @@ public class PostManAPIInvoker
             params = new HashMap<>();
         }
         APIResponse response = this.analysis.http(uriOrName, method, params);
-        if (invoker) {
-
+        if (Objects.nonNull(this.interceptor) && invoker) {
             response = this.interceptor.intercept(response, uriOrName, method, params);
         }
         //System.out.println("DEBUG-INFO: Results obtained from this execution: \n" + toJson(response));

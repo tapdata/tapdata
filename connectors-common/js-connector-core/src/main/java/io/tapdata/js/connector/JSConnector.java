@@ -121,9 +121,7 @@ public class JSConnector extends ConnectorBase {
                 if (!this.javaScripter.hasLoad()) {
                     JSAPIInterceptorConfig config = JSAPIInterceptorConfig.config();
                     JSAPIResponseInterceptor interceptor = JSAPIResponseInterceptor.create(config).configMap(configMap);
-                    if (Objects.nonNull(connectionContext)) {
-                        interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, connectionContext));
-                    }
+                    interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, connectionContext));
                     APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory).interceptor(interceptor);
                     this.javaScripter.scriptEngine().put("tapAPI", factory);
                     this.javaScripter.scriptEngine().put("log", new ConnectorLog());
@@ -135,6 +133,18 @@ public class JSConnector extends ConnectorBase {
                 }
             }
         } else {
+            JSAPIInterceptorConfig config = JSAPIInterceptorConfig.config();
+            JSAPIResponseInterceptor interceptor = JSAPIResponseInterceptor.create(config).configMap(configMap);
+            if (Objects.nonNull(connectionContext)) {
+                interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, connectionContext));
+            }
+            Object tapAPI = this.javaScripter.scriptEngine().get("tapAPI");
+            if (Objects.isNull(tapAPI) && !(tapAPI instanceof APIFactoryDecorator)){
+                APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory);
+                this.javaScripter.scriptEngine().put("tapAPI",factory.interceptor(interceptor));
+            }else {
+                this.javaScripter.scriptEngine().put("tapAPI", ((APIFactoryDecorator) tapAPI).interceptor(interceptor));
+            }
             Object configMapObj = this.javaScripter.scriptEngine().get("_tapConfig_");
             if (Objects.nonNull(configMapObj) && ((Map<String, Object>) configMapObj).isEmpty() && !configMap.isEmpty()) {
                 ((Map<String, Object>) configMapObj).putAll(configMap);
