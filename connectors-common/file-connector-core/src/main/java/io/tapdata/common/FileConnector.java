@@ -128,9 +128,10 @@ public abstract class FileConnector extends ConnectorBase {
         while (isAlive()) {
             Map<String, TapFile> newFiles = getFilteredFiles();
             AtomicReference<List<TapEvent>> tapEvents = new AtomicReference<>(new ArrayList<>());
-            if (tempFiles.entrySet().stream().anyMatch(v -> !newFiles.containsKey(v.getKey()))) {
-                TapLogger.warn(TAG, "Some files have been deleted, but this can change nothing");
-            }
+            tempFiles.entrySet().stream().filter(v -> !newFiles.containsKey(v.getKey())).forEach(v ->
+                    TapLogger.warn(TAG, String.format("%s has been deleted, but this can change nothing", v.getKey())));
+            newFiles.entrySet().stream().filter(v -> !tempFiles.containsKey(v.getKey())).forEach(v ->
+                    TapLogger.info(TAG, String.format("%s has been found, it will take effect one minutes later", v.getKey())));
             Map<String, TapFile> changedFiles = newFiles.entrySet().stream().filter(v -> !tempFiles.containsKey(v.getKey())
                             || v.getValue().getLastModified() > tempFiles.get(v.getKey()).getLastModified()
                             || !Objects.equals(v.getValue().getLength(), tempFiles.get(v.getKey()).getLength()))
