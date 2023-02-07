@@ -252,8 +252,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 			//
 //			String s = JSONUtil.obj2Json(Collections.singletonList(tapTable));
-			clientMongoOperator.insertOne(Collections.singletonList(tapTable),
-							ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
+//			clientMongoOperator.insertOne(Collections.singletonList(tapTable),
+//							ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 		} catch (Throwable throwable) {
 			NodeException nodeException = new NodeException(throwable).context(processorBaseContext);
 			if (null != tapCreateTableEvent.get()) {
