@@ -238,7 +238,7 @@ function write_record(connectionConfig, nodeConfig, eventDataList) {
  * */
 function update_token(connectionConfig, nodeConfig, apiResponse) {
     log.error('+++++ begin refreshToken +++++' + apiResponse.code);
-    if (apiResponse.code === 401 || (apiResponse.result && apiResponse.result.code === 'AUTHENTICATION_FAILURE')) {
+    if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.code === 'INVALID_TOKEN')) {
         //connectionConfig.refresh_token = connectionConfig.refreshToken;
         //log.error('+++++ begin refreshToken +++++ refreshToken :' + connectionConfig.refreshToken);
         try{
@@ -246,7 +246,7 @@ function update_token(connectionConfig, nodeConfig, apiResponse) {
             log.error('+++++ refreshToken +++++',refreshToken);
             if(refreshToken && refreshToken.result &&refreshToken.result.access_token){
                 log.error('+++++ refreshToken access_token +++++',refreshToken.result.access_token);
-                return {"access_token": refreshToken.result.access_token};
+                return {"accessToken": refreshToken.result.access_token};
             }
         }catch (e) {
             log.error(' -------- error -------',e)
