@@ -167,7 +167,6 @@
         <module>iengine-common</module>
         <module>validator</module>
         <module>api</module>
-<!--        <module>hazelcast-lib</module>-->
         <module>modules</module>
     </modules>
 
@@ -846,12 +845,6 @@
                 <groupId>cn.hutool</groupId>
                 <artifactId>hutool-core</artifactId>
                 <version>${hutool.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.tapdata</groupId>
-                <artifactId>hazelcast-lib</artifactId>
-                <version>${project.version}</version>
             </dependency>
 
             <dependency>

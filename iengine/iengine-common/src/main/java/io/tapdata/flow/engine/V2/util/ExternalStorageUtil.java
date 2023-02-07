@@ -193,7 +193,7 @@ public class ExternalStorageUtil {
 				}
 				if (logCollectorNode instanceof LogCollectorNode) {
 					List<String> connectionIds = ((LogCollectorNode) logCollectorNode).getConnectionIds();
-					if (CollectionUtils.isEmpty(connectionIds)) {
+					if (CollectionUtils.isNotEmpty(connectionIds)) {
 						String connectionId = connectionIds.get(0);
 						Query connQuery = Query.query(where("_id").is(connectionId));
 						connQuery.fields().include("_id").include("shareCDCExternalStorageId");
