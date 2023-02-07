@@ -119,6 +119,7 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 
 				List<TapEvent> tapEvents = new ArrayList<>(eventBatchSize);
 				while (running.get()) {
+					try {
 						final TapEventOffset tapEventOffset = tapEventQueue.poll(3, TimeUnit.SECONDS);
 						if (tapEventOffset != null) {
 								tapEvents.add(tapEventOffset.getTapEvent());
@@ -131,6 +132,10 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 								consumer.accept(tapEvents, this.offset);
 								tapEvents = new ArrayList<>(eventBatchSize);
 						}
+					} catch (InterruptedException e) {
+						TapLogger.info("Stream polling failed: {}", e.getMessage(), e);
+						break;
+					}
 				}
 
 				if (error != null) {
