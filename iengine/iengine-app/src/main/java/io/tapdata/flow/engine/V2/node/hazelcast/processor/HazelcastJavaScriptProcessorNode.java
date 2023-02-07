@@ -16,6 +16,7 @@ import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
@@ -25,6 +26,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -37,6 +39,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -122,9 +127,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
   private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {
     if (nodes != null && nodes.size() > 0) {
-      Node<?> source = nodes.get(0);
-      if (source instanceof DataParentNode) {
-        String connectionId = ((DataParentNode) source).getConnectionId();
+      Node<?> node = nodes.get(0);
+      if (node instanceof DataParentNode) {
+        String connectionId = ((DataParentNode) node).getConnectionId();
         Connections connections = clientMongoOperator.findOne(new Query(where("_id").is(connectionId)),
                 ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
         if (connections != null) {
@@ -132,7 +137,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
             logger.warn("Use the first node as the default script executor, please use it with caution.");
             obsLogger.warn("Use the first node as the default script executor, please use it with caution.");
           }
-          return new ScriptExecutorsManager.ScriptExecutor(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger), TAG);
+          return new ScriptExecutorsManager.ScriptExecutor(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger), TAG + "_" + node.getId());
         }
       }
     }
@@ -185,7 +190,17 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     Map<String, Object> context = this.processContextThreadLocal.get();
     context.putAll(contextMap);
     ((ScriptEngine) this.engine).put("context", context);
-    Object obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record);
+    Object obj;
+    if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
+						TaskDto.SYNC_TYPE_TEST_RUN,
+            TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+      Map<String, Object> finalRecord = record;
+      Future<Object> future = Executors.newSingleThreadExecutor().submit(() -> engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
+      obj = future.get(10, TimeUnit.SECONDS);
+    } else {
+      obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record);
+    }
+
     context.clear();
 
     if (obj == null) {

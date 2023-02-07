@@ -215,10 +215,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				&& CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
 
 		ObjectId id = updateDto.getId();
+		DataSourceConnectionDto oldConnection = null;
+		if (Objects.nonNull(id)) {
+			oldConnection = findById(id);
+			if (DataSourceConnectionDto.STATUS_TESTING.equals(updateDto.getStatus()) && !DataSourceConnectionDto.STATUS_TESTING.equals(oldConnection.getStatus())) {
+				updateDto.setLastStatus(oldConnection.getStatus());
+			}
+		}
 		Map<String, Object> config = updateDto.getConfig();
-		if (Objects.nonNull(id) && Objects.nonNull(config)) {
-			DataSourceConnectionDto connectionDto = findById(id);
-			Map<String, Object> dataConfig = connectionDto.getConfig();
+		if (oldConnection != null && Objects.nonNull(config)) {
+
+			Map<String, Object> dataConfig = oldConnection.getConfig();
 			if (dataConfig.containsKey("password") && !config.containsKey("password")) {
 				config.put("password", dataConfig.get("password"));
 			} else if (dataConfig.containsKey("mqPassword") && !config.containsKey("mqPassword")) {

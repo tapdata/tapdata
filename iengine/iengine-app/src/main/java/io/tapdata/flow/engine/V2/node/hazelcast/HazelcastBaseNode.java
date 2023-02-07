@@ -60,6 +60,7 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.websocket.handler.TestRunTaskHandler;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -151,7 +152,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 		//如果为迁移任务、且源节点为数据库类型
 		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
-		this.monitorManager = new MonitorManager();
+		if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
+						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+			this.monitorManager = new MonitorManager();
+		}
 	}
 
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
@@ -185,8 +189,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			} else {
 				AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 			}
-			monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
-			jetJobStatusMonitor = (JetJobStatusMonitor) monitorManager.getMonitorByType(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR);
+			if (monitorManager != null) {
+				monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
+				jetJobStatusMonitor = (JetJobStatusMonitor) monitorManager.getMonitorByType(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR);
+			}
 			doInit(context);
 		} catch (Throwable e) {
 			errorHandle(e, "Node init failed: " + e.getMessage());
@@ -503,6 +509,16 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			logger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
 			obsLogger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
 		});
+		CommonUtils.handleAnyError(() -> {
+			if (this.monitorManager != null) {
+				this.monitorManager.close();
+				logger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
+				obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
+			}
+		}, err -> {
+			logger.warn("Close monitor failed: " + err.getMessage());
+			obsLogger.warn("Close monitor failed: " + err.getMessage());
+		});
 	}
 
 	@Override
@@ -512,8 +528,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			sw.start();
 			running.set(false);
 			CommonUtils.ignoreAnyError(() -> {
-				TaskDto taskDto = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(processorBaseContext.getTaskDto().getId().toHexString()).getTask();
-				processorBaseContext.getTaskDto().setManualStop(taskDto.isManualStop());
+				TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(processorBaseContext.getTaskDto().getId().toHexString());
+				if (taskDtoTaskClient != null) {
+					TaskDto taskDto = taskDtoTaskClient.getTask();
+					processorBaseContext.getTaskDto().setManualStop(taskDto.isManualStop());
+				}
 			}, TAG);
 			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
 			CommonUtils.handleAnyError(this::doClose, err -> {
@@ -660,6 +679,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			currentEx = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
 			obsLogger.error(errorMessage, throwable);
 		}
+		TaskDto taskDto = processorBaseContext.getTaskDto();
+		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN)) {
+			TestRunTaskHandler.setError(taskDto.getId().toHexString(), currentEx);
+		}
+
 		try {
 			if (null == error) {
 				this.error = currentEx;
@@ -671,7 +695,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				logger.error(errorMessage, currentEx);
 				obsLogger.error(errorMessage, currentEx);
 				this.running.set(false);
-				TaskDto taskDto = processorBaseContext.getTaskDto();
 
 				// jetContext async injection, Attempt 5 times to get the instance every 500ms
 				com.hazelcast.jet.Job hazelcastJob = null;
@@ -753,7 +776,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			throw new RuntimeException("Update memory node failed, error: " + e.getMessage(), e);
 		}
 		try {
-			updateTapTable(tapdataEvent, getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()));
+			String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent());
+			updateTapTable(tapdataEvent, tgtTableNameFromTapEvent);
 		} catch (Exception e) {
 			throw new RuntimeException("Update memory TapTable failed, error: " + e.getMessage(), e);
 		}
@@ -795,6 +819,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tableName = getNode().getId();
 		}
 		String qualifiedName = tapTableMap.getQualifiedName(tableName);
+		if (StringUtils.isBlank(qualifiedName)) {
+			throw new RuntimeException("Get metadata qualified name failed, cannot found by table name: " + tableName);
+		}
 		if (tapEvent instanceof TapCreateTableEvent) {
 			Object insertMetadata = tapEvent.getInfo(INSERT_METADATA_INFO_KEY);
 			if (insertMetadata instanceof List) {
@@ -853,7 +880,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (!(dagDataService instanceof DAGDataServiceImpl)) {
 			return StringUtils.isNotBlank(lastTableName) ? lastTableName : tableId;
 		}
-		return  ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(getNode().getId(), tableId);
+		String nodeId = getNode().getId();
+		return  ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(nodeId, tableId);
 	}
 
 	public static class TapValueTransform {

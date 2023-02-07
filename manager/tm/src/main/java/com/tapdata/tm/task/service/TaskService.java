@@ -2853,7 +2853,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第一位 是否需要共享挖掘处理， 1 是   0 否
      *                  第二位 是否开启打点任务      1 是   0 否
      */
-    private void start(TaskDto taskDto, UserDetail user, String startFlag) {
+    public void start(TaskDto taskDto, UserDetail user, String startFlag) {
         Update update = Update.update("lastStartDate", System.currentTimeMillis());
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             String taskRecordId = new ObjectId().toHexString();
@@ -3394,7 +3394,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
-                run(taskDto, finalUserMap.get(taskDto.getUserId()));
+                start(taskDto, finalUserMap.get(taskDto.getUserId()), "11");
                 //启动过后，应该更新掉这个自动启动计划
                 Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
                 updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
