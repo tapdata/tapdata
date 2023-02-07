@@ -17,7 +17,7 @@ public class PDKRunner {
     public static final String BASE_CONF_PATH = "tapdata-cli/src/main/resources/debug/";
 
     private enum TddPath {
-        CodingDemo("coding-demo-connector-v1.0-SNAPSHOT.jar", "coding-js.json"),
+        CodingDemo("zoho-crm-connector-v1.0-SNAPSHOT.jar", "zoho-crm-js.json"),
         ;
         String path;
         String conf;
@@ -47,6 +47,7 @@ public class PDKRunner {
     public static void main(String[] args) {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         CommonUtils.setProperty("TDD_AUTO_EXIT", "0");
+//        CommonUtils.setProperty("show_api_invoker_result", "0");
         args = new String[]{"run", "-r", "-c"};
         List<String> argList = new ArrayList<>(Arrays.asList(args));
 

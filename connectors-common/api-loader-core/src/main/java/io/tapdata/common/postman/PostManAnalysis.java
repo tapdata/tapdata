@@ -13,6 +13,7 @@ import io.tapdata.common.support.core.emun.TapApiTag;
 import io.tapdata.common.support.entitys.APIResponse;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.utils.JsonParser;
 import okhttp3.*;
 
 import java.io.IOException;
@@ -185,27 +186,42 @@ public class PostManAnalysis {
 
     public APIResponse http(Request request) throws IOException {
         OkHttpClient client = this.configHttp(new OkHttpClient().newBuilder()).build();
-        Response response = client.newCall(request).execute();
+        Map<String,Object> error = new HashMap<>();
         Map<String, Object> result = new HashMap<>();
-        Optional.ofNullable(response.body()).ifPresent(body -> {
-            try {
-                Optional.ofNullable(body.string()).ifPresent(str -> {
-                    try {
-                        result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJson(str));
-                    } catch (Exception notMap) {
+        Response response;
+        Headers headers;
+        int code = 0;
+        try {
+            response = client.newCall(request).execute();
+            code = response.code();
+            headers = response.headers();
+            Optional.ofNullable(response.body()).ifPresent(body -> {
+                try {
+                    Optional.ofNullable(body.string()).ifPresent(str -> {
                         try {
-                            result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJsonArray(str));
-                        } catch (Exception notArray) {
-                            result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, str);
+                            result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJson(str));
+                        } catch (Exception notMap) {
+                            try {
+                                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJsonArray(str));
+                            } catch (Exception notArray) {
+                                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, str);
+                            }
                         }
-                    }
-                });
-            } catch (IOException e) {
-            }
-        });
-        return APIResponse.create().httpCode(response.code())
+                    });
+                } catch (IOException ignored) {
+                }
+            });
+        }catch (Exception e){
+            error.put("msg",e.getMessage());
+            headers = Headers.of();
+        }
+        if (code<200 || code>=300){
+            error.put("msg",toJson(result));
+        }
+        return APIResponse.create().httpCode(code)
                 .result(result)
-                .headers(getHeaderMap(response.headers()));
+                .error(error)
+                .headers(getHeaderMap(headers));
     }
 
     private OkHttpClient.Builder configHttp(OkHttpClient.Builder builder){
@@ -230,7 +246,12 @@ public class PostManAnalysis {
 
     public APIResponse http(String uriOrName, String method, Map<String, Object> params) {
         try {
-            return this.http(this.httpPrepare(uriOrName, method, params));
+            APIResponse http = this.http(this.httpPrepare(uriOrName, method, params));
+            String property = System.getProperty("show_api_invoker_result", "1");
+            if ("1".equals(property)) {
+                System.out.printf("Http Result: url - %s, method - %s params - %s\n\t%s%n", uriOrName, method, toJson(params), toJson(http.result(), JsonParser.ToJsonFeature.PrettyFormat));
+            }
+            return http;
         } catch (IOException e) {
             throw new CoreException(String.format("Http request failed ,the api name or url is [%s],method is [%s], params are [%s], error message : %s", uriOrName, method, TapSimplify.toJson(params), e.getMessage()));
         }
