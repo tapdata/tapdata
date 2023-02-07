@@ -1,0 +1,154 @@
+{
+  "properties": {
+    "name": "Zoho-CRM",
+    "icon": "icon/zoho.png",
+    "doc" : "${doc}",
+    "id": "zoho-crm"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "client_id": {
+          "type": "String",
+          "title": "${clientId}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "client_id",
+          "x-index": 10,
+          "required": true
+        },
+        "client_secret": {
+          "type": "String",
+          "title": "${clientSecret}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "client_secret",
+          "x-index": 20,
+          "required": true
+        },
+        "code": {
+          "type": "String",
+          "title": "${code}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "code",
+          "x-index": 30,
+          "required": true
+        },
+        "getTokenButton": {
+          "type": "void",
+          "title": "${tokenButton}",
+          "x-decorator": "FormItem",
+          "extra": true,
+          "x-component-props": {
+            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'TokenCommand' })}}"
+          },
+          "x-reactions": [{
+            "dependencies": ["code"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          },{
+            "dependencies": ["refreshToken"],
+            "fulfill": {
+              "state": {
+                "content": "{{$deps[0] ? \"${getTokenButtonMsgA}\" : \"${getTokenButtonMsgB}\"}}"
+              }
+            }
+          }],
+          "x-content": "${hookButton}",
+          "x-component": "Button",
+          "x-index": 41
+        },
+        "getTokenMsg": {
+          "type": "String",
+          "title": " ",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-component": "PreviewText.Input",
+          "x-component-props": {
+            "content": "{{$self.value || \"-\"}}"
+          },
+          "x-reactions": [{
+            "dependencies": ["code"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0]&&$self.value ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          }],
+          "x-index": 42
+        },
+        "refreshToken": {
+          "type": "String",
+          "title": "${refreshToken}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-component-props": {
+            "readOnly": true
+          },
+          "apiServerKey": "database_host",
+          "x-index": 50,
+          "x-display": "hidden"
+        },
+        "accessToken": {
+          "type": "String",
+          "title": "${accessToken}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-component-props": {
+            "readOnly": true
+          },
+          "apiServerKey": "database_host",
+          "x-index": 60,
+          "x-display": "hidden"
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/demo_en_US.md",
+      "clientId": "client Id",
+      "clientSecret": "client Secret",
+      "code": "Grant Token",
+      "accessTokenButton": "Refresh token",
+      "tokenButton": "Get access rights and tokens",
+      "getTokenButtonMsgA": "Authorized, click to retrieve",
+      "getTokenButtonMsgB": "Please click to get"
+    },
+    "zh_CN": {
+      "doc": "doc/demo_zh_CN.md",
+      "clientId": "client Id",
+      "clientSecret": "client Secret",
+      "code": "授予令牌",
+      "accessTokenButton": "刷新令牌",
+      "tokenButton": "获取访问权限和令牌",
+      "getTokenButtonMsgA": "已授权，点击将会重新获取",
+      "getTokenButtonMsgB": "请点击获取"
+    },
+    "zh_TW": {
+      "doc": "doc/demo_zh_TW.md",
+      "clientId": "client Id",
+      "clientSecret": "client Secret",
+      "code": "授予權杖",
+      "accessTokenButton": "重繪權杖",
+      "tokenButton": "獲取存取權限和權杖",
+      "getTokenButtonMsgA": "已授權，點擊將會重新獲取",
+      "getTokenButtonMsgB": "請點擊獲取"
+    }
+  }
+}
