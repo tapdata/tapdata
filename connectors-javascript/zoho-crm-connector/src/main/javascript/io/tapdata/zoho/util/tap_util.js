@@ -18,11 +18,16 @@ function iterateAllData(apiName, offset, call) {
     let res;
     let error;
     do {
-        log.error('------offset:'+offset.access_token);
-        let response = invoker.invoke(apiName, offset);
-        //log.error("response:"+tapUtil.fromJson(response));
-        res = response.result;
-        error = response.error;
+        try{
+            log.warn('------offset:'+offset.access_token);
+            let response = invoker.invoke(apiName, offset);
+            //log.error("response:"+tapUtil.fromJson(response));
+            res = response.result;
+            error = response.error;
+        }catch (e){
+            log.error(e);
+            break;
+        }
     } while (call(res, offset, error));
 }
 
