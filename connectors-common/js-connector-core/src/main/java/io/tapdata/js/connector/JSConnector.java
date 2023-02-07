@@ -139,7 +139,7 @@ public class JSConnector extends ConnectorBase {
                 interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, connectionContext));
             }
             Object tapAPI = this.javaScripter.scriptEngine().get("tapAPI");
-            if (Objects.isNull(tapAPI) && !(tapAPI instanceof APIFactoryDecorator)){
+            if (Objects.isNull(tapAPI) || !(tapAPI instanceof APIFactoryDecorator)){
                 APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory);
                 this.javaScripter.scriptEngine().put("tapAPI",factory.interceptor(interceptor));
             }else {
