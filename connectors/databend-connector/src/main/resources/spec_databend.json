@@ -69,9 +69,9 @@
           "apiServerKey": "database_password",
           "x-index": 5
         },
-        "addtionalString": {
+        "extParams": {
           "type": "string",
-          "title": "${addtionalString}",
+          "title": "${extParams}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "additionalString",
@@ -88,7 +88,7 @@
       "database": "database",
       "user": "user",
       "password": "password",
-      "addtionalString": "Connection Parameter String",
+      "extParams": "Connection Parameter String",
       "doc": "docs/databend_en_US.md"
     },
     "zh_CN": {
@@ -97,7 +97,7 @@
       "database": "数据库",
       "user": "账号",
       "password": "密码",
-      "addtionalString": "连接参数",
+      "extParams": "连接参数",
       "doc": "docs/databend_en_US.md"
     },
     "zh_TW": {
@@ -106,7 +106,7 @@
       "database": "數據庫",
       "user": "賬號",
       "password": "密碼",
-      "addtionalString": "連接參數",
+      "extParams": "連接參數",
       "doc": "docs/databend_en_US.md"
     }
   },
