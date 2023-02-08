@@ -1,4 +1,4 @@
-package io.tapdata.pdk.cli.javascript;
+package io.tapdata.pdk.cli.run;
 
 import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.pdk.cli.Main;
@@ -6,15 +6,12 @@ import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class PDKRunner {
     public static final String BASE_JAR_PATH = "./connectors/dist/";
-    public static final String BASE_CONF_PATH = "tapdata-cli/src/main/resources/debug/";
+    public static final String BASE_CONF_PATH = "tapdata-cli/src/main/resources/run/";
 
     private enum TddPath {
         CodingDemo("coding-demo-connector-v1.0-SNAPSHOT.jar", "coding-js.json"),
@@ -48,19 +45,18 @@ public class PDKRunner {
     public static void main(String[] args) {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         CommonUtils.setProperty("TDD_AUTO_EXIT", "0");
-//        CommonUtils.setProperty("show_api_invoker_result", "0");
-        args = new String[]{"run", "-r", "-c","-s"};
-        List<String> argList = new ArrayList<>(Arrays.asList(args));
+        //CommonUtils.setProperty("show_api_invoker_result", "0");
         //CommonUtils.setProperty("pdk_run_log_show", "true");
 
         ConfigurationCenter.processId = "sam_flow_engine";
         for (PDKRunner.TddPath tddJarPath : PDKRunner.TddPath.values()) {
-            argList.add(PDKRunner.BASE_CONF_PATH + tddJarPath.getConf());
-            argList.add(PDKRunner.BASE_JAR_PATH + tddJarPath.getPath());
-            argList.add("true");
-            String[] strs = new String[argList.size()];
-            argList.toArray(strs);
-            Main.registerCommands().execute(strs);
+            args = new String[]{
+                    "run",
+                    "-c", PDKRunner.BASE_CONF_PATH + tddJarPath.getConf(),
+                    PDKRunner.BASE_JAR_PATH + tddJarPath.getPath(),
+            };
+
+            Main.registerCommands().execute(args);
             try {
                 TapConnectorManager instance = TapConnectorManager.getInstance();
                 Class<?> cla = TapConnectorManager.class;

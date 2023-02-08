@@ -57,32 +57,26 @@ public class TapPDKRunnerCli extends CommonCli {
     @CommandLine.Parameters(paramLabel = "FILE", description = "One ore more pdk jar files")
     private File file;
 
-    @CommandLine.Option(names = {"-i", "--installProjects"}, required = false, description = "Specify the projects which need mvn install first.")
+    @CommandLine.Option(names = {"-i", "--installProjects"}, description = "Specify the projects which need mvn install first.")
     private List<String> installProjects;
-    @CommandLine.Option(names = {"-m", "--mavenHome"}, required = false, description = "Specify the maven home")
+    @CommandLine.Option(names = {"-m", "--mavenHome"}, description = "Specify the maven home")
     private String mavenHome;
-    @CommandLine.Option(names = {"-r", "--runCase"}, required = true, interactive = true, description = "Specify the run/debug class simple name to run")
+    @CommandLine.Option(names = {"-r", "--runCase"}, description = "Specify the run/debug class simple name to run")
     private String[] runClass;
-    @CommandLine.Option(names = {"-c", "--runConfig"}, required = false, description = "Specify the run/debug json configuration file")
+    @CommandLine.Option(names = {"-c", "--runConfig"}, description = "Specify the run/debug json configuration file")
     private String runConfig;
-    @CommandLine.Option(names = {"-v", "--verbose"}, required = false, description = "Enable run/debug log")
+    @CommandLine.Option(names = {"-v", "--verbose"}, description = "Enable run/debug log")
     private boolean verbose = false;
-    @CommandLine.Option(names = {"-s", "--showLogStart"}, required = false, description = "Show start logo when run/debug (true/false)")
-    private boolean showLog = false;
     @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "TapData cli help")
     private boolean helpRequested = false;
-    @CommandLine.Option(names = {"-l", "--lang"}, usageHelp = false, description = "TapData cli lang，values zh_CN/zh_TW/en,default is en")
+    @CommandLine.Option(names = {"-l", "--lang"}, description = "TapData cli lang，values zh_CN/zh_TW/en,default is en")
     private String lan = "en";
-    @CommandLine.Option(names = {"-p", "--path"}, usageHelp = false, description = "TapData cli path,need run package ,path split as .")
+    @CommandLine.Option(names = {"-p", "--path"}, description = "TapData cli path,need run package ,path split as .")
     private String packagePath = BatchReadRun.class.getPackage().getName();
     @CommandLine.Option(names = {"-log", "--logPath"}, usageHelp = false, description = "TapData cli log,need run/debug to log run result ,path to log ,default ./tapdata-pdk-cli/tss-logs/")
     private String logPath ;//= RunnerSummary.basePath("runner-logs");
 
     public TapPDKRunnerCli(){
-        String pdkRunLogShow = CommonUtils.getProperty("pdk_run_log_show", "false");
-        if (this.showLog || "true".equals(pdkRunLogShow)) {
-            System.out.println(RunClassMap.allCaseTable(true) + "\nPlease select the function name to execute the above command:");
-        }
     }
     /**
      * 默认true，或设置TDD_AUTO_EXIT=1，CommonUtils.setProperty("TDD_AUTO_EXIT","1")
@@ -133,6 +127,12 @@ public class TapPDKRunnerCli extends CommonCli {
     }
 
     public Integer execute() {
+        if ((this.runClass == null || this.runClass.length == 0) ){
+            Scanner scanner = new Scanner(System.in);
+            System.out.print(RunClassMap.allCaseTable(true) + RunnerSummary.format("logo.tip.after"));
+            String commandLine = scanner.nextLine();
+            this.runClass = commandLine.split(" ");
+        }
         TapLogger.enable(false);
         LoggerManager.changeLogLeave(LoggerManager.LogLeave.DENY);
         //RunnerSummary.create().showLogo();

@@ -63,10 +63,12 @@ public class RunnerSummary {
     }
 
     List<String> skipCase = new ArrayList<>();
-    public List<String> skipCase(){
+
+    public List<String> skipCase() {
         return this.skipCase;
     }
-    public void skipCase(String caseName){
+
+    public void skipCase(String caseName) {
         this.skipCase.add(caseName);
     }
 
@@ -133,28 +135,33 @@ public class RunnerSummary {
     }
 
     private String showCapabilitiesV2() {
-        StringBuilder builder = new StringBuilder(AREA_SPLIT);
-        builder.append("\n------------PDK id '")
-                .append(tapNodeInfo.getTapNodeSpecification().getId())
-                .append("' class '")
-                .append(tapNodeInfo.getNodeClass().getName())
-                .append("'------------\n");
-        showCapabilities(tapNodeInfo, builder);
-        return builder.toString();
+        StringBuilder builder = new StringBuilder();
+        String line = "PDK id '" + tapNodeInfo.getTapNodeSpecification().getId() + "' class '" + tapNodeInfo.getNodeClass().getName() + "'";
+        int needChar = AREA_SPLIT_SIMPLE.length() <= line.length() ? 0 : (AREA_SPLIT_SIMPLE.length() - line.length()) / 2;
+        for (int i = 0; i < needChar; i++) {
+            builder.append("—");
+        }
+        return AREA_SPLIT_SIMPLE +
+                "\n" + builder.toString() +
+                line + builder.toString() +
+                ((AREA_SPLIT_SIMPLE.length() > line.length()) && (AREA_SPLIT_SIMPLE.length() - line.length()) % 2 > 0 ? "—" : "")
+                + "\n" + AREA_SPLIT_SIMPLE
+                ;
     }
 
     public StringBuilder showSkipCase() {
         StringBuilder builder = new StringBuilder();
         if (null != this.skipCase && !this.skipCase.isEmpty()) {
             builder.append(AREA_SPLIT).append("\n");
-            builder.append("☆The following js method name or class path cannot find a matching execution target: \n");
-            this.skipCase.forEach(name->builder.append("\t[").append(name).append("]\n"));
-            builder.append("Please specify the name correctly. The supported js method name/class path name as described in the above table。\n");
+            builder.append("☆").append(RunnerSummary.format("log.not.support")).append("\n");
+            this.skipCase.forEach(name -> builder.append("\t[").append(name).append("]\n"));
+            builder.append(RunnerSummary.format("log.not.support.msg")).append("\n");
             builder.append(AREA_SPLIT).append("\n");
+            System.out.println(builder.toString());
         }
-        System.out.println(builder.toString());
         return resultBuilder.append(builder);
     }
+
     private StringBuilder showNotSupport(RunnerSummary summary) {
         StringBuilder builder = new StringBuilder();
         if (null != summary.doNotSupportFunTest && !summary.doNotSupportFunTest.isEmpty()) {
@@ -348,7 +355,7 @@ public class RunnerSummary {
 
     public void asFileV2(String file) {
         String path = CommonUtils.getProperty("tap_log_path");
-        if (Objects.isNull(path) || "".equals(path.trim())){
+        if (Objects.isNull(path) || "".equals(path.trim())) {
             return;
         }
         String fileName = tapNodeInfo.getTapNodeSpecification().getId() + "-js-connector-v1.0-TDD-TEST-" + dateTime() + ".log";
@@ -476,7 +483,7 @@ public class RunnerSummary {
     }
 
     public static String format(String key, Object... formatValue) {
-        String tapLang = CommonUtils.getProperty("tap_lang");
+        String tapLang = CommonUtils.getProperty("tap_lang","zh_CN");
         String langArr[] = tapLang.split("_");
         if (langArr.length < 1) langArr = new String[]{"zh", "CN"};
         ResourceBundle lang = ResourceBundle.getBundle(LANG_PATH, new Locale(langArr[0], langArr.length > 1 ? langArr[1] : ""));
