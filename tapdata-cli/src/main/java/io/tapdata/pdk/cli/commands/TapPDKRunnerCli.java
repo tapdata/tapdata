@@ -67,6 +67,8 @@ public class TapPDKRunnerCli extends CommonCli {
     private String runConfig;
     @CommandLine.Option(names = {"-v", "--verbose"}, required = false, description = "Enable run/debug log")
     private boolean verbose = false;
+    @CommandLine.Option(names = {"-s", "--showLogStart"}, required = false, description = "Show start logo when run/debug (true/false)")
+    private boolean showLog = false;
     @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "TapData cli help")
     private boolean helpRequested = false;
     @CommandLine.Option(names = {"-l", "--lang"}, usageHelp = false, description = "TapData cli lang，values zh_CN/zh_TW/en,default is en")
@@ -77,7 +79,10 @@ public class TapPDKRunnerCli extends CommonCli {
     private String logPath ;//= RunnerSummary.basePath("runner-logs");
 
     public TapPDKRunnerCli(){
-        System.out.println(RunClassMap.allCaseTable(true) + "\nPlease select the function name to execute the above command:");
+        String pdkRunLogShow = CommonUtils.getProperty("pdk_run_log_show", "false");
+        if (this.showLog || "true".equals(pdkRunLogShow)) {
+            System.out.println(RunClassMap.allCaseTable(true) + "\nPlease select the function name to execute the above command:");
+        }
     }
     /**
      * 默认true，或设置TDD_AUTO_EXIT=1，CommonUtils.setProperty("TDD_AUTO_EXIT","1")

@@ -17,7 +17,8 @@ public class PDKRunner {
     public static final String BASE_CONF_PATH = "tapdata-cli/src/main/resources/debug/";
 
     private enum TddPath {
-        CodingDemo("zoho-crm-connector-v1.0-SNAPSHOT.jar", "zoho-crm-js.json"),
+        CodingDemo("coding-demo-connector-v1.0-SNAPSHOT.jar", "coding-js.json"),
+//        ZoHoCRM("zoho-crm-connector-v1.0-SNAPSHOT.jar", "zoho-crm-js.json"),
         ;
         String path;
         String conf;
@@ -48,13 +49,15 @@ public class PDKRunner {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         CommonUtils.setProperty("TDD_AUTO_EXIT", "0");
 //        CommonUtils.setProperty("show_api_invoker_result", "0");
-        args = new String[]{"run", "-r", "-c"};
+        args = new String[]{"run", "-r", "-c","-s"};
         List<String> argList = new ArrayList<>(Arrays.asList(args));
+        //CommonUtils.setProperty("pdk_run_log_show", "true");
 
         ConfigurationCenter.processId = "sam_flow_engine";
         for (PDKRunner.TddPath tddJarPath : PDKRunner.TddPath.values()) {
             argList.add(PDKRunner.BASE_CONF_PATH + tddJarPath.getConf());
             argList.add(PDKRunner.BASE_JAR_PATH + tddJarPath.getPath());
+            argList.add("true");
             String[] strs = new String[argList.size()];
             argList.toArray(strs);
             Main.registerCommands().execute(strs);
