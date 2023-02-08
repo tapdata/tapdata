@@ -38,7 +38,6 @@ function discover_schema(connectionConfig) {
  * @param batchReadSender  Sender of submitted data
  * */
 function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
-    log.error("begin read");
     if(!offset){
         offset = {
             page:1,
@@ -46,9 +45,8 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
         };
     }
     iterateAllData('getData', offset, (result, offsetNext, error) => {
-    log.error("read result"+result);
+        let haveNext = false;
         if(result && result !== ''){
-            let haveNext = false;
             if(result.info && result.info.more_records && result.info.page){
                 if(!offsetNext.page){
                     offsetNext.page = 1;
@@ -61,7 +59,7 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
                 return false
             }
         }
-        return isAlive();
+        return isAlive() && haveNext;
     });
 }
 
@@ -76,32 +74,41 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
  * @param streamReadSender
  * */
 var batchStart = nowDate();
+var startTime = new Date();
 function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
-    log.error("------- begin stream read ---------");
-    if (!isParam(offset) || null == offset || typeof(offset) != 'object') offset = {tableName:tableNameList[0],page: 1,Conditions:[{Key: 'UPDATED_AT',Value: batchStart + '_' + nowDate()}]} ;
-    let condition = firstElement(offset.Conditions);
-    offset.Conditions = [{Key:"UPDATED_AT",Value: isParam(condition) && null != condition ? firstElement(condition.Value.split('_')) + '_' + nowDate(): batchStart + '_' + nowDate()}];
-    offset['If-Modified-Since'] = (new Date( new Date().getTime() - 60000)).toISOString();
-    log.error("------- offset ---------" + offset);
-    iterateAllData('getDataA', offset, (result, offsetNext, error) => {
-        log.error("read result"+result);
-        if(result && result !== ''){
-            let haveNext = false;
-            if(result.info && result.info.more_records && result.info.page){
-                if(!offsetNext.page){
-                    offsetNext.page = 1;
-                }
-                offsetNext.page = offsetNext.page + 1;
-                haveNext = true;
-            }
-            streamReadSender.send(result.data,nodeConfig.tableName,offsetNext,true);
-            if(!haveNext){
-                return false
-            }
+    if (!isParam(offset) || null == offset || typeof(offset) != 'object') offset = {};
+    for(let x in tableNameList) {
+      let tableName = tableNameList[x];
+      let isFirst = false;
+      if(!offset[tableName]){
+        offset[tableName] = {tableName:tableName, page: 1, Conditions:[{Key: 'UPDATED_AT',Value: batchStart + '_' + nowDate()}]} ;
+        isFirst = true;
+      }
+        let condition = firstElement(offset[tableName].Conditions);
+        offset[tableName].Conditions = [{Key:"UPDATED_AT",Value: isParam(condition) && null != condition ? firstElement(condition.Value.split('_')) + '_' + nowDate(): batchStart + '_' + nowDate()}];
+        if(isFirst){
+        offset[tableName]['If-Modified-Since'] = DateUtil.timeStamp2Date((startTime.getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
+        } else {
+        offset[tableName]['If-Modified-Since'] = DateUtil.timeStamp2Date((new Date().getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
         }
-        return isAlive();
-    });
-
+        iterateAllData('getDataA', offset[tableName], (result, offsetNext, error) => {
+            let haveNext = false;
+            if(result && result !== ''){
+                if(result.info && result.info.more_records && result.info.page){
+                    if(!offsetNext.page){
+                        offsetNext.page = 1;
+                    }
+                    offsetNext.page = offsetNext.page + 1;
+                    haveNext = true;
+                }
+                streamReadSender.send(result.data,tableName);
+                if(!haveNext){
+                    return false
+                }
+            }
+            return isAlive() && haveNext;
+        });
+    }
 }
 
 
@@ -134,93 +141,28 @@ function connection_test(connectionConfig) {
  * */
 function command_callback(connectionConfig, nodeConfig, commandInfo) {
     if (commandInfo.command === 'TokenCommand') {
-        log.error("--------begin read:"+connectionConfig);
         let body = {
             client_id:connectionConfig.client_id,
             client_secret:connectionConfig.client_secret,
             code:connectionConfig.code
         };
-        //let refreshToken = rest.post('https://accounts.zoho.com.cn/oauth/v2/token', body,{'Content-Type':'application/x-www-form-urlencoded'});
-        log.error("--------body-----:"+body);
         let refreshToken = invoker.invoke("getToken",body,"POST");
-        //log.error('-------result:'+tapUtil.fromJson(refreshToken));
         if (refreshToken && refreshToken.result && refreshToken.result.access_token) {
             return {
                 'setValue':{
                     accessToken:{data:refreshToken.result.access_token},
                     refreshToken:{data:refreshToken.result.refresh_token},
-                    getTokenMsg:{data:'123'}
+                    getTokenMsg:{data:'OK'}
                 }
             };
         }else{
-            return refreshToken;
+           return {'setValue':{
+               getTokenMsg:{data:refreshToken.result.error}
+             }}
         }
     }
 }
 
-/**
- * @param connectionConfig
- * @param nodeConfig
- * @param tableNameList
- * @param eventDataMap  eventDataMap.data is sent from WebHook
- *
- * @return array with data maps.
- *  Each data includes five parts:
- *      - EVENT_TYPE : event type ,only with : i , u, d. Respectively insert, update, delete;
- *      - TABLE_NAME : Data related table;
- *      - REFERENCE_TIME : Time stamp of event occurrence;
- *      - AFTER_DATA : After the event, only AFTER_DATA can be added or deleted as a result of the data
- *      - BEFORE_DATA : Before the event, the result of the data will be BEFORE_DATA only if the event is modified
- *  please return with: [
- *      {
- *          "EVENT_TYPE": "i/u/d",
- *          "TABLE_NAME": "${example_table_name}",
- *          "REFERENCE_TIME": Number(),
- *          "AFTER_DATA": {},
- *          "BEFORE_DATA":{}
- *      },
- *      ...
- *     ]
- * */
-function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMap) {
-
-    //return [
-    //     {
-    //         "EVENT_TYPE": "i/u/d",
-    //         "TABLE_NAME": "${example_table_name}",
-    //         "REFERENCE_TIME": Number(),
-    //         "AFTER_DATA": {},
-    //         "BEFORE_DATA":{}
-    //     }
-    //]
-}
-
-/**
- * [
- *  {
- *      "EVENT_TYPE": "i/u/d",
- *      "TABLE_NAME": "${example_table_name}",
- *      "REFERENCE_TIME": Number(),
- *      "AFTER_DATA": {},
- *      "BEFORE_DATA":{}
- *  },
- *  ...
- * ]
- * @param connectionConfig
- * @param nodeConfig
- * @param eventDataList type is js array with data maps.
- *  Each data includes five parts:
- *      - EVENT_TYPE : event type ,only with : i , u, d. Respectively insert, update, delete;
- *      - TABLE_NAME : Data related table;
- *      - REFERENCE_TIME : Time stamp of event occurrence;
- *      - AFTER_DATA : After the event, only AFTER_DATA can be added or deleted as a result of the data
- *      - BEFORE_DATA : Before the event, the result of the data will be BEFORE_DATA only if the event is modified
- *  @return true or false, default true
- * */
-function write_record(connectionConfig, nodeConfig, eventDataList) {
-
-    //return true;
-}
 
 /**
  * This method is used to update the access key
@@ -237,19 +179,14 @@ function write_record(connectionConfig, nodeConfig, eventDataList) {
  *      - {"key":"value",...} : Type is Object and has key-value ,  At this point, these values will be used to call the interface again after the results are returned.
  * */
 function update_token(connectionConfig, nodeConfig, apiResponse) {
-    log.error('+++++ begin refreshToken +++++' + apiResponse.code);
     if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.code === 'INVALID_TOKEN')) {
-        //connectionConfig.refresh_token = connectionConfig.refreshToken;
-        //log.error('+++++ begin refreshToken +++++ refreshToken :' + connectionConfig.refreshToken);
         try{
             let refreshToken = invoker.invokeWithoutIntercept("refreshToken");
-            log.error('+++++ refreshToken +++++',refreshToken);
             if(refreshToken && refreshToken.result &&refreshToken.result.access_token){
-                log.error('+++++ refreshToken access_token +++++',refreshToken.result.access_token);
                 return {"accessToken": refreshToken.result.access_token};
             }
         }catch (e) {
-            log.error(' -------- error -------',e)
+            log.warn(e)
         }
     }
     return null;
