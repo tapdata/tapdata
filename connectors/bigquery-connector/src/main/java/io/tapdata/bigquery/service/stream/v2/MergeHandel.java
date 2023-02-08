@@ -15,10 +15,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -96,7 +93,7 @@ public class MergeHandel extends BigQueryStart {
     }
 
     private final Object mergeLock = new Object();
-    private long mergeDelaySeconds = 2 * 60 * 60;
+    private long mergeDelaySeconds = 2 * 60 ;
     private AtomicBoolean running = new AtomicBoolean(false);
 
     private ScheduledFuture<?> future;
@@ -479,7 +476,10 @@ public class MergeHandel extends BigQueryStart {
         } catch (Exception e) {
             mergeKeyIdLast = 0L;
         }
-        super.sqlMarker.executeOnce(this.assembleMergeSql(builder, finalMergeKeyId, mergeKeyIdLast, projectAndSetId + tableName, projectAndSetId + String.valueOf(mergeTableId)));
+        BigQueryResult bigQueryResult = super.sqlMarker.executeOnce(this.assembleMergeSql(builder, finalMergeKeyId, mergeKeyIdLast, projectAndSetId + tableName, projectAndSetId + String.valueOf(mergeTableId)));
+        List<Map<String, Object>> result = bigQueryResult.result();
+        long totalRows = bigQueryResult.getTotalRows();
+        TapLogger.info(TAG, String.format("Data consolidation has been performed. Merge to table: %s, temporary table: %s, merge result: %s rows, %s.", tapTable.getId(), mergeTableId, totalRows, toJson(result)));
         this.stateMap.saveForTable(tableName, MergeHandel.MERGE_KEY_ID_LAST, finalMergeKeyId);
         this.cleanTemporaryTable(tableName);
     }
