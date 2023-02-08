@@ -14,5 +14,5 @@ public interface TaskRecordService {
 
     Page<TaskRecordListVo> queryRecords(TaskRecordDto dto);
 
-    TaskDto queryTask(String taskRecordId);
+    TaskDto queryTask(String taskRecordId, String userId);
 }

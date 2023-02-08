@@ -80,8 +80,6 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     private Map<String, Object> nodeConfig;
 
-    private Map<String, Object> nodeConfig;
-
     public static final String SELF_TYPE = "database";
 
     public DatabaseNode() {

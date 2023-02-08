@@ -157,8 +157,8 @@ public class TaskRecordServiceImpl implements TaskRecordService {
     }
 
     @Override
-    public TaskDto queryTask(String taskRecordId) {
-        Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(taskRecordId)));
+    public TaskDto queryTask(String taskRecordId, String userId) {
+        Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(taskRecordId)).and("user_id").is(userId));
         TaskRecord taskRecord = mongoTemplate.findOne(query, TaskRecord.class);
         if (taskRecord == null) {
             return null;

@@ -269,7 +269,7 @@ public class TaskController extends BaseController {
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id), fields, user);
         if (taskDto != null) {
             if (StringUtils.isNotBlank(taskRecordId) && !taskRecordId.equals(taskDto.getTaskRecordId())) {
-                taskDto = taskRecordService.queryTask(taskRecordId);
+                taskDto = taskRecordService.queryTask(taskRecordId, user.getUserId());
             }
 
             taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
