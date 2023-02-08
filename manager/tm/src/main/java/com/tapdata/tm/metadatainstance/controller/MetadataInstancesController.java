@@ -464,6 +464,26 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesService.tables(connectionId, sourceType));
     }
 
+    @GetMapping("page-tables")
+    public ResponseMessage<Page<String>> pageTables(
+            @RequestParam(value = "connectionId") String connectionId // 连接编号
+            , @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType // 源类型
+            , @RequestParam(value = "keyword", required = false) String keyword // 过滤关键字
+            , @RequestParam(value = "regex", required = false) String regex // 过滤表达式
+            , @RequestParam(value = "skip", required = false, defaultValue = "0") Integer skip // 偏移量，默认：0
+            , @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit // 页大小，默认：20（小于1为不分页）
+    ) {
+        // keyword 和 regex 只能有一个生效或都不生效
+        if (null == regex || regex.isEmpty()) {
+            if (null != keyword && !keyword.isEmpty()) {
+                regex = MongoUtils.replaceLike(keyword);
+            } else {
+                regex = null;
+            }
+        }
+        return success(metadataInstancesService.pageTables(connectionId, sourceType, regex, skip, limit));
+    }
+
     @GetMapping("tablesValue")
     public ResponseMessage<List<Map<String, String>>> tablesValue(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
         return success(metadataInstancesService.tableValues(connectionId, sourceType));
