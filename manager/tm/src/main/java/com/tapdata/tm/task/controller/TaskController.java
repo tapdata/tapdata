@@ -282,7 +282,7 @@ public class TaskController extends BaseController {
 
             // supplement startTime
             if (Objects.isNull(taskDto.getStartTime())) {
-                TaskDto taskRecord = taskRecordService.queryTask(taskDto.getTaskRecordId());
+                TaskDto taskRecord = taskRecordService.queryTask(taskDto.getTaskRecordId(), user.getUserId());
                 if (Objects.nonNull(taskRecord)) {
                     taskDto.setStartTime(taskRecord.getStartTime());
                 }

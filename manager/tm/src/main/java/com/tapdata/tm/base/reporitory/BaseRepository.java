@@ -816,6 +816,10 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
         return result.getModifiedCount();
     }
 
+    public UpdateResult upsert(Query query, Update update) {
+        return mongoOperations.upsert(query, update, entityClass);
+    }
+
 
     public List<Entity> findAll(Where where, UserDetail userDetail) {
 
@@ -904,8 +908,11 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
         applyUserDetail(query, userDetail);
         beforeUpsert(update, userDetail);
 
-        Entity entity = mongoOperations.findAndModify(query, update, options, entityClass);
+        return findAndModify(query, update, options);
+    }
 
+    public Entity findAndModify(Query query, Update update, FindAndModifyOptions options) {
+        Entity entity = mongoOperations.findAndModify(query, update, options, entityClass);
         return entity;
     }
 

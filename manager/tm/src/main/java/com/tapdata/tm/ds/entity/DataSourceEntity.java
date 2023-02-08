@@ -43,6 +43,12 @@ public class DataSourceEntity extends BaseEntity {
     private String name;
     /** 数据源的配置信息 jsonschema */
     private Map<String, Object> config;
+
+    /**
+     * Encrypted storage configuration.
+     */
+    private String encryptConfig;
+
     /** 创建类型 */
     private CreateTypeEnum createType;
     /** 连接类型 源，目标，源&目标 */
