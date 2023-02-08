@@ -158,8 +158,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				boolean usePkAsUpdateConditions = usePkAsUpdateConditions(updateConditionFields, tapTable.primaryKeys());
 				if (usePkAsUpdateConditions && createdTable) {
-					logger.warn("Table " + tableId + "use the primary key as the update condition, which is created when the table is create, and ignored");
-					obsLogger.warn("Table " + tableId + "use the primary key as the update condition, which is created when the table is create, and ignored");
+					logger.info("Table " + tableId + "use the primary key as the update condition, which is created when the table is create, and ignored");
+					obsLogger.info("Table " + tableId + "use the primary key as the update condition, which is created when the table is create, and ignored");
 					return;
 				}
 
