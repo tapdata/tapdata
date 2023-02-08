@@ -147,30 +147,7 @@
             <version>2.6.12</version>
         </dependency>
     </dependencies>
-    <repositories>
-        <repository>
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>private-repository</id>
-            <name>Hazelcast Private Repository</name>
-            <url>https://repository.hazelcast.com/release/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-    </repositories>
+
     <build>
         <plugins>
             <plugin>

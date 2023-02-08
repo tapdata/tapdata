@@ -58,8 +58,8 @@
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>
 		<tapdata.pdk.runner.version>1.2-SNAPSHOT</tapdata.pdk.runner.version>
-		<tapdata.api.version>1.2-SNAPSHOT</tapdata.api.version>
-		<tapdata.pdk.api.version>1.2-SNAPSHOT</tapdata.pdk.api.version>
+		<tapdata.api.version>1.2.0</tapdata.api.version>
+		<tapdata.pdk.api.version>1.2.0</tapdata.pdk.api.version>
 		<tapdata.pdk.connector.core.version>1.0-SNAPSHOT</tapdata.pdk.connector.core.version>
 		<junit.jupiter.version>5.8.1</junit.jupiter.version>
 		<junit.platform.version>1.8.1</junit.platform.version>
@@ -70,19 +70,7 @@
 		<maven.compiler.encoding>UTF-8</maven.compiler.encoding>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
-	<repositories>
-		<repository>
-			<id>central</id>
-			<url>https://repo1.maven.org/maven2</url>
-		</repository>
-		<repository>
-			<id>github</id>
-			<url>https://maven.pkg.github.com/tapdata/tapdata</url>
-			<snapshots>
-				<enabled>true</enabled>
-			</snapshots>
-		</repository>
-	</repositories>
+
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
@@ -179,5 +167,18 @@
 
         </plugins>
     </build>
+	<repositories>
+		<repository>
+			<id>tapdata-tapdata-maven</id>
+			<name>maven</name>
+			<url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
 </project>
 

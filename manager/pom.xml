@@ -38,19 +38,7 @@
 		<dependencies>
 		</dependencies>
 	</dependencyManagement>
-
 	<repositories>
-		<repository>
-			<id>tapdata-wendangshujuku-mongo</id>
-			<name>mongo</name>
-			<url>https://tapdata-maven.pkg.coding.net/repository/wendangshujuku/mongo/</url>
-			<releases>
-				<enabled>true</enabled>
-			</releases>
-			<snapshots>
-				<enabled>true</enabled>
-			</snapshots>
-		</repository>
 		<repository>
 			<id>tapdata-tapdata-maven</id>
 			<name>maven</name>
@@ -63,5 +51,4 @@
 			</snapshots>
 		</repository>
 	</repositories>
-
 </project>

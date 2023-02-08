@@ -9,7 +9,7 @@
     <modelVersion>4.0.0</modelVersion>
     <artifactId>tapdata-pdk-api</artifactId>
     <name>tapdata-pdk-api</name>
-    <version>1.2-SNAPSHOT</version>
+    <version>1.2.0</version>
     <modules>
     </modules>
 
@@ -21,7 +21,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-api</artifactId>
-            <version>1.2-SNAPSHOT</version>
+            <version>1.2.0</version>
         </dependency>
     </dependencies>
     <build>
@@ -68,9 +68,10 @@
     </build>
     <distributionManagement>
         <repository>
-            <id>github</id>
-            <name>GitHub OWNER Apache Maven Packages</name>
-            <url>https://maven.pkg.github.com/tapdata/tapdata</url>
+            <!--必须与 settings.xml 的 id 一致-->
+            <id>tapdata-tapdata-maven</id>
+            <name>maven</name>
+            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
         </repository>
     </distributionManagement>
 </project>
