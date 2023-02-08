@@ -28,10 +28,12 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 public class MergeHandel extends BigQueryStart {
     private static final String TAG = MergeHandel.class.getSimpleName();
     public static final Long FIRST_MERGE_DELAY_SECOND = 33 * 60L;
+    public static final Long DEFAULT_MERGE_DELAY_SECOND = 3600L;
 
     public static final String STREAM_TO_BATCH_TIME = "STREAM_TO_BATCH_TIME";
     public static final String MERGE_KEY_ID = "merge_id";
     public static final String MERGE_KEY_ID_LAST = "merge_id_last";
+    public static final String HAS_MERGED = "has_merged";
 
     public static final String MERGE_KEY_TYPE = "merge_type";
     public static final String MERGE_KEY_DATA_BEFORE = "merge_data_before";
@@ -93,7 +95,7 @@ public class MergeHandel extends BigQueryStart {
     }
 
     private final Object mergeLock = new Object();
-    private long mergeDelaySeconds = 2 * 60 ;
+    private long mergeDelaySeconds = 300 ;
     private AtomicBoolean running = new AtomicBoolean(false);
 
     private ScheduledFuture<?> future;
@@ -390,9 +392,22 @@ public class MergeHandel extends BigQueryStart {
     }
 
     /**
-     * 合并零时表到主表 - 混合模式
+     * 合并零时表到主表 - 混合模式, 刚启动未merge前设置时间间隔1小时，merge过了之后，按用户配置时间作为时间间隔。
      */
+    private boolean hasMerged = false;
     public void mergeTemporaryTableToMainTable(TapTable mainTable) {
+        Object hasMergedTime = this.stateMap.get(MergeHandel.HAS_MERGED);
+        this.hasMerged = Objects.nonNull(hasMergedTime) && hasMergedTime instanceof Boolean;
+        long time = this.hasMerged ? this.mergeDelaySeconds : MergeHandel.DEFAULT_MERGE_DELAY_SECOND;
+        if (!this.hasMerged) {
+            long now = System.nanoTime();
+            long defaultTimeSecond = (now - (Long) hasMergedTime) / 1000000000L;
+            time = defaultTimeSecond > time - this.mergeDelaySeconds ? this.mergeDelaySeconds : this.mergeDelaySeconds - defaultTimeSecond;
+            this.stateMap.save(MergeHandel.HAS_MERGED,now);
+        }
+        this.mergeTemporaryTableToMainTable(mainTable,time,false);
+    }
+    private void mergeTemporaryTableToMainTable(TapTable mainTable,long mergeDelaySeconds,boolean needRestart) {
         if (Objects.isNull(mainTable)) {
             throw new CoreException("TableTable must not be null or not be empty.");
         }
@@ -400,17 +415,32 @@ public class MergeHandel extends BigQueryStart {
         this.mergeTable.put(mainTable.getId(), mainTable);
         synchronized (this) {
             if (Objects.isNull(this.future)) {
-                this.future = this.scheduledExecutorService.scheduleWithFixedDelay(() -> {
-                    synchronized (this.mergeLock) {
-                        try {
-                            this.mergeTableOnce();
-                        } catch (Throwable throwable) {
-                            TapLogger.warn(TAG, "An exception occurred during data merge, temporary table: {}, target table: {}, {}", this.stateMap.getOfTable(mainTable.getId(), ContextConfig.TEMP_CURSOR_SCHEMA_NAME), mainTable.getId(), throwable.getMessage());
-                        }
-                    }
-                }, 0, this.mergeDelaySeconds, TimeUnit.SECONDS);
+                this.future = this.scheduledExecutorService.scheduleWithFixedDelay(this.mergeRunnable(), 0, mergeDelaySeconds, TimeUnit.SECONDS);
+            }else if (needRestart){
+                if (!this.future.isCancelled()){
+//                    List<Runnable> runnable = this.scheduledExecutorService.shutdownNow();
+                    this.future.cancel(true);
+                    this.future = null;
+                }
+                this.future = this.scheduledExecutorService.scheduleWithFixedDelay(
+                        this.mergeRunnable(),
+                        0,
+                        mergeDelaySeconds,
+                        TimeUnit.SECONDS
+                );
             }
         }
+    }
+    private Runnable mergeRunnable(){
+        return () -> {
+            synchronized (this.mergeLock) {
+                try {
+                    this.mergeTableOnce();
+                } catch (Throwable throwable) {
+                    TapLogger.warn(TAG, "An exception occurred during data merge, temporary table: {}, target table: {}, {}", this.stateMap.getOfTable(mainTable.getId(), ContextConfig.TEMP_CURSOR_SCHEMA_NAME), mainTable.getId(), throwable.getMessage());
+                }
+            }
+        };
     }
 
     public void mergeTableOnce() {
@@ -476,12 +506,22 @@ public class MergeHandel extends BigQueryStart {
         } catch (Exception e) {
             mergeKeyIdLast = 0L;
         }
-        BigQueryResult bigQueryResult = super.sqlMarker.executeOnce(this.assembleMergeSql(builder, finalMergeKeyId, mergeKeyIdLast, projectAndSetId + tableName, projectAndSetId + String.valueOf(mergeTableId)));
-        List<Map<String, Object>> result = bigQueryResult.result();
-        long totalRows = bigQueryResult.getTotalRows();
-        TapLogger.info(TAG, String.format("Data consolidation has been performed. Merge to table: %s, temporary table: %s, merge result: %s rows, %s.", tapTable.getId(), mergeTableId, totalRows, toJson(result)));
-        this.stateMap.saveForTable(tableName, MergeHandel.MERGE_KEY_ID_LAST, finalMergeKeyId);
-        this.cleanTemporaryTable(tableName);
+        try {
+            BigQueryResult bigQueryResult = super.sqlMarker.executeOnce(this.assembleMergeSql(builder, finalMergeKeyId, mergeKeyIdLast, projectAndSetId + tableName, projectAndSetId + String.valueOf(mergeTableId)));
+            List<Map<String, Object>> result = bigQueryResult.result();
+            long totalRows = bigQueryResult.getTotalRows();
+            TapLogger.info(TAG, String.format("Data consolidation has been performed. Merge to table: %s, temporary table: %s, merge result: %s rows, %s.", tapTable.getId(), mergeTableId, totalRows, toJson(result)));
+            this.stateMap.saveForTable(tableName, MergeHandel.MERGE_KEY_ID_LAST, finalMergeKeyId);
+            this.cleanTemporaryTable(tableName);
+        }catch (Exception e){
+            throw new RuntimeException(e.getMessage());
+        }finally {
+            if (!this.hasMerged) {
+                this.hasMerged = true;
+                this.stateMap.save(MergeHandel.HAS_MERGED, true);
+                this.mergeTemporaryTableToMainTable(tapTable, this.mergeDelaySeconds, true);
+            }
+        }
     }
 
     public SQLBuilder mergeSql(TapTable table) {
