@@ -198,7 +198,6 @@ public class DorisStreamLoader {
 		}
 		try {
 			recordStream.write(messageSerializer.batchEnd());
-			TapLogger.debug(TAG, "Flush stream: " + recordStream);
 			recordStream.endInput();
 			RespContent respContent = put(table);
 			TapLogger.debug(TAG, "Execute stream load response: " + respContent);
