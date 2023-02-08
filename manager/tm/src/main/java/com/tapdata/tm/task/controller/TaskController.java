@@ -269,7 +269,7 @@ public class TaskController extends BaseController {
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id), fields, user);
         if (taskDto != null) {
             if (StringUtils.isNotBlank(taskRecordId) && !taskRecordId.equals(taskDto.getTaskRecordId())) {
-                taskDto = taskRecordService.queryTask(taskRecordId);
+                taskDto = taskRecordService.queryTask(taskRecordId, user.getUserId());
             }
 
             taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
@@ -282,7 +282,7 @@ public class TaskController extends BaseController {
 
             // supplement startTime
             if (Objects.isNull(taskDto.getStartTime())) {
-                TaskDto taskRecord = taskRecordService.queryTask(taskDto.getTaskRecordId());
+                TaskDto taskRecord = taskRecordService.queryTask(taskDto.getTaskRecordId(), user.getUserId());
                 if (Objects.nonNull(taskRecord)) {
                     taskDto.setStartTime(taskRecord.getStartTime());
                 }
