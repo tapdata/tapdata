@@ -75,7 +75,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         //supplier migrate tableSelectType=all tableNames and SyncObjects
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             DatabaseNode sourceNode = dag.getSourceNode().getFirst();
-            List<String> tableNames = sourceNode.getTableNames();
+
             if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
                 String connectionId = sourceNode.getConnectionId();
                 List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
@@ -94,7 +94,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                 }
             }
 
-            nodeCheckData(sourceNode.successors(), tableNames, null);
+            nodeCheckData(sourceNode.successors(), sourceNode.getTableNames(), null);
 
             Dag temp = new Dag(dag.getEdges(), dag.getNodes());
             DAG.build(temp);
