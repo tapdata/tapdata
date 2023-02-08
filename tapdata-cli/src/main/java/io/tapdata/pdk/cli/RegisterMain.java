@@ -66,7 +66,7 @@ public class RegisterMain {
         Metabase(BASE_PATH + "connectors/dist/metabase-connector-v1.0-SNAPSHOT.jar", "all", "metabase"),
         Lark(BASE_PATH + "connectors/dist/lark-connector-v1.0-SNAPSHOT.jar", "all", "lark"),
         Databend(BASE_PATH + "connectors/dist/databend-connector-v1.0-SNAPSHOT.jar", "all", "databend"),
-
+        ZohoCRM(BASE_PATH + "connectors/dist/zoho-crm-connector-v1.0-SNAPSHOT.jar", "all", "zoho-crm"),
         ;
 
         private final String path;
