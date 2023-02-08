@@ -203,7 +203,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setTransformTaskId(new ObjectId().toHexString());
 
         //模型推演
-        //setDefault(taskDto);
+        setDefault(taskDto);
         taskDto = save(taskDto, user);
         if (dag != null) {
             dag.setTaskId(taskDto.getId());
@@ -307,7 +307,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     protected void beforeSave(TaskDto task, UserDetail user) {
-        setDefault(task);
+        //setDefault(task);
 
         DAG dag = task.getDag();
         if (dag == null) {
@@ -3314,17 +3314,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    long inputInsertTotal = Long.parseLong(String.valueOf(vs.get("inputInsertTotal")));
-                    long inputOthersTotal = Long.parseLong(String.valueOf(vs.get("inputOthersTotal")));
-                    long inputDdlTotal = Long.parseLong(String.valueOf(vs.get("inputDdlTotal")));
-                    long inputUpdateTotal = Long.parseLong(String.valueOf(vs.get("inputUpdateTotal")));
-                    long inputDeleteTotal = Long.parseLong(String.valueOf(vs.get("inputDeleteTotal")));
+                    long inputInsertTotal = parseDataTotal(vs.get("inputInsertTotal"));
+                    long inputOthersTotal = parseDataTotal(vs.get("inputOthersTotal"));
+                    long inputDdlTotal = parseDataTotal(vs.get("inputDdlTotal"));
+                    long inputUpdateTotal = parseDataTotal(vs.get("inputUpdateTotal"));
+                    long inputDeleteTotal = parseDataTotal(vs.get("inputDeleteTotal"));
 
-                    long outputInsertTotal = Long.parseLong(String.valueOf(vs.get("outputInsertTotal")));
-                    long outputOthersTotal = Long.parseLong(String.valueOf(vs.get("outputOthersTotal")));
-                    long outputDdlTotal = Long.parseLong(String.valueOf(vs.get("outputDdlTotal")));
-                    long outputUpdateTotal = Long.parseLong(String.valueOf(vs.get("outputUpdateTotal")));
-                    long outputDeleteTotal = Long.parseLong(String.valueOf(vs.get("outputDeleteTotal")));
+                    long outputInsertTotal = parseDataTotal(vs.get("outputInsertTotal"));
+                    long outputOthersTotal = parseDataTotal(vs.get("outputOthersTotal"));
+                    long outputDdlTotal = parseDataTotal(vs.get("outputDdlTotal"));
+                    long outputUpdateTotal = parseDataTotal(vs.get("outputUpdateTotal"));
+                    long outputDeleteTotal = parseDataTotal(vs.get("outputDeleteTotal"));
                     output += outputInsertTotal;
                     output += outputOthersTotal;
                     output += outputDdlTotal;
@@ -3352,6 +3352,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         chart6Map.put("updatedTotal", update);
         chart6Map.put("deletedTotal", delete);
         return chart6Map;
+    }
+
+
+    private long parseDataTotal(Object param) {
+        if (param == null) {
+            return 0L;
+        }
+        if ("null".equals(param)) {
+            return 0L;
+        }
+        return Long.parseLong(String.valueOf(param));
     }
 
     public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {

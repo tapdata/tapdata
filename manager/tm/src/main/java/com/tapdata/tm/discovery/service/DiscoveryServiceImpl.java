@@ -393,7 +393,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         if (StringUtils.isNotBlank(param.getSourceType())) {
             metadataCriteria.and("source.database_type").is(param.getSourceType());
             taskCriteria.and("agentId").is(param.getSourceType());
-            apiCriteria.and("_id").is("123");
+//            apiCriteria.and("_id").is("123");
         } else {
             taskCriteria.and("agentId").exists(true);
         }
