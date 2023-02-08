@@ -321,12 +321,18 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 String.format(OPEN_API_URL, this.contextConfig.getTeamName())).post();
         Object response = resultMap.get("Response");
         if (null == response) {
-            throw new CoreException("Can't get issues, the 'Response' is empty.");
+            throw new CoreException(String.format("Cannot get the result which name is 'Response' from http response body, request url - %s,param - %s, request body - %s",
+                    String.format(OPEN_API_URL, this.contextConfig.getTeamName()),
+                    toJson(param),
+                    toJson(resultMap)));
         }
         Map<String, Object> responseMap = (Map<String, Object>) response;
         Object dataObj = responseMap.get("Issue");
         if (Checker.isEmpty(dataObj)) {
-            throw new CoreException("Can't get issues, the 'Issue' is empty.");
+            throw new CoreException(String.format("Cannot get the result which name is 'Issue' from http response body, request url - %s,param - %s, request body - %s",
+                    String.format(OPEN_API_URL, this.contextConfig.getTeamName()),
+                    toJson(param),
+                    toJson(resultMap)));
         }
         Map<String, Object> result = (Map<String, Object>) dataObj;
         if (Checker.isNotEmpty(result)) {
@@ -649,7 +655,13 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                                 }
                                 Integer peekId = queuePage.poll();
                                 if (Checker.isEmpty(peekId)) continue;
-                                Map<String, Object> issueDetail = this.get(IssueParam.create().issueCode(peekId));
+                                Map<String, Object> issueDetail = null;
+                                try {
+                                    issueDetail = this.get(IssueParam.create().issueCode(peekId));
+                                }catch (Exception e){
+                                    TapLogger.warn(TAG,e.getMessage());
+                                    continue;
+                                }
                                 if (Checker.isEmpty(issueDetail)) continue;
                                 queueItem.add(issueDetail);
                             }
@@ -812,11 +824,15 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                                 }
                                 Integer peekId = queuePage.poll();
                                 if (Checker.isEmpty(peekId)) continue;
-                                Map<String, Object> issueDetail = this.get(IssueParam.create().issueCode(peekId));
+                                Map<String, Object> issueDetail = null;
+                                try {
+                                    issueDetail = this.get(IssueParam.create().issueCode(peekId));
+                                }catch (Exception e){
+                                    TapLogger.warn(TAG,e.getMessage());
+                                    continue;
+                                }
                                 if (Checker.isEmpty(issueDetail)) continue;
                                 queueItem.add(issueDetail);
-                                //queueItem.notify();
-                                //itemCount.getAndAdd(1);
                             }
                         } catch (Exception e) {
                             throw e;
@@ -933,7 +949,13 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     continue;
                 }
                 //Map<String,Object> issueDetail = instance.attributeAssignment(stringObjectMap);
-                Map<String, Object> issueDetail = this.get(IssueParam.create().issueCode((Integer) code));// stringObjectMap;
+                Map<String, Object> issueDetail = null;
+                try {
+                    issueDetail = this.get(IssueParam.create().issueCode((Integer) code));
+                }catch (Exception e){
+                    TapLogger.warn(TAG,e.getMessage());
+                    continue;
+                }
                 //if (null == issueDetail){
                 //    events[0].add(TapSimplify.insertRecordEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
                 //    events[0].add(TapSimplify.deleteDMLEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
