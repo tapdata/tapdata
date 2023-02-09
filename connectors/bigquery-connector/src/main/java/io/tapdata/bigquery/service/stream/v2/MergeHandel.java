@@ -434,7 +434,6 @@ public class MergeHandel extends BigQueryStart {
                 this.future = this.scheduledExecutorService.scheduleWithFixedDelay(this.mergeRunnable(), 0, mergeDelaySeconds, TimeUnit.SECONDS);
             }else if (needRestart){
                 if (!this.future.isCancelled()){
-//                    List<Runnable> runnable = this.scheduledExecutorService.shutdownNow();
                     this.future.cancel(true);
                     this.future = null;
                 }

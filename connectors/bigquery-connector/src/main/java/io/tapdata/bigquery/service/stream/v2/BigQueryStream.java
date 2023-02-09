@@ -85,7 +85,7 @@ public class BigQueryStream extends BigQueryStart {
         return new BigQueryStream(context).stateMap(context);
     }
 
-    public WriteListResult<TapRecordEvent> writeRecord(List<TapRecordEvent> events, TapTable table) throws InterruptedException, IOException, Descriptors.DescriptorValidationException {
+    public synchronized WriteListResult<TapRecordEvent> writeRecord(List<TapRecordEvent> events, TapTable table) throws InterruptedException, IOException, Descriptors.DescriptorValidationException {
         String tableId = table.getId();
         Long streamToBatchTime = this.stateMap.getLong(tableId, MergeHandel.BATCH_TO_STREAM_TIME);
         boolean needCreateTemporaryTable = Objects.isNull(streamToBatchTime);
@@ -252,13 +252,14 @@ public class BigQueryStream extends BigQueryStart {
                     if (this.isAppend) {
                         this.isAppend = false;
                         this.streamToBatchTime = System.nanoTime();
+                        TapLogger.info(TAG,"The full quantity has ended and is entering the increment. The data will be written to the temporary table. Please note.");
                     }
                     if (event instanceof TapUpdateRecordEvent) {
                         this.update++;
                     } else if (event instanceof TapDeleteRecordEvent) {
                         this.delete++;
                     } else {
-                        TapLogger.warn(TAG, "Error Event.");
+                        TapLogger.warn(TAG, "Unable to process invalid time type, invalid record, ignored. ");
                     }
                 }
                 if (this.isAppend) {
