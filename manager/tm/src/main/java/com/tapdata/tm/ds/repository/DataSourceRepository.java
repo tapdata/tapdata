@@ -1,6 +1,7 @@
 package com.tapdata.tm.ds.repository;
 
 import com.tapdata.tm.base.reporitory.BaseRepository;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import org.bson.types.ObjectId;

@@ -2368,25 +2368,36 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 log.error("error", e);
             }
         }
-
+        Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
         try {
-            metadataInstancesService.batchImport(metadataInstancess, user, cover);
+            conMap = dataSourceService.batchImport(connections, user, cover);
+        } catch (Exception e) {
+            log.error("dataSourceService.batchImport error", e);
+        }
+
+        Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
+        try {
+            metaMap = metadataInstancesService.batchImport(metadataInstancess, user, cover, conMap);
         } catch (Exception e) {
             log.error("metadataInstancesService.batchImport error", e);
         }
         try {
-            dataSourceService.batchImport(connections, user, cover);
-        } catch (Exception e) {
-            log.error("dataSourceService.batchImport error", e);
-        }
-        try {
-            batchImport(tasks, user, cover, tags);
+            batchImport(tasks, user, cover, tags, conMap, metaMap);
         } catch (Exception e) {
             log.error("tasks.batchImport error", e);
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags) {
+    /**
+     *
+     * @param taskDtos
+     * @param user
+     * @param cover
+     * @param tags
+     * @param conMap 为后续多租户的调整做准备
+     * @param metaMap 为后续多租户的调整做准备
+     */
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap) {
 
         List<Tag> tagList = new ArrayList<>();
 
