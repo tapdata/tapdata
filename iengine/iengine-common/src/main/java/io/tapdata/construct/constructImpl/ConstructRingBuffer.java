@@ -5,6 +5,7 @@ import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.ringbuffer.Ringbuffer;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.construct.ConstructIterator;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import org.bson.Document;
 
 import java.util.Map;
@@ -25,17 +26,9 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 		this.ringbuffer = hazelcastInstance.getRingbuffer(name);
 	}
 
-	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String name, Integer shareCdcTTLDay) {
-		super(name);
-		this.ringbuffer = hazelcastInstance.getRingbuffer(name);
-		if (shareCdcTTLDay != null && shareCdcTTLDay > 0) {
-			convertTtlDay2Second(shareCdcTTLDay);
-			PersistenceStorage.getInstance().setRingBufferTTL(this.ringbuffer, this.ttlSecond);
-		}
-	}
-
 	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String name, ExternalStorageDto externalStorageDto) {
 		super(name, externalStorageDto);
+		ExternalStorageUtil.initHZRingBufferStorage(externalStorageDto, name, hazelcastInstance.getConfig());
 		this.ringbuffer = hazelcastInstance.getRingbuffer(name);
 		Integer ttlDay = externalStorageDto.getTtlDay();
 		if (ttlDay != null && ttlDay > 0) {

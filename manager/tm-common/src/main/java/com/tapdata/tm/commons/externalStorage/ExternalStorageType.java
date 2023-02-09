@@ -9,6 +9,7 @@ public enum ExternalStorageType {
 	memory("Mem"),
 	mongodb("MongoDB"),
 	rocksdb("RocksDB"),
+	httptm("HttpTM"),
 	;
 	private String mode;
 

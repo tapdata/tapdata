@@ -1,18 +1,28 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.MapUtilV2;
+import com.tapdata.constant.NotExistsNode;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.OperationType;
+import com.tapdata.entity.RelateDataBaseTable;
+import com.tapdata.entity.RelateDatabaseField;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.HazelcastNotExistsException;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -31,7 +41,12 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -633,20 +648,21 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	public static void clearCache(Node<?> node) {
 		if (!(node instanceof MergeTableNode)) return;
-		recursiveClearCache(((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
+		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
+		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
 	}
 
-	private static void recursiveClearCache(List<MergeTableProperties> mergeTableProperties, HazelcastInstance hazelcastInstance) {
+	private static void recursiveClearCache(ExternalStorageDto externalStorageDto, List<MergeTableProperties> mergeTableProperties, HazelcastInstance hazelcastInstance) {
 		if (CollectionUtils.isEmpty(mergeTableProperties)) return;
 		for (MergeTableProperties mergeTableProperty : mergeTableProperties) {
 			String cacheName = getCacheName(mergeTableProperty.getId(), mergeTableProperty.getTableName());
-			ConstructIMap<Document> imap = new ConstructIMap<>(hazelcastInstance, cacheName);
+			ConstructIMap<Document> imap = new ConstructIMap<>(hazelcastInstance, cacheName, externalStorageDto);
 			try {
-				imap.clear();
+				imap.destroy();
 			} catch (Exception e) {
 				throw new RuntimeException("Clear imap failed, name: " + cacheName + ", error message: " + e.getMessage(), e);
 			}
-			recursiveClearCache(mergeTableProperty.getChildren(), hazelcastInstance);
+			recursiveClearCache(externalStorageDto, mergeTableProperty.getChildren(), hazelcastInstance);
 		}
 	}
 }

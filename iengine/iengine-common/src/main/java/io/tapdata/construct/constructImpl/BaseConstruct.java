@@ -1,6 +1,5 @@
 package io.tapdata.construct.constructImpl;
 
-import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.construct.HazelcastConstruct;
 

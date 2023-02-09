@@ -37,6 +37,7 @@ import java.util.Map;
  **/
 public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 
+	public static final int DEFAULT_SHARE_CDC_TTL_DAY = 3;
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkShareCDCNode.class);
 	private HazelcastConstruct<Document> hazelcastConstruct;
 
@@ -47,9 +48,25 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
+		Integer shareCdcTtlDay = getShareCdcTtlDay();
+		externalStorageDto.setTtlDay(shareCdcTtlDay);
 		this.hazelcastConstruct = getHazelcastConstruct(context.hazelcastInstance(), externalStorageDto, processorBaseContext.getTaskDto());
 		logger.info("Init log data storage finished, config: " + externalStorageDto);
 		obsLogger.info("Init log data storage finished, config: " + externalStorageDto);
+	}
+
+	@NotNull
+	private Integer getShareCdcTtlDay() {
+		Integer shareCdcTtlDay = null;
+		List<Node<?>> predecessors = GraphUtil.predecessors(processorBaseContext.getNode(), n -> n instanceof LogCollectorNode);
+		if (CollectionUtils.isNotEmpty(predecessors)) {
+			Node<?> firstPreNode = predecessors.get(0);
+			shareCdcTtlDay = ((LogCollectorNode) firstPreNode).getStorageTime();
+		}
+		if (null == shareCdcTtlDay || shareCdcTtlDay.compareTo(0) <= 0) {
+			shareCdcTtlDay = DEFAULT_SHARE_CDC_TTL_DAY;
+		}
+		return shareCdcTtlDay;
 	}
 
 	private static HazelcastConstruct<Document> getHazelcastConstruct(HazelcastInstance hazelcastInstance, ExternalStorageDto externalStorageDto, TaskDto taskDto) {

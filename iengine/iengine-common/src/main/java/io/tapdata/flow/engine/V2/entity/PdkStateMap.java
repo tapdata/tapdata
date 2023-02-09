@@ -3,9 +3,13 @@ package io.tapdata.flow.engine.V2.entity;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.hazelcast.persistence.PersistenceStorage;
-import com.hazelcast.persistence.StorageMode;
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
+import io.tapdata.construct.constructImpl.ConstructIMap;
+import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.entity.utils.cache.KVMap;
+import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
@@ -22,9 +26,10 @@ public class PdkStateMap implements KVMap<Object> {
 	private static final String GLOBAL_MAP_NAME = "GlobalStateMap";
 	public static final int CONNECT_TIMEOUT_MS = 60 * 1000;
 	public static final int READ_TIMEOUT_MS = 60 * 1000;
-	private IMap<String, Document> imap;
+	//	private IMap<String, Document> imap;
 	private static final String KEY = PdkStateMap.class.getSimpleName();
 	private static volatile PdkStateMap globalStateMap;
+	private DocumentIMap<Document> constructIMap;
 
 	private PdkStateMap() {
 	}
@@ -33,7 +38,7 @@ public class PdkStateMap implements KVMap<Object> {
 		String name = getStateMapName(nodeId);
 		switch (stateMapMode) {
 			case DEFAULT:
-				imap = hazelcastInstance.getMap(name);
+				constructIMap = new DocumentIMap<>(hazelcastInstance, name);
 				break;
 			case HTTP_TM:
 				initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), name);
@@ -44,7 +49,7 @@ public class PdkStateMap implements KVMap<Object> {
 	public PdkStateMap(HazelcastInstance hazelcastInstance, String mapName, StateMapMode stateMapMode) {
 		switch (stateMapMode) {
 			case DEFAULT:
-				imap = hazelcastInstance.getMap(mapName);
+				constructIMap = new DocumentIMap<>(hazelcastInstance, mapName);
 				break;
 			case HTTP_TM:
 				initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
@@ -81,14 +86,13 @@ public class PdkStateMap implements KVMap<Object> {
 		} else {
 			throw new IllegalArgumentException(String.format("Create pdk state map failed, config %s type must be String, actual: %s", ConfigurationCenter.ACCESS_CODE, accessCodeObj.getClass().getSimpleName()));
 		}
-		new PersistenceStorage()
-				.setStorageMode(StorageMode.HTTP_TM)
-				.baseUrl(baseURLs.get(0))
-				.accessCode(accessCode)
-				.connectTimeoutMs(CONNECT_TIMEOUT_MS)
-				.readTimeoutMs(READ_TIMEOUT_MS)
-				.initMapStoreConfig(hazelcastInstance.getConfig(), name);
-		imap = hazelcastInstance.getMap(name);
+		ExternalStorageDto externalStorageDto = new ExternalStorageDto();
+		externalStorageDto.setType(ExternalStorageType.httptm.name());
+		externalStorageDto.setBaseUrl(baseURLs.get(0));
+		externalStorageDto.setAccessToken(accessCode);
+		externalStorageDto.setConnectTimeoutMs(CONNECT_TIMEOUT_MS);
+		externalStorageDto.setReadTimeoutMs(READ_TIMEOUT_MS);
+		constructIMap = new DocumentIMap<>(hazelcastInstance, name, externalStorageDto);
 	}
 
 	@NotNull
@@ -113,49 +117,41 @@ public class PdkStateMap implements KVMap<Object> {
 
 	}
 
+	@SneakyThrows
 	@Override
 	public void put(String key, Object o) {
-		imap.put(key, new Document(KEY, o));
+		constructIMap.insert(key, new Document(KEY, o));
 	}
 
 	@Override
 	public Object putIfAbsent(String key, Object o) {
-		return imap.putIfAbsent(key, new Document(KEY, o));
+		return constructIMap.getiMap().putIfAbsent(key, new Document(KEY, o));
 	}
 
+	@SneakyThrows
 	@Override
 	public Object remove(String key) {
-		return imap.remove(key);
+		return constructIMap.delete(key);
 	}
 
+	@SneakyThrows
 	@Override
 	public void clear() {
-		imap.clear();
+		constructIMap.clear();
 	}
 
+	@SneakyThrows
 	@Override
 	public void reset() {
-		imap.clear();
+		constructIMap.destroy();
 	}
 
+	@SneakyThrows
 	@Override
 	public Object get(String key) {
-		Object value = imap.getOrDefault(key, null);
-		if (null == value) return null;
-		try {
-			return ((Document) value).get(KEY);
-		} catch (Throwable throwable) {
-			//This is a workaround for resolving Document is different issue. Has performance rick.
-			try {
-				return value.getClass().getMethod("get", Object.class).invoke(value, KEY);
-			} catch (Throwable throwable1) {
-				throw new RuntimeException(throwable);
-			}
-		}
-	}
-
-	public IMap<String, Document> getImap() {
-		return imap;
+		Document document = constructIMap.find(key);
+		if (null == document) return null;
+		return document.get(KEY);
 	}
 
 	public enum StateMapMode {

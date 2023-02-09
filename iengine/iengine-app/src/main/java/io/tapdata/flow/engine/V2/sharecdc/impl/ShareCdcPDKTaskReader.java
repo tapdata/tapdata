@@ -3,7 +3,10 @@ package io.tapdata.flow.engine.V2.sharecdc.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.spi.exception.DistributedObjectDestroyedException;
-import com.tapdata.constant.*;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.sharecdc.LogContent;
@@ -41,7 +44,11 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -130,6 +137,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		String shareCDCExternalStorageId = connections.getShareCDCExternalStorageId();
 		ExternalStorageDto logCollectorExternalStorage = clientMongoOperator.findOne(Query.query(where("_id").is(shareCDCExternalStorageId)), ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
 
+		// Do not start ttl here
+		logCollectorExternalStorage.setTtlDay(0);
 		this.hazelcastConstruct = new ConstructRingBuffer<>(hazelcastInstance, ShareCdcUtil.getConstructName(this.logCollectorTaskDto), logCollectorExternalStorage);
 		logger.info(logWrapper(++step, "Init hazelcast construct completed"));
 

@@ -1,5 +1,6 @@
 package com.tapdata.tm.externalStorage.service;
 
+import com.mongodb.ConnectionString;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
@@ -66,6 +67,11 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 			case mongodb:
 				if (StringUtils.isBlank(externalStorage.getUri())) {
 					throw new BizException("External.Storage.MongoDB.Uri.Blank");
+				}
+				ConnectionString mongoUri = new ConnectionString(externalStorage.getUri());
+				String database = mongoUri.getDatabase();
+				if (StringUtils.isBlank(database)) {
+					throw new BizException("External.Storage.MongoDB.Database.Blank");
 				}
 				if (StringUtils.isBlank(externalStorage.getTable())) {
 					throw new BizException("External.Storage.MongoDB.Table.Blank");

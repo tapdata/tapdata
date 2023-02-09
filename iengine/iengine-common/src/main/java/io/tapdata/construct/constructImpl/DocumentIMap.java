@@ -55,6 +55,4 @@ public class DocumentIMap<T> extends ConstructIMap<T> {
 			return super.find(key);
 		}
 	}
-
-
 }

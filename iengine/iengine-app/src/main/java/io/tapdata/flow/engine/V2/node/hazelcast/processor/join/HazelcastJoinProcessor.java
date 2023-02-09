@@ -9,6 +9,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.construct.constructImpl.BytesIMap;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -101,10 +102,11 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance();
 		String leftJoinCacheMapName = joinCacheMapName(leftNodeId, "leftJoinCache");
 		// todo get external storage config
+		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
 		BytesIMap<Map<String, Map<String, Object>>> leftJoinCache = new BytesIMap<>(
 				hazelcastInstance,
 				leftJoinCacheMapName,
-				null
+				externalStorage
 		);
 		try {
 			leftJoinCache.clear();
@@ -115,7 +117,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		BytesIMap<Map<String, Map<String, Object>>> rightJoinCache = new BytesIMap<>(
 				hazelcastInstance,
 				rightJoinCacheMapName,
-				null
+				externalStorage
 		);
 		try {
 			rightJoinCache.clear();

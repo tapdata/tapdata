@@ -2,7 +2,6 @@ package io.tapdata.construct.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
-import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 
@@ -83,5 +82,14 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 	@Override
 	public String getType() {
 		return "IMap";
+	}
+
+	public IMap<String, Object> getiMap() {
+		return iMap;
+	}
+
+	@Override
+	public void destroy() throws Exception {
+		this.iMap.destroy();
 	}
 }

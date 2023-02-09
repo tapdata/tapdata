@@ -118,11 +118,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	public void init() {
 		String agentId = (String) configurationCenter.getConfig(ConfigurationCenter.AGENT_ID);
 		Config config = HazelcastUtil.getConfig(agentId);
-		try {
-			ExternalStorageUtil.initHazelcastDefaultPersistence(clientMongoOperator, config);
-		} catch (Exception e) {
-			logger.warn(e.getMessage(), e);
-		}
 		hazelcastInstance = Hazelcast.newHazelcastInstance(config);
 		cacheService = new HazelcastCacheService(hazelcastInstance, clientMongoOperator);
 		messageDao.setCacheService(cacheService);

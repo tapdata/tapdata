@@ -12,13 +12,10 @@ import io.tapdata.entity.utils.ObjectSerializable;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2022/10/28 11:35 Create
  */
-public class BytesIMap<T> extends BaseConstruct<T> {
-
-    protected IMap<String, Object> iMap;
+public class BytesIMap<T> extends ConstructIMap<T> {
 
     public BytesIMap(HazelcastInstance hazelcastInstance, String name, ExternalStorageDto externalStorageDto) {
-        super(name, externalStorageDto);
-        this.iMap = hazelcastInstance.getMap(name);
+        super(hazelcastInstance, name, externalStorageDto);
     }
 
     private byte[] serialized(T data) {

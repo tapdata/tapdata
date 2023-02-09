@@ -1,8 +1,13 @@
 package io.tapdata.flow.engine.V2.util;
 
 import com.hazelcast.config.Config;
+import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
-import com.hazelcast.persistence.StorageMode;
+import com.hazelcast.persistence.config.PersistenceHttpConfig;
+import com.hazelcast.persistence.config.PersistenceInMemConfig;
+import com.hazelcast.persistence.config.PersistenceMongoDBConfig;
+import com.hazelcast.persistence.config.PersistenceRocksDBConfig;
+import com.hazelcast.persistence.config.PersistenceStorageAbstractConfig;
 import com.mongodb.MongoClientURI;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MongodbUtil;
@@ -28,7 +33,11 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -41,129 +50,119 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class ExternalStorageUtil {
 	private final static String LOG_PREFIX = "[Hazelcast IMDG Persistence] - ";
 	private static final Logger logger = LogManager.getLogger(ExternalStorageUtil.class);
-	public static final int DEFAULT_IN_MEM_SIZE = 100;
-
-	public static void initHazelcastDefaultPersistence(ClientMongoOperator clientMongoOperator, Config config) {
-		Query query = Query.query(where("name").is(ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME));
-		ExternalStorageDto externalStorageDto = clientMongoOperator.findOne(query, ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
-		if (null == externalStorageDto) {
-			throw new RuntimeException(LOG_PREFIX + String.format("Init hazelcast default persistence failed. Default config name '%s' not exists", ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME));
-		}
-		initHZPersistenceStorage(externalStorageDto, "", config);
-	}
-
-	public synchronized static void initHZPersistenceStorage(ExternalStorageDto externalStorageDto, String name, Config config) {
-		initProperty(externalStorageDto);
-		// Init hazelcast config
-		try {
-			if (StringUtils.isBlank(name)) {
-				PersistenceStorage.getInstance().initHZConfig(config);
-			} else {
-				PersistenceStorage.getInstance().initHZConfig(config, name);
-			}
-		} catch (Exception e) {
-			throw new RuntimeException(LOG_PREFIX + "Init hazelcast persistence failed. " + e.getMessage(), e);
-		}
-	}
+	public static final int DEFAULT_IN_MEM_SIZE = 1;
 
 	public synchronized static void initHZMapStorage(ExternalStorageDto externalStorageDto, String name, Config config) {
-		initProperty(externalStorageDto);
-		// Init hazelcast config
+		addConfig(externalStorageDto, ConstructType.IMAP, name);
 		try {
-			if (StringUtils.isBlank(name)) {
-				PersistenceStorage.getInstance().initMapStoreConfig(config);
-			} else {
-				PersistenceStorage.getInstance().initMapStoreConfig(config, name);
-			}
+			PersistenceStorage.getInstance().initMapStoreConfig(config, name);
+			logger.info("Init IMap store config succeed, name: " + name);
 		} catch (Exception e) {
 			throw new RuntimeException(LOG_PREFIX + "Init hazelcast IMap persistence failed. " + e.getMessage(), e);
 		}
 	}
 
 	public synchronized static void initHZRingBufferStorage(ExternalStorageDto externalStorageDto, String name, Config config) {
-		initProperty(externalStorageDto);
-		// Init hazelcast config
+		addConfig(externalStorageDto, ConstructType.RINGBUFFER, name);
 		try {
-			if (StringUtils.isBlank(name)) {
-				PersistenceStorage.getInstance().initRingBufferConfig(config);
-			} else {
-				PersistenceStorage.getInstance().initRingBufferConfig(config, name);
-			}
+			PersistenceStorage.getInstance().initRingBufferConfig(config, name);
+			logger.info("Init RingBuffer store config succeed, name: " + name);
 		} catch (Exception e) {
 			throw new RuntimeException(LOG_PREFIX + "Init hazelcast RingBuffer persistence failed. " + e.getMessage(), e);
 		}
 	}
 
-	private static void initProperty(ExternalStorageDto externalStorageDto) {
+	private static void addConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
 		if (null == externalStorageDto) throw new IllegalArgumentException("External storage dto cannot be null");
-		PersistenceStorage persistenceStorage = PersistenceStorage.getInstance();
-		// Set storage mode
-		ExternalStorageType externalStorageType = initMode(externalStorageDto, persistenceStorage);
+		PersistenceStorageAbstractConfig persistenceConfig = getPersistenceConfig(externalStorageDto, constructType, constructName);
+		if (null == persistenceConfig) {
+			return;
+		}
+		checkConfigOverrideAndLogger(persistenceConfig);
+		PersistenceStorage.getInstance().addConfig(persistenceConfig);
+		logger.info("Added hazelcast persistence config: " + persistenceConfig);
+	}
+
+	private static PersistenceStorageAbstractConfig getPersistenceConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
+		PersistenceStorageAbstractConfig persistenceStorageAbstractConfig;
+		ExternalStorageType externalStorageType;
+		try {
+			externalStorageType = ExternalStorageType.valueOf(externalStorageDto.getType());
+		} catch (IllegalArgumentException e) {
+			throw new RuntimeException("Nonsupport external storage type: " + externalStorageDto.getType());
+		}
 		// Set properties
 		switch (externalStorageType) {
 			case memory:
+				persistenceStorageAbstractConfig = PersistenceInMemConfig.create(constructType, constructName);
+				persistenceStorageAbstractConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);
 				break;
 			case mongodb:
-				initMongoDBProperty(externalStorageDto, persistenceStorage);
+				persistenceStorageAbstractConfig = getMongoDBConfig(externalStorageDto, constructType, constructName);
 				break;
 			case rocksdb:
-				initRocksDBProperty(externalStorageDto, persistenceStorage);
+				persistenceStorageAbstractConfig = getRocksDBConfig(externalStorageDto, constructType, constructName);
+				break;
+			case httptm:
+				persistenceStorageAbstractConfig = getHttpTMConfig(externalStorageDto, constructType, constructName);
 				break;
 			default:
-				break;
+				throw new RuntimeException("Nonsupport external storage type: " + externalStorageDto.getType());
 		}
-		// Set memory size
-		persistenceStorage.setInMemSize(DEFAULT_IN_MEM_SIZE);
+		return persistenceStorageAbstractConfig;
 	}
 
-	private static void initRocksDBProperty(ExternalStorageDto externalStorageDto, PersistenceStorage persistenceStorage) {
+	private static PersistenceRocksDBConfig getRocksDBConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
 		String rocksdbPath = externalStorageDto.getUri();
 		if (StringUtils.isBlank(rocksdbPath)) {
-			throw new RuntimeException(LOG_PREFIX + "Init hazelcast default persistence failed. RocksDB path cannot be empty");
+			throw new IllegalArgumentException(LOG_PREFIX + "Init hazelcast persist config failed. RocksDB path cannot be empty");
 		}
-		persistenceStorage.setRocksDBPath(rocksdbPath);
-		logger.info(LOG_PREFIX + String.format("Hazelcast default persistence RocksDB config\n - path: %s", rocksdbPath));
+		PersistenceRocksDBConfig rocksDBConfig = PersistenceRocksDBConfig.create(constructType, constructName)
+				.path(rocksdbPath);
+		rocksDBConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);
+		return rocksDBConfig;
 	}
 
-	private static void initMongoDBProperty(ExternalStorageDto externalStorageDto, PersistenceStorage persistenceStorage) {
+	private static PersistenceMongoDBConfig getMongoDBConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
 		String uri = externalStorageDto.getUri();
 		MongoClientURI mongoClientURI;
 		try {
 			mongoClientURI = MongodbUtil.verifyMongoDBUriWithDB(uri);
 		} catch (Exception e) {
-			throw new RuntimeException(LOG_PREFIX + "Init hazelcast default persistence failed. " + e.getMessage());
+			throw new IllegalArgumentException(LOG_PREFIX + "Init hazelcast persistence failed" + e.getMessage());
 		}
-		String database = mongoClientURI.getDatabase();
 		String table = externalStorageDto.getTable();
 		if (StringUtils.isBlank(table)) {
-			throw new RuntimeException(LOG_PREFIX + "Init hazelcast default persistence failed. Collection name cannot be empty");
+			throw new IllegalArgumentException(LOG_PREFIX + "Init hazelcast persistence failed. Collection name cannot be empty");
 		}
-		persistenceStorage.setMongoUri(uri);
-		persistenceStorage.setDB(database);
-		persistenceStorage.setCollection(table);
-		logger.info(LOG_PREFIX + String.format("Hazelcast default persistence MongoDB config\n - uri: %s\n - database: %s\n - collection: %s", uri, database, table));
+		PersistenceMongoDBConfig mongoDBConfig = PersistenceMongoDBConfig.create(constructType, constructName)
+				.uri(uri)
+				.database(mongoClientURI.getDatabase())
+				.collection(table);
+		mongoDBConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);
+		return mongoDBConfig;
 	}
 
-	@NotNull
-	private static ExternalStorageType initMode(ExternalStorageDto externalStorageDto, PersistenceStorage persistenceStorage) {
-		ExternalStorageType externalStorageType;
-		if (null == externalStorageDto.getType()) {
-			throw new IllegalArgumentException(LOG_PREFIX + "Init hazelcast default persistence failed. Type cannot be null");
+	private static PersistenceHttpConfig getHttpTMConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
+		if (StringUtils.isBlank(externalStorageDto.getBaseUrl())) {
+			throw new RuntimeException(LOG_PREFIX + "Base url cannot be empty");
 		}
-		try {
-			externalStorageType = ExternalStorageType.valueOf(externalStorageDto.getType());
-		} catch (Throwable e) {
-			throw new RuntimeException(LOG_PREFIX + String.format("Init hazelcast default persistence failed. Type '%s' is invalid", externalStorageDto.getType()), e);
+		if (StringUtils.isBlank(externalStorageDto.getAccessToken())) {
+			throw new IllegalArgumentException(LOG_PREFIX + "Access token cannot be empty");
 		}
-		StorageMode storageMode;
-		try {
-			storageMode = StorageMode.valueOf(externalStorageType.getMode());
-		} catch (IllegalArgumentException e) {
-			throw new RuntimeException(LOG_PREFIX + String.format("Init hazelcast default persistence failed. Type '%s' is invalid", externalStorageDto.getType()), e);
+		PersistenceHttpConfig httpConfig = PersistenceHttpConfig.create(constructType, constructName, externalStorageDto.getBaseUrl(), externalStorageDto.getAccessToken())
+				.connectTimeoutMs(externalStorageDto.getConnectTimeoutMs())
+				.readTimeoutMs(externalStorageDto.getReadTimeoutMs());
+		httpConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);
+		return httpConfig;
+	}
+
+	private static void checkConfigOverrideAndLogger(PersistenceStorageAbstractConfig persistenceStorageAbstractConfig) {
+		PersistenceStorage persistenceStorage = PersistenceStorage.getInstance();
+		PersistenceStorageAbstractConfig existingConfig = persistenceStorage.getPersistenceStorageConfig(persistenceStorageAbstractConfig.getConstructType(), persistenceStorageAbstractConfig.getName());
+		if (null != existingConfig && !persistenceStorageAbstractConfig.equals(existingConfig)) {
+			logger.info(LOG_PREFIX + "Existing persistence config will be override\n old: " + existingConfig + "\n new: " + persistenceStorageAbstractConfig);
 		}
-		persistenceStorage.setStorageMode(storageMode);
-		logger.info(LOG_PREFIX + "Hazelcast default persistence mode: " + storageMode);
-		return externalStorageType;
 	}
 
 	public static Map<String, ExternalStorageDto> getExternalStorageMap(TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
@@ -209,7 +208,7 @@ public class ExternalStorageUtil {
 				break;
 		}
 		Criteria criteria = new Criteria().orOperator(
-				// Get system inner config with constant name. Reference: manager/tm/src/main/resources/init/idaas/2.9-1.json
+				// Get system inner config with constant name. Reference: manager/tm/src/main/resources/init/idaas/2.10-1.json
 				where("name").is(ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME),
 				// Get default config
 				where("defaultStorage").is(true),
@@ -249,6 +248,11 @@ public class ExternalStorageUtil {
 			externalStorageDto = getDefaultExternalStorage(externalStorageDtoMap, node);
 		}
 		return externalStorageDto;
+	}
+
+	public static ExternalStorageDto getExternalStorage(Node node) {
+		ClientMongoOperator clientMongoOperator = ConnectorConstant.clientMongoOperator;
+		return getExternalStorage(node, null, clientMongoOperator, null);
 	}
 
 	public static ExternalStorageDto getExternalStorage(

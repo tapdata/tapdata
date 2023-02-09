@@ -19,7 +19,10 @@ public class ExternalStorageDto extends BaseDto {
 	private boolean canEdit = false;
 	private boolean canDelete = true;
 	private boolean defaultStorage = false;
-
+	private String baseUrl;
+	private String accessToken;
+	private Integer connectTimeoutMs;
+	private Integer readTimeoutMs;
 	@Override
 	public String toString() {
 		return "ExternalStorage{" +
@@ -27,7 +30,6 @@ public class ExternalStorageDto extends BaseDto {
 				", type='" + type + '\'' +
 				", uri='" + uri + '\'' +
 				(type.equals("mongodb") ? (", table='" + table + '\'') : "") +
-				", ttlDay=" + ttlDay +
 				"} ";
 	}
 }
