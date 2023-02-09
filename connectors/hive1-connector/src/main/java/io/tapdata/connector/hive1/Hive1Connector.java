@@ -191,7 +191,7 @@ public class Hive1Connector extends ConnectorBase {
 //        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
 //        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
 //        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> hive1JdbcContext.getConnection(), c));
+        //connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> hive1JdbcContext.getConnection(), c));
     }
 
     public void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {

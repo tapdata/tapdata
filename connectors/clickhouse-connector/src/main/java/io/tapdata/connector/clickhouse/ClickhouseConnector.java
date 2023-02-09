@@ -217,7 +217,7 @@ public class ClickhouseConnector extends ConnectorBase {
 //        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
 //        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
 
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> clickhouseJdbcContext.getConnection(), c));
+        //connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> clickhouseJdbcContext.getConnection(), c));
     }
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
