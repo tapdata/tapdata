@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.process.FieldAddDelProcessorNode;
 import com.tapdata.tm.commons.dag.process.FieldCalcProcessorNode;
+import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -21,9 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Component("fieldAddDelStrategy")
 @Setter(onMethod_ = {@Autowired})
@@ -50,6 +50,7 @@ public class FieldAddDelStrategyImpl implements DagLogStrategy {
         List<TaskDagCheckLog> result = Lists.newArrayList();
         dag.getNodes().stream()
                 .filter(node -> node instanceof FieldAddDelProcessorNode)
+                .map(node -> (FieldAddDelProcessorNode) node)
                 .forEach(node -> {
                     String name = node.getName();
                     String nodeId = node.getId();
@@ -66,8 +67,18 @@ public class FieldAddDelStrategyImpl implements DagLogStrategy {
 
                     List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(nodeId, userDetail);
                     boolean fieldEmpty = false;
-                    if (CollectionUtils.isEmpty(metadataInstancesDtos) || CollectionUtils.isEmpty(metadataInstancesDtos.get(0).getFields())) {
-                        fieldEmpty = true;
+                    if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
+                        List<FieldProcessorNode.Operation> operations = node.getOperations();
+                        if (CollectionUtils.isNotEmpty(operations)) {
+                            Map<String, String> collect = operations.stream()
+                                    .collect(Collectors.toMap(FieldProcessorNode.Operation::getField, FieldProcessorNode.Operation::getOp, (e1, e2) -> e1));
+
+                            List<String> fields = metadataInstancesDtos.get(0).getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
+                            fields.removeIf(field -> collect.containsKey(field) && collect.get(field).equals("REMOVE"));
+                            if ((node.isDeleteAllFields() || CollectionUtils.isEmpty(fields)) && !collect.containsValue("CREATE")) {
+                                fieldEmpty = true;
+                            }
+                        }
                     }
 
                     if (fieldEmpty) {

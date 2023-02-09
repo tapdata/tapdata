@@ -219,9 +219,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Query query = new Query(criteria);
             query.fields().include("name");
             TaskDto old = findOne(query, user);
-            String name = old.getName();
-            if (StringUtils.isNotBlank(name) && StringUtils.isNotBlank(taskDto.getName()) && !name.equals(taskDto.getName())) {
-                rename = true;
+            if (old != null) {
+                String name = old.getName();
+                if (StringUtils.isNotBlank(name) && StringUtils.isNotBlank(taskDto.getName()) && !name.equals(taskDto.getName())) {
+                    rename = true;
+                }
             }
         }
 
@@ -231,7 +233,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setTransformTaskId(new ObjectId().toHexString());
 
         //模型推演
-        //setDefault(taskDto);
+        setDefault(taskDto);
         taskDto = save(taskDto, user);
         if (dag != null) {
             dag.setTaskId(taskDto.getId());
@@ -335,7 +337,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     protected void beforeSave(TaskDto task, UserDetail user) {
-        setDefault(task);
+        //setDefault(task);
 
         DAG dag = task.getDag();
         if (dag == null) {
@@ -400,17 +402,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         if (taskDto.getId() != null) {
             oldTaskDto = findById(taskDto.getId(), user);
-            taskDto.setSyncType(oldTaskDto.getSyncType());
-            taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
-            taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
+            if (oldTaskDto != null) {
+                taskDto.setSyncType(oldTaskDto.getSyncType());
+                taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
+                taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
 
-            if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
-                taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
-                taskDto.setAccessNodeProcessId(oldTaskDto.getAccessNodeProcessId());
-                taskDto.setAccessNodeProcessIdList(oldTaskDto.getAccessNodeProcessIdList());
+                if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
+                    taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
+                    taskDto.setAccessNodeProcessId(oldTaskDto.getAccessNodeProcessId());
+                    taskDto.setAccessNodeProcessIdList(oldTaskDto.getAccessNodeProcessIdList());
+                }
+
+                log.debug("old task = {}", oldTaskDto);
             }
-
-            log.debug("old task = {}", oldTaskDto);
         }
 
         if (oldTaskDto == null) {
@@ -1009,6 +1013,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public void renew(ObjectId id, UserDetail user) {
         TaskDto taskDto = checkExistById(id, user);
+        boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
+        if (needCreateRecord) {
+            String lastTaskRecordId = new ObjectId().toHexString();
+            Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId);
+            updateById(id.toHexString(), update, user);
+
+            taskDto.setTaskRecordId(lastTaskRecordId);
+            TaskEntity taskSnapshot = new TaskEntity();
+            BeanUtil.copyProperties(taskDto, taskSnapshot);
+
+            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
+                    new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+        }
 //        String status = taskDto.getStatus();
 //        if (TaskDto.STATUS_WAIT_START.equals(status)) {
 //            return;
@@ -1028,9 +1045,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW, user);
         if (stateMachineResult.isOk()) {
-            boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
-            taskDto.setNeedCreateRecord(needCreateRecord);
-
             log.debug("check task status complete, task name = {}", taskDto.getName());
             taskResetLogService.clearLogByTaskId(id.toHexString());
             sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_RESET);
@@ -1048,26 +1062,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         renewAgentMeasurement(taskDto.getId().toString());
         log.debug("renew task complete, task name = {}", taskDto.getName());
 
-        String lastTaskRecordId = new ObjectId().toString();
         //更新任务信息
-        Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId).unset("temp");
+        Update update = new Update().unset("temp");
         updateById(taskDto.getId(), update, user);
 
         //清除校验结果
         taskAutoInspectResultsService.cleanResultsByTask(taskDto);
-
-        if (taskDto.isNeedCreateRecord()) {
-            taskDto.setStatus(TaskDto.STATUS_WAIT_START);
-            taskDto.setAgentId(null);
-            taskDto.setTaskRecordId(lastTaskRecordId);
-            taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
-            taskDto.setAccessNodeProcessIdList(Lists.newArrayList());
-            TaskEntity taskSnapshot = new TaskEntity();
-            BeanUtil.copyProperties(taskDto, taskSnapshot);
-
-            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
-                    new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
-        }
 
         // publish queue
         renewNotSendMq(taskDto, user);
@@ -1393,7 +1393,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private Page<TaskDto> findDataCopyList(Filter filter, UserDetail userDetail) {
         Where where = filter.getWhere();
 
-        Criteria criteria = Criteria.where("is_deleted").ne(true).and("user_id").is(userDetail.getUserId());
+        Criteria criteria = new Criteria();
+        if (!userDetail.isRoot()) {
+            criteria.and("user_id").is(userDetail.getUserId());
+        }
         Criteria orToCriteria = parseOrToCriteria(where);
 
         // Supplementary data verification status
@@ -1742,12 +1745,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public Map<String, Object> chart(UserDetail user) {
         Map<String, Object> resultChart = new HashMap<>();
-        Criteria criteria = Criteria.where("user_id").is(user.getUserId())
+        Criteria criteria = new Criteria()
                 .and("is_deleted").ne(true)
                 .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
                 .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
                 //共享缓存的任务设计的有点问题
                 .and("shareCache").ne(true);
+        if (!user.isRoot()) {
+            criteria.and("user_id").is(user.getUserId());
+        }
 
 
         Query query = Query.query(criteria);
@@ -2362,25 +2368,36 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 log.error("error", e);
             }
         }
-
+        Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
         try {
-            metadataInstancesService.batchImport(metadataInstancess, user, cover);
+            conMap = dataSourceService.batchImport(connections, user, cover);
+        } catch (Exception e) {
+            log.error("dataSourceService.batchImport error", e);
+        }
+
+        Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
+        try {
+            metaMap = metadataInstancesService.batchImport(metadataInstancess, user, cover, conMap);
         } catch (Exception e) {
             log.error("metadataInstancesService.batchImport error", e);
         }
         try {
-            dataSourceService.batchImport(connections, user, cover);
-        } catch (Exception e) {
-            log.error("dataSourceService.batchImport error", e);
-        }
-        try {
-            batchImport(tasks, user, cover, tags);
+            batchImport(tasks, user, cover, tags, conMap, metaMap);
         } catch (Exception e) {
             log.error("tasks.batchImport error", e);
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags) {
+    /**
+     *
+     * @param taskDtos
+     * @param user
+     * @param cover
+     * @param tags
+     * @param conMap 为后续多租户的调整做准备
+     * @param metaMap 为后续多租户的调整做准备
+     */
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap) {
 
         List<Tag> tagList = new ArrayList<>();
 
@@ -2396,8 +2413,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         for (TaskDto taskDto : taskDtos) {
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
-            query.fields().include("id");
-            TaskDto one = findOne(query);
+            query.fields().include("_id", "user_id");
+            TaskDto one = findOne(query, user);
 
             taskDto.setListtags(null);
             taskDto.setStatus(TaskDto.STATUS_EDIT);
@@ -2409,6 +2426,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             if (attrs != null) {
                 attrs.remove("edgeMilestones");
                 attrs.remove("syncProgress");
+            }
+
+            if (one == null) {
+                TaskDto one1 = findOne(new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true)));
+                if (one1 != null) {
+                    taskDto.setId(null);
+                }
             }
 
             if (one == null || cover) {
@@ -2425,6 +2449,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     taskDto.setListtags(tagList);
                 }
                 if (one == null) {
+                    if (taskDto.getId() == null) {
+                        taskDto.setId(new ObjectId());
+                    }
                     //taskDto.setId(null);
                     TaskEntity taskEntity = repository.importEntity(convertToEntity(TaskEntity.class, taskDto), user);
                     taskDto = convertToDto(taskEntity, TaskDto.class);
@@ -2709,8 +2736,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .unset("stopRetryTimes")
                     .unset("currentEventTimestamp")
                     .unset("scheduleDate")
-                    .unset("stopedDate")
-                    .set("needCreateRecord", taskDto.isNeedCreateRecord());
+                    .unset("stopedDate");
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
@@ -2838,13 +2864,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第一位 是否需要共享挖掘处理， 1 是   0 否
      *                  第二位 是否开启打点任务      1 是   0 否
      */
-    private void start(TaskDto taskDto, UserDetail user, String startFlag) {
+    public void start(TaskDto taskDto, UserDetail user, String startFlag) {
         Update update = Update.update("lastStartDate", System.currentTimeMillis());
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             String taskRecordId = new ObjectId().toHexString();
             update.set("taskRecordId", taskRecordId);
             taskDto.setTaskRecordId(taskRecordId);
-            taskDto.setNeedCreateRecord(true);
+
+            TaskEntity taskSnapshot = new TaskEntity();
+            BeanUtil.copyProperties(taskDto, taskSnapshot);
+            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), DateUtil.date()));
         }
         if (Objects.isNull(taskDto.getStartTime())) {
             DateTime date = DateUtil.date();
@@ -2947,6 +2976,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .updatorName(userDetail.getUsername())
                     .agentId(dto.getAgentId())
                     .syncType(dto.getSyncType())
+                    .userId(dto.getUserId())
                     .build();
             disruptorService.sendMessage(DisruptorTopicEnum.TASK_STATUS, info);
         }
@@ -3375,7 +3405,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
-                run(taskDto, finalUserMap.get(taskDto.getUserId()));
+                start(taskDto, finalUserMap.get(taskDto.getUserId()), "11");
                 //启动过后，应该更新掉这个自动启动计划
                 Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
                 updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
@@ -3388,7 +3418,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
-                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING));
+                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
+                        TaskDto.STATUS_DELETE_FAILED));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
@@ -3552,17 +3583,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    long inputInsertTotal = Long.parseLong(String.valueOf(vs.get("inputInsertTotal")));
-                    long inputOthersTotal = Long.parseLong(String.valueOf(vs.get("inputOthersTotal")));
-                    long inputDdlTotal = Long.parseLong(String.valueOf(vs.get("inputDdlTotal")));
-                    long inputUpdateTotal = Long.parseLong(String.valueOf(vs.get("inputUpdateTotal")));
-                    long inputDeleteTotal = Long.parseLong(String.valueOf(vs.get("inputDeleteTotal")));
+                    long inputInsertTotal = parseDataTotal(vs.get("inputInsertTotal"));
+                    long inputOthersTotal = parseDataTotal(vs.get("inputOthersTotal"));
+                    long inputDdlTotal = parseDataTotal(vs.get("inputDdlTotal"));
+                    long inputUpdateTotal = parseDataTotal(vs.get("inputUpdateTotal"));
+                    long inputDeleteTotal = parseDataTotal(vs.get("inputDeleteTotal"));
 
-                    long outputInsertTotal = Long.parseLong(String.valueOf(vs.get("outputInsertTotal")));
-                    long outputOthersTotal = Long.parseLong(String.valueOf(vs.get("outputOthersTotal")));
-                    long outputDdlTotal = Long.parseLong(String.valueOf(vs.get("outputDdlTotal")));
-                    long outputUpdateTotal = Long.parseLong(String.valueOf(vs.get("outputUpdateTotal")));
-                    long outputDeleteTotal = Long.parseLong(String.valueOf(vs.get("outputDeleteTotal")));
+                    long outputInsertTotal = parseDataTotal(vs.get("outputInsertTotal"));
+                    long outputOthersTotal = parseDataTotal(vs.get("outputOthersTotal"));
+                    long outputDdlTotal = parseDataTotal(vs.get("outputDdlTotal"));
+                    long outputUpdateTotal = parseDataTotal(vs.get("outputUpdateTotal"));
+                    long outputDeleteTotal = parseDataTotal(vs.get("outputDeleteTotal"));
                     output += outputInsertTotal;
                     output += outputOthersTotal;
                     output += outputDdlTotal;
@@ -3590,6 +3621,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         chart6Map.put("updatedTotal", update);
         chart6Map.put("deletedTotal", delete);
         return chart6Map;
+    }
+
+
+    private long parseDataTotal(Object param) {
+        if (param == null) {
+            return 0L;
+        }
+        if ("null".equals(param)) {
+            return 0L;
+        }
+        return Long.parseLong(String.valueOf(param));
     }
 
     public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {

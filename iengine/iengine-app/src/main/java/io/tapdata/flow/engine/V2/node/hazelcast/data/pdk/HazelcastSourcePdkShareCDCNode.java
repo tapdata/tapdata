@@ -29,7 +29,7 @@ public class HazelcastSourcePdkShareCDCNode extends HazelcastSourcePdkDataNode {
 
 	public HazelcastSourcePdkShareCDCNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.sourceMode = SourceMode.SHARE_CDC;
+		this.sourceMode = SourceMode.LOG_COLLECTOR;
 	}
 
 	@Override

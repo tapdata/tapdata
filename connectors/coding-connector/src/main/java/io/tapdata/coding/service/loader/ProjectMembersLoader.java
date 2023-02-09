@@ -20,10 +20,11 @@ import java.util.function.BiConsumer;
 
 import static io.tapdata.coding.enums.TapEventTypes.*;
 
-public class ProjectMembersLoader extends CodingStarter implements CodingLoader<ProjectMemberParam>{
+public class ProjectMembersLoader extends CodingStarter implements CodingLoader<ProjectMemberParam> {
     //OverlayQueryEventDifferentiator overlayQueryEventDifferentiator = new OverlayQueryEventDifferentiator();
     public static final String TABLE_NAME = "ProjectMembers";
-    private Integer currentProjectId ;
+    private Integer currentProjectId;
+
     public ProjectMembersLoader(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);
         Map<String, Object> project = ProjectsLoader.create(tapConnectionContext).get(null);
@@ -31,29 +32,31 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
             this.currentProjectId = (Integer) project.get("Id");
         }
     }
+
     public static ProjectMembersLoader create(TapConnectionContext tapConnectionContext) {
         return new ProjectMembersLoader(tapConnectionContext);
     }
+
     @Override
     public Long streamReadTime() {
-        return 5*60*1000l;
+        return 5 * 60 * 1000l;
     }
 
     @Override
-    public List<Map<String,Object>> list(ProjectMemberParam param) {
-        Map<String,Object> resultMap = this.codingHttp(param).post();
+    public List<Map<String, Object>> list(ProjectMemberParam param) {
+        Map<String, Object> resultMap = this.codingHttp(param).post();
         Object response = resultMap.get("Response");
-        if (null == response){
-            throw new CoreException("can not get project members list, the 'Response' is empty or null.");
+        if (null == response) {
+            throw new CoreException("can not get project members list, the 'Response' is empty.");
         }
-        Map<String,Object> responseMap = (Map<String,Object>)response;
+        Map<String, Object> responseMap = (Map<String, Object>) response;
         Object dataObj = responseMap.get("Data");
-        if (null == dataObj){
-            throw new CoreException("can not get project members list, the 'Data' is empty or null.");
+        if (null == dataObj) {
+            throw new CoreException("can not get project members list, the 'Data' is empty.");
         }
-        Map<String,Object> data = (Map<String,Object>)dataObj;
+        Map<String, Object> data = (Map<String, Object>) dataObj;
         Object projectMembersObj = data.get(TABLE_NAME);
-        return null !=  projectMembersObj? (List<Map<String, Object>>) projectMembersObj : null;
+        return null != projectMembersObj ? (List<Map<String, Object>>) projectMembersObj : null;
     }
 
     @Override
@@ -66,69 +69,69 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         final int maxLimit = 500;//@TODO 最大分页数
         if (param.limit() > maxLimit) param.limit(maxLimit);
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        HttpEntity<String,String> header = HttpEntity.create()
-                .builder("Authorization",contextConfig.getToken());
-        HttpEntity<String,Object> body = HttpEntity.create()
-                .builder("Action","DescribeProjectMembers")
-                .builder("ProjectId",this.currentProjectId)
-                .builder("PageNumber",param.offset())
-                .builder("PageSize",param.limit())
-                .builderIfNotAbsent("RoleId",param.roleId());
+        HttpEntity<String, String> header = HttpEntity.create()
+                .builder("Authorization", contextConfig.getToken());
+        HttpEntity<String, Object> body = HttpEntity.create()
+                .builder("Action", "DescribeProjectMembers")
+                .builder("ProjectId", this.currentProjectId)
+                .builder("PageNumber", param.offset())
+                .builder("PageSize", param.limit())
+                .builderIfNotAbsent("RoleId", param.roleId());
         return CodingHttp.create(
                 header.getEntity(),
                 body.getEntity(),
-                String.format(OPEN_API_URL,contextConfig.getTeamName()));
+                String.format(OPEN_API_URL, contextConfig.getTeamName()));
     }
 
     @Override
     public void batchRead(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer) {
-        this.read(offset, batchCount, consumer,true);
+        this.read(offset, batchCount, consumer, true);
     }
 
     @Override
     public int batchCount() throws Throwable {
         Param param = ProjectMemberParam.create().limit(1).offset(1);
-        Map<String,Object> resultMap = this.codingHttp((ProjectMemberParam)param).post();
+        Map<String, Object> resultMap = this.codingHttp((ProjectMemberParam) param).post();
         Object response = resultMap.get("Response");
-        if (null == response){
+        if (null == response) {
             return 0;
         }
-        Map<String,Object> responseMap = (Map<String,Object>)response;
+        Map<String, Object> responseMap = (Map<String, Object>) response;
         Object dataObj = responseMap.get("Data");
-        if (null == dataObj){
+        if (null == dataObj) {
             return 0;
         }
-        Map<String,Object> data = (Map<String,Object>)dataObj;
+        Map<String, Object> data = (Map<String, Object>) dataObj;
         Object totalCountObj = data.get("TotalCount");
         if (Checker.isEmpty(totalCountObj)) return 0;
-        return (Integer)totalCountObj;
+        return (Integer) totalCountObj;
     }
 
-    private void read(Object offsetState, int recordSize,  BiConsumer<List<TapEvent>, Object> consumer,boolean batchFlag){
+    private void read(Object offsetState, int recordSize, BiConsumer<List<TapEvent>, Object> consumer, boolean batchFlag) {
         int startPage = 1;
         Param param = ProjectMemberParam.create()
                 .limit(recordSize)
                 .offset(startPage);
-        CodingHttp codingHttp = this.codingHttp((ProjectMemberParam)param);
+        CodingHttp codingHttp = this.codingHttp((ProjectMemberParam) param);
         List<TapEvent> events = new ArrayList<>();
         while (this.sync()) {
-            Map<String,Object> resultMap = codingHttp.buildBody("PageNumber",startPage).post();
+            Map<String, Object> resultMap = codingHttp.buildBody("PageNumber", startPage).post();
             Object response = resultMap.get("Response");
-            if (null == response){
-                throw new CoreException("can not get the project members's page which 'PageNumber' is "+startPage+", the 'Response' is empty or null.");
+            if (null == response) {
+                throw new CoreException("can not get the project members's page which 'PageNumber' is " + startPage + ", the 'Response' is empty.");
             }
-            Map<String,Object> responseMap = (Map<String,Object>)response;
+            Map<String, Object> responseMap = (Map<String, Object>) response;
             Object dataObj = responseMap.get("Data");
-            if (null == dataObj){
-                throw new CoreException("can not get the project members's page which 'PageNumber' is "+startPage+", the 'Data' is empty or null.");
+            if (null == dataObj) {
+                throw new CoreException("can not get the project members's page which 'PageNumber' is " + startPage + ", the 'Data' is empty.");
             }
-            Map<String,Object> data = (Map<String,Object>)dataObj;
+            Map<String, Object> data = (Map<String, Object>) dataObj;
             Object teamMembersObj = data.get(TABLE_NAME);
-            if (Checker.isNotEmpty(teamMembersObj)){
+            if (Checker.isNotEmpty(teamMembersObj)) {
                 List<Map<String, Object>> teamMembers = (List<Map<String, Object>>) teamMembersObj;
                 for (Map<String, Object> teamMember : teamMembers) {
                     Object updatedAtObj = teamMember.get("UpdatedAt");
-                    Long updatedAt = Checker.isEmpty(updatedAtObj) ? System.currentTimeMillis() : (Long)updatedAtObj;
+                    Long updatedAt = Checker.isEmpty(updatedAtObj) ? System.currentTimeMillis() : (Long) updatedAtObj;
 //                    if (!batchFlag) {
 //                        Integer teamMemberId = (Integer) teamMember.get("Id");
 //                        Integer teamMemberHash = MapUtil.create().hashCode(teamMember);
@@ -141,23 +144,23 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
 //                                break;
 //                        }
 //                    }else {
-                        events.add(TapSimplify.insertRecordEvent(teamMember,TABLE_NAME).referenceTime(updatedAt));
+                    events.add(TapSimplify.insertRecordEvent(teamMember, TABLE_NAME).referenceTime(updatedAt));
 //                    }
                     //((CodingOffset)offsetState).offset().put(TABLE_NAME,updatedAt);
                     if (teamMembers.size() == recordSize) {
-                        consumer.accept(events,offsetState);
+                        consumer.accept(events, offsetState);
                         events = new ArrayList<>();
                     }
                 }
-                if (teamMembers.size() < param.limit()){
+                if (teamMembers.size() < param.limit()) {
                     break;
                 }
                 startPage += param.limit();
-            }else {
+            } else {
                 break;
             }
         }
-        if (!sync()){
+        if (!sync()) {
             this.connectorOut();
         }
 //        if (!batchFlag) {
@@ -166,12 +169,12 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
 //                events.addAll(delEvents);
 //            }
 //        }
-        if (events.size() > 0)  consumer.accept(events, offsetState);
+        if (events.size() > 0) consumer.accept(events, offsetState);
     }
 
     @Override
     public void streamRead(List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) {
-        this.read(offsetState, recordSize, consumer,false);
+        this.read(offsetState, recordSize, consumer, false);
     }
 
     @Override
@@ -184,33 +187,39 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         TapEvent event = null;
 
         Object memberObj = issueEventData.get("member");
-        if (Checker.isEmpty(memberObj)){
-            TapLogger.info(TAG,"A event lack member data in project members row data call back method's param.");
+        if (Checker.isEmpty(memberObj)) {
+            TapLogger.info(TAG, "A event lack member data in project members row data call back method's param.");
             return null;
         }
-        Map<String,Object> member = (Map<String, Object>)memberObj;
+        Map<String, Object> member = (Map<String, Object>) memberObj;
         Object teamObj = issueEventData.get("team");
-        if (!Checker.isEmpty(teamObj)){
-            Object teamId = ((Map<String,Object>)teamObj).get("team_id");
-            member.put("team_id",teamId);
+        if (!Checker.isEmpty(teamObj)) {
+            Object teamId = ((Map<String, Object>) teamObj).get("team_id");
+            member.put("team_id", teamId);
         }
-        member.put("project_id",this.currentProjectId);
+        member.put("project_id", this.currentProjectId);
         Map<String, Object> schemaMap = SchemaStart.getSchemaByName(TABLE_NAME).autoSchema(member);
         Object referenceTimeObj = schemaMap.get("UpdatedAt");
-        Long referenceTime = Checker.isEmpty(referenceTimeObj)?System.currentTimeMillis():(Long)referenceTimeObj;
+        Long referenceTime = Checker.isEmpty(referenceTimeObj) ? System.currentTimeMillis() : (Long) referenceTimeObj;
 
-        switch (eventType){
-            case DELETED_EVENT:{
-                event = TapSimplify.deleteDMLEvent(schemaMap, TABLE_NAME).referenceTime(referenceTime)  ;
-            };break;
-            case UPDATE_EVENT:{
-                event = TapSimplify.updateDMLEvent(null,schemaMap, TABLE_NAME).referenceTime(referenceTime) ;
-            };break;
-            case CREATED_EVENT:{
-                event = TapSimplify.insertRecordEvent(schemaMap, TABLE_NAME).referenceTime(referenceTime)  ;
-            };break;
+        switch (eventType) {
+            case DELETED_EVENT: {
+                event = TapSimplify.deleteDMLEvent(schemaMap, TABLE_NAME).referenceTime(referenceTime);
+            }
+            ;
+            break;
+            case UPDATE_EVENT: {
+                event = TapSimplify.updateDMLEvent(null, schemaMap, TABLE_NAME).referenceTime(referenceTime);
+            }
+            ;
+            break;
+            case CREATED_EVENT: {
+                event = TapSimplify.insertRecordEvent(schemaMap, TABLE_NAME).referenceTime(referenceTime);
+            }
+            ;
+            break;
         }
-        TapLogger.debug(TAG,"From WebHook coding completed a event [{}] for [{}] table: event data is - {}",eventType,TABLE_NAME,schemaMap);
+        TapLogger.debug(TAG, "From WebHook coding completed a event [{}] for [{}] table: event data is - {}", eventType, TABLE_NAME, schemaMap);
         return Collections.singletonList(event);
     }
 

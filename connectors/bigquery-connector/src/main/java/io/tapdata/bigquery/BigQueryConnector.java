@@ -185,7 +185,6 @@ public class BigQueryConnector extends ConnectorBase {
     private void writeRecordStream(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
         if (Objects.isNull(this.valve)) {
             this.valve = WriteValve.open(
-                    table,
                     BigQueryConnector.STREAM_SIZE,
                     BigQueryConnector.CUMULATIVE_TIME_INTERVAL,
                     (writeConsumer, writeList, targetTable) -> {
@@ -195,31 +194,8 @@ public class BigQueryConnector extends ConnectorBase {
                             TapLogger.warn(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
                         }
                     },
-                    (writeList, targetTable) -> {
-                        LinkedHashMap<String, TapField> nameFieldMap = targetTable.getNameFieldMap();
-                        if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {
-                            throw new CoreException("TapTable not any fields.");
-                        }
-                        for (TapRecordEvent event : writeList) {
-                            if (Objects.isNull(event)) continue;
-                            Map<String, Object> record = new HashMap<>();
-                            if (event instanceof TapInsertRecordEvent) {
-                                Map<String, Object> recordMap = new HashMap<>();
-                                TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) event;
-                                record = insertRecordEvent.getAfter();
-                                Map<String, Object> finalRecord = record;
-                                nameFieldMap.forEach((key, f) -> {
-                                    Object value = finalRecord.get(key);
-                                    if (Objects.nonNull(value)) {
-                                        recordMap.put(key, SqlValueConvert.streamJsonArrayValue(value, f));
-                                    }
-                                });
-                                insertRecordEvent.after(recordMap);
-                            }
-                        }
-                    },
                     consumer
-            ).write(events);
+            ).write(events,table);
         }
     }
 

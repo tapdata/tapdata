@@ -152,11 +152,12 @@ public class OssFileStorage implements TapFileStorage {
         if (!isDirectoryExist(directoryPath)) {
             return;
         }
+        String newPath = completionPath(directoryPath);
         AtomicReference<List<TapFile>> listAtomicReference = new AtomicReference<>(new ArrayList<>());
-        ossClient.listObjectsV2(ossConfig.getBucket(), directoryPath).getObjectSummaries().forEach(v -> {
+        ossClient.listObjectsV2(ossConfig.getBucket(), newPath).getObjectSummaries().forEach(v -> {
             String path = v.getKey();
             String fileName = path.substring(path.lastIndexOf("/") + 1);
-            if (recursive || completionPath(directoryPath).length() + fileName.length() == path.length()) {
+            if (recursive || completionPath(newPath).length() + fileName.length() == path.length()) {
                 if (FileMatchKit.matchRegs(fileName, includeRegs, excludeRegs)) {
                     listAtomicReference.get().add(toTapFile(v));
                     if (listAtomicReference.get().size() >= batchSize) {

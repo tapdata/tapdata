@@ -54,6 +54,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Nullable;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -101,7 +102,7 @@ public class LogCollectorService {
         query.skip(skip);
         query.limit(limit);
         MongoUtils.applySort(query, sort);
-        query.fields().include("status", "name", "createTime", "dag", "statuses", "attrs");
+        query.fields().include("status", "name", "createTime", "dag", "statuses", "attrs", "syncPoints");
 
         List<TaskDto> allDto = taskService.findAllDto(query, user);
         long count = taskService.count(new Query(criteria), user);
@@ -308,6 +309,10 @@ public class LogCollectorService {
             update.set("syncPoints.dateTime", logCollectorEditVo.getSyncTime());
         }
 
+        if (CollectionUtils.isNotEmpty(logCollectorEditVo.getSyncPoints())) {
+            update.set("syncPoints", logCollectorEditVo.getSyncPoints());
+        }
+
         taskService.updateById(objectId, update, user);
 
         List<Node> sources = taskDto.getDag().getSources();
@@ -355,16 +360,15 @@ public class LogCollectorService {
             if (CollectionUtils.isNotEmpty(taskDtos)) {
                 List<SyncTaskVo> syncTaskVos = convertSubTask(taskDtos, ((LogCollectorNode) node).getConnectionIds());
                 logCollectorDetailVo.setTaskList(syncTaskVos);
-            }
-
-            TaskDto taskDto1 = taskDtos.get(0);
-            logCollectorDetailVo.setTaskId(taskDto1.getId().toHexString());
-            DAG dag1 = taskDto1.getDag();
-            if (dag1 != null) {
-                List<Edge> edges = dag1.getEdges();
-                Edge edge = edges.get(0);
-                Date eventTime = getAttrsValues(edge.getSource(), edge.getTarget(), "eventTime", taskDto1.getAttrs());
-                logCollectorDetailVo.setLogTime(eventTime);
+                TaskDto taskDto1 = taskDtos.get(0);
+                logCollectorDetailVo.setTaskId(taskDto1.getId().toHexString());
+                DAG dag1 = taskDto1.getDag();
+                if (dag1 != null) {
+                    List<Edge> edges = dag1.getEdges();
+                    Edge edge = edges.get(0);
+                    Date eventTime = getAttrsValues(edge.getSource(), edge.getTarget(), "eventTime", taskDto1.getAttrs());
+                    logCollectorDetailVo.setLogTime(eventTime);
+                }
             }
 
             return logCollectorDetailVo;
@@ -381,6 +385,8 @@ public class LogCollectorService {
         logCollectorVo.setCreateTime(taskDto.getCreateAt());
         logCollectorVo.setStatus(taskDto.getStatus());
         logCollectorVo.setStatuses(taskDto.getStatuses());
+        logCollectorVo.setDag(taskDto.getDag());
+        logCollectorVo.setSyncPoints(taskDto.getSyncPoints());
 //        List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
 //        if (CollectionUtils.isNotEmpty(syncPoints)) {
 //            TaskDto.SyncPoint syncPoint = syncPoints.get(0);
@@ -401,9 +407,13 @@ public class LogCollectorService {
                 Date eventTime = getAttrsValues(node.getId(), targetNode.getId(), "eventTime", taskDto.getAttrs());
                 Date sourceTime = getAttrsValues(node.getId(), targetNode.getId(), "sourceTime", taskDto.getAttrs());
                 logCollectorVo.setLogTime(eventTime);
-                long delayTime = sourceTime.getTime() - eventTime.getTime();
+                if (null != eventTime && null != sourceTime) {
+                    long delayTime = sourceTime.getTime() - eventTime.getTime();
+                    logCollectorVo.setDelayTime(delayTime > 0 ? delayTime : 0);
+                } else {
+                    logCollectorVo.setDelayTime(-1L);
+                }
 
-                logCollectorVo.setDelayTime(delayTime > 0 ? delayTime : 0);
                 if (node instanceof LogCollectorNode) {
                     LogCollectorNode logCollectorNode = (LogCollectorNode) node;
                     List<ObjectId> ids = logCollectorNode.getConnectionIds().stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
@@ -657,14 +667,15 @@ public class LogCollectorService {
         return mapPage;
     }
 
+    @Nullable
     private Date getAttrsValues(String sourceId, String targetId, String type, Map<String, Object> attrs) {
         try {
             if (attrs == null) {
-                return new Date();
+                return null;
             }
             Object syncProgress = attrs.get("syncProgress");
             if (syncProgress == null) {
-                return new Date();
+                return null;
             }
 
             Map syncProgressMap = (Map) syncProgress;
@@ -673,18 +684,18 @@ public class LogCollectorService {
             String valueMapString = (String) syncProgressMap.get(JsonUtil.toJsonUseJackson(key));
             LinkedHashMap valueMap = JsonUtil.parseJson(valueMapString, LinkedHashMap.class);
             if (valueMap == null) {
-                return new Date();
+                return null;
             }
 
             Object o = valueMap.get(type);
             if (o == null) {
-                return new Date();
+                return null;
             }
 
             return new Date(((Double) o).longValue());
 
         } catch (Exception e) {
-            return new Date();
+            return null;
         }
     }
 

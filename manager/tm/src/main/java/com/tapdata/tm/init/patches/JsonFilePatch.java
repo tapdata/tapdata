@@ -219,6 +219,7 @@ public class JsonFilePatch extends AbsPatch {
     public void executeCommand(String scripts) {
         try {
             Document document = mongoTemplate.executeCommand(scripts);
+            logger.info("executeCommand result: {}", document);
         } catch (Exception e) {
             logger.warn("execute scripts failed, scripts = "+ scripts, e);
         }

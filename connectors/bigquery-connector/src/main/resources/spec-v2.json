@@ -26,6 +26,15 @@
           "x-index": 30,
           "default": 3600,
           "required": false
+        },
+        "maxStreamAppendCount": {
+          "title": "${maxStreamAppendCount}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "x-index": 99,
+          "default": 50000,
+          "x-display": "hidden",
+          "required": false
         }
       }
     },
@@ -75,6 +84,7 @@
     "en_US": {
       "doc": "docs/bigquery_en_US.md",
       "serviceAccount": "Service Account(JSON)",
+      "maxStreamAppendCount": " Maximum stream writes ",
       "tableSet": "Table Set ID",
       "writeMode": "Write Mode",
       "mixedUpdates": "Mixed Updates",
@@ -85,6 +95,7 @@
     "zh_CN": {
       "doc": "docs/bigquery_zh_CN.md",
       "serviceAccount": "服务账号(JSON)",
+      "maxStreamAppendCount": "最大批量写入数",
       "tableSet": "数据集ID",
       "writeMode": "写入模式",
       "mixedUpdates": "混合更新",
@@ -93,7 +104,7 @@
       "mergeDelay": "数据合并延时时间(秒，默认：3600秒，第一次合并在全量结束30min以后进行)"
     },
     "zh_TW": {
-
+      "maxStreamAppendCount": "最大批量寫入數",
       "doc": "docs/bigquery_zh_TW.md",
       "serviceAccount": "服務帳號(JSON)",
       "tableSet": "數据集ID",
@@ -135,7 +146,7 @@
       ],
       "fixed": false
     },
-    "NUMERIC[($precision,$scale)]": {
+    "NUMERIC($precision,$scale)": {
       "to": "TapNumber",
       "name": "NUMERIC",
       "precision": [
@@ -146,15 +157,13 @@
         0,
         9
       ],
-      "defaultPrecision": 29,
-      "defaultScale": 0,
       "value": [
         "-9.9999999999999999999999999999999999999E+28",
         "9.9999999999999999999999999999999999999E+28"
       ],
       "fixed": false
     },
-    "BIGNUMERIC[($precision,$scale)]": {
+    "BIGNUMERIC($precision,$scale)": {
       "to": "TapNumber",
       "name": "BIGNUMERIC",
       "precision": [
@@ -165,8 +174,6 @@
         0,
         38
       ],
-      "defaultPrecision": 38,
-      "defaultScale": 0,
       "value": [
         "-3.402823466E+38",
         "3.402823466E+38"
@@ -193,7 +200,7 @@
       ],
       "fixed": false
     },
-    "BIGNUMERIC[($precision)]": {
+    "BIGNUMERIC($precision)": {
       "to": "TapNumber",
       "name": "BIGNUMERIC",
       "precision": [

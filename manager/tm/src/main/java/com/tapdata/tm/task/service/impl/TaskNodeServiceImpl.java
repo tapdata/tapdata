@@ -92,7 +92,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         AtomicReference<TaskDto> taskDto = new AtomicReference<>();
         FunctionUtils.isTureOrFalse(StringUtils.isBlank(taskRecordId)).trueOrFalseHandle(
                 () -> taskDto.set(taskService.findById(MongoUtils.toObjectId(taskId))),
-                () -> taskDto.set(taskRecordService.queryTask(taskRecordId, userDetail.getUserId()))
+                () -> taskDto.set(taskRecordService.queryTask(taskRecordId))
         );
 
         DAG dag = taskDto.get().getDag();
@@ -340,10 +340,16 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         List<MetadataTransformerItemDto> data = Lists.newArrayList();
         for (String tableName : currentTableList) {
+            if (metaMap.get(tableName) == null) {
+                continue;
+            }
+
+            MetadataInstancesDto metadataInstancesDto = metaMap.get(tableName);
+
             MetadataTransformerItemDto item = new MetadataTransformerItemDto();
             item.setSourceObjectName(tableName);
-            String sinkTableName = tableName;
-            String previousTableName = tableName;
+            String sinkTableName = metadataInstancesDto.getOriginalName();
+            String previousTableName = metadataInstancesDto.getOriginalName();
             if (Objects.nonNull(tableNameMapping) && !tableNameMapping.isEmpty() && Objects.nonNull(tableNameMapping.get(tableName))) {
                 sinkTableName = tableNameMapping.get(tableName).getCurrentTableName();
                 previousTableName = tableNameMapping.get(tableName).getPreviousTableName();
@@ -362,10 +368,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName, taskId);
 
             // || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())
-            if (metaMap.get(tableName) == null) {
-                continue;
-            }
-            List<Field> fields = metaMap.get(tableName).getFields();
+
+            List<Field> fields = metadataInstancesDto.getFields();
 
             // TableRenameProcessNode not need fields
             if (!(currentNode instanceof TableRenameProcessNode)) {

@@ -23,4 +23,6 @@ public interface DefaultDataDirectoryService {
     void addJobs(UserDetail user);
 
     void addApi(UserDetail user);
+
+    void init();
 }

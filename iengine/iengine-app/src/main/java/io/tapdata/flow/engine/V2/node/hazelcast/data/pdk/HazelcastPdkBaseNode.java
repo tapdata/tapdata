@@ -21,7 +21,6 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
-import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -36,7 +35,6 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import org.apache.commons.collections4.MapUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -49,10 +47,10 @@ import java.util.concurrent.TimeUnit;
  * @create 2022-05-10 16:57
  **/
 public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
+	public static final int DEFAULT_READ_BATCH_SIZE = 100;
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
-	protected MonitorManager monitorManager;
 	protected SyncProgress syncProgress;
 	protected String associateId;
 	protected TapLogger.LogListener logListener;
@@ -62,11 +60,10 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
-				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-			this.monitorManager = new MonitorManager();
+		this.readBatchSize = DEFAULT_READ_BATCH_SIZE;
+		if (getNode() instanceof DataParentNode) {
+			this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
 		}
-		this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(100);
 		logListener = new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {
@@ -136,6 +133,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> nodeConfig = null;
 		if (node instanceof TableNode) {
 			nodeConfig = ((TableNode) node).getNodeConfig();
+		} else if(node instanceof DatabaseNode) {
+			nodeConfig = ((DatabaseNode) node).getNodeConfig();
 		}
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
 				PdkUtil.createNode(taskDto.getId().toHexString(),
@@ -205,16 +204,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 					}
 				}
 			}, TAG);
-			CommonUtils.handleAnyError(() -> {
-				if (this.monitorManager != null) {
-					this.monitorManager.close();
-					logger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
-					obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
-				}
-			}, err -> {
-				logger.warn("Close monitor failed: " + err.getMessage());
-				obsLogger.warn("Close monitor failed: " + err.getMessage());
-			});
 			CommonUtils.handleAnyError(() -> {
 				Optional.ofNullable(getConnectorNode())
 						.ifPresent(connectorNode -> {

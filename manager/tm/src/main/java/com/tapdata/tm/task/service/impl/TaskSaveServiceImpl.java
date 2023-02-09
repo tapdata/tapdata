@@ -75,7 +75,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         //supplier migrate tableSelectType=all tableNames and SyncObjects
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             DatabaseNode sourceNode = dag.getSourceNode().getFirst();
-            List<String> tableNames = sourceNode.getTableNames();
+
             if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
                 String connectionId = sourceNode.getConnectionId();
                 List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
@@ -90,14 +90,11 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                                 }
                             })
                             .collect(Collectors.toList());
-                    if (CollectionUtils.isEmpty(collect)) {
-                        throw new BizException("DAG.MigrateTaskNotContainsTable");
-                    }
                     sourceNode.setTableNames(collect);
                 }
             }
 
-            nodeCheckData(sourceNode.successors(), tableNames, null);
+            nodeCheckData(sourceNode.successors(), sourceNode.getTableNames(), null);
 
             Dag temp = new Dag(dag.getEdges(), dag.getNodes());
             DAG.build(temp);
@@ -107,8 +104,8 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
     @Override
     public void supplementAlarm(TaskDto taskDto, UserDetail userDetail) {
-        List<AlarmSettingDto> settingDtos = alarmSettingService.findAll();
-        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAll();
+        List<AlarmSettingDto> settingDtos = alarmSettingService.findAll(userDetail);
+        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAll(userDetail);
 
         Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
         Map<AlarmKeyEnum, AlarmRuleDto> ruleDtoMap = ruleDtos.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));

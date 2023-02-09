@@ -24,10 +24,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -48,10 +45,17 @@ public class HazelcastMigrateFieldRenameProcessorNode  extends HazelcastProcesso
   public HazelcastMigrateFieldRenameProcessorNode(ProcessorBaseContext processorBaseContext) {
     super(processorBaseContext);
     MigrateFieldRenameProcessorNode migrateFieldRenameProcessorNode = (MigrateFieldRenameProcessorNode) getNode();
-    this.tableFieldsMappingMap = migrateFieldRenameProcessorNode.getFieldsMapping().stream()
-            .collect(Collectors.toMap(TableFieldInfo::getPreviousTableName,
-                    t->t.getFields().stream()
-                            .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()))));
+
+
+
+    if (CollectionUtils.isNotEmpty(migrateFieldRenameProcessorNode.getFieldsMapping())) {
+      this.tableFieldsMappingMap = migrateFieldRenameProcessorNode.getFieldsMapping().stream()
+              .collect(Collectors.toMap(TableFieldInfo::getPreviousTableName,
+                      t -> t.getFields().stream()
+                              .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()))));
+    } else {
+      this.tableFieldsMappingMap = new LinkedHashMap<>();
+    }
   }
 
   @Override

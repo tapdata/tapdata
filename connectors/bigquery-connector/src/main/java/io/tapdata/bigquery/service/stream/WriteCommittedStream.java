@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
 import io.grpc.LoadBalancerRegistry;
 import io.grpc.internal.PickFirstLoadBalancerProvider;
+import io.tapdata.bigquery.service.stream.v2.WriteBigQueryException;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import org.json.JSONArray;
@@ -32,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 
 public class WriteCommittedStream {
     public static final String TAG = WriteCommittedStream.class.getSimpleName();
+    private int maxStreamCount = 50000;
     private String dataSet;
     private String tableName;
     private String projectId;
@@ -39,6 +41,17 @@ public class WriteCommittedStream {
     private String credentialsJson;
     private Offset streamOffset = Offset.offset();
     private BigQueryWriteClient client;
+    public WriteCommittedStream client(BigQueryWriteClient client){
+        this.client = client;
+        return this;
+    }
+    public int maxStreamCount(){
+        return this.maxStreamCount;
+    }
+    public WriteCommittedStream maxStreamCount(int maxStreamCount){
+        this.maxStreamCount = maxStreamCount;
+        return this;
+    }
 
     public BigQueryWriteClient client() {
         return this.client;
@@ -91,19 +104,24 @@ public class WriteCommittedStream {
                 .dataSet(dataSet)
                 .tableName(tableName)
                 .credentialsJson(credentialsJson);
-        return writeCommittedStream.init();
+        return writeCommittedStream;
+    }
+    public WriteCommittedStream create(){
+        return this.init();
     }
 
     private WriteCommittedStream() {
 
     }
+    public static BigQueryWriteClient createClient(String credentialsJson) throws IOException {
+        GoogleCredentials googleCredentials = WriteCommittedStream.getGoogleCredentials(credentialsJson);
+        BigQueryWriteSettings settings =
+                BigQueryWriteSettings.newBuilder().setCredentialsProvider(() -> googleCredentials).build();
+        return BigQueryWriteClient.create(settings);
+    }
 
     private WriteCommittedStream init() {
-        GoogleCredentials googleCredentials = getGoogleCredentials(this.credentialsJson);
         try {
-            BigQueryWriteSettings settings =
-                    BigQueryWriteSettings.newBuilder().setCredentialsProvider(() -> googleCredentials).build();
-            this.client = BigQueryWriteClient.create(settings);
             TableName parentTable = TableName.of(this.projectId, this.dataSet, this.tableName);
             // One time initialization.
             this.writer = new DataWriter();
@@ -114,7 +132,7 @@ public class WriteCommittedStream {
         return this;
     }
 
-    private GoogleCredentials getGoogleCredentials(String credentialsJson) {
+    private static GoogleCredentials getGoogleCredentials(String credentialsJson) {
         try {
             return GoogleCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8)));
         } catch (IOException e) {
@@ -124,64 +142,76 @@ public class WriteCommittedStream {
 
     public void append(List<Map<String, Object>> record) {
         if (Objects.isNull(record) || record.isEmpty()) return;
-        List<List<Map<String, Object>>> partition = Lists.partition(record, 5000);
-        JSONArray jsonArr = new JSONArray();
+        List<List<Map<String, Object>>> partition = Lists.partition(record, this.maxStreamCount);
         partition.forEach(recordPartition -> {
+            JSONArray jsonArr = new JSONArray();
             for (Map<String, Object> map : recordPartition) {
-                if (Objects.isNull(map)) continue;
-                JSONObject jsonObject = new JSONObject();
-                map.forEach(jsonObject::put);
-                jsonArr.put(jsonObject);
+                jsonArr.put(WriteCommittedStream.convertJsonObject(map));
             }
+            this.append(jsonArr);
         });
+    }
+
+    public void append(JSONArray jsonArr){
         try {
-            this.writer.append(jsonArr, this.streamOffset.addAndGetBefore(jsonArr.length()));
+            AppendRowsResponse response = this.writer.append(jsonArr, this.streamOffset.addAndGetBefore(jsonArr.length()));
+            //AppendRowsResponse.AppendResult appendResult = response.getAppendResult();
         } catch (Exception e) {
-            throw new CoreException("Stream API write record to target error, data offset is : " + this.streamOffset.get() + ", message:" + e.getMessage());
+            throw new WriteBigQueryException("Stream API write record to target error, data offset is : " + this.streamOffset.get() + ", message:" + e.getMessage());
         }
     }
 
     public void appendJSON(List<Map<String, Object>> record) {
         if (Objects.isNull(record) || record.isEmpty()) return;
-        List<List<Map<String, Object>>> partition = Lists.partition(record, 5000);
-        JSONArray json = new JSONArray();
+        List<List<Map<String, Object>>> partition = Lists.partition(record, this.maxStreamCount);
         partition.forEach(recordPartition -> {
+            JSONArray json = new JSONArray();
             for (Map<String, Object> map : recordPartition) {
                 if (Objects.isNull(map)) continue;
-                JSONObject jsonObject = new JSONObject();
-                map.forEach((key, value) -> {
-                    if (value instanceof Map) {
-                        JSONObject jsonObjects = new JSONObject();
-                        Map<String, Object> objectMap = (Map<String, Object>) value;
-                        objectMap.forEach(jsonObjects::put);
-                        jsonObject.put(key, jsonObjects);
-                    } else if (value instanceof Collection) {
-                        jsonObject.put(key, value);
-                    } else {
-                        jsonObject.put(key, value);
-                    }
-                });
-                json.put(jsonObject);
+                json.put(WriteCommittedStream.convertJsonObjectV2(map));
+            }
+            this.append(json);
+        });
+    }
+    public void appendJSONArray(List<JSONArray> record){
+        if (Objects.isNull(record) || record.isEmpty()) return;
+        for (JSONArray objects : record) {
+            this.append(objects);
+        }
+    }
+
+    public static JSONObject convertJsonObjectV2(Map<String,Object> map){
+        JSONObject jsonObject = new JSONObject();
+        map.forEach((key, value) -> {
+            if (value instanceof Map) {
+                JSONObject jsonObjects = new JSONObject();
+                Map<String, Object> objectMap = (Map<String, Object>) value;
+                objectMap.forEach(jsonObjects::put);
+                jsonObject.put(key, jsonObjects);
+            } else if (value instanceof Collection) {
+                jsonObject.put(key, value);
+            } else {
+                jsonObject.put(key, value);
             }
         });
-        try {
-            this.writer.append(json, this.streamOffset.addAndGetBefore(json.length()));
-        } catch (Exception e) {
-            throw new CoreException("Stream API write record to temporary table error,data offset is : " + this.streamOffset.get() + ". message:" + e.getMessage());
-        }
+        return jsonObject;
+    }
+    public static JSONObject convertJsonObject(Map<String,Object> map){
+        JSONObject jsonObject = new JSONObject();
+        map.forEach(jsonObject::put);
+        return jsonObject;
     }
 
 
     public void close() {
         if (Objects.nonNull(this.writer)) {
             try {
-                this.client.flushRows(this.writer.getStreamName());
-                this.client.shutdownNow();
-                boolean close = this.client.awaitTermination(1, TimeUnit.MILLISECONDS);
-                if (close) {
+                //this.client.flushRows(this.writer.getStreamName());
+                this.client.shutdown();
+                if (this.client.awaitTermination(3, TimeUnit.MILLISECONDS)) {
                     this.writer.cleanup(this.client);
                 }
-            } catch (InterruptedException e) {
+            } catch (Exception e) {
             }
         }
     }
@@ -219,13 +249,13 @@ public class WriteCommittedStream {
             GoogleCredentials credentials =
                     ServiceAccountCredentials.fromStream(new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8)));
             this.streamWriter = JsonStreamWriter
-                    .newBuilder(writeStream.getName(), writeStream.getTableSchema())
+                    .newBuilder(writeStream.getName(), writeStream.getTableSchema(),client)
                     .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
                     .build();
         }
 
-        public void append(JSONArray data, long offset)
-                throws DescriptorValidationException, IOException, ExecutionException {
+        public AppendRowsResponse append(JSONArray data, long offset)
+                throws DescriptorValidationException, IOException, ExecutionException, InterruptedException {
             synchronized (this.lock) {
                 // If earlier appends have failed, we need to reset before continuing.
                 if (this.error != null) {
@@ -238,6 +268,7 @@ public class WriteCommittedStream {
                     future, new DataWriter.AppendCompleteCallback(this), MoreExecutors.directExecutor());
             // Increase the count of in-flight requests.
             this.inflightRequestCount.register();
+            return future.get();
         }
 
         public void cleanup(BigQueryWriteClient client) {

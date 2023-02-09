@@ -188,44 +188,20 @@
       "teamName": "Team name",
       "webHook": "Service Hook",
       "hookButton": "Generate Service URL",
-
       "iterationCodes": "Iteration",
       "issueType": "Issue Type",
-
       "allIssueType": "All Issue",
       "defectIssue": "Defect",
       "requirementIssue": "Requirement",
       "missionIssue": "Mission",
       "epicIssue": "Epic",
-
       "connectionMode": "Connection mode",
       "document": "General document",
       "csv": "CSV format",
-
       "streamReadType": "Incremental mode",
       "webHookRead": "Web Hook",
       "pollingRead": "Polling Read",
-
-
-      "doc": "docs/coding_en_US.md",
-      "df_initial_totals": "Initial data amount",
-      "df_incremental_interval": "Incremental interval (ms)",
-      "df_incremental_interval_totals": "Incremental Interval Upper Limits",
-      "df_incremental_types": "incremental event types",
-      "df_incremental_types_insert": "Insert",
-      "df_incremental_types_update": "Update",
-      "df_incremental_types_delete": "Delete",
-      "df_write_interval": "Write Interval (ms)",
-      "df_write_interval_totals": "Write Interval Upper Limit",
-      "df_write_log": "Print write log",
-      "df_table_name": "Table Name",
-      "df_table_fields": "Field Definitions",
-      "df_table_field_name": "Name",
-      "df_table_field_type": "Type",
-      "df_table_field_default": "Default value",
-      "df_table_field_primary": "Primary Key",
-      "df_table_field_operator": "Operation",
-      "df_table_field_btn_add": "Add field"
+      "doc": "docs/coding_en_US.md"
     },
     "zh_CN": {
       "token": "令牌",
@@ -233,43 +209,21 @@
       "teamName": "团队名称",
       "webHook": "Service Hook",
       "hookButton": "生成服务 URL",
-
       "iterationCodes": "迭代",
       "issueType": "事项类型",
-
       "allIssueType": "全部事项",
       "defectIssue": "缺陷",
       "requirementIssue": "需求",
       "missionIssue": "任务",
       "epicIssue": "史诗",
-
       "connectionMode": "连接模式",
       "document": "普通文档格式",
       "csv": "CSV格式",
-
       "streamReadType": "增量方式",
       "webHookRead": "Web Hook",
       "pollingRead": "轮询式",
 
-      "doc": "docs/coding_zh_CN.md",
-      "df_initial_totals": "初始化数据量",
-      "df_incremental_interval": "增量间隔（毫秒）",
-      "df_incremental_interval_totals": "增量间隔上限",
-      "df_incremental_types": "增量事件类型",
-      "df_incremental_types_insert": "插入",
-      "df_incremental_types_update": "更新",
-      "df_incremental_types_delete": "删除",
-      "df_write_interval": "写入间隔(毫秒)",
-      "df_write_interval_totals": "写入间隔上限",
-      "df_write_log": "打印写入日志",
-      "df_table_name": "表名",
-      "df_table_fields": "字段定义",
-      "df_table_field_name": "名称",
-      "df_table_field_type": "类型",
-      "df_table_field_default": "默认值",
-      "df_table_field_primary": "主键",
-      "df_table_field_operator": "操作",
-      "df_table_field_btn_add": "增加字段"
+      "doc": "docs/coding_zh_CN.md"
     },
     "zh_TW": {
       "token": "權杖",
@@ -277,43 +231,20 @@
       "teamName": "團隊名稱",
       "webHook": "Service Hook",
       "hookButton": "生成服務URL",
-
       "iterationCodes": "迭代",
       "issueType": "事項类型",
-
       "allIssueType": "全部事項",
       "defectIssue": "缺陷",
       "requirementIssue": "需求",
       "missionIssue": "任務",
       "epicIssue": "史詩",
-
       "connectionMode": "連接模式",
       "document": "普通文檔格式",
       "csv": "CSV格式",
-
       "streamReadType": "增量方式",
       "webHookRead": "Web Hook",
       "pollingRead": "輪詢式",
-
-      "doc": "docs/coding_zh_TW.md",
-      "df_initial_totals": "初始化數據量",
-      "df_incremental_interval": "增量間隔（毫秒）",
-      "df_incremental_interval_totals": "增量間隔上限",
-      "df_incremental_types": "增量事件類型",
-      "df_incremental_types_insert": "插入",
-      "df_incremental_types_update": "更新",
-      "df_incremental_types_delete": "刪除",
-      "df_write_interval": "寫入間隔(毫秒)",
-      "df_write_interval_totals": "寫入間隔上限",
-      "df_write_log": "打印寫入日誌",
-      "df_table_name": "表名",
-      "df_table_fields": "字段定義",
-      "df_table_field_name": "名稱",
-      "df_table_field_type": "類型",
-      "df_table_field_default": "默認值",
-      "df_table_field_primary": "主鍵",
-      "df_table_field_operator": "操作",
-      "df_table_field_btn_add": "增加字段"
+      "doc": "docs/coding_zh_TW.md"
     }
   },
   "dataTypes": {
