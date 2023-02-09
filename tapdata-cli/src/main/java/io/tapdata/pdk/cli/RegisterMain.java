@@ -45,7 +45,7 @@ public class RegisterMain {
         Xml(BASE_PATH + "connectors/dist/xml-connector-v1.0-SNAPSHOT.jar", "all", "file"),
         Excel(BASE_PATH + "connectors/dist/excel-connector-v1.0-SNAPSHOT.jar", "all", "file"),
         BigQuery(BASE_PATH + "connectors/dist/bigquery-connector-v1.0-SNAPSHOT.jar", "all", "bigquery"),
-		Vika(BASE_PATH + "connectors/dist/vika-connector-v1.0-SNAPSHOT.jar", "all", "vika"),
+        Vika(BASE_PATH + "connectors/dist/vika-connector-v1.0-SNAPSHOT.jar", "all", "vika"),
         TDengine(BASE_PATH + "connectors/dist/tdengine-connector-v1.0-SNAPSHOT.jar", "all", "tdengine"),
         QuickApi(BASE_PATH + "connectors/dist/quickapi-connector-v1.0-SNAPSHOT.jar", "all", "quickapi"),
         Aliyun_ADB_MYSQL(BASE_PATH + "connectors/dist/aliyun-adb-mysql-connector-v1.0-SNAPSHOT.jar", "all", "aliyun-adb-mysql"),
@@ -64,8 +64,9 @@ public class RegisterMain {
         TENCENT_DB_POSTGRES(BASE_PATH + "connectors/dist/tencent-db-postgres-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-postgres"),
 		SelectDB(BASE_PATH + "connectors/dist/selectdb-connector-v1.0-SNAPSHOT.jar", "all", "selectdb"),
         Metabase(BASE_PATH + "connectors/dist/metabase-connector-v1.0-SNAPSHOT.jar", "all", "metabase"),
+        Lark(BASE_PATH + "connectors/dist/lark-connector-v1.0-SNAPSHOT.jar", "all", "lark"),
         Databend(BASE_PATH + "connectors/dist/databend-connector-v1.0-SNAPSHOT.jar", "all", "databend"),
-
+        ZohoCRM(BASE_PATH + "connectors/dist/zoho-crm-connector-v1.0-SNAPSHOT.jar", "all", "zoho-crm"),
         ;
 
         private final String path;

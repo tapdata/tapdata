@@ -9,6 +9,7 @@ import io.tapdata.bigquery.service.bigQuery.WriteRecord;
 import io.tapdata.bigquery.service.command.Command;
 import io.tapdata.bigquery.service.stream.v2.BigQueryStream;
 import io.tapdata.bigquery.service.stream.v2.MergeHandel;
+import io.tapdata.bigquery.service.stream.v2.StateMapOperator;
 import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
 import io.tapdata.bigquery.util.bigQueryUtil.SqlValueConvert;
 import io.tapdata.bigquery.util.tool.Checker;
@@ -57,7 +58,7 @@ public class BigQueryConnectorV2 extends ConnectorBase {
     private final AtomicBoolean running = new AtomicBoolean(Boolean.TRUE);
     private String tableId;
     private WriteValve valve;
-
+    private final Object lock = new Object();
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
         this.writeRecord = (WriteRecord) WriteRecord.create(connectionContext).autoStart();
@@ -118,14 +119,23 @@ public class BigQueryConnectorV2 extends ConnectorBase {
 
     private void release(TapConnectorContext context) {
         KVMap<Object> stateMap = context.getStateMap();
-        Object temporaryTable = stateMap.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
-        if (Objects.nonNull(temporaryTable)) {
+        Object temporaryConfig = stateMap.get(StateMapOperator.TABLE_CONFIG_NAME);//(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
+        if (Objects.nonNull(temporaryConfig)) {
+            Map<String,Object> config = (Map<String, Object>)temporaryConfig;
+            List<String > temporaryIds = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : config.entrySet()) {
+                Optional.ofNullable(entry).flatMap(ent -> Optional.ofNullable(ent.getValue())).ifPresent(t -> {
+                    Map<String, Object> entryConfig = (Map<String, Object>) t;
+                    Optional.ofNullable(entryConfig.get(ContextConfig.TEMP_CURSOR_SCHEMA_NAME))
+                            .ifPresent(schema -> temporaryIds.add(String.valueOf(schema)));
+                });
+            }
             this.merge = (MergeHandel) MergeHandel.merge(context).autoStart();
             //删除临时表
             try {
-                this.merge.dropTemporaryTable(String.valueOf(temporaryTable));
+                this.merge.dropTemporaryTable(temporaryIds);
                 this.merge.config().tempCursorSchema(null);
-                stateMap.put(ContextConfig.TEMP_CURSOR_SCHEMA_NAME, null);
+                stateMap.put(StateMapOperator.TABLE_CONFIG_NAME, null);
             } catch (Exception e) {
                 TapLogger.warn(TAG, " Temporary table cannot be drop temporarily. Details: " + e.getMessage());
             }
@@ -133,21 +143,32 @@ public class BigQueryConnectorV2 extends ConnectorBase {
     }
 
     private void dropTable(TapConnectorContext context, TapDropTableEvent dropTableEvent) {
+        if (Objects.isNull(dropTableEvent)){
+            throw new CoreException("TapDropTableEvent cannot be empty.");
+        }
         this.tableCreate.dropTable(dropTableEvent);
+        if (Objects.nonNull(this.merge)) {
+            try {
+                this.merge.dropTemporaryTableByMainTable(dropTableEvent.getTableId());
+            } catch (Exception e) {
+                TapLogger.info(TAG, " Temporary table data cannot be cleared temporarily. Details: " + e.getMessage());
+            }
+        }
     }
 
     private void clearTable(TapConnectorContext connectorContext, TapClearTableEvent clearTableEvent) {
         try {
             this.tableCreate.cleanTable(clearTableEvent);
+            String tableId = clearTableEvent.getTableId();
+            if (Objects.nonNull(this.merge)) {
+                try {
+                    this.merge.cleanTemporaryTable(tableId);
+                } catch (Exception e) {
+                    TapLogger.warn(TAG, " Temporary table data cannot be cleared temporarily. Details: " + e.getMessage());
+                }
+            }
         } catch (Exception e) {
             TapLogger.warn(TAG, " Table data cannot be cleared temporarily. Details: " + e.getMessage());
-        }
-        if (Objects.nonNull(this.merge)) {
-            try {
-                this.merge.cleanTemporaryTable();
-            } catch (Exception e) {
-                TapLogger.warn(TAG, " Temporary table data cannot be cleared temporarily. Details: " + e.getMessage());
-            }
         }
     }
 
@@ -170,42 +191,44 @@ public class BigQueryConnectorV2 extends ConnectorBase {
     }
 
     private void writeRecordStream(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
-        if (Objects.isNull(this.valve)) {
-            this.valve = WriteValve.open(
-                    BigQueryConnectorV2.STREAM_SIZE,
-                    BigQueryConnectorV2.CUMULATIVE_TIME_INTERVAL,
-                    (writeConsumer, writeList, targetTable) -> {
-                        try {
-                            writeConsumer.accept(this.stream.writeRecord(writeList, targetTable));
-                        } catch (Exception e) {
-                            TapLogger.warn(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
-                        }
-                    },
-                    (writeList, targetTable) -> {
-                        LinkedHashMap<String, TapField> nameFieldMap = targetTable.getNameFieldMap();
-                        if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {
-                            throw new CoreException("TapTable not any fields.");
-                        }
-                        for (TapRecordEvent event : writeList) {
-                            if (Objects.isNull(event)) continue;
-                            Map<String, Object> record = new HashMap<>();
-                            if (event instanceof TapInsertRecordEvent) {
-                                Map<String, Object> recordMap = new HashMap<>();
-                                TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) event;
-                                record = insertRecordEvent.getAfter();
-                                Map<String, Object> finalRecord = record;
-                                nameFieldMap.forEach((key, f) -> {
-                                    Object value = finalRecord.get(key);
-                                    if (Objects.nonNull(value)) {
-                                        recordMap.put(key, SqlValueConvert.streamJsonArrayValue(value, f));
-                                    }
-                                });
-                                insertRecordEvent.after(recordMap);
+        synchronized (this.lock) {
+            if (Objects.isNull(this.valve)) {
+                this.valve = WriteValve.open(
+                        BigQueryConnectorV2.STREAM_SIZE,
+                        BigQueryConnectorV2.CUMULATIVE_TIME_INTERVAL,
+                        (writeConsumer, writeList, targetTable) -> {
+                            try {
+                                writeConsumer.accept(this.stream.writeRecord(writeList, targetTable));
+                            } catch (Exception e) {
+                                TapLogger.error(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
                             }
-                        }
-                    },
-                    consumer
-            );
+                        },
+                        (writeList, targetTable) -> {
+                            LinkedHashMap<String, TapField> nameFieldMap = targetTable.getNameFieldMap();
+                            if (Objects.isNull(nameFieldMap) || nameFieldMap.isEmpty()) {
+                                throw new CoreException("TapTable not any fields.");
+                            }
+                            for (TapRecordEvent event : writeList) {
+                                if (Objects.isNull(event)) continue;
+                                Map<String, Object> record = new HashMap<>();
+                                if (event instanceof TapInsertRecordEvent) {
+                                    Map<String, Object> recordMap = new HashMap<>();
+                                    TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) event;
+                                    record = insertRecordEvent.getAfter();
+                                    Map<String, Object> finalRecord = record;
+                                    nameFieldMap.forEach((key, f) -> {
+                                        Object value = finalRecord.get(key);
+                                        if (Objects.nonNull(value)) {
+                                            recordMap.put(key, SqlValueConvert.streamJsonArrayValue(value, f));
+                                        }
+                                    });
+                                    insertRecordEvent.after(recordMap);
+                                }
+                            }
+                        },
+                        consumer
+                ).initDelay(1).start();
+            }
         }
         this.valve.write(events,table);
     }

@@ -1,0 +1,90 @@
+{
+  "connectionConfig": {
+    "app_id": "cli_a34d032330f8d00c",
+    "app_secret": "22RXUWAoMwGVoX2iNJ2qCg2G3vDraWKr"
+  },
+  "nodeConfig": {
+  },
+  "function_params": {
+    "discover_schema": {
+    },
+    "connection_test": {
+    },
+    "insert_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "delete_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "update_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "write_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "batch_read": {
+      "offset": {},
+      "tableName": "example_table_lark",
+      "pageSize": 500
+    },
+    "stream_read": {
+      "offset": {},
+      "tableNameList": [
+        "example_table_lark"
+      ],
+      "pageSize": 500
+    },
+    "command_callback": {
+      "commandInfo": {
+        "command": "",
+        "action": "",
+        "argMap": {},
+        "time": 0
+      }
+    },
+    "web_hook_event": {
+      "tableNameList": [
+        "example_table_lark"
+      ],
+      "eventDataMap": {
+        "event_type": "i",
+        "after_data": {},
+        "before_data": {},
+        "reference_time": 0,
+        "table_name": "example_table_lark"
+      }
+    }
+  }
+}

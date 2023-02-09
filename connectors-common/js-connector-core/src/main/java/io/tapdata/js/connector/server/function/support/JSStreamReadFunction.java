@@ -59,7 +59,7 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
         if (Objects.isNull(tableList)) {
             throw new CoreException("Table lists cannot not be empty.");
         }
-        ScriptCore scriptCore = new ScriptCore(tableList.get(0));
+        ScriptCore scriptCore = new ScriptCore();
         AtomicReference<Object> contextMap = new AtomicReference<>(offsetState);
         ScriptEngine scriptEngine = super.javaScripter.scriptEngine();
         scriptEngine.put("core", scriptCore);
