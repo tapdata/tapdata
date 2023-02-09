@@ -8,10 +8,13 @@ import static io.tapdata.base.ConnectorBase.testItem;
 
 import io.tapdata.databend.config.DatabendConfig;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 
 public class DatabendTest extends CommonDbTest {
@@ -19,6 +22,16 @@ public class DatabendTest extends CommonDbTest {
     public DatabendTest(DatabendConfig databendConfig, Consumer<TestItem> consumer) {
         super(databendConfig, consumer);
         jdbcContext = DataSourcePool.getJdbcContext(databendConfig, DatabendJdbcContext.class, uuid);
+    }
+
+    protected Boolean testVersion() {
+        try {
+            String version = jdbcContext.queryVersion();
+            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY, version));
+        } catch (Exception e) {
+            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_FAILED, e.getMessage()));
+        }
+        return true;
     }
 
     protected Boolean testWritePrivilege() {
