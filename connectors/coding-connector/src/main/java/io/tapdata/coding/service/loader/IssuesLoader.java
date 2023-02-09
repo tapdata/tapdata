@@ -9,6 +9,7 @@ import io.tapdata.coding.enums.CodingEvent;
 import io.tapdata.coding.enums.IssueType;
 import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
+import io.tapdata.coding.utils.http.ErrorHttpException;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.error.CoreException;
@@ -22,10 +23,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -318,7 +316,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         Map<String, Object> resultMap = CodingHttp.create(
                 header.getEntity(),
                 body.getEntity(),
-                String.format(OPEN_API_URL, this.contextConfig.getTeamName())).post();
+                String.format(OPEN_API_URL, this.contextConfig.getTeamName())).needRetry(true).isAlive(this.stopRead).post();
         Object response = resultMap.get("Response");
         if (null == response) {
             throw new CoreException(String.format("Cannot get the result which name is 'Response' from http response body, request url - %s,param - %s, request body - %s",
@@ -351,6 +349,9 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }});
         this.verifyConnectionConfig();
 //        this.readV3(readEnd, batchCount, codingOffset, consumer);
+        if (Objects.nonNull(offset) && offset instanceof CodingOffset) {
+
+        }
         this.readV2(null, readEnd, batchCount, codingOffset, consumer);
         //this.read(null, readEnd, batchCount, codingOffset, consumer);
     }
@@ -533,7 +534,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         return isStreamRead ? "UPDATED_AT" : "CREATED_AT";
     }
 
-    public void defineHttpAttributes(Long readStartTime, Long readEndTime, int readSize, HttpEntity<String, String> header, HttpEntity<String, Object> pageBody, boolean isStreamRead) {
+    public void defineHttpAttributes(Long readStartTime,
+                                     Long readEndTime,
+                                     int readSize,
+                                     HttpEntity<String, String> header,
+                                     HttpEntity<String, Object> pageBody,
+                                     boolean isStreamRead) {
         List<Map<String, Object>> coditions = io.tapdata.entity.simplify.TapSimplify.list(map(
                 entry("Key", this.sortKey(isStreamRead)),
                 entry("Value", this.longToDateStr(readStartTime) + "_" + this.longToDateStr(readEndTime)))
@@ -593,25 +599,26 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             Object offsetState,
             BiConsumer<List<TapEvent>, Object> consumer) {
         final int MAX_THREAD = 20;
-        Queue<Integer> queuePage = new ConcurrentLinkedQueue<>();
+        Queue<Map.Entry<Integer, Integer>> queuePage = new ConcurrentLinkedQueue<>();
         Queue<Map<String, Object>> queueItem = new ConcurrentLinkedQueue<>();
         AtomicInteger itemThreadCount = new AtomicInteger(0);
 
         String teamName = contextConfig.getTeamName();
         List<TapEvent> events = new ArrayList<>();
+        CodingOffset offset = (CodingOffset) (Checker.isEmpty(offsetState) ? new CodingOffset() : offsetState);
         HttpEntity<String, String> header = HttpEntity.create();
         HttpEntity<String, Object> pageBody = HttpEntity.create();
         this.defineHttpAttributes(readStartTime, readEndTime, readSize, header, pageBody, false);
-        CodingOffset offset = (CodingOffset) (Checker.isEmpty(offsetState) ? new CodingOffset() : offsetState);
         AtomicInteger total = new AtomicInteger(-1);
+        Map<Object, Object> offsetMap = Optional.ofNullable(offset.offset()).orElse(new HashMap<>());
         //分页线程
         Thread pageThread = new Thread(() -> {
-            int currentQueryCount = batchReadPageSize, queryIndex = 1;
+            int currentQueryCount = batchReadPageSize, queryIndex = (Integer) (Optional.ofNullable(offset.offset().get("PAGE_NUMBER_BATCH_READ")).orElse(1));
             while (currentQueryCount >= batchReadPageSize && this.sync()) {
                 /**
                  * start page ,and add page to queuePage;
                  * */
-                pageBody.builder("PageNumber", queryIndex++);
+                pageBody.builder("PageNumber", queryIndex);
                 Map<String, Object> dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
                 if (null == dataMap || null == dataMap.get("List")) {
                     TapLogger.error(TAG, "Paging result request failed, the Issue list is empty: page index = {}", queryIndex);
@@ -623,7 +630,9 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 if (total.get() < 0) {
                     total.set((int) (dataMap.get("TotalCount")));
                 }
-                queuePage.addAll(resultList.stream().map(obj -> (Integer) (obj.get("Code"))).collect(Collectors.toList()));
+                int finalQueryIndex = queryIndex;
+                queuePage.addAll(resultList.stream().map(obj -> new AbstractMap.SimpleEntry<>((Integer) (obj.get("Code")), finalQueryIndex)).collect(Collectors.toList()));
+                queryIndex++;
                 //pageCount.getAndAdd(1);
             }
         }, "PAGE_THREAD");
@@ -636,10 +645,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 int threadCount = total.get() / 500;
                 threadCount = Math.min(threadCount, MAX_THREAD);
                 threadCount = Math.max(threadCount, 1);
-                final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(threadCount + 1, run -> {
-                    Thread thread = new Thread(run);
-                    return thread;
-                });
+                final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(threadCount + 1, (ThreadFactory) Thread::new);
                 for (int i = 0; i < threadCount; i++) {
                     executor.schedule(() -> {
                         itemThreadCount.getAndAdd(1);
@@ -653,14 +659,15 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                                         break;
                                     }
                                 }
-                                Integer peekId = queuePage.poll();
-                                if (Checker.isEmpty(peekId)) continue;
+                                Map.Entry<Integer, Integer> peekId = queuePage.poll();
+                                if (Objects.isNull(peekId)) continue;
                                 Map<String, Object> issueDetail = null;
                                 try {
-                                    issueDetail = this.get(IssueParam.create().issueCode(peekId));
-                                }catch (Exception e){
-                                    TapLogger.warn(TAG,e.getMessage());
-                                    continue;
+                                    issueDetail = this.get(IssueParam.create().issueCode(peekId.getKey()));
+                                } catch (Exception e) {
+                                    offsetMap.put("PAGE_NUMBER_BATCH_READ", peekId.getValue());
+                                    TapLogger.warn(TAG, e.getMessage());
+                                    throw new ErrorHttpException(e.getMessage());
                                 }
                                 if (Checker.isEmpty(issueDetail)) continue;
                                 queueItem.add(issueDetail);
@@ -827,8 +834,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                                 Map<String, Object> issueDetail = null;
                                 try {
                                     issueDetail = this.get(IssueParam.create().issueCode(peekId));
-                                }catch (Exception e){
-                                    TapLogger.warn(TAG,e.getMessage());
+                                } catch (Exception e) {
+                                    TapLogger.warn(TAG, e.getMessage());
                                     continue;
                                 }
                                 if (Checker.isEmpty(issueDetail)) continue;
@@ -887,6 +894,10 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             Object offsetState,
             BiConsumer<List<TapEvent>, Object> consumer,
             boolean isStreamRead) {
+        if (Checker.isEmpty(offsetState)) {
+            offsetState = new CodingOffset();
+        }
+        CodingOffset offset = (CodingOffset) offsetState;
         long readStart = System.currentTimeMillis();
         if (isStreamRead) {
             TapLogger.info(TAG, "Stream read is starting at {}. Everything be ready.", longToDateTimeStr(readStart));
@@ -922,15 +933,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }
         pageBody.builder("Conditions", coditions);
         String teamName = this.contextConfig.getTeamName();
-//        String modeName = this.contextConfig.getConnectionMode();
-//        ConnectionMode instance = ConnectionMode.getInstanceByName(nodeContext,modeName);
-//        if (null == instance){
-//            throw new CoreException("Connection Mode is not empty or not null.");
-//        }
-        if (Checker.isEmpty(offsetState)) {
-            offsetState = new CodingOffset();
-        }
-        CodingOffset offset = (CodingOffset) offsetState;
         int totalCount = 0;
         do {
             pageBody.builder("PageNumber", queryIndex++);
@@ -952,9 +954,9 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 Map<String, Object> issueDetail = null;
                 try {
                     issueDetail = this.get(IssueParam.create().issueCode((Integer) code));
-                }catch (Exception e){
-                    TapLogger.warn(TAG,e.getMessage());
-                    continue;
+                } catch (Exception e) {
+                    TapLogger.warn(TAG, e.getMessage());
+                    throw new ErrorHttpException(e.getMessage());
                 }
                 //if (null == issueDetail){
                 //    events[0].add(TapSimplify.insertRecordEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));

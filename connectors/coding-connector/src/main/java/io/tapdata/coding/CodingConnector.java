@@ -1,20 +1,13 @@
 package io.tapdata.coding;
 
-import cn.hutool.http.HttpRequest;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.coding.entity.CodingOffset;
-import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.Param;
-import io.tapdata.coding.enums.CodingEvent;
-import io.tapdata.coding.enums.IssueType;
 import io.tapdata.coding.service.command.Command;
 import io.tapdata.coding.service.loader.*;
-import io.tapdata.coding.service.connectionMode.CSVMode;
 import io.tapdata.coding.service.connectionMode.ConnectionMode;
 import io.tapdata.coding.service.schema.SchemaStart;
-import io.tapdata.coding.utils.collection.MapUtil;
-import io.tapdata.coding.utils.http.CodingHttp;
-import io.tapdata.coding.utils.http.HttpEntity;
+import io.tapdata.coding.utils.http.ErrorHttpException;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
@@ -23,6 +16,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.LastData;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -32,14 +26,15 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static io.tapdata.coding.enums.TapEventTypes.*;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
@@ -82,7 +77,6 @@ public class CodingConnector extends ConnectorBase {
         synchronized (this) {
             this.notify();
         }
-        TapLogger.info(TAG, "Stop connector");
     }
 
     private ConnectorFunctions connectorFunctions;
@@ -95,9 +89,25 @@ public class CodingConnector extends ConnectorBase {
                 .supportStreamRead(this::streamRead)
                 .supportRawDataCallbackFilterFunctionV2(this::rawDataCallbackFilterFunctionV2)
                 .supportCommandCallbackFunction(this::handleCommand)
+                .supportErrorHandleFunction(this::error)
                 .supportMemoryFetcherV2(this::memoryFetcher)
         ;
         this.connectorFunctions = connectorFunctions;
+    }
+
+    private RetryOptions error(TapConnectionContext context, PDKMethod pdkMethod, Throwable throwable) {
+        Throwable lastCause = ErrorKit.getLastCause(throwable);
+        if (lastCause instanceof ErrorHttpException || lastCause instanceof IOException){
+            return RetryOptions.create().needRetry(true).beforeRetryMethod(()->{
+                try {
+                    this.onStop(context);
+                    this.onStart(context);
+                }catch (Throwable e){
+                    TapLogger.warn("Cannot stop and start Coding connector when occur an http error or IOException. {}",e.getMessage());
+                }
+            });
+        }
+        return null;
     }
 
     private DataMap memoryFetcher(String keyRegex, String memoryLevel) {
