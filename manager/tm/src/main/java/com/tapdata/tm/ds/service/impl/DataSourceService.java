@@ -1514,7 +1514,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		return findAllDto(query, user);
 	}
 
-	public void batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user, boolean cover) {
+	public Map<String, DataSourceConnectionDto> batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user, boolean cover) {
+
+		Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 		for (DataSourceConnectionDto connectionDto : connectionDtos) {
 			Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
 			query.fields().include("_id");
@@ -1523,7 +1525,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
 					connectionDto.setName(connectionDto.getName() + "_import");
 				}
-				repository.importEntity(convertToEntity(DataSourceEntity.class, connectionDto), user);
+				connection = importEntity(connectionDto, user);
 			} else {
 				if (cover) {
 					ObjectId objectId = connection.getId();
@@ -1537,10 +1539,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 
 
-					save(connectionDto, user);
+					connection = save(connectionDto, user);
 				}
 			}
+
+			conMap.put(connectionDto.getId().toHexString(), connection);
+
 		}
+		return conMap;
 	}
 
 	public List<DataSourceConnectionDto> listAll(Filter filter, UserDetail loginUser) {
@@ -1683,6 +1689,12 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		query.limit(limit);
 		query.with(Sort.by(Sort.Direction.ASC, "_id"));
 		return taskService.findAllDto(query, userDetail);
+	}
+
+
+	public DataSourceConnectionDto importEntity(DataSourceConnectionDto dto, UserDetail userDetail) {
+		DataSourceEntity dataSourceEntity = repository.importEntity(convertToEntity(DataSourceEntity.class, dto), userDetail);
+		return convertToDto(dataSourceEntity, DataSourceConnectionDto.class);
 	}
 
 }
