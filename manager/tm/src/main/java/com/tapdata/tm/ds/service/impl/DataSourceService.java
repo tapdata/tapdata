@@ -62,9 +62,6 @@ import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.typemappings.constant.TypeMappingDirection;
-import com.tapdata.tm.typemappings.entity.TypeMappingsEntity;
-import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -75,7 +72,6 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -1819,7 +1815,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		return findAllDto(query, user);
 	}
 
-	public void batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user, boolean cover) {
+	public Map<String, DataSourceConnectionDto> batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user, boolean cover) {
+
+		Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 		for (DataSourceConnectionDto connectionDto : connectionDtos) {
 			Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
 			query.fields().include("_id");
@@ -1828,7 +1826,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
 					connectionDto.setName(connectionDto.getName() + "_import");
 				}
-				repository.importEntity(convertToEntity(DataSourceEntity.class, connectionDto), user);
+				connection = importEntity(connectionDto, user);
 			} else {
 				if (cover) {
 					ObjectId objectId = connection.getId();
@@ -1842,10 +1840,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 
 
-					save(connectionDto, user);
+					connection = save(connectionDto, user);
 				}
 			}
+
+			conMap.put(connectionDto.getId().toHexString(), connection);
+
 		}
+		return conMap;
 	}
 
 	public List<DataSourceConnectionDto> listAll(Filter filter, UserDetail loginUser) {
@@ -2068,6 +2070,12 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	protected static class Part{
 		private String _id;
 		private long count;
+	}
+
+
+	public DataSourceConnectionDto importEntity(DataSourceConnectionDto dto, UserDetail userDetail) {
+		DataSourceEntity dataSourceEntity = repository.importEntity(convertToEntity(DataSourceEntity.class, dto), userDetail);
+		return convertToDto(dataSourceEntity, DataSourceConnectionDto.class);
 	}
 
 }
