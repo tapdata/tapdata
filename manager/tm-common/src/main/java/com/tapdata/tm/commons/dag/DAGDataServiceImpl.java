@@ -29,6 +29,7 @@ import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 
@@ -576,6 +577,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap
                     , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
             LinkedHashMap<String, TapField> data = convert.getData();
+            metadataInstancesDto.setResultItems(convert.getResultItems());
 
             data.forEach((k, v) -> {
                 TapField tapField = nameFieldMap.get(k);
@@ -586,13 +588,13 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         tapTable.setNameFieldMap(nameFieldMap);
 
-
         ObjectId oldId = metadataInstancesDto.getOldId();
         metadataInstancesDto = PdkSchemaConvert.fromPdk(tapTable);
         metadataInstancesDto.setOldId(oldId);
         metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
         metadataInstancesDto.setNodeId(schema.getNodeId());
 
+        AtomicBoolean hasPrimayKey = new AtomicBoolean(false);
         metadataInstancesDto.getFields().forEach(field -> {
             if (field.getId() == null) {
                 field.setId(new ObjectId().toHexString());
@@ -603,13 +605,24 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                     field.setDataType(originalField.getDataTypeTemp());
                 }
             }
+
+            if (Objects.nonNull(field.getPrimaryKey()) && field.getPrimaryKey()) {
+                hasPrimayKey.set(true);
+            }
         });
+        metadataInstancesDto.setHasPrimaryKey(hasPrimayKey.get());
 
         Map<String, Field> result = metadataInstancesDto.getFields()
                 .stream().collect(Collectors.toMap(Field::getFieldName, m -> m, (m1, m2) -> m2));
         if (result.size() != metadataInstancesDto.getFields().size()) {
             metadataInstancesDto.setFields(new ArrayList<>(result.values()));
         }
+
+        AtomicBoolean hasUnionKey = new AtomicBoolean(false);
+        Optional.ofNullable(metadataInstancesDto.getIndices()).ifPresent(indexList -> {
+            hasUnionKey.set(indexList.stream().anyMatch(TableIndex::isUnique));
+        });
+        metadataInstancesDto.setHasUnionIndex(hasUnionKey.get());
 
         return metadataInstancesDto;
     }

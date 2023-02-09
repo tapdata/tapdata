@@ -2,11 +2,11 @@ package com.tapdata.tm.metadatainstance.controller;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.Table;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
@@ -47,7 +47,10 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.BindException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 
@@ -157,12 +160,14 @@ public class MetadataInstancesController extends BaseController {
 
     @GetMapping("node/schemaPage")
     public ResponseMessage<Page<MetadataInstancesDto>> findPageByNodeId(@RequestParam("nodeId") String nodeId,
+                                                                    @Parameter(description = "目标表筛选项，updateEx筛选更新条件异常，transformEx筛选推演异常")
                                                                     @RequestParam(value = "tableFilter", required = false) String tableFilter,
+                                                                    @RequestParam(value = "filterType", required = false) String filterType,
                                                                     @RequestParam(value = "fields", required = false) List<String> fields,
                                                                     @RequestParam(value = "page", defaultValue = "1") Integer page,
                                                                     @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize) {
 
-        Page<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(nodeId, fields, getLoginUser(), null, tableFilter, page, pageSize);
+        Page<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(nodeId, fields, getLoginUser(), null, tableFilter, filterType, page, pageSize);
         if (CollectionUtils.isNotEmpty(metadataInstancesDtos.getItems())) {
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos.getItems()) {
                 ////页面显示排序问题处理
