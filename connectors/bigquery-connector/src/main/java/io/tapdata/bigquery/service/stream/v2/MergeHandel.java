@@ -166,6 +166,20 @@ public class MergeHandel extends BigQueryStart {
             TapLogger.info(TAG, "Temporary table [" + super.config().tempCursorSchema() + "] already exists.");
             return table;
         }
+//        TapTable eventTable = new TapTable(table.getId(),table.getName());
+//        LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
+//        if (Objects.nonNull(nameFieldMap)&&!nameFieldMap.isEmpty()){
+//            for (Map.Entry<String, TapField> entry : nameFieldMap.entrySet()) {
+//                TapField value = entry.getValue();
+//                TapField field = new TapField();
+//                field.setName(value.getName());
+//                field.setComment(value.getComment());
+//                field.setPrimaryKey(value.getPrimaryKey());
+//                field.setNullable(value.getNullable());
+//                eventTable.add(field);
+//            }
+//        }
+//        this.createSchema(eventTable, tableId);
         this.createSchema(table, tableId);
         return table;
     }
@@ -210,16 +224,16 @@ public class MergeHandel extends BigQueryStart {
                     .append("` ")
                     .append(dataType.toUpperCase());
             //DEFAULT
-            String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
-            if (Checker.isNotEmpty(defaultValue)) {
-                if (defaultValue.contains("'")) {
-                    defaultValue = defaultValue.replaceAll("'", "\\'");
-                }
-                if (tapField.getTapType() instanceof TapNumber) {
-                    defaultValue = defaultValue.trim();
-                }
-                structSql.append(" DEFAULT '").append(defaultValue).append("' ");
-            }
+//            String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
+//            if (Checker.isNotEmpty(defaultValue)) {
+//                if (defaultValue.contains("'")) {
+//                    defaultValue = defaultValue.replaceAll("'", "\\'");
+//                }
+//                if (tapField.getTapType() instanceof TapNumber) {
+//                    defaultValue = defaultValue.trim();
+//                }
+//                structSql.append(" DEFAULT '").append(defaultValue).append("' ");
+//            }
 
             // comment
             String comment = tapField.getComment();
@@ -399,7 +413,7 @@ public class MergeHandel extends BigQueryStart {
         Object hasMergedTime = this.stateMap.get(MergeHandel.HAS_MERGED);
         this.hasMerged = Objects.nonNull(hasMergedTime) && hasMergedTime instanceof Boolean;
         long time = this.hasMerged ? this.mergeDelaySeconds : MergeHandel.DEFAULT_MERGE_DELAY_SECOND;
-        if (!this.hasMerged) {
+        if (!this.hasMerged && Objects.nonNull(hasMergedTime)) {
             long now = System.nanoTime();
             long defaultTimeSecond = (now - (Long) hasMergedTime) / 1000000000L;
             time = defaultTimeSecond > time - this.mergeDelaySeconds ? this.mergeDelaySeconds : this.mergeDelaySeconds - defaultTimeSecond;

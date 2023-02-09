@@ -10,6 +10,7 @@ import io.tapdata.bigquery.service.command.Command;
 import io.tapdata.bigquery.service.stream.v2.BigQueryStream;
 import io.tapdata.bigquery.service.stream.v2.MergeHandel;
 import io.tapdata.bigquery.service.stream.v2.StateMapOperator;
+import io.tapdata.bigquery.service.stream.v2.WriteBigQueryException;
 import io.tapdata.bigquery.util.bigQueryUtil.FieldChecker;
 import io.tapdata.bigquery.util.bigQueryUtil.SqlValueConvert;
 import io.tapdata.bigquery.util.tool.Checker;
@@ -200,7 +201,11 @@ public class BigQueryConnectorV2 extends ConnectorBase {
                             try {
                                 writeConsumer.accept(this.stream.writeRecord(writeList, targetTable));
                             } catch (Exception e) {
-                                TapLogger.error(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
+                                if (e instanceof WriteBigQueryException){
+                                    throw new CoreException(e.getMessage());
+                                }else {
+                                    TapLogger.error(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
+                                }
                             }
                         },
                         (writeList, targetTable) -> {
