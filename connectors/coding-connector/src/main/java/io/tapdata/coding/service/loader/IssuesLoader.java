@@ -87,7 +87,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         Object response = resultMap.get("Response");
         Map<String, Object> responseMap = (Map<String, Object>) response;
         if (null == response) {
-            TapLogger.debug(TAG, "HTTP request exception, Issue list acquisition failed: {} ", url + "?Action=DescribeIssueListWithPage");
             throw new RuntimeException("HTTP request exception, Issue list acquisition failed: " + url + "?Action=DescribeIssueListWithPage");
         }
         Object data = responseMap.get("Data");
@@ -439,14 +438,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         if (Checker.isEmpty(issueObj)) {
             TapLogger.debug(TAG, "An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
             return null;
-            //throw new CoreException("An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
         }
         Map<String, Object> issueMap = (Map<String, Object>) issueObj;
         Object codeObj = issueMap.get("code");
         if (Checker.isEmpty(codeObj)) {
             TapLogger.debug(TAG, "An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
             return null;
-            //throw new CoreException("An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
         }
         IssueType issueType = this.contextConfig.getIssueType();
         if (Checker.isNotEmpty(issueType)) {
@@ -497,23 +494,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 TapLogger.info(TAG, "The details of the event are not found. The current event may have been deleted recently. Please check and confirm.Issues code = {}", codeObj);
                 return null;
             }
-//            String modeName = this.tapConnectionContext.getConnectionConfig().getString("connectionMode");
-//            ConnectionMode instance = ConnectionMode.getInstanceByName(this.tapConnectionContext, modeName);
-//            if (null == instance){
-//                throw new CoreException("Connection Mode is not empty or not null.");
-//            }
-            //if (instance instanceof CSVMode) {
-            //    issueDetail = instance.attributeAssignment(issueDetail);
-            //}else {
-            //}
         }
         switch (eventType) {
             case DELETED_EVENT: {
                 issueDetail = (Map<String, Object>) issueObj;
                 Map<String, Object> deleteMap = map(entry("Code", issueDetail.get("code")));
                 this.composeIssue(this.contextConfig.getProjectName(), this.contextConfig.getTeamName(), deleteMap);
-//                issueDetail.put("teamName",this.contextConfig.getTeamName());
-//                issueDetail.put("projectName",this.contextConfig.getProjectName());
                 event = TapSimplify.deleteDMLEvent(deleteMap, TABLE_NAME).referenceTime(referenceTime);
             }
             break;
@@ -619,9 +605,14 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                  * start page ,and add page to queuePage;
                  * */
                 pageBody.builder("PageNumber", queryIndex);
-                Map<String, Object> dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
+                Map<String, Object> dataMap = null;
+                try {
+                    dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
+                }catch (Exception e){
+                    offsetMap.put("PAGE_NUMBER_BATCH_READ", queryIndex);
+                    throw new ErrorHttpException(e.getMessage());
+                }
                 if (null == dataMap || null == dataMap.get("List")) {
-                    TapLogger.error(TAG, "Paging result request failed, the Issue list is empty: page index = {}", queryIndex);
                     throw new RuntimeException("Paging result request failed, the Issue list is empty: " + CodingStarter.OPEN_API_URL + "?Action=DescribeIssueListWithPage");
                 }
                 List<Map<String, Object>> resultList = (List<Map<String, Object>>) dataMap.get("List");
@@ -633,7 +624,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 int finalQueryIndex = queryIndex;
                 queuePage.addAll(resultList.stream().map(obj -> new AbstractMap.SimpleEntry<>((Integer) (obj.get("Code")), finalQueryIndex)).collect(Collectors.toList()));
                 queryIndex++;
-                //pageCount.getAndAdd(1);
             }
         }, "PAGE_THREAD");
         pageThread.start();
@@ -666,7 +656,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                                     issueDetail = this.get(IssueParam.create().issueCode(peekId.getKey()));
                                 } catch (Exception e) {
                                     offsetMap.put("PAGE_NUMBER_BATCH_READ", peekId.getValue());
-                                    TapLogger.warn(TAG, e.getMessage());
                                     throw new ErrorHttpException(e.getMessage());
                                 }
                                 if (Checker.isEmpty(issueDetail)) continue;
@@ -682,7 +671,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 break;
             }
         }
-
         //主线程生成事件
         while ((!queuePage.isEmpty() || pageThread.isAlive() || itemThreadCount.get() > 0 || !queueItem.isEmpty())) {
             if (!this.sync()) {
@@ -708,7 +696,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             if (!lastTimeSplitIssueCode.contains(issueDetailHash)) {
                 events.add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
                 //eventCount.getAndAdd(1);
-                if (null == currentTimePoint || !currentTimePoint.equals(lastTimePoint)) {
+                if (!currentTimePoint.equals(lastTimePoint)) {
                     lastTimePoint = currentTimePoint;
                     lastTimeSplitIssueCode = new ArrayList<Integer>();
                 }
@@ -719,7 +707,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             consumer.accept(events, offset);
             events = new ArrayList<>();
         }
-        //TapLogger.info(TAG,"Issues batch read - {} pages, {} issues, output {} events. ",pageCount.get(),itemCount.get(),eventCount.get());
         if (events.isEmpty()) return;
         consumer.accept(events, offset);
     }
@@ -936,9 +923,13 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         int totalCount = 0;
         do {
             pageBody.builder("PageNumber", queryIndex++);
-            Map<String, Object> dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
+            Map<String, Object> dataMap = null;
+            try {
+                dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
+            }catch (Exception e){
+                throw new ErrorHttpException(e.getMessage());
+            }
             if (null == dataMap || null == dataMap.get("List")) {
-                TapLogger.error(TAG, "Paging result request failed, the Issue list is empty: page index = {}", queryIndex);
                 throw new RuntimeException("Paging result request failed, the Issue list is empty: " + CodingStarter.OPEN_API_URL + "?Action=DescribeIssueListWithPage");
             }
             List<Map<String, Object>> resultList = (List<Map<String, Object>>) dataMap.get("List");
@@ -950,36 +941,28 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     TapLogger.warn(TAG, String.format("Cannot get issue's Code from issue, issue is %s.", toJson(stringObjectMap)));
                     continue;
                 }
-                //Map<String,Object> issueDetail = instance.attributeAssignment(stringObjectMap);
                 Map<String, Object> issueDetail = null;
                 try {
                     issueDetail = this.get(IssueParam.create().issueCode((Integer) code));
                 } catch (Exception e) {
-                    TapLogger.warn(TAG, e.getMessage());
                     throw new ErrorHttpException(e.getMessage());
                 }
-                //if (null == issueDetail){
-                //    events[0].add(TapSimplify.insertRecordEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
-                //    events[0].add(TapSimplify.deleteDMLEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
-                //}else
                 if (Checker.isNotEmptyCollection(issueDetail)) {
                     Long referenceTime = (Long) issueDetail.get("UpdatedAt");
                     Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
                     Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
-
                     //issueDetial的更新时间字段值是否属于当前时间片段，并且issueDiteal的hashcode是否在上一次批量读取同一时间段内
                     //如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
                     //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
                     if (!lastTimeSplitIssueCode.contains(issueDetialHash)) {
                         events[0].add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
                         totalCount += 1;
-                        if (null == currentTimePoint || !currentTimePoint.equals(this.lastTimePoint)) {
+                        if (!currentTimePoint.equals(this.lastTimePoint)) {
                             this.lastTimePoint = currentTimePoint;
-                            lastTimeSplitIssueCode = new ArrayList<Integer>();
+                            lastTimeSplitIssueCode = new ArrayList<>();
                         }
                         lastTimeSplitIssueCode.add(issueDetialHash);
                     }
-
                     if (Checker.isEmpty(offsetState)) {
                         offsetState = new CodingOffset();
                     }
@@ -995,7 +978,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         if (!events[0].isEmpty()) {
             consumer.accept(events[0], offset);
         }
-        //startRead.set(false);
         long readEnd = System.currentTimeMillis();
         if (isStreamRead) {
             TapLogger.info(TAG,
