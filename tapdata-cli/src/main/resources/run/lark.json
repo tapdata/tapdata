@@ -14,40 +14,10 @@
       "eventDataList": [
         {
           "event_type": "i",
-          "after_data": {},
-          "before_data": {},
-          "reference_time": 0,
-          "table_name": "example_table_lark"
-        }
-      ]
-    },
-    "delete_record": {
-      "eventDataList": [
-        {
-          "event_type": "i",
-          "after_data": {},
-          "before_data": {},
-          "reference_time": 0,
-          "table_name": "example_table_lark"
-        }
-      ]
-    },
-    "update_record": {
-      "eventDataList": [
-        {
-          "event_type": "i",
-          "after_data": {},
-          "before_data": {},
-          "reference_time": 0,
-          "table_name": "example_table_lark"
-        }
-      ]
-    },
-    "write_record": {
-      "eventDataList": [
-        {
-          "event_type": "i",
-          "after_data": {},
+          "after_data": {
+            "phone": "13320063291",
+            "content": "{\"text\":\"<at user_id=\\\"ou_056b8040b36ba4ee19473e08cf56d673\\\">Gavin</at> Hello! This is lark !\"}"
+          },
           "before_data": {},
           "reference_time": 0,
           "table_name": "example_table_lark"

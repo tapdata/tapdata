@@ -84,10 +84,6 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
 
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
         if (!this.doSubFunctionNotSupported()) {
-            //Map<String, List<Map<String, Object>>> machiningEventsGroupAfter = machiningEvents.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(map -> String.valueOf(map.get(EventTag.EVENT_TYPE))));
-            //this.exec(context, machiningEventsGroupAfter.get(EventType.insert), JSFunctionNames.InsertRecordFunction, insert, update, delete);
-            //this.exec(context, machiningEventsGroupAfter.get(EventType.update), JSFunctionNames.UpdateRecordFunction, insert, update, delete);
-            //this.exec(context, machiningEventsGroupAfter.get(EventType.delete), JSFunctionNames.DeleteRecordFunction, insert, update, delete);
             String cacheEventType = null;
             List<Map<String, Object>> execData = new ArrayList<>();
             for (Map<String, Object> event : machiningEvents) {
@@ -101,6 +97,10 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                     cacheEventType = cacheEventTypeTemp;
                 }
                 execData.add(event);
+            }
+            if (!execData.isEmpty()) {
+                JSFunctionNames functionName = cacheEventType.equals(EventType.insert) ? JSFunctionNames.InsertRecordFunction : (cacheEventType.equals(EventType.update) ? JSFunctionNames.UpdateRecordFunction : JSFunctionNames.DeleteRecordFunction);
+                this.exec(context, execData, functionName, insert, update, delete);
             }
         }
         this.exec(context, machiningEvents, JSFunctionNames.WriteRecordFunction, insert, update, delete);
