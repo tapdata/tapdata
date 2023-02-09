@@ -115,7 +115,7 @@ public class BigQueryStream extends BigQueryStart {
                     TapLogger.error(TAG,"Temporary table creation failed. temporary table name: {}, table name: {},  ",temporaryTableName,tableId);
                 }
                 this.stateMap.saveForTable(tableId, ContextConfig.TEMP_CURSOR_SCHEMA_NAME, temporaryTableName);
-                this.stateMap.save(ContextConfig.TEMP_CURSOR_SCHEMA_NAME, temporaryTableName);
+                this.stateMap.save(MergeHandel.BATCH_TO_STREAM_TIME, System.nanoTime());
                 TapLogger.info(TAG, String.format(" The data has been written in stream mode,and will be written to a temporary table. A temporary table has been created for [ %s ] which name is: %s", tableId, temporaryTableName));
                 this.tableWithTempTable.put(tableId, temporaryTableName);
             }
