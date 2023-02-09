@@ -28,7 +28,6 @@ import java.util.function.Consumer;
 
 public class SmbFileStorage implements TapFileStorage {
 
-    private final static String TAG = SmbFileStorage.class.getSimpleName();
     private SmbConfig smbConfig;
     private SMBClient smbClient;
     private Connection connection;
@@ -147,6 +146,12 @@ public class SmbFileStorage implements TapFileStorage {
             os.close();
         }
         return getFile(path);
+    }
+
+    @Override
+    public OutputStream openFileOutputStream(String path, boolean append) {
+        return share.openFile(path, new HashSet<>(Collections.singletonList(AccessMask.GENERIC_ALL)), null,
+                SMB2ShareAccess.ALL, append ? SMB2CreateDisposition.FILE_OPEN_IF : SMB2CreateDisposition.FILE_OVERWRITE_IF, null).getOutputStream();
     }
 
     @Override

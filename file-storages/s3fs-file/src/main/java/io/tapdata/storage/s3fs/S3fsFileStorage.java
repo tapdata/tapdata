@@ -16,6 +16,7 @@ import io.tapdata.storage.kit.FileMatchKit;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -26,7 +27,6 @@ import java.util.stream.Collectors;
 
 public class S3fsFileStorage implements TapFileStorage {
 
-    private final static String TAG = S3fsFileStorage.class.getSimpleName();
     private S3fsConfig s3fsConfig;
     private AmazonS3 amazonS3Client;
 
@@ -141,7 +141,17 @@ public class S3fsFileStorage implements TapFileStorage {
     }
 
     @Override
-    public void getFilesInDirectory(String directoryPath, Collection<String> includeRegs, Collection<String> excludeRegs, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer) throws Exception {
+    public OutputStream openFileOutputStream(String path, boolean append) {
+        return new S3OutputStream(amazonS3Client, s3fsConfig.getBucket(), path);
+    }
+
+    @Override
+    public boolean supportAppendData() {
+        return false;
+    }
+
+    @Override
+    public void getFilesInDirectory(String directoryPath, Collection<String> includeRegs, Collection<String> excludeRegs, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer) {
         if (!isDirectoryExist(directoryPath)) {
             return;
         }
