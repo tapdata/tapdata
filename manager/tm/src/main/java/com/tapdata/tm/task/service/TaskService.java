@@ -3418,7 +3418,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
-                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING));
+                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
+                        TaskDto.STATUS_DELETE_FAILED));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
