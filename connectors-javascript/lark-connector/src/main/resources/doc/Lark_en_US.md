@@ -22,11 +22,18 @@ If you need to send a message using FeiShu:
 ```json
 [
   {
-    "phone": "15574565858",
-    "content": "{\"text\":\"<at user_id=\\\"ou_155184d1e73cbfb8973e5a9e698e74f2\\\">Tom</at> test content\"}"
+    "phoneOrEmail": "{{phoneOrEmail}}",
+    "type": "text",
+    "content": "{\"text\":\"Hello! This is lark message! \"}"
   }
 ]
 ```
+其中：
+
+- type contain ***text*** | ***post*** | ***image*** | ***interactive*** | ***share_chat*** | ***share_user*** | ***audio*** | ***media*** | ***file*** | ***sticker***，default is ***text***。
+  For specific message types, see the description on the official document: [https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json#7215e4f6](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json#7215e4f6)
+
+- phoneOrEmail is the mobile phone number or email address of the message receiver, APP obtains the user's open_id through this field to send a message to the specified user.
 
 1. You need to use the user's registered mobile phone number to send the specified message to this person;
 

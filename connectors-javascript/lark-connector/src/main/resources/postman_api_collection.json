@@ -66,7 +66,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{ \"mobiles\": ['{{userPhone}}']}"
+              "raw": "{\"mobiles\":[\"{{userMobiles}}\"],\"emails\":[\"{{userEmails}}\"]}"
             },
             "url": {
               "raw": "https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id",
@@ -168,7 +168,11 @@
       "value": ""
     },
     {
-      "key": "userPhone",
+      "key": "userEmails",
+      "value": ""
+    },
+    {
+      "key": "userMobiles",
       "value": ""
     }
   ]
