@@ -22,18 +22,21 @@ If you need to send a message using FeiShu:
 ```json
 [
   {
-    "phoneOrEmail": "{{phoneOrEmail}}",
-    "type": "text",
+    "receiveType": "{{user | email | phone | chat}}",
+    "receiveId": "{{user_open_id | user_email | user_phone | chat_id}}",
+    "contentType": "text",
     "content": "{\"text\":\"Hello! This is lark message! \"}"
   }
 ]
 ```
 其中：
 
-- type contain ***text*** | ***post*** | ***image*** | ***interactive*** | ***share_chat*** | ***share_user*** | ***audio*** | ***media*** | ***file*** | ***sticker***，default is ***text***。
+- receiveType is used to represent the type of message receiver. The value range is [ user | chat | email | phone ], represent users, groups and default users respectively.
+  
+- contentType contain ***text*** | ***post*** | ***image*** | ***interactive*** | ***share_chat*** | ***share_user*** | ***audio*** | ***media*** | ***file*** | ***sticker***，default is ***text***.
   For specific message types, see the description on the official document: [https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json)
 
-- phoneOrEmail is the mobile phone number or email address of the message receiver, APP obtains the user's open_id through this field to send a message to the specified user.
+- receiveId is the ***open_id*** or ***phone*** or ***email*** or ***chat_id*** of the message receiver，APP sends messages to specified users or group chat through this field.
 
 1. You need to use the user's registered mobile phone number to send the specified message to this person;
 

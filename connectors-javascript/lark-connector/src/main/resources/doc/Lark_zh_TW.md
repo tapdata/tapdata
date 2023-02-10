@@ -21,18 +21,21 @@
 ```json
 [
   {
-    "phoneOrEmail": "{{phoneOrEmail}}",
-    "type": "text",
+    "receiveType": "{{user | email | phone | chat}}",
+    "receiveId": "{{user_open_id | user_email | user_phone | chat_id}}",
+    "contentType": "text",
     "content": "{\"text\":\"Hello! This is lark message! \"}"
   }
 ]
 ```
 其中：
 
-- type包含 ***text*** | ***post*** | ***image*** | ***interactive*** | ***share_chat*** | ***share_user*** | ***audio*** | ***media*** | ***file*** | ***sticker***，默认***text***。
+- receiveType用來表示消息接收者類型，取值範圍為[ user | chat | email | phone ], 分別表示用戶、群組，默認用戶。
+
+- contentType包含 ***text*** | ***post*** | ***image*** | ***interactive*** | ***share_chat*** | ***share_user*** | ***audio*** | ***media*** | ***file*** | ***sticker***，默认***text***。
   具體的消息類型可查看官方檔案上的描述：[https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json)
 
-- phoneOrEmail為消息接收者的手機號或郵箱，APP通過這個欄位獲取用戶的open_id，來發送消息到指定的用戶。
+- receiveId為消息接收者的***open_id***或***手機號***或***郵箱***或***群聊的chat_id***，APP通過這個欄位來發送消息到指定的用戶或群聊。
 
 1.您需要使用用戶的注册手機號發送指定消息到此人；
 

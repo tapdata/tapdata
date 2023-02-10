@@ -5,12 +5,40 @@ function discover_schema(connectionConfig) {
 }
 
 function connection_test(connectionConfig) {
-    let result = invoker.invokeWithoutIntercept("GetAppToken");
-    return [{
-        "test": "Test App ID and App Secret",
-        "code": result.result.code === 0 ? 1 : -1,
-        "result": result.result.code === 0 ? "Pass" : "those App ID and App Secret are invalid. "
+    let app = invoker.invoke("AppInfo");
+    let isApp = app && app.data && app.data.app;
+    let testItem = [{
+        "test": "Get App info",
+        "code": isApp ? 1 : -1,
+        "result": isApp ? "App name is:" + app.data.app.app_name : "Can not get App info, please check you App ID and App Secret."
     }];
+    // if (isApp){
+    //     let needAuthority = {
+    //         "contact:user.id:readonly":'通过手机号或邮箱获取用户 ID',
+    //         "contact:user.employee_id:readonly":'获取用户 user ID',
+    //         "im:message":'获取与发送单聊、群组消息',
+    //         "im:message:send_as_bot":'以应用的身份发消息'
+    //     }
+    //     let appScopes = app.data.app.scopes;
+    //     let hasEnoughAuthority = true;
+    //     let notSupport = '';
+    //     for (let index=0;index<needAuthority.length;index++){
+    //         let s = needAuthority[index];
+    //         let newVar = needAuthority.get(s.scope);
+    //         if ('undefined' === newVar || null == newVar){
+    //             if (hasEnoughAuthority) {
+    //                 hasEnoughAuthority = false;
+    //             }
+    //             notSupport += s.description + ":" + s.scope + ";";
+    //         }
+    //     }
+    //     testItem.push({
+    //         "test": "Check whether the authority is complete ",
+    //         "code": hasEnoughAuthority ? 1 : -1,
+    //         "result": hasEnoughAuthority ? "Permission configuration meets the requirements" : "The following permissions are configured. Please configure and try again: " + notSupport;
+    //     })
+    // }
+    return testItem;
 }
 
 var receiveOpenIdMap = {};
