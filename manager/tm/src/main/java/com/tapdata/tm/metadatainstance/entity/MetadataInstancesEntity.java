@@ -112,4 +112,5 @@ public class MetadataInstancesEntity extends BaseEntity {
 
     private String nodeId;
     private List<ResultItem> resultItems;
+    private boolean hasUpdateField;
 }

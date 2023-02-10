@@ -233,7 +233,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         boolean appendNodeTableName = node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode;
 
         if (node.isDataNode()) {
-            return createOrUpdateSchemaForDataNode(dataSourceId, schemas, options);
+            return createOrUpdateSchemaForDataNode(dataSourceId, schemas, options, node);
         } else {
             return createOrUpdateSchemaForProcessNode(schemas, options, node.getId(), appendNodeTableName);
         }
@@ -321,7 +321,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
      * @param options 配置项
      * @return
      */
-    private List<Schema> createOrUpdateSchemaForDataNode(ObjectId dataSourceId, List<Schema> schemas, DAG.Options options) {
+    private List<Schema> createOrUpdateSchemaForDataNode(ObjectId dataSourceId, List<Schema> schemas, DAG.Options options, Node node) {
         DataSourceConnectionDto dataSource = dataSourceMap.get(dataSourceId.toHexString());
 
         if (dataSource == null) {
@@ -340,7 +340,6 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
         }
 
-
         String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSource, null);
         MetadataInstancesDto dataSourceMetadataInstance = metadataMap.get(databaseQualifiedName);
 
@@ -357,6 +356,13 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         String metaType = "table";
         if ("mongodb".equals(dataSource.getDatabase_type())) {
             metaType = "collection";
+        }
+
+        Map<String, List<String>> updateConditionFieldMap;
+        if (node instanceof DatabaseNode) {
+            updateConditionFieldMap = ((DatabaseNode) node).getUpdateConditionFieldMap();
+        } else {
+            updateConditionFieldMap = null;
         }
 
         final String _metaType = metaType;
@@ -391,6 +397,12 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                     metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString(), taskId);
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
+
+            if (node instanceof DatabaseNode && Objects.nonNull(updateConditionFieldMap) && !updateConditionFieldMap.isEmpty()) {
+                if (updateConditionFieldMap.containsKey(schema.getOriginalName())) {
+                    metadataInstancesDto.setHasUpdateField(true);
+                }
+            }
 
             /*MetadataInstancesDto result = metadataInstancesService.upsertByWhere(
                     Where.where("qualified_name", metadataInstancesDto.getQualifiedName()), metadataInstancesDto, userDetail);*/
@@ -618,11 +630,11 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setFields(new ArrayList<>(result.values()));
         }
 
-        AtomicBoolean hasUnionKey = new AtomicBoolean(false);
+        AtomicBoolean hasUnionIndex = new AtomicBoolean(false);
         Optional.ofNullable(metadataInstancesDto.getIndices()).ifPresent(indexList -> {
-            hasUnionKey.set(indexList.stream().anyMatch(TableIndex::isUnique));
+            hasUnionIndex.set(indexList.stream().anyMatch(TableIndex::isUnique));
         });
-        metadataInstancesDto.setHasUnionIndex(hasUnionKey.get());
+        metadataInstancesDto.setHasUnionIndex(hasUnionIndex.get());
 
         return metadataInstancesDto;
     }
@@ -914,6 +926,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 update2.setVersion(newVersion);
                 update2.setSourceType(metadataInstancesDto.getSourceType());
                 update2.setQualifiedName(metadataInstancesDto.getQualifiedName());
+                update2.setHasPrimaryKey(metadataInstancesDto.isHasPrimaryKey());
+                update2.setHasUnionIndex(metadataInstancesDto.isHasUnionIndex());
+                update2.setResultItems(metadataInstancesDto.getResultItems());
+                update2.setHasUpdateField(metadataInstancesDto.isHasUpdateField());
                 if (existsMetadataInstance != null && existsMetadataInstance.getId() != null) {
                     metadataInstancesDto.setId(existsMetadataInstance.getId());
                     metadataUpdateMap.put(existsMetadataInstance.getId().toHexString(), update2);

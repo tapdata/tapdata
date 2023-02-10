@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.metadatainstance.bean.NodeInfoPage;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateResetTableDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateTableInfoDto;
@@ -159,22 +160,28 @@ public class MetadataInstancesController extends BaseController {
     }
 
     @GetMapping("node/schemaPage")
-    public ResponseMessage<Page<MetadataInstancesDto>> findPageByNodeId(@RequestParam("nodeId") String nodeId,
-                                                                    @Parameter(description = "目标表筛选项，updateEx筛选更新条件异常，transformEx筛选推演异常")
-                                                                    @RequestParam(value = "tableFilter", required = false) String tableFilter,
-                                                                    @RequestParam(value = "filterType", required = false) String filterType,
-                                                                    @RequestParam(value = "fields", required = false) List<String> fields,
-                                                                    @RequestParam(value = "page", defaultValue = "1") Integer page,
-                                                                    @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize) {
+    @Operation(summary = "目标节点表详情接口")
+    public ResponseMessage<NodeInfoPage> findPageByNodeId(@RequestParam("nodeId") String nodeId,
+                                                          @RequestParam(value = "tableFilter", required = false) String tableFilter,
+                                                          @Parameter(description = "目标表筛选项，updateEx筛选更新条件异常，transformEx筛选推演异常，默认空查全部表")
+                                                          @RequestParam(value = "filterType", required = false) String filterType,
+                                                          @RequestParam(value = "fields", required = false) List<String> fields,
+                                                          @RequestParam(value = "page", defaultValue = "1") Integer page,
+                                                          @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize) {
 
-        Page<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(nodeId, fields, getLoginUser(), null, tableFilter, filterType, page, pageSize);
-        if (CollectionUtils.isNotEmpty(metadataInstancesDtos.getItems())) {
-            for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos.getItems()) {
+        Page<MetadataInstancesDto> data = metadataInstancesService.findByNodeId(nodeId, fields, getLoginUser(), null, tableFilter, filterType, page, pageSize);
+        if (CollectionUtils.isNotEmpty(data.getItems())) {
+            for (MetadataInstancesDto metadataInstancesDto : data.getItems()) {
                 ////页面显示排序问题处理
                 MetadataInstancesDto.sortField(metadataInstancesDto.getFields());
             }
         }
-        return success(metadataInstancesDtos);
+
+        long updateExNum = metadataInstancesService.countUpdateExNum(nodeId);
+        long transformExNum = metadataInstancesService.countTransformExNum(nodeId);
+        long wholeNum = metadataInstancesService.countTotalNum(nodeId);
+
+        return success(new NodeInfoPage(data.getTotal(), data.getItems(), wholeNum, updateExNum,transformExNum));
     }
 
     @GetMapping("node/oldSchema")

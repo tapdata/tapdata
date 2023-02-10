@@ -1555,7 +1555,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
                     if (StringUtils.isNotBlank(filterType)) {
                         if ("updateEx".equals(filterType)) {
-                            criteriaTable.and("hasPrimaryKey").is(false).and("hasUnionIndex").is(false);
+                            criteriaTable.and("hasPrimaryKey").is(false)
+                                    .and("hasUnionIndex").is(false)
+                                    .and("hasUpdateField").is(false);
                         } else if ("transformEx".equals(filterType)) {
                             criteriaTable.and("resultItems").ne(null);
                         }
@@ -1569,7 +1571,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                                 .and("taskId").is(taskId)
                                 .and("is_deleted").ne(true);
                         metadatas = findAllDto(queryMetadata, user);
-                        totals = tableNames.size();
+                        totals = count(Query.query(criteriaTable));
                     }
 
                 } else if (node instanceof LogCollectorNode) {
@@ -2049,5 +2051,30 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Criteria criteria = Criteria.where("taskId").is(taskId).and("nodeId").is(nodeId);
         Query query = new Query(criteria);
         deleteAll(query);
+    }
+
+    public long countUpdateExNum(String nodeId) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("nodeId").is(nodeId)
+                .and("hasPrimaryKey").is(false)
+                .and("hasUnionIndex").is(false)
+                .and("hasUpdateField").is(false);
+        return count(Query.query(criteria));
+    }
+
+    public long countTransformExNum(String nodeId) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("nodeId").is(nodeId)
+                .and("resultItems").ne(null);
+        return count(Query.query(criteria));
+    }
+
+    public long countTotalNum(String nodeId) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("nodeId").is(nodeId);
+        return count(Query.query(criteria));
     }
 }

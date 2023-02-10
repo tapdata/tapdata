@@ -110,6 +110,7 @@ public class MetadataInstancesDto extends BaseDto {
 
     private ObjectId oldId;
     private List<ResultItem> resultItems;
+    private boolean hasUpdateField;
 
     public String getDatabaseId() {
         return databaseId;
