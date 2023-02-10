@@ -42,9 +42,16 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
     batchReadSender.send(resut, {}, false);
 }
 
+function ConnectionTest(connectionConfig) {
+
+}
+function connectionTest(connectionConfig) {
+
+}
 function connection_test(connectionConfig) {
     let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
     let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
         {"sessionToken": sessionToken.result.id});
     return [{"TEST": " Check the account read database permission.", "CODE": invoke ? 1 : -1, "RESULT": invoke ? "Pass" : "Not pass"}];
 }
+
