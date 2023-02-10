@@ -8,6 +8,7 @@ import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -24,7 +25,6 @@ import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
-import com.tapdata.tm.worker.dto.TcmInfo;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.NonNull;
@@ -40,9 +40,9 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import org.springframework.util.Assert;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -317,26 +317,29 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     public List<AccessNodeInfo> findAccessNodeInfo(UserDetail userDetail) {
         //需要过滤有效的work数据
         List<AccessNodeInfo> result = Lists.newArrayList();
-        List<Worker> availableAgent = workerService.findAvailableAgent(userDetail);
-        if (CollectionUtils.isEmpty(availableAgent)) {
+        List<Worker> workerList = workerService.findAllAgent(userDetail);
+        if (CollectionUtils.isEmpty(workerList)) {
             return result;
         }
 
-        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
-        if (Objects.isNull(buildProfile)) {
-            buildProfile = "DAAS";
-        }
-        boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+        boolean isCloud = settingsService.isCloud();
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        long liveTime = System.currentTimeMillis() - (overTime * 1000L);
 
-        availableAgent.forEach(dto -> {
-            String hostname = dto.getHostname();
+        workerList.forEach(worker -> {
+            AtomicReference<String> hostname = new AtomicReference<>(worker.getHostname());
             if (isCloud) {
-                TcmInfo tcmInfo = dto.getTcmInfo();
-                if (tcmInfo != null) {
-                    hostname = dto.getTcmInfo().getAgentName();
-                }
+                Optional.ofNullable(worker.getTcmInfo()).ifPresent(tcmInfo -> hostname.set(tcmInfo.getAgentName()));
             }
-            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(dto.getProcessId(), hostname, dto.getProcessId());
+
+            String status = "running";
+            if (Objects.nonNull(worker.getStopping()) && worker.getStopping()) {
+                status = "stoped";
+            } else if (worker.getPingTime() < liveTime) {
+                status = "stoped";
+            }
+
+            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(worker.getProcessId(), hostname.get(), worker.getProcessId(), status);
             result.add(accessNodeInfo);
         });
 
