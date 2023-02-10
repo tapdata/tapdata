@@ -11,7 +11,7 @@ public class Request {
     String method;
     Url url;
     List<Header> header;
-    Body body;
+    Body<?> body;
     public static Request create(){
         return new Request();
     }
@@ -25,7 +25,7 @@ public class Request {
             Object headObj = map.get(PostParam.HEADER);
             List<Header> header = Objects.isNull(headObj)? null: Header.create((List<Map<String, Object>>) headObj);
             Object bodyObj = map.get(PostParam.BODY);
-            Body body = Objects.isNull(bodyObj)?Body.create():Body.create((Map<String, Object>) bodyObj);
+            Body<?> body = Objects.isNull(bodyObj)?Body.createNoOne():Body.create((Map<String, Object>) bodyObj);
             return new Request()
                     .header(header)
                     .method(method)

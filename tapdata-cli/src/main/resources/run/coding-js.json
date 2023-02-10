@@ -1,0 +1,89 @@
+{
+  "connectionConfig": {
+    "team_name": "tapdata",
+    "access_token": "49ef75fa25d735eb007b5592a258be0ad40f46e8",
+    "project_name": "tapdata"
+  },
+  "nodeConfig": {
+  },
+  "function_params": {
+    "discover_schema": {
+    },
+    "connection_test": {
+    },
+    "insert_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "delete_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "update_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "write_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "batch_read": {
+      "tableName": "Issues",
+      "pageSize": 500
+    },
+    "batch_count": {
+      "tableName": "Issues"
+    },
+    "stream_read": {
+      "offset": {},
+      "tableNameList": [
+        "Issues"
+      ],
+      "pageSize": 500
+    },
+    "command_callback": {
+      "commandInfo": {
+        "command": "DescribeUserProjects",
+        "action": "",
+        "argMap": {},
+        "time": 0
+      }
+    },
+    "web_hook_event": {
+      "tableNameList": [
+        "Issues"
+      ],
+      "eventDataMap": {
+
+      }
+    }
+  }
+}

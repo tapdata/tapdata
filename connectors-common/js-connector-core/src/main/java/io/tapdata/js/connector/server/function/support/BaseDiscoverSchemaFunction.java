@@ -1,20 +1,18 @@
 package io.tapdata.js.connector.server.function.support;
 
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.JSConnector;
-import io.tapdata.js.connector.enums.JSTableKeys;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
-import io.tapdata.js.connector.iengine.ScriptEngineInstance;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.JSFunctionNames;
 import io.tapdata.js.connector.server.function.base.SchemaAccept;
 import io.tapdata.js.connector.server.function.base.SchemaSender;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 //Table Structure Statement:
 //(1)Only one table name:
@@ -80,9 +78,6 @@ public class BaseDiscoverSchemaFunction extends FunctionBase {
     }
 
     public static BaseDiscoverSchemaFunction discover(LoadJavaScripter script) {
-        if (Objects.isNull(script)) {
-            script = ScriptEngineInstance.instance().script();
-        }
         BaseDiscoverSchemaFunction function = new BaseDiscoverSchemaFunction();
         function.javaScripter(script);
         return function;
