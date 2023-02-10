@@ -94,6 +94,34 @@
           "response": []
         },
         {
+          "name": "AppInfo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://open.feishu.cn/open-apis/application/v6/applications/:app_id?lang=zh_cn",
+              "protocol": "https",
+              "host": [
+                "open",
+                "feishu",
+                "cn"
+              ],
+              "path": [
+                "open-apis",
+                "application",
+                "v6",
+                "applications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "GetAppToken",
           "request": {
             "method": "POST",

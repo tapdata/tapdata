@@ -1,5 +1,7 @@
 function discover_schema(connectionConfig) {
-    return ['example_table_lark'];
+    let app = invoker.invoke("AppInfo");
+    let appName = app.data.app.app_name;
+    return [appName + '_向群组或用户发送消息'];
 }
 
 function connection_test(connectionConfig) {
