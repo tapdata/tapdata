@@ -4,6 +4,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Function;
 
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
+
 public class JsUtil {
     public Object toMap(Object obj) {
         if (obj instanceof Function) {
@@ -89,38 +91,7 @@ public class JsUtil {
         }
     }
 
-    public List<String> entityKeys(Object map){
-        if (Objects.isNull(map)) return new ArrayList<>();
-        if (map instanceof Map){
-            Map<String,Object> objectMap = (Map<String, Object>) map;
-            return new ArrayList<>(objectMap.keySet());
-        }else{
-            return new ArrayList<>();
-        }
-    }
-
-    public List<Object> entityValues(Object map){
-        if (Objects.isNull(map)) return new ArrayList<>();
-        if (map instanceof Map){
-            Map<String,Object> objectMap = (Map<String, Object>) map;
-            return new ArrayList<>(objectMap.values());
-        }else{
-            return new ArrayList<>();
-        }
-    }
-
-    public void sleep(Object timeOut){
-        long time = 0;
-        if (Objects.isNull(timeOut)) return;
-        else if (timeOut instanceof Integer){
-            time = (Integer)timeOut;
-        }else if (timeOut instanceof Long){
-            time = (Long)timeOut;
-        }
-        try {
-            Thread.sleep(time);
-        } catch (InterruptedException ignored) {
-
-        }
+    public String fromJson(Object obj){
+        return Objects.isNull(obj)?"":toJson(obj);
     }
 }

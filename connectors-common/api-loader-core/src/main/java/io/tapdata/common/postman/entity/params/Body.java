@@ -1,60 +1,72 @@
 package io.tapdata.common.postman.entity.params;
 
+import io.tapdata.common.postman.entity.params.body.*;
 import io.tapdata.common.postman.enums.PostParam;
 
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
-public class Body {
-    String mode;
-    String raw;
-    Map<String,Object> options;
-    public static Body create(){
-        return new Body();
+public abstract class Body<T> {
+    protected String mode;
+    protected T raw;
+    protected Map<String, Object> options;
+    protected String contentType = "application/json";
+
+    public static Body createNoOne(){
+        return new NoOne();
     }
-    public static Body create(Map<String,Object> map){
-        try {
-            String mode = (String) map.get(PostParam.METHOD);
-            String raw = (String) map.get(PostParam.RAW);
-            Map<String,Object> options = (Map<String,Object>) map.get(PostParam.OPTIONS);
-            return Body.create().mode(mode).raw(raw).options(options);
-        }catch (Exception e){}
-        return Body.create();
+
+    public static Body create(Map<String, Object> map) {
+        if (Objects.nonNull(map) && !map.isEmpty()) {
+            try {
+                String mode = (String) map.get(PostParam.MODE);
+                Map<String, Object> options = (Map<String, Object>) map.get(PostParam.OPTIONS);
+                Class<? extends Body> bodyMode = ModeType.getByMode(mode);
+                Body<?> body = bodyMode.newInstance();
+                return body.mode(mode).options(options).autoSupplementData(map);
+            } catch (Exception e) {
+            }
+        }
+        return new NoOne();
     }
-    public String mode(){
+
+    public String mode() {
         return this.mode;
     }
-    public Body mode(String mode){
+
+    public Body<T> mode(String mode) {
         this.mode = mode;
         return this;
     }
-    public String raw(){
+
+    public T raw() {
         return this.raw;
     }
-    public Body raw(String raw){
+
+    public Body<T> raw(T raw) {
         this.raw = raw;
         return this;
     }
-    public Map<String,Object> options(){
+
+    public abstract Body<T> autoSupplementData(Map<String,Object> bodyMap);
+
+    public Map<String, Object> options() {
         return this.options;
     }
-    public Body options(Map<String,Object> options){
+
+    public Body<T> options(Map<String, Object> options) {
         this.options = options;
         return this;
     }
-    public Body variableAssignment(Map<String,Object> param){
-        Body body = Body.create().mode(this.mode).options(this.options);
-        String rowBack = Objects.isNull(this.raw)? "" : this.raw;
-        if (Objects.nonNull(param) && !param.isEmpty()){
-            for (Map.Entry<String, Object> objectEntry : param.entrySet()) {
-                String key = objectEntry.getKey();
-                Object attributeParamValue = objectEntry.getValue();
-                if (attributeParamValue instanceof  Map){
-                    attributeParamValue = ((Map<String,Object>)attributeParamValue).get(PostParam.VALUE);
-                }
-                rowBack = rowBack.replaceAll("\\{\\{"+key+"}}",Objects.isNull(attributeParamValue)?"":String.valueOf(attributeParamValue));
-            }
-        }
-        return body.raw(rowBack);
+
+    public abstract Body<T> variableAssignment(Map<String, Object> param);
+
+    public String contentType(){
+        return this.contentType;
     }
+
+    public abstract String bodyJson(Map<String,Object> appendMap);
+
+    public abstract Body<T> setContentType();
 }
+
+

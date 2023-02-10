@@ -51,8 +51,8 @@ public abstract class AbstractConfiguration implements KafkaConfiguration {
             }
             configMap.put("sasl.mechanism", saslMechanism);
             configMap.put("sasl.jaas.config", model + " required " +
-                    "username=" + this.kafkaConfig.getMqUsername() +
-                    " password=" + this.kafkaConfig.getMqPassword() + ";");
+                    "username='" + this.kafkaConfig.getMqUsername() +
+                    "' password='" + this.kafkaConfig.getMqPassword() + "';");
         }
         return configMap;
     }

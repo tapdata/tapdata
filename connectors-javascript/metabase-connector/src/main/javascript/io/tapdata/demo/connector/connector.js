@@ -124,6 +124,12 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
     batchReadSender.send(result, {}, false);
 }
 
+function ConnectionTest(connectionConfig) {
+
+}
+function connectionTest(connectionConfig) {
+
+}
 function connection_test(connectionConfig) {
     let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
     let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
@@ -134,3 +140,4 @@ function connection_test(connectionConfig) {
         "RESULT": invoke ? "Pass" : "Not pass"
     }];
 }
+

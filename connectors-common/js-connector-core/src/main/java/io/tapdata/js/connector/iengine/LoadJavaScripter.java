@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
@@ -56,9 +57,14 @@ public class LoadJavaScripter {
         this.flooder = flooder;
         return this;
     }
-    public boolean hasLoad(){
+
+    public boolean hasLoad() {
         return this.hasLoadJs;
     }
+    public void reload() {
+        this.hasLoadJs = false;
+    }
+
     public static LoadJavaScripter loader(String jarFilePath, String flooder) {
         LoadJavaScripter loadJavaScripter = new LoadJavaScripter();
         return loadJavaScripter.params(jarFilePath, flooder).init();
@@ -76,17 +82,17 @@ public class LoadJavaScripter {
         while (resources.hasMoreElements()) {
             list.add(resources.nextElement());
         }
-        if (!this.hasLoadBaseJs){
+        if (!this.hasLoadBaseJs) {
             try {
                 for (URL url : list) {
-                    List<Map.Entry<InputStream, File>> files = this.javaFiles(url,null,"io/tapdata/js/utils/js");
+                    List<Map.Entry<InputStream, File>> files = this.javaFiles(url, null, "io/tapdata/js/utils/js");
                     for (Map.Entry<InputStream, File> file : files) {
                         this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
                     }
                 }
                 this.hasLoadBaseJs = true;
             } catch (Exception e) {
-                TapLogger.warn(TAG, String.format("Unable to load configuration javascript to jsEngine. %s.",e.getMessage()));
+                TapLogger.warn(TAG, String.format("Unable to load configuration javascript to jsEngine. %s.", e.getMessage()));
             }
         }
         if (!this.hasLoadJs) {
@@ -99,6 +105,7 @@ public class LoadJavaScripter {
                         this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
                     }
                 }
+                this.hasLoadJs = true;
                 return this.scriptEngine;
             } catch (Exception error) {
                 throw new CoreException("Error java script code, message: " + error.getMessage());
@@ -107,23 +114,24 @@ public class LoadJavaScripter {
         return this.scriptEngine;
     }
 
-    private List<Map.Entry<InputStream, File>> javaFiles(URL url, String flooder,String fileFlooder){
+    private List<Map.Entry<InputStream, File>> javaFiles(URL url, String flooder, String fileFlooder) {
         List<Map.Entry<InputStream, File>> fileList = new ArrayList<>();
         String path = url.getPath();
         try {
-            List<Map.Entry<InputStream, File>> collect = getAllFileFromJar(path,Optional.ofNullable(flooder).orElse(this.flooder),Optional.ofNullable(fileFlooder).orElse(this.flooder));
+            List<Map.Entry<InputStream, File>> collect = getAllFileFromJar(path, Optional.ofNullable(flooder).orElse(this.flooder), Optional.ofNullable(fileFlooder).orElse(this.flooder));
             fileList.addAll(collect);
         } catch (Exception ignored) {
             throw new CoreException(String.format("Unable to get the file list, the file directory is: %s. ", path));
         }
         return fileList;
     }
-    private List<Map.Entry<InputStream, File>> javaScriptFiles(URL url, String flooder,String fileFlooder){
+
+    private List<Map.Entry<InputStream, File>> javaScriptFiles(URL url, String flooder, String fileFlooder) {
         Map.Entry<InputStream, File> connectorFile = null;
         List<Map.Entry<InputStream, File>> fileList = new ArrayList<>();
         String path = url.getPath();
         try {
-            List<Map.Entry<InputStream, File>> collect = getAllFileFromJar(path,Optional.ofNullable(flooder).orElse(this.flooder),Optional.ofNullable(flooder).orElse(this.flooder));
+            List<Map.Entry<InputStream, File>> collect = getAllFileFromJar(path, Optional.ofNullable(flooder).orElse(this.flooder), Optional.ofNullable(flooder).orElse(this.flooder));
             for (Map.Entry<InputStream, File> entry : collect) {
                 File file = entry.getValue();
                 if (this.fileIsConnectorJs(file)) {
@@ -142,11 +150,12 @@ public class LoadJavaScripter {
         fileList.add(connectorFile);
         return fileList;
     }
+
     //根据父路径加载全部JS文件并返回
     //connector.js必须放在最后
     //不存在connector.js就报错
     private List<Map.Entry<InputStream, File>> javaScriptFiles(URL url) {
-        return this.javaScriptFiles(url,null,null);
+        return this.javaScriptFiles(url, null, null);
     }
 
     private List<Map.Entry<InputStream, File>> getAllFileFromJar(String path, String flooder, String fileFlooder) {
@@ -190,10 +199,10 @@ public class LoadJavaScripter {
 
     public boolean functioned(String functionName) {
         if (Objects.isNull(functionName) || Objects.isNull(this.scriptEngine)) return false;
-        try{
+        try {
             Invocable invocable = (Invocable) this.scriptEngine;
             invocable.invokeFunction(functionName);
-        }catch(NoSuchMethodException e){
+        } catch (NoSuchMethodException e) {
             return false;
         } catch (ScriptException ignored) {
         }
@@ -206,8 +215,9 @@ public class LoadJavaScripter {
         Bindings bindings = this.scriptEngine.getBindings(scope);
         bindings.put(key, name);
     }
-    public void put(String key, Object javaValue){
-        Optional.ofNullable(this.scriptEngine).ifPresent(e -> e.put(key,javaValue));
+
+    public void put(String key, Object javaValue) {
+        Optional.ofNullable(this.scriptEngine).ifPresent(e -> e.put(key, javaValue));
     }
 
     public void bindingGlobal(String key, Object binder) {
@@ -286,9 +296,9 @@ public class LoadJavaScripter {
     public static Object covertData(Object apply) {
         if (Objects.isNull(apply)) {
             return null;
-        } else if (apply instanceof Map){
+        } else if (apply instanceof Map) {
             return fromJson(toJson(apply));
-        } else if(apply instanceof Collection) {
+        } else if (apply instanceof Collection) {
             try {
                 return ConnectorBase.fromJsonArray(toJson(apply));
             } catch (Exception e) {

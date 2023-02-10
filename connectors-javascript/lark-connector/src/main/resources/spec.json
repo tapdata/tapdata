@@ -1,0 +1,119 @@
+{
+  "properties": {
+    "name": "Lark",
+    "icon": "icon/lark.png",
+    "doc": "${doc}",
+    "id": "lark"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+        "sendItemConfig": {
+          "type": "array",
+          "x-display": "hidden",
+          "title": "${send_config}",
+          "x-decorator": "FormItem",
+          "x-component": "ArrayTable",
+          "x-index": 9,
+          "required": true,
+          "default": [
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "c1": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 1,
+                "x-component-props": {
+                  "title": "${user_email_or_phone}"
+                },
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "required": true,
+                    "x-decorator": "FormItem",
+                    "x-component": "Input"
+                  }
+                }
+              },
+              "c2": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 2,
+                "x-component-props": {
+                  "title": "${col_name}"
+                },
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "required": true,
+                    "x-decorator": "FormItem",
+                    "x-component": "Input"
+                  }
+                }
+              }
+            }
+          },
+          "properties": {
+            "add": {
+              "type": "void",
+              "x-component": "ArrayTable.Addition",
+              "title": "${df_table_field_btn_add}"
+            }
+          }
+        }
+      }
+    },
+      "connection": {
+        "type": "object",
+        "properties": {
+          "app_id": {
+            "type": "String",
+            "title": "${app_id}",
+            "x-decorator": "FormItem",
+            "x-component": "Input",
+            "x-index": 10,
+            "required": true
+          },
+          "app_secret": {
+            "type": "String",
+            "title": "${app_secret}",
+            "x-decorator": "FormItem",
+            "x-component": "Input",
+            "x-index": 20,
+            "required": true
+          }
+        }
+      }
+    },
+    "messages": {
+      "default": "en_US",
+      "en_US": {
+        "doc": "doc/Lark_en_US.md",
+        "app_id": "App Id",
+        "app_secret": "App Secret",
+        "send_config": "Message sending configuration",
+        "user_email_or_phone": "Receiver's mobile phone number or email",
+        "col_name": "Message source field name "
+      },
+      "zh_CN": {
+        "doc": "doc/Lark_zh_CN.md",
+        "app_id": "应用Id",
+        "app_secret": "应用Secret",
+        "send_config": "消息发送配置",
+        "user_email_or_phone": "接受者手机号或邮箱",
+        "col_name": "消息来源字段名称"
+      },
+      "zh_TW": {
+        "doc": "doc/Lark_zh_TW.md",
+        "app_id": "应用Id",
+        "app_secret": "应用Secret",
+        "send_config": "消息發送配寘",
+        "user_email_or_phone": "接受者手機號或郵箱",
+        "col_name": "消息來源欄位名稱"
+      }
+    }
+  }

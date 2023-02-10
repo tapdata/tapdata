@@ -61,20 +61,20 @@ function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSi
 /**
  * @return The returned result is not empty and must be in the following form:
  *          [
- *              {"TEST": String, "CODE": Number, "RESULT": String},
- *              {"TEST": String, "CODE": Number, "RESULT": String},
+ *              {"test": String, "code": Number, "result": String},
+ *              {"test": String, "code": Number, "result": String},
  *              ...
  *          ]
- *          param - TEST :  The type is a String, representing the description text of the test item.
- *          param - CODE :  The type is a Number, is the type of test result. It can only be [-1, 0, 1], -1 means failure, 1 means success, 0 means warning.
- *          param - RESULT : The type is a String, descriptive text indicating test results.
+ *          param - test :  The type is a String, representing the description text of the test item.
+ *          param - code :  The type is a Number, is the type of test result. It can only be [-1, 0, 1], -1 means failure, 1 means success, 0 means warning.
+ *          param - result : The type is a String, descriptive text indicating test results.
  * @param connectionConfig  Configuration property information of the connection page
  * */
 function connection_test(connectionConfig) {
     return [{
-        "TEST": "Example test item",
-        "CODE": 1,
-        "RESULT": "Pass"
+        "test": "Example test item",
+        "code": 1,
+        "result": "Pass"
     }];
 }
 
@@ -84,6 +84,13 @@ function connection_test(connectionConfig) {
  * @param connectionConfig
  * @param nodeConfig
  * @param commandInfo
+ *
+ *  "commandInfo": {
+ *      "command": String,   //command类型
+ *      "action": String,    //action类型
+ *      "argMap": Object,    //查询参数
+ *      "time": Number       //command发起时间
+ *  }
  * */
 function command_callback(connectionConfig, nodeConfig, commandInfo) {
 
@@ -97,18 +104,18 @@ function command_callback(connectionConfig, nodeConfig, commandInfo) {
  *
  * @return array with data maps.
  *  Each data includes five parts:
- *      - EVENT_TYPE : event type ,only with : i , u, d. Respectively insert, update, delete;
- *      - TABLE_NAME : Data related table;
- *      - REFERENCE_TIME : Time stamp of event occurrence;
- *      - AFTER_DATA : After the event, only AFTER_DATA can be added or deleted as a result of the data
- *      - BEFORE_DATA : Before the event, the result of the data will be BEFORE_DATA only if the event is modified
+ *      - event_type : event type ,only with : i , u, d. Respectively insert, update, delete;
+ *      - table_name : Data related table;
+ *      - reference_time : Time stamp of event occurrence;
+ *      - after_data : After the event, only after_data can be added or deleted as a result of the data
+ *      - before_data : Before the event, the result of the data will be before_data only if the event is modified
  *  please return with: [
  *      {
- *          "EVENT_TYPE": "i/u/d",
- *          "TABLE_NAME": "${example_table_name}",
- *          "REFERENCE_TIME": Number(),
- *          "AFTER_DATA": {},
- *          "BEFORE_DATA":{}
+ *          "event_type": "i/u/d",
+ *          "table_name": "${example_table_name}",
+ *          "reference_time": Number(),
+ *          "after_data": {},
+ *          "before_data":{}
  *      },
  *      ...
  *     ]
@@ -117,11 +124,11 @@ function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMa
 
     //return [
     //     {
-    //         "EVENT_TYPE": "i/u/d",
-    //         "TABLE_NAME": "${example_table_name}",
-    //         "REFERENCE_TIME": Number(),
-    //         "AFTER_DATA": {},
-    //         "BEFORE_DATA":{}
+    //         "event_type": "i/u/d",
+    //         "table_name": "${example_table_name}",
+    //         "reference_time": Number(),
+    //         "after_data": {},
+    //         "before_data":{}
     //     }
     //]
 }
@@ -129,11 +136,11 @@ function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMa
 /**
  * [
  *  {
- *      "EVENT_TYPE": "i/u/d",
- *      "TABLE_NAME": "${example_table_name}",
- *      "REFERENCE_TIME": Number(),
- *      "AFTER_DATA": {},
- *      "BEFORE_DATA":{}
+ *      "event_type": "i/u/d",
+ *      "table_name": "${example_table_name}",
+ *      "reference_time": Number(),
+ *      "after_data": {},
+ *      "before_data":{}
  *  },
  *  ...
  * ]
@@ -141,11 +148,11 @@ function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMa
  * @param nodeConfig
  * @param eventDataList type is js array with data maps.
  *  Each data includes five parts:
- *      - EVENT_TYPE : event type ,only with : i , u, d. Respectively insert, update, delete;
- *      - TABLE_NAME : Data related table;
- *      - REFERENCE_TIME : Time stamp of event occurrence;
- *      - AFTER_DATA : After the event, only AFTER_DATA can be added or deleted as a result of the data
- *      - BEFORE_DATA : Before the event, the result of the data will be BEFORE_DATA only if the event is modified
+ *      - event_type : event type ,only with : i , u, d. Respectively insert, update, delete;
+ *      - table_name : Data related table;
+ *      - reference_time : Time stamp of event occurrence;
+ *      - after_data : After the event, only after_data can be added or deleted as a result of the data
+ *      - before_data : Before the event, the result of the data will be before_data only if the event is modified
  *  @return true or false, default true
  * */
 function write_record(connectionConfig, nodeConfig, eventDataList) {

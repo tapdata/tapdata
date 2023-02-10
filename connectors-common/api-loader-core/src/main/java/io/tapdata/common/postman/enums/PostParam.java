@@ -13,6 +13,7 @@ public class PostParam {
     public static final String ID = "id";
     public static final String REQUEST = "request";
     public static final String METHOD = "method";
+    public static final String MODE = "mode";
     public static final String URL = "url";
     public static final String RAW = "raw";
     public static final String HOST = "host";
