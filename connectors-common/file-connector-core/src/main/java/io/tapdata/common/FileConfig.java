@@ -33,6 +33,8 @@ public class FileConfig implements Serializable {
     private int headerLine;
     private String header;
     private int dataStartLine;
+    private String writeFilePath;
+    private String fileNameExpression;
 
     public FileConfig load(Map<String, Object> map) {
         assert beanUtils != null;
@@ -189,5 +191,21 @@ public class FileConfig implements Serializable {
 
     public void setDataStartLine(int dataStartLine) {
         this.dataStartLine = dataStartLine;
+    }
+
+    public String getWriteFilePath() {
+        return writeFilePath;
+    }
+
+    public void setWriteFilePath(String writeFilePath) {
+        this.writeFilePath = writeFilePath;
+    }
+
+    public String getFileNameExpression() {
+        return fileNameExpression;
+    }
+
+    public void setFileNameExpression(String fileNameExpression) {
+        this.fileNameExpression = fileNameExpression;
     }
 }

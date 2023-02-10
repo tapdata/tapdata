@@ -4,7 +4,6 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
-import io.tapdata.js.connector.iengine.ScriptEngineInstance;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.JSFunctionNames;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -22,9 +21,9 @@ import static io.tapdata.base.ConnectorBase.testItem;
 /**
  * testResult = [
  * {
- * "TEST":"Test Api 1 which is the test item' title. ",
- * "CODE":0,//default0(0:warn,1:succeed,-1:error),
- * "RESULT":"there is a warn message for this test item."
+ * "test":"Test Api 1 which is the test item' title. ",
+ * "code":0,//default0(0:warn,1:succeed,-1:error),
+ * "result":"there is a warn message for this test item."
  * }
  * ]
  */
@@ -37,17 +36,14 @@ public class BaseConnectionTestFunction extends FunctionBase {
     }
 
     public static BaseConnectionTestFunction connection(LoadJavaScripter script) {
-        if (Objects.isNull(script)) {
-            script = ScriptEngineInstance.instance().script();
-        }
         BaseConnectionTestFunction function = new BaseConnectionTestFunction();
         function.javaScripter(script);
         return function;
     }
 
-    public static final String TEST_RESULT_TITLE_KEY = "TEST";
-    public static final String TEST_RESULT_CODE_KEY = "CODE";
-    public static final String TEST_RESULT_MSG_KEY = "RESULT";
+    public static final String TEST_RESULT_TITLE_KEY = "test";
+    public static final String TEST_RESULT_CODE_KEY = "code";
+    public static final String TEST_RESULT_MSG_KEY = "result";
 
     public ConnectionOptions test(TapConnectionContext context, Consumer<TestItem> consumer) {
         ConnectionOptions options = new ConnectionOptions();

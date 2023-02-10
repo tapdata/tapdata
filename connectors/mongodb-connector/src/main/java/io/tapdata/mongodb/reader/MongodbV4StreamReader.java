@@ -149,7 +149,7 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 							}
 
 							if (MapUtils.isEmpty(fullDocument)) {
-								TapLogger.warn(TAG, "Found update event already deleted in collection %s, _id %s", collectionName, event.getDocumentKey().get("_id"));
+								TapLogger.warn(TAG, "Found update event already deleted in collection {}, _id {}", collectionName, event.getDocumentKey().get("_id"));
 								continue;
 							}
 						}

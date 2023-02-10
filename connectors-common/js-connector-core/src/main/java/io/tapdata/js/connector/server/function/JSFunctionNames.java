@@ -19,16 +19,29 @@ public enum JSFunctionNames {
     EXPIRE_STATUS("expire_status", "ExpireStatus", ""),
     UPDATE_TOKEN("update_token", "UpdateToken", ""),
 
+
+    DeleteRecordFunction("delete_record", "DeleteRecordFunction", "","write_record"),
+    InsertRecordFunction("insert_record", "InsertRecordFunction", "","write_record"),
+    UpdateRecordFunction("update_record", "UpdateRecordFunction", "","write_record"),
+
     SCANNING_CAPABILITIES_IN_JAVA_SCRIPT("_scanning_capabilities_in_java_script", "scanningCapabilitiesInJavaScript", ""),
     ;
     String jsName;
     String javaName;
     String description;
+    String baseFunction;
 
+    JSFunctionNames(String jsName, String javaName, String description,String baseFunction) {
+        this.javaName = javaName;
+        this.jsName = jsName;
+        this.description = description;
+        this.baseFunction = baseFunction;
+    }
     JSFunctionNames(String jsName, String javaName, String description) {
         this.javaName = javaName;
         this.jsName = jsName;
         this.description = description;
+        this.baseFunction = "base";
     }
 
     public String jsName() {

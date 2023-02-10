@@ -1,0 +1,268 @@
+{
+	"info": {
+		"_postman_id": "478f2006-ebb1-44ed-88f1-95e9d45a58f4",
+		"name": "Zoho",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "getToken",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "grant_type",
+							"value": "authorization_code",
+							"type": "text"
+						},
+						{
+							"key": "client_id",
+							"value": "{{client_id}}",
+							"type": "text"
+						},
+						{
+							"key": "client_secret",
+							"value": "{{client_secret}}",
+							"type": "text"
+						},
+						{
+							"key": "redirect_uri",
+							"value": "http://www.tapdata.net/",
+							"type": "text"
+						},
+						{
+							"key": "code",
+							"value": "{{code}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://accounts.zoho.com.cn/oauth/v2/token?grant_type=authorization_code&client_id={{client_id}}&client_secret={{client_secret}}&redirect_uri=http://www.tapdata.net/&code={{code}}",
+					"protocol": "https",
+					"host": [
+						"accounts",
+						"zoho",
+						"com",
+						"cn"
+					],
+					"path": [
+						"oauth",
+						"v2",
+						"token"
+					],
+					"query": [
+						{
+							"key": "grant_type",
+							"value": "authorization_code"
+						},
+						{
+							"key": "client_id",
+							"value": "{{client_id}}"
+						},
+						{
+							"key": "client_secret",
+							"value": "{{client_secret}}"
+						},
+						{
+							"key": "redirect_uri",
+							"value": "http://www.tapdata.net/"
+						},
+						{
+							"key": "code",
+							"value": "{{code}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "refreshToken",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "https://accounts.zoho.com.cn/oauth/v2/token?refresh_token={{refreshToken}}&client_id={{client_id}}&client_secret={{client_secret}}&grant_type=refresh_token",
+					"protocol": "https",
+					"host": [
+						"accounts",
+						"zoho",
+						"com",
+						"cn"
+					],
+					"path": [
+						"oauth",
+						"v2",
+						"token"
+					],
+					"query": [
+						{
+							"key": "refresh_token",
+							"value": "{{refreshToken}}"
+						},
+						{
+							"key": "client_id",
+							"value": "{{client_id}}"
+						},
+						{
+							"key": "client_secret",
+							"value": "{{client_secret}}"
+						},
+						{
+							"key": "grant_type",
+							"value": "refreshToken"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "getData",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Zoho-oauthtoken {{accessToken}}",
+						"type": "default"
+					},
+					{
+						"key": "If-Modified-Since",
+						"value": "{{If-Modified-Since}}",
+						"type": "default",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "https://www.zohoapis.com.cn/crm/v2/{{tableName}}?page={{page}}",
+					"protocol": "https",
+					"host": [
+						"www",
+						"zohoapis",
+						"com",
+						"cn"
+					],
+					"path": [
+						"crm",
+						"v2",
+						"{{tableName}}"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "{{page}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "getDataA",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Zoho-oauthtoken {{accessToken}}",
+						"type": "default"
+					},
+					{
+						"key": "If-Modified-Since",
+						"value": "{{If-Modified-Since}}",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://www.zohoapis.com.cn/crm/v2/{{tableName}}?page={{page}}",
+					"protocol": "https",
+					"host": [
+						"www",
+						"zohoapis",
+						"com",
+						"cn"
+					],
+					"path": [
+						"crm",
+						"v2",
+						"{{tableName}}"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "{{page}}"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "client_id",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "client_secret",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "code",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "refreshToken",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "page",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "tableName",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "accessToken",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "If-Modified-Since",
+			"value": "",
+			"type": "default"
+		}
+	]
+}

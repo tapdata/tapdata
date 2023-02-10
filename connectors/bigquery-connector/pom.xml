@@ -87,24 +87,6 @@
             <type>pom</type>
             <scope>import</scope>
         </dependency>
-
-<!--        <dependency>-->
-<!--            <groupId>io.streamnative</groupId>-->
-<!--            <artifactId>pulsar-client-original</artifactId>-->
-<!--            <scope>test</scope>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>org.apache.pulsar</groupId>-->
-<!--            <artifactId>pulsar-functions-local-runner-original</artifactId>-->
-<!--            <version>2.9.3</version>-->
-<!--            <scope>test</scope>-->
-<!--            <exclusions>-->
-<!--                <exclusion>-->
-<!--                    <groupId>org.apache.logging.log4j</groupId>-->
-<!--                    <artifactId>log4j-slf4j-impl</artifactId>-->
-<!--                </exclusion>-->
-<!--            </exclusions>-->
-<!--        </dependency>-->
         <dependency>
             <groupId>com.lightbend.akka</groupId>
             <artifactId>akka-stream-alpakka-google-cloud-bigquery-storage_${scala.binary.version}</artifactId>
