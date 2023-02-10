@@ -334,9 +334,9 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
 
             String status = "running";
             if (Objects.nonNull(worker.getStopping()) && worker.getStopping()) {
-                status = "stoped";
-            } else if (worker.getPingTime() < liveTime) {
-                status = "stoped";
+                status = "stopped";
+            } else if (Objects.isNull(worker.getPingTime()) || worker.getPingTime() < liveTime) {
+                status = "stopped";
             }
 
             AccessNodeInfo accessNodeInfo = new AccessNodeInfo(worker.getProcessId(), hostname.get(), worker.getProcessId(), status);
