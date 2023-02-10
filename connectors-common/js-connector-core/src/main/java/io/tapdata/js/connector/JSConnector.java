@@ -124,7 +124,7 @@ public class JSConnector extends ConnectorBase {
                     interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, connectionContext));
                     APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory).interceptor(interceptor);
                     this.javaScripter.scriptEngine().put("tapAPI", factory);
-                    this.javaScripter.scriptEngine().put("log", new ConnectorLog());
+                    this.javaScripter.scriptEngine().put("tapLog", new ConnectorLog());
                     //this.javaScripter.scriptEngine().put("tapCache", this.cacheContext);
                     this.javaScripter.scriptEngine().put("tapUtil", new JsUtil());
                     this.javaScripter.scriptEngine().put("nodeIsAlive", isAlive);
