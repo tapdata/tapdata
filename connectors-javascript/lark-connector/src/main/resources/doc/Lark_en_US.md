@@ -31,7 +31,7 @@ If you need to send a message using FeiShu:
 其中：
 
 - type contain ***text*** | ***post*** | ***image*** | ***interactive*** | ***share_chat*** | ***share_user*** | ***audio*** | ***media*** | ***file*** | ***sticker***，default is ***text***。
-  For specific message types, see the description on the official document: [https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json#7215e4f6](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json#7215e4f6)
+  For specific message types, see the description on the official document: [https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json)
 
 - phoneOrEmail is the mobile phone number or email address of the message receiver, APP obtains the user's open_id through this field to send a message to the specified user.
 

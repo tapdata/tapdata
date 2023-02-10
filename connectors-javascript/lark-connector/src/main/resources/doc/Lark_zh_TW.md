@@ -30,7 +30,7 @@
 其中：
 
 - type包含 ***text*** | ***post*** | ***image*** | ***interactive*** | ***share_chat*** | ***share_user*** | ***audio*** | ***media*** | ***file*** | ***sticker***，默认***text***。
-  具體的消息類型可查看官方檔案上的描述：[https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json#7215e4f6](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json#7215e4f6)
+  具體的消息類型可查看官方檔案上的描述：[https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json)
 
 - phoneOrEmail為消息接收者的手機號或郵箱，APP通過這個欄位獲取用戶的open_id，來發送消息到指定的用戶。
 
