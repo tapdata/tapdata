@@ -24,7 +24,7 @@ import java.util.Map;
 public class CustomSchema {
 
     private static final String TAG = CustomSchema.class.getSimpleName();
-    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class); //script factory
+    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "engine"); //script factory
     private final CustomConfig customConfig;
     private final static int LOAD_SCHEMA_RETRY_TIME = 60;
 
