@@ -39,6 +39,7 @@ import java.util.function.Consumer;
 @TapConnectorClass("spec_hazelcast.json")
 public class HazelcastConnector extends ConnectorBase {
     public static final String TAG = HazelcastConnector.class.getSimpleName();
+    private static final String TAPDATA_TABLE_LIST = "__tapdata__discoverSchemaIMaps";
     private HazelcastInstance client;
 
 
@@ -48,7 +49,7 @@ public class HazelcastConnector extends ConnectorBase {
             client = HazelcastClientUtil.getClient(connectionContext);
         } catch (Exception e) {
             e.printStackTrace();
-            throw new CoreException("The Hazelcast cluster connection fails: " + e.getMessage());
+            throw new CoreException("The Hazelcast cluster connection fails: " + e.getMessage(), e);
         }
     }
 
@@ -64,26 +65,23 @@ public class HazelcastConnector extends ConnectorBase {
         connectorFunctions.supportClearTable(this::clearIMap);
         connectorFunctions.supportDropTable(this::dropIMap);
         connectorFunctions.supportGetTableNamesFunction(this::getImapNames);
-        connectorFunctions.supportQueryByFilter(this::queryByFilter);
-        connectorFunctions.supportErrorHandleFunction(this::handleErrors);
-
     }
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         try {
-            IList<String> IMaps = client.getList("discoverSchemaIMaps");
+            IList<String> iMaps = client.getList(TAPDATA_TABLE_LIST);
             List<TapTable> tapTableList = TapSimplify.list();
-            if (IMaps.size() > 0) {
-                for (String s : IMaps) {
-                    TapTable tapTable = table(s);
-                    tapTableList.add(tapTable);
+            if (iMaps.size() > 0) {
+                for (String s : iMaps) {
+                    //TODO 参考tables == null 或者empty， 全返回， 否则只返回tables指定的
+                    tapTableList.add(table(s));
                 }
             }
             consumer.accept(tapTableList);
         } catch (Exception e) {
             e.printStackTrace();
-            throw new Exception("DiscoverSchema failure: " + e.getMessage());
+            throw new Exception("DiscoverSchema failure: " + e.getMessage(), e);
         } finally {
             client.shutdown();
         }
@@ -92,40 +90,37 @@ public class HazelcastConnector extends ConnectorBase {
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
         TapLogger.info(TAG, "batch events length is: {}", events.size());
         IMap<Object, Object> map = client.getMap(table.getId());
-        try {
-            if (events instanceof TapInsertRecordEvent) {
-                final TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) events;
-                final Map<String, Object> after = insertRecordEvent.getAfter();
-                Map<String, Object> keyFromData = ObjectKey.getKeyFromData(after, null, after.keySet());
-                map.put(keyFromData.toString(), after);
-            } else if (events instanceof TapUpdateRecordEvent) {
-                final TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) events;
-                final Map<String, Object> before = updateRecordEvent.getBefore();
-                final Map<String, Object> after = updateRecordEvent.getAfter();
-                Map<String, Object> keyFromData = ObjectKey.getKeyFromData(before, null, before.keySet());
-                Map<String, Object> tempMap = map();
-                map.put(keyFromData.toString(), before);
-                tempMap.put(keyFromData.toString(), after);
-                map.putAll(tempMap);
+        if (events instanceof TapInsertRecordEvent) {
+            final TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) events;
+            final Map<String, Object> after = insertRecordEvent.getAfter();
+            Map<String, Object> keyFromData = ObjectKey.getKeyFromData(null, after, table.primaryKeys(true));
+            map.put(keyFromData, after);
+        } else if (events instanceof TapUpdateRecordEvent) {
+            final TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) events;
+            final Map<String, Object> before = updateRecordEvent.getBefore();
+            final Map<String, Object> after = updateRecordEvent.getAfter();
+            Map<String, Object> keyFromData = ObjectKey.getKeyFromData(before, after, table.primaryKeys(true));
+            Map<String, Object> oldValue = (Map<String, Object>) map.get(keyFromData);
+            if (oldValue != null) {
+                oldValue.putAll(after);
+                map.put(keyFromData, oldValue);
             } else {
-                final TapDeleteRecordEvent deleteRecordEvent = (TapDeleteRecordEvent) events;
-                final Map<String, Object> before = deleteRecordEvent.getBefore();
-                Map<String, Object> keyFromData = ObjectKey.getKeyFromData(before, null, before.keySet());
-                map.delete(keyFromData.toString());
+                map.put(keyFromData, after);
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+        } else {
+            final TapDeleteRecordEvent deleteRecordEvent = (TapDeleteRecordEvent) events;
+            final Map<String, Object> before = deleteRecordEvent.getBefore();
+            Map<String, Object> keyFromData = ObjectKey.getKeyFromData(before, null, table.primaryKeys(true));
+            map.delete(keyFromData);
         }
     }
 
     private void getImapNames(TapConnectionContext tapConnectionContext, int i, Consumer<List<String>> listConsumer) throws Exception {
         try {
-            IList<String> discoverSchemaIMaps = client.getList("discoverSchemaIMaps");
+            IList<String> discoverSchemaIMaps = client.getList(TAPDATA_TABLE_LIST);
             List<String> tableList = TapSimplify.list();
-            if (discoverSchemaIMaps.size() > 0) {
-                for (String name : discoverSchemaIMaps) {
-                    tableList.add(name);
-                }
+            if (!discoverSchemaIMaps.isEmpty()) {
+                tableList.addAll(discoverSchemaIMaps);
             }
             if (!tableList.isEmpty()) {
                 listConsumer.accept(tableList);
@@ -133,7 +128,7 @@ public class HazelcastConnector extends ConnectorBase {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            throw new Exception("getImapNames failed." + e.getMessage());
+            throw new Exception("getImapNames failed." + e.getMessage(), e);
         }
 
     }
@@ -146,7 +141,7 @@ public class HazelcastConnector extends ConnectorBase {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            throw new RuntimeException("Drop Table " + tapDropTableEvent.getTableId() + " Failed! \n ");
+            throw new RuntimeException("Drop Table " + tapDropTableEvent.getTableId() + " Failed! \n ", e);
         }
     }
 
@@ -158,7 +153,7 @@ public class HazelcastConnector extends ConnectorBase {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            throw new RuntimeException("Clear Table " + tapClearTableEvent.getTableId() + " Failed! \n ");
+            throw new RuntimeException("Clear Table " + tapClearTableEvent.getTableId() + " Failed! \n ", e);
         }
     }
 
@@ -167,22 +162,16 @@ public class HazelcastConnector extends ConnectorBase {
 
         try {
             if (tapCreateTableEvent.getTableId() != null) {
-                client.getMap(tapCreateTableEvent.getTableId());
-                IList<Object> discoverSchemaIMaps = client.getList("discoverSchemaIMaps");
-                discoverSchemaIMaps.add(tapCreateTableEvent.getTableId());
+                IList<Object> discoverSchemaIMaps = client.getList(TAPDATA_TABLE_LIST);
+                String tableId = tapCreateTableEvent.getTableId();
+                if (discoverSchemaIMaps.contains(tableId))
+                    discoverSchemaIMaps.add(tableId);
             }
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException("Create Table " + tapCreateTableEvent.getTableId() + " Failed! \n ");
         }
         return null;
-    }
-
-    private RetryOptions handleErrors(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
-        return null;
-    }
-
-    private void queryByFilter(TapConnectorContext tapConnectorContext, List<TapFilter> tapFilters, TapTable table, Consumer<List<FilterResult>> listConsumer) {
     }
 
     @Override
@@ -194,6 +183,7 @@ public class HazelcastConnector extends ConnectorBase {
 
         IMap<String, String> tapDataConnectionTest = null;
         try {
+            HazelcastInstance client = HazelcastClientUtil.getClient(connectionContext);
             tapDataConnectionTest = client.getMap("tapDataConnectionTest");
             consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY,
                     "Connecting to the cluster succeeded."));
@@ -219,11 +209,11 @@ public class HazelcastConnector extends ConnectorBase {
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
         try {
-            IList<Object> discoverSchemaIMaps = client.getList("discoverSchemaIMaps");
+            IList<Object> discoverSchemaIMaps = client.getList(TAPDATA_TABLE_LIST);
             return discoverSchemaIMaps.size();
         } catch (Exception e) {
             e.printStackTrace();
-            throw new RuntimeException("Description Failed to obtain the number of iMaps.");
+            throw new RuntimeException("Description Failed to obtain the number of iMaps.", e);
         }
     }
 }
