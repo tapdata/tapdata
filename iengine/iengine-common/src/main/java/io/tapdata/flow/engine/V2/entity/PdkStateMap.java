@@ -1,14 +1,14 @@
 package io.tapdata.flow.engine.V2.entity;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.map.IMap;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.entity.AppType;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
-import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.bson.Document;
@@ -28,6 +28,7 @@ public class PdkStateMap implements KVMap<Object> {
 	public static final int READ_TIMEOUT_MS = 60 * 1000;
 	//	private IMap<String, Document> imap;
 	private static final String KEY = PdkStateMap.class.getSimpleName();
+	public static final long GLOBAL_MAP_TTL_SECONDS = 604800L;
 	private static volatile PdkStateMap globalStateMap;
 	private DocumentIMap<Document> constructIMap;
 
@@ -36,17 +37,23 @@ public class PdkStateMap implements KVMap<Object> {
 
 	public PdkStateMap(String nodeId, HazelcastInstance hazelcastInstance, StateMapMode stateMapMode) {
 		String name = getStateMapName(nodeId);
-		switch (stateMapMode) {
-			case DEFAULT:
-				constructIMap = new DocumentIMap<>(hazelcastInstance, name);
-				break;
-			case HTTP_TM:
-				initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), name);
-				break;
-		}
+		initConstructMap(hazelcastInstance, name, stateMapMode);
 	}
 
-	public PdkStateMap(HazelcastInstance hazelcastInstance, String mapName, StateMapMode stateMapMode) {
+	private PdkStateMap(HazelcastInstance hazelcastInstance, String mapName, StateMapMode stateMapMode) {
+		initConstructMap(hazelcastInstance, mapName, stateMapMode);
+	}
+
+	private void initConstructMap(HazelcastInstance hazelcastInstance, String mapName, StateMapMode stateMapMode) {
+		ConfigurationCenter configurationCenter = GlobalConstant.getInstance().getConfigurationCenter();
+		Object appTypeObj = configurationCenter.getConfig(ConfigurationCenter.APPTYPE);
+		AppType appType = null;
+		if (appTypeObj instanceof AppType) {
+			appType = (AppType) appTypeObj;
+		}
+		if (null != appType && appType.isDaas()) {
+			stateMapMode = StateMapMode.MONGODB;
+		}
 		switch (stateMapMode) {
 			case DEFAULT:
 				constructIMap = new DocumentIMap<>(hazelcastInstance, mapName);
@@ -54,6 +61,12 @@ public class PdkStateMap implements KVMap<Object> {
 			case HTTP_TM:
 				initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
 				break;
+			case MONGODB:
+				ExternalStorageDto defaultExternalStorage = ExternalStorageUtil.getDefaultExternalStorage();
+				constructIMap = new DocumentIMap<>(hazelcastInstance, mapName, defaultExternalStorage);
+				break;
+			default:
+				throw new IllegalArgumentException("Nonsupport state map storage mode: " + stateMapMode.name());
 		}
 	}
 
@@ -104,8 +117,13 @@ public class PdkStateMap implements KVMap<Object> {
 		if (globalStateMap == null) {
 			synchronized (GLOBAL_MAP_NAME) {
 				if (globalStateMap == null) {
-					globalStateMap = new PdkStateMap(hazelcastInstance, GLOBAL_MAP_NAME, StateMapMode.HTTP_TM);
-					PersistenceStorage.getInstance().setImapTTL(GLOBAL_MAP_NAME, 604800L);
+					AppType appType = (AppType) GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.APPTYPE);
+					StateMapMode stateMapMode = StateMapMode.MONGODB;
+					if (appType.isCloud()) {
+						stateMapMode = StateMapMode.HTTP_TM;
+					}
+					globalStateMap = new PdkStateMap(hazelcastInstance, GLOBAL_MAP_NAME, stateMapMode);
+					PersistenceStorage.getInstance().setImapTTL(globalStateMap.getConstructIMap().getiMap(), GLOBAL_MAP_TTL_SECONDS);
 				}
 			}
 		}
@@ -157,5 +175,10 @@ public class PdkStateMap implements KVMap<Object> {
 	public enum StateMapMode {
 		DEFAULT,
 		HTTP_TM,
+		MONGODB,
+	}
+
+	public DocumentIMap<Document> getConstructIMap() {
+		return constructIMap;
 	}
 }

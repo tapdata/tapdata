@@ -372,34 +372,38 @@ public class LogCollectorService {
                 }
             }
 
-			String externalStorageId = node.getExternalStorageId();
-            if (StringUtils.isBlank(externalStorageId)) {
-                List<String> connectionIds = ((LogCollectorNode) node).getConnectionIds();
-                String connectionId = connectionIds.get(0);
-                if (StringUtils.isNotBlank(connectionId)) {
-                    Field field = new Field();
-                    field.put("shareCDCExternalStorageId", true);
-                    DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(connectionId), field);
-                    if (null != connectionDto) {
-                        externalStorageId = connectionDto.getShareCDCExternalStorageId();
-                    }
-                }
-            }
-            ExternalStorageDto externalStorageDto;
-            if (StringUtils.isBlank(externalStorageId)) {
-                externalStorageDto = externalStorageService.findOne(Query.query(Criteria.where("defaultStorage").is(true)));
-            } else {
-                externalStorageDto = externalStorageService.findById(new ObjectId(externalStorageId), user);
-            }
-            if (null != externalStorageDto) {
-                ExternalStorageVo externalStorageVo = new ExternalStorageVo();
-                BeanUtils.copyProperties(externalStorageDto, externalStorageVo);
-                logCollectorDetailVo.setExternalStorage(externalStorageVo);
-            }
+            findAndFillExternalStorageIntoDetail(user, node, logCollectorDetailVo);
 
-			return logCollectorDetailVo;
+            return logCollectorDetailVo;
         } else {
             return null;
+        }
+    }
+
+    private void findAndFillExternalStorageIntoDetail(UserDetail user, Node node, LogCollectorDetailVo logCollectorDetailVo) {
+        String externalStorageId = node.getExternalStorageId();
+        if (StringUtils.isBlank(externalStorageId)) {
+            List<String> connectionIds = ((LogCollectorNode) node).getConnectionIds();
+            String connectionId = connectionIds.get(0);
+            if (StringUtils.isNotBlank(connectionId)) {
+                Field field = new Field();
+                field.put("shareCDCExternalStorageId", true);
+                DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(connectionId), field);
+                if (null != connectionDto) {
+                    externalStorageId = connectionDto.getShareCDCExternalStorageId();
+                }
+            }
+        }
+        ExternalStorageDto externalStorageDto;
+        if (StringUtils.isBlank(externalStorageId)) {
+            externalStorageDto = externalStorageService.findOne(Query.query(Criteria.where("defaultStorage").is(true)));
+        } else {
+            externalStorageDto = externalStorageService.findById(new ObjectId(externalStorageId), user);
+        }
+        if (null != externalStorageDto) {
+            ExternalStorageVo externalStorageVo = new ExternalStorageVo();
+            BeanUtils.copyProperties(externalStorageDto, externalStorageVo);
+            logCollectorDetailVo.setExternalStorage(externalStorageVo);
         }
     }
 

@@ -445,4 +445,10 @@ public class ExternalStorageUtil {
 		}
 		return externalStorageDto;
 	}
+
+	public static ExternalStorageDto getDefaultExternalStorage() {
+		ClientMongoOperator clientMongoOperator = ConnectorConstant.clientMongoOperator;
+		Query query = Query.query(where("defaultStorage").is(true));
+		return clientMongoOperator.findOne(query, ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
+	}
 }

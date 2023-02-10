@@ -9,6 +9,8 @@ import com.hazelcast.jet.config.ProcessingGuarantee;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.Vertex;
+import com.hazelcast.logging.LogEvent;
+import com.hazelcast.logging.LogListener;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.cache.hazelcast.HazelcastCacheService;
 import com.tapdata.constant.*;
@@ -38,6 +40,7 @@ import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
@@ -73,6 +76,7 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -121,6 +125,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		hazelcastInstance = Hazelcast.newHazelcastInstance(config);
 		cacheService = new HazelcastCacheService(hazelcastInstance, clientMongoOperator);
 		messageDao.setCacheService(cacheService);
+		GlobalConstant.getInstance().hazelcastInstance(hazelcastInstance);
 	}
 
 	public static HazelcastInstance getHazelcastInstance() {
