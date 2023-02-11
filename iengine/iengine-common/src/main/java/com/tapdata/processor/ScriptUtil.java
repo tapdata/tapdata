@@ -123,7 +123,7 @@ public class ScriptUtil {
 																					ScriptConnection source,
 																					ScriptConnection target,
 																					ICacheGetter memoryCacheGetter,
-																					ScriptLogger logger) throws ScriptException {
+																					Log logger) throws ScriptException {
 		return getScriptEngine(jsEngineName, script, javaScriptFunctions, clientMongoOperator, source, target, memoryCacheGetter, logger, false);
 	}
 
@@ -134,7 +134,7 @@ public class ScriptUtil {
 																					ScriptConnection source,
 																					ScriptConnection target,
 																					ICacheGetter memoryCacheGetter,
-																					ScriptLogger logger,
+																					Log logger,
 																					boolean standard) throws ScriptException {
 
 		if (StringUtils.isBlank(script)) {

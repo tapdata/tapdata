@@ -422,15 +422,16 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 				}
 			}
 
-			initialSyncWorker = asyncMaster.createAsyncQueueWorker("InitialSync " + getNode().getId())
-					.job("batchRead", this::handleBatchReadForTables).finished().start(JobContext.create(null).context(sourceContext)).setAsyncJobErrorListener(this::handleWorkerError);
+			initialSyncWorker = asyncMaster.createAsyncQueueWorker("InitialSync " + getNode().getId()).setAsyncJobErrorListener(this::handleWorkerError)
+					.job("batchRead", this::handleBatchReadForTables).finished().start(JobContext.create(null).context(sourceContext));
 		}
 
 		if(sourceContext.isNeedCDC()) {
 			streamReadWorker = asyncMaster.createAsyncQueueWorker("StreamRead_tableSize_" + sourceContext.getPendingInitialSyncTables().size())
+					.setAsyncJobErrorListener(this::handleWorkerError)
 					.job(this::handleStreamRead).finished()
 					.start(JobContext.create().context(
-							StreamReadContext.create().streamStage(false).tables(sourceContext.getPendingInitialSyncTables())), true).setAsyncJobErrorListener(this::handleWorkerError);
+							StreamReadContext.create().streamStage(false).tables(sourceContext.getPendingInitialSyncTables())), true);
 		}
 
 //		partitionsReader = asyncMaster.createAsyncParallelWorker("PartitionReader " + getNode().getId(), 8);
@@ -596,7 +597,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 	}
 
 	@SneakyThrows
-	private void doCount(List<String> tableList) {
+	public void doCount(List<String> tableList) {
 		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
 		if (null == batchCountFunction) {
 			setDefaultRowSizeMap();
@@ -634,7 +635,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 	}
 
 	@SneakyThrows
-	private void doCountSynchronously(BatchCountFunction batchCountFunction, List<String> tableList) {
+	public void doCountSynchronously(BatchCountFunction batchCountFunction, List<String> tableList) {
 		if (null == batchCountFunction) {
 			setDefaultRowSizeMap();
 			logger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());

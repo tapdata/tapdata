@@ -102,6 +102,7 @@ public class AsyncParallelWorkerTest extends AsyncTestBase {
 		}).finished());
 		asyncParallelWorker.start();
 
-		waitCompleted(3111111);
+		waitCompleted(3);
 	}
+
 }
