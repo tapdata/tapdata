@@ -215,10 +215,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				&& CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
 
 		ObjectId id = updateDto.getId();
+		DataSourceConnectionDto oldConnection = null;
+		if (Objects.nonNull(id)) {
+			oldConnection = findById(id);
+			if (DataSourceConnectionDto.STATUS_TESTING.equals(updateDto.getStatus()) && !DataSourceConnectionDto.STATUS_TESTING.equals(oldConnection.getStatus())) {
+				updateDto.setLastStatus(oldConnection.getStatus());
+			}
+		}
 		Map<String, Object> config = updateDto.getConfig();
-		if (Objects.nonNull(id) && Objects.nonNull(config)) {
-			DataSourceConnectionDto connectionDto = findById(id);
-			Map<String, Object> dataConfig = connectionDto.getConfig();
+		if (oldConnection != null && Objects.nonNull(config)) {
+
+			Map<String, Object> dataConfig = oldConnection.getConfig();
 			if (dataConfig.containsKey("password") && !config.containsKey("password")) {
 				config.put("password", dataConfig.get("password"));
 			} else if (dataConfig.containsKey("mqPassword") && !config.containsKey("mqPassword")) {
@@ -1812,7 +1819,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		return findAllDto(query, user);
 	}
 
-	public void batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user, boolean cover) {
+	public Map<String, DataSourceConnectionDto> batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user, boolean cover) {
+
+		Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 		for (DataSourceConnectionDto connectionDto : connectionDtos) {
 			Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
 			query.fields().include("_id");
@@ -1821,7 +1830,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
 					connectionDto.setName(connectionDto.getName() + "_import");
 				}
-				repository.importEntity(convertToEntity(DataSourceEntity.class, connectionDto), user);
+				connection = importEntity(connectionDto, user);
 			} else {
 				if (cover) {
 					ObjectId objectId = connection.getId();
@@ -1835,10 +1844,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 
 
-					save(connectionDto, user);
+					connection = save(connectionDto, user);
 				}
 			}
+
+			conMap.put(connectionDto.getId().toHexString(), connection);
+
 		}
+		return conMap;
 	}
 
 	public List<DataSourceConnectionDto> listAll(Filter filter, UserDetail loginUser) {
@@ -2044,6 +2057,12 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	protected static class Part{
 		private String _id;
 		private long count;
+	}
+
+
+	public DataSourceConnectionDto importEntity(DataSourceConnectionDto dto, UserDetail userDetail) {
+		DataSourceEntity dataSourceEntity = repository.importEntity(convertToEntity(DataSourceEntity.class, dto), userDetail);
+		return convertToDto(dataSourceEntity, DataSourceConnectionDto.class);
 	}
 
 }

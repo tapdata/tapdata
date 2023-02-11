@@ -146,7 +146,7 @@
       ],
       "fixed": false
     },
-    "NUMERIC[($precision,$scale)]": {
+    "NUMERIC($precision,$scale)": {
       "to": "TapNumber",
       "name": "NUMERIC",
       "precision": [
@@ -157,15 +157,13 @@
         0,
         9
       ],
-      "defaultPrecision": 29,
-      "defaultScale": 0,
       "value": [
         "-9.9999999999999999999999999999999999999E+28",
         "9.9999999999999999999999999999999999999E+28"
       ],
       "fixed": false
     },
-    "BIGNUMERIC[($precision,$scale)]": {
+    "BIGNUMERIC($precision,$scale)": {
       "to": "TapNumber",
       "name": "BIGNUMERIC",
       "precision": [
@@ -176,8 +174,6 @@
         0,
         38
       ],
-      "defaultPrecision": 38,
-      "defaultScale": 0,
       "value": [
         "-3.402823466E+38",
         "3.402823466E+38"
@@ -204,7 +200,7 @@
       ],
       "fixed": false
     },
-    "BIGNUMERIC[($precision)]": {
+    "BIGNUMERIC($precision)": {
       "to": "TapNumber",
       "name": "BIGNUMERIC",
       "precision": [

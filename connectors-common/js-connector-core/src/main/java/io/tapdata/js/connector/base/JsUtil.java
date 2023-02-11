@@ -4,6 +4,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Function;
 
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
+
 public class JsUtil {
     public Object toMap(Object obj) {
         if (obj instanceof Function) {
@@ -87,5 +89,9 @@ public class JsUtil {
         }else {
             return list;
         }
+    }
+
+    public String fromJson(Object obj){
+        return Objects.isNull(obj)?"":toJson(obj);
     }
 }

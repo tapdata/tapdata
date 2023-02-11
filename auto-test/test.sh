@@ -6,6 +6,13 @@ if [[ "x"$CASE_CONFIG != "x" ]]; then
 fi
 
 server=`head -3 config.yaml |grep server|awk -F '"' '{print $2}'`
+
+while getopts ':s:' opt; do
+	case "$opt" in
+	's') server="$OPTARG" ;;
+	esac
+done
+
 curl $server --max-time 3 2>&1 > /dev/null
 if [[ $? -ne 0 ]]; then
     echo "curl server timeout, skip testing..."

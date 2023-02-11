@@ -24,4 +24,7 @@ public class MetadataDefinitionDto extends BaseDto {
     private String linkId;
     private Boolean readOnly;
 
+    /** root目录展示需要，这个不需要入库 */
+    private String userName;
+
 }

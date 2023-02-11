@@ -92,7 +92,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         AtomicReference<TaskDto> taskDto = new AtomicReference<>();
         FunctionUtils.isTureOrFalse(StringUtils.isBlank(taskRecordId)).trueOrFalseHandle(
                 () -> taskDto.set(taskService.findById(MongoUtils.toObjectId(taskId))),
-                () -> taskDto.set(taskRecordService.queryTask(taskRecordId, userDetail.getUserId()))
+                () -> taskDto.set(taskRecordService.queryTask(taskRecordId))
         );
 
         DAG dag = taskDto.get().getDag();

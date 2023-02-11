@@ -3,6 +3,8 @@ package io.tapdata.js.connector.server.function.support;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.ExecuteConfig;
@@ -81,8 +83,7 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
                 }
             }
         } catch (Exception e) {
-            TapLogger.warn(TAG, " Method 'command' failed to execute. Unable to get the return result. The final result will be null ");
-            commandResult.result(new HashMap<>());
+            throw new CoreException("Method 'command' failed to execute. Unable to get the return result. The final result will be null ,msg: {}", InstanceFactory.instance(TapUtils.class).getStackTrace(e));
         }
         return commandResult;
     }
