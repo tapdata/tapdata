@@ -1,7 +1,5 @@
 package com.tapdata.tm.commons.dag.vo;
 
-import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
-
 import java.io.Serializable;
 
 /**
@@ -9,8 +7,8 @@ import java.io.Serializable;
  */
 public class ReadPartitionOptions implements Serializable {
 	public static final int SPLIT_TYPE_NONE = 0;
-	public static final int SPLIT_TYPE_BY_COUNT = GetReadPartitionOptions.SPLIT_TYPE_BY_COUNT;
-	public static final int SPLIT_TYPE_BY_MINMAX = GetReadPartitionOptions.SPLIT_TYPE_BY_MINMAX;
+	public static final int SPLIT_TYPE_BY_COUNT = 1;
+	public static final int SPLIT_TYPE_BY_MINMAX = 10;
 	private int splitType = SPLIT_TYPE_BY_COUNT;
 
 	private boolean enable = false;

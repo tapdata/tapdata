@@ -11,14 +11,11 @@ import io.tapdata.entity.schema.type.*;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.*;
-import io.tapdata.partition.DatabaseReadPartitionSplitter;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
-import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
-import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.utils.TypeConverter;
 
 import java.io.PrintWriter;
@@ -40,31 +37,6 @@ public abstract class ConnectorBase implements TapConnector {
 	private static final String TAG = ConnectorBase.class.getSimpleName();
 
 //	private volatile DatabaseReadPartitionSplitter databaseReadPartitionSplitter;
-	protected DatabaseReadPartitionSplitter calculateDatabaseReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
-//		if(databaseReadPartitionSplitter == null) {
-//			synchronized (this) {
-//				if(databaseReadPartitionSplitter == null) {
-//					databaseReadPartitionSplitter = new DatabaseReadPartitionSplitter()
-//							.context(connectorContext)
-//							.table(table)
-//							.maxRecordInPartition(maxRecordInPartition)
-//							.consumer(consumer)
-//							.existingPartitions(existingPartitions)
-//					;
-//				}
-//			}
-//		}
-		return new DatabaseReadPartitionSplitter()
-				.context(connectorContext)
-				.table(table)
-				.minMaxSplitPieces(options.getMinMaxSplitPieces())
-				.maxRecordInPartition(options.getMaxRecordInPartition())
-				.consumer(options.getConsumer())
-				.countIsSlow(options.getSplitType() != GetReadPartitionOptions.SPLIT_TYPE_BY_COUNT)
-				.typeSplitterMap(options.getTypeSplitterMap())
-				.splitCompleteListener(id -> options.getCompletedRunnable().run())
-				;
-	}
 
 	public static void interval(Runnable runnable, int seconds) {
 		TapSimplify.interval(runnable, seconds);

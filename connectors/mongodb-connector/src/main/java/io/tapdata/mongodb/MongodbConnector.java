@@ -26,6 +26,7 @@ import io.tapdata.mongodb.reader.MongodbStreamReader;
 import io.tapdata.mongodb.reader.MongodbV4StreamReader;
 import io.tapdata.mongodb.reader.v3.MongodbV3StreamReader;
 import io.tapdata.mongodb.writer.MongodbWriter;
+import io.tapdata.partition.DatabaseReadPartitionSplitter;
 import io.tapdata.partition.SplitCompleteListener;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -584,7 +585,7 @@ public class MongodbConnector extends ConnectorBase {
 	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
 		options.getTypeSplitterMap().registerCustomSplitter(ObjectId.class, new ObjectIdSplitter());
 
-		calculateDatabaseReadPartitions(connectorContext, table, options)
+		DatabaseReadPartitionSplitter.calculateDatabaseReadPartitions(connectorContext, table, options)
 				.countByPartitionFilter(this::countByPartitionFilter)
 				.queryFieldMinMaxValue(this::queryFieldMinMaxValue)
 				.startSplitting();

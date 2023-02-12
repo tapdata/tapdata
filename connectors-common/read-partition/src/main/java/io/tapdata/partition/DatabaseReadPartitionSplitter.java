@@ -9,10 +9,10 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapIndexEx;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.error.ConnectorErrors;
+import io.tapdata.partition.error.ConnectorErrors;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.functions.connector.source.QueryFieldMinMaxValueFunction;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import io.tapdata.pdk.apis.partition.ReadPartition;
@@ -20,7 +20,6 @@ import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 import io.tapdata.pdk.apis.partition.splitter.*;
 
 import java.util.*;
-import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -29,6 +28,32 @@ import java.util.function.Consumer;
  * @author aplomb
  */
 public class DatabaseReadPartitionSplitter {
+
+	public static DatabaseReadPartitionSplitter calculateDatabaseReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
+//		if(databaseReadPartitionSplitter == null) {
+//			synchronized (this) {
+//				if(databaseReadPartitionSplitter == null) {
+//					databaseReadPartitionSplitter = new DatabaseReadPartitionSplitter()
+//							.context(connectorContext)
+//							.table(table)
+//							.maxRecordInPartition(maxRecordInPartition)
+//							.consumer(consumer)
+//							.existingPartitions(existingPartitions)
+//					;
+//				}
+//			}
+//		}
+		return new DatabaseReadPartitionSplitter()
+				.context(connectorContext)
+				.table(table)
+				.minMaxSplitPieces(options.getMinMaxSplitPieces())
+				.maxRecordInPartition(options.getMaxRecordInPartition())
+				.consumer(options.getConsumer())
+				.countIsSlow(options.getSplitType() != GetReadPartitionOptions.SPLIT_TYPE_BY_COUNT)
+				.typeSplitterMap(options.getTypeSplitterMap())
+				.splitCompleteListener(id -> options.getCompletedRunnable().run())
+				;
+	}
 	private TypeSplitterMap typeSplitterMap;
 	private String id;
 

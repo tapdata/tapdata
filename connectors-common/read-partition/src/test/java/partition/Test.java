@@ -1,5 +1,6 @@
 package partition;
 
+import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.pdk.apis.partition.splitter.BooleanSplitter;
 import io.tapdata.pdk.apis.partition.splitter.DateTimeSplitter;
@@ -23,7 +24,7 @@ public class Test {
 		System.out.println(readPartition);
 
 		Comparator<String> comparator = String::compareTo;
-		List<String> strList = list("a1", "b", "c", "a", "a", "A", "a4");
+		List<String> strList = ConnectorBase.list("a1", "b", "c", "a", "a", "A", "a4");
 		System.out.println("strList " + strList);
 		strList.sort(comparator);
 		System.out.println("sorted strList " + strList);

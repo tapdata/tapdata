@@ -49,6 +49,6 @@ public class TestConnector extends ConnectorBase {
 		return 0;
 	}
 	public DatabaseReadPartitionSplitter calculateDatabaseReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions getReadPartitionOptions) {
-		return super.calculateDatabaseReadPartitions(connectorContext, table, getReadPartitionOptions);
+		return DatabaseReadPartitionSplitter.calculateDatabaseReadPartitions(connectorContext, table, getReadPartitionOptions);
 	}
 }

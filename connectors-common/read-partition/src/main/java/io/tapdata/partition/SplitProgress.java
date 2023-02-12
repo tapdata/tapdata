@@ -1,9 +1,6 @@
 package io.tapdata.partition;
 
-import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.pdk.apis.partition.TapPartitionFilter;
-
-import java.util.List;
 
 /**
  * @author aplomb

@@ -1,4 +1,4 @@
-package io.tapdata.error;
+package io.tapdata.partition.error;
 
 /**
  * @author aplomb
