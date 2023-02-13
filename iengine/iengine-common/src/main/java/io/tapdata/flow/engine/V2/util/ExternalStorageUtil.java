@@ -224,9 +224,9 @@ public class ExternalStorageUtil {
 	}
 
 	public static ExternalStorageDto getExternalStorage(
-			@NotNull Map<String, ExternalStorageDto> externalStorageDtoMap,
-			@NotNull Node node,
-			@NotNull ClientMongoOperator clientMongoOperator,
+			Map<String, ExternalStorageDto> externalStorageDtoMap,
+			Node node,
+			ClientMongoOperator clientMongoOperator,
 			List<Node> nodes,
 			Connections connections
 	) {

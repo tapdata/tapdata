@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.Log4jUtil;
@@ -662,11 +663,22 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			String cacheName = getCacheName(mergeTableProperty.getId(), mergeTableProperty.getTableName());
 			ConstructIMap<Document> imap = new ConstructIMap<>(hazelcastInstance, cacheName, externalStorageDto);
 			try {
-				imap.destroy();
+				imap.clear();
+				PersistenceStorage.getInstance().destroy(imap.getName());
 			} catch (Exception e) {
 				throw new RuntimeException("Clear imap failed, name: " + cacheName + ", error message: " + e.getMessage(), e);
 			}
 			recursiveClearCache(externalStorageDto, mergeTableProperty.getChildren(), hazelcastInstance);
 		}
+	}
+
+	@Override
+	protected void doClose() throws Exception {
+		if (MapUtils.isNotEmpty(mergeCacheMap)) {
+			for (ConstructIMap<Document> constructIMap : mergeCacheMap.values()) {
+				PersistenceStorage.getInstance().destroy(constructIMap.getName());
+			}
+		}
+		super.doClose();
 	}
 }

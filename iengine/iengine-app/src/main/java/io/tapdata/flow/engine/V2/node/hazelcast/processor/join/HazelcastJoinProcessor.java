@@ -1,8 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor.join;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.constant.ConnectorConstant;
+import com.hazelcast.persistence.CommonUtils;
+import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.TapdataEvent;
@@ -32,7 +34,14 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -101,7 +110,6 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		String rightNodeId = ((JoinProcessorNode) node).getRightNodeId();
 		HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance();
 		String leftJoinCacheMapName = joinCacheMapName(leftNodeId, "leftJoinCache");
-		// todo get external storage config
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
 		BytesIMap<Map<String, Map<String, Object>>> leftJoinCache = new BytesIMap<>(
 				hazelcastInstance,
@@ -110,6 +118,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		);
 		try {
 			leftJoinCache.clear();
+			PersistenceStorage.getInstance().destroy(leftJoinCacheMapName);
 		} catch (Exception e) {
 			throw new RuntimeException(String.format("Clear left join cache map occur an error: %s\n map name: %s", e.getMessage(), leftJoinCacheMapName), e);
 		}
@@ -121,6 +130,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		);
 		try {
 			rightJoinCache.clear();
+			PersistenceStorage.getInstance().destroy(rightJoinCacheMapName);
 		} catch (Exception e) {
 			throw new RuntimeException(String.format("Clear right join cache map occur an error: %s\n map name: %s", e.getMessage(), rightJoinCacheMapName), e);
 		}
@@ -245,6 +255,14 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 
 	@Override
 	public void doClose() throws Exception {
+		CommonUtils.handleWithError(
+				() -> PersistenceStorage.getInstance().destroy(rightJoinCache.getName()),
+				throwable -> logger.warn("Destroy right join cache [" + rightJoinCache.getName() + "] failed. Message: " + throwable.getMessage() + "\n Stack: " + Log4jUtil.getStackString(throwable))
+		);
+		CommonUtils.handleWithError(
+				() -> PersistenceStorage.getInstance().destroy(leftJoinCache.getName()),
+				throwable -> logger.warn("Destroy left join cache [" + leftJoinCache.getName() + "] failed. Message: " + throwable.getMessage() + "\n Stack: " + Log4jUtil.getStackString(throwable))
+		);
 		super.doClose();
 	}
 
