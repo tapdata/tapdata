@@ -139,7 +139,7 @@ public class SmsService {
 
     public SendStatus sendShortMessage(String templateCode, String phoneNumbers, String templateParam) {
         SendStatus sendStatus = new SendStatus("false", "");
-
+        log.info("sendShortMessage  starting");
         if (StringUtils.isBlank(accessKeyId) || StringUtils.isBlank(accessKeySecret)) {
             sendStatus.setErrorMessage("Send sms fail, please configure {aliyun.accessKey} " +
                     "and {aliyun.accessKeySecret} in application config file.");
@@ -165,6 +165,8 @@ public class SmsService {
             request.setTemplateCode(templateCode);
             request.setTemplateParam(templateParam);
             sendSmsResponse = acsClient.getAcsResponse(request);
+            log.info("send sms request");
+            log.info("sendSmsResponse",sendSmsResponse.toString());
             if (null != sendSmsResponse && sendSmsResponse.getCode() != null && sendSmsResponse.getCode().equals("OK")) {
                 sendStatus.setStatus("true");
                 log.info("短信发送成功");
