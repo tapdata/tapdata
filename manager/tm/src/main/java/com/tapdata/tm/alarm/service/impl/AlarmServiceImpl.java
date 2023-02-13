@@ -229,7 +229,7 @@ public class AlarmServiceImpl implements AlarmService {
             });
 
             boolean isCloud = settingsService.isCloud();
-            if (isCloud) {
+            log.info("isCloud",isCloud);
                 FunctionUtils.ignoreAnyError(() -> {
                     boolean reuslt = sendSms(info, taskDto, userDetail, null);
                     if (!reuslt) {
@@ -247,7 +247,7 @@ public class AlarmServiceImpl implements AlarmService {
                     }
                 });
             }
-        }
+
     }
 
     private boolean sendMessage(AlarmInfo info, TaskDto taskDto, UserDetail userDetail) {
