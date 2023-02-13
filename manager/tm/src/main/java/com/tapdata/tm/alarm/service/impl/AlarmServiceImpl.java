@@ -746,20 +746,20 @@ public class AlarmServiceImpl implements AlarmService {
         AtomicReference<List<String>> receiverList = new AtomicReference<>();
 
         boolean isCloud = settingsService.isCloud();
-        if (isCloud) {
+//        if (isCloud) {
             UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
             Optional.ofNullable(userDetail).ifPresent(u -> {
                 if (StringUtils.isNotBlank(u.getEmail())) {
                     receiverList.set(Lists.newArrayList(u.getEmail()));
                 }
             });
-        } else {
-            String receivers = (String) collect.get("email.receivers");
-            if (StringUtils.isNotBlank(receivers)) {
-                String[] split = receivers.split(",");
-                receiverList.set(Arrays.asList(split));
-            }
-        }
+//        } else {
+//            String receivers = (String) collect.get("email.receivers");
+//            if (StringUtils.isNotBlank(receivers)) {
+//                String[] split = receivers.split(",");
+//                receiverList.set(Arrays.asList(split));
+//            }
+//        }
 
         return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
                 .receivers(receiverList.get()).protocol(protocol).build();
