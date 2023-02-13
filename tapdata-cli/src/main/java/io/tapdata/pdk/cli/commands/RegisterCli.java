@@ -2,6 +2,7 @@ package io.tapdata.pdk.cli.commands;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.commons.constants.DataSourceQCType;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -101,7 +102,9 @@ public class RegisterCli extends CommonCli {
                     }
 
                     JSONObject o = (JSONObject) JSON.toJSON(specification);
-                    o.put("beta", "beta".equals(specification.getManifest().get("Authentication")));
+                    DataSourceQCType qcType = DataSourceQCType.parse(specification.getManifest().get("Authentication"));
+                    qcType = (null == qcType) ? DataSourceQCType.Alpha : qcType;
+                    o.put("qcType", qcType);
                     String nodeType = null;
                     switch (nodeInfo.getNodeType()) {
                         case TapNodeInfo.NODE_TYPE_SOURCE:

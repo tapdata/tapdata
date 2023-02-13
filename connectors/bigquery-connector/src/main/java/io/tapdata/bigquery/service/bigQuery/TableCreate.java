@@ -6,6 +6,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.*;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import io.tapdata.bigquery.util.bigQueryUtil.SqlValueConvert;
 import io.tapdata.bigquery.util.bigQueryUtil.TableInfoDDL;
 import io.tapdata.bigquery.util.tool.Checker;
 import io.tapdata.entity.error.CoreException;
@@ -138,7 +139,8 @@ public class TableCreate extends BigQueryStart {
                 if (tapField.getTapType() instanceof TapNumber) {
                     defaultValue = defaultValue.trim();
                 }
-                sql.append(" DEFAULT '").append(defaultValue).append("' ");
+                String sqlValue = SqlValueConvert.sqlValue(defaultValue, tapField);
+                sql.append(" DEFAULT ").append(sqlValue).append(" ");
             }
 
             // comment

@@ -87,24 +87,6 @@
             <type>pom</type>
             <scope>import</scope>
         </dependency>
-
-<!--        <dependency>-->
-<!--            <groupId>io.streamnative</groupId>-->
-<!--            <artifactId>pulsar-client-original</artifactId>-->
-<!--            <scope>test</scope>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>org.apache.pulsar</groupId>-->
-<!--            <artifactId>pulsar-functions-local-runner-original</artifactId>-->
-<!--            <version>2.9.3</version>-->
-<!--            <scope>test</scope>-->
-<!--            <exclusions>-->
-<!--                <exclusion>-->
-<!--                    <groupId>org.apache.logging.log4j</groupId>-->
-<!--                    <artifactId>log4j-slf4j-impl</artifactId>-->
-<!--                </exclusion>-->
-<!--            </exclusions>-->
-<!--        </dependency>-->
         <dependency>
             <groupId>com.lightbend.akka</groupId>
             <artifactId>akka-stream-alpakka-google-cloud-bigquery-storage_${scala.binary.version}</artifactId>
@@ -159,7 +141,7 @@
                             <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                             <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
                             <Version>${version}</Version>
-                            <Authentication>beta</Authentication>
+                            <Authentication>Alpha</Authentication>
                             <Git-Build-Time>${git.build.time}</Git-Build-Time>
                             <Git-Branch>${git.branch}</Git-Branch>
                             <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>

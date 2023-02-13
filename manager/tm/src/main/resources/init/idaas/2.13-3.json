@@ -13,7 +13,7 @@
             "name": "DefaultRoleForNewUser"
           }
         },
-        "upsert": true
+        "upsert": false
       }
     ]
   }

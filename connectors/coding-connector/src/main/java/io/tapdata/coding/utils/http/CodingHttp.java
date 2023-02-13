@@ -8,6 +8,7 @@ import io.tapdata.entity.logger.TapLogger;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
@@ -18,6 +19,8 @@ public class CodingHttp {
     private Map<String, String> heads;
     private String url;
     private Boolean keepAlive;
+    private boolean needRetry = false;
+    private AtomicBoolean isAlive = new AtomicBoolean(true);
 
     public static CodingHttp create(Map<String, String> heads, Map<String, Object> body, String url) {
         return new CodingHttp(heads, body, url);
@@ -35,6 +38,15 @@ public class CodingHttp {
 
     public CodingHttp keepAlive() {
         this.keepAlive = Boolean.TRUE;
+        return this;
+    }
+
+    public CodingHttp needRetry(boolean needRetry) {
+        this.needRetry = needRetry;
+        return this;
+    }
+    public CodingHttp isAlive(AtomicBoolean isAlive) {
+        this.isAlive = isAlive;
         return this;
     }
 
@@ -85,29 +97,44 @@ public class CodingHttp {
      * @return
      */
     public Map<String, Object> post(HttpRequest request) {
+        Map<String, Object> result = this.retry(request, -1);
+        if (Objects.isNull(result.get("Response")) && this.needRetry) {
+            for (int retryTimes = 3; retryTimes > 0; retryTimes--) {
+                if (!this.isAlive.get()) break;
+                result = this.retry(request, 4 - retryTimes);
+                if (Objects.nonNull(result.get("Response"))) {
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    private Map<String, Object> retry(HttpRequest request, int retryTimes) {
         Map<String, Object> result = postWithError(request);
+        String retryMsg = retryTimes > 0 ? "The " + retryTimes + " retry has been performed, but" : "";
         if (Objects.isNull(result)) {
             HashMap<String, Object> errorMap = new HashMap<>();
-            errorMap.put(this.errorKey, String.format("Cannot get the http response result, request url - %s, request body - %s", request.getUrl(), toJson(this.body)));
+            errorMap.put(this.errorKey, String.format("%s cannot get the http response result, request url - %s, request body - %s", retryMsg, request.getUrl(), toJson(this.body)));
             return errorMap;
         }
         Object error = result.get("Error");
         if (Objects.nonNull(error)) {
             String errorMessage = String.valueOf(((Map<String, Object>) error).get("Message"));
             HashMap<String, Object> errorMap = new HashMap<>();
-            errorMap.put(this.errorKey, String.format("Coding request error - response message: %s, request url:%s, request body: %s.", errorMessage, request.getUrl(), toJson(this.body)));
+            errorMap.put(this.errorKey, String.format("%s Coding request error - response message: %s, request url:%s, request body: %s.", retryMsg, errorMessage, request.getUrl(), toJson(this.body)));
             return errorMap;
         }
         Object responseObj = result.get("Response");
         if (Objects.isNull(responseObj)) {
-            TapLogger.warn(TAG, String.format("Cannot get the param which name is 'Response' from http response body, request url - %s, request body - %s", request.getUrl(), toJson(this.body)));
+            TapLogger.warn(TAG, String.format("%s cannot get the param which name is 'Response' from http response body, request url - %s, request body - %s", retryMsg, request.getUrl(), toJson(this.body)));
             return result;
         }
         Map<String, Object> response = (Map<String, Object>) responseObj;
         if (Objects.nonNull(error = response.get("Error"))) {
             String errorMessage = String.valueOf(((Map<String, Object>) error).get("Message"));
             HashMap<String, Object> errorMap = new HashMap<>();
-            errorMap.put(this.errorKey, String.format("Coding request error - response message: %s, response body:%s , request url:%s, request body: %s.", errorMessage, toJson(response), request.getUrl(), toJson(this.body)));
+            errorMap.put(this.errorKey, String.format("%s Coding request error - response message: %s, response body:%s , request url:%s, request body: %s.", retryMsg, errorMessage, toJson(response), request.getUrl(), toJson(this.body)));
             return errorMap;
         }
         return result;

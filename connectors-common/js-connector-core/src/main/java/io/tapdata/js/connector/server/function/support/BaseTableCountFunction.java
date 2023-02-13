@@ -1,22 +1,16 @@
 package io.tapdata.js.connector.server.function.support;
 
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.JSConnector;
-import io.tapdata.js.connector.enums.JSTableKeys;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
-import io.tapdata.js.connector.iengine.ScriptEngineInstance;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.JSFunctionNames;
 import io.tapdata.js.connector.server.function.base.SchemaCount;
-import io.tapdata.js.connector.server.function.base.SchemaSender;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static io.tapdata.base.ConnectorBase.fromJsonObject;
+import java.util.Objects;
+import java.util.Optional;
 
 //先判断是否实现table_count,实现就返回调用结果
 //未实现判断是否实现discover_schema,实现就获取tableCount
@@ -27,9 +21,6 @@ public class BaseTableCountFunction extends FunctionBase {
         super.functionName = JSFunctionNames.TABLE_COUNT;
     }
     public static BaseTableCountFunction tableCount(LoadJavaScripter script){
-        if(Objects.isNull(script)) {
-            script = ScriptEngineInstance.instance().script();
-        }
         BaseTableCountFunction function = new BaseTableCountFunction();
         function.javaScripter(script);
         return function;

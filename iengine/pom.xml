@@ -119,8 +119,8 @@
         <!-- original hazelcast -->
         <!--    <hazelcast.version>5.0.2</hazelcast.version>-->
         <!-- hazelcast with tapdata persistence -->
-        <hazelcast.version>5.2.2-SNAPSHOT</hazelcast.version>
-        <hazelcast-persistence.version>5.2.2-SNAPSHOT</hazelcast-persistence.version>
+        <hazelcast.version>5.2.1</hazelcast.version>
+        <hazelcast-persistence.version>5.2.1</hazelcast-persistence.version>
 
         <protobuf-dynamic.version>1.0.1</protobuf-dynamic.version>
 

@@ -415,9 +415,9 @@ public class PDKTestBase {
         TapLogger.info(TAG, "************************{} setup************************", this.getClass().getSimpleName());
         Map<String, DataMap> testConfigMap = readTestConfig(testConfigFile);
         assertNotNull(testConfigMap, "testConfigFile " + testConfigFile + " read to json failed");
-        connectionOptions = testConfigMap.get("connection");
-        nodeOptions = testConfigMap.get("node");
-        testOptions = testConfigMap.get("test");
+        this.connectionOptions = Optional.ofNullable(testConfigMap.get("connection")).orElse(new DataMap());
+        this.nodeOptions = Optional.ofNullable(testConfigMap.get("node")).orElse(new DataMap());
+        this.testOptions = Optional.ofNullable(testConfigMap.get("test")).orElse(new DataMap());
     }
 
     @AfterEach

@@ -13,6 +13,7 @@ import java.util.Objects;
 
 public class APIFactoryDecorator extends APIFactoryDecoratorStruct {
     private APIResponseInterceptor interceptor;
+    private APIInvoker apiInvoker;
 
     public APIFactoryDecorator(APIFactory apiFactory) {
         super(apiFactory);
@@ -24,6 +25,9 @@ public class APIFactoryDecorator extends APIFactoryDecoratorStruct {
 
     public APIFactoryDecorator interceptor(APIResponseInterceptor interceptor) {
         this.interceptor = interceptor;
+        if (Objects.nonNull(this.apiInvoker)) {
+            this.apiInvoker.setAPIResponseInterceptor(this.interceptor);
+        }
         return this;
     }
 
@@ -41,6 +45,7 @@ public class APIFactoryDecorator extends APIFactoryDecoratorStruct {
         }
         APIInvoker loadAPI = new APIInvokerDecorator(super.loadAPI(apiContent, params));
         loadAPI.setAPIResponseInterceptor(this.interceptor);
+        this.apiInvoker = loadAPI;
         return loadAPI;
     }
 

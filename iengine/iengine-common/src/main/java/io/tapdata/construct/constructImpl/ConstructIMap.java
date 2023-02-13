@@ -2,6 +2,7 @@ package io.tapdata.construct.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
+import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 
@@ -23,6 +24,11 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 		super(name, externalStorageDto);
 		ExternalStorageUtil.initHZMapStorage(externalStorageDto, name, hazelcastInstance.getConfig());
 		this.iMap = hazelcastInstance.getMap(name);
+		Integer ttlDay = externalStorageDto.getTtlDay();
+		if (ttlDay != null && ttlDay > 0) {
+			convertTtlDay2Second(ttlDay);
+			PersistenceStorage.getInstance().setImapTTL(this.iMap, this.ttlSecond);
+		}
 	}
 
 	@Override

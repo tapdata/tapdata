@@ -418,6 +418,22 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-index": 10
+        },
+        "writeFilePath": {
+          "type": "string",
+          "title": "${writeFilePath}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "writeFilePath",
+          "x-index": 11
+        },
+        "fileNameExpression": {
+          "type": "string",
+          "title": "${fileNameExpression}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "fileNameExpression",
+          "x-index": 12
         }
       }
     }

@@ -834,9 +834,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tableName = getNode().getId();
 		}
 		String qualifiedName = tapTableMap.getQualifiedName(tableName);
-		if (StringUtils.isBlank(qualifiedName)) {
-			throw new RuntimeException("Get metadata qualified name failed, cannot found by table name: " + tableName);
-		}
 		if (tapEvent instanceof TapCreateTableEvent) {
 			Object insertMetadata = tapEvent.getInfo(INSERT_METADATA_INFO_KEY);
 			if (insertMetadata instanceof List) {
@@ -864,6 +861,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} else if (tapEvent instanceof TapDropTableEvent) {
 			// do nothing
 		} else {
+			if (StringUtils.isBlank(qualifiedName)) {
+				throw new RuntimeException("Get metadata qualified name failed, cannot found by table name: " + tableName);
+			}
 			TapTable tapTable = ((DAGDataServiceImpl) dagDataService).getTapTable(qualifiedName);
 			tapTableMap.put(tableName, tapTable);
 			Object updateMetadataObj = tapEvent.getInfo(UPDATE_METADATA_INFO_KEY);

@@ -59,6 +59,7 @@ import static com.tapdata.constant.ConnectorConstant.LOOKUP_TABLE_SUFFIX;
  **/
 public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
+	public static final String TAG = HazelcastMergeNode.class.getSimpleName();
 	private Logger logger = LogManager.getLogger(HazelcastMergeNode.class);
 
 	// 缓存表信息{"前置节点id": "Hazelcast缓存资源{"join value string": {"pk value string": "after data"}}"}
@@ -283,9 +284,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			throw new RuntimeException("Get merge node cache name failed, node id is blank");
 		}
 		if (StringUtils.isBlank(tableName)) {
-			name = nodeId + "_" + LOOKUP_TABLE_SUFFIX;
+			name = TAG + "_" + nodeId + "_" + LOOKUP_TABLE_SUFFIX;
 		} else {
-			name = tableName + "_" + nodeId + "_" + LOOKUP_TABLE_SUFFIX;
+			name = TAG + "_" + tableName + "_" + nodeId + "_" + LOOKUP_TABLE_SUFFIX;
 		}
 		return name;
 	}
