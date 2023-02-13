@@ -292,6 +292,7 @@ public class AlarmServiceImpl implements AlarmService {
                     content = map.get("content");
                     title = map.get("title");
                 }
+                log.info("task  starting");
             } else {
                 if (!isOwnPermission(userDetail, "sms", messageDto)) {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
@@ -321,7 +322,7 @@ public class AlarmServiceImpl implements AlarmService {
                     }
                 }
             }
-
+            log.info("send sendMail mailAccount：{} ",mailAccount);
             if (Objects.nonNull(title)) {
                 Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
                 AtomicReference<String> mailTitle = new AtomicReference<>(title);
@@ -422,6 +423,7 @@ public class AlarmServiceImpl implements AlarmService {
                 log.error("Current user ({}, {}) can't bind phone, cancel send message.", userDetail.getUsername(), userDetail.getUserId());
                 return false;
             }
+            log.info("send sendSms");
             String smsTemplateCode = "";
             String system = "task";
             String phone = userDetail.getPhone();
@@ -434,7 +436,7 @@ public class AlarmServiceImpl implements AlarmService {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return false;
                 }
-
+                log.info("task sms");
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 String smsEvent = map.get("smsEvent");
                 if(info.getMetric().name().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().name().equals(AlarmKeyEnum.TASK_FULL_COMPLETE)){
