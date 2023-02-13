@@ -18,13 +18,15 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import java.io.InputStream;
 import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class CommonUtils {
     static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -297,6 +299,23 @@ public class CommonUtils {
         cipher.init(Cipher.DECRYPT_MODE, secretKey);
 
         return cipher.doFinal(cipherText);
+    }
+
+    public static int getPdkBuildNumer() {
+        AtomicInteger pdkAPIBuildNumber = new AtomicInteger(0);
+        ignoreAnyError(() -> {
+            InputStream resourceAsStream = CommonUtils.class.getClassLoader().getResourceAsStream("pluginKit.properties");
+            Properties properties = new Properties();
+            properties.load(resourceAsStream);
+            String pdkAPIVersion = properties.getProperty("tapdata.pdk.api.verison");
+            Optional.ofNullable(pdkAPIVersion).ifPresent(version -> {
+                String last = Arrays.stream(pdkAPIVersion.split("[.]")).collect(Collectors.toCollection(LinkedList::new)).getLast();
+                if (last.chars().allMatch(Character::isDigit)) {
+                    pdkAPIBuildNumber.set(Integer.parseInt(last));
+                }
+            });
+        }, "");
+        return pdkAPIBuildNumber.get();
     }
 
     public static void main(String[] args) {
