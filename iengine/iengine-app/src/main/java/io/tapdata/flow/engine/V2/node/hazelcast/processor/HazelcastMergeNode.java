@@ -47,6 +47,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -596,7 +597,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			}
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties pdkMergeTableProperty = copyMergeTableProperty(childMergeProperty);
 			if (MergeTableProperties.MergeType.updateWrite == mergeType) {
-				if (findData.size() > 1) {
+				Set<String> keySet = findData.keySet();
+				keySet.remove("_ts");
+				if (keySet.size() > 1) {
 					logger.warn("Update write merge lookup, find more than one row by join key: " + joinValueKey + ", will use first row: " + data);
 				}
 				String firstKey = findData.keySet().iterator().next();
