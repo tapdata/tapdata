@@ -49,31 +49,30 @@ public class TDDCli extends CommonCli {
     @CommandLine.Parameters(paramLabel = "FILE", description = "One ore more pdk jar files")
     File file;
 
-    @CommandLine.Option(names = { "-i", "--installProjects" }, required = false, description = "Specify the projects which need mvn install first.")
+    @CommandLine.Option(names = {"-i", "--installProjects"}, required = false, description = "Specify the projects which need mvn install first.")
     private List<String> installProjects;
-    @CommandLine.Option(names = { "-m", "--mavenHome" }, required = false, description = "Specify the maven home")
+    @CommandLine.Option(names = {"-m", "--mavenHome"}, required = false, description = "Specify the maven home")
     private String mavenHome;
-    @CommandLine.Option(names = { "-t", "--testCase" }, required = false, description = "Specify the test class simple name to test")
+    @CommandLine.Option(names = {"-t", "--testCase"}, required = false, description = "Specify the test class simple name to test")
     private String[] testClass;
-    @CommandLine.Option(names = { "-c", "--testConfig" }, required = true, description = "Specify the test json configuration file")
+    @CommandLine.Option(names = {"-c", "--testConfig"}, required = true, description = "Specify the test json configuration file")
     private String testConfig;
-    @CommandLine.Option(names = { "-v", "--verbose" }, required = false, description = "Enable debug log")
+    @CommandLine.Option(names = {"-v", "--verbose"}, required = false, description = "Enable debug log")
     private boolean verbose = false;
-    @CommandLine.Option(names = { "-h", "--help" }, usageHelp = true, description = "TapData cli help")
+    @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "TapData cli help")
     private boolean helpRequested = false;
-    @CommandLine.Option(names = { "-l", "--lang" }, usageHelp = false, description = "TapData cli lang，values zh_CN/zh_TW/en,default is en")
+    @CommandLine.Option(names = {"-l", "--lang"}, usageHelp = false, description = "TapData cli lang，values zh_CN/zh_TW/en,default is en")
     private String lan = "en";
-    @CommandLine.Option(names = { "-p", "--path" }, usageHelp = false, description = "TapData cli path,need test package ,path split as .")
+    @CommandLine.Option(names = {"-p", "--path"}, usageHelp = false, description = "TapData cli path,need test package ,path split as .")
     private String packagePath = WriteRecordTest.class.getPackage().getName();
-    @CommandLine.Option(names = { "-log", "--logPath" }, usageHelp = false, description = "TapData cli log,need test to log test result ,path to log ,default ./tapdata-pdk-cli/tss-logs/")
+    @CommandLine.Option(names = {"-log", "--logPath"}, usageHelp = false, description = "TapData cli log,need test to log test result ,path to log ,default ./tapdata-pdk-cli/tss-logs/")
     private String logPath = TapSummary.basePath("tdd-logs");
 
     /**
      * 默认true，或设置TDD_AUTO_EXIT=1，CommonUtils.setProperty("TDD_AUTO_EXIT","1")
-     * */
-    private boolean autoExit = true;//对应TDD_AUTO_EXIT ，是否执行完一个数据源的所有用例就自动推出程序，TDDFactory 中设置TDD_AUTO_EXIT = 0 （CommonUtils.setProperty("TDD_AUTO_EXIT","0")），表示手动退出，
-
-
+     * 对应TDD_AUTO_EXIT ，是否执行完一个数据源的所有用例就自动推出程序，TDDFactory 中设置TDD_AUTO_EXIT = 0 （CommonUtils.setProperty("TDD_AUTO_EXIT","0")），表示手动退出，
+     */
+    private boolean autoExit = true;
 
     public static final String LEVEL_BEGINNER = "beginner";
     public static final String LEVEL_INTERMEDIATE = "intermediate";
@@ -81,6 +80,7 @@ public class TDDCli extends CommonCli {
 
     private List<TapSummary> testResultSummaries = new ArrayList<>();
     private SummaryGeneratingListener listener = new SummaryGeneratingListener();
+
     public void runOne(String testClass, TapSummary testResultSummary) {
         LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
                 .selectors(selectClass("io.tapdata.pdk.tdd.tests." + testClass))
@@ -95,7 +95,7 @@ public class TDDCli extends CommonCli {
             LauncherDiscoveryRequest build = request.selectors(selector).build();
             runTests(build, testResultSummary);
         }
-        testResultSummary.endingShow(testResultSummary,file.getName());
+        testResultSummary.endingShow(testResultSummary, file.getName());
         testResultSummary.asFileV2(file.getName());
 
         TapSummary.hasPass = "SUCCEED";
@@ -105,7 +105,7 @@ public class TDDCli extends CommonCli {
 
     private void runTests(LauncherDiscoveryRequest request, TapSummary testResultSummary) {
         Launcher launcher = LauncherFactory.create();
-//        TestPlan testPlan = launcher.discover(request);
+        //TestPlan testPlan = launcher.discover(request);
         launcher.registerTestExecutionListeners(listener);
         launcher.execute(request);
 
@@ -119,18 +119,18 @@ public class TDDCli extends CommonCli {
         TapLogger.enable(false);
         TapSummary.create().showLogo();
         CommonUtils.setProperty("refresh_local_jars", "true");
-        if(verbose)
+        if (verbose)
             CommonUtils.setProperty("tap_verbose", "true");
-        if (null == lan || (!"zh_CN".equals(lan) && !"zh_TW".equals(lan) && ! "en".equals(lan))){
+        if (null == lan || (!"zh_CN".equals(lan) && !"zh_TW".equals(lan) && !"en".equals(lan))) {
             TapLogger.fatal(TAG, "can not test file {}, TapData cli lang values only zh_CN/zh_TW/en.", file);
             lan = "en";
         }
         lan = "zh_CN";
-        if (null == logPath || "".equals(logPath)){
+        if (null == logPath || "".equals(logPath)) {
             logPath = "/tdd-logs/";
         }
         String tddAutoExit = CommonUtils.getProperty("TDD_AUTO_EXIT");
-        this.autoExit = null==tddAutoExit || "1".equals(tddAutoExit);
+        this.autoExit = null == tddAutoExit || "1".equals(tddAutoExit);
 
         CommonUtils.setProperty("tap_lang", lan);
         CommonUtils.setProperty("tap_log_path", logPath);
@@ -145,32 +145,30 @@ public class TDDCli extends CommonCli {
 
     private void testPDKJar(File file, String testConfig) throws Throwable {
         String jarFile = null;
-        if(file.isFile()) {
+        if (file.isFile()) {
             jarFile = file.getAbsolutePath();
-        }
-        else if(file.isDirectory()) {
-            if(!file.getAbsolutePath().contains("connectors")) {
+        } else if (file.isDirectory()) {
+            if (!file.getAbsolutePath().contains("connectors")) {
                 throw new IllegalArgumentException("Connector project is under connectors directory, are you passing the correct connector project directory? " + file.getAbsolutePath());
             }
-            if(installProjects != null) {
+            if (installProjects != null) {
                 System.setProperty("maven.home", getMavenHome(mavenHome));
-                for(String installProject : installProjects) {
+                for (String installProject : installProjects) {
                     String pomFile = installProject;
-                    if(!pomFile.endsWith("pom.xml")) {
+                    if (!pomFile.endsWith("pom.xml")) {
                         pomFile = pomFile + File.separator + "pom.xml";
                     }
 //                    int state = mavenCli.doMain(new String[]{"install", "-f", pomFile}, "./", System.out, System.out);
 
                     InvocationRequest request = new DefaultInvocationRequest();
-                    request.setPomFile( new File( pomFile ) );
-                    request.setGoals( Collections.singletonList( "install" ) );
+                    request.setPomFile(new File(pomFile));
+                    request.setGoals(Collections.singletonList("install"));
 
                     Invoker invoker = new DefaultInvoker();
-                    InvocationResult result = invoker.execute( request );
+                    InvocationResult result = invoker.execute(request);
 
-                    if ( result.getExitCode() != 0 )
-                    {
-                        if(result.getExecutionException() != null)
+                    if (result.getExitCode() != 0) {
+                        if (result.getExecutionException() != null)
                             System.out.println(result.getExecutionException().getMessage());
                         System.out.println("------------- Dependency project " + pomFile + " installed Failed --------------");
                         if (this.autoExit) System.exit(0);
@@ -188,19 +186,18 @@ public class TDDCli extends CommonCli {
             System.out.println(file.getName() + " is packaging...");
 
             String pomFile = file.getAbsolutePath();
-            if(!pomFile.endsWith("pom.xml")) {
+            if (!pomFile.endsWith("pom.xml")) {
                 pomFile = pomFile + File.separator + "pom.xml";
             }
             InvocationRequest request = new DefaultInvocationRequest();
-            request.setPomFile( new File( pomFile ) );
-            request.setGoals(Arrays.asList( "clean", "install", "-DskipTests", "-P", "not_encrypt", "-U"));
+            request.setPomFile(new File(pomFile));
+            request.setGoals(Arrays.asList("clean", "install", "-DskipTests", "-P", "not_encrypt", "-U"));
 
             Invoker invoker = new DefaultInvoker();
-            InvocationResult result = invoker.execute( request );
+            InvocationResult result = invoker.execute(request);
 
-            if ( result.getExitCode() != 0 )
-            {
-                if(result.getExecutionException() != null)
+            if (result.getExitCode() != 0) {
+                if (result.getExecutionException() != null)
                     System.out.println(result.getExecutionException().getMessage());
                 System.out.println("------------- Maven package Failed --------------");
                 if (this.autoExit) System.exit(0);
@@ -246,14 +243,14 @@ public class TDDCli extends CommonCli {
         testBase.tearDown();
 
         String pdkId = null;
-        if(testOptions != null) {
+        if (testOptions != null) {
             pdkId = (String) testOptions.get("pdkId");
         }
 
         Collection<TapNodeInfo> tapNodeInfoCollection = testConnector.getTapNodeClassFactory().getConnectorTapNodeInfos();
-        for(TapNodeInfo tapNodeInfo : tapNodeInfoCollection) {
-            if(pdkId != null) {
-                if(tapNodeInfo.getTapNodeSpecification().getId().equals(pdkId)) {
+        for (TapNodeInfo tapNodeInfo : tapNodeInfoCollection) {
+            if (pdkId != null) {
+                if (tapNodeInfo.getTapNodeSpecification().getId().equals(pdkId)) {
                     runLevelWithNodeInfo(tapNodeInfo);
                     break;
                 }
@@ -262,7 +259,7 @@ public class TDDCli extends CommonCli {
                 runLevelWithNodeInfo(tapNodeInfo);
             }
         }
-        TapSummary.create(testResultSummaries).showTestResultAll(nodeInfo(),jarFile);
+        TapSummary.create(testResultSummaries).showTestResultAll(nodeInfo(), jarFile);
         if (this.autoExit) System.exit(0);
     }
 
@@ -281,15 +278,16 @@ public class TDDCli extends CommonCli {
         connector.registerCapabilities(connectorFunctions, codecRegistry);
 
 
-//        builder.append("\n-------------PDK connector idAndGroupAndVersion " + tapNodeInfo.getTapNodeSpecification().idAndGroup() + "-------------").append("\n");
-//        builder.append("             Node class " + tapNodeInfo.getNodeClass() + " run ");
+        //builder.append("\n-------------PDK connector idAndGroupAndVersion " + tapNodeInfo.getTapNodeSpecification().idAndGroup() + "-------------").append("\n");
+        //builder.append("             Node class " + tapNodeInfo.getNodeClass() + " run ");
         List<DiscoverySelector> selectors = new ArrayList<>();
-        if(testClass != null) {
-            for(String clazz : testClass) {
+        if (testClass != null) {
+            for (String clazz : testClass) {
                 try {
                     Class<? extends PDKTestBase> theClass = (Class<? extends PDKTestBase>) Class.forName(clazz);
                     selectorsAddClass(selectors, theClass, testResultSummary);
-                }catch (Exception e){}
+                } catch (Exception ignored) {
+                }
             }
         } else {
             List<Class<? extends PDKTestBase>> tests = this.allTest();//
@@ -300,49 +298,50 @@ public class TDDCli extends CommonCli {
                 boolean allFound = true;
                 try {
                     List<SupportFunction> functions = (List<SupportFunction>) ReflectionUtil.invokeStaticMethod(testClass.getName(), "testFunctions");
-                    for(SupportFunction supportFunction : functions) {
+                    for (SupportFunction supportFunction : functions) {
                         try {
-                            if(!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
+                            if (!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
                                 allFound = false;
-                                testResultSummary.doNotSupportFunTest.put(testClass,TapSummary.format(supportFunction.getErrorMessage()));
+                                testResultSummary.doNotSupportFunTest.put(testClass, TapSummary.format(supportFunction.getErrorMessage()));
                             }
                         } catch (NoSuchMethodException e) {
                             allFound = false;
-                            testResultSummary.doNotSupportFunTest.put(testClass,TapSummary.format(supportFunction.getErrorMessage()));
+                            testResultSummary.doNotSupportFunTest.put(testClass, TapSummary.format(supportFunction.getErrorMessage()));
                         }
-                        if (!allFound){
+                        if (!allFound) {
                             Set<Class<? extends PDKTestBase>> classes = subTest(testClass);
                             if (null != classes && !classes.isEmpty()) {
-                                tests.addAll(tests.size(),classes);
+                                tests.addAll(tests.size(), classes);
                             }
                             break;
                         }
                     }
-                }catch (Exception e){}
-                if(allFound) {
+                } catch (Exception ignored) {
+                }
+                if (allFound) {
                     supportTest.add(testClass);
                 }
             }
 
-            supportTest.stream().sorted((cla1,cla2)->{
+            supportTest.stream().sorted((cla1, cla2) -> {
                 Annotation annotation1 = cla1.getAnnotation(TapGo.class);
                 Annotation annotation2 = cla2.getAnnotation(TapGo.class);
-                return ((TapGo)annotation1).sort()>((TapGo)annotation2).sort()?0:-1;
-            }).forEach(testClass->selectorsAddClass(selectors, testClass, testResultSummary));
-//            if(connectorFunctions.getWriteRecordFunction() != null && connectorFunctions.getCreateTableFunction() == null) {
-//                selectorsAddClass(selectors, DMLTest.class, testResultSummary);
-//            }
-//
-//            if(connectorFunctions.getCreateTableFunction() != null && connectorFunctions.getDropTableFunction() != null) {
-//                selectorsAddClass(selectors, CreateTableTest.class, testResultSummary);
-//            }
+                return ((TapGo) annotation1).sort() > ((TapGo) annotation2).sort() ? 0 : -1;
+            }).forEach(testClass -> selectorsAddClass(selectors, testClass, testResultSummary));
+            //if(connectorFunctions.getWriteRecordFunction() != null && connectorFunctions.getCreateTableFunction() == null) {
+            //    selectorsAddClass(selectors, DMLTest.class, testResultSummary);
+            //}
+            //
+            //if(connectorFunctions.getCreateTableFunction() != null && connectorFunctions.getDropTableFunction() != null) {
+            //    selectorsAddClass(selectors, CreateTableTest.class, testResultSummary);
+            //}
         }
-//        builder.append(selectors.size() + " test classes").append("\n");
-//        for(DiscoverySelector selector : selectors) {
-//            builder.append("             \t" + selector.toString()).append("\n");
-//        }
-//        builder.append("-------------PDK connector idAndGroupAndVersion " + tapNodeInfo.getTapNodeSpecification().idAndGroup() + "-------------").append("\n");
-//        PDKLogger.info(TAG, builder.toString());
+        //builder.append(selectors.size() + " test classes").append("\n");
+        //for(DiscoverySelector selector : selectors) {
+        //    builder.append("             \t" + selector.toString()).append("\n");
+        //}
+        //builder.append("-------------PDK connector idAndGroupAndVersion " + tapNodeInfo.getTapNodeSpecification().idAndGroup() + "-------------").append("\n");
+        //PDKLogger.info(TAG, builder.toString());
 
         return selectors;
     }
@@ -352,17 +351,14 @@ public class TDDCli extends CommonCli {
         testResultSummary.testClasses.add(theClass);
     }
 
-    private TapNodeInfo nodeInfo(){
+    private TapNodeInfo nodeInfo() {
         TapConnector tapConnector = new PDKTestBase().testConnector();
         Collection<TapNodeInfo> tapNodeInfoCollection = tapConnector.getTapNodeClassFactory().getConnectorTapNodeInfos();
         if (tapNodeInfoCollection.isEmpty())
             throw new CoreException(PDKRunnerErrorCodes.TDD_TAPNODEINFO_NOT_FOUND, "No connector or processor is found in jar ");
-        String pdkId = null;
-        if (pdkId == null) {
-            pdkId = CommonUtils.getProperty("pdk_test_pdk_id", null);
-            if (pdkId == null)
-                fail("Test pdkId is not specified");
-        }
+        String pdkId = CommonUtils.getProperty("pdk_test_pdk_id", null);
+        if (pdkId == null)
+            fail("Test pdkId is not specified");
         for (TapNodeInfo nodeInfo : tapNodeInfoCollection) {
             if (nodeInfo.getTapNodeSpecification().getId().equals(pdkId)) {
                 return nodeInfo;
@@ -371,56 +367,59 @@ public class TDDCli extends CommonCli {
         return null;
     }
 
-    private Set<Class<? extends PDKTestBase>> subTest(Class<? extends PDKTestBase> testClass){
+    private Set<Class<? extends PDKTestBase>> subTest(Class<? extends PDKTestBase> testClass) {
         TapGo tapGo = testClass.getAnnotation(TapGo.class);
         Class<? extends PDKTestBase>[] subTest = tapGo.subTest();
-        return Arrays.asList(subTest).stream().filter(cls->{
+        return Arrays.asList(subTest).stream().filter(cls -> {
             try {
                 TapGo tg = cls.getAnnotation(TapGo.class);
                 boolean goTest = tg.goTest();
                 boolean isSub = tg.isSub();
                 return (PDKTestBase.class.isAssignableFrom(cls)) && goTest && isSub;
-            }catch (Exception e){
+            } catch (Exception e) {
                 return false;
             }
         }).collect(Collectors.toSet());
     }
-    private List<Class<? extends PDKTestBase>> allTest(){
+
+    private List<Class<? extends PDKTestBase>> allTest() {
         Reflections reflections = new Reflections(packagePath);
         //返回带有指定注解的所有类对象
         Set<Class<?>> typesAnnotatedWith = reflections.getTypesAnnotatedWith(TapGo.class);
-        return typesAnnotatedWith.stream().filter(cls->{
+        return typesAnnotatedWith.stream().filter(cls -> {
             try {
                 TapGo tapGo = cls.getAnnotation(TapGo.class);
                 boolean goTest = tapGo.goTest();
                 boolean isSub = tapGo.isSub();
                 return (PDKTestBase.class.isAssignableFrom(cls)) && goTest && !isSub;
-            }catch (Exception e){
+            } catch (Exception e) {
                 return false;
             }
-        }).sorted((cla1,cla2)->{
+        }).sorted((cla1, cla2) -> {
             Annotation annotation1 = cla1.getAnnotation(TapGo.class);
             Annotation annotation2 = cla2.getAnnotation(TapGo.class);
-            return ((TapGo)annotation1).sort()>((TapGo)annotation2).sort()?0:-1;
-        }).map(cla->{
+            return ((TapGo) annotation1).sort() > ((TapGo) annotation2).sort() ? 0 : -1;
+        }).map(cla -> {
             try {
-                return ((PDKTestBase)cla.newInstance()).getClass();
+                return ((PDKTestBase) cla.newInstance()).getClass();
             } catch (Exception e) {
                 return null;
             }
         }).filter(Objects::nonNull).collect(Collectors.toList());
     }
-    private List<Class<? extends PDKTestBase>> testClass(){
-        if (null == this.testClass || this.testClass.length<=0){
+
+    private List<Class<? extends PDKTestBase>> testClass() {
+        if (null == this.testClass || this.testClass.length <= 0) {
             return allTest();
         }
         List<Class<? extends PDKTestBase>> test = new ArrayList<>();
         for (String aClass : this.testClass) {
-            if (null != aClass ) {
+            if (null != aClass) {
                 try {
                     Class<? extends PDKTestBase> cls = (Class<? extends PDKTestBase>) Class.forName(aClass);
                     test.add(cls);
-                }catch (Exception e){}
+                } catch (Exception ignored) {
+                }
             }
         }
         return test;

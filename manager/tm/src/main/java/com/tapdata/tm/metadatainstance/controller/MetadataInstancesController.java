@@ -3,7 +3,6 @@ package com.tapdata.tm.metadatainstance.controller;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -38,7 +37,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.MediaType;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
@@ -49,11 +47,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.BindException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -462,6 +456,26 @@ public class MetadataInstancesController extends BaseController {
     @GetMapping("tables")
     public ResponseMessage<List<String>> tables(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
         return success(metadataInstancesService.tables(connectionId, sourceType));
+    }
+
+    @GetMapping("page-tables")
+    public ResponseMessage<Page<String>> pageTables(
+            @RequestParam(value = "connectionId") String connectionId // 连接编号
+            , @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType // 源类型
+            , @RequestParam(value = "keyword", required = false) String keyword // 过滤关键字
+            , @RequestParam(value = "regex", required = false) String regex // 过滤表达式
+            , @RequestParam(value = "skip", required = false, defaultValue = "0") Integer skip // 偏移量，默认：0
+            , @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit // 页大小，默认：20（小于1为不分页）
+    ) {
+        // keyword 和 regex 只能有一个生效或都不生效
+        if (null == regex || regex.isEmpty()) {
+            if (null != keyword && !keyword.isEmpty()) {
+                regex = MongoUtils.replaceLike(keyword);
+            } else {
+                regex = null;
+            }
+        }
+        return success(metadataInstancesService.pageTables(connectionId, sourceType, regex, skip, limit));
     }
 
 

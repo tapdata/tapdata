@@ -1,0 +1,92 @@
+{
+  "connectionConfig": {
+    "client_id": "1000.33EVKI7TCHY661GPOPMCXDEF4N2T6H",
+    "client_secret": "441ed39ecd48ed5608e1143ffe5453a47585824b55",
+    "refreshToken": "1000.45aa49be6ab936fbbe806c2e200db98e.3f407a0573af25e041832b62c533b50e",
+    "accessToken": "1000.b406fdef5dc06f05e9daa44df6501449.f1caf8dc75a0bf36e1983b04981f069d",
+    "code": "1000.aed5277c00148660b3eebfd093520560.c15769c0836f82c6a61df803abc80245"
+  },
+  "nodeConfig": {
+
+  },
+  "function_params": {
+    "discover_schema": {
+    },
+    "connection_test": {
+    },
+    "insert_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "delete_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "update_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "write_record": {
+      "eventDataList": [
+        {
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
+        }
+      ]
+    },
+    "batch_read": {
+      "tableName": "Leads",
+      "pageSize": 500
+    },
+    "batch_count": {
+      "tableName": "Leads"
+    },
+    "stream_read": {
+      "offset": {},
+      "tableNameList": [
+        "Leads"
+      ],
+      "pageSize": 500
+    },
+    "command_callback": {
+      "commandInfo": {
+        "command": "DescribeUserProjects",
+        "action": "",
+        "argMap": {},
+        "time": 0
+      }
+    },
+    "web_hook_event": {
+      "tableNameList": [
+        "Leads"
+      ],
+      "eventDataMap": {
+
+      }
+    }
+  }
+}

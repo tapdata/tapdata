@@ -1,5 +1,6 @@
 package com.tapdata.tm.ds.dto;
 
+import com.tapdata.tm.commons.constants.DataSourceQCType;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.*;
 
@@ -29,7 +30,10 @@ public class PdkSourceDto {
     private String id;
     private String expression;
     private String tapTypeDataTypeMap;
-    private Boolean beta;
+    /**
+     * Quality Control Type（认证类型｜质量控制类型）
+     */
+    private DataSourceQCType qcType;
     //多语言信息
     private LinkedHashMap<String, Object> messages;
     //数据能力

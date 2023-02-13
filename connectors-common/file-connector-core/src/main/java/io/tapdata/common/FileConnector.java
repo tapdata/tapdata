@@ -20,6 +20,8 @@ import io.tapdata.pdk.apis.entity.TestItem;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -30,6 +32,8 @@ public abstract class FileConnector extends ConnectorBase {
 
     protected FileConfig fileConfig;
     protected TapFileStorage storage;
+    protected AbstractFileRecordWriter fileRecordWriter;
+    protected ExecutorService executorService;
     private static final String TAG = FileConnector.class.getSimpleName();
 
     protected void initConnection(TapConnectionContext connectorContext) throws Exception {
@@ -41,6 +45,9 @@ public abstract class FileConnector extends ConnectorBase {
                 .withParams(connectorContext.getConnectionConfig())
                 .withStorageClassName(clazz)
                 .build();
+        if (EmptyKit.isNotBlank(fileConfig.getWriteFilePath()) && !storage.supportAppendData()) {
+            initMergeCacheFilesThread();
+        }
     }
 
     @Override
@@ -50,6 +57,12 @@ public abstract class FileConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
+        if (EmptyKit.isNotNull(fileRecordWriter)) {
+            if (!storage.supportAppendData()) {
+                fileRecordWriter.mergeCacheFiles();
+            }
+            fileRecordWriter.releaseResource();
+        }
         storage.destroy();
     }
 
@@ -215,6 +228,27 @@ public abstract class FileConnector extends ConnectorBase {
                 tapTable.add(field);
             }
         }
+    }
+
+    protected void initMergeCacheFilesThread() {
+        executorService = Executors.newFixedThreadPool(1);
+        executorService.submit(() -> {
+            int count = 0;
+            while (isAlive()) {
+                if (EmptyKit.isNotNull(fileRecordWriter)) {
+                    count++;
+                }
+                TapSimplify.sleep(1000 * 60);
+                if (count >= 5) {
+                    try {
+                        fileRecordWriter.mergeCacheFiles();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                    count = 0;
+                }
+            }
+        });
     }
 
 }
