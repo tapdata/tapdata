@@ -974,17 +974,17 @@ public class AlarmServiceImpl implements AlarmService {
             sendSms = getDefaultNotification(system, msgType, "notice");
             sendWeChat = getDefaultNotification(system, msgType, "weChat");
         }
-
+        log.info("informUser");
         //发送邮件
-        if (sendEmail) {
+//        if (sendEmail) {
             sendMail(null, null, userDetail, messageDto);
-        }
+        //}
 
         //发送短信
-        if (sendSms) {
+       // if (sendSms) {
             sendSms(null, null, userDetail, messageDto);
 
-        }
+       // }
 
         // 发送微信通知
         if (sendWeChat) {
