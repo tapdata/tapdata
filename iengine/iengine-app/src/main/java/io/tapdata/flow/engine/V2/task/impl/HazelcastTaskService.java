@@ -376,16 +376,14 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 							ReadPartitionOptions readPartitionOptions = null;
 							if(node instanceof DataParentNode) {
 								readPartitionOptions = ((DataParentNode<?>) node).getReadPartitionOptions();
-
-//								readPartitionOptions = new ReadPartitionOptions(); //temp code for testing
-//								((DataParentNode<?>) node).setReadPartitionOptions(readPartitionOptions);
 							}
 
-							if(readPartitionOptions != null && readPartitionOptions.isEnable() && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE) {
-								hazelcastNode = new HazelcastSourcePartitionReadDataNode(processorContext);
-							} else {
-								hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
-							}
+//							if(readPartitionOptions != null && readPartitionOptions.isEnable() && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE) {
+//								hazelcastNode = new HazelcastSourcePartitionReadDataNode(processorContext);
+//							} else {
+//								hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
+//							}
+							hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
 						}
 					} else {
 						hazelcastNode = new HazelcastTaskSource(
