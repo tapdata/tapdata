@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.construct.constructImpl.BytesIMap;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +44,7 @@ public class ExternalStorageCacheGetter extends AbstractCacheGetter {
   protected List<Map<String, Object>> getRecordList(String cacheName, Object... cacheKeys) throws Throwable {
     Map<String, Map<String, Object>> recordMap = this.dataMap.find(CacheUtil.cacheKey(cacheKeys));
     List<Map<String, Object>> resultList = new ArrayList<>();
-    if (CollectionUtils.isNotEmpty(recordMap.values())) {
+    if (MapUtils.isNotEmpty(recordMap) && CollectionUtils.isNotEmpty(recordMap.values())) {
       for (Map<String, Object> map : recordMap.values()) {
         resultList.add(CacheUtil.returnCacheRow(map));
       }
@@ -55,7 +56,7 @@ public class ExternalStorageCacheGetter extends AbstractCacheGetter {
   protected Map<String, Object> getRecord(String cacheName, Object... cacheKeys) throws Throwable {
     Map<String, Map<String, Object>> recordMap = this.dataMap.find(CacheUtil.cacheKey(cacheKeys));
     Map<String, Object> result = null;
-    if (CollectionUtils.isNotEmpty(recordMap.values())) {
+    if (MapUtils.isNotEmpty(recordMap) && CollectionUtils.isNotEmpty(recordMap.values())) {
       Optional<Map<String, Object>> optional = recordMap.values().stream().findFirst();
       if (optional.isPresent()) {
         result = CacheUtil.returnCacheRow(optional.get());

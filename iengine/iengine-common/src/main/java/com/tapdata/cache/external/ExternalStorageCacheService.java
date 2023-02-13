@@ -7,6 +7,7 @@ import com.tapdata.cache.hazelcast.HazelcastCacheStats;
 import com.tapdata.cache.hazelcast.HazelcastCacheStore;
 import com.tapdata.mongo.ClientMongoOperator;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 
 public class ExternalStorageCacheService extends AbstractCacheService {
@@ -15,7 +16,7 @@ public class ExternalStorageCacheService extends AbstractCacheService {
 
 
   public ExternalStorageCacheService(HazelcastInstance hazelcastInstance, ClientMongoOperator clientMongoOperator) {
-    super(clientMongoOperator);
+    super(clientMongoOperator, new ConcurrentHashMap<>());
     this.hazelcastInstance = hazelcastInstance;
   }
 

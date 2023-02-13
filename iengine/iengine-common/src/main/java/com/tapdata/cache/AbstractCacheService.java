@@ -37,6 +37,11 @@ public abstract class AbstractCacheService implements ICacheService {
 
   protected final ClientMongoOperator clientMongoOperator;
 
+  public AbstractCacheService(ClientMongoOperator clientMongoOperator, Map<String, String> cacheStatusMap) {
+    this(clientMongoOperator);
+    this.cacheStatusMap = cacheStatusMap;
+  }
+
   public AbstractCacheService(ClientMongoOperator clientMongoOperator) {
     this.clientMongoOperator = clientMongoOperator;
     this.cacheGetterMap = new CacheMap<>();

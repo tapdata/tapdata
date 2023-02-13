@@ -479,6 +479,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						.withTargetConn(connection)
 						.withCacheService(cacheService)
 						.withTapTableMap(tapTableMap)
+						.withTaskConfig(taskConfig)
 						.build();
 				if (TaskDto.SYNC_TYPE_TEST_RUN.equals(taskDto.getSyncType())) {
 					hazelcastNode = new HazelcastVirtualTargetNode(processorContext);
@@ -511,6 +512,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withCacheService(cacheService)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;
@@ -529,6 +531,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withCacheService(cacheService)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;
@@ -553,6 +556,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withCacheService(cacheService)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build());
 				break;
 			case LOG_COLLECTOR:
@@ -592,6 +596,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withNode(node)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;
