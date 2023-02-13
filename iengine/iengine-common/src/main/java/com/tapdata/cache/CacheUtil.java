@@ -27,6 +27,8 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 public class CacheUtil {
 
+  public static final String CACHE_NAME_PREFIX = "share-cache-";
+
   public final static String CACHE_KEY_SEPERATE = "-";
   public final static Logger logger = LogManager.getLogger(CacheUtil.class);
 
@@ -134,7 +136,7 @@ public class CacheUtil {
 
   public static synchronized void registerCache(CacheNode cacheNode, TableNode sourceNode, Connections sourceConnection, ClientMongoOperator clientMongoOperator, ICacheConfigurator cacheService) {
 
-    cacheService.registerCache(new DataFlowCacheConfig(
+    DataFlowCacheConfig cacheConfig = new DataFlowCacheConfig(
             cacheNode.getCacheKeys(),
             cacheNode.getCacheName(),
             "all",
@@ -147,7 +149,9 @@ public class CacheUtil {
             sourceNode.getTableName(),
             HazelcastUtil.node2CommonStage(sourceNode),
             Collections.emptyList()
-    ));
+    );
+    cacheConfig.setCacheNode(cacheNode);
+    cacheService.registerCache(cacheConfig);
   }
 
   public static void destroyCache(Job job, ICacheConfigurator cacheService) {
@@ -232,7 +236,7 @@ public class CacheUtil {
       sourceConnections.decodeDatabasePassword();
       sourceConnections.initCustomTimeZone();
 
-      return new DataFlowCacheConfig(
+      DataFlowCacheConfig dataFlowCacheConfig = new DataFlowCacheConfig(
               cacheNode.getCacheKeys(),
               cacheNode.getCacheName(),
               "all",
@@ -246,6 +250,9 @@ public class CacheUtil {
               HazelcastUtil.node2CommonStage(tableNode),
               Collections.emptyList()
       );
+      dataFlowCacheConfig.setExternalStorageId(cacheNode.getExternalStorageId());
+      dataFlowCacheConfig.setCacheNode(cacheNode);
+      return dataFlowCacheConfig;
     } catch (Exception e) {
       logger.warn("get cache config error", e);
       return null;

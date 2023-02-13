@@ -34,12 +34,12 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
     this.clientMongoOperator = clientMongoOperator;
   }
 
-  abstract protected List<Map<String, Object>> getRecordList(String cacheName, Object... cacheKeys) throws InterruptedException;
+  abstract protected List<Map<String, Object>> getRecordList(String cacheName, Object... cacheKeys) throws Throwable;
 
-  abstract protected Map<String, Object> getRecord(String cacheName, Object... cacheKeys) throws InterruptedException;
+  abstract protected Map<String, Object> getRecord(String cacheName, Object... cacheKeys) throws Throwable;
 
   @Override
-  public Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+  public Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
     Map<String, Object> result = getRecord(cacheName, cacheKeys);
     if (result == null && lookup) {
       result = getAndSetCache(cacheName, true, cacheKeys);
