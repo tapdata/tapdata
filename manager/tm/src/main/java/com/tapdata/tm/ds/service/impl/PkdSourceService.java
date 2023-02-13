@@ -2,8 +2,8 @@ package com.tapdata.tm.ds.service.impl;
 
 import com.google.common.collect.Maps;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import com.tapdata.tm.file.service.FileService;
@@ -63,6 +63,7 @@ public class PkdSourceService {
         for(PdkSourceDto pdkSourceDto : pdkSourceDtos) {
             // try to verify the version
             String version  = pdkSourceDto.getVersion();
+            Integer pdkAPIBuildNumber = pdkSourceDto.getPdkAPIBuildNumber();
 
             // 只有 admin 用户的为 public 的 scope
             String scope = "customer";
@@ -73,6 +74,7 @@ public class PkdSourceService {
             Criteria criteria = Criteria.where("scope").is(scope)
                     .and("group").is(pdkSourceDto.getGroup())
                     .and("version").is(version)
+                    .and("pdkAPIBuildNumber").is(pdkAPIBuildNumber)
                     .and("pdkId").is(pdkSourceDto.getId())
                     .and("is_deleted").is(false);
             if ("customer".equals(scope)) {
@@ -181,8 +183,8 @@ public class PkdSourceService {
         }
     }
 
-    public void uploadAndView(String pdkHash, UserDetail user, PdkFileTypeEnum type, HttpServletResponse response) {
-        Criteria criteria = Criteria.where("pdkHash").is(pdkHash);
+    public void uploadAndView(String pdkHash, Integer pdkBuildNumber, UserDetail user, PdkFileTypeEnum type, HttpServletResponse response) {
+        Criteria criteria = Criteria.where("pdkHash").is(pdkHash).and("pdkAPIBuildNumber").lte(pdkBuildNumber);
         Query query = new Query(criteria);
 
         switch (type) {
