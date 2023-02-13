@@ -85,13 +85,13 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 					}
 				}
 			}
-		} catch (Exception e) {
+		} catch (Throwable e) {
 			String msg = String.format("Target process failed: %s", e.getMessage());
 			errorHandle(new RuntimeException(msg, e), msg);
 		}
 	}
 
-	void processEvents(List<TapEvent> tapEvents) throws Exception {
+	void processEvents(List<TapEvent> tapEvents) throws Throwable {
 		for (TapEvent tapEvent : tapEvents) {
 
 			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
@@ -101,11 +101,11 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 			}
 
 			String beforeCacheKey = getCacheKey(before);
-			String beforePk = getPk(before);
+			String beforePk = CacheUtil.getPk(dataFlowCacheConfig.getPrimaryKeys(), before);
 			String afterCacheKey = getCacheKey(after);
-			String afterPk = getPk(after);
+			String afterPk = CacheUtil.getPk(dataFlowCacheConfig.getPrimaryKeys(), after);
 			if (tapEvent instanceof TapUpdateRecordEvent) {
-				removeRecord(beforeCacheKey, beforePk);
+				CacheUtil.removeRecord(dataMap, beforeCacheKey, beforePk);
 				Map<String, Map<String, Object>> recordMap;
 				if (dataMap.exists(afterCacheKey)) {
 					recordMap = dataMap.find(afterCacheKey);
@@ -116,7 +116,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 				dataMap.insert(afterCacheKey, recordMap);
 
 			} else if (tapEvent instanceof TapDeleteRecordEvent) {
-				removeRecord(beforeCacheKey, beforePk);
+				CacheUtil.removeRecord(dataMap, beforeCacheKey, beforePk);
 			} else {
 				if (logger.isDebugEnabled()) {
 					logger.debug("Cache row is not update or delete, will abort it, msg {}", tapEvent);
@@ -124,28 +124,6 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 			}
 		}
 	}
-
-	private void removeRecord(String beforeCacheKey, String beforePk) throws Exception {
-		if (dataMap.exists(beforeCacheKey)) {
-			Map<String, Map<String, Object>> oldRecordMap = dataMap.find(beforeCacheKey);
-			oldRecordMap.remove(beforePk);
-			if (MapUtils.isEmpty(oldRecordMap)) {
-				dataMap.delete(beforeCacheKey);
-			} else {
-				dataMap.insert(beforePk, oldRecordMap);
-			}
-		}
-	}
-
-	@NotNull
-	private String getPk(Map<String, Object> row) {
-		final Object[] pkKeyValues = CacheUtil.getKeyValues(dataFlowCacheConfig.getPrimaryKeys(), row);
-		if (null == pkKeyValues) {
-			throw new RuntimeException("Cache primary key not in row data: " + dataFlowCacheConfig.getPrimaryKeys());
-		}
-		return CacheUtil.cacheKey(pkKeyValues);
-	}
-
 	@NotNull
 	private String getCacheKey(Map<String, Object> row) {
 		final String cacheKeys = dataFlowCacheConfig.getCacheKeys();

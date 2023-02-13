@@ -3,6 +3,8 @@ package com.tapdata.cache.external;
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.cache.*;
 import com.tapdata.cache.hazelcast.HazelcastCacheGetter;
+import com.tapdata.cache.hazelcast.HazelcastCacheStats;
+import com.tapdata.cache.hazelcast.HazelcastCacheStore;
 import com.tapdata.mongo.ClientMongoOperator;
 
 import java.util.concurrent.locks.Lock;
@@ -12,7 +14,7 @@ public class ExternalStorageCacheService extends AbstractCacheService {
   private final HazelcastInstance hazelcastInstance;
 
 
-  public ExternalStorageCacheService(ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance) {
+  public ExternalStorageCacheService(HazelcastInstance hazelcastInstance, ClientMongoOperator clientMongoOperator) {
     super(clientMongoOperator);
     this.hazelcastInstance = hazelcastInstance;
   }
@@ -25,7 +27,7 @@ public class ExternalStorageCacheService extends AbstractCacheService {
   @Override
   protected ICacheGetter getCacheGetterInstance(String cacheName) {
     logger.info("construct a cache getter for cache [{}]", cacheName);
-    return new ExternalStorageCacheGetter(getConfig(cacheName), clientMongoOperator, hazelcastInstance);  }
+    return new ExternalStorageCacheGetter(getCacheStore(cacheName), getConfig(cacheName), clientMongoOperator, hazelcastInstance);  }
 
   @Override
   protected ICacheStats getCacheStats(String cacheName) {
@@ -34,6 +36,6 @@ public class ExternalStorageCacheService extends AbstractCacheService {
 
   @Override
   protected ICacheStore getCacheStore(String cacheName) {
-    return null;
+    return super.getCacheStoreMap().computeIfAbsent(cacheName, f -> new ExternalStorageCacheStore(getConfig(cacheName), hazelcastInstance));
   }
 }

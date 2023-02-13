@@ -1,8 +1,7 @@
 package com.tapdata.cache.external;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.cache.AbstractCacheGetter;
-import com.tapdata.cache.CacheUtil;
+import com.tapdata.cache.*;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
@@ -18,18 +17,18 @@ import java.util.Optional;
 public class ExternalStorageCacheGetter extends AbstractCacheGetter {
 
 
-  private DataFlowCacheConfig cacheConfig;
-  private ClientMongoOperator clientMongoOperator;
-  private HazelcastInstance hazelcastInstance;
+  private final DataFlowCacheConfig cacheConfig;
+  private final ClientMongoOperator clientMongoOperator;
+  private final HazelcastInstance hazelcastInstance;
 
-  private ExternalStorageDto externalStorageDto;
+  private final ExternalStorageDto externalStorageDto;
 
   private final BytesIMap<Map<String, Map<String, Object>>> dataMap;
 
 
-  public ExternalStorageCacheGetter(DataFlowCacheConfig config, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance) {
+  public ExternalStorageCacheGetter(ICacheStore cacheStore, DataFlowCacheConfig config, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance) {
 
-    super(config, null, null, clientMongoOperator);
+    super(config, cacheStore, new ExternalStorageCacheStats(), clientMongoOperator);
 
     this.cacheConfig = config;
     this.clientMongoOperator = clientMongoOperator;
@@ -63,6 +62,15 @@ public class ExternalStorageCacheGetter extends AbstractCacheGetter {
       }
     }
     return result;
+  }
+
+  @Override
+  public IDataSourceRowsGetter getDataSourceRowsGetter() {
+    if (dataSourceRowsGetter == null) {
+      logger.info("construct a data source rows getter for cache [{}]", cacheConfig.getCacheName());
+      this.dataSourceRowsGetter = new PdkDataSourceRowsGetter(cacheConfig, clientMongoOperator, hazelcastInstance);
+    }
+    return dataSourceRowsGetter;
   }
 
 

@@ -10,6 +10,7 @@ import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.Vertex;
 import com.tapdata.cache.ICacheService;
+import com.tapdata.cache.external.ExternalStorageCacheService;
 import com.tapdata.cache.hazelcast.HazelcastCacheService;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
@@ -119,7 +120,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		String agentId = (String) configurationCenter.getConfig(ConfigurationCenter.AGENT_ID);
 		Config config = HazelcastUtil.getConfig(agentId);
 		hazelcastInstance = Hazelcast.newHazelcastInstance(config);
-		cacheService = new HazelcastCacheService(hazelcastInstance, clientMongoOperator);
+		cacheService = new ExternalStorageCacheService(hazelcastInstance, clientMongoOperator);
 		messageDao.setCacheService(cacheService);
 	}
 

@@ -145,12 +145,12 @@ public abstract class AbstractCacheService implements ICacheService {
   }
 
   @Override
-  public void cacheRow(String cacheName, String key, List<Map<String, Object>> rows) {
+  public void cacheRow(String cacheName, String key, List<Map<String, Object>> rows) throws Throwable {
     getCacheStore(cacheName).cacheRow(cacheName, key, rows);
   }
 
   @Override
-  public void removeByKey(String cacheName, String cacheKey, String pkKey) {
+  public void removeByKey(String cacheName, String cacheKey, String pkKey) throws Throwable {
     getCacheStore(cacheName).removeByKey(cacheName, cacheKey, pkKey);
   }
 
