@@ -502,7 +502,7 @@ public class AlarmServiceImpl implements AlarmService {
             String content = "";
             // 任务级别的告警
             if (messageDto == null) {
-                if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.WECHAT, userDetail)) {
+                if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.WECHAT, userDetail)) {
                     log.info("Current user ({}, {}) can't open weChat notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return false;
                 }
