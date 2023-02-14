@@ -77,23 +77,6 @@
                             </filters>
                         </configuration>
                     </execution>
-<!--                    <execution>-->
-<!--                        <phase>package</phase>-->
-<!--                        <goals>-->
-<!--                            <goal>shade</goal>-->
-<!--                        </goals>-->
-<!--                        <configuration>-->
-<!--                            <relocations>-->
-<!--                                <relocation>-->
-<!--                                    <pattern>${basedir}</pattern>-->
-<!--                                    <shadedPattern>_js</shadedPattern>-->
-<!--                                    <includes>-->
-<!--                                        <include>**/*.js</include>-->
-<!--                                    </includes>-->
-<!--                                </relocation>-->
-<!--                            </relocations>-->
-<!--                        </configuration>-->
-<!--                    </execution>-->
                 </executions>
             </plugin>
             <plugin>
@@ -156,7 +139,6 @@
                     <target>8</target>
                 </configuration>
             </plugin>
-
         </plugins>
         <resources>
             <resource>
@@ -164,14 +146,7 @@
                 <includes>
                     <include>**/*.js</include>
                 </includes>
-                <targetPath>./${parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
-            </resource>
-            <resource>
-                <directory>${basedir}/src/main/resources</directory>
-                <includes>
-                    <include>**/*</include>
-                </includes>
-                <targetPath>./</targetPath>
+                <targetPath>io/tapdata/js-core/</targetPath>
             </resource>
         </resources>
     </build>

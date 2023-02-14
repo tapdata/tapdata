@@ -1,4 +1,5 @@
-function discover_schema(connectionConfig) {
+config.setStreamReadIntervalSeconds(600);
+function discoverSchema(connectionConfig) {
     let app = invoker.invoke("AppInfo");
     let appName = app.data.app.app_name;
     return [{
@@ -29,7 +30,7 @@ function discover_schema(connectionConfig) {
     }];
 }
 
-function connection_test(connectionConfig) {
+function connectionTest(connectionConfig) {
     let app = invoker.invoke("AppInfo");
     let isApp = app && app.data && app.data.app;
     let testItem = [{
@@ -68,7 +69,7 @@ function connection_test(connectionConfig) {
 
 var receiveOpenIdMap = {};
 
-function insert_record(connectionConfig, nodeConfig, eventDataList) {
+function insertRecord(connectionConfig, nodeConfig, eventDataList) {
     let succeedDataArr = [];
     //let sendConfig = nodeConfig.sendItemConfig;
     for (let index = 0; index < eventDataList.length; index++) {
@@ -86,7 +87,7 @@ function insert_record(connectionConfig, nodeConfig, eventDataList) {
         }
         let receiveId = receiveOpenIdMap[receivedUser];
         if ('undefined' === receiveId || null == receiveId) {
-            let receiveIdData = invoker.invoke("GetOpenIdByPhone", { 'userMobiles':  receivedUser , "userEmails": receivedUser });
+            let receiveIdData = invoker.httpConfig({'timeout':1000}).invoke("GetOpenIdByPhone", { 'userMobiles':  receivedUser , "userEmails": receivedUser });
             receiveId = receiveIdData.result.data.user_list[0].user_id;
             if ('undefined' === receiveId || null == receiveId) {
                 // 用户：{{phoneOrEmail}}, 这位用户不在应用的可见范围中，
@@ -118,7 +119,7 @@ function insert_record(connectionConfig, nodeConfig, eventDataList) {
     return succeedDataArr;
 }
 
-function update_token(connectionConfig, nodeConfig, apiResponse) {
+function updateToken(connectionConfig, nodeConfig, apiResponse) {
     if (apiResponse.result.code != 99991663 && apiResponse.result.code != 99991661) return null;
     let result = invoker.invokeWithoutIntercept("GetAppToken");
     if (result.result.code === 0) return {"token": result.result.tenant_access_token};

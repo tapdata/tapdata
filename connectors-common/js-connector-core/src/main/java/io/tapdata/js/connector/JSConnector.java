@@ -10,6 +10,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.base.JsUtil;
+import io.tapdata.js.connector.base.TapConfigContext;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.decorator.APIFactoryDecorator;
 import io.tapdata.js.connector.server.function.FunctionSupport;
@@ -34,6 +35,7 @@ public class JSConnector extends ConnectorBase {
     private LoadJavaScripter javaScripter;
     private Map<String, Object> apiParam = new HashMap<>();
     private APIFactory apiFactory = new APIFactoryImpl();
+    public static final TapConfigContext tapConfig = new TapConfigContext();
     //private CacheContext cacheContext = new CacheContext();
 
     private final AtomicBoolean isAlive = new AtomicBoolean(true);
@@ -128,6 +130,7 @@ public class JSConnector extends ConnectorBase {
                     this.javaScripter.scriptEngine().put("tapUtil", new JsUtil());
                     this.javaScripter.scriptEngine().put("nodeIsAlive", isAlive);
                     this.javaScripter.scriptEngine().put("_tapConfig_", configMap);
+                    this.javaScripter.scriptEngine().put("tapConfig", tapConfig);
                     this.load();
                 }
             }
