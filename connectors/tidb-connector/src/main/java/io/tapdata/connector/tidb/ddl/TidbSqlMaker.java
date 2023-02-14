@@ -1,5 +1,6 @@
 package io.tapdata.connector.tidb.ddl;
 
+import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.mysql.MysqlMaker;
 import io.tapdata.connector.tidb.config.TidbConfig;
@@ -22,8 +23,6 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static io.tapdata.common.CommonSqlMaker.buildKeyAndValue;
-
 /**
  * @author lemon
  */
@@ -39,6 +38,7 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
     protected static final int DEFAULT_CONSTRAINT_NAME_MAX_LENGTH = 30;
 
     private static final String TIDB_OBJECT_EXISTENCE_NULL_TEMPLATE = "IF OBJECT_ID('%s', 'U') IS NULL \n";
+
     public String createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent){
         TapTable tapTable = tapCreateTableEvent.getTable();
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
@@ -404,7 +404,8 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
 
         if (EmptyKit.isNotEmpty(filter.getMatch()) || EmptyKit.isNotEmpty(filter.getOperators())) {
             builder.append(" WHERE ");
-            builder.append(buildKeyAndValue(filter.getMatch(), "AND", "="));
+            CommonSqlMaker commonSqlMaker = new CommonSqlMaker();
+            builder.append(commonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "="));
         }
         if (EmptyKit.isNotEmpty(filter.getOperators())) {
             if (EmptyKit.isNotEmpty(filter.getMatch())) {

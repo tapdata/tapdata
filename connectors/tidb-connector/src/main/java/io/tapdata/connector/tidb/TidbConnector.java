@@ -7,7 +7,6 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.mysql.SqlMaker;
-//import io.tapdata.connector.tidb.cdc.TidbCdcRunner;
 import io.tapdata.connector.tidb.config.TidbConfig;
 import io.tapdata.connector.tidb.ddl.TidbSqlMaker;
 import io.tapdata.connector.tidb.dml.TidbRecordWrite;
@@ -42,17 +41,12 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
-import javafx.beans.binding.LongExpression;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.ParseException;
-import org.apache.http.client.ClientProtocolException;
 
-import java.io.IOException;
-import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -128,7 +122,7 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         // target functions
         connectorFunctions.supportCreateTableV2(this::createTableV2);
-        connectorFunctions.supportClearTable(this::clearTable);
+        //connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateIndex(this::createIndex);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
