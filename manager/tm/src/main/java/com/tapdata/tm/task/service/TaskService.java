@@ -1274,7 +1274,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return super.find(filter, userDetail);
     }
     public Page<TaskDto> find(Filter filter, UserDetail userDetail) {
-        if (!isAgentReq()) {
+        if (isAgentReq()) {
             log.info("isAgentReq{}",isAgentReq());
             Page<TaskDto>  page = super.find(filter, userDetail);
             deleteNotifyEnumData(page);
@@ -1389,7 +1389,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.info("deleteNotifyEnumData");
         for (TaskDto taskDto : page.getItems()) {
             List<AlarmSettingDto> alarmSettings = taskDto.getAlarmSettings();
-            if (CollectionUtils.isNotEmpty(alarmSettings)){
+            if (CollectionUtils.isNotEmpty(alarmSettings)) {
                 for (AlarmSettingDto alarmSettingDto : alarmSettings) {
                     log.info("alarmSettingDto{}", JSONObject.toJSONString(alarmSettingDto));
                     alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
@@ -1404,10 +1404,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         List<AlarmSettingDto> alarmSetting = node.getAlarmSettings();
                         for (AlarmSettingDto alarmSettingDto : alarmSetting) {
                             log.info("alarmSettingDto Node{}", JSONObject.toJSONString(alarmSettingDto));
-                            alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
-                            alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
-                            log.info("alarmSettingDto  Node after{}", JSONObject.toJSONString(alarmSettingDto));
+                            if (CollectionUtils.isNotEmpty(alarmSettingDto.getNotify())) {
+                                alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
+                                alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
+                                log.info("alarmSettingDto  Node after{}", JSONObject.toJSONString(alarmSettingDto));
 
+                            }
                         }
                     }
                 }
