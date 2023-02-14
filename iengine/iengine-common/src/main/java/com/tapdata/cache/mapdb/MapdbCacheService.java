@@ -18,6 +18,9 @@ public class MapdbCacheService extends AbstractCacheService {
 
   private final Map<String, DB> dbMap;
 
+  private Map<String, ICacheStats> cacheStatsMap;
+
+
   public MapdbCacheService(ClientMongoOperator clientMongoOperator) {
     super(clientMongoOperator);
     this.dbMap = new ConcurrentHashMap<>();
@@ -67,12 +70,20 @@ public class MapdbCacheService extends AbstractCacheService {
 
   @Override
   protected ICacheStats getCacheStats(String cacheName) {
-    return super.getCacheStatsMap().computeIfAbsent(cacheName, f -> new MapdbCacheStats());
+    return getCacheStatsMap().computeIfAbsent(cacheName, f -> new MapdbCacheStats());
   }
 
   @Override
   protected ICacheStore getCacheStore(String cacheName) {
     return super.getCacheStoreMap().computeIfAbsent(cacheName, f -> new MapdbCacheStore(getConfig(cacheName), dbMap.get(cacheName)));
+  }
+
+  public void setCacheStatsMap(Map<String, ICacheStats> cacheStatsMap) {
+    this.cacheStatsMap = cacheStatsMap;
+  }
+
+  protected Map<String, ICacheStats> getCacheStatsMap() {
+    return cacheStatsMap;
   }
 
 }

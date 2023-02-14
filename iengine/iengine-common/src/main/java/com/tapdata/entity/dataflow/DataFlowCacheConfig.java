@@ -58,6 +58,8 @@ public class DataFlowCacheConfig implements Serializable {
 	 */
 	private Node sourceNode;
 
+	private Node cacheNode;
+
 	/**
 	 * 缓存的源表名称
 	 */
@@ -66,6 +68,8 @@ public class DataFlowCacheConfig implements Serializable {
 	private Stage sourceStage;
 
 	private List<String> primaryKeys;
+
+	private String externalStorageId;
 
 	public DataFlowCacheConfig() {
 	}
@@ -211,6 +215,22 @@ public class DataFlowCacheConfig implements Serializable {
 
 	public void setSourceNode(Node sourceNode) {
 		this.sourceNode = sourceNode;
+	}
+
+	public Node getCacheNode() {
+		return cacheNode;
+	}
+
+	public void setCacheNode(Node cacheNode) {
+		this.cacheNode = cacheNode;
+	}
+
+	public String getExternalStorageId() {
+		return externalStorageId;
+	}
+
+	public void setExternalStorageId(String externalStorageId) {
+		this.externalStorageId = externalStorageId;
 	}
 
 	@Override

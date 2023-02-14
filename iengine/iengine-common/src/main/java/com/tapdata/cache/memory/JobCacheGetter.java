@@ -37,7 +37,7 @@ public class JobCacheGetter implements ICacheGetter {
   }
 
   @Override
-  public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+  public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
     if (whitelist.contains(cacheName)) {
       while (true) {
         try {
@@ -51,7 +51,7 @@ public class JobCacheGetter implements ICacheGetter {
   }
 
   @Override
-  public List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+  public List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
     if (whitelist.contains(cacheName)) {
       while (true) {
         try {
@@ -65,7 +65,7 @@ public class JobCacheGetter implements ICacheGetter {
   }
 
   @Override
-  public Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+  public Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
     if (whitelist.contains(cacheName)) {
       while (true) {
         try {
@@ -79,7 +79,7 @@ public class JobCacheGetter implements ICacheGetter {
   }
 
   @Override
-  public Object getCacheItem(String cacheName, String field, Object defaultValue, Object... cacheKeys) throws InterruptedException {
+  public Object getCacheItem(String cacheName, String field, Object defaultValue, Object... cacheKeys) throws Throwable {
     if (whitelist.contains(cacheName)) {
       while (true) {
         try {

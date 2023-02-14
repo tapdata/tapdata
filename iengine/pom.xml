@@ -119,8 +119,8 @@
         <!-- original hazelcast -->
         <!--    <hazelcast.version>5.0.2</hazelcast.version>-->
         <!-- hazelcast with tapdata persistence -->
-        <hazelcast.version>5.1-BETA-1-SNAPSHOT</hazelcast.version>
-        <hazelcast-persistence.version>5.1-BETA-4-SNAPSHOT</hazelcast-persistence.version>
+        <hazelcast.version>5.2.1</hazelcast.version>
+        <hazelcast-persistence.version>5.2.1-SNAPSHOT</hazelcast-persistence.version>
 
         <protobuf-dynamic.version>1.0.1</protobuf-dynamic.version>
 
@@ -167,7 +167,6 @@
         <module>iengine-common</module>
         <module>validator</module>
         <module>api</module>
-        <module>hazelcast-lib</module>
         <module>modules</module>
     </modules>
 
@@ -848,12 +847,6 @@
                 <groupId>cn.hutool</groupId>
                 <artifactId>hutool-core</artifactId>
                 <version>${hutool.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.tapdata</groupId>
-                <artifactId>hazelcast-lib</artifactId>
-                <version>${project.version}</version>
             </dependency>
 
             <dependency>

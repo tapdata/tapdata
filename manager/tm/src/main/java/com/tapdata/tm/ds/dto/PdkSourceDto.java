@@ -38,4 +38,6 @@ public class PdkSourceDto {
     private LinkedHashMap<String, Object> messages;
     //数据能力
     private List<Capability> capabilities;
+    private String pdkAPIVersion;
+    private Integer pdkAPIBuildNumber;
 }

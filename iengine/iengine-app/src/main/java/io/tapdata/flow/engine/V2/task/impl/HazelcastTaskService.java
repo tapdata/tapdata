@@ -9,7 +9,10 @@ import com.hazelcast.jet.config.ProcessingGuarantee;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.Vertex;
+import com.hazelcast.logging.LogEvent;
+import com.hazelcast.logging.LogListener;
 import com.tapdata.cache.ICacheService;
+import com.tapdata.cache.external.ExternalStorageCacheService;
 import com.tapdata.cache.hazelcast.HazelcastCacheService;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
@@ -37,11 +40,11 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
 import io.tapdata.common.SettingService;
-import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
+import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
@@ -50,6 +53,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastM
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.MergeTableUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
@@ -74,6 +78,7 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -119,10 +124,10 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	public void init() {
 		String agentId = (String) configurationCenter.getConfig(ConfigurationCenter.AGENT_ID);
 		Config config = HazelcastUtil.getConfig(agentId);
-		ShareCdcUtil.initHazelcastPersistenceStorage(config, settingService, clientMongoOperator);
 		hazelcastInstance = Hazelcast.newHazelcastInstance(config);
-		cacheService = new HazelcastCacheService(hazelcastInstance, clientMongoOperator);
+		cacheService = new ExternalStorageCacheService(hazelcastInstance, clientMongoOperator);
 		messageDao.setCacheService(cacheService);
+		GlobalConstant.getInstance().hazelcastInstance(hazelcastInstance);
 	}
 
 	public static HazelcastInstance getHazelcastInstance() {
@@ -237,13 +242,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
 				} else if (node.isLogCollectorNode()) {
 					String connectionId = ((LogCollectorNode) node).getConnectionIds().get(0);
-					;
 					connection = getConnection(connectionId);
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
-
-//					if ("pdk".equals(connection.getPdkType())) {
-//						PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
-//					}
 				} else if (node instanceof CacheNode) {
 					Optional<Edge> edge = edges.stream().filter(e -> e.getTarget().equals(node.getId())).findFirst();
 					Node<?> sourceNode = null;
@@ -336,6 +336,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 										.withNodes(nodes)
 										.withEdges(edges)
 										.withConfigurationCenter(config)
+										.withConnections(connection)
 										.withConnectionConfig(connection.getConfig())
 										.withDatabaseType(databaseType)
 										.withTapTableMap(tapTableMap)
@@ -363,6 +364,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withEdges(edges)
 								.withConfigurationCenter(config)
 								.withSourceConn(connection)
+								.withConnections(connection)
 								.withConnectionConfig(connection.getConfig())
 								.withConnections(connection)
 								.withDatabaseType(databaseType)
@@ -406,6 +408,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 										.withEdges(edges)
 										.withConfigurationCenter(config)
 										.withTargetConn(connection)
+										.withConnections(connection)
 										.withConnectionConfig(connection.getConfig())
 										.withDatabaseType(databaseType)
 										.withTapTableMap(tapTableMap)
@@ -488,6 +491,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						.withTargetConn(connection)
 						.withCacheService(cacheService)
 						.withTapTableMap(tapTableMap)
+						.withTaskConfig(taskConfig)
 						.build();
 				if (TaskDto.SYNC_TYPE_TEST_RUN.equals(taskDto.getSyncType())) {
 					hazelcastNode = new HazelcastVirtualTargetNode(processorContext);
@@ -503,6 +507,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withNode(node)
 								.withNodeSchemas(nodeSchemas)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;
@@ -512,15 +517,16 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			case MIGRATE_JS_PROCESSOR:
 			case STANDARD_MIGRATE_JS_PROCESSOR:
 				hazelcastNode = new HazelcastJavaScriptProcessorNode(
-								DataProcessorContext.newBuilder()
-												.withTaskDto(taskDto)
-												.withNode(node)
-												.withNodes(nodes)
-												.withEdges(edges)
-												.withCacheService(cacheService)
-												.withConfigurationCenter(config)
-												.withTapTableMap(tapTableMap)
-												.build()
+						DataProcessorContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withCacheService(cacheService)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
+								.build()
 				);
 				break;
 			case FIELD_PROCESSOR:
@@ -538,6 +544,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withCacheService(cacheService)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;
@@ -562,6 +569,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withCacheService(cacheService)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build());
 				break;
 			case LOG_COLLECTOR:
@@ -573,6 +581,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withEdges(edges)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withConnections(connection)
 								.withConnectionConfig(connection.getConfig())
 								.withDatabaseType(databaseType)
 								.withTaskConfig(taskConfig)
@@ -589,6 +598,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withNodes(nodes)
 								.withEdges(edges)
 								.withConfigurationCenter(config)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;
@@ -599,6 +609,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withNode(node)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;
@@ -611,6 +622,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withEdges(edges)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;
@@ -674,8 +686,18 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	public Connections getConnection(String connectionId) {
+		return getConnection(connectionId, null);
+	}
+
+	private Connections getConnection(String connectionId, List<String> includeFields) {
+		Query query = new Query(where("_id").is(connectionId));
+		if (CollectionUtils.isNotEmpty(includeFields)) {
+			for (String includeField : includeFields) {
+				query.fields().include(includeField);
+			}
+		}
 		final Connections connections = clientMongoOperator.findOne(
-				new Query(where("_id").is(connectionId)),
+				query,
 				ConnectorConstant.CONNECTION_COLLECTION,
 				Connections.class
 		);
@@ -731,12 +753,18 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	private TaskConfig getTaskConfig(TaskDto taskDto) {
+		return TaskConfig.create()
+				.taskDto(taskDto)
+				.taskRetryConfig(getTaskRetryConfig())
+				.externalStorageDtoMap(ExternalStorageUtil.getExternalStorageMap(taskDto, clientMongoOperator));
+	}
+
+	private TaskRetryConfig getTaskRetryConfig() {
 		long retryIntervalSecond = settingService.getLong("retry_interval_second", 60L);
 		long maxRetryTimeMinute = settingService.getLong("max_retry_time_minute", 60L);
 		long maxRetryTimeSecond = maxRetryTimeMinute * 60;
-		TaskRetryConfig taskRetryConfig = TaskRetryConfig.create()
+		return TaskRetryConfig.create()
 				.retryIntervalSecond(retryIntervalSecond)
 				.maxRetryTimeSecond(maxRetryTimeSecond);
-		return TaskConfig.create().taskDto(taskDto).taskRetryConfig(taskRetryConfig);
 	}
 }

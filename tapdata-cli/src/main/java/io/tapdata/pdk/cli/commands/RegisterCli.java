@@ -22,9 +22,10 @@ import org.apache.commons.lang3.StringUtils;
 import picocli.CommandLine;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 @CommandLine.Command(
         description = "Push PDK jar file into Tapdata",
@@ -105,6 +106,22 @@ public class RegisterCli extends CommonCli {
                     DataSourceQCType qcType = DataSourceQCType.parse(specification.getManifest().get("Authentication"));
                     qcType = (null == qcType) ? DataSourceQCType.Alpha : qcType;
                     o.put("qcType", qcType);
+
+                    String pdkAPIVersion = specification.getManifest().get("PDK-API-Version");
+                    AtomicInteger pdkAPIBuildNumber = new AtomicInteger();
+                    if (StringUtils.isNotBlank(pdkAPIVersion)) {
+                        CommonUtils.ignoreAnyError(() -> {
+                            String last = Arrays.stream(pdkAPIVersion.split("[.]")).collect(Collectors.toCollection(LinkedList::new)).getLast();
+                            if (last.chars().allMatch(Character::isDigit)) {
+                                pdkAPIBuildNumber.set(Integer.parseInt(last));
+                            }
+                        }, TAG);
+                    }
+                    o.put("pdkAPIVersion", pdkAPIVersion);
+                    o.put("pdkAPIBuildNumber", pdkAPIBuildNumber.get());
+
+                    o.put("beta", "beta".equals(specification.getManifest().get("Authentication")));
+
                     String nodeType = null;
                     switch (nodeInfo.getNodeType()) {
                         case TapNodeInfo.NODE_TYPE_SOURCE:

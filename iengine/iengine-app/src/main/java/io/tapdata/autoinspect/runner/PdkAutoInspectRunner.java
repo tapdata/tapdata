@@ -55,7 +55,7 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
             throw new RuntimeException("create node failed because source connection not found: " + s);
         });
         DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, conn.getPdkHash());
-        return new PdkConnector(clientMongoOperator, taskId, node.getFromNode().getId(), PdkAutoInspectRunner.class.getSimpleName() + "-" + node.getFromNode().getId(), conn, databaseType, this::isRunning, dataProcessorContext.getTaskConfig().getTaskRetryConfig());
+        return new PdkConnector(clientMongoOperator, taskId, node.getFromNode(), PdkAutoInspectRunner.class.getSimpleName() + "-" + node.getFromNode().getId(), conn, databaseType, this::isRunning, dataProcessorContext.getTaskConfig().getTaskRetryConfig());
     }
 
     @Override
@@ -64,7 +64,7 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
             throw new RuntimeException("create node failed because target connection not found: " + s);
         });
         DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, conn.getPdkHash());
-        return new PdkConnector(clientMongoOperator, taskId, node.getToNode().getId(), PdkAutoInspectRunner.class.getSimpleName() + "-" + node.getToNode().getId(), conn, databaseType, this::isRunning, dataProcessorContext.getTaskConfig().getTaskRetryConfig());
+        return new PdkConnector(clientMongoOperator, taskId, node.getToNode(), PdkAutoInspectRunner.class.getSimpleName() + "-" + node.getToNode().getId(), conn, databaseType, this::isRunning, dataProcessorContext.getTaskConfig().getTaskRetryConfig());
     }
 
     @Override

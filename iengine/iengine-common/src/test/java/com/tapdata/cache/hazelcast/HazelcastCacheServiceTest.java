@@ -19,7 +19,7 @@ public class HazelcastCacheServiceTest extends TestCase {
 		return new HazelcastCacheService(hazelcastInstance, null);
 	}
 
-	public void testRegisterCache() throws InterruptedException {
+	public void testRegisterCache() throws Throwable {
 
 		HazelcastCacheService hazelcastCacheService = getHazelcastCacheService();
 

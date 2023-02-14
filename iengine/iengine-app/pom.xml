@@ -240,22 +240,6 @@
             <groupId>org.samba.jcifs</groupId>
             <artifactId>jcifs</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.tapdata</groupId>
-            <artifactId>hazelcast-lib</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>net.openhft</groupId>
-            <artifactId>chronicle-map</artifactId>
-            <version>3.21.86</version>
-            <scope>test</scope>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/com.github.luben/zstd-jni -->
-        <dependency>
-            <groupId>com.github.luben</groupId>
-            <artifactId>zstd-jni</artifactId>
-            <version>1.5.2-5</version>
-        </dependency>
     </dependencies>
 
     <build>
