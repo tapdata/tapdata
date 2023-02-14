@@ -137,7 +137,7 @@ public class SmsService {
     }
 
 
-    public SendStatus sendShortMessage(String templateCode, String phoneNumbers, String templateParam) {
+    public  SendStatus sendShortMessage(String templateCode, String phoneNumbers, String templateParam) {
         SendStatus sendStatus = new SendStatus("false", "");
         log.info("sendShortMessage  starting");
         if (StringUtils.isBlank(accessKeyId) || StringUtils.isBlank(accessKeySecret)) {
@@ -165,15 +165,12 @@ public class SmsService {
             request.setTemplateCode(templateCode);
             request.setTemplateParam(templateParam);
             sendSmsResponse = acsClient.getAcsResponse(request);
-            log.info("send sms request");
-            log.info("sendSmsResponse{}",sendSmsResponse.toString());
             if (null != sendSmsResponse && sendSmsResponse.getCode() != null && sendSmsResponse.getCode().equals("OK")) {
                 sendStatus.setStatus("true");
                 log.info("短信发送成功");
             }
             else {
-                log.info("sendSmsResponse1111{}",sendSmsResponse.getMessage());
-
+                log.info("sendSmsResponse{}",sendSmsResponse.getMessage());
                 sendStatus.setErrorMessage(sendSmsResponse.getMessage());
             }
         } catch (Exception e) {
@@ -259,7 +256,6 @@ public class SmsService {
         }
         return smsTemplateCode;
     }
-
 
 
 

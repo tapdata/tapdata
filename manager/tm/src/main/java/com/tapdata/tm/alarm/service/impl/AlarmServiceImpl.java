@@ -39,7 +39,6 @@ import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.mp.service.MpService;
 import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.user.entity.Notification;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import lombok.Setter;
@@ -128,7 +127,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
         boolean openTask = false;
-        if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key) || AlarmKeyEnum.SYSTEM_FLOW_EGINGE_UP.equals(key) ) {
+        if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key)) {
             openTask = true;
         } else if (Objects.nonNull(taskDto) && CollectionUtils.isNotEmpty(taskDto.getAlarmSettings())) {
             List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
@@ -139,13 +138,11 @@ public class AlarmServiceImpl implements AlarmService {
         }
 
         boolean openSys = false;
-
         List<AlarmSettingDto> all = alarmSettingService.findAll(userDetail);
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
                     t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
         }
-
         return openTask && openSys;
     }
 
@@ -184,6 +181,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void notifyAlarm() {
+        log.info("notifyAlarm.......");
         Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE)
                 .and("lastNotifyTime").lt(DateUtil.date()).gt(DateUtil.offsetSecond(DateUtil.date(), -30)
                 );
@@ -229,7 +227,7 @@ public class AlarmServiceImpl implements AlarmService {
             });
 
             boolean isCloud = settingsService.isCloud();
-            log.info("isCloud{}",isCloud);
+            if (isCloud) {
                 FunctionUtils.ignoreAnyError(() -> {
                     boolean reuslt = sendSms(info, taskDto, userDetail, null);
                     if (!reuslt) {
@@ -247,6 +245,7 @@ public class AlarmServiceImpl implements AlarmService {
                     }
                 });
             }
+        }
 
     }
 
@@ -254,7 +253,6 @@ public class AlarmServiceImpl implements AlarmService {
         try {
             if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM, userDetail)) {
                 String taskId = taskDto.getId().toHexString();
-
                 Date date = DateUtil.date();
                 MessageEntity messageEntity = new MessageEntity();
                 messageEntity.setLevel(info.getLevel().name());
@@ -292,13 +290,17 @@ public class AlarmServiceImpl implements AlarmService {
                     content = map.get("content");
                     title = map.get("title");
                 }
-                log.info("task  starting");
             } else {
-                if (!isOwnPermission(userDetail, "sms", messageDto)) {
+                String msgType = messageDto.getMsg();
+                AlarmKeyEnum alarmKeyEnum;
+                alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
+                if(MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                    alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_UP;
+                }
+                if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.EMAIL)) {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return false;
                 }
-                String msgType = messageDto.getMsg();
                 MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
                 //目前msgNotification 只会有三种情况
                 String metadataName = messageMetadata.getName();
@@ -399,22 +401,16 @@ public class AlarmServiceImpl implements AlarmService {
 
     /**
      * 是否用发送权限
-     *
      * @return
      */
-    private boolean isOwnPermission(UserDetail userDetail, String content, MessageDto messageDto) {
-        boolean permission;
-        String msgType = messageDto.getMsg();
-        Notification notification = userDetail.getNotification();
-        String system = messageDto.getSystem();
-        if (notification != null) {
-            Object eventType = BeanUtil.getProperty(notification, msgType);
-            permission = BeanUtil.getProperty(eventType, content);
-        } else {
-            //如果用户的设置通知为空,就全全局设置  setting中取
-            permission = getDefaultNotification(system, msgType, content);
+    private boolean isOwnPermission(UserDetail userDetail, AlarmKeyEnum key, NotifyEnum type) {
+        boolean permission = false;
+        List<AlarmSettingDto> all = alarmSettingService.findAll(userDetail);
+        if (CollectionUtils.isNotEmpty(all)) {
+            permission = all.stream().anyMatch(t ->
+                    t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
         }
-        return permission;
+        return  permission;
     }
 
     private boolean sendSms(AlarmInfo info, TaskDto taskDto, UserDetail userDetail, MessageDto messageDto) {
@@ -436,26 +432,30 @@ public class AlarmServiceImpl implements AlarmService {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                   //  return false;
                 }
-                log.info("task sms");
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 String smsEvent = map.get("smsEvent");
                 if(info.getMetric().name().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().name().equals(AlarmKeyEnum.TASK_FULL_COMPLETE)){
                     smsTemplateCode = SmsService.TASK_NOTICE;
                     templateParam ="{\"JobName\":\"" + taskDto.getName()+smsEvent + "\"}";
                 }else {
-                    templateParam=  "{\"JobName\":\"" + taskDto.getName() + "\"\",\"eventName\"\":\""+ smsEvent+"\"}";
+                    templateParam=  "{\"JobName\":\"" +taskDto.getName() + "\",\"eventName\":\""+ smsEvent+"\"}";
                     smsTemplateCode = SmsService.TASK_ABNORMITY_NOTICE;
                 }
                 smsContent = map.get("content");
             } else {
-                if (!isOwnPermission(userDetail, "sms", messageDto)) {
+                String msgType = messageDto.getMsg();
+                AlarmKeyEnum alarmKeyEnum;
+                alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
+               if(MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                    alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_UP;
+               }
+                if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.SMS)) {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return false;
                 }
                 MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
                 //目前msgNotification 只会有三种情况
                 metadataName = messageMetadata.getName();
-                String msgType = messageDto.getMsg();
                 if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
                     if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
                         smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
@@ -510,15 +510,19 @@ public class AlarmServiceImpl implements AlarmService {
                 content = map.get("content");
                 title = map.get("title");
             } else {
-                if (!isOwnPermission(userDetail, "weChat", messageDto)) {
+                String msgType = messageDto.getMsg();
+                AlarmKeyEnum alarmKeyEnum;
+                alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
+                if(MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                    alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_UP;
+                }
+                if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.WECHAT)) {
                     log.info("Current user ({}, {}) can't open weChat notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return false;
                 }
                 MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
                 //目前msgNotification 只会有三种情况
                 metadataName = messageMetadata.getName();
-                String msgType = messageDto.getMsg();
-
                 if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
                     if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
                         title = "实例 " + metadataName + "已上线运行";
@@ -746,20 +750,20 @@ public class AlarmServiceImpl implements AlarmService {
         AtomicReference<List<String>> receiverList = new AtomicReference<>();
 
         boolean isCloud = settingsService.isCloud();
-//        if (isCloud) {
+        if (isCloud) {
             UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
             Optional.ofNullable(userDetail).ifPresent(u -> {
                 if (StringUtils.isNotBlank(u.getEmail())) {
                     receiverList.set(Lists.newArrayList(u.getEmail()));
                 }
             });
-//        } else {
-//            String receivers = (String) collect.get("email.receivers");
-//            if (StringUtils.isNotBlank(receivers)) {
-//                String[] split = receivers.split(",");
-//                receiverList.set(Arrays.asList(split));
-//            }
-//        }
+        } else {
+            String receivers = (String) collect.get("email.receivers");
+            if (StringUtils.isNotBlank(receivers)) {
+                String[] split = receivers.split(",");
+                receiverList.set(Arrays.asList(split));
+            }
+        }
 
         return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
                 .receivers(receiverList.get()).protocol(protocol).build();
@@ -955,46 +959,10 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     private void informUser(MessageDto messageDto, UserDetail userDetail) {
-        String msgType = messageDto.getMsg();
-        String system = messageDto.getSystem();
-        Notification notification = userDetail.getNotification();
-
-        //判断notification是否为空，如果为空，则按照系统配置发送通知
-        Boolean sendEmail = false;
-        Boolean sendSms = false;
-        Boolean sendWeChat = false;
-        if (null != notification) {
-            Object eventType = BeanUtil.getProperty(notification, msgType);
-            sendEmail = BeanUtil.getProperty(eventType, "email");
-            sendSms = BeanUtil.getProperty(eventType, "sms");
-            sendWeChat = BeanUtil.getProperty(eventType, "weChat");
-        } else {
-            //如果用户的设置通知为空,就全全局设置  setting中取
-            sendEmail = getDefaultNotification(system, msgType, "email");
-            sendSms = getDefaultNotification(system, msgType, "notice");
-            sendWeChat = getDefaultNotification(system, msgType, "weChat");
-        }
         log.info("informUser");
-        //发送邮件
-//        if (sendEmail) {
-            sendMail(null, null, userDetail, messageDto);
-        //}
-
-        //发送短信
-       // if (sendSms) {
-            sendSms(null, null, userDetail, messageDto);
-
-       // }
-
-        // 发送微信通知
-        if (sendWeChat) {
-            sendWeChat(null, null, userDetail, messageDto);
-        }
+        sendMail(null, null, userDetail, messageDto);
+        sendSms(null, null, userDetail, messageDto);
+        sendWeChat(null, null, userDetail, messageDto);
     }
 
-    public static void main(String[] args) {
-      String   templateParam=  "{\"JobName\":\"" + 222 + "\"\",\"eventName\"\":\""+ 11+"\"}";
-        System.out.println(templateParam);
-
-    }
 }
