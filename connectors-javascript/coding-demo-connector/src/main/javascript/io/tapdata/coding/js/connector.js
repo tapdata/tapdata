@@ -1,15 +1,15 @@
-var batchStart = nowDate();
+var batchStart = dateUtils.nowDate();
 
 function discoverSchema(connectionConfig,schemaSender) {
     schemaSender.send(['ACC']);
     return ['Issues'];
 }
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
-    if (!isParam(offset) || null == offset || typeof(offset) != 'object' ) offset = {PageNumber: 1, PageSize: 500,SortKey:'CREATED_AT',SortValue:'ASC',Conditions:[{Key: 'CREATED_AT',Value: '1000-01-01_' + batchStart}]} ;
+    if (!isParam(offset) || null == offset || typeof(offset) != 'object' ) offset = {PageNumber: 1, PageSize: pageSize,SortKey:'CREATED_AT',SortValue:'ASC',Conditions:[{Key: 'CREATED_AT',Value: '1000-01-01_' + batchStart}]} ;
     read('Issues',offset,batchReadSender,false);
 }
 function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
-    if (!isParam(offset) || null == offset || typeof(offset) != 'object') offset = {PageNumber: 1, PageSize: 500,SortKey:'UPDATED_AT',SortValue:'ASC',Conditions:[{Key: 'UPDATED_AT',Value: batchStart + '_' + dateUtils.nowDate()}]} ;
+    if (!isParam(offset) || null == offset || typeof(offset) != 'object') offset = {PageNumber: 1, PageSize: pageSize,SortKey:'UPDATED_AT',SortValue:'ASC',Conditions:[{Key: 'UPDATED_AT',Value: batchStart + '_' + dateUtils.nowDate()}]} ;
     let condition = firstElement(offset.Conditions);
     offset.Conditions = [{Key:"UPDATED_AT",Value: isParam(condition) && null != condition ? firstElement(condition.Value.split('_')) + '_' + dateUtils.nowDate(): batchStart + '_' + dateUtils.nowDate()}];
     offset.SortKey = "UPDATED_AT";

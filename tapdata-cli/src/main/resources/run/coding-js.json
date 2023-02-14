@@ -57,7 +57,7 @@
     },
     "batchRead": {
       "tableName": "Issues",
-      "pageSize": 500
+      "pageSize": 20
     },
     "batchCount": {
       "tableName": "Issues"
@@ -67,7 +67,7 @@
       "tableNameList": [
         "Issues"
       ],
-      "pageSize": 500
+      "pageSize": 50
     },
     "commandCallback": {
       "commandInfo": {
