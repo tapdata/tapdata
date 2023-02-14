@@ -84,6 +84,7 @@ public class Schema implements Cloneable, Serializable {
     //查询'collection', 'table', 'view', 'mongo_view' 等metatype的时候需要设置的属性
     private String database;
     private String username;
+    private String charset;
 
     private List<String> invalidFields; // 无效的字段名称列表，将有问题的字段名称统一记录下来
 
@@ -97,7 +98,6 @@ public class Schema implements Cloneable, Serializable {
     //pdk的模型加载的版本控制删除的唯一时间标记
     private Long lastUpdate;
     private String storageEngine;
-    private String charset;
     protected String pdkId;
     protected String pdkGroup;
     protected String pdkVersion;

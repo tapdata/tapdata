@@ -81,6 +81,14 @@ public abstract class TaskCleaner {
 		// Find task dto by task id
 		taskDto = findTaskDto();
 		startClean();
+		if (null == taskDto.getDag()) {
+			logger.warn("Task[{}]'s dag is empty, will not do any clean operation", taskDto.getName());
+			return;
+		}
+		if (CollectionUtils.isEmpty(taskDto.getDag().getNodes())) {
+			logger.warn("Task[{}]'s node list is empty, will not do any clean operation", taskDto.getName());
+			return;
+		}
 		// Loop nodes
 		List<Node> nodes = taskDto.getDag().getNodes();
 		for (Node node : nodes) {
@@ -288,12 +296,6 @@ public abstract class TaskCleaner {
 		}
 		if (null == taskDto) {
 			throw new TaskCleanerException(String.format("Find task by id [%s] result cannot be null", taskId));
-		}
-		if (null == taskDto.getDag()) {
-			throw new TaskCleanerException(String.format("Task[%s] dag cannot be null", taskId));
-		}
-		if (CollectionUtils.isEmpty(taskDto.getDag().getNodes())) {
-			throw new TaskCleanerException(String.format("Task[%s] node list cannot be empty", taskId));
 		}
 
 		return taskDto;

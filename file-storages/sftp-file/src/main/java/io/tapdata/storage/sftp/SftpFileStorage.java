@@ -8,13 +8,13 @@ import io.tapdata.storage.kit.EmptyKit;
 import io.tapdata.storage.kit.FileMatchKit;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public class SftpFileStorage implements TapFileStorage {
 
-    private final static String TAG = SftpFileStorage.class.getSimpleName();
     private SftpConfig sftpConfig;
     private Session session;
     private ChannelSftp channel;
@@ -138,6 +138,11 @@ public class SftpFileStorage implements TapFileStorage {
             channel.put(is, path, ChannelSftp.OVERWRITE);
         }
         return getFile(path);
+    }
+
+    @Override
+    public OutputStream openFileOutputStream(String path, boolean append) throws Exception {
+        return channel.put(path, append ? ChannelSftp.APPEND : ChannelSftp.OVERWRITE);
     }
 
     @Override

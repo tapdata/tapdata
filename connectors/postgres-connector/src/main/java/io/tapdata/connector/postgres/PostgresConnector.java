@@ -195,8 +195,7 @@ public class PostgresConnector extends ConnectorBase {
             return "null";
         });
 
-        codecRegistry.registerToTapValue(PgArray.class, (value, tapType) -> new TapStringValue(value.toString()));
-
+        codecRegistry.registerToTapValue(PgArray.class, (value, tapType) -> new TapStringValue(toJson(value)));
         codecRegistry.registerToTapValue(PgSQLXML.class, (value, tapType) -> {
             try {
                 return new TapStringValue(((PgSQLXML) value).getString());
@@ -204,29 +203,25 @@ public class PostgresConnector extends ConnectorBase {
                 throw new RuntimeException(e);
             }
         });
-
         codecRegistry.registerToTapValue(PGbox.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGcircle.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGline.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGlseg.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGpath.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGobject.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGpoint.class, (value, tapType) -> new TapStringValue(value.toString()));
-
         codecRegistry.registerToTapValue(PGpolygon.class, (value, tapType) -> new TapStringValue(value.toString()));
-
+        codecRegistry.registerToTapValue(UUID.class, (value, tapType) -> new TapStringValue(value.toString()));
         codecRegistry.registerToTapValue(PGInterval.class, (value, tapType) -> {
-            int hours = ((PGInterval) value).getHours();
-            int minutes = ((PGInterval) value).getMinutes();
-            double seconds = ((PGInterval) value).getSeconds();
-            String time = hours + ":" + minutes + ":" + seconds;
-            return new TapStringValue(time);
+            //P1Y1M1DT12H12M12.312312S
+            PGInterval pgInterval = (PGInterval) value;
+            String interval = "P" + pgInterval.getYears() + "Y" +
+                    pgInterval.getMonths() + "M" +
+                    pgInterval.getDays() + "DT" +
+                    pgInterval.getHours() + "H" +
+                    pgInterval.getMinutes() + "M" +
+                    pgInterval.getSeconds() + "S";
+            return new TapStringValue(interval);
         });
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
@@ -346,7 +341,7 @@ public class PostgresConnector extends ConnectorBase {
         Set<String> columnNames = tapTable.getNameFieldMap().keySet();
         List<FilterResult> filterResults = new LinkedList<>();
         for (TapFilter filter : filters) {
-            String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\" WHERE " + CommonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "=");
+            String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\" WHERE " + new CommonSqlMaker().buildKeyAndValue(filter.getMatch(), "AND", "=");
             FilterResult filterResult = new FilterResult();
             try {
                 postgresJdbcContext.queryWithNext(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
@@ -374,7 +369,7 @@ public class PostgresConnector extends ConnectorBase {
             }
             builder.append("\"");
         }
-        builder.append(" FROM \"").append(postgresConfig.getSchema()).append("\".\"").append(table.getId()).append("\" ").append(CommonSqlMaker.buildSqlByAdvanceFilter(filter));
+        builder.append(" FROM \"").append(postgresConfig.getSchema()).append("\".\"").append(table.getId()).append("\" ").append(new CommonSqlMaker().buildSqlByAdvanceFilter(filter));
         postgresJdbcContext.query(builder.toString(), resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet.next()) {
@@ -400,7 +395,7 @@ public class PostgresConnector extends ConnectorBase {
         }
         Collection<String> primaryKeys = tapTable.primaryKeys();
         //pgsql UNIQUE INDEX use 'UNIQUE' not 'UNIQUE KEY' but here use 'PRIMARY KEY'
-        String sql = "CREATE TABLE IF NOT EXISTS \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" + CommonSqlMaker.buildColumnDefinition(tapTable, false);
+        String sql = "CREATE TABLE IF NOT EXISTS \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" + new CommonSqlMaker().buildColumnDefinition(tapTable, false);
         if (EmptyKit.isNotEmpty(tapTable.primaryKeys())) {
             sql += "," + " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\" )";
         }
@@ -516,7 +511,7 @@ public class PostgresConnector extends ConnectorBase {
         PostgresOffset postgresOffset;
         //beginning
         if (null == offsetState) {
-            postgresOffset = new PostgresOffset(CommonSqlMaker.getOrderByUniqueKey(tapTable), 0L);
+            postgresOffset = new PostgresOffset(new CommonSqlMaker().getOrderByUniqueKey(tapTable), 0L);
         }
         //with offset
         else {

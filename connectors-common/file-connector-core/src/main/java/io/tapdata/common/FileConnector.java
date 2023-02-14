@@ -20,6 +20,8 @@ import io.tapdata.pdk.apis.entity.TestItem;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -30,6 +32,8 @@ public abstract class FileConnector extends ConnectorBase {
 
     protected FileConfig fileConfig;
     protected TapFileStorage storage;
+    protected AbstractFileRecordWriter fileRecordWriter;
+    protected ExecutorService executorService;
     private static final String TAG = FileConnector.class.getSimpleName();
 
     protected void initConnection(TapConnectionContext connectorContext) throws Exception {
@@ -41,6 +45,9 @@ public abstract class FileConnector extends ConnectorBase {
                 .withParams(connectorContext.getConnectionConfig())
                 .withStorageClassName(clazz)
                 .build();
+        if (EmptyKit.isNotBlank(fileConfig.getWriteFilePath()) && !storage.supportAppendData()) {
+            initMergeCacheFilesThread();
+        }
     }
 
     @Override
@@ -50,6 +57,12 @@ public abstract class FileConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
+        if (EmptyKit.isNotNull(fileRecordWriter)) {
+            if (!storage.supportAppendData()) {
+                fileRecordWriter.mergeCacheFiles();
+            }
+            fileRecordWriter.releaseResource();
+        }
         storage.destroy();
     }
 
@@ -128,9 +141,10 @@ public abstract class FileConnector extends ConnectorBase {
         while (isAlive()) {
             Map<String, TapFile> newFiles = getFilteredFiles();
             AtomicReference<List<TapEvent>> tapEvents = new AtomicReference<>(new ArrayList<>());
-            if (tempFiles.entrySet().stream().anyMatch(v -> !newFiles.containsKey(v.getKey()))) {
-                TapLogger.warn(TAG, "Some files have been deleted, but this can change nothing");
-            }
+            tempFiles.entrySet().stream().filter(v -> !newFiles.containsKey(v.getKey())).forEach(v ->
+                    TapLogger.warn(TAG, String.format("%s has been deleted, but this can change nothing", v.getKey())));
+            newFiles.entrySet().stream().filter(v -> !tempFiles.containsKey(v.getKey())).forEach(v ->
+                    TapLogger.info(TAG, String.format("%s has been found, it will take effect one minutes later", v.getKey())));
             Map<String, TapFile> changedFiles = newFiles.entrySet().stream().filter(v -> !tempFiles.containsKey(v.getKey())
                             || v.getValue().getLastModified() > tempFiles.get(v.getKey()).getLastModified()
                             || !Objects.equals(v.getValue().getLength(), tempFiles.get(v.getKey()).getLength()))
@@ -214,6 +228,27 @@ public abstract class FileConnector extends ConnectorBase {
                 tapTable.add(field);
             }
         }
+    }
+
+    protected void initMergeCacheFilesThread() {
+        executorService = Executors.newFixedThreadPool(1);
+        executorService.submit(() -> {
+            int count = 0;
+            while (isAlive()) {
+                if (EmptyKit.isNotNull(fileRecordWriter)) {
+                    count++;
+                }
+                TapSimplify.sleep(1000 * 60);
+                if (count >= 5) {
+                    try {
+                        fileRecordWriter.mergeCacheFiles();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                    count = 0;
+                }
+            }
+        });
     }
 
 }

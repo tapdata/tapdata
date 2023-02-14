@@ -1,5 +1,6 @@
 package com.tapdata.tm.ds.controller;
 
+import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -14,7 +15,9 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
+import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.param.ValidateTableParam;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.ds.vo.AllDataSourceConnectionVo;
@@ -27,8 +30,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import lombok.Setter;
 import org.bson.Document;
@@ -87,7 +92,27 @@ public class DataSourceController extends BaseController {
     @Operation(summary = "修改数据源连接")
     @PatchMapping
     public ResponseMessage<DataSourceConnectionDto> update(@RequestBody DataSourceConnectionDto updateDto) {
-        return success(dataSourceService.update(getLoginUser(), updateDto));
+        return success(dataSourceService.update(getLoginUser(), updateDto, !(
+                DataSourceEntity.STATUS_TESTING.equals(updateDto.getStatus()) || "loading".equals(updateDto.getLoadFieldsStatus()) // 界面连接测试和加载模型不修改时间
+        )));
+    }
+
+    /**
+     * 测试连接时，以及修改属性，都调用该方法
+     *
+     * @param dataSource dataSource
+     * @return DataSourceConnectionDto
+     */
+    @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
+    @PatchMapping("{id}")
+    public ResponseMessage<DataSourceConnectionDto> updateById(@PathVariable("id") String id, @RequestBody(required = false) DataSourceConnectionDto dataSource) {
+        if (dataSource == null) {
+            dataSource = new DataSourceConnectionDto();
+        }
+        dataSource.setId(MongoUtils.toObjectId(id));
+        return success(dataSourceService.update(getLoginUser(), dataSource, !(
+                DataSourceEntity.STATUS_TESTING.equals(dataSource.getStatus()) || "loading".equals(dataSource.getLoadFieldsStatus()) // 界面连接测试和加载模型不修改时间
+        )));
     }
 
     /**
@@ -211,23 +236,6 @@ public class DataSourceController extends BaseController {
         HashMap<String, Boolean> existsValue = new HashMap<>();
         existsValue.put("exists", count > 0);
         return success(existsValue);
-    }
-
-
-    /**
-     * 测试连接时，以及修改属性，都调用该方法
-     *
-     * @param dataSource dataSource
-     * @return DataSourceConnectionDto
-     */
-    @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
-    @PatchMapping("{id}")
-    public ResponseMessage<DataSourceConnectionDto> updateById(@PathVariable("id") String id, @RequestBody(required = false) DataSourceConnectionDto dataSource) {
-        if (dataSource == null) {
-            dataSource = new DataSourceConnectionDto();
-        }
-        dataSource.setId(MongoUtils.toObjectId(id));
-        return success(dataSourceService.update(getLoginUser(), dataSource));
     }
 
     /**
@@ -439,6 +447,31 @@ public class DataSourceController extends BaseController {
         return success(countValue);
     }
 
+    /**
+     * Update instances of the model matched by {{where}} from the data source.
+     *
+     * @param whereJson whereJson
+     * @return DataSourceConnectionDto
+     */
+    @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
+    @PostMapping("not-change-last/update")
+    public ResponseMessage<Map<String, Long>> updateByWhereNotChangeLast(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+        Where where = parseWhere(whereJson);
+
+        long count;
+        UserDetail user = getLoginUser();
+        if (reqBody.indexOf("\"$set\"") > 0 || reqBody.indexOf("\"$setOnInsert\"") > 0 || reqBody.indexOf("\"$unset\"") > 0) {
+            Document updateDto = InstanceFactory.instance(JsonParser.class).fromJson(reqBody, Document.class);
+            count = dataSourceService.upsertByWhere(where, updateDto, null, user);
+        } else {
+            DataSourceConnectionDto connectionDto = JsonUtil.parseJsonUseJackson(reqBody, DataSourceConnectionDto.class);
+            count = dataSourceService.upsertByWhere(where, null, connectionDto, user);
+        }
+        HashMap<String, Long> countValue = new HashMap<>();
+        countValue.put("count", count);
+        return success(countValue);
+    }
+
 
     /**
      * Update an existing model instance or insert a new one into the data source based on the where criteria.
@@ -524,6 +557,23 @@ public class DataSourceController extends BaseController {
             put("total", total);
         }};
         return success(result);
+    }
+
+    @Operation(summary = "Connection statistics api")
+    @GetMapping("/stats")
+    public ResponseMessage<ConnectionStats> stats() {
+
+        return success(dataSourceService.stats(getLoginUser()));
+
+    }
+
+    @Operation(summary = "加载部分表")
+    @PostMapping("load/part/tables/{connectionId}")
+    public ResponseMessage<Void> loadPartTables(@PathVariable("connectionId") String connectionId, @RequestBody String param) {
+        List<TapTable> tables = InstanceFactory.instance(JsonParser.class).fromJson(param, new TypeHolder<List<TapTable>>() {});
+        dataSourceService.loadPartTables(connectionId, tables, getLoginUser());
+        return success();
+
     }
 
 }

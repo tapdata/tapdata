@@ -113,6 +113,7 @@ public class WebSocketManager {
 	public static void sendMessage(String id, String message) throws IOException {
 		WebSocketInfo sessionInfo = getSessionByUid(id);
 		if(sessionInfo != null && sessionInfo.getSession() != null){
+			log.debug("WebSocket send message, userId {},id {}, message {}", sessionInfo.getUserId(), id, message);
 			sessionInfo.getSession().sendMessage(new TextMessage(message));
 		}else{
 			log.warn("Can not send message,session does not exist, id: {}", id);

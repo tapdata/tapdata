@@ -15,6 +15,7 @@ import com.tapdata.tm.ws.cs.NotificationListener;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
 import com.tapdata.tm.ws.dto.WebSocketContext;
+import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
 
@@ -47,7 +48,7 @@ public class NotificationHandler implements WebSocketHandler {
 		String userId = context.getUserId();
 		if (StringUtils.isBlank(userId)){
 			try {
-				WebSocketManager.sendMessage(context.getSender(), "UserId is blank");
+				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("UserId is blank"));
 			} catch (Exception e) {
 				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}

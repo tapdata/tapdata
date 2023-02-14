@@ -30,7 +30,6 @@ public class UnionProcessorNode extends ProcessorNode{
         super(NodeEnum.union_processor.name());
     }
 
-    @Override
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
         if (schema != null) {
             return schema;
@@ -74,7 +73,7 @@ public class UnionProcessorNode extends ProcessorNode{
                         }
 
                         if (field.getIsNullable() != inputFieldMap.get(fieldName).getIsNullable()) {
-                            field.setIsNullable(false);
+                            field.setIsNullable(true);
                         }
 
                         if (field.getPrimaryKey() != inputFieldMap.get(fieldName).getPrimaryKey()) {
@@ -82,7 +81,7 @@ public class UnionProcessorNode extends ProcessorNode{
                             field.setPrimaryKeyPosition(null);
                         }
                     } else {
-                        field.setIsNullable(false);
+                        field.setIsNullable(true);
                     }
                 });
 
@@ -94,6 +93,7 @@ public class UnionProcessorNode extends ProcessorNode{
                 Schema finalSchema = schema;
                 Consumer<Field> addFieldConsumer = (field) -> {
                    if (!fieldMap.containsKey(StringUtils.upperCase(field.getFieldName()))) {
+                       field.setIsNullable(true);
                        finalSchema.getFields().add(field);
                    }
                 };

@@ -75,7 +75,7 @@ echo "std::out >> 用例: 创建数据源, 并加载模型, 数据源类型包�
 cd cases
 
 it_start_time=`date '+%s'`
-cases=`ls|grep test_|grep -v cases_result`
+cases=`ls|grep test_|grep -v cases_result|grep -v widetable`
 echo "$cases"
 ls -al
 IFS=$'\n'
@@ -87,6 +87,10 @@ for i in $cases; do
     cat $i"_cases_result" >> cases_result
 done
 IFS=$OIFS
+
+python3 runner.py --source mongodb --sink mongodb --case test_widetable_check.py &> wide_table_cases_result
+cat wide_table_cases_result >> cases_result
+
 it_end_time=`date '+%s'`
 it_cost_time=`echo $it_end_time-$it_start_time|bc`
 
@@ -165,5 +169,9 @@ fi
 message='{"ut_cost_time":'$ut_cost_time',"it_cost_time":'$it_cost_time',"pass":'$pass',"ut_sum":'$ut_sum',"ut_pass":'$ut_pass',"it_sum":'$jobs_number',"it_pass":'$pass_jobs_number',"build_result":"通过","start_result":"'$start_result'","its":['$case_results']}'
 
 echo $message
+if [[ "x"$FEISHU_CHAT_ID == "x" ]]; then
+    FEISHU_CHAT_ID="oc_79ef2aafcf9a712bfc31280f80498732"
+fi
+echo "feishu chat id is: ${FEISHU_CHAT_ID}"
 
-python3 ../build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --token ${GITHUB_TOKEN} --job_id ${GITHUB_RUN_ID} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id oc_79ef2aafcf9a712bfc31280f80498732 --message_type night_build_notice --message "$message"
+python3 ../build/feishu_notice.py --branch $CURRENT_BRANCH --runner "OP 版本每夜自动化测试" --detail_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --token ${GITHUB_TOKEN} --job_id ${GITHUB_RUN_ID} --app_id ${FEISHU_APP_ID} --person_in_charge ${FEISHU_PERSON_IN_CHARGE} --app_secret ${FEISHU_APP_SECRET} --chat_id ${FEISHU_CHAT_ID} --message_type night_build_notice --message "$message"

@@ -7,10 +7,10 @@ import com.tapdata.constant.UUIDGenerator;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.processor.ScriptLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
-import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.entity.ExecuteResult;
 import io.tapdata.pdk.apis.entity.TapExecuteCommand;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -22,8 +22,6 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 import org.voovan.tools.collection.CacheMap;
@@ -38,9 +36,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 public class ScriptExecutorsManager {
 
-  private final Logger logger = LogManager.getLogger(ScriptExecutorsManager.class);
-
-  private final ObsLogger obsLogger;
+  private final ScriptLogger scriptLogger;
 
   private final ClientMongoOperator clientMongoOperator;
 
@@ -52,11 +48,11 @@ public class ScriptExecutorsManager {
   private final String nodeId;
 
 
-  public ScriptExecutorsManager(ObsLogger obsLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId) {
+  public ScriptExecutorsManager(ScriptLogger scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId) {
 
     this.taskId = taskId;
     this.nodeId = nodeId;
-    this.obsLogger = obsLogger;
+    this.scriptLogger = scriptLogger;
     this.clientMongoOperator = clientMongoOperator;
     this.hazelcastInstance = hazelcastInstance;
     this.cacheMap = new CacheMap<String, ScriptExecutor>()
@@ -72,7 +68,11 @@ public class ScriptExecutorsManager {
   }
 
   public ScriptExecutor getScriptExecutor(String connectionName) {
-    return this.cacheMap.get(connectionName);
+    ScriptExecutor scriptExecutor = this.cacheMap.get(connectionName);
+    if (scriptExecutor == null) {
+      throw new IllegalArgumentException("The specified connection source [" + connectionName + "] could not build the executor, please check");
+    }
+    return scriptExecutor;
   }
 
   private ScriptExecutor create(String connectionName) {
@@ -80,10 +80,13 @@ public class ScriptExecutorsManager {
             ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 
     if (connections == null) {
-      throw new RuntimeException("The specified connection source [" + connectionName + "] does not exist, please check");
+      throw new IllegalArgumentException("The specified connection source [" + connectionName + "] does not exist, please check");
     }
 
-    return new ScriptExecutor(connections, hazelcastInstance, this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId);
+    scriptLogger.info("create script executor for {}", connectionName);
+
+    return new ScriptExecutor(connections, clientMongoOperator, hazelcastInstance, scriptLogger,
+            this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId);
   }
 
   public void close() {
@@ -91,7 +94,7 @@ public class ScriptExecutorsManager {
     this.cacheMap.clear();
   }
 
-  public class ScriptExecutor {
+  public static class ScriptExecutor {
 
     private final ConnectorNode connectorNode;
 
@@ -100,9 +103,11 @@ public class ScriptExecutorsManager {
     private final String associateId;
     private final Supplier<ExecuteCommandFunction> executeCommandFunctionSupplier;
 
+    private final ScriptLogger scriptLogger;
 
-    public ScriptExecutor(Connections connections, HazelcastInstance hazelcastInstance, String TAG) {
+    public ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, ScriptLogger scriptLogger, String TAG) {
       this.TAG = TAG;
+      this.scriptLogger = scriptLogger;
 
       Map<String, Object> connectionConfig = connections.getConfig();
       DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
@@ -206,7 +211,7 @@ public class ScriptExecutorsManager {
     }
 
 
-    void close() {
+    public void close() {
 
       CommonUtils.handleAnyError(() -> {
         Optional.ofNullable(connectorNode)
@@ -214,12 +219,8 @@ public class ScriptExecutorsManager {
                   PDKInvocationMonitor.stop(connectorNode);
                   PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
                 });
-        logger.info("PDK connector node stopped: " + associateId);
-        obsLogger.info("PDK connector node stopped: " + associateId);
-      }, err -> {
-        logger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
-        obsLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
-      });
+        scriptLogger.info("PDK connector node stopped: " + associateId);
+      }, err -> scriptLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId)));
     }
 
   }

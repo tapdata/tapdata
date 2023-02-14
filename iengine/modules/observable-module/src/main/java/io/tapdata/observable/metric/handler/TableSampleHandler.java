@@ -1,12 +1,12 @@
 package io.tapdata.observable.metric.handler;
 
-import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.observable.metric.TaskSampleRetriever;
 import lombok.NonNull;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 
 /**
@@ -17,11 +17,13 @@ public class TableSampleHandler extends AbstractHandler {
 
     static final String SNAPSHOT_ROW_TOTAL                 = "snapshotRowTotal";
     static final String SNAPSHOT_INSERT_ROW_TOTAL          = "snapshotInsertRowTotal";
+    static final String SNAPSHOT_SYNCRATE                  = "snapshotSyncRate";
 
     private final String table;
     private final Long snapshotRowTotal;
     private final Map<String, Number> retrievedTableValues;
     private CounterSampler snapshotInsertRowCounter;
+
 
     public TableSampleHandler(TaskDto task, String table, @NonNull Long snapshotRowTotal,
                               @NonNull Map<String, Number> retrievedTableValues) {
@@ -60,6 +62,16 @@ public class TableSampleHandler extends AbstractHandler {
     public void doInit(Map<String, Number> values) {
         collector.addSampler(SNAPSHOT_ROW_TOTAL, () -> snapshotRowTotal);
         snapshotInsertRowCounter = getCounterSampler(values, SNAPSHOT_INSERT_ROW_TOTAL);
+
+        collector.addSampler(SNAPSHOT_SYNCRATE, () -> {
+            if (Objects.nonNull(snapshotRowTotal) && snapshotRowTotal != 0 && Objects.nonNull(snapshotInsertRowCounter.value())) {
+                BigDecimal decimal = BigDecimal.valueOf(snapshotInsertRowCounter.value().longValue())
+                        .divide(new BigDecimal(snapshotRowTotal), 2, RoundingMode.HALF_UP);
+                return decimal.compareTo(BigDecimal.ONE) > 0 ? 1 : decimal;
+            } else {
+                return 0;
+            }
+        });
     }
 
     public void incrTableSnapshotInsertTotal() {

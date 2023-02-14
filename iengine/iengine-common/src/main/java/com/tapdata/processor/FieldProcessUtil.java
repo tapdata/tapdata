@@ -213,7 +213,7 @@ public class FieldProcessUtil {
 	}
 
 	private static void renameField(Map<String, Object> record, Map<String, String> renameMapping, FieldProcess process, String field, Map<String, Object> readOnlyRecord) throws Exception {
-		Object value = MapUtilV2.getValueByKeyV2(readOnlyRecord, field);
+		Object value = MapUtilV2.getValueByKey(readOnlyRecord, field);
 		if (value instanceof TapList || value instanceof NotExistsNode) {
 			return;
 		}

@@ -4,10 +4,7 @@ import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
 import io.tapdata.storage.kit.FileMatchKit;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
@@ -15,8 +12,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public class LocalFileStorage implements TapFileStorage {
-
-    private final static String TAG = LocalFileStorage.class.getSimpleName();
 
     @Override
     public void init(Map<String, Object> params) {
@@ -94,6 +89,11 @@ public class LocalFileStorage implements TapFileStorage {
         os.flush();
         os.close();
         return getFile(path);
+    }
+
+    @Override
+    public OutputStream openFileOutputStream(String path, boolean append) throws Exception {
+        return new FileOutputStream(path, append);
     }
 
     @Override

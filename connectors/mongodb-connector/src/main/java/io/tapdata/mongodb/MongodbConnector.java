@@ -16,6 +16,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
@@ -44,7 +45,6 @@ import org.bson.conversions.Bson;
 import org.bson.types.*;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -204,7 +204,7 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	public void getRelateDatabaseField(TapConnectionContext connectionContext, TableFieldTypesGenerator tableFieldTypesGenerator, BsonValue value, String fieldName, TapTable table) {
-		if (value instanceof BsonDocument) {
+	if (value instanceof BsonDocument) {
 			BsonDocument bsonDocument = (BsonDocument) value;
 			for (Map.Entry<String, BsonValue> entry : bsonDocument.entrySet()) {
 				getRelateDatabaseField(connectionContext, tableFieldTypesGenerator, entry.getValue(), fieldName + "." + entry.getKey(), table);
@@ -252,8 +252,7 @@ public class MongodbConnector extends ConnectorBase {
 				field = TapSimplify.field(fieldName, bsonType.name());
 			}
 		} else {
-//			field = TapSimplify.field(fieldName, BsonType.NULL.name());
-			return;
+			field = TapSimplify.field(fieldName, BsonType.NULL.name());
 		}
 
 		if (COLLECTION_ID_FIELD.equals(fieldName)) {
@@ -467,7 +466,8 @@ public class MongodbConnector extends ConnectorBase {
 				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)
 				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
 				|| null != matchThrowable(throwable, MongoServerUnavailableException.class)
-				|| null != matchThrowable(throwable, IOException.class)) {
+				|| null != matchThrowable(throwable, MongoQueryException.class)
+				|| null != matchThrowable(throwable, MongoInterruptedException.class)) {
 			retryOptions.needRetry(true);
 			return retryOptions;
 		}
@@ -504,18 +504,18 @@ public class MongodbConnector extends ConnectorBase {
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
 		final DataMap connectionConfig = connectionContext.getConnectionConfig();
 		if (MapUtils.isEmpty(connectionConfig)) {
-			throw new RuntimeException(String.format("connection config cannot be empty %s", connectionConfig));
+			throw new RuntimeException("connection config cannot be empty");
 		}
 		mongoConfig =(MongodbConfig) new MongodbConfig().load(connectionConfig);
 		if (mongoConfig == null) {
-			throw new RuntimeException(String.format("load mongo config failed from connection config %s", connectionConfig));
+			throw new RuntimeException("load mongo config failed from connection config");
 		}
 		if (mongoClient == null) {
 			try {
 				mongoClient = MongodbUtil.createMongoClient(mongoConfig);
 				mongoDatabase = mongoClient.getDatabase(mongoConfig.getDatabase());
 			} catch (Throwable e) {
-				throw new RuntimeException(String.format("create mongodb connection failed %s, mongo config %s, connection config %s", e.getMessage(), mongoConfig, connectionConfig), e);
+				throw new RuntimeException(String.format("create mongodb connection failed %s", e.getMessage()), e);
 			}
 		}
 	}
@@ -577,14 +577,20 @@ public class MongodbConnector extends ConnectorBase {
 		FilterResults filterResults = new FilterResults();
 		List<Bson> bsonList = new ArrayList<>();
 		DataMap match = tapAdvanceFilter.getMatch();
+		Map<String,TapField> map = table.getNameFieldMap();
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
+				TapField tapField = map.get(entry.getKey());
+				entry.setValue(formatValue(tapField,entry.getKey(),entry.getValue()));
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
 		}
 		List<QueryOperator> ops = tapAdvanceFilter.getOperators();
+
 		if (ops != null) {
 			for (QueryOperator op : ops) {
+				TapField tapField = map.get(op.getKey());
+				op.setValue(formatValue(tapField,op.getKey(),op.getValue()));
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
 						bsonList.add(gt(op.getKey(), op.getValue()));
@@ -661,6 +667,20 @@ public class MongodbConnector extends ConnectorBase {
 			}
 		}
 		consumer.accept(filterResults);
+	}
+
+	private Object formatValue(TapField tapField, String key, Object value) {
+		if (tapField.getTapType() instanceof TapNumber && value instanceof String) {
+			if (value.toString().contains(".")) {
+				value = Double.valueOf(value.toString());
+			} else {
+				value = Long.valueOf(value.toString());
+			}
+		}
+		if (value instanceof DateTime) {
+			value = ((DateTime) value).toInstant();
+		}
+		return value;
 	}
 
 	/**
@@ -787,7 +807,10 @@ public class MongodbConnector extends ConnectorBase {
 		try {
 			mongodbStreamReader.read(connectorContext, tableList, offset, eventBatchSize, consumer);
 		} catch (Exception e) {
-			mongodbStreamReader.onDestroy();
+			try {
+				mongodbStreamReader.onDestroy();
+			} catch (Exception ignored) {
+			}
 			mongodbStreamReader = null;
 			throw new RuntimeException(e);
 		}

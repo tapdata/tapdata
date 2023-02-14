@@ -2,6 +2,7 @@
 package com.tapdata.tm.ds.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.constants.DataSourceQCType;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -92,5 +93,11 @@ public class DataSourceDefinitionEntity extends BaseEntity {
     private LinkedHashMap<String, Object> messages;
 
     private List<Capability> capabilities;
+    /**
+     * Quality Control Type（认证类型｜质量控制类型）
+     */
+    private DataSourceQCType qcType;
     private Boolean beta;
+    private String pdkAPIVersion;
+    private Integer pdkAPIBuildNumber;
 }

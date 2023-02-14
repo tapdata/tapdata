@@ -235,7 +235,7 @@ public class ClickhouseConnector extends ConnectorBase {
         }
 
         // 关联键排序
-        primaryKeys = tapTable.primaryKeys(false);
+        primaryKeys = tapTable.primaryKeys(true);
         if (EmptyKit.isNotEmpty(primaryKeys)) {
             sql.append(" ORDER BY (").append(TapTableWriter.sqlQuota(",", primaryKeys)).append(")");
         } else {
@@ -314,7 +314,7 @@ public class ClickhouseConnector extends ConnectorBase {
             }
             builder.append("\"");
         }
-        builder.append(" FROM ").append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), table.getId())).append(" ").append(CommonSqlMaker.buildSqlByAdvanceFilter(filter));
+        builder.append(" FROM ").append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), table.getId())).append(" ").append(new CommonSqlMaker().buildSqlByAdvanceFilter(filter));
         clickhouseJdbcContext.query(builder.toString(), resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet != null && resultSet.next()) {

@@ -11,8 +11,8 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.AggregationProcessorNode;
 import com.tapdata.tm.commons.task.dto.Aggregation;
-import io.tapdata.constructImpl.ConstructIMap;
-import io.tapdata.constructImpl.DocumentIMap;
+import io.tapdata.construct.constructImpl.ConstructIMap;
+import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -75,9 +75,11 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
     private void initCache(String nodeId, HazelcastInstance hazelcastInstance) {
         cacheNumbers = new DocumentIMap<>(hazelcastInstance,
-                nodeId + "-" + "AggregatorCache");
+                nodeId + "-" + "AggregatorCache",
+                externalStorageDto);
         cacheList = new DocumentIMap<>(hazelcastInstance,
-                nodeId + "-" + "AggregatorCacheList");
+                nodeId + "-" + "AggregatorCacheList",
+                externalStorageDto);
     }
 
     public static void clearCache(String nodeId, HazelcastInstance hazelcastInstance) {

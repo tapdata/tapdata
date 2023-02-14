@@ -1,5 +1,6 @@
 package com.tapdata.tm.user.entity;
 
+import com.tapdata.manager.common.annotation.SetOnInsert;
 import com.tapdata.tm.base.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -23,6 +24,7 @@ public class User extends BaseEntity {
 
     @Field("accesscode")
     @Indexed(unique = true)
+    @SetOnInsert
     private String accessCode;
     private String username;
     private String password;

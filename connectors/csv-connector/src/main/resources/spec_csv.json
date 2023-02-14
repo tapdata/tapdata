@@ -36,6 +36,10 @@
             {
               "label": "S3FS",
               "value": "s3fs"
+            },
+            {
+              "label": "OSS",
+              "value": "oss"
             }
           ],
           "x-reactions": [
@@ -76,6 +80,14 @@
               "fulfill": {
                 "state": {
                   "visible": "{{$self.value==='s3fs'}}"
+                }
+              }
+            },
+            {
+              "target": "*(accessKey,secretKey,endpoint,bucket)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='oss'}}"
                 }
               }
             }
@@ -406,6 +418,22 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-index": 10
+        },
+        "writeFilePath": {
+          "type": "string",
+          "title": "${writeFilePath}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "writeFilePath",
+          "x-index": 11
+        },
+        "fileNameExpression": {
+          "type": "string",
+          "title": "${fileNameExpression}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "fileNameExpression",
+          "x-index": 12
         }
       }
     }

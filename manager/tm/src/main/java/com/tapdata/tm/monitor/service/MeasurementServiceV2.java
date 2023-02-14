@@ -2,6 +2,7 @@ package com.tapdata.tm.monitor.service;
 
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
+import com.google.common.util.concurrent.AtomicDouble;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
@@ -44,6 +45,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -165,9 +167,9 @@ public class MeasurementServiceV2 {
             Number value = data.get(key);
             if (requestMap.containsKey(key)
                     && Objects.nonNull(requestMap.get(key))
-                    && requestMap.get(key).longValue() == 0L
+                    && requestMap.get(key).doubleValue() == 0
                     && Objects.nonNull(value)
-                    && value.longValue() > 0L) {
+                    && value.doubleValue() > 0) {
                 requestSample.getVs().put(key, value);
             } else if (!requestMap.containsKey(key) && data.containsKey(key)) {
                 requestSample.getVs().put(key, value);
@@ -862,10 +864,11 @@ public class MeasurementServiceV2 {
         vs.remove("inputQps");
         vs.remove("outputQps");
         vs.forEach((k, v) -> {
+            Long value = Objects.nonNull(v) ? v.longValue() : 0;
             if (StringUtils.startsWith(k, "input")) {
-                inputTotal.updateAndGet(v1 -> v1 + v.longValue());
+                inputTotal.updateAndGet(v1 -> v1 + value);
             } else if (StringUtils.startsWith(k, "output")) {
-                outputTotal.updateAndGet(v1 -> v1 + v.longValue());
+                outputTotal.updateAndGet(v1 -> v1 + value);
             }
         });
 
@@ -901,6 +904,7 @@ public class MeasurementServiceV2 {
             return new Page<>(0, Collections.emptyList());
         }
 
+        query.with(Sort.by(Sort.Direction.DESC, "ss.vs.snapshotSyncRate"));
         query.with(tmPageable);
         List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
 
@@ -945,19 +949,25 @@ public class MeasurementServiceV2 {
             }
 
             Map<String, Number> vs = samples.get(0).getVs();
-            long snapshotInsertRowTotal = vs.get("snapshotInsertRowTotal").longValue();
-            long snapshotRowTotal = vs.get("snapshotRowTotal").longValue();
+            AtomicLong snapshotInsertRowTotal = new AtomicLong(0L);
+            Optional.ofNullable(vs.getOrDefault("snapshotInsertRowTotal", 0)).ifPresent(number -> snapshotInsertRowTotal.set(number.longValue()));
+            AtomicLong snapshotRowTotal = new AtomicLong(0L);
+            Optional.ofNullable(vs.getOrDefault("snapshotRowTotal", 0)).ifPresent(number -> snapshotRowTotal.set(number.longValue()));
 
+            Number snapshotSyncRate = vs.get("snapshotSyncRate");
             BigDecimal syncRate;
-            if (snapshotRowTotal != 0) {
-                syncRate = new BigDecimal(snapshotInsertRowTotal).divide(new BigDecimal(snapshotRowTotal), 2, RoundingMode.HALF_UP);
+            if (Objects.nonNull(snapshotSyncRate)) {
+                syncRate = BigDecimal.valueOf(snapshotSyncRate.doubleValue());
+            } else if (snapshotRowTotal.get() != 0L) {
+                syncRate = new BigDecimal(snapshotInsertRowTotal.get()).divide(new BigDecimal(snapshotRowTotal.get()), 2, RoundingMode.HALF_UP);
             } else {
-                syncRate = BigDecimal.ONE;
+                syncRate = BigDecimal.ZERO;
             }
 
             String fullSyncStatus;
-            if (syncRate.compareTo(BigDecimal.ONE) == 0) {
+            if (syncRate.compareTo(BigDecimal.ONE) >= 0) {
                 fullSyncStatus = "DONE";
+                syncRate = BigDecimal.ONE;
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
                 fullSyncStatus = "NOT_START";
             } else {
@@ -977,7 +987,9 @@ public class MeasurementServiceV2 {
             result.add(vo);
         }
 
-        return new Page<>(count, result);
+        return new Page<>(count, result.stream()
+                .sorted(Comparator.comparing(TableSyncStaticVo::getSyncRate).reversed())
+                .collect(Collectors.toList()));
     }
 
     /**

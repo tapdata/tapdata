@@ -127,8 +127,7 @@ public class TaskDto extends ParentTaskDto {
     private Long snapshotDoneAt;
 
     private Long scheduleDate;
-
-    private boolean needCreateRecord;
+    private Long stopedDate;
 
     /**
      * js 试运行id
@@ -140,6 +139,8 @@ public class TaskDto extends ParentTaskDto {
     private String transformTaskId;
 
     private int stopRetryTimes;
+
+    private boolean isManualStop;
 
     public DAG getDag() {
         if (dag != null) {

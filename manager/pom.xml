@@ -38,7 +38,6 @@
 		<dependencies>
 		</dependencies>
 	</dependencyManagement>
-
 	<repositories>
 		<repository>
 			<id>tapdata-wendangshujuku-mongo</id>
@@ -63,5 +62,4 @@
 			</snapshots>
 		</repository>
 	</repositories>
-
 </project>

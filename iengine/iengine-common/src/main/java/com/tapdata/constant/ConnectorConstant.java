@@ -106,6 +106,8 @@ public class ConnectorConstant {
 	 */
 	public static final String AGENT_INFO_COLLECTION = "agentEnvironment";
 
+	public static final String EXTERNAL_STORAGE_COLLECTION = "ExternalStorage";
+
 	public static final String JOB_STATUS_FIELD = "status";
 
 	public static final String JOB_CONNECTOR_STOPPED_FIELD = "connectorStopped";
@@ -337,5 +339,7 @@ public class ConnectorConstant {
 	public static final int LOOP_BATCH_SIZE = 1000;
 
 	public static final String TAPDATA_WORKER_DIR = System.getenv("TAPDATA_WORK_DIR");
+
+	public static final String TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME = "Tapdata MongoDB External Storage";
 
 }

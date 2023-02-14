@@ -1,0 +1,259 @@
+{
+  "properties": {
+    "name": "SelectDB",
+    "icon": "icons/selectdb.png",
+    "doc": "${doc}",
+    "id": "selectdb"
+  },
+  "configOptions": {
+    "capabilities": [
+      {
+        "id": "dml_insert_policy",
+        "alternatives": [
+          "update_on_exists",
+          "ignore_on_exists"
+        ]
+      },
+      {
+        "id": "dml_update_policy",
+        "alternatives": [
+          "ignore_on_nonexists",
+          "insert_on_nonexists"
+        ]
+      },
+      {
+        "id": "api_server_supported"
+      }
+    ],
+    "connection": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "required": true,
+          "type": "string",
+          "title": "${host}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 1
+        },
+        "port": {
+          "required": true,
+          "type": "string",
+          "title": "${port}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_port",
+          "x-index": 2
+        },
+        "selectDbHttp": {
+          "required": true,
+          "type": "string",
+          "title": "${selectDbHttp}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 3
+        },
+        "database": {
+          "required": true,
+          "type": "string",
+          "title": "${database}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_name",
+          "x-index": 4
+        },
+        "user": {
+          "type": "string",
+          "title": "${user}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_username",
+          "x-index": 5
+        },
+        "password": {
+          "type": "string",
+          "title": "${password}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_password",
+          "x-index": 6
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/selectdb_en_US.md",
+      "host": "Repo IP",
+      "port": "MySQL Port",
+      "selectDbHttp": "HTTP Port",
+      "database": "database",
+      "user": "user",
+      "password": "password"
+    },
+    "zh_CN": {
+      "doc": "docs/selectdb_zh_CN.md",
+      "host": "仓库公网 IP",
+      "port": "MySQL 协议端口",
+      "selectDbHttp": "HTTP 协议端口",
+      "database": "数据库",
+      "user": "账号",
+      "password": "密码"
+    },
+    "zh_TW": {
+      "doc": "docs/selectdb_zh_TW.md",
+      "host": "仓库公网 IP",
+      "port": "MySQL 协议端口",
+      "selectDbHttp": "HTTP 协议端口",
+      "database": "數據庫",
+      "user": "賬號",
+      "password": "密碼"
+    }
+  },
+  "dataTypes": {
+    "ARRAY": {
+      "to": "TapArray"
+    },
+    "datetimev2": {
+      "to": "TapDateTime",
+      "range": [
+        "0000-01-01 00:00:00.000000",
+        "9999-12-31 23:59:59.999999"
+      ],
+      "pattern": "YYYY-MM-DD HH:MM:SS.ssssss",
+      "fraction": 6,
+      "withTimeZone": false
+    },
+    "datev2": {
+      "to": "TapDate",
+      "range": [
+        "0001-01-01",
+        "9999-12-31"
+      ],
+      "pattern": "YYYY-MM-DD"
+    },
+    "bigint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 64,
+      "precision": 19,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ]
+    },
+    "boolean": {
+      "bit": 8,
+      "unsigned": "",
+      "to": "TapNumber"
+    },
+    "char[($byte)]": {
+      "byte": 255,
+      "to": "TapString",
+      "defaultByte": 1,
+      "fixed": true
+    },
+    "date": {
+      "byte": 3,
+      "range": [
+        "0000-01-01",
+        "9999-12-31"
+      ],
+      "to": "TapDate",
+      "pattern": "yyyy-MM-dd"
+    },
+    "datetime": {
+      "byte": 8,
+      "range": [
+        "1000-01-01 00:00:00 000000000",
+        "9999-12-31 23:59:59 999999999"
+      ],
+      "pattern": "YYYY-MM-DD HH:MM:SS",
+      "to": "TapDateTime"
+    },
+    "decimal[($precision,$scale)]": {
+      "bit": 128,
+      "precision": [
+        1,
+        27
+      ],
+      "defaultPrecision": 10,
+      "scale": [
+        0,
+        9
+      ],
+      "defaultScale": 0,
+      "to": "TapNumber"
+    },
+    "double": {
+      "bit": 64,
+      "to": "TapNumber"
+    },
+    "float": {
+      "to": "TapNumber",
+      "precision": [
+        1,
+        6
+      ],
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false
+    },
+    "HLL": {
+      "byte": "16385",
+      "to": "TapNumber",
+      "queryOnly": true
+    },
+    "int[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        -2147483648,
+        2147483647
+      ]
+    },
+    "largeint": {
+      "bit": 128,
+      "to": "TapNumber"
+    },
+    "smallint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 16,
+      "value": [
+        -32768,
+        32767
+      ],
+      "precision": 5
+    },
+    "string": {
+      "byte": "2147483643",
+      "to": "TapString"
+    },
+    "tinyint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 8,
+      "precision": 3,
+      "value": [
+        -128,
+        127
+      ]
+    },
+    "varchar[($byte)]": {
+      "byte": "65533",
+      "to": "TapString",
+      "defaultByte": 1
+    },
+    "quantile_state": {
+      "to": "TapNumber",
+      "queryOnly": true
+    },
+    "bitmap": {
+      "to": "TapNumber",
+      "queryOnly": true
+    }
+  }
+}

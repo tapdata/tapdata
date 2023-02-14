@@ -2,6 +2,7 @@ package io.tapdata.connector.mysql;
 
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.util.MysqlUtil;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
@@ -9,6 +10,7 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -21,6 +23,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -93,7 +96,7 @@ public class MysqlMaker implements SqlMaker {
         }
         if (CollectionUtils.isNotEmpty(pks)) {
             for (String pk : pks) {
-                String orderStr = pk + " ASC";
+                String orderStr = String.format(MysqlJdbcContext.FIELD_TEMPLATE, pk) + " ASC";
                 if (orderList.contains(orderStr)) {
                     continue;
                 }
@@ -134,6 +137,8 @@ public class MysqlMaker implements SqlMaker {
                 Object value = entry.getValue();
                 if (value instanceof Number) {
                     whereList.add(key + "<=>" + value);
+                } else if (value instanceof DateTime) {
+                    whereList.add(key + "<=>'" + dateTimeToStr((DateTime) value, "yyyy-MM-dd HH:mm:ss") + "'");
                 } else {
                     whereList.add(key + "<=>'" + value + "'");
                 }
@@ -149,6 +154,8 @@ public class MysqlMaker implements SqlMaker {
                 String opStr = queryOperatorEnum.getOpStr();
                 if (value instanceof Number) {
                     whereList.add(key + opStr + value);
+                }else if (value instanceof DateTime) {
+                    whereList.add(key + opStr + "'" + dateTimeToStr((DateTime) value, "yyyy-MM-dd HH:mm:ss") + "'");
                 } else {
                     whereList.add(key + opStr + "'" + value + "'");
                 }
@@ -180,6 +187,10 @@ public class MysqlMaker implements SqlMaker {
             sql += " OFFSET " + skip;
         }
         return sql;
+    }
+
+    private static String dateTimeToStr(DateTime value, String formatter) {
+        return value.toZonedDateTime().format(DateTimeFormatter.ofPattern(formatter));
     }
 
     @Override

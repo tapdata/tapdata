@@ -1,0 +1,24 @@
+[
+  {
+    "update": "Task",
+    "updates": [
+      {
+        "q": {
+          "dag.nodes": {
+            "$elemMatch": {
+              "migrateTableSelectType": "all"
+            }
+          }
+        },
+        "u": {
+          "$set": {
+            "dag.nodes.$[].migrateTableSelectType": "expression",
+            "dag.nodes.$[].tableExpression": ".*"
+          }
+        },
+        "upsert": false,
+        "multi": true
+      }
+    ]
+  }
+]

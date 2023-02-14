@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.util;
 
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.TapEvent;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -34,13 +35,13 @@ public class TargetTapEventFilter {
 	 * @return true: event should be ignored
 	 * false: event should be process
 	 */
-	public <E extends TapEvent> boolean test(E tapEvent) {
+	public <E extends TapdataEvent> boolean test(E tapdataEvent) {
 		if (CollectionUtils.isEmpty(predicates)) {
 			return false;
 		}
 		for (TapEventPredicate predicate : predicates) {
-			if (predicate.test(tapEvent)) {
-				predicate.failHandler(tapEvent);
+			if (predicate.test(tapdataEvent)) {
+				predicate.failHandler(tapdataEvent);
 				return true;
 			}
 		}
@@ -48,10 +49,10 @@ public class TargetTapEventFilter {
 	}
 
 	public interface TapEventPredicate {
-		<E extends TapEvent> boolean test(E tapEvent);
+		<E extends TapdataEvent> boolean test(E tapdataEvent);
 
-		default <E extends TapEvent> void failHandler(E tapEvent) {
-			logger.warn("Tap event will be filter by {}\n{}", this.getClass().getName(), tapEvent);
+		default <E extends TapdataEvent> void failHandler(E tapdataEvent) {
+			logger.warn("Tap event will be filter by {}\n{}", this.getClass().getName(), tapdataEvent);
 		}
 	}
 }

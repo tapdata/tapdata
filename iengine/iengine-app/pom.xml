@@ -45,6 +45,12 @@
             <artifactId>deduction-module</artifactId>
             <version>0.5.2-SNAPSHOT</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.tapdata</groupId>
+            <artifactId>custom-sql-filter-module</artifactId>
+            <version>0.5.2-SNAPSHOT</version>
+        </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>service-skeleton-module</artifactId>
@@ -223,10 +229,6 @@
         <dependency>
             <groupId>org.samba.jcifs</groupId>
             <artifactId>jcifs</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.tapdata</groupId>
-            <artifactId>hazelcast-lib</artifactId>
         </dependency>
     </dependencies>
 

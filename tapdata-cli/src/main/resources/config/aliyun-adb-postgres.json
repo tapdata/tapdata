@@ -1,0 +1,13 @@
+{
+  "connection": {
+    "host": "127.0.0.1",
+    "port": 5496,
+    "database": "postgres",
+    "schema": "public",
+    "user": "postgres",
+    "password": "tapdata",
+    "logPluginName": "decoderbufs"
+  },
+  "node": {
+  }
+}

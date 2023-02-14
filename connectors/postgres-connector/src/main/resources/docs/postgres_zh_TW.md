@@ -137,7 +137,7 @@ drop table public.test_decode
   如果 tapdata 由於不可控異常（斷電、進程崩潰等），導致cdc中斷，會導致 slot 連接無法正確從 pg 主節點刪除，將一直佔用一個 slot 連接名額，需手動登錄主節點，進行刪除
   查詢slot信息
 ```
-// 查看是否有slot_name=tapdata的信息
+// 查看是否有slot_name以tapdata_cdc_开头的信息
  TABLE pg_replication_slots;
 ```
 - **刪除slot節點**<br>
@@ -174,3 +174,45 @@ alter table <schema>.mytable add column last_udpate timestamp default now();
 create trigger trg_uptime before update on <schema>.mytable for each row execute procedure
     update_lastmodified_column();
 ```
+### **5. 全類型欄位支持**
+- smallint
+- integer
+- bigint
+- numeric
+- real
+- double precision
+- character
+- character varying
+- text
+- bytea
+- bit
+- bit varying
+- boolean
+- date
+- interval
+- timestamp
+- timestamp with time zone
+- point
+- line
+- lseg
+- box
+- path
+- polygon
+- circle
+- cidr
+- inet
+- macaddr
+- uuid
+- xml
+- json
+- tsvector (增量不支持不報錯)
+- tsquery (增量不支持不報錯)
+- oid
+- regproc (增量不支持不報錯)
+- regprocedure (增量不支持不報錯)
+- regoper (增量不支持不報錯)
+- regoperator (增量不支持不報錯)
+- regclass (增量不支持不報錯)
+- regtype (增量不支持不報錯)
+- regconfig (增量不支持不報錯)
+- regdictionary (增量不支持不報錯)

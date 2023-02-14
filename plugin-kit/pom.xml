@@ -11,7 +11,6 @@
 		<module>tapdata-api</module>
 		<module>tapdata-pdk-api</module>
 		<module>tapdata-pdk-runner</module>
-        <module>tapdata-pdk-cli</module>
         <module>tapdata-tests</module>
 		<module>connector-archetypes</module>
         <module>tapdata-common</module>
@@ -24,8 +23,8 @@
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>
 		<tapdata.pdk.runner.verison>1.2-SNAPSHOT</tapdata.pdk.runner.verison>
-		<tapdata.api.verison>1.2-SNAPSHOT</tapdata.api.verison>
-		<tapdata.pdk.api.verison>1.2-SNAPSHOT</tapdata.pdk.api.verison>
+		<tapdata.api.verison>1.2.0</tapdata.api.verison>
+		<tapdata.pdk.api.verison>1.2.0</tapdata.pdk.api.verison>
 		<tapdata.pdk.connector.core.version>1.0-SNAPSHOT</tapdata.pdk.connector.core.version>
 		<junit.jupiter.version>5.8.1</junit.jupiter.version>
 		<junit.platform.version>1.8.1</junit.platform.version>
@@ -94,6 +93,7 @@
 				<version>31.1-jre</version>
 			</dependency>
 		</dependencies>
+
 	</dependencyManagement>
 
     <build>
@@ -112,16 +112,36 @@
                     <target>${java.version}</target>
                 </configuration>
             </plugin>
-
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>properties-maven-plugin</artifactId>
+				<version>1.1.0</version>
+				<executions>
+					<execution>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>write-project-properties</goal>
+						</goals>
+						<configuration>
+							<outputFile>${project.parent.relativePath}/../../iengine/iengine-app/target/classes/pluginKit.properties</outputFile>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
         </plugins>
     </build>
-    <distributionManagement>
-        <repository>
-            <!--必须与 settings.xml 的 id 一致-->
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-        </repository>
-    </distributionManagement>
+	<repositories>
+		<repository>
+			<id>tapdata-tapdata-maven</id>
+			<name>maven</name>
+			<url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
 </project>
 

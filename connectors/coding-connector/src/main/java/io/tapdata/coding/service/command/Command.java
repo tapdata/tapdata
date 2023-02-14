@@ -14,33 +14,35 @@ import java.util.Map;
 
 public interface Command {
     static final String TAG = Command.class.getSimpleName();
-    public static Command command(String command){
+
+    public static Command command(String command) {
         if (Checker.isEmpty(command)) return null;
         Class clz = null;
         try {
-            clz = Class.forName("io.tapdata.coding.service.command."+command);
-            return ((Command)clz.newInstance());
+            clz = Class.forName("io.tapdata.coding.service.command." + command);
+            return ((Command) clz.newInstance());
         } catch (ClassNotFoundException e) {
-            TapLogger.debug(TAG, "ClassNotFoundException for Command {}",command);
+            TapLogger.debug(TAG, "ClassNotFoundException for Command {}", command);
         } catch (InstantiationException e1) {
-            TapLogger.debug(TAG, "InstantiationException for Command {}",command);
+            TapLogger.debug(TAG, "InstantiationException for Command {}", command);
         } catch (IllegalAccessException e2) {
-            TapLogger.debug(TAG, "IllegalAccessException for Command {}",command);
+            TapLogger.debug(TAG, "IllegalAccessException for Command {}", command);
         }
         return null;
     }
-    public static CommandResult command(TapConnectionContext tapConnectionContext, CommandInfo commandInfo){
+
+    public static CommandResult command(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
         TapLogger.debug(TAG, "Command info {}", commandInfo);
         String command = commandInfo.getCommand();
-        if(Checker.isEmpty(command)){
+        if (Checker.isEmpty(command)) {
             throw new CoreException("Command can not be NULL or not be empty.");
         }
         if (Checker.isEmpty(command))
             throw new RuntimeException(MessageFormat.format("Command is empty from command info {}", commandInfo));
         Class clz = null;
         try {
-            clz = Class.forName("io.tapdata.coding.service.command."+command);
-            CommandResult result = ((Command)clz.newInstance()).commandResult(tapConnectionContext, commandInfo);
+            clz = Class.forName("io.tapdata.coding.service.command." + command);
+            CommandResult result = ((Command) clz.newInstance()).commandResult(tapConnectionContext, commandInfo);
             TapLogger.info(TAG, "Command result {}", result);
             return result;
         } catch (Throwable e) {
@@ -50,12 +52,12 @@ public interface Command {
 
     public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo);
 
-    public static CommandResult emptyResult(){
+    public static CommandResult emptyResult() {
         Map<String, Object> pageResult = new HashMap<>();
-        pageResult.put("page",0);
-        pageResult.put("size",0);
-        pageResult.put("total",0);
-        pageResult.put("items",new ArrayList<>());
+        pageResult.put("page", 0);
+        pageResult.put("size", 0);
+        pageResult.put("total", 0);
+        pageResult.put("items", new ArrayList<>());
         return new CommandResult().result(pageResult);
     }
 }

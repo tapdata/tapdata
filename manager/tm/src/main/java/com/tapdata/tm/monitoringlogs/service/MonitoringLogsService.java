@@ -122,7 +122,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             // monitor log save will after task stopTime 5s, so add 10s;
             Long end = param.getEnd();
             end += 10000L;
-            criteria.and("timestamp").gte(start).lt(end);
+            criteria.and("timestamp").gte(start - 5000L).lt(end);
         } else if ("testRun".equals(type)) {
             criteria.and("timestamp").gte(start);
         }
@@ -297,25 +297,27 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         save(builder.build(), user);
     }
 
-    public void startTaskErrorLog(TaskDto taskDto, UserDetail user, Exception e) {
+    public void startTaskErrorLog(TaskDto taskDto, UserDetail user, Object e, Level level) {
         MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
         builder.taskId(taskDto.getId().toHexString())
                 .taskName(taskDto.getName())
                 .taskRecordId(taskDto.getTaskRecordId())
                 .date(DateUtil.date())
                 .timestamp(System.currentTimeMillis())
-                .level("ERROR")
+                .level(level.name())
         ;
         String msg;
         if (e instanceof BizException) {
             msg = MessageUtil.getMessage(((BizException) e).getErrorCode());
+        } else if (e instanceof Exception) {
+            msg = ((Exception) e).getMessage();
+        } else if (e instanceof String) {
+            msg = (String) e;
         } else {
-            msg = e.getMessage();
+            msg = e.toString();
         }
 
-        String message = "task start error :"  + msg;
-
-        save(builder.message(message).build(), user);
+        save(builder.message(msg).build(), user);
     }
 
     public void agentAssignMonitoringLog(TaskDto taskDto, String assigned, Integer available, UserDetail user, Date now) {
@@ -342,8 +344,9 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         mongoOperations.remove(new Query(Criteria.where("taskId").is(taskId)), MonitoringLogsEntity.class);
     }
 
-    public List<TaskDagCheckLog> getJsNodeLog(String testRunTaskId, String taskName) {
-        List<MonitoringLogsEntity> list = mongoOperations.find(Query.query(Criteria.where("taskId").is(testRunTaskId)), MonitoringLogsEntity.class);
+    public List<TaskDagCheckLog> getJsNodeLog(String testRunTaskId, String taskName, String nodeName) {
+        Query query = Query.query(Criteria.where("taskId").is(testRunTaskId).and("timestamp").gt(DateUtil.current() - 10000));
+        List<MonitoringLogsEntity> list = mongoOperations.find(query, MonitoringLogsEntity.class);
         if (CollectionUtils.isNotEmpty(list)) {
             return list.stream().map(log -> {
                 TaskDagCheckLog info = new TaskDagCheckLog();
@@ -351,11 +354,13 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                 info.setCheckType(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name());
                 // 2022-12-08 18:56:44【新任务@14:19:54】【模型推演检测】：
                 String date = DateUtil.toLocalDateTime(log.getDate()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN));
-                String message = "{0}【{1}】【JS处理节点】{2}：";
-                info.setLog(MessageFormat.format(message, date, taskName, log.getMessage()));
+                String message = "{0}【{1}】【{2}节点】{3}：";
+                info.setLog(MessageFormat.format(message, date, taskName, nodeName, log.getMessage()));
                 info.setGrade(Level.valueOf(log.getLevel()));
                 info.setCreateAt(log.getDate());
                 info.setId(log.getId());
+
+                info.setCreateAt(log.getDate());
                 return info;
             }).collect(Collectors.toList());
         }

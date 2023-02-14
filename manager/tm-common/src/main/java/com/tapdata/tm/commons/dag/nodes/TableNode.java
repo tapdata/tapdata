@@ -1,25 +1,24 @@
 package com.tapdata.tm.commons.dag.nodes;
 
-import com.tapdata.tm.commons.dag.*;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
+import com.tapdata.tm.commons.dag.NodeType;
+import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.event.WriteEvent;
-import com.tapdata.tm.commons.exception.DDLException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.JoinTable;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
-import io.tapdata.entity.event.ddl.entity.ValueChange;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.pdk.apis.entity.QueryOperator;
+import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -48,7 +47,7 @@ public class TableNode extends DataNode {
     private String increasesql;
     /** */
     @EqField
-    private Boolean isFilter = true;
+    private Boolean isFilter = false;
 
     /** 全量读取方式，读取全量，自定义sql */
     @EqField
@@ -63,17 +62,12 @@ public class TableNode extends DataNode {
     @EqField
     private Integer increaseReadSize = 500;
     /** 全量一批读取条数 */
-    @EqField
-    private Integer readBatchSize = 500;
     /** 事务最大时长 oracle专用  单位小时  */
     @EqField
     private Double maxTransactionDuration = 12.0;
     /** 已有数据处理模式 保持已存在的数据 keepData，运行前删除已存在的数据 removeData，删除表结构 dropTable */
     @EqField
     private String existDataProcessMode = "keepData";
-    /** 数据写入策略配置，数据写入模式： 更新已存在或者插入新数据（updateOrInsert）， 追加写入(appendWrite)， 更新写入(updateWrite) */
-    @EqField
-    private String writeStrategy = "updateOrInsert";
 
     /**
      * 数据写入策略
@@ -151,6 +145,29 @@ public class TableNode extends DataNode {
 
     private Map<String, Object> nodeConfig;
 
+    /** 自定义sql条件 */
+    @EqField
+    List<QueryOperator> conditions;
+    /** 自定义sql条件 */
+    @EqField
+    private Integer  limit;
+
+    /** 增量方式  logCdc  polling */
+    private String cdcMode;
+
+    /** 增量轮询指定字段名称 */
+    private List<CdcPollingField> cdcPollingFields;
+    /** 增量轮询排序方式  asc desc*/
+    private String cdcPollingOrder;
+
+    /** 增量轮询间隔  单位 毫秒 */
+    private int cdcPollingInterval;
+    /** 增量轮询的每次读取行数 */
+    private int cdcPollingBatchSize;
+
+
+
+
     public TableNode() {
         super("table");
     }
@@ -170,7 +187,7 @@ public class TableNode extends DataNode {
     }
 
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         if (StringUtils.isBlank(tableName)) {
             return null;
         }
@@ -194,9 +211,9 @@ public class TableNode extends DataNode {
         );
 
         if (listener != null) {
-            listener.schemaTransformResult(getId(), schemaTransformerResults);
+            listener.schemaTransformResult(getId(), this, schemaTransformerResults);
         }
-        Schema outputSchema = super.mergeSchema(inputSchemas, schema);
+        Schema outputSchema = super.mergeSchema(inputSchemas, schema, options);
 
         outputSchema.setFields(transformFields(inputFields, outputSchema, null));
         long count = outputSchema.getFields().stream().filter(Field::isDeleted).count();
@@ -264,5 +281,13 @@ public class TableNode extends DataNode {
     @Override
     public void fieldDdlEvent(TapDDLEvent event) throws Exception {
         updateDdlList(updateConditionFields, event);
+    }
+
+    @Data
+    public static class CdcPollingField implements Serializable {
+        /** 指定的轮询字段 */
+        private String field;
+        /** 指定的轮询字段默认值 */
+        private String defaultValue;
     }
 }

@@ -277,6 +277,7 @@ def run_jobs(test_case, run_params_template):
                 "result": case_result
             })
         except Exception as e:
+            print(e.with_traceback())
             result.append({
                 "params": run_param,
                 "result": False,

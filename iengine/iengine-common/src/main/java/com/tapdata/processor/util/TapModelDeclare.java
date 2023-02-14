@@ -12,9 +12,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 public class TapModelDeclare {
 
@@ -136,7 +134,8 @@ public class TapModelDeclare {
             && tapTable.getIndexList().stream().anyMatch(i -> i.getName().equals(indexName))) {
       throw new IllegalArgumentException("index name already exists");
     }
-    TapIndex tapIndex = getTapIndex(indexName, unique, primary, cluster, descMap);
+    Set<String> fieldNameSet = tapTable.getNameFieldMap().keySet();
+    TapIndex tapIndex = getTapIndex(indexName, unique, primary, cluster, descMap, fieldNameSet);
     tapTable.add(tapIndex);
   }
 
@@ -166,6 +165,10 @@ public class TapModelDeclare {
   }
 
   private static TapIndex getTapIndex(String indexName, Boolean unique, Boolean primary, Boolean cluster, List<Map<String, Object>> descMap) {
+    return getTapIndex(indexName, unique, primary, cluster, descMap, null);
+  }
+
+  private static TapIndex getTapIndex(String indexName, Boolean unique, Boolean primary, Boolean cluster, List<Map<String, Object>> descMap, Set<String> fieldNameSet) {
     TapIndex tapIndex = new TapIndex().name(indexName);
     if (unique != null) {
       tapIndex.unique(unique);
@@ -180,6 +183,9 @@ public class TapModelDeclare {
       String fieldName = (String) map.get("fieldName");
       if (StringUtils.isEmpty(fieldName)) {
         throw new IllegalArgumentException("The field name of the index cannot be empty");
+      }
+      if (fieldNameSet != null && !fieldNameSet.contains(fieldName)) {
+        throw new IllegalArgumentException("The field name not exist: " + fieldName);
       }
       String order = (String) map.get("order");
       tapIndex.indexField(new TapIndexField().name(fieldName).fieldAsc(StringUtils.equalsIgnoreCase(order, "asc")));

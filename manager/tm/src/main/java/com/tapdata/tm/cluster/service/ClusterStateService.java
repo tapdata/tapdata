@@ -8,6 +8,7 @@ import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -24,7 +25,6 @@ import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
-import com.tapdata.tm.worker.dto.TcmInfo;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.NonNull;
@@ -34,14 +34,15 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import org.springframework.util.Assert;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -56,8 +57,14 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 @Setter(onMethod_ = {@Autowired})
 public class ClusterStateService extends BaseService<ClusterStateDto, ClusterStateEntity, ObjectId, ClusterStateRepository> {
 
-    private WorkerService workerService;
-    private ClusterOperationService clusterOperationService;
+    @Autowired(required = false)
+    @Lazy
+    WorkerService workerService;
+
+    @Autowired
+    ClusterOperationService clusterOperationService;
+
+    @Autowired
     private MessageService messageService;
     private SettingsService settingsService;
     private MongoTemplate mongoTemplate;
@@ -97,13 +104,13 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             update.set("updateTime", new Date());
             update.set("updateVersion", version);
 //            workerService.update(workQuery, update);
-            workerService.updateAll(query,update);
+            workerService.update(query,update, userDetail);
             retResult = "1";
         } else {
             List<String> downList = Arrays.asList("tapdata", "tapdata.exe", "tapdata-agent", "log4j2.yml");
             clusterStateDtoList.forEach(clusterStateDto -> {
                 addNewClusterOperation(clusterStateDto, param, downList);
-                updateWorker(processId, param.getVersion());
+                updateWorker(processId, param.getVersion(), userDetail);
             });
 
         }
@@ -238,7 +245,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         repository.getMongoOperations().insert(cluserOperationEntity);
     }
 
-    private void updateWorker(String processId, String version) {
+    private void updateWorker(String processId, String version, UserDetail user) {
         Query query = Query.query(Criteria.where("process_id").is(processId));
         Update update = new Update();
         update.set("updateVersion", version);
@@ -247,7 +254,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         update.set("updateStatus", "preparing");
         update.set("updateMsg", "preparing");
         update.set("updatePingTime", new Date().getTime());
-        workerService.updateAll(query,update);
+        workerService.update(query, update, user);
     }
 
     /**
@@ -280,7 +287,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         Update update = Update.fromDocument(doc);
         update.set("status", "running");
         update.set("uuid",uuid);
-        update.set("insertTime", now);
+        update.setOnInsert("insertTime", now);
         update.set("ttl", new Date(newTtl.longValue()));
         update.set("last_updated",new Date());
         log.info("insert ClusterState data:{} ", JSON.toJSONString(update));
@@ -310,26 +317,29 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     public List<AccessNodeInfo> findAccessNodeInfo(UserDetail userDetail) {
         //需要过滤有效的work数据
         List<AccessNodeInfo> result = Lists.newArrayList();
-        List<Worker> availableAgent = workerService.findAvailableAgent(userDetail);
-        if (CollectionUtils.isEmpty(availableAgent)) {
+        List<Worker> workerList = workerService.findAllAgent(userDetail);
+        if (CollectionUtils.isEmpty(workerList)) {
             return result;
         }
 
-        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
-        if (Objects.isNull(buildProfile)) {
-            buildProfile = "DAAS";
-        }
-        boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+        boolean isCloud = settingsService.isCloud();
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        long liveTime = System.currentTimeMillis() - (overTime * 1000L);
 
-        availableAgent.forEach(dto -> {
-            String hostname = dto.getHostname();
+        workerList.forEach(worker -> {
+            AtomicReference<String> hostname = new AtomicReference<>(worker.getHostname());
             if (isCloud) {
-                TcmInfo tcmInfo = dto.getTcmInfo();
-                if (tcmInfo != null) {
-                    hostname = dto.getTcmInfo().getAgentName();
-                }
+                Optional.ofNullable(worker.getTcmInfo()).ifPresent(tcmInfo -> hostname.set(tcmInfo.getAgentName()));
             }
-            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(dto.getProcessId(), hostname, dto.getProcessId());
+
+            String status = "running";
+            if (Objects.nonNull(worker.getStopping()) && worker.getStopping()) {
+                status = "stopped";
+            } else if (Objects.isNull(worker.getPingTime()) || worker.getPingTime() < liveTime) {
+                status = "stopped";
+            }
+
+            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(worker.getProcessId(), hostname.get(), worker.getProcessId(), status);
             result.add(accessNodeInfo);
         });
 

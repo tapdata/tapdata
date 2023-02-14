@@ -7,7 +7,9 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Integer;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
+
 public class Iterations implements SchemaStart {
     public final Boolean use = true;
 
@@ -20,10 +22,12 @@ public class Iterations implements SchemaStart {
     public String tableName() {
         return "Iterations";
     }
+
     @Override
     public boolean connection(TapConnectionContext tapConnectionContext) {
         return false;
     }
+
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
         /**
@@ -69,25 +73,25 @@ public class Iterations implements SchemaStart {
     }
 
     @Override
-    public Map<String,Object> autoSchema(Map<String,Object> eventData){
-        return eventMapToSchemaMap(eventData,TapSimplify.map(
-                                            entry("Code", "code"),
-                                            entry("ProjectId", "project_id"),
-                                            entry("CreatedAt", "created_at"),
-                                            entry("UpdatedAt", "updated_at"),
-                                            entry("Assignee", "assignee.id"),
-                                            entry("Creator", "creator.id"),
-                                            entry("Deleter", "deleter.id"),
-                                            entry("Starter", "starter.id"),
-                                            entry("Completer", "completer.id"),
-                                            entry("StartAt", "start_at"),
-                                            entry("EndAt", "end_at"),
-                                            entry("WaitProcessCount", "wait_process_count"),
-                                            entry("ProcessingCount", "processing_count"),
-                                            entry("CompletedCount", "completed_count"),
-                                            entry("CompletedPercent", "completed_percent"),
-                                            entry("Name", "title"),
-                                            entry("Status", "status"),
-                                            entry("Goal", "goal")));
+    public Map<String, Object> autoSchema(Map<String, Object> eventData) {
+        return eventMapToSchemaMap(eventData, TapSimplify.map(
+                entry("Code", "code"),
+                entry("ProjectId", "project_id"),
+                entry("CreatedAt", "created_at"),
+                entry("UpdatedAt", "updated_at"),
+                entry("Assignee", "assignee.id"),
+                entry("Creator", "creator.id"),
+                entry("Deleter", "deleter.id"),
+                entry("Starter", "starter.id"),
+                entry("Completer", "completer.id"),
+                entry("StartAt", "start_at"),
+                entry("EndAt", "end_at"),
+                entry("WaitProcessCount", "wait_process_count"),
+                entry("ProcessingCount", "processing_count"),
+                entry("CompletedCount", "completed_count"),
+                entry("CompletedPercent", "completed_percent"),
+                entry("Name", "title"),
+                entry("Status", "status"),
+                entry("Goal", "goal")));
     }
 }

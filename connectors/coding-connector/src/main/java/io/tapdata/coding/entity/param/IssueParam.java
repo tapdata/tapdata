@@ -7,47 +7,57 @@ import java.util.Map;
 
 public class IssueParam extends Param {
     private IssueType issueType;
-    private List<Map<String,Object>> conditions;
+    private List<Map<String, Object>> conditions;
     private String sortKey;
     private String sortValue;
     private Integer issueCode;
-    public static IssueParam create(){
+
+    public static IssueParam create() {
         return new IssueParam();
     }
 
-    public IssueParam issueType(IssueType issueType){
+    public IssueParam issueType(IssueType issueType) {
         this.issueType = issueType;
         return this;
     }
-    public IssueParam conditions(List<Map<String,Object>> conditions){
+
+    public IssueParam conditions(List<Map<String, Object>> conditions) {
         this.conditions = conditions;
         return this;
     }
-    public IssueParam sortKey(String sortKey){
+
+    public IssueParam sortKey(String sortKey) {
         this.sortKey = sortKey;
         return this;
     }
-    public IssueParam sortValue(String sortValue){
+
+    public IssueParam sortValue(String sortValue) {
         this.sortValue = sortValue;
         return this;
     }
-    public IssueParam issueCode(Integer issueCode){
+
+    public IssueParam issueCode(Integer issueCode) {
         this.issueCode = issueCode;
         return this;
     }
-    public Integer issueCode(){
+
+    public Integer issueCode() {
         return this.issueCode;
     }
-    public IssueType issueType(){
+
+    public IssueType issueType() {
         return this.issueType;
     }
-    public List<Map<String,Object>> conditions(){
+
+    public List<Map<String, Object>> conditions() {
         return this.conditions;
     }
-    public String sortKey(){
+
+    public String sortKey() {
         return this.sortKey;
     }
-    public String sortValue(){
+
+    public String sortValue() {
         return this.sortValue;
     }
 }
