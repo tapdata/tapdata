@@ -2,14 +2,13 @@ package io.tapdata.connector.tidb;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.mysql.SqlMaker;
-//import io.tapdata.connector.tidb.cdc.TidbCdcRunner;
 import io.tapdata.connector.tidb.config.TidbConfig;
 import io.tapdata.connector.tidb.ddl.TidbSqlMaker;
+import io.tapdata.connector.tidb.dml.TidbReader;
 import io.tapdata.connector.tidb.dml.TidbRecordWrite;
 import io.tapdata.connector.tidb.kafka.KafkaService;
 import io.tapdata.connector.tidb.snapshot.SnapshotOffset;
@@ -36,23 +35,16 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
-import javafx.beans.binding.LongExpression;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.ParseException;
-import org.apache.http.client.ClientProtocolException;
 
-import java.io.IOException;
-import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -62,25 +54,15 @@ import java.util.stream.Collectors;
 public class TidbConnector extends ConnectorBase {
     private KafkaService kafkaService;
     private static final String TAG = TidbConnector.class.getSimpleName();
-    public static final String IMPLEMENTATION_PROP = "internal.implementation";
-    public static final String LEGACY_IMPLEMENTATION = "legacy";
     private TidbConfig tidbConfig;
-    private HttpUtil HttpUtil;
     private TidbContext tidbContext;
+    private TidbReader tidbReader;
     private String connectionTimezone;
-
     private TidbSqlMaker tidbSqlMaker;
-
     private TidbConnectionTest tidbConnectionTest;
-    private TidbJdbcRunner jdbcRunner;
-    // private TidbCdcRunner cdcRunner;
     private String version;
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
-
-    static boolean isLegacy(final String implementation) {
-        return LEGACY_IMPLEMENTATION.equals(implementation);
-    }
-
+    private static final int MAX_FILTER_RESULT_SIZE = 100;
 
     Map<String, Object> map;
     HttpUtil httpUtil = new HttpUtil();
@@ -93,23 +75,8 @@ public class TidbConnector extends ConnectorBase {
         if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
             tidbContext = (TidbContext) DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, tapConnectionContext.getId());
         }
-        HikariDataSource hikariDataSource;
-        if (null == tapConnectionContext) {
-            throw new IllegalArgumentException("TapConnectionContext cannot be null");
-        }
-        hikariDataSource = new HikariDataSource();
-        hikariDataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
-        hikariDataSource.setJdbcUrl(tidbConfig.getDatabaseUrl());
-        hikariDataSource.setUsername(tidbConfig.getUser());
-        hikariDataSource.setPassword(tidbConfig.getPassword());
-        hikariDataSource.setMinimumIdle(1);
-        hikariDataSource.setMaximumPoolSize(100);
-        hikariDataSource.setAutoCommit(false);
-        hikariDataSource.setIdleTimeout(60 * 1000L);
-        hikariDataSource.setKeepaliveTime(60 * 1000L);
-
-        jdbcRunner = new TidbJdbcRunner(tidbConfig, hikariDataSource);
-        this.version = jdbcRunner.queryVersion();
+        this.tidbReader = new TidbReader(tidbContext);
+        this.version = tidbContext.queryVersion();
         this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
         if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
             this.connectionTimezone = tidbContext.timezone();
@@ -133,7 +100,7 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportCreateIndex(this::createIndex);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportWriteRecord(this::writeRecord);
-
+        connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
 
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
@@ -220,7 +187,7 @@ public class TidbConnector extends ConnectorBase {
             sql = "SELECT * FROM " + TidbSqlMaker.formatTableName(tapTable, tidbConfig) + snapshotOffset.getSortString();//+ " OFFSET " + snapshotOffset.getOffsetValue() + " ROWS";
         }
 
-        jdbcRunner.query(sql, rs -> {
+        tidbContext.query(sql, rs -> {
             List<TapEvent> tapEvents = list();
             //get all column names
             List<String> columnNames = DbKit.getColumnsFromResultSet(rs);
@@ -370,20 +337,14 @@ public class TidbConnector extends ConnectorBase {
             DataSourcePool.removeJdbcContext(tidbConfig);
             tidbContext.finish(connectionContext.getId());
         }
-//        if (EmptyKit.isNotNull(cdcRunner)) {
-//            cdcRunner.close();
-//        }
         if (EmptyKit.isNotNull(tidbConnectionTest)) {
             tidbConnectionTest.close();
         }
-        if (EmptyKit.isNotNull(jdbcRunner)) {
-            jdbcRunner.finish(connectionContext.getId());
-        }
         if (EmptyKit.isNotNull(connectionContext.getConnectionConfig().get("changefeedId"))) {
             try {
-           httpUtil.deleteChangefeed((String) connectionContext.getConnectionConfig().get("changefeedId"),
-                    (String) connectionContext.getConnectionConfig().get("ticdcUrl"));
-           } catch (ParseException e) {
+                httpUtil.deleteChangefeed((String) connectionContext.getConnectionConfig().get("changefeedId"),
+                        (String) connectionContext.getConnectionConfig().get("ticdcUrl"));
+            } catch (ParseException e) {
                 e.printStackTrace();
             }
 
@@ -506,6 +467,25 @@ public class TidbConnector extends ConnectorBase {
         consumer.accept(testConnection);
     }
 
-
+    private void queryByAdvanceFilter(TapConnectorContext tapConnectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable tapTable, Consumer<FilterResults> consumer) {
+        FilterResults filterResults = new FilterResults();
+        filterResults.setFilter(tapAdvanceFilter);
+        try {
+            tidbReader.readWithFilter(tapConnectorContext, tapTable, tapAdvanceFilter, n -> !isAlive(), data -> {
+                filterResults.add(data);
+                if (filterResults.getResults().size() == MAX_FILTER_RESULT_SIZE) {
+                    consumer.accept(filterResults);
+                    filterResults.getResults().clear();
+                }
+            });
+            if (CollectionUtils.isNotEmpty(filterResults.getResults())) {
+                consumer.accept(filterResults);
+                filterResults.getResults().clear();
+            }
+        } catch (Throwable e) {
+            filterResults.setError(e);
+            consumer.accept(filterResults);
+        }
+    }
 }
 
