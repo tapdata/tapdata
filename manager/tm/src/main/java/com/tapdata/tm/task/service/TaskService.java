@@ -1388,21 +1388,25 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.info("deleteNotifyEnumData");
         for (TaskDto taskDto : page.getItems()) {
             List<AlarmSettingDto> alarmSettings = taskDto.getAlarmSettings();
-            for (AlarmSettingDto alarmSettingDto : alarmSettings) {
-                log.info("alarmSettingDto{}", JSONObject.toJSONString(alarmSettingDto));
-                alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
-                alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
-                log.info("alarmSettingDto after{}", JSONObject.toJSONString(alarmSettingDto));
+            if (CollectionUtils.isNotEmpty(alarmSettings)){
+                for (AlarmSettingDto alarmSettingDto : alarmSettings) {
+                    log.info("alarmSettingDto{}", JSONObject.toJSONString(alarmSettingDto));
+                    alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
+                    alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
+                    log.info("alarmSettingDto after{}", JSONObject.toJSONString(alarmSettingDto));
 
+                }
             }
-            for (Node node : taskDto.getDag().getNodes()) {
-                if (CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
-                    for (AlarmSettingDto alarmSettingDto : alarmSettings) {
-                        log.info("alarmSettingDto Node{}", JSONObject.toJSONString(alarmSettingDto));
-                        alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
-                        alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
-                        log.info("alarmSettingDto  Node after{}", JSONObject.toJSONString(alarmSettingDto));
+            if (taskDto.getDag().getNodes() != null) {
+                for (Node node : taskDto.getDag().getNodes()) {
+                    if (CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
+                        for (AlarmSettingDto alarmSettingDto : alarmSettings) {
+                            log.info("alarmSettingDto Node{}", JSONObject.toJSONString(alarmSettingDto));
+                            alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
+                            alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
+                            log.info("alarmSettingDto  Node after{}", JSONObject.toJSONString(alarmSettingDto));
 
+                        }
                     }
                 }
             }
