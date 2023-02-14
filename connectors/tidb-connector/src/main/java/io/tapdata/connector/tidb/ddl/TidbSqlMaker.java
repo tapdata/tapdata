@@ -1,5 +1,6 @@
 package io.tapdata.connector.tidb.ddl;
 
+import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.mysql.MysqlMaker;
 import io.tapdata.connector.tidb.config.TidbConfig;
@@ -19,10 +20,9 @@ import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
+
 import java.util.*;
 import java.util.stream.Collectors;
-
-import static io.tapdata.common.CommonSqlMaker.buildKeyAndValue;
 
 /**
  * @author lemon
@@ -39,7 +39,8 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
     protected static final int DEFAULT_CONSTRAINT_NAME_MAX_LENGTH = 30;
 
     private static final String TIDB_OBJECT_EXISTENCE_NULL_TEMPLATE = "IF OBJECT_ID('%s', 'U') IS NULL \n";
-    public String createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent){
+
+    public String createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         TapTable tapTable = tapCreateTableEvent.getTable();
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
@@ -137,6 +138,7 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
 
         return sqls;
     }
+
     protected String createTableAppendField(TapField tapField) {
         String datatype = tapField.getDataType().toUpperCase();
         String fieldSql = "  `" + tapField.getName() + "`" + " " + tapField.getDataType().toUpperCase();
@@ -161,10 +163,10 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
         // default value
         String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
         if (StringUtils.isNotBlank(defaultValue)) {
-            if(defaultValue.contains("'")){
+            if (defaultValue.contains("'")) {
                 defaultValue = StringUtils.replace(defaultValue, "'", "\\'");
             }
-            if(tapField.getTapType() instanceof TapNumber){
+            if (tapField.getTapType() instanceof TapNumber) {
                 defaultValue = defaultValue.trim();
             }
             fieldSql += " DEFAULT '" + defaultValue + "'";
@@ -212,9 +214,11 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
         constraintName += RandomStringUtils.randomAlphabetic(4).toUpperCase();
         return constraintName;
     }
+
     private static final String TIDB_FIELD_TEMPLATE = "%s";
     private static final String TIDB_TABLE_TEMPLATE = "%s.%s";//"[%s].[%s].[%s]";
     private static final String TIDB_TABLE_WITHOUT_DATABASE_TEMPLATE = "%s.%s";
+
     @Override
     public List<String> addColumn(TapConnectorContext tapConnectorContext, TapNewFieldEvent tapNewFieldEvent) {
         List<String> sqls = new ArrayList<>();
@@ -339,9 +343,9 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
         if (StringUtils.isBlank(after)) {
             throw new RuntimeException("Append alter column name ddl sql failed, new column name is blank");
         }
-       // Integer subVersion = MysqlUtil.getSubVersion(version, 1);
+        // Integer subVersion = MysqlUtil.getSubVersion(version, 1);
         String sql = String.format(ALTER_TABLE_PREFIX, database, tableId);
-       return Collections.singletonList(sql + " rename column `" + before + "` to `" + after + "`");
+        return Collections.singletonList(sql + " rename column `" + before + "` to `" + after + "`");
 
     }
 
@@ -368,9 +372,11 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
     public static String formatTableName(String database, String schema, String table) {
         return String.format(TIDB_TABLE_TEMPLATE, escape(database), escape(schema));//, escape(table)
     }
+
     public static String formatTableName(TapTable table, TidbConfig config) {
         return formatTableName(config.getDatabase(), table.getId(), table.getName());
     }
+
     public static String formatTableName(String schema, String table) {
         return String.format(TIDB_TABLE_WITHOUT_DATABASE_TEMPLATE, escape(schema), escape(table));
     }
@@ -378,10 +384,12 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
     public static String formatFieldName(String fieldName) {
         return String.format(TIDB_FIELD_TEMPLATE, fieldName);
     }
+
     public static String escape(String name) {
         // these conversions escape the special characters in database(eg. xxx-{()}][\|!@#$%^&*-_=+/>.<,)
-        return Objects.nonNull(name)?name.replaceAll("\\]", "]]"):null;
+        return Objects.nonNull(name) ? name.replaceAll("\\]", "]]") : null;
     }
+
     public static String buildSqlByAdvanceFilter(TapTable table, TidbConfig config, TapAdvanceFilter filter) {
         StringBuilder builder = new StringBuilder("SELECT ");
         if (null != filter.getLimit()) {
@@ -404,7 +412,7 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
 
         if (EmptyKit.isNotEmpty(filter.getMatch()) || EmptyKit.isNotEmpty(filter.getOperators())) {
             builder.append(" WHERE ");
-            builder.append(buildKeyAndValue(filter.getMatch(), "AND", "="));
+            builder.append(new CommonSqlMaker().buildKeyAndValue(filter.getMatch(), "AND", "="));
         }
         if (EmptyKit.isNotEmpty(filter.getOperators())) {
             if (EmptyKit.isNotEmpty(filter.getMatch())) {
