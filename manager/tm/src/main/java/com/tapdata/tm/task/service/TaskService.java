@@ -1274,7 +1274,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return super.find(filter, userDetail);
     }
     public Page<TaskDto> find(Filter filter, UserDetail userDetail) {
-        if (isAgentReq()) {
+        if (!isAgentReq()) {
+            log.info("isAgentReq{}",isAgentReq());
             Page<TaskDto>  page = super.find(filter, userDetail);
             deleteNotifyEnumData(page);
             return page;
