@@ -1400,7 +1400,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             if (taskDto.getDag().getNodes() != null) {
                 for (Node node : taskDto.getDag().getNodes()) {
                     if (CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
-                        for (AlarmSettingDto alarmSettingDto : alarmSettings) {
+                        List<AlarmSettingDto> alarmSetting = node.getAlarmSettings();
+                        for (AlarmSettingDto alarmSettingDto : alarmSetting) {
                             log.info("alarmSettingDto Node{}", JSONObject.toJSONString(alarmSettingDto));
                             alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
                             alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
