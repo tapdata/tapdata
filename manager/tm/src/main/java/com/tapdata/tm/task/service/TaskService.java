@@ -1278,9 +1278,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("isAgentReq{}",isAgentReq());
             Page<TaskDto>  page = super.find(filter, userDetail);
             deleteNotifyEnumData(page);
+            log.info("page{}",JSONObject.toJSONString(page));
+
             return page;
         }
-
+        log.info("not AgentReq");
         Where where = filter.getWhere();
         if (where == null) {
             where = new Where();
