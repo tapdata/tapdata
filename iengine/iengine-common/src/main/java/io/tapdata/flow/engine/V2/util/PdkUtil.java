@@ -13,6 +13,7 @@ import io.tapdata.pdk.apis.context.ConfigContext;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.*;
@@ -21,6 +22,7 @@ import org.apache.commons.net.util.Base64;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -70,6 +72,7 @@ public class PdkUtil {
 					httpClientMongoOperator.downloadFile(
 							new HashMap<String, Object>(1) {{
 								put("pdkHash", pdkHash);
+								put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
 							}},
 							"/pdk/jar",
 							filePath.toString(),
