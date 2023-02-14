@@ -5,6 +5,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
+import io.tapdata.pdk.run.base.RunClassMap;
 import io.tapdata.pdk.run.base.RunnerSummary;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
@@ -21,6 +22,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 @DisplayName("batchCountRun")
 @TapGo(sort = 4)
 public class BatchCountRun extends PDKBaseRun {
+    private static final String jsName = RunClassMap.BATCH_COUNT_RUN.jsName(0);
     @DisplayName("batchCountRun.run")
     @TapTestCase(sort = 1)
     @Test
@@ -37,7 +39,7 @@ public class BatchCountRun extends PDKBaseRun {
                 ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
                 BatchCountFunction batchCountFunction = connectorFunctions.getBatchCountFunction();
                 if (Objects.nonNull(batchCountFunction)) {
-                    Map<String, Object> batchCountConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get("batch_count")).orElse(new HashMap<>());
+                    Map<String, Object> batchCountConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get(BatchCountRun.jsName)).orElse(new HashMap<>());
                     Object tableName = batchCountConfig.get("tableName");
                     if (Objects.isNull(tableName)) {
                         super.runError(testCase, RunnerSummary.format("batchCountRun.noTable"));
@@ -59,6 +61,6 @@ public class BatchCountRun extends PDKBaseRun {
     }
 
     public static List<SupportFunction> testFunctions() {
-        return list(support(BatchCountFunction.class, RunnerSummary.format("jsFunctionInNeed","batch_count")));
+        return list(support(BatchCountFunction.class, RunnerSummary.format("jsFunctionInNeed",BatchCountRun.jsName)));
     }
 }
