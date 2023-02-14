@@ -207,7 +207,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	 * @param updateDto
 	 * @return
 	 */
-	public DataSourceConnectionDto update(UserDetail user, DataSourceConnectionDto updateDto) {
+	public DataSourceConnectionDto update(UserDetail user, DataSourceConnectionDto updateDto, boolean changeLast) {
 		Boolean submit = updateDto.getSubmit();
 		String oldName = updateCheck(user, updateDto);
 
@@ -247,7 +247,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			update.set("table_filter", null);
 		}
 
-		updateById(updateDto.getId(), update, user);
+		if (changeLast) {
+			updateById(updateDto.getId(), update, user);
+		} else {
+			updateByIdNotChangeLast(updateDto.getId(), update, user);
+		}
 
 		updateDto = findById(updateDto.getId(), user);
 
@@ -1145,7 +1149,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if (CollectionUtils.isEmpty(availableAgent)) {
 			Criteria.where("id").is(connectionDto.getId());
 			Update updateInvalid = Update.update("status", "invalid").set("errorMsg", "no agent");
-			updateById(connectionDto.getId(), updateInvalid, user);
+			updateByIdNotChangeLast(connectionDto.getId(), updateInvalid, user);
 			log.info("send test connection, agent not found");
 			return;
 
@@ -1979,7 +1983,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			update.set("timeZone", options.getTimeZone());
 		}
 
-		updateById(id, update, user);
+		updateByIdNotChangeLast(id, update, user);
 
 	}
 
