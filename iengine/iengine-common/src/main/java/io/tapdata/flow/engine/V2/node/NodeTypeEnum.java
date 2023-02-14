@@ -1,4 +1,4 @@
-package io.tapdata.flow.engine.V2.common.node;
+package io.tapdata.flow.engine.V2.node;
 
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 

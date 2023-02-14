@@ -1,11 +1,13 @@
+package com.tapdata;
+
 import com.hazelcast.config.Config;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.hazelcast.HZLoggingType;
-import io.tapdata.ConstructIterator;
-import io.tapdata.HazelcastConstruct;
-import io.tapdata.constructImpl.ConstructRingBuffer;
+import io.tapdata.construct.ConstructIterator;
+import io.tapdata.construct.HazelcastConstruct;
+import io.tapdata.construct.constructImpl.ConstructRingBuffer;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
 import org.bson.Document;

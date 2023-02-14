@@ -1,6 +1,7 @@
-package io.tapdata.constructImpl;
+package io.tapdata.construct.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import org.bson.Document;
 import org.bson.types.Decimal128;
 
@@ -14,6 +15,10 @@ public class DocumentIMap<T> extends ConstructIMap<T> {
 
 	public DocumentIMap(HazelcastInstance hazelcastInstance, String name) {
 		super(hazelcastInstance, name);
+	}
+
+	public DocumentIMap(HazelcastInstance hazelcastInstance, String name, ExternalStorageDto externalStorageDto) {
+		super(hazelcastInstance, name, externalStorageDto);
 	}
 
 	@Override

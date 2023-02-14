@@ -230,10 +230,6 @@
             <groupId>org.samba.jcifs</groupId>
             <artifactId>jcifs</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.tapdata</groupId>
-            <artifactId>hazelcast-lib</artifactId>
-        </dependency>
     </dependencies>
 
     <build>

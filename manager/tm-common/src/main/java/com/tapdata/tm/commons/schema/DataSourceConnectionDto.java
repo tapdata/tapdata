@@ -276,6 +276,8 @@ public class DataSourceConnectionDto extends BaseDto {
         private String connectionString;
 
         private Map<String, Object> extParam;
+        // Share cdc external storage id
+        private String shareCDCExternalStorageId;
 
         private Date loadSchemaTime;
 

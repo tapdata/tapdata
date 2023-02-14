@@ -9,6 +9,7 @@ import com.tapdata.cache.*;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 
+import java.util.Map;
 import java.util.concurrent.locks.Lock;
 
 public class HazelcastCacheService extends AbstractCacheService {
@@ -17,11 +18,13 @@ public class HazelcastCacheService extends AbstractCacheService {
 
   private final HazelcastInstance hazelcastInstance;
 
+  private Map<String, ICacheStats> cacheStatsMap;
+
 
   public HazelcastCacheService(HazelcastInstance hazelcastInstance, ClientMongoOperator clientMongoOperator) {
     super(clientMongoOperator);
     this.hazelcastInstance = hazelcastInstance;
-    super.setCacheStatsMap(hazelcastInstance.getMap(CACHE_KEY_PREFIX + "cacheStats"));
+    this.setCacheStatsMap(hazelcastInstance.getMap(CACHE_KEY_PREFIX + "cacheStats"));
     super.cacheStatusMap = hazelcastInstance.getMap(CACHE_KEY_PREFIX + "cacheStatus");
   }
 
@@ -64,7 +67,7 @@ public class HazelcastCacheService extends AbstractCacheService {
 
   @Override
   protected ICacheStats getCacheStats(String cacheName) {
-    return super.getCacheStatsMap().computeIfAbsent(cacheName, f -> new HazelcastCacheStats());
+    return getCacheStatsMap().computeIfAbsent(cacheName, f -> new HazelcastCacheStats());
   }
 
   @Override
@@ -74,6 +77,14 @@ public class HazelcastCacheService extends AbstractCacheService {
       return null;
     }
     return super.getCacheStoreMap().computeIfAbsent(cacheName, f -> new HazelcastCacheStore(hazelcastInstance, config));
+  }
+
+  public void setCacheStatsMap(Map<String, ICacheStats> cacheStatsMap) {
+    this.cacheStatsMap = cacheStatsMap;
+  }
+
+  protected Map<String, ICacheStats> getCacheStatsMap() {
+    return cacheStatsMap;
   }
 
 }
