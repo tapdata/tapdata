@@ -1,10 +1,12 @@
 package com.tapdata.tm.alarm.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateField;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
+import cn.hutool.json.JSONUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -25,20 +27,20 @@ import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.message.constant.Level;
-import com.tapdata.tm.message.constant.MessageMetadata;
-import com.tapdata.tm.message.constant.MsgTypeEnum;
-import com.tapdata.tm.message.constant.SystemEnum;
+import com.tapdata.tm.events.constant.Type;
+import com.tapdata.tm.events.service.EventsService;
+import com.tapdata.tm.message.constant.*;
+import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.service.MessageService;
+import com.tapdata.tm.mp.service.MpService;
+import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MailUtils;
-import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.*;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
@@ -52,6 +54,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
@@ -75,6 +78,16 @@ public class AlarmServiceImpl implements AlarmService {
     private MessageService messageService;
     private SettingsService settingsService;
     private UserService userService;
+
+    private SmsService smsService;
+
+    private MpService mpService;
+
+    MailUtils mailUtils;
+    EventsService eventsService;
+    private final static String MAIL_SUBJECT = "【Tapdata】";
+    private final static String MAIL_CONTENT = "尊敬的用户您好，您在Tapdata Cloud上创建的Agent:";
+
 
     @Override
     public void save(AlarmInfo info) {
@@ -125,13 +138,11 @@ public class AlarmServiceImpl implements AlarmService {
         }
 
         boolean openSys = false;
-
         List<AlarmSettingDto> all = alarmSettingService.findAll(userDetail);
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
                     t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
         }
-
         return openTask && openSys;
     }
 
@@ -170,9 +181,10 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void notifyAlarm() {
+        log.info("notifyAlarm.......");
         Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE)
                 .and("lastNotifyTime").lt(DateUtil.date()).gt(DateUtil.offsetSecond(DateUtil.date(), -30)
-        );
+                );
         Query needNotifyQuery = new Query(criteria);
         List<AlarmInfo> alarmInfos = mongoTemplate.find(needNotifyQuery, AlarmInfo.class);
 
@@ -200,27 +212,47 @@ public class AlarmServiceImpl implements AlarmService {
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMessage(info, taskDto, userDetail);
                 if (!reuslt) {
-                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
-                    info.setLastNotifyTime(dateTime);
+                    //DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                    info.setLastNotifyTime(null);
                     save(info);
                 }
             });
             FunctionUtils.ignoreAnyError(() -> {
-                boolean reuslt = sendMail(info, taskDto, userDetail);
+                boolean reuslt = sendMail(info, taskDto, userDetail, null);
                 if (!reuslt) {
-                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
-                    info.setLastNotifyTime(dateTime);
+                  //  DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                    info.setLastNotifyTime(null);
                     save(info);
                 }
             });
+
+            boolean isCloud = settingsService.isCloud();
+            if (isCloud) {
+                FunctionUtils.ignoreAnyError(() -> {
+                    boolean reuslt = sendSms(info, taskDto, userDetail, null);
+                    if (!reuslt) {
+                       // DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                        info.setLastNotifyTime(null);
+                        save(info);
+                    }
+                });
+                FunctionUtils.ignoreAnyError(() -> {
+                    boolean reuslt = sendWeChat(info, taskDto, userDetail, null);
+                    if (!reuslt) {
+                        //DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                        info.setLastNotifyTime(null);
+                        save(info);
+                    }
+                });
+            }
         }
+
     }
 
     private boolean sendMessage(AlarmInfo info, TaskDto taskDto, UserDetail userDetail) {
         try {
             if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM, userDetail)) {
                 String taskId = taskDto.getId().toHexString();
-
                 Date date = DateUtil.date();
                 MessageEntity messageEntity = new MessageEntity();
                 messageEntity.setLevel(info.getLevel().name());
@@ -247,60 +279,57 @@ public class AlarmServiceImpl implements AlarmService {
         return true;
     }
 
-    private boolean sendMail(AlarmInfo info, TaskDto taskDto, UserDetail userDetail) {
+    private boolean sendMail(AlarmInfo info, TaskDto taskDto, UserDetail userDetail, MessageDto messageDto) {
         try {
-            if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail)) {
-                String title = null;
-                String content = null;
-                MailAccountDto mailAccount = getMailAccount(taskDto.getUserId());
-                String dateTime = DateUtil.formatDateTime(info.getLastOccurrenceTime());
-                switch (info.getMetric()) {
-                    case TASK_STATUS_STOP:
-                        boolean manual = info.getSummary().contains("已被用户");
-                        title = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName())
-                                : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
-                        content = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), dateTime, info.getParam().get("updatorName"))
-                                : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), info.getLastOccurrenceTime());
-                        break;
-                    case TASK_STATUS_ERROR:
-                        title = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
-                        content = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), dateTime);
-                        break;
-                    case TASK_FULL_COMPLETE:
-                        title = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE_TITLE, info.getName());
-                        content = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE, info.getName(), info.getParam().get("fullTime"));
-                        break;
-                    case TASK_INCREMENT_START:
-                        title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START_TITLE, info.getName());
-                        content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START, info.getName(), info.getParam().get("cdcTime"));
-                        break;
-                    case TASK_INCREMENT_DELAY:
-                        title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
-                        content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("time"));
-                        break;
-                    case DATANODE_CANNOT_CONNECT:
-                        title = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT_TITLE, info.getName());
-                        content = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT, info.getName(), info.getNode(), dateTime);
-                        break;
-                    case DATANODE_AVERAGE_HANDLE_CONSUME:
-                        title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
-                        content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), dateTime);
-                        break;
-                    case PROCESSNODE_AVERAGE_HANDLE_CONSUME:
-                        title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
-                        content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(),
-                                info.getParam().get("interval"), info.getParam().get("current"), dateTime);
-                        break;
-                    default:
-
+            String title = null;
+            String content = null;
+            MailAccountDto mailAccount = getMailAccount(taskDto.getUserId());
+            if (messageDto == null) {
+                if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail)) {
+                    Map<String, String> map = getTaskTitleAndContent(info, taskDto);
+                    content = map.get("content");
+                    title = map.get("title");
                 }
-
-                if (Objects.nonNull(title)) {
-                    Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
-                    AtomicReference<String> mailTitle = new AtomicReference<>(title);
-                    Optional.ofNullable(prefix).ifPresent(pre -> mailTitle.updateAndGet(v -> pre.getValue() + v));
-                    MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
+            } else {
+                String msgType = messageDto.getMsg();
+                AlarmKeyEnum alarmKeyEnum;
+                alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
+                if(MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                    alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_UP;
                 }
+                if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.EMAIL)) {
+                    log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
+                    return false;
+                }
+                MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
+                //目前msgNotification 只会有三种情况
+                String metadataName = messageMetadata.getName();
+                if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
+                    if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                        title = "实例上线";
+                        content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
+                    } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                        title = "实例离线";
+                        content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
+                    }
+                } else {
+                    if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                        title = "状态变为运行中";
+                        content = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
+                    } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                        title = "状态已由运行中变为离线，可能会影响您的任务正常运行，请及时处理。";
+                        content = "您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
+                    } else if (MsgTypeEnum.STOPPED_BY_ERROR.getValue().equals(msgType)) {
+
+                    }
+                }
+            }
+            log.info("send sendMail mailAccount：{} ",mailAccount);
+            if (Objects.nonNull(title)) {
+                Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
+                AtomicReference<String> mailTitle = new AtomicReference<>(title);
+                Optional.ofNullable(prefix).ifPresent(pre -> mailTitle.updateAndGet(v -> pre.getValue() + v));
+                MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
             }
         } catch (Exception e) {
             log.error("sendMail error: {}", ThrowableUtils.getStackTraceByPn(e));
@@ -308,6 +337,224 @@ public class AlarmServiceImpl implements AlarmService {
         }
         return true;
     }
+
+
+    public Map<String, String> getTaskTitleAndContent(AlarmInfo info, TaskDto taskDto) {
+        String title = null;
+        String content = null;
+        String dateTime = DateUtil.formatDateTime(info.getLastOccurrenceTime());
+        String SmsEvent="";
+        switch (info.getMetric()) {
+            case TASK_STATUS_STOP:
+                boolean manual = info.getSummary().contains("已被用户");
+                title = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName())
+                        : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
+                content = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), dateTime, info.getParam().get("updatorName"))
+                        : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), info.getLastOccurrenceTime());
+                SmsEvent = "任务停止";
+                break;
+            case TASK_STATUS_ERROR:
+                title = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
+                content = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), dateTime);
+                SmsEvent = "任务错误";
+                break;
+            case TASK_FULL_COMPLETE:
+                title = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE_TITLE, info.getName());
+                content = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE, info.getName(), info.getParam().get("fullTime"));
+                SmsEvent = "全量任务结束";
+                break;
+            case TASK_INCREMENT_START:
+                title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START_TITLE, info.getName());
+                content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START, info.getName(), info.getParam().get("cdcTime"));
+                SmsEvent = "增量任务开始";
+                break;
+            case TASK_INCREMENT_DELAY:
+                title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
+                content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("time"));
+                SmsEvent = "增量任务延迟";
+                break;
+            case DATANODE_CANNOT_CONNECT:
+                title = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT_TITLE, info.getName());
+                content = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT, info.getName(), info.getNode(), dateTime);
+                SmsEvent = "任务连接中断";
+                break;
+            case DATANODE_AVERAGE_HANDLE_CONSUME:
+                title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
+                content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), dateTime);
+                SmsEvent = "当前任务运行超过阈值";
+                break;
+            case PROCESSNODE_AVERAGE_HANDLE_CONSUME:
+                title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
+                content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(),
+                        info.getParam().get("interval"), info.getParam().get("current"), dateTime);
+                SmsEvent = "当前任务运行超过阈值";
+                break;
+            default:
+
+        }
+        Map map = new HashMap();
+        map.put("title", title);
+        map.put("content", content);
+        map.put("smsEvent", SmsEvent);
+        return map;
+    }
+
+    /**
+     * 是否用发送权限
+     * @return
+     */
+    private boolean isOwnPermission(UserDetail userDetail, AlarmKeyEnum key, NotifyEnum type) {
+        boolean permission = false;
+        List<AlarmSettingDto> all = alarmSettingService.findAll(userDetail);
+        if (CollectionUtils.isNotEmpty(all)) {
+            permission = all.stream().anyMatch(t ->
+                    t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
+        }
+        return  permission;
+    }
+
+    private boolean sendSms(AlarmInfo info, TaskDto taskDto, UserDetail userDetail, MessageDto messageDto) {
+        try {
+            if (StringUtils.isEmpty(userDetail.getPhone())) {
+                log.error("Current user ({}, {}) can't bind phone, cancel send message.", userDetail.getUsername(), userDetail.getUserId());
+                return false;
+            }
+            log.info("send sendSms");
+            String smsTemplateCode = "";
+            String system = "task";
+            String phone = userDetail.getPhone();
+            String metadataName = "";
+            String smsContent = "";
+            String templateParam="";
+            // task alarm
+            if (messageDto == null) {
+                if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SMS, userDetail)) {
+                    log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
+                    return false;
+                }
+                Map<String, String> map = getTaskTitleAndContent(info, taskDto);
+                String smsEvent = map.get("smsEvent");
+                if(info.getMetric().name().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().name().equals(AlarmKeyEnum.TASK_FULL_COMPLETE)){
+                    smsTemplateCode = SmsService.TASK_NOTICE;
+                    templateParam ="{\"JobName\":\"" + taskDto.getName()+smsEvent + "\"}";
+                }else {
+                    templateParam=  "{\"JobName\":\"" +taskDto.getName() + "\",\"eventName\":\""+ smsEvent+"\"}";
+                    smsTemplateCode = SmsService.TASK_ABNORMITY_NOTICE;
+                }
+                smsContent = map.get("content");
+            } else {
+                String msgType = messageDto.getMsg();
+                AlarmKeyEnum alarmKeyEnum;
+                alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
+               if(MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                    alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_UP;
+               }
+                if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.SMS)) {
+                    log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
+                    return false;
+                }
+                MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
+                //目前msgNotification 只会有三种情况
+                metadataName = messageMetadata.getName();
+                if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
+                    if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                        smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
+                    } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                        smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
+                    }
+                } else {
+                    if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                        smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
+                    } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                        smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
+                    }
+                }
+                smsTemplateCode = smsService.getTemplateCode(messageDto);
+                system = messageDto.getSystem();
+                String telParamName = SmsService.getTelParamNameByMessageSystem(system);
+                templateParam ="{\"" + telParamName + "\":\"" + metadataName + "\"}";
+            }
+            log.info("发送短信通知{}", phone);
+            SendStatus sendStatus = smsService.sendShortMessage(smsTemplateCode, phone, templateParam);
+            if (messageDto != null) {
+                eventsService.recordEvents(MAIL_SUBJECT, smsContent, phone, messageDto, sendStatus, 1, Type.NOTICE_SMS);
+            }
+        } catch (Exception e) {
+            log.error("sendSms error: {}", ThrowableUtils.getStackTraceByPn(e));
+            return false;
+        }
+        return true;
+    }
+
+
+
+
+
+    private boolean sendWeChat(AlarmInfo info, TaskDto taskDto, UserDetail userDetail, MessageDto messageDto) {
+        try {
+            String openId = userDetail.getOpenid();
+            if (StringUtils.isBlank(openId)) {
+                log.error("Current user ({}, {}) can't bind weChat, cancel push message.", userDetail.getUsername(), userDetail.getUserId());
+                return false;
+            }
+            String metadataName = "";
+            String title = "";
+            String content = "";
+            // 任务级别的告警
+            if (messageDto == null) {
+                if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.WECHAT, userDetail)) {
+                    log.info("Current user ({}, {}) can't open weChat notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
+                    return false;
+                }
+                Map<String, String> map = getTaskTitleAndContent(info, taskDto);
+                content = map.get("content");
+                title = map.get("title");
+            } else {
+                String msgType = messageDto.getMsg();
+                AlarmKeyEnum alarmKeyEnum;
+                alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
+                if(MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                    alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_UP;
+                }
+                if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.WECHAT)) {
+                    log.info("Current user ({}, {}) can't open weChat notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
+                    return false;
+                }
+                MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
+                //目前msgNotification 只会有三种情况
+                metadataName = messageMetadata.getName();
+                if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
+                    if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                        title = "实例 " + metadataName + "已上线运行";
+                        content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
+                    } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                        title = "实例 " + metadataName + "已离线";
+                        content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
+                    }
+                } else {
+                    if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                        title = "任务:" + metadataName + " 正在运行";
+                        content = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
+                    } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                        title = "任务:" + metadataName + " 出错";
+                        content = "您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
+                    }
+                }
+            }
+            log.info("Send alarm message ({}, {}) to user ({}, {}).",
+                    title, content, userDetail.getUsername(), userDetail.getUserId());
+            log.info("Send weChat message {}", openId);
+            SendStatus status = mpService.sendAlarmMsg(openId, title, content, new Date());
+            if (messageDto != null) {
+                eventsService.recordEvents(MAIL_SUBJECT, content, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
+            }
+        } catch (Exception e) {
+            log.error("sendWeChat error: {}", ThrowableUtils.getStackTraceByPn(e));
+            return false;
+        }
+        return true;
+    }
+
 
     private DateField parseDateUnit(DateUnit dateUnit) {
         if (Objects.isNull(dateUnit)) {
@@ -336,8 +583,7 @@ public class AlarmServiceImpl implements AlarmService {
         Query query = new Query(Criteria.where("_id").in(collect));
         Update update = new Update().set("status", AlarmStatusEnum.CLOESE.name())
                 .set("closeTime", DateUtil.date())
-                .set("closeBy", userDetail.getUserId())
-                ;
+                .set("closeBy", userDetail.getUserId());
         mongoTemplate.updateMulti(query, update, AlarmInfo.class);
     }
 
@@ -357,7 +603,7 @@ public class AlarmServiceImpl implements AlarmService {
                     Criteria.where("summary").regex(keyword));
         }
 
-        if (Objects.nonNull(start) && Objects.nonNull(end)){
+        if (Objects.nonNull(start) && Objects.nonNull(end)) {
             criteria.and("lastOccurrenceTime").gt(DateUtil.date(start)).lt(DateUtil.date(end));
         } else if (Objects.nonNull(start)) {
             criteria.and("lastOccurrenceTime").gt(DateUtil.date(start));
@@ -391,7 +637,7 @@ public class AlarmServiceImpl implements AlarmService {
                         .taskId(t.getTaskId())
                         .metric(t.getMetric())
                         .syncType(taskDtoMap.get(t.getTaskId()).getSyncType())
-                .build()).collect(Collectors.toList());
+                        .build()).collect(Collectors.toList());
 
         return new Page<>(count, collect);
     }
@@ -421,7 +667,7 @@ public class AlarmServiceImpl implements AlarmService {
 
         Map<String, Integer> nodeNumMap = Maps.newHashMap();
         List<AlarmListInfoVo> collect = Lists.newArrayList();
-        alarmInfos.forEach( t -> {
+        alarmInfos.forEach(t -> {
             AlarmListInfoVo build = AlarmListInfoVo.builder()
                     .id(t.getId().toHexString())
                     .level(t.getLevel())
@@ -640,4 +886,83 @@ public class AlarmServiceImpl implements AlarmService {
     public List<AlarmInfo> query(Query query) {
         return mongoTemplate.find(query, AlarmInfo.class);
     }
+
+    private Boolean getDefaultNotification(String system, String msgType, String notificationType) {
+        Object defaultNotification = settingsService.getByCategoryAndKey("notification", "notification");
+        Map<String, List> defaultSettingMap = JsonUtil.parseJson((String) defaultNotification, Map.class);
+
+        String key = "";
+        String label = "";
+        if (system.equals(SystemEnum.AGENT.getValue())) {
+            key = "agentNotification";
+            if (msgType.equals(MsgTypeEnum.CONNECTED.getValue())) {
+                label = "agentStarted";
+            } else if (msgType.equals(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue())) {
+                label = "agentStopped";
+            }
+        } else if (system.equals(SystemEnum.DATAFLOW.getValue())) {
+            key = "runNotification";
+            if (msgType.equals(MsgTypeEnum.CONNECTED.getValue())) {
+                label = "jobStarted";
+            } else if (msgType.equals(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue())) {
+                label = "jobStateError";
+            }
+        }
+
+        List<Map> agentNotificationMapList = defaultSettingMap.get(key);
+        if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(agentNotificationMapList)) {
+            for (Map<String, Boolean> agentNotificationMap : agentNotificationMapList) {
+                if (label.equals(agentNotificationMap.get("label"))) {
+                    return agentNotificationMap.get(notificationType);
+                }
+            }
+        }
+        return false;
+    }
+
+
+    /**
+     * 只有三种情况会新增一条message
+     * 1、agent启动。TCM触发，TCM通过接口创建消息。
+     * 2、agent停止。TCM触发，TCM通过接口创建消息。
+     * 3、任务出错。通过dataFlows数据中status属性改为error，做为判断依据，创建消息通知。  这个时候需要发送邮件，或者短信通知用户
+     *
+     * @param messageDto
+     * @return
+     */
+    @Async("NotificationExecutor")
+    public MessageDto add(MessageDto messageDto) {
+        try {
+            MessageEntity messageEntity = new MessageEntity();
+            BeanUtil.copyProperties(messageDto, messageEntity, "messageMetadata");
+            MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
+            messageEntity.setMessageMetadata(messageMetadata);
+            String userId = messageDto.getUserId();
+            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
+            if (null != userDetail) {
+                messageEntity.setUserId(userId);
+                messageEntity.setCreateAt(new Date());
+                messageEntity.setServerName(messageDto.getAgentName());
+                messageEntity.setLastUpdAt(new Date());
+                messageEntity.setLastUpdBy(userDetail.getUsername());
+                messageService.addMessage(messageEntity);
+                messageDto.setId(messageEntity.getId().toString());
+                informUser(messageDto, userDetail);
+            } else {
+                log.error("找不到用户信息. userId:{}", userId);
+            }
+
+        } catch (Exception e) {
+            log.error("新增消息异常，", e);
+        }
+        return messageDto;
+    }
+
+    private void informUser(MessageDto messageDto, UserDetail userDetail) {
+        log.info("informUser");
+        sendMail(null, null, userDetail, messageDto);
+        sendSms(null, null, userDetail, messageDto);
+        sendWeChat(null, null, userDetail, messageDto);
+    }
+
 }

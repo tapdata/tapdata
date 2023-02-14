@@ -4,6 +4,7 @@ import com.aliyuncs.DefaultAcsClient;
 import com.aliyuncs.IAcsClient;
 import com.aliyuncs.dysmsapi.model.v20170525.SendSmsRequest;
 import com.aliyuncs.dysmsapi.model.v20170525.SendSmsResponse;
+import com.aliyuncs.exceptions.ClientException;
 import com.aliyuncs.http.MethodType;
 import com.aliyuncs.profile.DefaultProfile;
 import com.aliyuncs.profile.IClientProfile;
@@ -40,6 +41,10 @@ public class SmsService {
     public static final String RELEASE_AGENT = "SMS_222870037";
     public static final String WILL_RELEASE_AGENT = "SMS_222870036";
 
+    public static final String TASK_ABNORMITY_NOTICE="SMS_269600641";
+
+    public static final String TASK_NOTICE="SMS_269520595";
+
 
 
     private static final String TEMPLATE_PARAM_AGENT_NAME = "AgentName";
@@ -69,17 +74,7 @@ public class SmsService {
 
         SendSmsResponse sendSmsResponse = null;
         try {
-            //设置超时时间-可自行调整
-            System.setProperty("sun.net.client.defaultConnectTimeout", "10000");
-            System.setProperty("sun.net.client.defaultReadTimeout", "10000");
-            //初始化ascClient需要的几个参数
-            final String product = "Dysmsapi";//短信API产品名称（短信产品名固定，无需修改）
-            final String domain = "dysmsapi.aliyuncs.com";//短信API产品域名（接口地址固定，无需修改）
-            //初始化ascClient,暂时不支持多region（请勿修改）
-            IClientProfile profile = DefaultProfile.getProfile("cn-hangzhou", accessKeyId,
-                    accessKeySecret);
-            DefaultProfile.addEndpoint("cn-hangzhou", "cn-hangzhou", product, domain);
-            IAcsClient acsClient = new DefaultAcsClient(profile);
+            IAcsClient acsClient=  buildSendSms();
             //组装请求对象
             SendSmsRequest request = new SendSmsRequest();
             //使用post提交
@@ -121,7 +116,75 @@ public class SmsService {
         }
         return sendStatus;
     }
-    private static String getTelParamNameByMessageSystem(String systemEnum) {
+
+    private IAcsClient buildSendSms() throws ClientException {
+        try {
+            System.setProperty("sun.net.client.defaultConnectTimeout", "10000");
+            System.setProperty("sun.net.client.defaultReadTimeout", "10000");
+            //初始化ascClient需要的几个参数
+            final String product = "Dysmsapi";//短信API产品名称（短信产品名固定，无需修改）
+            final String domain = "dysmsapi.aliyuncs.com";//短信API产品域名（接口地址固定，无需修改）
+            //初始化ascClient,暂时不支持多region（请勿修改）
+            IClientProfile profile = DefaultProfile.getProfile("cn-hangzhou", accessKeyId,
+                    accessKeySecret);
+            DefaultProfile.addEndpoint("cn-hangzhou", "cn-hangzhou", product, domain);
+            IAcsClient acsClient = new DefaultAcsClient(profile);
+            return acsClient;
+        } catch (Exception e) {
+            log.error("Build sendSms fail", e);
+            throw e;
+        }
+    }
+
+
+    public  SendStatus sendShortMessage(String templateCode, String phoneNumbers, String templateParam) {
+        SendStatus sendStatus = new SendStatus("false", "");
+        log.info("sendShortMessage  starting");
+        if (StringUtils.isBlank(accessKeyId) || StringUtils.isBlank(accessKeySecret)) {
+            sendStatus.setErrorMessage("Send sms fail, please configure {aliyun.accessKey} " +
+                    "and {aliyun.accessKeySecret} in application config file.");
+            return sendStatus;
+        }
+
+        SendSmsResponse sendSmsResponse = null;
+        try {
+            IAcsClient acsClient = buildSendSms();
+            //组装请求对象
+            SendSmsRequest request = new SendSmsRequest();
+            //使用post提交
+            request.setMethod(MethodType.POST);
+
+            //必填:待发送手机号。支持以逗号分隔的形式进行批量调用，批量上限为1000个手机号码,批量调用相对于单条调用及时性稍有延迟,验证码类型的短信推荐使用单条调用的方式；
+            // 发送国际/港澳台消息时，接收号码格式为国际区号+号码，如“85200000000”
+            request.setPhoneNumbers(phoneNumbers);
+
+            //必填:短信签名-可在短信控制台中找到
+            request.setSignName("Tapdata");
+
+            //必填:短信模板-可在短信控制台中找到，发送国际/港澳台消息时，请使用国际/港澳台短信模版
+            request.setTemplateCode(templateCode);
+            request.setTemplateParam(templateParam);
+            sendSmsResponse = acsClient.getAcsResponse(request);
+            if (null != sendSmsResponse && sendSmsResponse.getCode() != null && sendSmsResponse.getCode().equals("OK")) {
+                sendStatus.setStatus("true");
+                log.info("短信发送成功");
+            }
+            else {
+                log.info("sendSmsResponse{}",sendSmsResponse.getMessage());
+                sendStatus.setErrorMessage(sendSmsResponse.getMessage());
+            }
+        } catch (Exception e) {
+            log.error("发送短信异常", e);
+            sendStatus.setErrorMessage(e.getMessage());
+        }
+        return sendStatus;
+
+
+
+
+
+    }
+    public static String getTelParamNameByMessageSystem(String systemEnum) {
         if (SystemEnum.AGENT.getValue().equals(systemEnum)) {
             return TEMPLATE_PARAM_AGENT_NAME;
         } else if (SystemEnum.MIGRATION.getValue().equals(systemEnum)) {
@@ -193,7 +256,6 @@ public class SmsService {
         }
         return smsTemplateCode;
     }
-
 
 
 
