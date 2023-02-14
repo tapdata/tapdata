@@ -1,4 +1,4 @@
-package io.tapdata.connector.hazelcast;
+package io.tapdata.connector.hazelcast.util;
 
 import java.io.Serializable;
 import java.util.Collection;

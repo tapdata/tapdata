@@ -50,13 +50,14 @@ public class HazelcastClientUtil {
         File keystoreFile = null;
         File truststoreFile = null;
         boolean ssl = true;
+        boolean needCleanFile = false;
         ClientConfig config = new ClientConfig();
         Properties props = new Properties();
 
         if (ssl) {
             String sslKey = connectionConfig.getString("sslKey");
             String sslCA = connectionConfig.getString("sslCA");
-            String sslPass = connectionConfig.getString("sslPass");
+            String sslPass = connectionConfig.getString("password");
             checkSSLConfig(sslKey, sslCA, sslPass);
 
             String tapdataWorkerDir = TAPDATA_WORKER_DIR;
@@ -71,6 +72,7 @@ public class HazelcastClientUtil {
             }
 
             String keyFilename = "client";
+            needCleanFile = true;
 
             // write keystore, truststore file to local
             String keystorePath = keystoreDir.getAbsolutePath() + File.separator + keyFilename + KEYSTORE_SUFFIX;
@@ -105,6 +107,18 @@ public class HazelcastClientUtil {
             throw new Exception("Failed to connect to the client: " + e.getMessage(), e);
         }
         TapLogger.info(TAG, "The Hazelcast cluster is connected successfully.");
+
+        try {
+            if (needCleanFile) {
+                if (keystoreFile != null && keystoreFile.exists()) {
+                    keystoreFile.delete();
+                }
+                if (truststoreFile != null && truststoreFile.exists()) {
+                    truststoreFile.delete();
+                }
+            }
+        } catch (Exception ignore) {
+        }
         return client;
     }
 

@@ -51,6 +51,7 @@
           "x-decorator": "FormItem",
           "x-component": "Password",
           "apiServerKey": "database_password",
+          "required": true,
           "x-index": 3
         },
         "ssl": {
@@ -135,16 +136,12 @@
           "title": "${sslKey}",
           "x-decorator": "FormItem",
           "x-component": "TextFileReader",
+          "x-component-props": {
+            "base64": true
+          },
           "fileNameField": "sslKeyFile",
           "required": true,
           "x-index": 90
-        },
-        "sslPass": {
-          "type": "string",
-          "title": "${sslPass}",
-          "x-decorator": "FormItem",
-          "x-component": "Password",
-          "x-index": 100
         },
         "sslValidate": {
           "type": "boolean",
@@ -170,6 +167,9 @@
           "x-decorator": "FormItem",
           "x-component": "TextFileReader",
           "fileNameField": "sslCAFile",
+          "x-component-props": {
+            "base64": true
+          },
           "required": true,
           "x-index": 120
         }
@@ -182,14 +182,13 @@
       "doc": "docs/hazelcast_en_US.md",
       "clusterID": "Cluster ID",
       "token": "Token",
-      "password": "Password",
+      "password": "Private key password",
       "dataForm_form_ssl": "Connect using TLS/SSL",
       "ssl": "Use TSL/SSL connection",
       "enum": "",
       "ssl_tips1": "Tapdata will connect to a separate server in your network which provides an TSL/SSL tunnel to your database. This method is necessary if your database is in an inaccessible subnet.",
       "ssl_tips2": "Tapdata will connect directly to your database. You may have to create a security rule to allow access. This is the simplest method.",
       "sslKey": "Client private key",
-      "sslPass": "Private key password",
       "sslValidate": "Validate server certificate",
       "sslCA": "Certificate Authority",
       "dataForm_form_options_sslTSL": "TSL/SSL connection",
@@ -199,13 +198,12 @@
       "doc": "docs/hazelcast_zh_CN.md",
       "clusterID": "集群 ID",
       "token": "令牌",
-      "password": "密码",
+      "password": "私钥密码",
       "dataForm_form_ssl": "使用 TLS/SSL 连接",
       "ssl": "使用 TLS/SSL 连接",
       "ssl_tips1": "Tapdata 将连接网络中的单独服务器，该服务器提供到数据库的TSL/SSL通道。如果您的数据库位于不可访问的子网中，则可尝试使用此方法",
       "ssl_tips2": "Tapdata 将直接连接到数据库，您可以要创建一个安全规则以允许系统访问，这是简单直接的方法",
       "sslKey": "客户端私钥",
-      "sslPass": "私钥密码",
       "sslValidate": "验证服务端证书",
       "sslCA": "证书颁发机构",
       "dataForm_form_options_sslTSL": "TSL/SSL连接",
@@ -215,13 +213,12 @@
       "doc": "docs/hazelcast_zh_TW.md",
       "clusterID": "集羣 ID",
       "token": "令牌",
-      "password": "密碼",
+      "password": "私鑰密碼",
       "dataForm_form_ssl": "",
       "ssl": "使用 TLS/SSL 連接",
       "ssl_tips1": "Tapdata 將連接奧網絡中的單獨服務器，該服務器提供到數據庫的TSL/SSL通道。如果您的數據庫位於不可訪問的子網中，則可嘗試使用此方法",
       "ssl_tips2": "Tapdata 將直接連接到數據庫，您可以要創建一個安全規則以允許系統訪問，這是簡單直接的方法",
       "sslKey": "客戶端私鑰",
-      "sslPass": "私鑰密碼",
       "sslValidate": "驗證服務端證書",
       "sslCA": "證書頒發機構",
       "dataForm_form_options_sslTSL": "TSL/SSL連接",
