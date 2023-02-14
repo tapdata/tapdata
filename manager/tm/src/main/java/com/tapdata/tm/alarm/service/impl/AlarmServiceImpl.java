@@ -946,7 +946,7 @@ public class AlarmServiceImpl implements AlarmService {
                 messageEntity.setLastUpdAt(new Date());
                 messageEntity.setLastUpdBy(userDetail.getUsername());
                 messageService.addMessage(messageEntity);
-                messageDto.setId(messageEntity.getId().toString());
+                messageDto.setId(messageEntity.getId());
                 informUser(messageDto, userDetail);
             } else {
                 log.error("找不到用户信息. userId:{}", userId);
