@@ -7,6 +7,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
+import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.SettingsService;
@@ -28,7 +29,9 @@ import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
@@ -1272,7 +1275,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
     public Page<TaskDto> find(Filter filter, UserDetail userDetail) {
         if (isAgentReq()) {
-            return super.find(filter, userDetail);
+            log.info("isAgentReq{}",isAgentReq());
+            Page<TaskDto>  page = super.find(filter, userDetail);
+            deleteNotifyEnumData(page);
+            return page;
         }
 
         Where where = filter.getWhere();
@@ -1379,6 +1385,37 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
+    public void deleteNotifyEnumData(Page<TaskDto> page) {
+        log.info("deleteNotifyEnumData");
+        for (TaskDto taskDto : page.getItems()) {
+            List<AlarmSettingDto> alarmSettings = taskDto.getAlarmSettings();
+            if (CollectionUtils.isNotEmpty(alarmSettings)) {
+                for (AlarmSettingDto alarmSettingDto : alarmSettings) {
+                    log.info("alarmSettingDto{}", JSONObject.toJSONString(alarmSettingDto));
+                    alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
+                    alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
+                    log.info("alarmSettingDto after{}", JSONObject.toJSONString(alarmSettingDto));
+
+                }
+            }
+            if (taskDto.getDag().getNodes() != null) {
+                for (Node node : taskDto.getDag().getNodes()) {
+                    if (CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
+                        List<AlarmSettingDto> alarmSetting = node.getAlarmSettings();
+                        for (AlarmSettingDto alarmSettingDto : alarmSetting) {
+                            log.info("alarmSettingDto Node{}", JSONObject.toJSONString(alarmSettingDto));
+                            if (CollectionUtils.isNotEmpty(alarmSettingDto.getNotify())) {
+                                alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
+                                alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
+                                log.info("alarmSettingDto  Node after{}", JSONObject.toJSONString(alarmSettingDto));
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     /**
      * 查询数据复制任务，直接用status查
      * 列表的筛选需要增加一个逻辑
