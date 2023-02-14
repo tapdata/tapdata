@@ -128,7 +128,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
         boolean openTask = false;
-        if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key)) {
+        if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key) || AlarmKeyEnum.SYSTEM_FLOW_EGINGE_UP.equals(key) ) {
             openTask = true;
         } else if (Objects.nonNull(taskDto) && CollectionUtils.isNotEmpty(taskDto.getAlarmSettings())) {
             List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
@@ -432,10 +432,10 @@ public class AlarmServiceImpl implements AlarmService {
             String templateParam="";
             // task alarm
             if (messageDto == null) {
-//                if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SMS, userDetail)) {
-//                    log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-//                    return false;
-//                }
+                if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SMS, userDetail)) {
+                    log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
+                  //  return false;
+                }
                 log.info("task sms");
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 String smsEvent = map.get("smsEvent");

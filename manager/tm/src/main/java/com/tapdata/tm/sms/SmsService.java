@@ -172,6 +172,8 @@ public class SmsService {
                 log.info("短信发送成功");
             }
             else {
+                log.info("sendSmsResponse1111{}",sendSmsResponse.getMessage());
+
                 sendStatus.setErrorMessage(sendSmsResponse.getMessage());
             }
         } catch (Exception e) {
