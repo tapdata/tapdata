@@ -430,7 +430,7 @@ public class AlarmServiceImpl implements AlarmService {
             if (messageDto == null) {
                 if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SMS, userDetail)) {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                  //  return false;
+                    return false;
                 }
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 String smsEvent = map.get("smsEvent");
