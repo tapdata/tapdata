@@ -1,14 +1,22 @@
 package io.tapdata.connector.tidb.dml;
 
 import io.tapdata.common.WriteRecorder;
+import io.tapdata.connector.tidb.ddl.TidbSqlMaker;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author lemon
@@ -17,8 +25,14 @@ public class TidbWriteRecorder extends WriteRecorder {
 
     public TidbWriteRecorder(Connection connection, TapTable tapTable, String schema) {
         super(connection, tapTable, schema);
+        init();
     }
-
+    private final Map<String, String> fieldsDataType = new HashMap<>();
+    public TidbWriteRecorder(Connection connection, TapTable tapTable, String schema, boolean hasUnique) {
+        super(connection, tapTable, schema);
+        uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
+        init();
+    }
     private static final String INSERT_UPDATE_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values %s ON DUPLICATE KEY UPDATE %s";
 
     private static final String INSERT_IGNORE_SQL_TEMPLATE = "INSERT IGNORE INTO `%s`.`%s`(%s) values(%s)";
@@ -27,7 +41,10 @@ public class TidbWriteRecorder extends WriteRecorder {
 
     private final static String UPDATE_SQL = "UPDATE %s SET %s WHERE %s";
     private final static String DELETE_SQL = "DELETE FROM %s WHERE %s";
-
+    private String fieldsClause;
+    private String setClause;
+    private String valuesClause;
+    private String whereClause;
     @Override
     public void addInsertBatch(Map<String, Object> after) throws SQLException {
         if (EmptyKit.isEmpty(after)) {
@@ -149,5 +166,118 @@ public class TidbWriteRecorder extends WriteRecorder {
         dealNullBefore(before, 1);
         preparedStatement.addBatch();
     }
+    private void init() {
+        if (null == tapTable) {
+            return;
+        }
 
+        for (Map.Entry<String, TapField> entry : tapTable.getNameFieldMap().entrySet()) {
+            String name = entry.getKey();
+            TapField field = entry.getValue();
+            fieldsDataType.put(name, field.getDataType());
+        }
+    }
+    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
+        if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
+            return;
+        }
+        if (EmptyKit.isEmpty(afterKeys)) {
+            afterKeys = new ArrayList<>(after.keySet());
+        }
+        if (!afterKeys.equals(new ArrayList<>(after.keySet()))) {
+            executeBatch(listResult);
+            preparedStatement = null;
+            afterKeys = new ArrayList<>(after.keySet());
+        }
+        Map<String, Object> lastBefore = new HashMap<>();
+        uniqueCondition.forEach(v -> lastBefore.put(v, (EmptyKit.isNotEmpty(before) && before.containsKey(v)) ? before.get(v) : after.get(v)));
+        if (EmptyKit.isNull(preparedStatement)) {
+            String sql = String.format(UPDATE_SQL, formatTableName(), appendSetClause(), appendWhereClause());
+            preparedStatement = connection.prepareStatement(sql);
+        }
+        preparedStatement.clearParameters();
+        int pos = 1;
+        pos = setParametersForSetClause(preparedStatement, after, pos);
+        pos = setParametersForWhereClause(preparedStatement, lastBefore, pos);
+        preparedStatement.addBatch();
+    }
+    private int setParametersForSetClause(PreparedStatement pstmt, Map<String, Object> data, int pos) throws SQLException {
+        pos = setAllObject(pstmt, data, pos);
+
+        return pos;
+    }
+    private int setAllObject(PreparedStatement pstmt, Map<String, Object> data, int pos) throws SQLException {
+        for (String column : allColumn) {
+            Object value = data.get(column);
+            try {
+                pos = setObject(pstmt, pos, fieldsDataType.get(column), value);
+            } catch (SQLException e) {
+                throw new SQLException(String.format("Set object failed: %s | Column: %s | Value: %s", e.getMessage(), column, value), e.getSQLState(), e);
+            }
+        }
+        return pos;
+    }
+    private int setObject(PreparedStatement pstmt, int pos, String fieldDataType, Object value) throws SQLException {
+        if (null != fieldDataType && fieldDataType.toLowerCase().contains("binary")) {
+            pstmt.setBytes(pos, (byte[]) value);
+        } else {
+            pstmt.setObject(pos, value);
+        }
+
+        return ++pos;
+    }
+    private int setParametersForWhereClause(PreparedStatement pstmt, Map<String, Object> data, int pos) throws SQLException {
+        // using pk(logic pk) in where clause
+        if (hasPk || !EmptyKit.isEmpty(uniqueCondition)) {
+            for (String column : uniqueCondition) {
+                pos = setObject(pstmt, pos, fieldsDataType.get(column), data.get(column));
+            }
+        } else {
+            fieldsDataType.keySet().removeIf(this::shouldSkipField);
+            for(String column : fieldsDataType.keySet()) {
+                pos = setObject(pstmt, pos, fieldsDataType.get(column), data.get(column));
+                pos = setObject(pstmt, pos, fieldsDataType.get(column), data.get(column));
+            }
+        }
+
+        return pos;
+    }
+    private boolean shouldSkipField(String field) {
+        // skip the "ntext", "text" and "image" in where clause since cdc table column values of these data types
+        // are always be null in delete event and update before event, more detail at:
+        // https://docs.microsoft.com/en-us/sql/relational-databases/system-tables/cdc-capture-instance-ct-transact-sql?view=sql-server-2017
+        return fieldsDataType.get(field) != null &&
+                (
+                        fieldsDataType.get(field).startsWith("text") ||
+                                fieldsDataType.get(field).startsWith("ntext") ||
+                                fieldsDataType.get(field).startsWith("image")
+                );
+
+    }
+    private String appendSetClause() {
+        if (setClause == null) {
+            setClause =  allColumn.stream().map(k -> TidbSqlMaker.formatFieldName(k) + " = ?").collect(Collectors.joining(", "));
+        }
+        return setClause;
+    }
+    private String appendWhereClause() {
+        if (whereClause == null) {
+            Stream<String> streaming;
+            // using pk(logic pk) in where clause
+            if (hasPk || !EmptyKit.isEmpty(uniqueCondition)) {
+                streaming = uniqueCondition.stream().map(k -> TidbSqlMaker.formatFieldName(k) + " = ? ");
+            } else {
+                fieldsDataType.keySet().removeIf(this::shouldSkipField);
+                streaming = fieldsDataType.keySet().stream().map(k ->
+                        "(" + TidbSqlMaker.formatFieldName(k) + " = ? OR (" + TidbSqlMaker.formatFieldName(k) + " IS NULL AND ? IS NULL))"
+                );
+            }
+            whereClause = streaming.collect(Collectors.joining(" AND "));
+        }
+
+        return whereClause;
+    }
+    private String formatTableName() {
+        return TidbSqlMaker.formatTableName(schema, tapTable.getId());
+    }
 }
