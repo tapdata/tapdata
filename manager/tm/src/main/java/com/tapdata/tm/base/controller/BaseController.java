@@ -100,6 +100,14 @@ public class BaseController {
 		}
 	}
 
+
+	protected boolean isAgentReq() {
+		ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+		HttpServletRequest request = attributes.getRequest();
+		String userAgent = request.getHeader("user-agent");
+		return org.apache.commons.lang3.StringUtils.isNotBlank(userAgent) && (userAgent.contains("Java") || userAgent.contains("Node") || userAgent.contains("FlowEngine"));
+	}
+
 	public Filter parseFilter(String filterJson) {
 		filterJson=replaceLoopBack(filterJson);
 		Filter filter = JsonUtil.parseJson(filterJson, Filter.class);
