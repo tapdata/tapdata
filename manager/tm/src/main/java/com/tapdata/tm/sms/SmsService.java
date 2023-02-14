@@ -166,7 +166,7 @@ public class SmsService {
             request.setTemplateParam(templateParam);
             sendSmsResponse = acsClient.getAcsResponse(request);
             log.info("send sms request");
-            log.info("sendSmsResponse",sendSmsResponse.toString());
+            log.info("sendSmsResponse{}",sendSmsResponse.getMessage());
             if (null != sendSmsResponse && sendSmsResponse.getCode() != null && sendSmsResponse.getCode().equals("OK")) {
                 sendStatus.setStatus("true");
                 log.info("短信发送成功");
