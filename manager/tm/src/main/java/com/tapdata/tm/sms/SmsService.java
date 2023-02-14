@@ -43,7 +43,7 @@ public class SmsService {
 
     public static final String TASK_ABNORMITY_NOTICE="SMS_269600641";
 
-    public static final String TASK_NOTICE="SMS_269520595";
+    public static final String TASK_NOTICE="SMS_269900128";
 
 
 
