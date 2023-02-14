@@ -17,6 +17,7 @@ import org.springframework.web.multipart.commons.CommonsMultipartFile;
 import javax.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * @Author: Zed
@@ -43,6 +44,10 @@ public class PdkController extends BaseController {
                 continue;
             }
             PdkSourceDto pdkSourceDto = JsonUtil.parseJsonUseJackson(sourceJson, PdkSourceDto.class);
+            if (Objects.isNull(pdkSourceDto.getPdkAPIBuildNumber())) {
+                pdkSourceDto.setPdkAPIBuildNumber(0);
+                pdkSourceDto.setPdkAPIVersion("");
+            }
             pdkSourceDtos.add(pdkSourceDto);
         }
 

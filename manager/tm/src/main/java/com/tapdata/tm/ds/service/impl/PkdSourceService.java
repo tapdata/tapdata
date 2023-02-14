@@ -59,7 +59,6 @@ public class PkdSourceService {
             throw new BizException("Invalid jar file, please upload a valid jar file.");
         }
 
-        ObjectId jarObjectId = null;
         for(PdkSourceDto pdkSourceDto : pdkSourceDtos) {
             // try to verify the version
             String version  = pdkSourceDto.getVersion();
@@ -85,18 +84,43 @@ public class PkdSourceService {
                 throw new BizException("Only SNAPSHOT version of PDK can be overwritten, please make sure you've updated the version in your pom.");
             }
 
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            BeanUtils.copyProperties(pdkSourceDto, definitionDto);
+            definitionDto.setId(Objects.nonNull(oldDefinitionDto) ? oldDefinitionDto.getId() : null);
+            definitionDto.setConnectionType(pdkSourceDto.getType());
+            definitionDto.setType(pdkSourceDto.getName());
+            definitionDto.setPdkType("pdk");
+            definitionDto.setPdkId(pdkSourceDto.getId());
+            definitionDto.setJarFile(jarFile.getOriginalFilename());
+            definitionDto.setJarTime(System.currentTimeMillis());
+            definitionDto.setProperties(pdkSourceDto.getConfigOptions());
+            definitionDto.setScope(scope);
+            String pdkHash = definitionDto.calculatePdkHash(user.getCustomerId());
+            definitionDto.setPdkHash(pdkHash);
+
+            // remove snapshot overwritten file(jar/icons)
+            if (oldDefinitionDto != null) {
+                fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
+                if (oldDefinitionDto.getIcon() != null) {
+                    fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getIcon()));
+                }
+                fileService.deleteFileByPdkHash(pdkHash);
+            }
+
             // upload the associated files(jar/icons)
+            ObjectId jarObjectId = null;
             ObjectId iconObjectId = null;
             Map<String, String> langMap = Maps.newHashMap();
             try {
+                Map<String, Object> fileInfo = Maps.newHashMap();
+                fileInfo.put("pdkHash", pdkHash);
+
                 // 1. upload jar file, only update once
-                if (jarObjectId == null) {
-                    jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, new HashMap<>());
-                }
+                jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, fileInfo);
                 // 2. upload the associated icon
                 CommonsMultipartFile icon = iconMap.getOrDefault(pdkSourceDto.getIcon(), null);
                 if (icon != null) {
-                    iconObjectId = fileService.storeFile(icon.getInputStream(), icon.getOriginalFilename(), null, new HashMap<>());
+                    iconObjectId = fileService.storeFile(icon.getInputStream(), icon.getOriginalFilename(), null, fileInfo);
                 }
                 // 3. upload readeMe doc
                 if (!docMap.isEmpty()) {
@@ -115,7 +139,7 @@ public class PkdSourceService {
                             if (docMap.containsKey(path)) {
                                 CommonsMultipartFile doc = docMap.getOrDefault(path, null);
                                 try {
-                                    ObjectId docId = fileService.storeFile(doc.getInputStream(), doc.getOriginalFilename(), null, new HashMap<>());
+                                    ObjectId docId = fileService.storeFile(doc.getInputStream(), doc.getOriginalFilename(), null, fileInfo);
                                     pathMap.put(path, docId);
                                 } catch (IOException e) {
                                     throw new BizException(e);
@@ -138,23 +162,10 @@ public class PkdSourceService {
                 throw new BizException("SystemError");
             }
 
-            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
-            BeanUtils.copyProperties(pdkSourceDto, definitionDto);
-            definitionDto.setId(null);
-            definitionDto.setConnectionType(pdkSourceDto.getType());
-            definitionDto.setType(pdkSourceDto.getName());
-            definitionDto.setPdkType("pdk");
-            definitionDto.setPdkId(pdkSourceDto.getId());
-            definitionDto.setJarFile(jarFile.getOriginalFilename());
             definitionDto.setJarRid(jarObjectId.toHexString());
-            definitionDto.setJarTime(System.currentTimeMillis());
-            definitionDto.setProperties(pdkSourceDto.getConfigOptions());
-            definitionDto.setScope(scope);
             if (iconObjectId != null) {
                 definitionDto.setIcon(iconObjectId.toHexString());
             }
-            String pdkHash = definitionDto.calculatePdkHash(user.getCustomerId());
-            definitionDto.setPdkHash(pdkHash);
 
             if (latest) {
                 definitionDto.setLatest(true);
@@ -171,15 +182,6 @@ public class PkdSourceService {
                 dataSourceDefinitionService.update(new Query(criteriaLatest), removeLatest);
             }
             dataSourceDefinitionService.save(definitionDto, user);
-
-            // remove snapshot overwritten file(jar/icons)
-            if (oldDefinitionDto != null) {
-                fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
-                if (oldDefinitionDto.getIcon() != null) {
-                    fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getIcon()));
-                }
-                dataSourceDefinitionService.deleteById(oldDefinitionDto.getId());
-            }
         }
     }
 
