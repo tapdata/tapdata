@@ -73,7 +73,7 @@ function insertRecord(connectionConfig, nodeConfig, eventDataList) {
     let succeedDataArr = [];
     //let sendConfig = nodeConfig.sendItemConfig;
     for (let index = 0; index < eventDataList.length; index++) {
-        let event = eventDataList[index].after_data;
+        let event = eventDataList[index].afterData;
         // 消息类型（默认text）：text、post、image、interactive、share_chat、share_user、audio、media、file、sticker
         // https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json#7215e4f6
         let contentType = event.type;

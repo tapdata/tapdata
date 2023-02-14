@@ -5,7 +5,7 @@
   },
   "nodeConfig": {
   },
-  "function_params": {
+  "functionParams": {
     "discoverSchema": {
     },
     "connectionTest": {
