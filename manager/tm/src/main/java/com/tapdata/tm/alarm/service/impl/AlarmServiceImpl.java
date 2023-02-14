@@ -200,16 +200,14 @@ public class AlarmServiceImpl implements AlarmService {
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMessage(info, taskDto, userDetail);
                 if (!reuslt) {
-                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
-                    info.setLastNotifyTime(dateTime);
+                    info.setLastNotifyTime(null);
                     save(info);
                 }
             });
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMail(info, taskDto, userDetail);
                 if (!reuslt) {
-                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
-                    info.setLastNotifyTime(dateTime);
+                    info.setLastNotifyTime(null);
                     save(info);
                 }
             });
