@@ -270,7 +270,7 @@ public class AlarmServiceImpl implements AlarmService {
                 messageEntity.setLastUpdAt(date);
                 messageEntity.setUserId(taskDto.getUserId());
                 messageEntity.setRead(false);
-                messageService.addMessage(messageEntity);
+                messageService.addMessage(messageEntity,userDetail);
             }
         } catch (Exception e) {
             log.error("sendMessage error: {}", ThrowableUtils.getStackTraceByPn(e));
@@ -945,7 +945,7 @@ public class AlarmServiceImpl implements AlarmService {
                 messageEntity.setServerName(messageDto.getAgentName());
                 messageEntity.setLastUpdAt(new Date());
                 messageEntity.setLastUpdBy(userDetail.getUsername());
-                messageService.addMessage(messageEntity);
+                messageService.addMessage(messageEntity,userDetail);
                 messageDto.setId(messageEntity.getId());
                 informUser(messageDto, userDetail);
             } else {

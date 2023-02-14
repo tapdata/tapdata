@@ -182,7 +182,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 
             messageEntity.setUserId(userDetail.getUserId());
             messageEntity.setCustomId(userDetail.getCustomerId());
-            repository.getMongoOperations().save(messageEntity);
+            repository.save(messageEntity,userDetail);
             informUser(msgTypeEnum, systemEnum, messageMetadata, sourceId, messageEntity.getId().toString(), userDetail);
         } catch (Exception e) {
             log.error("新增消息异常，", e);
@@ -424,8 +424,8 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         return messageEntity;
     }
 
-    public void addMessage(MessageEntity messageEntity) {
-        repository.getMongoOperations().save(messageEntity);
+    public void addMessage(MessageEntity messageEntity,UserDetail userDetail) {
+        repository.save(messageEntity,userDetail);
     }
 
     /**
@@ -621,7 +621,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 messageEntity.setServerName(messageDto.getAgentName());
                 messageEntity.setLastUpdAt(new Date());
                 messageEntity.setLastUpdBy(userDetail.getUsername());
-                repository.getMongoOperations().save(messageEntity);
+                repository.save(messageEntity,userDetail);
                 messageDto.setId(messageEntity.getId());
                 informUser(messageDto);
             } else {
