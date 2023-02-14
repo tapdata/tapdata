@@ -1715,6 +1715,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             cacheNode.setMaxMemory(maxMemory == null ? 500 : maxMemory.intValue());
             Integer ttl = MapUtil.getInt(targetNodeMap, "ttl");
             cacheNode.setTtl(ttl == null ? Integer.MAX_VALUE : TimeUtil.parseDayToSeconds(ttl));
+            String externalStorageId = MapUtil.getStr(targetNodeMap, "externalStorageId");
+            cacheNode.setExternalStorageId(externalStorageId);
 
             edge.setSource(sourceId);
             edge.setTarget(targetId);

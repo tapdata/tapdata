@@ -11,6 +11,7 @@ import com.tapdata.constant.StartResultUtil;
 import io.tapdata.aspect.ApplicationStartAspect;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.common.JetExceptionFilter;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
@@ -21,6 +22,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
 import org.apache.logging.log4j.core.appender.rolling.CompositeTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
@@ -46,12 +48,23 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 import org.yaml.snakeyaml.Yaml;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.Security;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -250,26 +263,29 @@ public class Application {
 				.withMax("30")
 				.withConfig(config).build();
 
+		JetExceptionFilter jetExceptionFilter = new JetExceptionFilter.TapLogBuilder().build();
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
 				.setName("rollingFileAppender")
-				.withFileName(logsPath.toString() + "/tapdata-agent.log")
-				.withFilePattern(logsPath.toString() + "/tapdata-agent.log.%d{yyyyMMdd}.gz")
+				.withFileName(logsPath + "/tapdata-agent.log")
+				.withFilePattern(logsPath + "/tapdata-agent.log.%d{yyyyMMdd}.gz")
 				.setLayout(patternLayout)
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy)
 				.build();
-		rollingFileAppender.start();
+		rollingFileAppender.addFilter(jetExceptionFilter);
 		config.addAppender(rollingFileAppender);
 		LoggerConfig rootLoggerConfig = config.getRootLogger();
 		rootLoggerConfig.setLevel(defaultLogLevel);
 		rootLoggerConfig.addAppender(rollingFileAppender, null, null);
+		rollingFileAppender.start();
 
-		/*ConsoleAppender consoleAppender = ConsoleAppender.newBuilder()
-			.withName("consoleAppender")
-			.withLayout(patternLayout)
-			.withImmediateFlush(true)
-			.build();
-		rootLoggerConfig.addAppender(consoleAppender, defaultLogLevel, null);*/
+		ConsoleAppender consoleAppender = ConsoleAppender.newBuilder()
+				.setName("consoleAppender")
+				.setLayout(patternLayout)
+				.withImmediateFlush(true)
+				.build();
+		rootLoggerConfig.addAppender(consoleAppender, defaultLogLevel, null);
+		consoleAppender.start();
 
 		ctx.updateLoggers();
 	}

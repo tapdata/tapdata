@@ -8,10 +8,11 @@ import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.HazelcastConstruct;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
-import io.tapdata.constructImpl.ConstructRingBuffer;
+import io.tapdata.construct.HazelcastConstruct;
+import io.tapdata.construct.constructImpl.ConstructRingBuffer;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -36,6 +37,7 @@ import java.util.Map;
  **/
 public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 
+	public static final int DEFAULT_SHARE_CDC_TTL_DAY = 3;
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkShareCDCNode.class);
 	private HazelcastConstruct<Document> hazelcastConstruct;
 
@@ -46,25 +48,32 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
-		Integer shareCdcTtlDay;
+		Integer shareCdcTtlDay = getShareCdcTtlDay();
+		externalStorageDto.setTtlDay(shareCdcTtlDay);
+		this.hazelcastConstruct = getHazelcastConstruct(context.hazelcastInstance(), externalStorageDto, processorBaseContext.getTaskDto());
+		logger.info("Init log data storage finished, config: " + externalStorageDto);
+		obsLogger.info("Init log data storage finished, config: " + externalStorageDto);
+	}
+
+	@NotNull
+	private Integer getShareCdcTtlDay() {
+		Integer shareCdcTtlDay = null;
 		List<Node<?>> predecessors = GraphUtil.predecessors(processorBaseContext.getNode(), n -> n instanceof LogCollectorNode);
 		if (CollectionUtils.isNotEmpty(predecessors)) {
 			Node<?> firstPreNode = predecessors.get(0);
 			shareCdcTtlDay = ((LogCollectorNode) firstPreNode).getStorageTime();
-		} else {
-			PersistenceStorageConfig persistenceStorageConfig = PersistenceStorageConfig.getInstance();
-			shareCdcTtlDay = persistenceStorageConfig.getShareCdcTtlDay();
 		}
-		this.hazelcastConstruct = getHazelcastConstruct(context.hazelcastInstance(), shareCdcTtlDay, processorBaseContext.getTaskDto());
-		logger.info("Init log data storage finished, ttl day: " + shareCdcTtlDay);
-		obsLogger.info("Init log data storage finished, ttl day: " + shareCdcTtlDay);
+		if (null == shareCdcTtlDay || shareCdcTtlDay.compareTo(0) <= 0) {
+			shareCdcTtlDay = DEFAULT_SHARE_CDC_TTL_DAY;
+		}
+		return shareCdcTtlDay;
 	}
 
-	private static HazelcastConstruct<Document> getHazelcastConstruct(HazelcastInstance hazelcastInstance, Integer shareCdcTtlDay, TaskDto taskDto) {
+	private static HazelcastConstruct<Document> getHazelcastConstruct(HazelcastInstance hazelcastInstance, ExternalStorageDto externalStorageDto, TaskDto taskDto) {
 		return new ConstructRingBuffer<>(
 				hazelcastInstance,
 				ShareCdcUtil.getConstructName(taskDto),
-				shareCdcTtlDay
+				externalStorageDto
 		);
 	}
 

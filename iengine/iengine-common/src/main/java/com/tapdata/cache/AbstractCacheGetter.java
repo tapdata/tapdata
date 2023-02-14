@@ -34,12 +34,12 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
     this.clientMongoOperator = clientMongoOperator;
   }
 
-  abstract protected List<Map<String, Object>> getRecordList(String cacheName, Object... cacheKeys) throws InterruptedException;
+  abstract protected List<Map<String, Object>> getRecordList(String cacheName, Object... cacheKeys) throws Throwable;
 
-  abstract protected Map<String, Object> getRecord(String cacheName, Object... cacheKeys) throws InterruptedException;
+  abstract protected Map<String, Object> getRecord(String cacheName, Object... cacheKeys) throws Throwable;
 
   @Override
-  public Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+  public Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
     Map<String, Object> result = getRecord(cacheName, cacheKeys);
     if (result == null && lookup) {
       result = getAndSetCache(cacheName, true, cacheKeys);
@@ -51,14 +51,14 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
   }
 
   @Override
-  public Object getCacheItem(String cacheName, String field, Object defaultValue, Object... cacheKeys) throws InterruptedException {
+  public Object getCacheItem(String cacheName, String field, Object defaultValue, Object... cacheKeys) throws Throwable {
     Map<String, Object> row = getAndSetCache(cacheName, true, cacheKeys);
 
     return row == null ? defaultValue : row.getOrDefault(field, defaultValue);
   }
 
   @Override
-  public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+  public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
     Map<String, Object> record = getRecord(cacheName, cacheKeys);
     if (record == null && lookup) {
       List<Map<String, Object>> rows = getDataSourceRowsGetter().getRows(cacheKeys);
@@ -75,7 +75,7 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
   }
 
   @Override
-  public List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+  public List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
     List<Map<String, Object>> recordList = getRecordList(cacheName, cacheKeys);
     if (CollectionUtils.isEmpty(recordList) && lookup) {
       IDataSourceRowsGetter iDataSourceRowsGetter = getDataSourceRowsGetter();
