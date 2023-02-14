@@ -98,7 +98,7 @@ public class DorisStreamLoader {
 		}
 	}
 
-	public synchronized void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+	public void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
 		try {
 			TapLogger.debug(TAG, "Batch events length is: {}", tapRecordEvents.size());
 			WriteListResult<TapRecordEvent> listResult = writeListResult();
