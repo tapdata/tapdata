@@ -5,12 +5,11 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.*;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -216,8 +215,8 @@ public class TaskEntity extends BaseEntity {
     private String transformUuid;
     private Boolean transformed;
 
-    private List<AlarmSettingDto> alarmSettings;
-    private List<AlarmRuleDto> alarmRules;
+    private List<AlarmSettingVO> alarmSettings;
+    private List<AlarmRuleVO> alarmRules;
 
     private Map<String, Object> logSetting;
     private Integer resetTimes;
