@@ -191,15 +191,13 @@ public class LoadJavaScripter {
     public boolean functioned(String functionName) {
         if (Objects.isNull(functionName) || Objects.isNull(this.scriptEngine)) return false;
         try {
-            Invocable invocable = (Invocable) this.scriptEngine;
-            invocable.invokeFunction(functionName);
-        } catch (NoSuchMethodException e) {
+            //Invocable invocable = (Invocable) this.scriptEngine;
+            //invocable.invokeFunction(functionName);
+            Object o = this.scriptEngine.eval(functionName);
+            return Objects.nonNull(o) && o instanceof Function;
+        } catch (Exception ignored) {
             return false;
-        } catch (ScriptException ignored) {
         }
-        return true;
-        //Object functionObj = this.scriptEngine.get(functionName);
-        //return functionObj instanceof Function;
     }
 
     private void binding(String key, Object name, int scope) {
