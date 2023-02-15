@@ -142,8 +142,8 @@ public class MysqlConnectionTest extends CommonDbTest {
 
             });
         } catch (Throwable e) {
-            consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, e.getMessage()));
-            return false;
+            consumer.accept(testItem(itemMark, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, e.getMessage()));
+            return true;
         }
         if (globalWrite.get() != null) {
             consumer.accept(testItem.get());
@@ -153,8 +153,8 @@ public class MysqlConnectionTest extends CommonDbTest {
             consumer.accept(testItem(itemMark, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, JSONObject.toJSONString(tableList)));
             return true;
         }
-        consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, "Without table can "+mark));
-        return false;
+        consumer.accept(testItem(itemMark, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "Without table can "+mark));
+        return true;
     }
 
     public boolean testWriteOrReadPrivilege(String grantSql, List<String> tableList, String databaseName, String mark) {
@@ -189,7 +189,7 @@ public class MysqlConnectionTest extends CommonDbTest {
                 tableList.add(table);
             }
         }
-        return false;
+        return true;
     }
 
 
@@ -216,8 +216,8 @@ public class MysqlConnectionTest extends CommonDbTest {
                 }
             }
         } catch (Throwable e) {
-            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_FAILED, e.getMessage()));
-            return false;
+            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, e.getMessage()));
+            return true;
         }
         consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY));
         return true;
