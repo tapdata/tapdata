@@ -43,5 +43,5 @@ public interface AlarmService {
 
     List<AlarmInfo> query(Query query);
 
-    MessageDto add(MessageDto messageDto);
+    MessageDto add(MessageDto messageDto,UserDetail userDetail);
 }

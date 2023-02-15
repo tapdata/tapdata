@@ -1,6 +1,5 @@
 package com.tapdata.tm.alarm.service.impl;
 
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateField;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
@@ -28,7 +27,6 @@ import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.constant.Type;
@@ -55,7 +53,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
@@ -87,7 +84,6 @@ public class AlarmServiceImpl implements AlarmService {
     MailUtils mailUtils;
     EventsService eventsService;
     private final static String MAIL_SUBJECT = "【Tapdata】";
-    private final static String MAIL_CONTENT = "尊敬的用户您好，您在Tapdata Cloud上创建的Agent:";
 
 
     @Override
@@ -190,7 +186,6 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void notifyAlarm() {
-        log.info("notifyAlarm.......");
         Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE)
                 .and("lastNotifyTime").lt(DateUtil.date()).gt(DateUtil.offsetSecond(DateUtil.date(), -30)
                 );
@@ -219,9 +214,9 @@ public class AlarmServiceImpl implements AlarmService {
             UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
 
             FunctionUtils.ignoreAnyError(() -> {
-                boolean reuslt = sendMessage(info, taskDto, userDetail);
+                boolean reuslt = sendMessage(info, taskDto, userDetail,null);
                 if (!reuslt) {
-                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(),30);
                     info.setLastNotifyTime(dateTime);
                     save(info);
                 }
@@ -258,9 +253,15 @@ public class AlarmServiceImpl implements AlarmService {
 
     }
 
-    private boolean sendMessage(AlarmInfo info, TaskDto taskDto, UserDetail userDetail) {
+    private boolean sendMessage(AlarmInfo info, TaskDto taskDto, UserDetail userDetail, MessageDto messageDto) {
         try {
-            if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM, userDetail)) {
+            MessageEntity messageEntity = new MessageEntity();
+            Date date = DateUtil.date();
+            if (messageDto == null) {
+                if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM, userDetail)) {
+                    log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
+                    return true;
+                }
                 String taskId = taskDto.getId().toHexString();
                 Date date = DateUtil.date();
                 MessageEntity messageEntity = new MessageEntity();
@@ -275,15 +276,52 @@ public class AlarmServiceImpl implements AlarmService {
                 MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
                 messageEntity.setMessageMetadata(metadata);
                 messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
-                messageEntity.setCreateAt(date);
-                messageEntity.setLastUpdAt(date);
                 messageEntity.setUserId(taskDto.getUserId());
                 messageEntity.setRead(false);
-                messageService.addMessage(messageEntity,userDetail);
+            } else {
+                String msgType = messageDto.getMsg();
+                AlarmKeyEnum alarmKeyEnum;
+                alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
+                if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                    alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_UP;
+                }
+                if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.SYSTEM)) {
+                    log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
+                    return true;
+                }
+                messageEntity.setLevel(Level.EMERGENCY.name());
+                messageEntity.setAgentId(messageDto.getAgentId());
+                messageEntity.setServerName(messageDto.getAgentId());
+                messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
+                String content = "";
+                MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
+                //目前msgNotification 只会有三种情况
+                String metadataName = messageMetadata.getName();
+                if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
+                    if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                        content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
+                    } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                        content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
+                    }
+                } else {
+                    if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                        content = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
+                    } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                        content = "您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
+                    }
+                }
+                String summary = content + ", 通知时间：" + DateUtil.now();
+                messageEntity.setTitle(summary);
+                messageEntity.setMessageMetadata(messageDto.getMessageMetadataObject());
+                messageEntity.setSystem(SystemEnum.AGENT.getValue());
             }
+            messageEntity.setCreateAt(date);
+            messageEntity.setLastUpdAt(date);
+            messageEntity.setRead(false);
+            messageService.addMessage(messageEntity, userDetail);
         } catch (Exception e) {
             log.error("sendMessage error: {}", ThrowableUtils.getStackTraceByPn(e));
-            return false;
+            return true;
         }
         return true;
     }
@@ -292,14 +330,18 @@ public class AlarmServiceImpl implements AlarmService {
         try {
             String title = null;
             String content = null;
-            MailAccountDto mailAccount = getMailAccount(taskDto.getUserId());
+            MailAccountDto mailAccount;
             if (messageDto == null) {
-                if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail)) {
-                    Map<String, String> map = getTaskTitleAndContent(info, taskDto);
-                    content = map.get("content");
-                    title = map.get("title");
+                 mailAccount = getMailAccount(taskDto.getUserId());
+                if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail)) {
+                    log.error("Current user ({}, {}) can't bind email, cancel send message.", userDetail.getUsername(), userDetail.getUserId());
+                    return true;
                 }
+                Map<String, String> map = getTaskTitleAndContent(info, taskDto);
+                content = map.get("content");
+                title = map.get("title");
             } else {
+                mailAccount = getMailAccount(messageDto.getUserId());
                 String msgType = messageDto.getMsg();
                 AlarmKeyEnum alarmKeyEnum;
                 alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
@@ -308,7 +350,7 @@ public class AlarmServiceImpl implements AlarmService {
                 }
                 if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.EMAIL)) {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return false;
+                    return true;
                 }
                 MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
                 //目前msgNotification 只会有三种情况
@@ -342,7 +384,7 @@ public class AlarmServiceImpl implements AlarmService {
             }
         } catch (Exception e) {
             log.error("sendMail error: {}", ThrowableUtils.getStackTraceByPn(e));
-            return false;
+            return true;
         }
         return true;
     }
@@ -399,7 +441,9 @@ public class AlarmServiceImpl implements AlarmService {
                 SmsEvent = "当前任务运行超过阈值";
                 break;
             default:
-
+                title=info.getName()+"发生异常";
+                content =info.getSummary();
+                SmsEvent ="异常";
         }
         Map map = new HashMap();
         map.put("title", title);
@@ -426,9 +470,8 @@ public class AlarmServiceImpl implements AlarmService {
         try {
             if (StringUtils.isEmpty(userDetail.getPhone())) {
                 log.error("Current user ({}, {}) can't bind phone, cancel send message.", userDetail.getUsername(), userDetail.getUserId());
-                return false;
+                return true;
             }
-            log.info("send sendSms");
             String smsTemplateCode = "";
             String system = "task";
             String phone = userDetail.getPhone();
@@ -439,13 +482,13 @@ public class AlarmServiceImpl implements AlarmService {
             if (messageDto == null) {
                 if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SMS, userDetail)) {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return false;
+                    return true;
                 }
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 String smsEvent = map.get("smsEvent");
-                if(info.getMetric().name().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().name().equals(AlarmKeyEnum.TASK_FULL_COMPLETE)){
+                if(info.getMetric().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().equals(AlarmKeyEnum.TASK_INCREMENT_START)){
                     smsTemplateCode = SmsService.TASK_NOTICE;
-                    templateParam ="{\"JobName\":\"" + taskDto.getName()+smsEvent + "\"}";
+                    templateParam = "{\"JobName\":\"" + taskDto.getName() + smsEvent + "\"}";
                 }else {
                     templateParam=  "{\"JobName\":\"" +taskDto.getName() + "\",\"eventName\":\""+ smsEvent+"\"}";
                     smsTemplateCode = SmsService.TASK_ABNORMITY_NOTICE;
@@ -460,7 +503,7 @@ public class AlarmServiceImpl implements AlarmService {
                }
                 if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.SMS)) {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return false;
+                    return true;
                 }
                 MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
                 //目前msgNotification 只会有三种情况
@@ -490,7 +533,7 @@ public class AlarmServiceImpl implements AlarmService {
             }
         } catch (Exception e) {
             log.error("sendSms error: {}", ThrowableUtils.getStackTraceByPn(e));
-            return false;
+            return true;
         }
         return true;
     }
@@ -504,7 +547,7 @@ public class AlarmServiceImpl implements AlarmService {
             String openId = userDetail.getOpenid();
             if (StringUtils.isBlank(openId)) {
                 log.error("Current user ({}, {}) can't bind weChat, cancel push message.", userDetail.getUsername(), userDetail.getUserId());
-                return false;
+                return true;
             }
             String metadataName = "";
             String title = "";
@@ -513,8 +556,9 @@ public class AlarmServiceImpl implements AlarmService {
             if (messageDto == null) {
                 if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.WECHAT, userDetail)) {
                     log.info("Current user ({}, {}) can't open weChat notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return false;
+                    return true;
                 }
+                log.info("sendWeChat");
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 content = map.get("content");
                 title = map.get("title");
@@ -527,7 +571,7 @@ public class AlarmServiceImpl implements AlarmService {
                 }
                 if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.WECHAT)) {
                     log.info("Current user ({}, {}) can't open weChat notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return false;
+                    return true;
                 }
                 MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
                 //目前msgNotification 只会有三种情况
@@ -552,14 +596,13 @@ public class AlarmServiceImpl implements AlarmService {
             }
             log.info("Send alarm message ({}, {}) to user ({}, {}).",
                     title, content, userDetail.getUsername(), userDetail.getUserId());
-            log.info("Send weChat message {}", openId);
             SendStatus status = mpService.sendAlarmMsg(openId, title, content, new Date());
             if (messageDto != null) {
                 eventsService.recordEvents(MAIL_SUBJECT, content, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
             }
         } catch (Exception e) {
             log.error("sendWeChat error: {}", ThrowableUtils.getStackTraceByPn(e));
-            return false;
+            return true;
         }
         return true;
     }
@@ -879,7 +922,6 @@ public class AlarmServiceImpl implements AlarmService {
         List<TaskDto> taskList = taskService.findAll(Query.query(taskCriteria));
 
         if (CollectionUtils.isEmpty(taskList)) return;
-
         FunctionUtils.isTureOrFalse(pass).trueOrFalseHandle(
                 () -> connectPassAlarm(nodeName, connectId, response_body, taskList),
                 () -> connectFailAlarm(nodeName, connectId, response_body, taskList)
@@ -896,82 +938,26 @@ public class AlarmServiceImpl implements AlarmService {
         return mongoTemplate.find(query, AlarmInfo.class);
     }
 
-    private Boolean getDefaultNotification(String system, String msgType, String notificationType) {
-        Object defaultNotification = settingsService.getByCategoryAndKey("notification", "notification");
-        Map<String, List> defaultSettingMap = JsonUtil.parseJson((String) defaultNotification, Map.class);
-
-        String key = "";
-        String label = "";
-        if (system.equals(SystemEnum.AGENT.getValue())) {
-            key = "agentNotification";
-            if (msgType.equals(MsgTypeEnum.CONNECTED.getValue())) {
-                label = "agentStarted";
-            } else if (msgType.equals(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue())) {
-                label = "agentStopped";
-            }
-        } else if (system.equals(SystemEnum.DATAFLOW.getValue())) {
-            key = "runNotification";
-            if (msgType.equals(MsgTypeEnum.CONNECTED.getValue())) {
-                label = "jobStarted";
-            } else if (msgType.equals(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue())) {
-                label = "jobStateError";
-            }
-        }
-
-        List<Map> agentNotificationMapList = defaultSettingMap.get(key);
-        if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(agentNotificationMapList)) {
-            for (Map<String, Boolean> agentNotificationMap : agentNotificationMapList) {
-                if (label.equals(agentNotificationMap.get("label"))) {
-                    return agentNotificationMap.get(notificationType);
-                }
-            }
-        }
-        return false;
-    }
-
-
     /**
      * 只有三种情况会新增一条message
      * 1、agent启动。TCM触发，TCM通过接口创建消息。
      * 2、agent停止。TCM触发，TCM通过接口创建消息。
      * 3、任务出错。通过dataFlows数据中status属性改为error，做为判断依据，创建消息通知。  这个时候需要发送邮件，或者短信通知用户
-     *
      * @param messageDto
      * @return
      */
-    @Async("NotificationExecutor")
-    public MessageDto add(MessageDto messageDto) {
+    public MessageDto add(MessageDto messageDto, UserDetail userDetail) {
         try {
-            MessageEntity messageEntity = new MessageEntity();
-            BeanUtil.copyProperties(messageDto, messageEntity, "messageMetadata");
-            MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
-            messageEntity.setMessageMetadata(messageMetadata);
-            String userId = messageDto.getUserId();
-            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
-            if (null != userDetail) {
-                messageEntity.setUserId(userId);
-                messageEntity.setCreateAt(new Date());
-                messageEntity.setServerName(messageDto.getAgentName());
-                messageEntity.setLastUpdAt(new Date());
-                messageEntity.setLastUpdBy(userDetail.getUsername());
-                messageService.addMessage(messageEntity,userDetail);
-                messageDto.setId(messageEntity.getId());
-                informUser(messageDto, userDetail);
-            } else {
-                log.error("找不到用户信息. userId:{}", userId);
-            }
-
+            log.info("informUser");
+            sendMessage(null, null, userDetail, messageDto);
+            sendMail(null, null, userDetail, messageDto);
+            sendSms(null, null, userDetail, messageDto);
+            sendWeChat(null, null, userDetail, messageDto);
         } catch (Exception e) {
             log.error("新增消息异常，", e);
         }
         return messageDto;
     }
 
-    private void informUser(MessageDto messageDto, UserDetail userDetail) {
-        log.info("informUser");
-        sendMail(null, null, userDetail, messageDto);
-        sendSms(null, null, userDetail, messageDto);
-        sendWeChat(null, null, userDetail, messageDto);
-    }
 
 }
