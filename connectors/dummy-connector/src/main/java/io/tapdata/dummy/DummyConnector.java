@@ -171,6 +171,7 @@ public class DummyConnector extends ConnectorBase {
         TapInsertRecordEvent insertRecordEvent;
         builder.reset(offsetState, SyncStage.Incremental);
         IRate rate = IRate.getInstance(incrementalInterval, incrementalIntervalTotals);
+        eventConsumer.streamReadStarted();
         try (IBatchConsumer<TapEvent> batchConsumer = IBatchConsumer.getInstance(eventBatchSize, config.getBatchTimeouts(), (t) -> eventConsumer.accept(t, builder.getOffset()))) {
             while (isAlive()) {
                 for (String tableName : tableList) {

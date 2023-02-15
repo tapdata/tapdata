@@ -3,12 +3,14 @@ package io.tapdata.flow.engine.V2.util;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.pdk.apis.context.ConfigContext;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -114,8 +116,9 @@ public class PdkUtil {
 										   Map<String, Object> connectionConfig,
 										   KVReadOnlyMap<TapTable> pdkTableMap,
 										   PdkStateMap pdkStateMap,
-										   PdkStateMap globalStateMap) {
-		return createNode(dagId, databaseType, clientMongoOperator, associateId, connectionConfig, pdkTableMap, pdkStateMap, globalStateMap, null);
+										   PdkStateMap globalStateMap,
+										   Log log) {
+		return createNode(dagId, databaseType, clientMongoOperator, associateId, connectionConfig, pdkTableMap, pdkStateMap, globalStateMap, null, log);
 	}
 	public static ConnectorNode createNode(String dagId,
 										   DatabaseTypeEnum.DatabaseType databaseType,
@@ -125,7 +128,8 @@ public class PdkUtil {
 										   KVReadOnlyMap<TapTable> pdkTableMap,
 										   PdkStateMap pdkStateMap,
 										   PdkStateMap globalStateMap,
-										   ConfigContext configContext) {
+										   ConfigContext configContext,
+										   Log log) {
 		return createNode(
 				dagId,
 				databaseType,
@@ -137,7 +141,8 @@ public class PdkUtil {
 				pdkStateMap,
 				globalStateMap,
 				null,
-				configContext
+				configContext,
+				log
 		);
 	}
 
@@ -152,13 +157,15 @@ public class PdkUtil {
 			PdkStateMap pdkStateMap,
 			PdkStateMap globalStateMap,
 			ConnectorCapabilities connectorCapabilities,
-			ConfigContext configContext
+			ConfigContext configContext,
+			Log log
 	) {
 		ConnectorNode connectorNode;
 		try {
 			downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
 					databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
 			PDKIntegration.ConnectorBuilder<ConnectorNode> connectorBuilder = PDKIntegration.createConnectorBuilder()
+					.withLog(log)
 					.withDagId(dagId)
 					.withAssociateId(associateId)
 					.withConfigContext(configContext)

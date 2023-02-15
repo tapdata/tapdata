@@ -1,8 +1,11 @@
 package io.tapdata.connector.tidb;
 
+import com.mysql.cj.jdbc.StatementImpl;
 import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.pool.HikariProxyStatement;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.ResultSetConsumer;
+import io.tapdata.connector.tidb.config.TidbConfig;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
@@ -15,9 +18,9 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -35,20 +38,24 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  */
 public class TidbContext extends JdbcContext{
     private static final String TAG = TidbContext.class.getSimpleName();
-
+    private TapConnectionContext tapConnectionContext;
     private static final String SELECT_TIDB_VERSION = "select version() as version";
 
     private static final String DATABASE_TIMEZON_SQL = "SELECT TIMEDIFF(NOW(), UTC_TIMESTAMP()) as timezone";
-
+//SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE' %s
     private final static String TIDB_ALL_TABLE = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
-
-    private static final String TIDB_ALL_COLUMNS = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s'";
+   private static final String TIDB_ALL_COLUMNS ="SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME in %s";
+    //"SELECT TABLE_ROWS FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' %s";
+     private static final String TIDB_TABLE_COLUMNS = "SELECT TABLE_ROWS FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME ='%s'";
+            //"SELECT TABLE_ROWS FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'";
+            //"SELECT TABLE_ROWS FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA =`%s`.`%s`";
 
 
     private static final String DROP_TABLE_IF_EXISTS_SQL = "DROP TABLE IF EXISTS `%s`.`%s`";
 
     private static final String TRUNCATE_TABLE_SQL = "TRUNCATE TABLE `%s`.`%s`";
 
+    public static final String SELECT_TABLE = "SELECT t.* FROM `%s`.`%s` t";
 
     private final static String TIDB_ALL_INDEX = "select *\n" +
             "from (select i.TABLE_NAME,\n" +
@@ -123,8 +130,9 @@ public class TidbContext extends JdbcContext{
         String schema = getConfig().getDatabase();
         TapLogger.debug(TAG, "Query columns of some tables, schema: " + schema);
         List<DataMap> columnList = list();
-        String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND COL.TABLE_NAME IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
+        String tableSql = EmptyKit.isNotEmpty(tableNames) ? "(" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
         try {
+          //  SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME in (%s)
             query(String.format(TIDB_ALL_COLUMNS, schema, tableSql),
                     resultSet -> columnList.addAll(DbKit.getDataFromResultSet(resultSet)));
         } catch (Throwable e) {
@@ -227,7 +235,16 @@ public class TidbContext extends JdbcContext{
         String sql = String.format(TRUNCATE_TABLE_SQL, database, tableName);
         execute(sql);
     }
-
+    public int count(String tableName) throws Throwable {
+        String database = getConfig().getDatabase();
+        AtomicInteger count = new AtomicInteger(0);
+        query(String.format(TIDB_TABLE_COLUMNS, database, tableName), rs -> {
+            if (rs.next()) {
+                count.set(rs.getInt(1));
+            }
+        });
+        return count.get();
+    }
 
     /**
      * 查询
@@ -309,7 +326,47 @@ public class TidbContext extends JdbcContext{
         return sb.append(":").append(split[1]).toString();
     }
 
+
+    public void queryWithStream(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+        TapLogger.debug(TAG, "Execute query with stream, sql: " + sql);
+        try (
+                Connection connection = getConnection();
+                Statement statement = connection.createStatement()
+        ) {
+            if (statement instanceof HikariProxyStatement) {
+                StatementImpl statementImpl = statement.unwrap(StatementImpl.class);
+                if (null != statementImpl) {
+                    statementImpl.enableStreamingResults();
+                }
+            }
+            try (
+                    ResultSet resultSet = statement.executeQuery(sql)
+            ) {
+                if (null != resultSet) {
+                    resultSetConsumer.accept(resultSet);
+                }
+            }
+        } catch (SQLException e) {
+            throw new Exception("Execute steaming query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
+        }
+    }
+
     public static void main(String[] args) {
         System.out.println(formatTimezone("07:59:59"));
+    }
+
+
+    public TapConnectionContext getTapConnectionContext() {
+        return tapConnectionContext;
+    }
+
+    public String getServerId() throws Throwable {
+        AtomicReference<String> serverId = new AtomicReference<>();
+        query("SHOW VARIABLES LIKE 'SERVER_ID'", rs -> {
+            if (rs.next()) {
+                serverId.set(rs.getString("Value"));
+            }
+        });
+        return serverId.get();
     }
 }

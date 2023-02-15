@@ -1,4 +1,5 @@
 package io.tapdata.pdk.apis.context;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.utils.DefaultConcurrentMap;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 
@@ -10,6 +11,7 @@ public class TapContext {
     protected TapNodeSpecification specification;
 
     protected final DefaultConcurrentMap attributes = new DefaultConcurrentMap();
+    protected Log log;
 
     public TapContext(TapNodeSpecification specification) {
         this.specification = specification;
@@ -38,5 +40,14 @@ public class TapContext {
 
     public String getId() {
         return id;
+    }
+
+
+    public Log getLog() {
+        return log;
+    }
+
+    public void setLog(Log log) {
+        this.log = log;
     }
 }

@@ -1,4 +1,4 @@
-package io.tapdata.pdk.core.api.impl;
+package io.tapdata.pdk.core.api.impl.serialize;
 
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.Implementation;
@@ -18,6 +18,10 @@ import java.util.zip.GZIPInputStream;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 
+/**
+ * Performance is worse than v2.
+ */
+@Deprecated
 @Implementation(value = ObjectSerializable.class, buildNumber = 0)
 public class ObjectSerializableImpl implements ObjectSerializable {
 	public static final byte TYPE_SERIALIZABLE = 1;

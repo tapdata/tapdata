@@ -1,5 +1,12 @@
 package io.tapdata.entity.event;
 
+import io.tapdata.entity.utils.io.DataInputStreamEx;
+import io.tapdata.entity.utils.io.DataOutputStreamEx;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+
 public abstract class TapBaseEvent extends TapEvent {
     protected String associateId;
     protected String tableId;
@@ -10,7 +17,22 @@ public abstract class TapBaseEvent extends TapEvent {
      * For example, MongoDB as source, when initial stage, referenceTime is null, when cdc stage, referenceTime is the clusterTime read from CDC stream
      */
     protected Long referenceTime;
-
+    /*
+    public void from(InputStream inputStream) throws IOException {
+        super.from(inputStream);
+        DataInputStreamEx dataInputStreamEx = dataInputStream(inputStream);
+        associateId = dataInputStreamEx.readUTF();
+        tableId = dataInputStreamEx.readUTF();
+        referenceTime = dataInputStreamEx.readLong();
+    }
+    public void to(OutputStream outputStream) throws IOException {
+        super.to(outputStream);
+        DataOutputStreamEx dataOutputStreamEx = dataOutputStream(outputStream);
+        dataOutputStreamEx.writeUTF(associateId);
+        dataOutputStreamEx.writeUTF(tableId);
+        dataOutputStreamEx.writeLong(referenceTime);
+    }
+    */
     public TapBaseEvent(int type) {
         super(type);
     }

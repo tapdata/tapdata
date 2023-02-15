@@ -12,7 +12,9 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -65,7 +67,8 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
             connectionConfig,
             pdkTableMap,
             pdkStateMap,
-            globalStateMap
+            globalStateMap,
+            InstanceFactory.instance(LogFactory.class).getLog()
     );
 
     try {

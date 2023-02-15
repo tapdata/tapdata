@@ -1,10 +1,10 @@
 package io.tapdata.flow.engine.V2.script;
 
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.processor.ScriptLogger;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLogger;
 
-public class TapScriptLogger implements ScriptLogger {
+public class TapScriptLogger implements Log {
     private String taskId;
 
     public  TapScriptLogger(String taskId) {

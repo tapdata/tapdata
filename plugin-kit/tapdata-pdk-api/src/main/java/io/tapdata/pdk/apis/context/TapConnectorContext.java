@@ -1,6 +1,7 @@
 package io.tapdata.pdk.apis.context;
 
 
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -20,8 +21,8 @@ public class TapConnectorContext extends TapConnectionContext {
     protected KVMap<Object> globalStateMap;
     protected ConfigContext configContext;
 
-    public TapConnectorContext(TapNodeSpecification specification, DataMap connectionConfig, DataMap nodeConfig) {
-        super(specification, connectionConfig, nodeConfig);
+    public TapConnectorContext(TapNodeSpecification specification, DataMap connectionConfig, DataMap nodeConfig, Log log) {
+        super(specification, connectionConfig, nodeConfig, log);
     }
 
     /**

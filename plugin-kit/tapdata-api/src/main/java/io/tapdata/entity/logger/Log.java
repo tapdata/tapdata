@@ -1,6 +1,6 @@
-package com.tapdata.processor;
+package io.tapdata.entity.logger;
 
-public interface ScriptLogger {
+public interface Log {
 
   void debug(String message, Object... params);
 

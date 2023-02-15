@@ -91,7 +91,7 @@ public class CoreException extends RuntimeException {
         this.moreExceptions = moreExceptions;
     }
 
-    public CoreException setInfo(String key, Object value) {
+    public CoreException info(String key, Object value) {
         if (infoMap == null)
             infoMap = new HashMap<>();
         infoMap.put(key, value);
