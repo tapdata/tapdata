@@ -21,19 +21,21 @@ public class MilestoneUtil {
 	 * @param milestoneStatus
 	 * @param errMsg
 	 */
+	@Deprecated // Implemented in io.tapdata.milestone.MilestoneAspectTask
 	public static void updateMilestone(MilestoneService milestoneService, MilestoneStage milestoneStage, MilestoneStatus milestoneStatus,
 									   String errMsg) {
-		if (milestoneStage == null || milestoneStatus == null) {
-			return;
-		}
-		Optional.ofNullable(milestoneService).ifPresent(m -> m.updateMilestoneStatusByCode(milestoneStage, milestoneStatus, errMsg));
+//		if (milestoneStage == null || milestoneStatus == null) {
+//			return;
+//		}
+//		Optional.ofNullable(milestoneService).ifPresent(m -> m.updateMilestoneStatusByCode(milestoneStage, milestoneStatus, errMsg));
 	}
 
+	@Deprecated // Implemented in io.tapdata.milestone.MilestoneAspectTask
 	public static void updateMilestone(MilestoneService milestoneService, MilestoneStage milestoneStage, MilestoneStatus milestoneStatus) {
-		if (milestoneStage == null || milestoneStatus == null) {
-			return;
-		}
-		Optional.ofNullable(milestoneService).ifPresent(m -> m.updateMilestoneStatusByCode(milestoneStage, milestoneStatus));
+//		if (milestoneStage == null || milestoneStatus == null) {
+//			return;
+//		}
+//		Optional.ofNullable(milestoneService).ifPresent(m -> m.updateMilestoneStatusByCode(milestoneStage, milestoneStatus));
 	}
 
 	public static String getEdgeKey(String sourceVertexName, String destVertexName) {
