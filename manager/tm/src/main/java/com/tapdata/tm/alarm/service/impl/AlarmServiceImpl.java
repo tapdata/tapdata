@@ -6,6 +6,7 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import cn.hutool.json.JSONUtil;
+import com.alibaba.fastjson.JSONObject;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -535,6 +536,8 @@ public class AlarmServiceImpl implements AlarmService {
     private boolean sendWeChat(AlarmInfo info, TaskDto taskDto, UserDetail userDetail, MessageDto messageDto) {
         try {
             String openId = userDetail.getOpenid();
+            log.info("info{}", JSONObject.toJSONString(info));
+            log.info("userDetail{}", JSONObject.toJSONString(userDetail));
             if (StringUtils.isBlank(openId)) {
                 log.error("Current user ({}, {}) can't bind weChat, cancel push message.", userDetail.getUsername(), userDetail.getUserId());
                 return true;
@@ -544,6 +547,8 @@ public class AlarmServiceImpl implements AlarmService {
             String content = "";
             // 任务级别的告警
             if (messageDto == null) {
+                log.info("taskDto{}", JSONObject.toJSONString(taskDto));
+
                 if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.WECHAT, userDetail)) {
                     log.info("Current user ({}, {}) can't open weChat notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return true;
@@ -552,8 +557,6 @@ public class AlarmServiceImpl implements AlarmService {
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 content = map.get("content");
                 title = map.get("title");
-                log.info("sendWeChat1");
-
             } else {
                 String msgType = messageDto.getMsg();
                 AlarmKeyEnum alarmKeyEnum;
