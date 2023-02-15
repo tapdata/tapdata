@@ -2,7 +2,10 @@ package io.tapdata.connector.hazelcast.util;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
+import com.hazelcast.client.config.ClientConnectionStrategyConfig;
+import com.hazelcast.client.config.ConnectionRetryConfig;
 import com.hazelcast.config.SSLConfig;
+import com.hazelcast.core.HazelcastException;
 import com.hazelcast.core.HazelcastInstance;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
@@ -98,15 +101,9 @@ public class HazelcastClientUtil {
                 .setEnabled(true);
         config.setProperty("hazelcast.client.cloud.url", "https://api.viridian.hazelcast.com");
         config.setClusterName(clusterID);
+        config.setConnectionStrategyConfig(new ClientConnectionStrategyConfig().setConnectionRetryConfig(new ConnectionRetryConfig().setClusterConnectTimeoutMillis(5 * 1000)));
 
-        HazelcastInstance client = null;
-        try {
-            client = HazelcastClient.newHazelcastClient(config);
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new Exception("Failed to connect to the client: " + e.getMessage(), e);
-        }
-        TapLogger.info(TAG, "The Hazelcast cluster is connected successfully.");
+        HazelcastInstance client = HazelcastClient.newHazelcastClient(config);
 
         try {
             if (needCleanFile) {
@@ -126,7 +123,7 @@ public class HazelcastClientUtil {
         if (client != null) {
             try {
                 client.shutdown();
-            } catch (Exception e) {
+            } catch (HazelcastException e) {
                 throw new Exception("Connection closing failure." + e.getMessage(), e);
             }
         }
