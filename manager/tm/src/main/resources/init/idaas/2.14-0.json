@@ -5,7 +5,7 @@
       {
         "q": {
           "pdkAPIBuildNumber": {
-            "$exits": false
+            "$exists": false
           }
         },
         "u": {
