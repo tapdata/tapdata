@@ -36,6 +36,8 @@ public abstract class ConnectorBase implements TapConnector {
 	private static final SimpleDateFormat tapDateTimeFormat = new SimpleDateFormat();
 	private static final String TAG = ConnectorBase.class.getSimpleName();
 
+//	private volatile DatabaseReadPartitionSplitter databaseReadPartitionSplitter;
+
 	public static void interval(Runnable runnable, int seconds) {
 		TapSimplify.interval(runnable, seconds);
 	}
@@ -344,4 +346,5 @@ public abstract class ConnectorBase implements TapConnector {
 		}
 		return matched;
 	}
+
 }

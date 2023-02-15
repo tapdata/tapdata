@@ -6,10 +6,17 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.mysql.SqlMaker;
+import io.tapdata.connector.tidb.config.TidbConfig;
 import io.tapdata.connector.tidb.ddl.TidbSqlMaker;
+import io.tapdata.connector.tidb.dml.TidbReader;
 import io.tapdata.connector.tidb.dml.TidbRecordWrite;
+import io.tapdata.connector.tidb.kafka.KafkaService;
+import io.tapdata.connector.tidb.snapshot.SnapshotOffset;
+import io.tapdata.connector.tidb.util.HttpUtil;
+import io.tapdata.connector.tidb.util.pojo.Changefeed;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -22,50 +29,54 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.ParseException;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 
 @TapConnectorClass("spec_tidb.json")
 public class TidbConnector extends ConnectorBase {
+    private KafkaService kafkaService;
     private static final String TAG = TidbConnector.class.getSimpleName();
-
     private TidbConfig tidbConfig;
-
     private TidbContext tidbContext;
-
+    private TidbReader tidbReader;
     private String connectionTimezone;
-
     private TidbSqlMaker tidbSqlMaker;
-
     private TidbConnectionTest tidbConnectionTest;
-
-
+    private String version;
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
+    private static final int MAX_FILTER_RESULT_SIZE = 100;
+
+    Map<String, Object> map;
+    HttpUtil httpUtil = new HttpUtil();
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         this.tidbConfig = (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
-        this.tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {},null);
-
+        this.tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {
+        }, null);
         if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
             tidbContext = (TidbContext) DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, tapConnectionContext.getId());
         }
+        this.tidbReader = new TidbReader(tidbContext);
+        this.version = tidbContext.queryVersion();
         this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
         if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
             this.connectionTimezone = tidbContext.timezone();
@@ -84,18 +95,25 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         // target functions
         connectorFunctions.supportCreateTableV2(this::createTableV2);
-        connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateIndex(this::createIndex);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-
+        connectorFunctions.supportWriteRecord(this::writeRecord);
+        connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
 
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> tidbContext.getConnection(), c));
+
+        // source functions
+        connectorFunctions.supportBatchCount(this::batchCount);
+        connectorFunctions.supportBatchRead(this::batchRead);
+        connectorFunctions.supportStreamRead(this::streamRead);
+        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
+
 
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
@@ -128,6 +146,103 @@ public class TidbConnector extends ConnectorBase {
         });
 
     }
+
+    private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
+        map = nodeContext.getConnectionConfig();
+        Changefeed changefeed = new Changefeed();
+        //Changefeed changefeed1 =new Changefeed(513105904441098240L,"kafka://139.198.127.226:32761/tidb-cdc?kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true","replication-task-3");
+        changefeed.setSinkUri("kafka://" + map.get("nameSrvAddr") + "/" + map.get("mqTopic") + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
+        changefeed.setChangefeedId((String) map.get("changefeedId"));
+
+        if (httpUtil.createChangefeed(changefeed, (String) map.get("ticdcUrl"))) {
+            KafkaService kafkaService1 = new KafkaService(tidbConfig);
+            kafkaService1.streamConsume(tableList, recordSize, consumer);
+        }
+
+    }
+
+    private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
+        offsetStartTime = System.currentTimeMillis();
+        return (Object) offsetStartTime;
+
+    }
+
+    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+        SnapshotOffset snapshotOffset;
+        // completely blank task
+        if (null == offsetState) {
+            snapshotOffset = new SnapshotOffset(TidbSqlMaker.getOrderByUniqueKey(tapTable), 0L);
+        }
+        //with offset
+        else {
+            snapshotOffset = (SnapshotOffset) offsetState;
+        }
+
+        String sql;
+        if (version.contains("2008")) {
+            sql = String.format("SELECT * FROM(SELECT ROW_NUMBER() OVER(%s) rowNumber, * FROM %s) myTable WHERE rowNumber > %s",
+                    snapshotOffset.getSortString(), TidbSqlMaker.formatTableName(tapTable, tidbConfig), snapshotOffset.getOffsetValue());
+        } else {
+            // OFFSET is not supported until SQL Server 2012
+            sql = "SELECT * FROM " + TidbSqlMaker.formatTableName(tapTable, tidbConfig) + snapshotOffset.getSortString();//+ " OFFSET " + snapshotOffset.getOffsetValue() + " ROWS";
+        }
+
+        tidbContext.query(sql, rs -> {
+            List<TapEvent> tapEvents = list();
+            //get all column names
+            List<String> columnNames = DbKit.getColumnsFromResultSet(rs);
+            while (isAlive() && rs.next()) {
+
+                tapEvents.add(insertRecordEvent(DbKit.getRowFromResultSet(rs, columnNames), tapTable.getId()));
+                if (tapEvents.size() == eventBatchSize) {
+                    long timestamp = System.currentTimeMillis();
+                    snapshotOffset.setOffsetValue(snapshotOffset.getOffsetValue() + eventBatchSize);
+                    snapshotOffset.tableOffset(tapTable.getId(), timestamp).timestamp(timestamp);
+                    eventsOffsetConsumer.accept(tapEvents, snapshotOffset);
+                    tapEvents = list();
+                }
+            }
+            //last events those less than eventBatchSize
+            if (EmptyKit.isNotEmpty(tapEvents)) {
+                long timestamp = System.currentTimeMillis();
+                snapshotOffset.setOffsetValue(snapshotOffset.getOffsetValue() + tapEvents.size());
+                snapshotOffset.tableOffset(tapTable.getId(), timestamp).timestamp(timestamp);
+                eventsOffsetConsumer.accept(tapEvents, snapshotOffset);
+            }
+        });
+
+    }
+
+    private TapRecordEvent tapRecordWrapper(TapConnectorContext tapConnectorContext, Map<String, Object> before, Map<String, Object> after, TapTable tapTable, String op) {
+        TapRecordEvent tapRecordEvent;
+        switch (op) {
+            case "i":
+                tapRecordEvent = TapSimplify.insertRecordEvent(after, tapTable.getId());
+                break;
+            case "u":
+                tapRecordEvent = TapSimplify.updateDMLEvent(before, after, tapTable.getId());
+                break;
+            case "d":
+                tapRecordEvent = TapSimplify.deleteDMLEvent(before, tapTable.getId());
+                break;
+            default:
+                throw new IllegalArgumentException("Operation " + op + " not support");
+        }
+        tapRecordEvent.setConnector(tapConnectorContext.getSpecification().getId());
+        tapRecordEvent.setConnectorVersion(version);
+        return tapRecordEvent;
+    }
+
+    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+        int count;
+        try {
+            count = tidbContext.count(tapTable.getName());
+        } catch (Exception e) {
+            throw new RuntimeException("Count table " + tapTable.getName() + " error: " + e.getMessage(), e);
+        }
+        return count;
+    }
+
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
         tidbContext.queryAllTables(list(), batchSize, listConsumer);
@@ -222,7 +337,18 @@ public class TidbConnector extends ConnectorBase {
             DataSourcePool.removeJdbcContext(tidbConfig);
             tidbContext.finish(connectionContext.getId());
         }
+        if (EmptyKit.isNotNull(tidbConnectionTest)) {
+            tidbConnectionTest.close();
+        }
+        if (EmptyKit.isNotNull(connectionContext.getConnectionConfig().get("changefeedId"))) {
+            try {
+                httpUtil.deleteChangefeed((String) connectionContext.getConnectionConfig().get("changefeedId"),
+                        (String) connectionContext.getConnectionConfig().get("ticdcUrl"));
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
 
+        }
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
@@ -267,6 +393,7 @@ public class TidbConnector extends ConnectorBase {
         createTableOptions.setTableExists(false);
         return createTableOptions;
     }
+
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
         new TidbRecordWrite(tidbContext, tapTable).write(tapRecordEvents, consumer);
@@ -320,10 +447,13 @@ public class TidbConnector extends ConnectorBase {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(tidbConfig.getConnectionString());
         try (
-                TidbConnectionTest connectionTest = new TidbConnectionTest(tidbConfig, consumer,connectionOptions)
+                TidbConnectionTest connectionTest = new TidbConnectionTest(tidbConfig, consumer, connectionOptions)
         ) {
             connectionTest.testOneByOne();
         }
+        //TODO ask Jarad!
+//        List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDLParserType.MSSQL_CCJ_SQL_PARSER);
+//        ddlCapabilities.forEach(connectionOptions::capability);
         return connectionOptions;
     }
 
@@ -337,6 +467,25 @@ public class TidbConnector extends ConnectorBase {
         consumer.accept(testConnection);
     }
 
-
+    private void queryByAdvanceFilter(TapConnectorContext tapConnectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable tapTable, Consumer<FilterResults> consumer) {
+        FilterResults filterResults = new FilterResults();
+        filterResults.setFilter(tapAdvanceFilter);
+        try {
+            tidbReader.readWithFilter(tapConnectorContext, tapTable, tapAdvanceFilter, n -> !isAlive(), data -> {
+                filterResults.add(data);
+                if (filterResults.getResults().size() == MAX_FILTER_RESULT_SIZE) {
+                    consumer.accept(filterResults);
+                    filterResults.getResults().clear();
+                }
+            });
+            if (CollectionUtils.isNotEmpty(filterResults.getResults())) {
+                consumer.accept(filterResults);
+                filterResults.getResults().clear();
+            }
+        } catch (Throwable e) {
+            filterResults.setError(e);
+            consumer.accept(filterResults);
+        }
+    }
 }
 

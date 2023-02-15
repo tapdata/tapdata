@@ -2,6 +2,7 @@ package com.tapdata.tm.init.scanners;
 
 import com.tapdata.tm.init.*;
 import com.tapdata.tm.init.patches.PatchAnnotation;
+import com.tapdata.tm.init.patches.PatchAnnotations;
 import com.tapdata.tm.sdk.util.AppType;
 import lombok.NonNull;
 import org.apache.logging.log4j.LogManager;
@@ -30,21 +31,25 @@ public class JavaPatchScanner implements IPatchScanner {
     public void scanPatches(@NonNull List<IPatch> patches, @NonNull Function<PatchVersion, Boolean> isVersion) {
         Reflections ref = new Reflections(SCAN_PACKAGE);
 
-        Set<Class<?>> classSet = ref.getTypesAnnotatedWith(PatchAnnotation.class);
+        Set<Class<?>> classSet = ref.getTypesAnnotatedWith(PatchAnnotations.class);
         for (Class<?> c : classSet) {
-            PatchAnnotation ins = c.getAnnotation(PatchAnnotation.class);
-            if (null != ins && patchType.inAppTypes(ins.appTypes())) {
+            PatchAnnotation[] patchAnnotations = c.getAnnotationsByType(PatchAnnotation.class);
+
+            for (PatchAnnotation ins : patchAnnotations) {
+                if (!patchType.inAppTypes(ins.appType())) continue;
+
                 PatchVersion patchVersion = PatchVersion.valueOf(ins.version());
-                if (!isVersion.apply(patchVersion)) {
+                if (isVersion.apply(patchVersion)) {
+                    try {
+                        Constructor<?> con = c.getConstructor(PatchType.class, PatchVersion.class);
+                        patches.add((IPatch) con.newInstance(patchType, patchVersion));
+                    } catch (Exception e) {
+                        throw new RuntimeException(String.format("Init patch '%s' failed: %s", c.getName(), e.getMessage()), e);
+                    }continue;
+                } else {
                     logger.info("The init script has been executed {}, skip...", ins.version());
-                    continue;
                 }
-                try {
-                    Constructor<?> con = c.getConstructor(PatchType.class, PatchVersion.class);
-                    patches.add((IPatch) con.newInstance(patchType, patchVersion));
-                } catch (Exception e) {
-                    throw new RuntimeException(String.format("Init patch '%s' failed: %s", c.getName(), e.getMessage()), e);
-                }
+                break;
             }
         }
     }

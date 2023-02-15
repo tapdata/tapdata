@@ -26,6 +26,16 @@
     </properties>
     <dependencies>
         <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-storage-module</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>async-tools-module</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
             <groupId>com.tapdata</groupId>
             <artifactId>proxy-client-module</artifactId>
             <version>0.5.2-SNAPSHOT</version>
@@ -240,6 +250,13 @@
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
+            </resource>
+            <resource>
+                <directory>src/main/java</directory>
+                <includes>
+                    <include>**/*.js</include>
+                </includes>
+                <targetPath>./${parent.artifactId}/${project.artifactId}/src/main/java/</targetPath>
             </resource>
         </resources>
         <plugins>

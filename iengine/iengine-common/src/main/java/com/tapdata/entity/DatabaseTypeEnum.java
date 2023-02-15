@@ -1,5 +1,6 @@
 package com.tapdata.entity;
 
+import io.tapdata.pdk.apis.entity.Capability;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
@@ -231,6 +232,7 @@ public enum DatabaseTypeEnum {
 		private String version;
 		private String pdkId;
 		private String pdkHash;
+		private List<Capability> capabilities;
 
 		public DatabaseType() {
 		}
@@ -246,6 +248,14 @@ public enum DatabaseTypeEnum {
 			this.name = name;
 			this.buildProfiles = buildProfiles;
 			this.supportTargetDatabaseType = supportTargetDatabaseType;
+		}
+
+		public List<Capability> getCapabilities() {
+			return capabilities;
+		}
+
+		public void setCapabilities(List<Capability> capabilities) {
+			this.capabilities = capabilities;
 		}
 
 		public String getType() {
@@ -389,4 +399,6 @@ public enum DatabaseTypeEnum {
 	public String getFormatColumn() {
 		return formatColumn;
 	}
+
+
 }

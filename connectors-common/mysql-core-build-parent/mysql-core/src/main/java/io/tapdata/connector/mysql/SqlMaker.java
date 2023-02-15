@@ -6,6 +6,7 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 
 /**
  * @author samuel
@@ -18,6 +19,9 @@ public interface SqlMaker {
 	String selectSql(TapConnectorContext tapConnectorContext, TapTable tapTable, MysqlSnapshotOffset mysqlSnapshotOffset) throws Throwable;
 
 	String selectSql(TapConnectorContext tapConnectorContext, TapTable tapTable, TapAdvanceFilter tapAdvanceFilter) throws Throwable;
+	default String selectSql(TapConnectorContext tapConnectorContext, TapTable tapTable, TapPartitionFilter tapPartitionFilter) throws Throwable{
+		throw new UnsupportedOperationException();
+	}
 
 	String createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapIndex tapIndex) throws Throwable;
 }

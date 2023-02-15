@@ -366,7 +366,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	@SneakyThrows
-	private void doNormalCDC() {
+	protected void doNormalCDC() {
 		if (!isRunning()) {
 			return;
 		}

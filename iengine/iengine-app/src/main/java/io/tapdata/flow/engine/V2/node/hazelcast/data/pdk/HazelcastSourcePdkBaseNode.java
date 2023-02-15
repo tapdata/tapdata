@@ -152,6 +152,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
+		databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
 		this.sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
 				r -> {
 					Thread thread = new Thread(r);
@@ -219,6 +220,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return true;
 	}
 
+	//TODO Aplomb should NOT create stream offset at very beginning.
 	private void initBatchAndStreamOffset(TaskDto taskDto) {
 		if (syncProgress == null) {
 			syncProgress = new SyncProgress();
@@ -555,7 +557,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	abstract void startSourceRunner();
 
 	@NotNull
-	protected List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events) {
+	public List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events) {
 		return wrapTapdataEvent(events, SyncStage.INITIAL_SYNC, null);
 	}
 
@@ -606,13 +608,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 					Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
-					Map<String, Object> newMap = new HashMap<>();
-					try {
-						MapUtil.deepCloneMap(batchOffsetObj, newMap);
-					} catch (IllegalAccessException | InstantiationException e) {
-						throw new RuntimeException("Deep clone batch offset map failed: " + e.getMessage(), e);
-					}
-					tapdataEvent.setBatchOffset(newMap);
+//					Map<String, Object> newMap = new HashMap<>();
+//					try {
+//						MapUtil.deepCloneMap(batchOffsetObj, newMap);
+//					} catch (IllegalAccessException | InstantiationException e) {
+//						throw new RuntimeException("Deep clone batch offset map failed: " + e.getMessage(), e);
+//					}
+					tapdataEvent.setBatchOffset(batchOffsetObj);
 				}
 			} else if (SyncStage.CDC == syncStage) {
 				tapdataEvent.setStreamOffset(offsetObj);
@@ -739,7 +741,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return tapdataEvent;
 	}
 
-	protected void enqueue(TapdataEvent tapdataEvent) {
+	public void enqueue(TapdataEvent tapdataEvent) {
 		try {
 			if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
 				String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
@@ -896,5 +898,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		LOG_COLLECTOR,
 	}
 
-
+	public SyncProgress getSyncProgress() {
+		return syncProgress;
+	}
 }

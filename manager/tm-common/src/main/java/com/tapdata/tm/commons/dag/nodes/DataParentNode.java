@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
+import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
@@ -57,6 +58,7 @@ public abstract class DataParentNode<S> extends Node<S> {
 
     private Boolean enableDDL;
 
+    private ReadPartitionOptions readPartitionOptions;
     private List<String> disabledEvents;
     @Deprecated
     private Boolean enableDynamicTable;
@@ -225,5 +227,13 @@ public abstract class DataParentNode<S> extends Node<S> {
             Field field = iterator.next();
 
         }
+    }
+
+    public ReadPartitionOptions getReadPartitionOptions() {
+        return readPartitionOptions;
+    }
+
+    public void setReadPartitionOptions(ReadPartitionOptions readPartitionOptions) {
+        this.readPartitionOptions = readPartitionOptions;
     }
 }

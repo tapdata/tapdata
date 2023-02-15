@@ -1,27 +1,45 @@
-## **连接配置帮助**
+## **Connection Configuration Help**
 
-### **1. TiDB 安装说明**
+### **1. TiDB installation instructions**
 
-请遵循以下说明以确保在 Tapdata 中成功添加和使用 TiDB 数据库。
 
-### **2. 支持版本**
-TiDB 5.x
+Please follow the instructions below to ensure that TiDB database is successfully added and used in Tapdata and TiCDC is successfully deployed.
 
-### **3. 先决条件（作为源）**
-对于某个数据库赋于select权限
+### **2. Supported versions**
+TiDB 5.4+ , TiCDC6.3+
+### **3. Prerequisites (as source)**
+3.1 Example of configuration connection
+3.1.1 Incremental configuration is not enabled
+```
+PdServer address: 192.168.1.179:2379
+Database address: 192.168.1.179
+Port: 4000
+Database name: kiki
+Account: root
+Password: root
+```
+3.1.2 Only the following configurations need to be added to enable the increment
+```
+Kafka address: 139.198.127.226:32761
+Kafka Subject: tidb-cdc
+Synchronization task Id: replication-task-1
+Ticdc address: 192.168.1.179:8300
+```
+
+Assign select permission to a database
 ```
 GRANT SELECT, SHOW VIEW, CREATE ROUTINE, LOCK TABLES ON <DATABASE_NAME>.<TABLE_NAME> TO 'user' IDENTIFIED BY 'password';
 ```
-对于全局的权限
+Permissions for global
 ```
 GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'user' IDENTIFIED BY 'password';
 ```
-###  **4. 先决条件（作为目标）**
-对于某个数据库赋于全部权限
+###  **4. Prerequisites (as targets)**
+Assign all permissions to a database
 ```
 GRANT ALL PRIVILEGES ON <DATABASE_NAME>.<TABLE_NAME> TO 'user' IDENTIFIED BY 'password';
 ```
-对于全局的权限
+Permissions for global
 ```
 GRANT PROCESS ON *.* TO 'user' IDENTIFIED BY 'password';
 ```

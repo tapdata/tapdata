@@ -20,7 +20,9 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -97,7 +99,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		};
 	}
 
-	protected PDKMethodInvoker createPdkMethodInvoker() {
+	public PDKMethodInvoker createPdkMethodInvoker() {
 		PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create()
 				.logTag(TAG)
 				.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
@@ -107,7 +109,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		return pdkMethodInvoker;
 	}
 
-	protected void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
+	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
 		if(null == pdkMethodInvoker) return;
 		pdkMethodInvokerList.remove(pdkMethodInvoker);
 	}
@@ -147,7 +149,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 						pdkStateMap,
 						globalStateMap,
 						connectorCapabilities,
-						() -> Log4jUtil.setThreadContext(taskDto)
+						() -> Log4jUtil.setThreadContext(taskDto),
+						InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext)
 				)
 		);
 		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));
@@ -230,7 +233,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		}
 	}
 
-	protected ConnectorNode getConnectorNode() {
+	public ConnectorNode getConnectorNode() {
 		return ConnectorNodeService.getInstance().getConnectorNode(associateId);
 	}
 
