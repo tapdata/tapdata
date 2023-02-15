@@ -6,7 +6,6 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.mongodb.client.ListIndexesIterable;
 import com.tapdata.tm.init.MongoIndex;
-import com.tapdata.tm.init.PatchConstant;
 import com.tapdata.tm.init.PatchType;
 import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.utils.Lists;
@@ -37,17 +36,14 @@ public class JsonFilePatch extends AbsPatch {
     private final @NonNull String fileName;
     private final @NonNull String scriptStr;
     private final @NonNull MongoTemplate mongoTemplate;
-    private static Map<String, String> replaceMap;
-    static {
-        replaceMap = new HashMap<>();
-        replaceMap.put("TAPDATA.MONGODB.URI", PatchConstant.mongodbUri);
-    }
+    private final Map<String, String> allVariables;
 
-    public JsonFilePatch(@NonNull PatchType type, @NonNull PatchVersion version, @NonNull String fileName, @NonNull String scriptStr) {
+    public JsonFilePatch(@NonNull PatchType type, @NonNull PatchVersion version, @NonNull String fileName, @NonNull String scriptStr, @NonNull Map<String, String> allVariables) {
         super(type, version);
         this.fileName = fileName;
         this.scriptStr = scriptStr;
         this.mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
+        this.allVariables = allVariables;
     }
 
     @Override
@@ -233,16 +229,16 @@ public class JsonFilePatch extends AbsPatch {
         }
     }
 
-    public static String replaceScript(String script) {
+    private String replaceScript(String script) {
         if (StringUtils.isBlank(script)) {
             return script;
         }
         String finalScript = script;
-        String findKey = replaceMap.keySet().stream().filter(key -> finalScript.contains("${" + key + "}")).findFirst().orElse(null);
+        String findKey = allVariables.keySet().stream().filter(key -> finalScript.contains("${" + key + "}")).findFirst().orElse(null);
         if (null != findKey) {
-            String replaceValue = replaceMap.get(findKey);
+            String replaceValue = allVariables.get(findKey);
             if (null != replaceValue) {
-                script = script.replaceAll("\\$\\{" + findKey + "}", replaceMap.get(findKey));
+                script = script.replaceAll("\\$\\{" + findKey + "}", allVariables.get(findKey));
             }
         }
         return script;
