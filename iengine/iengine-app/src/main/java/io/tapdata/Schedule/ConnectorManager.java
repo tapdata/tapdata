@@ -38,6 +38,7 @@ import com.tapdata.mongo.RestTemplateOperator;
 import com.tapdata.tm.commons.ping.PingDto;
 import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
+import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.validator.ConnectionValidateResult;
 import com.tapdata.validator.ConnectionValidator;
 import com.tapdata.validator.ValidatorConstant;
@@ -98,19 +99,7 @@ import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -262,6 +251,18 @@ public class ConnectorManager {
     if (StringUtils.isNotBlank(checkCloudOneAgentResult)) {
       throw new RuntimeException(checkCloudOneAgentResult);
     }*/
+
+		WorkerSingletonLock.check(tapdataWorkDir, (singletonLock) -> {
+			String newSingletonLock = UUID.randomUUID().toString();
+			clientMongoOperator.upsert(new HashMap<String, Object>(){{
+				put("process_id", instanceNo);
+				put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
+				put("singletonLock", singletonLock);
+			}}, new HashMap<String, Object>() {{
+				put("singletonLock", newSingletonLock);
+			}}, ConnectorConstant.WORKER_COLLECTION + "/singleton-lock", String.class);
+			return newSingletonLock;
+		});
 
 		List<Worker> workers = clientMongoOperator.find(params, ConnectorConstant.WORKER_COLLECTION, Worker.class);
 
