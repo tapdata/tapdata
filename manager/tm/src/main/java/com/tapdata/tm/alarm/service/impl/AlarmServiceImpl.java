@@ -26,7 +26,6 @@ import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.constant.Type;
@@ -178,7 +177,6 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void notifyAlarm() {
-        log.info("notifyAlarm.......");
         Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE)
                 .and("lastNotifyTime").lt(DateUtil.date()).gt(DateUtil.offsetSecond(DateUtil.date(), -30)
                 );
@@ -209,7 +207,7 @@ public class AlarmServiceImpl implements AlarmService {
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMessage(info, taskDto, userDetail,null);
                 if (!reuslt) {
-                    //DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(),-60);
                     info.setLastNotifyTime(null);
                     save(info);
                 }
@@ -217,7 +215,7 @@ public class AlarmServiceImpl implements AlarmService {
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMail(info, taskDto, userDetail, null);
                 if (!reuslt) {
-                  //  DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), -60);
                     info.setLastNotifyTime(null);
                     save(info);
                 }
@@ -228,7 +226,7 @@ public class AlarmServiceImpl implements AlarmService {
                 FunctionUtils.ignoreAnyError(() -> {
                     boolean reuslt = sendSms(info, taskDto, userDetail, null);
                     if (!reuslt) {
-                       // DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                        DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), -60);
                         info.setLastNotifyTime(null);
                         save(info);
                     }
@@ -236,7 +234,7 @@ public class AlarmServiceImpl implements AlarmService {
                 FunctionUtils.ignoreAnyError(() -> {
                     boolean reuslt = sendWeChat(info, taskDto, userDetail, null);
                     if (!reuslt) {
-                        //DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                        DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), -60);
                         info.setLastNotifyTime(null);
                         save(info);
                     }
@@ -925,40 +923,6 @@ public class AlarmServiceImpl implements AlarmService {
     public List<AlarmInfo> query(Query query) {
         return mongoTemplate.find(query, AlarmInfo.class);
     }
-
-    private Boolean getDefaultNotification(String system, String msgType, String notificationType) {
-        Object defaultNotification = settingsService.getByCategoryAndKey("notification", "notification");
-        Map<String, List> defaultSettingMap = JsonUtil.parseJson((String) defaultNotification, Map.class);
-
-        String key = "";
-        String label = "";
-        if (system.equals(SystemEnum.AGENT.getValue())) {
-            key = "agentNotification";
-            if (msgType.equals(MsgTypeEnum.CONNECTED.getValue())) {
-                label = "agentStarted";
-            } else if (msgType.equals(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue())) {
-                label = "agentStopped";
-            }
-        } else if (system.equals(SystemEnum.DATAFLOW.getValue())) {
-            key = "runNotification";
-            if (msgType.equals(MsgTypeEnum.CONNECTED.getValue())) {
-                label = "jobStarted";
-            } else if (msgType.equals(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue())) {
-                label = "jobStateError";
-            }
-        }
-
-        List<Map> agentNotificationMapList = defaultSettingMap.get(key);
-        if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(agentNotificationMapList)) {
-            for (Map<String, Boolean> agentNotificationMap : agentNotificationMapList) {
-                if (label.equals(agentNotificationMap.get("label"))) {
-                    return agentNotificationMap.get(notificationType);
-                }
-            }
-        }
-        return false;
-    }
-
 
     /**
      * 只有三种情况会新增一条message
