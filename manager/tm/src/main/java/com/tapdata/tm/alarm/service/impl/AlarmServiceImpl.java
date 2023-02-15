@@ -216,7 +216,6 @@ public class AlarmServiceImpl implements AlarmService {
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMail(info, taskDto, userDetail, null);
                 if (!reuslt) {
-                    log.info("fail sendMail");
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
                     info.setLastNotifyTime(dateTime);
                     save(info);
@@ -280,7 +279,7 @@ public class AlarmServiceImpl implements AlarmService {
                     log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return true;
                 }
-                messageEntity.setLevel(Level.ERROR.getValue());
+                messageEntity.setLevel(Level.EMERGENCY.name());
                 messageEntity.setAgentId(messageDto.getAgentId());
                 messageEntity.setServerName(messageDto.getAgentId());
                 messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
@@ -312,7 +311,7 @@ public class AlarmServiceImpl implements AlarmService {
             messageService.addMessage(messageEntity, userDetail);
         } catch (Exception e) {
             log.error("sendMessage error: {}", ThrowableUtils.getStackTraceByPn(e));
-            return false;
+            return true;
         }
         return true;
     }
@@ -374,7 +373,7 @@ public class AlarmServiceImpl implements AlarmService {
             }
         } catch (Exception e) {
             log.error("sendMail error: {}", ThrowableUtils.getStackTraceByPn(e));
-            return false;
+            return true;
         }
         return true;
     }
@@ -473,7 +472,7 @@ public class AlarmServiceImpl implements AlarmService {
             if (messageDto == null) {
                 if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SMS, userDetail)) {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return false;
+                    return true;
                 }
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 String smsEvent = map.get("smsEvent");
@@ -524,7 +523,7 @@ public class AlarmServiceImpl implements AlarmService {
             }
         } catch (Exception e) {
             log.error("sendSms error: {}", ThrowableUtils.getStackTraceByPn(e));
-            return false;
+            return true;
         }
         return true;
     }
@@ -592,7 +591,7 @@ public class AlarmServiceImpl implements AlarmService {
             }
         } catch (Exception e) {
             log.error("sendWeChat error: {}", ThrowableUtils.getStackTraceByPn(e));
-            return false;
+            return true;
         }
         return true;
     }
