@@ -1,6 +1,5 @@
 package com.tapdata.tm.alarm.service.impl;
 
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateField;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
@@ -85,7 +84,6 @@ public class AlarmServiceImpl implements AlarmService {
     MailUtils mailUtils;
     EventsService eventsService;
     private final static String MAIL_SUBJECT = "【Tapdata】";
-    private final static String MAIL_CONTENT = "尊敬的用户您好，您在Tapdata Cloud上创建的Agent:";
 
 
     @Override
@@ -209,7 +207,7 @@ public class AlarmServiceImpl implements AlarmService {
             UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
 
             FunctionUtils.ignoreAnyError(() -> {
-                boolean reuslt = sendMessage(info, taskDto, userDetail);
+                boolean reuslt = sendMessage(info, taskDto, userDetail,null);
                 if (!reuslt) {
                     //DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
                     info.setLastNotifyTime(null);
@@ -248,29 +246,69 @@ public class AlarmServiceImpl implements AlarmService {
 
     }
 
-    private boolean sendMessage(AlarmInfo info, TaskDto taskDto, UserDetail userDetail) {
+    private boolean sendMessage(AlarmInfo info, TaskDto taskDto, UserDetail userDetail, MessageDto messageDto) {
         try {
-            if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM, userDetail)) {
-                String taskId = taskDto.getId().toHexString();
-                Date date = DateUtil.date();
-                MessageEntity messageEntity = new MessageEntity();
-                messageEntity.setLevel(info.getLevel().name());
-                messageEntity.setAgentId(taskDto.getAgentId());
-                messageEntity.setServerName(taskDto.getAgentId());
+            MessageEntity messageEntity = new MessageEntity();
+            Date date = DateUtil.date();
+            if(messageDto ==null) {
+                if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM, userDetail)) {
+                    String taskId = taskDto.getId().toHexString();
+                    messageEntity.setLevel(info.getLevel().name());
+                    messageEntity.setAgentId(taskDto.getAgentId());
+                    messageEntity.setServerName(taskDto.getAgentId());
+                    messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
+                    String summary = info.getSummary();
+                    summary = summary + ", 通知时间：" + DateUtil.now();
+                    String title = StringUtils.replace(summary, "$taskName", info.getName());
+                    messageEntity.setTitle(title);
+                    MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
+                    messageEntity.setMessageMetadata(metadata);
+                    messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
+
+                    messageEntity.setUserId(taskDto.getUserId());
+                    messageEntity.setRead(false);
+                }
+            }else {
+                String msgType = messageDto.getMsg();
+                AlarmKeyEnum alarmKeyEnum;
+                alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
+                if(MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                    alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_UP;
+                }
+                if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.SYSTEM)) {
+                    log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
+                    return false;
+                }
+                messageEntity.setLevel(Level.ERROR.getValue());
+                messageEntity.setAgentId(messageDto.getAgentId());
+                messageEntity.setServerName(messageDto.getAgentId());
                 messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
-                String summary = info.getSummary();
-                summary = summary + ", 通知时间：" + DateUtil.now();
-                String title = StringUtils.replace(summary, "$taskName", info.getName());
-                messageEntity.setTitle(title);
-                MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
-                messageEntity.setMessageMetadata(metadata);
-                messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
-                messageEntity.setCreateAt(date);
-                messageEntity.setLastUpdAt(date);
-                messageEntity.setUserId(taskDto.getUserId());
-                messageEntity.setRead(false);
-                messageService.addMessage(messageEntity,userDetail);
+                String content="";
+                MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
+                //目前msgNotification 只会有三种情况
+                String metadataName = messageMetadata.getName();
+                if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
+                    if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                        content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
+                    } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                        content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
+                    }
+                } else {
+                    if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                        content = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
+                    } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                        content = "您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
+                    }
+                }
+                String summary = content + ", 通知时间：" + DateUtil.now();
+                messageEntity.setTitle(summary);
+                messageEntity.setMessageMetadata(messageDto.getMessageMetadataObject());
+                messageEntity.setSystem(SystemEnum.AGENT.getValue());
             }
+            messageEntity.setCreateAt(date);
+            messageEntity.setLastUpdAt(date);
+            messageEntity.setRead(false);
+            messageService.addMessage(messageEntity, userDetail);
         } catch (Exception e) {
             log.error("sendMessage error: {}", ThrowableUtils.getStackTraceByPn(e));
             return false;
@@ -290,6 +328,7 @@ public class AlarmServiceImpl implements AlarmService {
                     title = map.get("title");
                 }
             } else {
+                log.info("sendMail starting");
                 String msgType = messageDto.getMsg();
                 AlarmKeyEnum alarmKeyEnum;
                 alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
@@ -924,36 +963,21 @@ public class AlarmServiceImpl implements AlarmService {
      * 1、agent启动。TCM触发，TCM通过接口创建消息。
      * 2、agent停止。TCM触发，TCM通过接口创建消息。
      * 3、任务出错。通过dataFlows数据中status属性改为error，做为判断依据，创建消息通知。  这个时候需要发送邮件，或者短信通知用户
-     *
      * @param messageDto
      * @return
      */
-    public MessageDto add(MessageDto messageDto,UserDetail userDetail) {
+    public MessageDto add(MessageDto messageDto, UserDetail userDetail) {
         try {
-            MessageEntity messageEntity = new MessageEntity();
-            BeanUtil.copyProperties(messageDto, messageEntity, "messageMetadata");
-            MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
-            messageEntity.setMessageMetadata(messageMetadata);
-            String userId = messageDto.getUserId();
-                messageEntity.setUserId(userId);
-                messageEntity.setCreateAt(new Date());
-                messageEntity.setServerName(messageDto.getAgentName());
-                messageEntity.setLastUpdAt(new Date());
-                messageEntity.setLastUpdBy(userDetail.getUsername());
-                messageService.addMessage(messageEntity,userDetail);
-                messageDto.setId(messageEntity.getId());
-                informUser(messageDto, userDetail);
+            log.info("informUser");
+            sendMessage(null, null, userDetail, messageDto);
+            sendMail(null, null, userDetail, messageDto);
+            sendSms(null, null, userDetail, messageDto);
+            sendWeChat(null, null, userDetail, messageDto);
         } catch (Exception e) {
             log.error("新增消息异常，", e);
         }
         return messageDto;
     }
 
-    private void informUser(MessageDto messageDto, UserDetail userDetail) {
-        log.info("informUser");
-        sendMail(null, null, userDetail, messageDto);
-        sendSms(null, null, userDetail, messageDto);
-        sendWeChat(null, null, userDetail, messageDto);
-    }
 
 }
