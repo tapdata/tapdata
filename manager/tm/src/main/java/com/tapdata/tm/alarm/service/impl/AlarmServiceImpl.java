@@ -548,9 +548,12 @@ public class AlarmServiceImpl implements AlarmService {
                     log.info("Current user ({}, {}) can't open weChat notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return true;
                 }
+                log.info("sendWeChat");
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 content = map.get("content");
                 title = map.get("title");
+                log.info("sendWeChat1");
+
             } else {
                 String msgType = messageDto.getMsg();
                 AlarmKeyEnum alarmKeyEnum;
@@ -590,6 +593,7 @@ public class AlarmServiceImpl implements AlarmService {
                 eventsService.recordEvents(MAIL_SUBJECT, content, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
             }
         } catch (Exception e) {
+            log.error("sendSms error: {}", e.getMessage());
             log.error("sendWeChat error: {}", ThrowableUtils.getStackTraceByPn(e));
             return true;
         }
