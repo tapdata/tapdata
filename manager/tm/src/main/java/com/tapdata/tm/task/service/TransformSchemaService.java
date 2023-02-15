@@ -109,6 +109,7 @@ public class TransformSchemaService {
     }
     public TransformerWsMessageDto getTransformParam(TaskDto taskDto, UserDetail user, boolean allParam) {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
+
         taskDto.setUserId(user.getUserId());
         DAG dag = taskDto.getDag();
 
