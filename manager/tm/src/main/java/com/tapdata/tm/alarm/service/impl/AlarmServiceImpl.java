@@ -320,14 +320,16 @@ public class AlarmServiceImpl implements AlarmService {
         try {
             String title = null;
             String content = null;
-            MailAccountDto mailAccount = getMailAccount(taskDto.getUserId());
+            MailAccountDto mailAccount;
             if (messageDto == null) {
+                 mailAccount = getMailAccount(taskDto.getUserId());
                 if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail)) {
                     Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                     content = map.get("content");
                     title = map.get("title");
                 }
             } else {
+                mailAccount = getMailAccount(messageDto.getUserId());
                 log.info("sendMail starting");
                 String msgType = messageDto.getMsg();
                 AlarmKeyEnum alarmKeyEnum;
