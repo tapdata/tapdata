@@ -1,0 +1,34 @@
+[
+  {
+    "update": "DatabaseTypes",
+    "updates": [
+      {
+        "q": {
+          "pdkAPIBuildNumber": {
+            "$exits": false
+          }
+        },
+        "u": {
+          "$set": {
+            "pdkAPIBuildNumber": 0
+          }
+        },
+        "upsert": false,
+        "multi": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "DatabaseTypes",
+    "indexes": [
+      {
+        "name": "index_pdkHash_1_pdkAPIBuildNumber_1",
+        "key": {
+          "pdkHash": 1,
+          "pdkAPIBuildNumber": 1
+        },
+        "background": true
+      }
+    ]
+  }
+]

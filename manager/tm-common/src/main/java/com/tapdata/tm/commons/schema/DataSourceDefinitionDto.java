@@ -89,6 +89,8 @@ public class DataSourceDefinitionDto extends BaseDto {
     private List<Capability> capabilities;
 
     private Boolean beta;
+    private String pdkAPIVersion;
+    private Integer pdkAPIBuildNumber;
 
 
     public String calculatePdkHash(String customerId){
