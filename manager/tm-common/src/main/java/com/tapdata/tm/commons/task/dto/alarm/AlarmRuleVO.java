@@ -6,7 +6,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 
@@ -17,8 +16,7 @@ import java.io.Serializable;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@EqualsAndHashCode(callSuper = true)
-public class AlarmRuleDto extends BaseDto implements Serializable {
+public class AlarmRuleVO implements Serializable {
     private AlarmKeyEnum key;
     private int point;
     //-1 小于等于 <= ; 0; 1 大于等于 >=

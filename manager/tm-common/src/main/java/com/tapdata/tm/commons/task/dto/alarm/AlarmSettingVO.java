@@ -9,7 +9,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.util.List;
@@ -21,8 +20,7 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@EqualsAndHashCode(callSuper = true)
-public class AlarmSettingDto extends BaseDto implements Serializable {
+public class AlarmSettingVO implements Serializable {
     private AlarmSettingTypeEnum type;
     private boolean open;
     private AlarmKeyEnum key;
