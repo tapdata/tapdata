@@ -207,7 +207,8 @@ public class AlarmServiceImpl implements AlarmService {
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMessage(info, taskDto, userDetail,null);
                 if (!reuslt) {
-                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(),-60);
+                    log.info("fail sendMessage");
+                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(),30);
                     info.setLastNotifyTime(dateTime);
                     save(info);
                 }
@@ -215,7 +216,8 @@ public class AlarmServiceImpl implements AlarmService {
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMail(info, taskDto, userDetail, null);
                 if (!reuslt) {
-                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), -60);
+                    log.info("fail sendMail");
+                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
                     info.setLastNotifyTime(dateTime);
                     save(info);
                 }
@@ -226,7 +228,8 @@ public class AlarmServiceImpl implements AlarmService {
                 FunctionUtils.ignoreAnyError(() -> {
                     boolean reuslt = sendSms(info, taskDto, userDetail, null);
                     if (!reuslt) {
-                        DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), -60);
+                        log.info("fail sendSms");
+                        DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
                         info.setLastNotifyTime(dateTime);
                         save(info);
                     }
@@ -234,7 +237,8 @@ public class AlarmServiceImpl implements AlarmService {
                 FunctionUtils.ignoreAnyError(() -> {
                     boolean reuslt = sendWeChat(info, taskDto, userDetail, null);
                     if (!reuslt) {
-                        DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), -60);
+                        log.info("fail sendWeChat");
+                        DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
                         info.setLastNotifyTime(dateTime);
                         save(info);
                     }
@@ -262,7 +266,6 @@ public class AlarmServiceImpl implements AlarmService {
                     MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
                     messageEntity.setMessageMetadata(metadata);
                     messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
-
                     messageEntity.setUserId(taskDto.getUserId());
                     messageEntity.setRead(false);
                 }
@@ -275,7 +278,7 @@ public class AlarmServiceImpl implements AlarmService {
                 }
                 if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.SYSTEM)) {
                     log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return false;
+                    return true;
                 }
                 messageEntity.setLevel(Level.ERROR.getValue());
                 messageEntity.setAgentId(messageDto.getAgentId());
@@ -337,7 +340,7 @@ public class AlarmServiceImpl implements AlarmService {
                 }
                 if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.EMAIL)) {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return false;
+                    return true;
                 }
                 MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
                 //目前msgNotification 只会有三种情况
@@ -428,7 +431,9 @@ public class AlarmServiceImpl implements AlarmService {
                 SmsEvent = "当前任务运行超过阈值";
                 break;
             default:
-
+                title=info.getName()+"发生异常";
+                content =info.getSummary();
+                SmsEvent ="异常";
         }
         Map map = new HashMap();
         map.put("title", title);
@@ -472,9 +477,9 @@ public class AlarmServiceImpl implements AlarmService {
                 }
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 String smsEvent = map.get("smsEvent");
-                if(info.getMetric().name().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().name().equals(AlarmKeyEnum.TASK_FULL_COMPLETE)){
+                if(info.getMetric().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().equals(AlarmKeyEnum.TASK_INCREMENT_START)){
                     smsTemplateCode = SmsService.TASK_NOTICE;
-                    templateParam ="{\"JobName\":\"" + taskDto.getName()+smsEvent + "\"}";
+                    templateParam = "{\"JobName\":\"" + taskDto.getName() + smsEvent + "\"}";
                 }else {
                     templateParam=  "{\"JobName\":\"" +taskDto.getName() + "\",\"eventName\":\""+ smsEvent+"\"}";
                     smsTemplateCode = SmsService.TASK_ABNORMITY_NOTICE;
@@ -489,7 +494,7 @@ public class AlarmServiceImpl implements AlarmService {
                }
                 if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.SMS)) {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return false;
+                    return true;
                 }
                 MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
                 //目前msgNotification 只会有三种情况
@@ -533,7 +538,7 @@ public class AlarmServiceImpl implements AlarmService {
             String openId = userDetail.getOpenid();
             if (StringUtils.isBlank(openId)) {
                 log.error("Current user ({}, {}) can't bind weChat, cancel push message.", userDetail.getUsername(), userDetail.getUserId());
-                return false;
+                return true;
             }
             String metadataName = "";
             String title = "";
@@ -542,7 +547,7 @@ public class AlarmServiceImpl implements AlarmService {
             if (messageDto == null) {
                 if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.WECHAT, userDetail)) {
                     log.info("Current user ({}, {}) can't open weChat notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return false;
+                    return true;
                 }
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 content = map.get("content");
@@ -556,7 +561,7 @@ public class AlarmServiceImpl implements AlarmService {
                 }
                 if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.WECHAT)) {
                     log.info("Current user ({}, {}) can't open weChat notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return false;
+                    return true;
                 }
                 MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
                 //目前msgNotification 只会有三种情况
@@ -581,7 +586,6 @@ public class AlarmServiceImpl implements AlarmService {
             }
             log.info("Send alarm message ({}, {}) to user ({}, {}).",
                     title, content, userDetail.getUsername(), userDetail.getUserId());
-            log.info("Send weChat message {}", openId);
             SendStatus status = mpService.sendAlarmMsg(openId, title, content, new Date());
             if (messageDto != null) {
                 eventsService.recordEvents(MAIL_SUBJECT, content, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
