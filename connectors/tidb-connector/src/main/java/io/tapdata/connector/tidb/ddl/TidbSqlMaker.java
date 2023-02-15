@@ -20,6 +20,7 @@ import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,7 +40,7 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
 
     private static final String TIDB_OBJECT_EXISTENCE_NULL_TEMPLATE = "IF OBJECT_ID('%s', 'U') IS NULL \n";
 
-    public String createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent){
+    public String createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         TapTable tapTable = tapCreateTableEvent.getTable();
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
@@ -137,6 +138,7 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
 
         return sqls;
     }
+
     protected String createTableAppendField(TapField tapField) {
         String datatype = tapField.getDataType().toUpperCase();
         String fieldSql = "  `" + tapField.getName() + "`" + " " + tapField.getDataType().toUpperCase();
@@ -404,8 +406,7 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
 
         if (EmptyKit.isNotEmpty(filter.getMatch()) || EmptyKit.isNotEmpty(filter.getOperators())) {
             builder.append(" WHERE ");
-            CommonSqlMaker commonSqlMaker = new CommonSqlMaker();
-            builder.append(commonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "="));
+            builder.append(new CommonSqlMaker().buildKeyAndValue(filter.getMatch(), "AND", "="));
         }
         if (EmptyKit.isNotEmpty(filter.getOperators())) {
             if (EmptyKit.isNotEmpty(filter.getMatch())) {

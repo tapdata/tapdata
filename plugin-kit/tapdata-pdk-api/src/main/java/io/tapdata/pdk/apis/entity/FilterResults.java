@@ -18,6 +18,12 @@ public class FilterResults {
         return this;
     }
 
+    public int resultSize() {
+        if(results != null)
+            return results.size();
+        return 0;
+    }
+
     public TapAdvanceFilter getFilter() {
         return filter;
     }

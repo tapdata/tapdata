@@ -79,12 +79,4 @@
 <!--            </plugin>-->
         </plugins>
     </build>
-    <distributionManagement>
-        <repository>
-            <!--必须与 settings.xml 的 id 一致-->
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-        </repository>
-    </distributionManagement>
 </project>

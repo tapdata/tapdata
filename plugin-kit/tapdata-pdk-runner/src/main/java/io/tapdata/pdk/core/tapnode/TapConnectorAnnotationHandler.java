@@ -1,6 +1,7 @@
 package io.tapdata.pdk.core.tapnode;
 
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
@@ -161,8 +162,8 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
                     isTarget = true;
                 }
             } catch (Throwable e) {
-                e.printStackTrace();
                 TapLogger.error(TAG, "Find connector type failed, {} clazz {} will be ignored", e.getMessage(), clazz);
+                throw new CoreException(TapAPIErrorCodes.ERROR_FIND_CONNECTOR_TYPE_FAILED, "Find connector class {} type failed, {}", clazz, e.getMessage());
             }
         }
 

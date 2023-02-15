@@ -97,4 +97,7 @@ public class DataSourceDefinitionEntity extends BaseEntity {
      * Quality Control Type（认证类型｜质量控制类型）
      */
     private DataSourceQCType qcType;
+    private Boolean beta;
+    private String pdkAPIVersion;
+    private Integer pdkAPIBuildNumber;
 }

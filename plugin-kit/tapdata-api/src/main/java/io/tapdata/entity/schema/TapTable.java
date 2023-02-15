@@ -1,8 +1,13 @@
 package io.tapdata.entity.schema;
 
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.schema.type.TapType;
+
 import java.util.*;
 
 public class TapTable extends TapItem<TapField> {
+	private static final String TAG = TapTable.class.getSimpleName();
+
 	public TapTable() {
 	}
 
@@ -167,6 +172,60 @@ public class TapTable extends TapItem<TapField> {
 			}
 		}
 		return Collections.emptyList();
+	}
+
+	public TapIndexEx partitionIndex() {
+		LinkedHashMap<String, TapField> nameFieldMapCopyRef = this.nameFieldMap;
+		if (nameFieldMapCopyRef == null || nameFieldMapCopyRef.isEmpty()) {
+			TapLogger.warn(TAG, "Table {} field map is empty, no partition index available. ", name);
+			return null;
+		}
+
+		TapIndex bestIndex = null;
+
+		if (indexList != null) {
+			for (TapIndex tapIndex : indexList) {
+				if(tapIndex.getIndexFields() == null)
+					continue;
+				if((bestIndex == null || bestIndex.getIndexFields().size() > tapIndex.getIndexFields().size()))
+					bestIndex = tapIndex;
+			}
+		}
+
+		TapIndex primaryIndex = new TapIndex().unique(true);
+		for (String key : nameFieldMapCopyRef.keySet()) {
+			TapField field = nameFieldMapCopyRef.get(key);
+			if (field != null && ((field.getPrimaryKey() != null && field.getPrimaryKey())
+					|| (field.getPrimaryKeyPos() != null && field.getPrimaryKeyPos() > 0))) {
+				primaryIndex.indexField(new TapIndexField().name(field.getName()).fieldAsc(true));
+			}
+		}
+
+		if(primaryIndex.getIndexFields() != null && (bestIndex == null || bestIndex.getIndexFields().size() >= primaryIndex.getIndexFields().size())) {
+			bestIndex = primaryIndex;
+		}
+
+		return bestIndex != null ? new TapIndexEx(bestIndex) : null;
+	}
+
+	/**
+	 * @deprecated difficult to check by dataType.
+	 *
+	 * @param indexFields
+	 * @param supportedSplitTypes
+	 * @return
+	 */
+	private boolean checkFieldSupportSplit(List<TapIndexField> indexFields, Set<String> supportedSplitTypes) {
+		for(TapIndexField field : indexFields) {
+			TapField tapField = nameFieldMap.get(field.getName());
+			if(tapField == null || tapField.getTapType() == null) {
+				TapLogger.warn(TAG, "field {} is null or tapType is null, can not be partition index. ", field.getName());
+				return false;
+			}
+			TapType tapType = tapField.getTapType();
+
+		}
+		return true;
 	}
 
 	@Override

@@ -42,6 +42,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
@@ -686,7 +687,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		this.milestoneService = MilestoneFactory.getJetEdgeMilestoneService(processorBaseContext.getTaskDto(), httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(), httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter(), node, vertexName, vertexNames, null, vertexType);
 	}
 
-	protected synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {
+	public synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {
 		NodeException currentEx;
 		if (throwable instanceof NodeException) {
 			currentEx = (NodeException) throwable;
@@ -940,5 +941,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected boolean isJetJobRunning() {
 		JobStatus jetJobStatus = getJetJobStatus();
 		return null == jetJobStatus || jetJobStatus.equals(JobStatus.RUNNING);
+	}
+
+	public ObsLogger getObsLogger() {
+		return obsLogger;
 	}
 }

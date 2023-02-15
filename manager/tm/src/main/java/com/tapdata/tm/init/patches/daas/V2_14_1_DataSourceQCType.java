@@ -23,7 +23,8 @@ import java.util.Map;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2023/2/10 15:47 Create
  */
-@PatchAnnotation(appTypes = {AppType.DAAS, AppType.DFS, AppType.DRS}, version = "2.14-1")
+@PatchAnnotation(appType = AppType.DAAS, version = "2.14-1")
+@PatchAnnotation(appType = AppType.DFS, version = "2.14-1")
 public class V2_14_1_DataSourceQCType extends AbsPatch {
     private static final Logger logger = LogManager.getLogger(V2_14_1_DataSourceQCType.class);
 
@@ -33,6 +34,7 @@ public class V2_14_1_DataSourceQCType extends AbsPatch {
 
     @Override
     public void run() {
+        logger.info("Execute java patch: {}...", getClass().getName());
         String collectionName = "DatabaseTypes";
         MongoTemplate mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
 

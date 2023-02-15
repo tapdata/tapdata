@@ -5,8 +5,14 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.entity.utils.TapUtils;
+import io.tapdata.entity.utils.io.DataInputStreamEx;
+import io.tapdata.entity.utils.io.DataOutputStreamEx;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -21,7 +27,24 @@ public class TapInsertRecordEvent extends TapRecordEvent {
 	 */
 	private Map<String, Object> after;
 
+	//Only for cache, should not be serialized
 	private Map<String, Object> filter;
+	/*
+	public void from(InputStream inputStream) throws IOException {
+		super.from(inputStream);
+		DataInputStreamEx dataInputStreamEx = dataInputStream(inputStream);
+		ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+		byte[] afterBytes = dataInputStreamEx.readBytes();
+		if(afterBytes != null) {
+			after = (Map<String, Object>) objectSerializable.toObject(afterBytes);
+		}
+	}
+	public void to(OutputStream outputStream) throws IOException {
+		super.to(outputStream);
+		DataOutputStreamEx dataOutputStreamEx = dataOutputStream(outputStream);
+		ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+		dataOutputStreamEx.writeBytes(objectSerializable.fromObject(after));
+	}*/
 
 	public TapInsertRecordEvent() {
 		super(TYPE);

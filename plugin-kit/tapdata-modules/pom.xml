@@ -16,6 +16,8 @@
 		<module>websocket-server-module</module>
 		<module>websocket-client-module</module>
 		<module>service-skeleton-module</module>
+		<module>async-tools-module</module>
+		<module>tapdata-storage-module</module>
     </modules>
 
 	<properties>
@@ -46,13 +48,5 @@
 
         </plugins>
     </build>
-    <distributionManagement>
-        <repository>
-            <!--必须与 settings.xml 的 id 一致-->
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-        </repository>
-    </distributionManagement>
 </project>
 

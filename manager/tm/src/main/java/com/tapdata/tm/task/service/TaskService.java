@@ -36,6 +36,8 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.customNode.dto.CustomNodeDto;
+import com.tapdata.tm.customNode.service.CustomNodeService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
@@ -174,6 +176,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MetadataDefinitionService metadataDefinitionService;
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
+
+    private CustomNodeService customNodeService;
 
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
@@ -2304,6 +2308,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                 jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
                                 jsonList.add(new TaskUpAndLoadDto("Connections", JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
                             }
+
+                            if (node instanceof CustomProcessorNode) {
+                                String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
+                                CustomNodeDto customNodeDto = customNodeService.findById(MongoUtils.toObjectId(customNodeId), user);
+                                jsonList.add(new TaskUpAndLoadDto("CustomNodeTemps", JsonUtil.toJsonUseJackson(customNodeDto)));
+                            }
                         }
                     } catch (Exception e) {
                         log.error("node data error", e);
@@ -2353,6 +2363,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<MetadataInstancesDto> metadataInstancess = new ArrayList<>();
         List<TaskDto> tasks = new ArrayList<>();
         List<DataSourceConnectionDto> connections = new ArrayList<>();
+        List<CustomNodeDto> customNodeDtos = new ArrayList<>();
         for (TaskUpAndLoadDto taskUpAndLoadDto : taskUpAndLoadDtos) {
             try {
                 String dtoJson = taskUpAndLoadDto.getJson();
@@ -2365,11 +2376,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     tasks.add(JsonUtil.parseJsonUseJackson(dtoJson, TaskDto.class));
                 } else if ("Connections".equals(taskUpAndLoadDto.getCollectionName())) {
                     connections.add(JsonUtil.parseJsonUseJackson(dtoJson, DataSourceConnectionDto.class));
+                } else if ("CustomNodeTemps".equals(taskUpAndLoadDto.getCollectionName())) {
+                    customNodeDtos.add(JsonUtil.parseJsonUseJackson(dtoJson, CustomNodeDto.class));
                 }
             } catch (Exception e) {
                 log.error("error", e);
             }
         }
+
+        Map<String, CustomNodeDto> customNodeMap = new HashMap<>();
+        try {
+            customNodeMap = customNodeService.batchImport(customNodeDtos, user, cover);
+        } catch (Exception e) {
+            log.error("customNodeService.batchImport error", e);
+        }
+
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
         try {
             conMap = dataSourceService.batchImport(connections, user, cover);
