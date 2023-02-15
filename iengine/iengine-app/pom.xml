@@ -47,6 +47,11 @@
         </dependency>
         <dependency>
             <groupId>com.tapdata</groupId>
+            <artifactId>milestone-module</artifactId>
+            <version>0.5.2-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tapdata</groupId>
             <artifactId>test-run-module</artifactId>
             <version>0.5.2-SNAPSHOT</version>
         </dependency>

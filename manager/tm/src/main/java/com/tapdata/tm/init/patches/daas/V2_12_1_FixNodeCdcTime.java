@@ -27,7 +27,6 @@ import java.util.*;
  * @version v1.0 2022/12/16 20:52 Create
  */
 @PatchAnnotation(appType = AppType.DAAS, version = "2.12-1")
-@PatchAnnotation(appType = AppType.DFS, version = "2.12-1")
 public class V2_12_1_FixNodeCdcTime extends AbsPatch {
     private static final Logger logger = LogManager.getLogger(V2_12_1_FixNodeCdcTime.class);
 
