@@ -24,11 +24,13 @@
     <properties>
         <java.version>8</java.version>
         <sql.core.version>1.0-SNAPSHOT</sql.core.version>
+<!--        <tapdata.pdk.api.version>1.2.0</tapdata.pdk.api.version>-->
     </properties>
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

@@ -21,12 +21,14 @@
 
         <guava.version>31.0.1-jre</guava.version>
         <sql.core.version>1.0-SNAPSHOT</sql.core.version>
+<!--        <tapdata.pdk.api.version>1.2.0</tapdata.pdk.api.version>-->
     </properties>
     <!--<dependencyManagement>-->
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

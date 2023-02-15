@@ -27,7 +27,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -40,9 +42,6 @@ import java.util.function.Function;
 public class PatchesRunner implements ApplicationRunner {
     private static final Logger logger = LogManager.getLogger(PatchesRunner.class);
 
-    private AppType appType;
-    private PatchType patchType;
-
     @Autowired
     private VersionService versionService;
     @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
@@ -53,28 +52,35 @@ public class PatchesRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
+        // Add script patch replace map.
+        Map<String, String> allVariables = new HashMap<>();
+        allVariables.put("TAPDATA.MONGODB.URI", mongodbUri);
+
+        executePatchByType(AppType.DAAS, allVariables);
         if (productList.contains("dfs")) {
-            appType = AppType.DFS;
+            executePatchByType(AppType.DFS, allVariables);
         } else if (productList.contains("drs")) {
-            appType = AppType.DRS;
-        } else {
-            appType = AppType.DAAS;
+            executePatchByType(AppType.DRS, allVariables);
         }
-        patchType = new PatchType(appType, PatchTypeEnums.Script);
+    }
 
-        setPatchConstant();
-
-        PatchVersion appVersion = getAppVersion();
-        PatchVersion currentVersion = getCurrentVersion();
+    private void executePatchByType(AppType appType, Map<String, String> allVariables) {
+        PatchType patchType = new PatchType(appType, PatchTypeEnums.Script);
+        PatchVersion appVersion = getAppVersion(patchType);
+        PatchVersion currentVersion = getCurrentVersion(appType);
         if (null != appVersion && currentVersion.compareTo(appVersion) <= 0) {
-            logger.info("Not have any patches, current version is {}", currentVersion);
+            logger.info("Not have any {} patches, current version is {}", appType, currentVersion);
             return;
         }
-        List<IPatch> patches = scanPatches(getAppVersion(), currentVersion
-                , new ScriptPatchScanner(appType)
+
+        // scan patches
+        List<IPatch> patches = scanPatches(appType, appVersion, currentVersion
+                , new ScriptPatchScanner(appType, allVariables)
                 , new JavaPatchScanner(appType)
         );
-        logger.info("Found all patch size: " + patches.size());
+
+        // execute patches
+        logger.info("Found all {} patch size: {}", appType, patches.size());
         for (IPatch patch : patches) {
             try {
                 // process and store status
@@ -90,16 +96,12 @@ public class PatchesRunner implements ApplicationRunner {
         logger.info("Patch {} {} completed.", patchType, currentVersion);
     }
 
-    private void setPatchConstant() {
-        PatchConstant.mongodbUri = mongodbUri;
-    }
-
     /**
      * Get current version
      *
      * @return current version
      */
-    private PatchVersion getCurrentVersion() {
+    private PatchVersion getCurrentVersion(AppType appType) {
         PathMatchingResourcePatternResolver pathMatchingResourcePatternResolver = new PathMatchingResourcePatternResolver();
         String versionFilePath = String.format("%s/version", patchDir(appType));
         Resource versionRes = pathMatchingResourcePatternResolver.getResource(versionFilePath);
@@ -120,7 +122,7 @@ public class PatchesRunner implements ApplicationRunner {
      *
      * @return application version
      */
-    private PatchVersion getAppVersion() {
+    private PatchVersion getAppVersion(PatchType patchType) {
         VersionDto dto = versionService.findOne(Query.query(Criteria.where("type").is(patchType.toString())));
         if (null != dto) {
             return PatchVersion.valueOf(dto.getVersion());
@@ -147,7 +149,7 @@ public class PatchesRunner implements ApplicationRunner {
      * @param scanners    scanner instance
      * @return patches
      */
-    private List<IPatch> scanPatches(PatchVersion appVersion, PatchVersion softVersion, IPatchScanner... scanners) {
+    private List<IPatch> scanPatches(AppType appType, PatchVersion appVersion, PatchVersion softVersion, IPatchScanner... scanners) {
         List<IPatch> patches = new ArrayList<>();
 
         Function<PatchVersion, Boolean> isVersion;
