@@ -5,6 +5,7 @@ import cn.hutool.core.date.DateField;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import cn.hutool.json.JSONUtil;
 import com.google.common.collect.Maps;
@@ -150,17 +151,23 @@ public class AlarmServiceImpl implements AlarmService {
     @SuppressWarnings("unchecked")
     private static List<AlarmSettingDto> getAlarmSettingDtos(TaskDto taskDto, String nodeId) {
         List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
-        alarmSettingDtos.addAll(Optional.ofNullable(taskDto.getAlarmSettings()).orElse(Collections.emptyList()));
+        Optional.ofNullable(taskDto.getAlarmSettings()).ifPresent(list -> {
+            alarmSettingDtos.addAll(CglibUtil.copyList(list, AlarmSettingDto::new));
+        });
 
         if (Objects.nonNull(nodeId)) {
             for (Node node : taskDto.getDag().getNodes()) {
                 if (node.getId().equals(nodeId) && CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
-                    alarmSettingDtos.addAll(node.getAlarmSettings());
+                    alarmSettingDtos.addAll(CglibUtil.copyList(node.getAlarmSettings(), AlarmSettingDto::new));
                     break;
                 }
             }
         } else {
-            taskDto.getDag().getNodes().forEach(node -> alarmSettingDtos.addAll(Optional.ofNullable(node.getAlarmSettings()).orElse(Collections.emptyList())));
+            taskDto.getDag().getNodes().forEach(node -> {
+                Optional.ofNullable(node.getAlarmSettings()).ifPresent(list -> {
+                    alarmSettingDtos.addAll(CglibUtil.copyList(list, AlarmSettingDto::new));
+                });
+            });
         }
         return alarmSettingDtos;
     }
@@ -171,9 +178,11 @@ public class AlarmServiceImpl implements AlarmService {
     public Map<String, List<AlarmRuleDto>> getAlarmRuleDtos(TaskDto taskDto) {
         if (Objects.nonNull(taskDto)) {
             Map<String, List<AlarmRuleDto>> ruleMap = Maps.newHashMap();
-            ruleMap.put(taskDto.getId().toHexString(), Optional.ofNullable(taskDto.getAlarmRules()).orElse(Collections.emptyList()));
+            Optional.ofNullable(taskDto.getAlarmRules()).ifPresent(list -> ruleMap.put(taskDto.getId().toHexString(), CglibUtil.copyList(list, AlarmRuleDto::new)));
 
-            taskDto.getDag().getNodes().forEach(node -> ruleMap.put(node.getId(), Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList())));
+            taskDto.getDag().getNodes().forEach(node -> {
+                Optional.ofNullable(node.getAlarmRules()).ifPresent(list -> ruleMap.put(node.getId(), CglibUtil.copyList(list, AlarmRuleDto::new)));
+            });
             return ruleMap;
         }
         return null;
@@ -212,16 +221,16 @@ public class AlarmServiceImpl implements AlarmService {
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMessage(info, taskDto, userDetail);
                 if (!reuslt) {
-                    //DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
-                    info.setLastNotifyTime(null);
+                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                    info.setLastNotifyTime(dateTime);
                     save(info);
                 }
             });
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMail(info, taskDto, userDetail, null);
                 if (!reuslt) {
-                  //  DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
-                    info.setLastNotifyTime(null);
+                    DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                    info.setLastNotifyTime(dateTime);
                     save(info);
                 }
             });
@@ -231,16 +240,16 @@ public class AlarmServiceImpl implements AlarmService {
                 FunctionUtils.ignoreAnyError(() -> {
                     boolean reuslt = sendSms(info, taskDto, userDetail, null);
                     if (!reuslt) {
-                       // DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
-                        info.setLastNotifyTime(null);
+                        DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                        info.setLastNotifyTime(dateTime);
                         save(info);
                     }
                 });
                 FunctionUtils.ignoreAnyError(() -> {
                     boolean reuslt = sendWeChat(info, taskDto, userDetail, null);
                     if (!reuslt) {
-                        //DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
-                        info.setLastNotifyTime(null);
+                        DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
+                        info.setLastNotifyTime(dateTime);
                         save(info);
                     }
                 });

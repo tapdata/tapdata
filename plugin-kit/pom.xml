@@ -8,8 +8,8 @@
     <name>plugin-kit</name>
     <packaging>pom</packaging>
     <modules>
-		<module>tapdata-api</module>
-		<module>tapdata-pdk-api</module>
+<!--		<module>tapdata-api</module>-->
+<!--		<module>tapdata-pdk-api</module>-->
 		<module>tapdata-pdk-runner</module>
         <module>tapdata-tests</module>
 		<module>connector-archetypes</module>
