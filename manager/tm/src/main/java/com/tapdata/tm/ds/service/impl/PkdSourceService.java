@@ -181,7 +181,11 @@ public class PkdSourceService {
                 Update removeLatest = Update.update("latest", false);
                 dataSourceDefinitionService.update(new Query(criteriaLatest), removeLatest);
             }
-            dataSourceDefinitionService.save(definitionDto, user);
+            if (Objects.isNull(oldDefinitionDto)) {
+                dataSourceDefinitionService.save(definitionDto, user);
+            } else {
+                dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(definitionDto.getId())), definitionDto, user);
+            }
         }
     }
 
