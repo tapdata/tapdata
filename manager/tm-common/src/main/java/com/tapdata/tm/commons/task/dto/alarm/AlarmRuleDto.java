@@ -4,6 +4,7 @@ import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.bson.types.ObjectId;
 
@@ -16,6 +17,7 @@ import java.io.Serializable;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
 public class AlarmRuleDto extends BaseDto implements Serializable {
     private AlarmKeyEnum key;
     private int point;
