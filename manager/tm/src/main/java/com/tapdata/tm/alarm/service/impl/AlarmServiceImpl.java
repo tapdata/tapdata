@@ -208,7 +208,7 @@ public class AlarmServiceImpl implements AlarmService {
                 boolean reuslt = sendMessage(info, taskDto, userDetail,null);
                 if (!reuslt) {
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(),-60);
-                    info.setLastNotifyTime(null);
+                    info.setLastNotifyTime(dateTime);
                     save(info);
                 }
             });
@@ -216,7 +216,7 @@ public class AlarmServiceImpl implements AlarmService {
                 boolean reuslt = sendMail(info, taskDto, userDetail, null);
                 if (!reuslt) {
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), -60);
-                    info.setLastNotifyTime(null);
+                    info.setLastNotifyTime(dateTime);
                     save(info);
                 }
             });
@@ -227,7 +227,7 @@ public class AlarmServiceImpl implements AlarmService {
                     boolean reuslt = sendSms(info, taskDto, userDetail, null);
                     if (!reuslt) {
                         DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), -60);
-                        info.setLastNotifyTime(null);
+                        info.setLastNotifyTime(dateTime);
                         save(info);
                     }
                 });
@@ -235,7 +235,7 @@ public class AlarmServiceImpl implements AlarmService {
                     boolean reuslt = sendWeChat(info, taskDto, userDetail, null);
                     if (!reuslt) {
                         DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), -60);
-                        info.setLastNotifyTime(null);
+                        info.setLastNotifyTime(dateTime);
                         save(info);
                     }
                 });
