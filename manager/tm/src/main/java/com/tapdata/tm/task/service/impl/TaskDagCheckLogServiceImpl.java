@@ -157,7 +157,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         AtomicInteger errorNum = new AtomicInteger();
         AtomicInteger warnNum = new AtomicInteger();
         all.forEach(a -> {
-            switch (a.getLevel()) {
+            switch (a.getGrade()) {
                 case ERROR:
                     errorNum.getAndIncrement();
                     break;
