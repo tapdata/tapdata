@@ -224,7 +224,7 @@ public class RestTemplateOperator {
 		if (e instanceof HttpClientErrorException) {
 			// If the parameter is incorrect, no retry will be performed
 			if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {
-				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), e.getMessage()), e);
+				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "not found url: " + uri), e);
 			}
 		}
 		if (retryCount <= 1) {
@@ -897,7 +897,7 @@ public class RestTemplateOperator {
 		}
 
 		logger.error("Request {} fail, error code {}, error message {}, request id {}",
-				uri, responseBody.getCode(), responseBody.getMsg(), responseBody.getReqId());
+				uri, responseBody.getCode(), responseBody.getMessage(), responseBody.getReqId());
 
 		if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument", "Transition.Not.Supported")) {
 			throw new RestDoNotRetryException(uri, method, param, responseBody);
