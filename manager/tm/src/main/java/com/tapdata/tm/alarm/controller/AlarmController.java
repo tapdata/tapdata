@@ -59,7 +59,7 @@ public class AlarmController extends BaseController {
     @PostMapping("addMsg")
     public ResponseMessage<MessageDto> addMsg(@RequestBody MessageDto messageDto) {
         log.info("接收到新增信息请求  ,  messageDto:{}", JSON.toJSONString(messageDto));
-        MessageDto messageDtoRet = alarmService.add(messageDto);
+        MessageDto messageDtoRet = alarmService.add(messageDto,getLoginUser());
         return success(messageDtoRet);
     }
 }

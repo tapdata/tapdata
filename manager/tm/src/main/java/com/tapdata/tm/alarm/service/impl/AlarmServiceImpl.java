@@ -54,7 +54,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
@@ -870,7 +869,6 @@ public class AlarmServiceImpl implements AlarmService {
         List<TaskDto> taskList = taskService.findAll(Query.query(taskCriteria));
 
         if (CollectionUtils.isEmpty(taskList)) return;
-
         FunctionUtils.isTureOrFalse(pass).trueOrFalseHandle(
                 () -> connectPassAlarm(nodeName, connectId, response_body, taskList),
                 () -> connectFailAlarm(nodeName, connectId, response_body, taskList)
@@ -930,16 +928,13 @@ public class AlarmServiceImpl implements AlarmService {
      * @param messageDto
      * @return
      */
-    @Async("NotificationExecutor")
-    public MessageDto add(MessageDto messageDto) {
+    public MessageDto add(MessageDto messageDto,UserDetail userDetail) {
         try {
             MessageEntity messageEntity = new MessageEntity();
             BeanUtil.copyProperties(messageDto, messageEntity, "messageMetadata");
             MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
             messageEntity.setMessageMetadata(messageMetadata);
             String userId = messageDto.getUserId();
-            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
-            if (null != userDetail) {
                 messageEntity.setUserId(userId);
                 messageEntity.setCreateAt(new Date());
                 messageEntity.setServerName(messageDto.getAgentName());
@@ -948,10 +943,6 @@ public class AlarmServiceImpl implements AlarmService {
                 messageService.addMessage(messageEntity,userDetail);
                 messageDto.setId(messageEntity.getId());
                 informUser(messageDto, userDetail);
-            } else {
-                log.error("找不到用户信息. userId:{}", userId);
-            }
-
         } catch (Exception e) {
             log.error("新增消息异常，", e);
         }
