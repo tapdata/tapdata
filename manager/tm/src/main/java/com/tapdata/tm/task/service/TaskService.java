@@ -1277,10 +1277,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (isAgentReq()) {
             log.info("isAgentReq{}",isAgentReq());
             Page<TaskDto>  page = super.find(filter, userDetail);
-            deleteNotifyEnumData(page);
+            deleteNotifyEnumData(page.getItems());
+            log.info("page{}",JSONObject.toJSONString(page));
+
             return page;
         }
-
+        log.info("not AgentReq");
         Where where = filter.getWhere();
         if (where == null) {
             where = new Where();
@@ -1385,9 +1387,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void deleteNotifyEnumData(Page<TaskDto> page) {
+    public void deleteNotifyEnumData(List<TaskDto> taskDtoList) {
         log.info("deleteNotifyEnumData");
-        for (TaskDto taskDto : page.getItems()) {
+        if (CollectionUtils.isEmpty(taskDtoList)) {
+            return;
+        }
+        for (TaskDto taskDto : taskDtoList) {
             List<AlarmSettingDto> alarmSettings = taskDto.getAlarmSettings();
             if (CollectionUtils.isNotEmpty(alarmSettings)) {
                 for (AlarmSettingDto alarmSettingDto : alarmSettings) {
@@ -2098,11 +2103,25 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public TransformerWsMessageDto findTransformParam(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
+        if (isAgentReq()) {
+            log.info("isAgentReq{}",isAgentReq());
+            List<TaskDto> list = new ArrayList<>();
+            list.add(taskDto);
+            deleteNotifyEnumData(list);
+
+        }
         return transformSchemaService.getTransformParam(taskDto, user);
     }
 
     public TransformerWsMessageDto findTransformAllParam(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
+        if (isAgentReq()) {
+            log.info("isAgentReq{}",isAgentReq());
+            List<TaskDto> list = new ArrayList<>();
+            list.add(taskDto);
+            deleteNotifyEnumData(list);
+
+       }
         return transformSchemaService.getTransformParam(taskDto, user, true);
     }
 
