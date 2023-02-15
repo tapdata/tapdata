@@ -41,8 +41,13 @@ public class UserDto extends BaseDto {
     private int accountStatus;
 
 
+//    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
+//    private Date last_updated;
+
+    @JsonProperty("last_updated")
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
-    private Date last_updated;
+//	@JsonFormat(pattern="yyyy-MM-dd HH:mm:ss")
+    private Date lastUpdAt;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
     private Date createTime;
