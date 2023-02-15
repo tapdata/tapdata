@@ -33,7 +33,6 @@
         <java.version>8</java.version>
         <mysql.driver.version>8.0.21</mysql.driver.version>
         <debezium.version>1.5.4.Final</debezium.version>
-        <tapdata.api.version>1.2.1</tapdata.api.version>
         <tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
     </properties>
     <dependencyManagement>
@@ -72,7 +71,7 @@
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-api</artifactId>
             <scope>provided</scope>
-            <version>${tapdata.api.version}</version>
+            <version>${tapdata.pdk.api.version}</version>
         </dependency>
         <dependency>
             <groupId>mysql</groupId>
