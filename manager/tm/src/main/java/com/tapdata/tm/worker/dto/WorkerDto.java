@@ -84,4 +84,5 @@ public class WorkerDto extends BaseDto {
     private Long startTime;
 
     private String gitCommitId;
+    private String singletonLock; // 单例锁标记，每次启动都会更新
 }

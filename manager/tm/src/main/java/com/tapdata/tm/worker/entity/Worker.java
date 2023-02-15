@@ -82,4 +82,6 @@ public class Worker extends BaseEntity {
 
     @Field("worker_status")
     private Object worker_status;
+
+    private String singletonLock; // 单例锁标记，每次启动都会更新
 }
