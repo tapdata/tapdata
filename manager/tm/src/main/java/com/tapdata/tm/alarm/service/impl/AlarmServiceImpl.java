@@ -440,7 +440,7 @@ public class AlarmServiceImpl implements AlarmService {
                 break;
             default:
                 title=info.getName()+"发生异常";
-                content =info.getSummary();
+                content = StringUtils.replace(info.getSummary(), "$taskName", info.getName());
                 SmsEvent ="异常";
         }
         Map map = new HashMap();
