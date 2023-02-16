@@ -32,6 +32,7 @@ import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
@@ -110,11 +111,11 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1393,9 +1394,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return;
         }
         for (TaskDto taskDto : taskDtoList) {
-            List<AlarmSettingDto> alarmSettings = taskDto.getAlarmSettings();
+            List<AlarmSettingVO> alarmSettings = taskDto.getAlarmSettings();
             if (CollectionUtils.isNotEmpty(alarmSettings)) {
-                for (AlarmSettingDto alarmSettingDto : alarmSettings) {
+                for (AlarmSettingVO alarmSettingDto : alarmSettings) {
                     log.info("alarmSettingDto{}", JSONObject.toJSONString(alarmSettingDto));
                     alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
                     alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
