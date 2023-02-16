@@ -53,8 +53,7 @@ public class AlarmRuleServiceImpl extends BaseService<AlarmRuleDto, AlarmRule, O
             alarmRules = mongoTemplate.find(query, AlarmRule.class);
             if (CollectionUtils.isNotEmpty(alarmRules)) {
                 alarmRules.forEach(rule -> {
-                    rule.setId(new ObjectId());
-                    rule.setUserId(userDetail.getUserId());
+                    rule.setId(null);
                 });
             }
         }

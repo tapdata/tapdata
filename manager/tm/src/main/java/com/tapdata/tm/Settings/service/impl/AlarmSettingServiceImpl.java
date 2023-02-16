@@ -59,8 +59,7 @@ public class AlarmSettingServiceImpl  extends BaseService<AlarmSettingDto, Alarm
             alarmSettings = mongoTemplate.find(query, AlarmSetting.class);
             if (CollectionUtils.isNotEmpty(alarmSettings)) {
                 alarmSettings.forEach(sett -> {
-                    sett.setId(new ObjectId());
-                    sett.setUserId(userDetail.getUserId());
+                    sett.setId(null);
                 });
             }
         }
