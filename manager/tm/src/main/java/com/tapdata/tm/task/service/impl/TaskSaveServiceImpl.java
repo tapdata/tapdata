@@ -2,7 +2,6 @@ package com.tapdata.tm.task.service.impl;
 
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
-import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -104,8 +103,8 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
     @Override
     public void supplementAlarm(TaskDto taskDto, UserDetail userDetail) {
-        List<AlarmSettingDto> settingDtos = alarmSettingService.findAll(userDetail);
-        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAll(userDetail);
+        List<AlarmSettingDto> settingDtos = alarmSettingService.findAllAlarmSetting(userDetail);
+        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAllAlarm(userDetail);
 
         Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
         Map<AlarmKeyEnum, AlarmRuleDto> ruleDtoMap = ruleDtos.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));

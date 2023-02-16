@@ -101,7 +101,8 @@ public class AlarmServiceImpl implements AlarmService {
             info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
             info.setLastOccurrenceTime(date);
             if (Objects.nonNull(one.getLastNotifyTime()) && Objects.isNull(info.getLastNotifyTime())) {
-                AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric(), info.getUserId());
+                UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(info.getUserId()));
+                AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric(),userDetail);
                 if (Objects.nonNull(alarmSettingDto)) {
                     DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
                     if (date.after(lastNotifyTime)) {
@@ -134,7 +135,7 @@ public class AlarmServiceImpl implements AlarmService {
         }
 
         boolean openSys = false;
-        List<AlarmSettingDto> all = alarmSettingService.findAll(userDetail);
+        List<AlarmSettingDto> all = alarmSettingService.findAllAlarmSetting(userDetail);
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
                     t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
@@ -447,7 +448,7 @@ public class AlarmServiceImpl implements AlarmService {
      */
     private boolean isOwnPermission(UserDetail userDetail, AlarmKeyEnum key, NotifyEnum type) {
         boolean permission = false;
-        List<AlarmSettingDto> all = alarmSettingService.findAll(userDetail);
+        List<AlarmSettingDto> all = alarmSettingService.findAllAlarmSetting(userDetail);
         if (CollectionUtils.isNotEmpty(all)) {
             permission = all.stream().anyMatch(t ->
                     t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));

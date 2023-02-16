@@ -604,30 +604,20 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
      * @param messageDto
      * @return
      */
-    @Async("NotificationExecutor")
-    public MessageDto add(MessageDto messageDto) {
+    public MessageDto add(MessageDto messageDto, UserDetail userDetail) {
         try {
             MessageEntity messageEntity = new MessageEntity();
             BeanUtil.copyProperties(messageDto, messageEntity, "messageMetadata");
-
             MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
             messageEntity.setMessageMetadata(messageMetadata);
-
-            String userId = messageDto.getUserId();
-            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
-            if (null != userDetail) {
-                messageEntity.setUserId(userId);
-                messageEntity.setCreateAt(new Date());
-                messageEntity.setServerName(messageDto.getAgentName());
-                messageEntity.setLastUpdAt(new Date());
-                messageEntity.setLastUpdBy(userDetail.getUsername());
-                repository.save(messageEntity,userDetail);
-                messageDto.setId(messageEntity.getId());
-                informUser(messageDto);
-            } else {
-                log.error("找不到用户信息. userId:{}", userId);
-            }
-
+            messageEntity.setUserId(userDetail.getUserId());
+            messageEntity.setCreateAt(new Date());
+            messageEntity.setServerName(messageDto.getAgentName());
+            messageEntity.setLastUpdAt(new Date());
+            messageEntity.setLastUpdBy(userDetail.getUsername());
+            repository.save(messageEntity, userDetail);
+            messageDto.setId(messageEntity.getId());
+            informUser(messageDto);
         } catch (Exception e) {
             log.error("新增消息异常，", e);
         }
