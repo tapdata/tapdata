@@ -90,7 +90,10 @@ public class AlarmServiceImpl implements AlarmService {
             info.setId(one.getId());
             info.setTally(one.getTally() + 1);
             info.setLastUpdAt(date);
-            info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
+            FunctionUtils.isTureOrFalse(AlarmStatusEnum.CLOESE.equals(one.getStatus())).trueOrFalseHandle(
+                    () -> info.setFirstOccurrenceTime(date),
+                    () -> info.setFirstOccurrenceTime(one.getFirstOccurrenceTime())
+            );
             info.setLastOccurrenceTime(date);
             if (Objects.nonNull(one.getLastNotifyTime()) && Objects.isNull(info.getLastNotifyTime())) {
                 AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric(), info.getUserId());
