@@ -210,6 +210,10 @@ public class AlarmServiceImpl implements AlarmService {
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
         for (AlarmInfo info : alarmInfos) {
+            if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(info.getMetric())) {
+                continue;
+            }
+
             TaskDto taskDto = taskDtoMap.get(info.getTaskId());
             UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
 
