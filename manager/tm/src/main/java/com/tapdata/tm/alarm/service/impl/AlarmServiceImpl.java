@@ -263,8 +263,6 @@ public class AlarmServiceImpl implements AlarmService {
                     return true;
                 }
                 String taskId = taskDto.getId().toHexString();
-                Date date = DateUtil.date();
-                MessageEntity messageEntity = new MessageEntity();
                 messageEntity.setLevel(info.getLevel().name());
                 messageEntity.setAgentId(taskDto.getAgentId());
                 messageEntity.setServerName(taskDto.getAgentId());
