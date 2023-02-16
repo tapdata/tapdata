@@ -24,7 +24,7 @@
  *          ];
  * @param connectionConfig  Configuration property information of the connection page
  * */
-function discover_schema(connectionConfig) {
+function discoverSchema(connectionConfig) {
     return ['Leads','Contacts','Accounts','Potentials','Quotes'];
 }
 
@@ -37,7 +37,7 @@ function discover_schema(connectionConfig) {
  * @param pageSize Processing number of each batch of data in the full stage
  * @param batchReadSender  Sender of submitted data
  * */
-function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
+function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
     if(!offset){
         offset = {
             page:1,
@@ -73,15 +73,15 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
  * @param pageSize
  * @param streamReadSender
  * */
-var batchStart = nowDate();
+var batchStart = dateUtils.nowDate();
 var startTime = new Date();
-function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
+function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
     if (!isParam(offset) || null == offset || typeof(offset) != 'object') offset = {};
     for(let x in tableNameList) {
       let tableName = tableNameList[x];
       let isFirst = false;
       if(!offset[tableName]){
-        offset[tableName] = {tableName:tableName, page: 1, Conditions:[{Key: 'UPDATED_AT',Value: batchStart + '_' + nowDate()}]} ;
+        offset[tableName] = {tableName:tableName, page: 1, Conditions:[{Key: 'UPDATED_AT',Value: batchStart + '_' + dateUtils.nowDate()}]} ;
         isFirst = true;
       }
         let condition = firstElement(offset[tableName].Conditions);
@@ -124,7 +124,7 @@ function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSi
  *          param - RESULT : The type is a String, descriptive text indicating test results.
  * @param connectionConfig  Configuration property information of the connection page
  * */
-function connection_test(connectionConfig) {
+function connectionTest(connectionConfig) {
     return [{
         "TEST": "Example test item",
         "CODE": 1,
@@ -139,7 +139,7 @@ function connection_test(connectionConfig) {
  * @param nodeConfig
  * @param commandInfo
  * */
-function command_callback(connectionConfig, nodeConfig, commandInfo) {
+function commandCallback(connectionConfig, nodeConfig, commandInfo) {
     if (commandInfo.command === 'TokenCommand') {
         let body = {
             client_id:connectionConfig.client_id,
@@ -178,7 +178,7 @@ function command_callback(connectionConfig, nodeConfig, commandInfo) {
  *      - null : Semantics are the same as {}
  *      - {"key":"value",...} : Type is Object and has key-value ,  At this point, these values will be used to call the interface again after the results are returned.
  * */
-function update_token(connectionConfig, nodeConfig, apiResponse) {
+function updateToken(connectionConfig, nodeConfig, apiResponse) {
     if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.code === 'INVALID_TOKEN')) {
         try{
             let refreshToken = invoker.invokeWithoutIntercept("refreshToken");
