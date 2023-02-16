@@ -8,23 +8,25 @@ package com.tapdata.tm.ws.handler;
 
 import com.mongodb.client.model.changestream.FullDocument;
 import com.tapdata.manager.common.utils.DateUtil;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.changestream.config.ChangeStreamManager;
-import com.tapdata.tm.ws.cs.NotificationListener;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
+import com.tapdata.tm.ws.cs.NotificationListener;
 import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.messaging.MessageListenerContainer;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @WebSocketMessageHandler(type = MessageType.NOTIFICATION)
 @Slf4j
@@ -134,6 +136,7 @@ public class NotificationHandler implements WebSocketHandler {
 			dataMap.put("system",document.getString("system"));
 			dataMap.put("level",document.getString("level").toUpperCase());
 			dataMap.put("createTime",DateUtil.getISO8601Time(document.getDate("createTime")));
+			dataMap.put("title",document.getString("title"));
 
 			String serverName=document.getString("agentName");
 			if (org.apache.commons.lang3.StringUtils.isEmpty(serverName)){
