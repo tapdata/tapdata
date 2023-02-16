@@ -1,11 +1,14 @@
 package io.tapdata.common;
 
 import com.zaxxer.hikari.HikariDataSource;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.kit.EmptyKit;
 
 import java.util.concurrent.ConcurrentHashMap;
 
 public class DataSourcePool {
+
+    private final static String TAG = DataSourcePool.class.getSimpleName();
 
     private final static ConcurrentHashMap<String, JdbcContext> dataPool = new ConcurrentHashMap<>(16);
 
@@ -20,10 +23,12 @@ public class DataSourcePool {
         String key = uniqueKeyForDb(config);
         synchronized (key.intern()) {
             if (dataPool.containsKey(key) && dataPool.get(key).testValid()) {
+                TapLogger.info(TAG, "JdbcContext exists, reuse it");
                 return dataPool.get(key).incrementConnector(connectorId);
             } else {
                 JdbcContext context = null;
                 try {
+                    TapLogger.info(TAG, "JdbcContext not exists, create it");
                     context = clazz.getDeclaredConstructor(config.getClass(), HikariDataSource.class).newInstance(config, HikariConnection.getHikariDataSource(config));
                     context.incrementConnector(connectorId);
                     dataPool.put(key, context);
