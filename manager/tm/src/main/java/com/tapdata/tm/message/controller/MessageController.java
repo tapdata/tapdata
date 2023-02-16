@@ -223,7 +223,7 @@ public class MessageController extends BaseController {
             messageDtoRet = messageService.addTrustAgentMessage(messageDto.getAgentName(), messageDto.getSourceId(), msgTypeEnum, messageDto.getTitle(), getLoginUser());
         } else {
             //agent启动或者停止在这里添加通知
-            messageDtoRet = messageService.add(messageDto);
+            messageDtoRet = messageService.add(messageDto,getLoginUser());
         }
         return success(messageDtoRet);
     }
