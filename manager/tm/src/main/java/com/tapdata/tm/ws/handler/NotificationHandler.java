@@ -137,7 +137,7 @@ public class NotificationHandler implements WebSocketHandler {
 			dataMap.put("level",document.getString("level").toUpperCase());
 			dataMap.put("createTime",DateUtil.getISO8601Time(document.getDate("createTime")));
 			dataMap.put("title",document.getString("title"));
-
+			dataMap.put("read",document.getBoolean("read"));
 			String serverName=document.getString("agentName");
 			if (org.apache.commons.lang3.StringUtils.isEmpty(serverName)){
 				serverName=document.getString("serverName");
