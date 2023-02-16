@@ -556,6 +556,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         WorkerDto one = findOne(query);
         if (Objects.nonNull(one)) {
             dto.setHostName(one.getHostname());
+            Optional.ofNullable(one.getTcmInfo()).ifPresent(info -> {
+                dto.setAgentName(info.getAgentName());
+            });
         }
     }
 
