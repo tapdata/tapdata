@@ -55,6 +55,7 @@ public class HazelcastSourcePdkShareCDCNode extends HazelcastSourcePdkDataNode {
 				.withDatabaseType(databaseType)
 				.withTapTableMap(dataProcessorContext.getTapTableMap())
 				.withTaskConfig(dataProcessorContext.getTaskConfig())
+				.withConnections(dataProcessorContext.getConnections())
 				.build();
 		this.syncType = SyncTypeEnum.CDC;
 		super.doInit(context);
