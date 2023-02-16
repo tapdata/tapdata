@@ -34,7 +34,7 @@ public class LockUtil {
 		}
 	}
 
-	public static interface Runner {
-		public void run();
+	public interface Runner {
+		void run();
 	}
 }
