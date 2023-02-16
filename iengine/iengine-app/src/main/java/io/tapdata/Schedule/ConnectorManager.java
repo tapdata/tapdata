@@ -252,17 +252,17 @@ public class ConnectorManager {
       throw new RuntimeException(checkCloudOneAgentResult);
     }*/
 
-		WorkerSingletonLock.check(tapdataWorkDir, (singletonLock) -> {
-			String newSingletonLock = UUID.randomUUID().toString();
-			clientMongoOperator.upsert(new HashMap<String, Object>(){{
-				put("process_id", instanceNo);
-				put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
-				put("singletonLock", singletonLock);
-			}}, new HashMap<String, Object>() {{
-				put("singletonLock", newSingletonLock);
-			}}, ConnectorConstant.WORKER_COLLECTION + "/singleton-lock", String.class);
-			return newSingletonLock;
-		});
+//		WorkerSingletonLock.check(tapdataWorkDir, (singletonLock) -> {
+//			String newSingletonLock = UUID.randomUUID().toString();
+//			clientMongoOperator.upsert(new HashMap<String, Object>(){{
+//				put("process_id", instanceNo);
+//				put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
+//				put("singletonLock", singletonLock);
+//			}}, new HashMap<String, Object>() {{
+//				put("singletonLock", newSingletonLock);
+//			}}, ConnectorConstant.WORKER_COLLECTION + "/singleton-lock", String.class);
+//			return newSingletonLock;
+//		});
 
 		List<Worker> workers = clientMongoOperator.find(params, ConnectorConstant.WORKER_COLLECTION, Worker.class);
 
