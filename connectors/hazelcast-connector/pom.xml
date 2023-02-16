@@ -144,17 +144,6 @@
 
             </plugin>
             <plugin>
-                <groupId>com.hazelcast.cloud</groupId>
-                <artifactId>hazelcast-cloud-maven-plugin</artifactId>
-                <version>0.0.5</version>
-                <configuration>
-                    <apiBaseUrl>https://api.viridian.hazelcast.com</apiBaseUrl>
-                    <clusterName>pr-1qu8pxqj</clusterName>
-                    <apiKey></apiKey>
-                    <apiSecret></apiSecret>
-                </configuration>
-            </plugin>
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.10.1</version>
