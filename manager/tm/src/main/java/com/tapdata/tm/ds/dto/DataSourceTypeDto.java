@@ -68,4 +68,6 @@ public class DataSourceTypeDto extends BaseDto {
     private Boolean isComing; // 即将上线
 
     private List<Capability> capabilities;
+    private String pdkAPIVersion;
+    private Integer pdkAPIBuildNumber;
 }
