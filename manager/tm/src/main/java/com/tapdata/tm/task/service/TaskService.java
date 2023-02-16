@@ -2241,11 +2241,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    value += Long.parseLong(String.valueOf(vs.get("inputInsertTotal")));
-                    value += Long.parseLong(String.valueOf(vs.get("inputOthersTotal")));
-                    value += Long.parseLong(String.valueOf(vs.get("inputDdlTotal")));
-                    value += Long.parseLong(String.valueOf(vs.get("inputUpdateTotal")));
-                    value += Long.parseLong(String.valueOf(vs.get("inputDeleteTotal")));
+                    value += parseDataTotal(vs.get("inputInsertTotal"));
+                    value += parseDataTotal(vs.get("inputOthersTotal"));
+                    value += parseDataTotal(vs.get("inputDdlTotal"));
+                    value += parseDataTotal(vs.get("inputUpdateTotal"));
+                    value += parseDataTotal(vs.get("inputDeleteTotal"));
                 }
                 LocalDate localDate = k.minusDays(1L);
                 Long lastNum = inputNumMap.get(localDate);
