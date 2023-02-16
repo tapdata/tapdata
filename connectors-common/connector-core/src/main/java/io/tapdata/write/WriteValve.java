@@ -90,8 +90,11 @@ public class WriteValve {
         return this;
     }
 
+    public void close(boolean stopNow) {
+        Optional.ofNullable(this.tapEventCollector).ifPresent(tap -> tap.stop(stopNow));
+    }
     public void close() {
-        Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::stop);
+        this.close(true);
     }
 
     public void commit(String tableId) {

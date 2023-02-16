@@ -19,6 +19,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Properties;
+import java.util.UUID;
 
 /**
  * Author:Skeet
@@ -74,7 +75,7 @@ public class HazelcastClientUtil {
                 }
             }
 
-            String keyFilename = "client";
+            String keyFilename = UUID.randomUUID().toString().replace("-", "");
             needCleanFile = true;
 
             // write keystore, truststore file to local
@@ -160,6 +161,4 @@ public class HazelcastClientUtil {
             throw new Exception("Write local file failed; Path: " + file.getAbsolutePath() + "; Content: " + new String(content, charset), e);
         }
     }
-
-
 }

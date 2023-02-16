@@ -3,6 +3,7 @@ package io.tapdata.connector.hazelcast;
 import com.hazelcast.collection.IList;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
+import com.hazelcast.memory.NativeOutOfMemoryError;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.connector.hazelcast.util.HazelcastClientUtil;
 import io.tapdata.connector.hazelcast.util.ObjectKey;
@@ -17,6 +18,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -24,7 +26,10 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import io.tapdata.write.WriteValve;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -37,8 +42,9 @@ import java.util.stream.Collectors;
 @TapConnectorClass("spec_hazelcast.json")
 public class HazelcastConnector extends ConnectorBase {
     public static final String TAG = HazelcastConnector.class.getSimpleName();
-    private static final String TAPDATA_TABLE_LIST = "__tapdataDiscoverSchemaIMaps";
+    private static final String TAPDATA_TABLE_LIST = "tapdataDiscoverSchemaIMaps";
     private HazelcastInstance client;
+    private WriteValve valve;
 
 
     @Override
@@ -53,16 +59,54 @@ public class HazelcastConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        HazelcastClientUtil.closeClient(client);
+        try {
+            Optional.ofNullable(this.valve).ifPresent(WriteValve::close);
+        } finally {
+            HazelcastClientUtil.closeClient(client);
+        }
     }
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, (value) -> value.getValue().toDate());
+        codecRegistry.registerFromTapValue(TapTimeValue.class, (value) -> value.getValue().toDate());
+        codecRegistry.registerFromTapValue(TapDateValue.class, (value) -> value.getValue().toDate());
+        codecRegistry.registerFromTapValue(TapYearValue.class, (value) -> value.getValue().toDate());
+
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportCreateTableV2(this::createIMap);
         connectorFunctions.supportClearTable(this::clearIMap);
         connectorFunctions.supportDropTable(this::dropIMap);
+        connectorFunctions.supportErrorHandleFunction(this::autoRetry);
         connectorFunctions.supportGetTableNamesFunction(this::getImapNames);
+    }
+    final Object reconnectLock = new int[0];
+    private RetryOptions autoRetry(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+        RetryOptions retryOptions = RetryOptions.create().beforeRetryMethod(() -> {
+            //Do nothing
+            if(client == null || !client.getLifecycleService().isRunning()) {
+                synchronized (reconnectLock) {
+                    if(client == null || !client.getLifecycleService().isRunning()) {
+                        try {
+                            if(client != null)
+                                client.shutdown();
+                        } catch (Throwable ignored) {}
+                        try {
+                            client = HazelcastClientUtil.getClient(tapConnectionContext);
+                        } catch (Exception exception) {
+                            exception.printStackTrace();
+                            TapLogger.warn(TAG, "Reconnect client failed, {}", exception.getMessage());
+                        }
+                    }
+                }
+            }
+        });
+        if (null != matchThrowable(throwable, NativeOutOfMemoryError.class)) {
+            retryOptions.needRetry(false);
+        } else {
+            retryOptions.needRetry(true);
+        }
+        return retryOptions;
     }
 
     public void accept(List<TapTable> tables, int size, Consumer<List<TapTable>> consumer) {
@@ -87,6 +131,7 @@ public class HazelcastConnector extends ConnectorBase {
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         try {
             IList<String> iMaps = client.getList(TAPDATA_TABLE_LIST);
+            List<String> list = new ArrayList<>();
             if (tables == null || tables.isEmpty()) {
                 accept(iMaps.stream().map(ConnectorBase::table).collect(Collectors.toList()), tableSize, consumer);
                 return;
@@ -94,9 +139,11 @@ public class HazelcastConnector extends ConnectorBase {
             List<TapTable> tapTableList = TapSimplify.list();
             if (iMaps.size() > 0) {
                 for (String s : iMaps) {
-                    if (tables.contains(s)) {
-                        tapTableList.add(table(s));
-                    }
+                    if (!list.contains(s) && tables.contains(s))
+                        list.add(s);
+                }
+                for (String k : list) {
+                    tapTableList.add(table(k));
                 }
             }
             accept(tapTableList, tableSize, consumer);
@@ -107,12 +154,32 @@ public class HazelcastConnector extends ConnectorBase {
         }
     }
 
-    private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
+    private final Object lock = new int[0];
+
+    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
+        if (Objects.isNull(this.valve)) {
+            synchronized (lock) {
+                if (Objects.isNull(this.valve)) {
+                    this.valve = WriteValve.open(
+                            1400,
+                            2,
+                            this::write,
+                            writeListResultConsumer
+                    );
+                }
+            }
+        }
+        this.valve.write(tapRecordEvents, tapTable);
+    }
+
+    private void write(Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, List<TapRecordEvent> events, TapTable table) {
         TapLogger.info(TAG, "batch events length is: {}", events.size());
         IMap<String, Object> map = client.getMap(table.getId());
         HashMap<String, Object> tempMap = new HashMap<>();
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
         for (TapRecordEvent event : events) {
+            if(!isAlive())
+                return;
             if (event instanceof TapInsertRecordEvent) {
                 final TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) event;
                 final Map<String, Object> after = insertRecordEvent.getAfter();
@@ -168,8 +235,10 @@ public class HazelcastConnector extends ConnectorBase {
     private void dropIMap(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
             if (tapDropTableEvent.getTableId() != null) {
-                IMap<Object, Object> map = client.getMap(tapDropTableEvent.getTableId());
+                IMap<String, Object> map = client.getMap(tapDropTableEvent.getTableId());
                 map.destroy();
+                IList<String> list = client.getList(tapDropTableEvent.getTableId());
+                list.remove(tapDropTableEvent.getTableId());
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -180,7 +249,7 @@ public class HazelcastConnector extends ConnectorBase {
     private void clearIMap(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
             if (tapClearTableEvent.getTableId() != null) {
-                IMap<Object, Object> map = client.getMap(tapClearTableEvent.getTableId());
+                IMap<String, Object> map = client.getMap(tapClearTableEvent.getTableId());
                 map.clear();
             }
         } catch (Exception e) {
@@ -196,7 +265,7 @@ public class HazelcastConnector extends ConnectorBase {
             if (tapCreateTableEvent.getTableId() != null) {
                 IList<String> discoverSchemaIMaps = client.getList(TAPDATA_TABLE_LIST);
                 String tableId = tapCreateTableEvent.getTableId();
-                if (discoverSchemaIMaps.contains(tableId))
+                if (!discoverSchemaIMaps.contains(tableId))
                     discoverSchemaIMaps.add(tableId);
             }
         } catch (Exception e) {
@@ -212,19 +281,13 @@ public class HazelcastConnector extends ConnectorBase {
         if (Objects.isNull(connectionConfig)) {
             throw new CoreException("connectionConfig cannot be null");
         }
-
-        IMap<String, String> tapDataConnectionTest = null;
+        HazelcastInstance client = null;
         try {
-            HazelcastInstance client = HazelcastClientUtil.getClient(connectionContext);
+            client = HazelcastClientUtil.getClient(connectionContext);
+            IMap<String, String> tapDataConnectionTest = null;
             tapDataConnectionTest = client.getMap("tapDataConnectionTest");
             consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY,
                     "Connecting to the cluster succeeded."));
-        } catch (Exception e) {
-            e.printStackTrace();
-            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage()));
-        }
-
-        try {
             tapDataConnectionTest.put("1", "2");
             tapDataConnectionTest.get("1");
             tapDataConnectionTest.put("1", "3");
@@ -232,8 +295,11 @@ public class HazelcastConnector extends ConnectorBase {
             tapDataConnectionTest.destroy();
             consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY, "Create,Insert,Update,Delete,Drop succeed"));
         } catch (Exception e) {
-            e.printStackTrace();
-            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, e.getMessage()));
+            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED,
+                    "Check whether the token,password,cluster ID or SSL protocol file is correct: " + e.getMessage()));
+        } finally {
+            if (client != null)
+                HazelcastClientUtil.closeClient(client);
         }
         return null;
     }
