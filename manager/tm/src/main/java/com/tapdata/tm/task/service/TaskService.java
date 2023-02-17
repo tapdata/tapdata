@@ -66,10 +66,7 @@ import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.bean.*;
-import com.tapdata.tm.task.constant.SyncType;
-import com.tapdata.tm.task.constant.TaskEnum;
-import com.tapdata.tm.task.constant.TaskOpStatusEnum;
-import com.tapdata.tm.task.constant.TaskStatusEnum;
+import com.tapdata.tm.task.constant.*;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
@@ -107,6 +104,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import sun.util.resources.LocaleData;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -116,6 +114,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -2186,7 +2185,81 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return taskTypeStats;
     }
 
+    private DataFlowInsightStatisticsDto mergerStatistics(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics, DataFlowInsightStatisticsDto newStatistics) {
+        Map<String, DataFlowInsightStatisticsDto.DataStatisticInfo> oldMap = new HashMap<>();
+        if (oldStatistics != null && CollectionUtils.isNotEmpty(oldStatistics.getInputDataStatistics())) {
+            oldMap = oldStatistics.getInputDataStatistics().stream().collect(Collectors.toMap(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime, v -> v, (k1, k2) -> k2));
+        }
+
+        Map<String, DataFlowInsightStatisticsDto.DataStatisticInfo> newMap = new HashMap<>();
+        if (newStatistics != null && CollectionUtils.isNotEmpty(newStatistics.getInputDataStatistics())) {
+            newMap = newStatistics.getInputDataStatistics().stream().collect(Collectors.toMap(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime, v -> v, (k1, k2) -> k2));
+        }
+
+        List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = new ArrayList<>();
+        
+        final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+        for (LocalDate localDate : localDates) {
+            String time = localDate.format(format);
+            if (newMap.get(time) != null) {
+                inputDataStatistics.add(newMap.get(time));
+            } else if (oldMap.get(time) != null) {
+                inputDataStatistics.add(oldMap.get(time));
+            }
+        }
+
+        inputDataStatistics.sort(Comparator.comparing(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime));
+        DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = new DataFlowInsightStatisticsDto();
+        dataFlowInsightStatisticsDto.setInputDataStatistics(inputDataStatistics);
+        Long count = inputDataStatistics.stream().map(DataFlowInsightStatisticsDto.DataStatisticInfo::getCount).reduce(0L, Long::sum);
+        dataFlowInsightStatisticsDto.setTotalInputDataCount(count);
+        dataFlowInsightStatisticsDto.setGranularity("month");
+        return dataFlowInsightStatisticsDto;
+    }
+
+    private List<LocalDate> getNewLocalDate(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics) {
+        List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = oldStatistics.getInputDataStatistics();
+        if (CollectionUtils.isEmpty(inputDataStatistics)) {
+            return localDates;
+        }
+        final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+        List<LocalDate> newLocalDates = new ArrayList<>();
+        inputDataStatistics.remove(inputDataStatistics.size()-1);
+        List<LocalDate> oldLocalDate = inputDataStatistics.stream().map(s -> LocalDate.parse(s.getTime(), format)).collect(Collectors.toList());
+        for (LocalDate localDate : localDates) {
+            if (!oldLocalDate.contains(localDate)) {
+                newLocalDates.add(localDate);
+            }
+        }
+
+        return newLocalDates;
+    }
+
     public DataFlowInsightStatisticsDto statsTransport(UserDetail userDetail) {
+        List<LocalDate> localDates = new ArrayList<>();
+        LocalDate now = LocalDate.now();
+        LocalDate lastMonthDay = now.minusMonths(1);
+        while (!now.equals(lastMonthDay)) {
+            localDates.add(now);
+            now = now.minusDays(1);
+        }
+
+        DataFlowInsightStatisticsDto oldStatistics = InputNumCache.USER_INPUT_NUM_CACHE.get(userDetail.getUserId());
+        if (oldStatistics == null) {
+            DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = statsTransport(userDetail, localDates);
+            InputNumCache.USER_INPUT_NUM_CACHE.put(userDetail.getUserId(), dataFlowInsightStatisticsDto);
+            return dataFlowInsightStatisticsDto;
+        }
+        List<LocalDate> newLocalDates = getNewLocalDate(localDates, oldStatistics);
+        DataFlowInsightStatisticsDto newStatistics = statsTransport(userDetail, newLocalDates);
+        DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = mergerStatistics(localDates, oldStatistics, newStatistics);
+        InputNumCache.USER_INPUT_NUM_CACHE.put(userDetail.getUserId(), dataFlowInsightStatisticsDto);
+        return dataFlowInsightStatisticsDto;
+    }
+
+
+
+    public DataFlowInsightStatisticsDto statsTransport(UserDetail userDetail, List<LocalDate> localDates) {
 
         Criteria criteria = Criteria.where("is_deleted").ne(true);
         Query query = new Query(criteria);
@@ -2194,14 +2267,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<TaskDto> allDto = findAllDto(query, userDetail);
         List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
 
-        List<LocalDate> localDates = new ArrayList<>();
-        LocalDate now = LocalDate.now();
-        LocalDate lastMonthDay = now.minusMonths(1);
         Map<LocalDate, Long> allInputNumMap = new HashMap<>();
-        while (!now.equals(lastMonthDay)) {
-            localDates.add(now);
-            allInputNumMap.put(now, 0L);
-            now = now.minusDays(1);
+        for (LocalDate date : localDates) {
+            allInputNumMap.put(date, 0L);
         }
         List<Date> localDateTimes = new ArrayList<>();
         for (LocalDate localDate : localDates) {
