@@ -246,7 +246,7 @@ public class TaskController extends BaseController {
                                                  @RequestBody TaskDto task) {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
-
+        taskSaveService.supplementAlarm(task, user);
         boolean noPass = taskStartService.taskStartCheckLog(task, user);
         TaskDto taskDto = task;
         if (!noPass) {
