@@ -12,6 +12,7 @@ import io.tapdata.common.support.APIFactory;
 import io.tapdata.common.support.core.emun.TapApiTag;
 import io.tapdata.common.support.entitys.APIResponse;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.JsonParser;
 import okhttp3.*;
@@ -25,10 +26,18 @@ import static io.tapdata.base.ConnectorBase.*;
 
 public class PostManAnalysis {
     private static final String TAG = PostManAnalysis.class.getSimpleName();
-    private Map<String,Object> httpConfig;
-    public void setHttpConfig(Map<String, Object> httpConfig){
+    private Map<String, Object> httpConfig;
+
+    public void setHttpConfig(Map<String, Object> httpConfig) {
         this.httpConfig = httpConfig;
     }
+
+    private Map<String, Object> connectorConfig;
+
+    public void setConnectorConfig(Map<String, Object> connectorConfig) {
+        this.connectorConfig = connectorConfig;
+    }
+
     public boolean filterUselessApi() {
         //是否过滤没有被标记的api
         return false;
@@ -122,6 +131,9 @@ public class PostManAnalysis {
         if (Objects.nonNull(params) && !params.isEmpty()) {
             variable.putAll(params);
         }
+        if (Objects.nonNull(this.connectorConfig) && !this.connectorConfig.isEmpty()) {
+            variable.putAll(this.connectorConfig);
+        }
         Map<String, Object> tempParam = new HashMap<>();
         tempParam.putAll(variable);
         //params.putAll(variable);
@@ -143,15 +155,15 @@ public class PostManAnalysis {
         Body<?> apiBody = apiRequest.body();
         String contentType = apiBody.contentType();
         MediaType mediaType = MediaType.parse(contentType);
-        Map<String, Object> bodyMap = new HashMap<>();;
-//        try {
-//            Object raw = apiBody.raw();
-//            bodyMap = (Map<String, Object>) fromJson();
-//        } finally {
-//            if (Objects.isNull(bodyMap)) {
-//                bodyMap = new HashMap<>();
-//            }
-//        }
+        Map<String, Object> bodyMap = new HashMap<>();
+        String apiBodyContentType = apiBody.contentType();
+        if ("application/json".equals(apiBodyContentType) && Objects.nonNull(apiBody.raw())) {
+            try {
+                bodyMap.putAll((Map<String, Object>) fromJson(String.valueOf(apiBody.raw())));
+            } catch (Exception e) {
+                TapLogger.error(TAG, "API name is {} which body row cannot cast to a map, error row text: {}, Please ensure that the interface call uses the correct parameters. msg: {}", api.api().name(), apiBody.raw(), e.getMessage());
+            }
+        }
         List<Map<String, Object>> query = apiUrl.query();
         for (Map<String, Object> queryMap : query) {
             String key = String.valueOf(queryMap.get(PostParam.KEY));
@@ -160,7 +172,7 @@ public class PostManAnalysis {
                 Object value = tempParam.get(key);
                 if (Objects.nonNull(value)) {
                     queryMap.put(PostParam.VALUE, value);
-                    bodyMap.put(key, value);
+                    //bodyMap.put(key, value);
                     String keyParam = key + "=";
                     if (url.contains(keyParam)) {
                         int indexOf = url.indexOf(keyParam);
@@ -171,6 +183,7 @@ public class PostManAnalysis {
                 }
             }
         }
+
         bodyMap.putAll(params);
         Request.Builder builder = new Request.Builder()
                 .url(url)
@@ -186,7 +199,7 @@ public class PostManAnalysis {
 
     public APIResponse http(Request request) throws IOException {
         OkHttpClient client = this.configHttp(new OkHttpClient().newBuilder()).build();
-        Map<String,Object> error = new HashMap<>();
+        Map<String, Object> error = new HashMap<>();
         Map<String, Object> result = new HashMap<>();
         Response response;
         Headers headers;
@@ -211,12 +224,12 @@ public class PostManAnalysis {
                 } catch (IOException ignored) {
                 }
             });
-        }catch (Exception e){
-            error.put("msg",e.getMessage());
+        } catch (Exception e) {
+            error.put("msg", e.getMessage());
             headers = Headers.of();
         }
-        if (code<200 || code>=300){
-            error.put("msg",toJson(result));
+        if (code < 200 || code >= 300) {
+            error.put("msg", toJson(result));
         }
         return APIResponse.create().httpCode(code)
                 .result(result)
@@ -224,13 +237,14 @@ public class PostManAnalysis {
                 .headers(getHeaderMap(headers));
     }
 
-    private OkHttpClient.Builder configHttp(OkHttpClient.Builder builder){
-        if (Objects.nonNull(this.httpConfig)){
+    private OkHttpClient.Builder configHttp(OkHttpClient.Builder builder) {
+        if (Objects.nonNull(this.httpConfig)) {
             try {
                 int timeout = Integer.parseInt(String.valueOf(this.httpConfig.get("timeout")));
                 builder.connectTimeout(timeout, TimeUnit.MILLISECONDS);
-                builder.readTimeout(timeout,TimeUnit.MILLISECONDS);
-            }catch (Exception ignored){ }
+                builder.readTimeout(timeout, TimeUnit.MILLISECONDS);
+            } catch (Exception ignored) {
+            }
         }
         return builder;
     }
@@ -246,10 +260,11 @@ public class PostManAnalysis {
 
     public APIResponse http(String uriOrName, String method, Map<String, Object> params) {
         try {
-            APIResponse http = this.http(this.httpPrepare(uriOrName, method, params));
+            Request request = this.httpPrepare(uriOrName, method, params);
+            APIResponse http = this.http(request);
             String property = System.getProperty("show_api_invoker_result", "1");
             if ("1".equals(property)) {
-                System.out.printf("Http Result: url - %s, method - %s params - %s\n\t%s%n", uriOrName, method, toJson(params), toJson(http.result(), JsonParser.ToJsonFeature.PrettyFormat));
+                System.out.printf("Http Result: Post Man: %s url - %s, method - %s params - %s\n\t%s%n", uriOrName, request.url(), method, toJson(params), toJson(http.result().get("data"), JsonParser.ToJsonFeature.PrettyFormat));
             }
             return http;
         } catch (IOException e) {
@@ -257,7 +272,7 @@ public class PostManAnalysis {
         }
     }
 
-    public static boolean isPostMan(Map<String,Object> json){
-        return Objects.nonNull(json) && Objects.nonNull(json.get(PostParam.INFO)) && json.get(PostParam.INFO) instanceof Map && Objects.nonNull(((Map<String,Object>)json.get(PostParam.INFO)).get(PostParam._POSTMAN_ID));
+    public static boolean isPostMan(Map<String, Object> json) {
+        return Objects.nonNull(json) && Objects.nonNull(json.get(PostParam.INFO)) && json.get(PostParam.INFO) instanceof Map && Objects.nonNull(((Map<String, Object>) json.get(PostParam.INFO)).get(PostParam._POSTMAN_ID));
     }
 }

@@ -83,12 +83,13 @@ class TapApi {
         }
         this.config = _tapConfig_;
         this.invoker.setConfig(null != this.httpConfigParam ? this.httpConfigParam : this.httpConfigGlobal);
+        this.invoker.setConnectorConfig(this.config);
         if (isParam(paramsMap) && isParam(methodStr)) {
-            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr, true);
+            result = this.invoker.invoke(uriOrNameStr, paramsMap, methodStr, true);
         } else if (isParam(paramsMap)) {
-            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), 'POST', true);
+            result = this.invoker.invoke(uriOrNameStr, paramsMap, 'POST', true);
         } else {
-            result = this.invoker.invoke(uriOrNameStr, this.config, 'POST', true);
+            result = this.invoker.invoke(uriOrNameStr, {}, 'POST', true);
         }
         this.httpConfigParam = null;
         return {
@@ -122,12 +123,13 @@ class TapApi {
         }
         this.config = _tapConfig_;
         this.invoker.setConfig(null != this.httpConfigParam ? this.httpConfigParam : this.httpConfigGlobal);
+        this.invoker.setConnectorConfig(this.config);
         if (isParam(paramsMap) && isParam(methodStr)) {
-            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap), methodStr);
+            result = this.invoker.invoke(uriOrNameStr, paramsMap, methodStr);
         } else if (isParam(paramsMap)) {
-            result = this.invoker.invoke(uriOrNameStr, tapUtil.mergeData(this.config, paramsMap));
+            result = this.invoker.invoke(uriOrNameStr, paramsMap);
         } else {
-            result = this.invoker.invoke(uriOrNameStr, this.config);
+            result = this.invoker.invoke(uriOrNameStr, {});
         }
         this.httpConfigParam = null;
         return {

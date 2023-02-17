@@ -1,9 +1,20 @@
 {
   "connectionConfig": {
     "app_id": "cli_a34d032330f8d00c",
-    "app_secret": "22RXUWAoMwGVoX2iNJ2qCg2G3vDraWKr"
+    "app_secret": "22RXUWAoMwGVoX2iNJ2qCg2G3vDraWKr",
+    "app_name": "Lark"
   },
   "nodeConfig": {
+    "sendType": "dynamic_binding",
+    "receiver": "",
+    "receiverArray": "",
+    "dynamicBinding": [{
+      "receiveType": "open_id",
+      "receiveId": ["phone"]
+    }],
+    "messageConfig": [
+      {"messageType": "text","messageField": "content"}
+    ]
   },
   "functionParams": {
     "discoverSchema": {

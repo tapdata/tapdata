@@ -1,5 +1,5 @@
-var batchStart = nowDate();
-function discover_schema(connectionConfig) {
+var batchStart = dateUtils.nowDate();
+function discoverSchema(connectionConfig) {
     let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
     let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
         {"sessionToken": sessionToken.result.id});
@@ -15,7 +15,7 @@ function clearSpecial(str) {
     return str.replaceAll(/\^|\.|\s+|\*|\?|\!|\/|\\|\$|\—+|\@|\%|\*|\~|\;|\:|\'|\"|\#|\&|\||\，|\,|\。|\`|\！|\[|\]|\？|\{|\}|\(|\)|\（|\）|\＜|\＞|\<|\>|\≤|\≥|\《|\》|\-|\+|\=/g, "");
 }
 
-function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
+function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
     let sessionToken = invoker.invoke('TAP_GET_TOKEN session api', {});
     let data = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
         {"sessionToken": sessionToken.result.id});
@@ -36,22 +36,16 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
         log.warn(typeof temp[index]);
         temp[index]['Question_Name'] = thisCard.name;
         temp[index]['Question_ID'] = thisCard.id;
-        temp[index]['Current_Date'] = nowDate();
+        temp[index]['Current_Date'] = dateUtils.nowDate();
         resut.push(temp[index]);
     }
     batchReadSender.send(resut, {}, false);
 }
 
-function ConnectionTest(connectionConfig) {
-
-}
 function connectionTest(connectionConfig) {
-
-}
-function connection_test(connectionConfig) {
     let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
     let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
         {"sessionToken": sessionToken.result.id});
-    return [{"TEST": " Check the account read database permission.", "CODE": invoke ? 1 : -1, "RESULT": invoke ? "Pass" : "Not pass"}];
+    return [{"test": " Check the account read database permission.", "code": invoke ? 1 : -1, "result": invoke ? "Pass" : "Not pass"}];
 }
 

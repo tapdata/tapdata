@@ -84,12 +84,12 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
         offset[tableName] = {tableName:tableName, page: 1, Conditions:[{Key: 'UPDATED_AT',Value: batchStart + '_' + dateUtils.nowDate()}]} ;
         isFirst = true;
       }
-        let condition = firstElement(offset[tableName].Conditions);
-        offset[tableName].Conditions = [{Key:"UPDATED_AT",Value: isParam(condition) && null != condition ? firstElement(condition.Value.split('_')) + '_' + nowDate(): batchStart + '_' + nowDate()}];
+        let condition = arrayUtils.firstElement(offset[tableName].Conditions);
+        offset[tableName].Conditions = [{Key:"UPDATED_AT",Value: isParam(condition) && null != condition ? arrayUtils.firstElement(condition.Value.split('_')) + '_' + dateUtils.nowDate(): batchStart + '_' + dateUtils.nowDate()}];
         if(isFirst){
-        offset[tableName]['If-Modified-Since'] = DateUtil.timeStamp2Date((startTime.getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
+        offset[tableName]['If-Modified-Since'] = dateUtils.timeStamp2Date((startTime.getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
         } else {
-        offset[tableName]['If-Modified-Since'] = DateUtil.timeStamp2Date((new Date().getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
+        offset[tableName]['If-Modified-Since'] = dateUtils.timeStamp2Date((new Date().getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
         }
         iterateAllData('getDataA', offset[tableName], (result, offsetNext, error) => {
             let haveNext = false;
@@ -115,20 +115,20 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
 /**
  * @return The returned result is not empty and must be in the following form:
  *          [
- *              {"TEST": String, "CODE": Number, "RESULT": String},
- *              {"TEST": String, "CODE": Number, "RESULT": String},
+ *              {"test": String, "code": Number, "result": String},
+ *              {"test": String, "code": Number, "result": String},
  *              ...
  *          ]
- *          param - TEST :  The type is a String, representing the description text of the test item.
- *          param - CODE :  The type is a Number, is the type of test result. It can only be [-1, 0, 1], -1 means failure, 1 means success, 0 means warning.
- *          param - RESULT : The type is a String, descriptive text indicating test results.
+ *          param - test :  The type is a String, representing the description text of the test item.
+ *          param - code :  The type is a Number, is the type of test result. It can only be [-1, 0, 1], -1 means failure, 1 means success, 0 means warning.
+ *          param - result : The type is a String, descriptive text indicating test results.
  * @param connectionConfig  Configuration property information of the connection page
  * */
 function connectionTest(connectionConfig) {
     return [{
-        "TEST": "Example test item",
-        "CODE": 1,
-        "RESULT": "Pass"
+        "test": "Example test item",
+        "code": 1,
+        "result": "Pass"
     }];
 }
 

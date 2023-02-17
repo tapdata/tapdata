@@ -5,6 +5,12 @@
  * */
 var dateUtils = {
     /**
+     *
+     * */
+    timeStamp2Date: function (millSecondsStr, format){
+        return tapUtil.timeStamp2Date(millSecondsStr, format);
+    },
+    /**
      * @type function
      * @author Gavin
      * @description 获取当前并格式化 yyyy-mm-dd
