@@ -65,6 +65,7 @@ public class RegisterMain {
 		SelectDB(BASE_PATH + "connectors/dist/selectdb-connector-v1.0-SNAPSHOT.jar", "all", "selectdb"),
         Metabase(BASE_PATH + "connectors/dist/metabase-connector-v1.0-SNAPSHOT.jar", "all", "metabase"),
         Databend(BASE_PATH + "connectors/dist/databend-connector-v1.0-SNAPSHOT.jar", "all", "databend"),
+        Guass(BASE_PATH + "connectors/dist/guass-postgres-connector-v1.0-SNAPSHOT.jar", "all", "guass", "basic", "jdbc"),
 
         ;
 
