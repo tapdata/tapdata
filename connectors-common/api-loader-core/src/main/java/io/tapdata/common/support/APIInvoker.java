@@ -50,6 +50,8 @@ public interface APIInvoker {
 
 	public void setConfig(Object configMap);
 
+	public void setConnectorConfig(Object configMap);
+
 	public void pageStage(TapConnectorContext connectorContext,
 							   TapTable table,
 							   Object offset,

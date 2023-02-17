@@ -31,7 +31,7 @@ public class PDKBaseRun extends PDKTestBase {
         super();
         Map<String, DataMap> testConfigMap = readTestConfig(super.testConfigFile);
         assertNotNull(testConfigMap, "testConfigFile " + super.testConfigFile + " read to json failed");
-        this.debugConfig = Optional.ofNullable(testConfigMap.get("function_params")).orElse(new DataMap());
+        this.debugConfig = Optional.ofNullable(testConfigMap.get("functionParams")).orElse(new DataMap());
     }
 
     protected TestNode prepare(TapNodeInfo nodeInfo){

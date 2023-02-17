@@ -24,10 +24,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"content\": \"{\\\"text\\\":\\\"<at user_id=\\\\\\\"ou_155184d1e73cbfb8973e5a9e698e74f2\\\\\\\">Tom</at> test content\\\"}\",\n    \"msg_type\": \"text\",\n    \"receive_id\": \"{{receive_id}}\"\n}\n"
+              "raw": "{\"content\":\"\",\"msg_type\":\"\",\"receive_id\":\"{{receive_id}}\"}"
             },
             "url": {
-              "raw": "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id",
+              "raw": "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type={{receive_id_type}}",
               "protocol": "https",
               "host": [
                 "open",
@@ -43,7 +43,7 @@
               "query": [
                 {
                   "key": "receive_id_type",
-                  "value": "open_id"
+                  "value": "{{receive_id_type}}"
                 }
               ]
             }
@@ -66,7 +66,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{ \"mobiles\": ['{{userPhone}}']}"
+              "raw": "{\"mobiles\":[\"{{userMobiles}}\"],\"emails\":[\"{{userEmails}}\"]}"
             },
             "url": {
               "raw": "https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id",
@@ -87,6 +87,44 @@
                 {
                   "key": "user_id_type",
                   "value": "open_id"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AppInfo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://open.feishu.cn/open-apis/application/v6/applications/:app_id?lang=zh_cn",
+              "protocol": "https",
+              "host": [
+                "open",
+                "feishu",
+                "cn"
+              ],
+              "path": [
+                "open-apis",
+                "application",
+                "v6",
+                "applications"
+              ],
+              "variable": [
+                {
+                  "key": "app_id",
+                  "value": "{{app_id}}"
                 }
               ]
             }
@@ -121,6 +159,152 @@
                 "v3",
                 "tenant_access_token",
                 "internal"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GetSubDept",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://open.feishu.cn/open-apis/contact/v3/departments/:department_id/children?department_id_type=department_id&fetch_child=true&page_size=50&page_token={{page_token}}",
+              "protocol": "https",
+              "host": [
+                "open",
+                "feishu",
+                "cn"
+              ],
+              "path": [
+                "open-apis",
+                "contact",
+                "v3",
+                "departments",
+                ":department_id",
+                "children"
+              ],
+              "query": [
+                {
+                  "key": "department_id_type",
+                  "value": "department_id"
+                },
+                {
+                  "key": "page_token",
+                  "value": ""
+                },
+                {
+                  "key": "fetch_child",
+                  "value": "true"
+                },
+                {
+                  "key": "page_size",
+                  "value": "50"
+                },
+                {
+                  "key": "user_id_type",
+                  "value": "open_id",
+                  "disabled": true
+                },
+                {
+                  "key": "page_token",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "department_id",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GetDeptUsers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://open.feishu.cn/open-apis/contact/v3/users/find_by_department?department_id_type=department_id&department_id={{departmentId}}&page_token={{page_token}}",
+              "protocol": "https",
+              "host": [
+                "open",
+                "feishu",
+                "cn"
+              ],
+              "path": [
+                "open-apis",
+                "contact",
+                "v3",
+                "users",
+                "find_by_department"
+              ],
+              "query": [
+                {
+                  "key": "department_id_type",
+                  "value": "department_id"
+                },
+                {
+                  "key": "department_id",
+                  "value": "{{departmentId}}"
+                },
+                {
+                  "key": "page_token",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GetChatOfRobot",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://open.feishu.cn/open-apis/im/v1/chats?page_token=&page_size=100&page_token={{page_token}}",
+              "protocol": "https",
+              "host": [
+                "open",
+                "feishu",
+                "cn"
+              ],
+              "path": [
+                "open-apis",
+                "im",
+                "v1",
+                "chats"
+              ],
+              "query": [
+                {
+                  "key": "page_token",
+                  "value": ""
+                },
+                {
+                  "key": "page_size",
+                  "value": "100"
+                }
               ]
             }
           },
@@ -168,7 +352,11 @@
       "value": ""
     },
     {
-      "key": "userPhone",
+      "key": "userEmails",
+      "value": ""
+    },
+    {
+      "key": "userMobiles",
       "value": ""
     }
   ]
