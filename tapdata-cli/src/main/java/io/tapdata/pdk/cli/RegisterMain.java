@@ -65,7 +65,7 @@ public class RegisterMain {
 		SelectDB(BASE_PATH + "connectors/dist/selectdb-connector-v1.0-SNAPSHOT.jar", "all", "selectdb"),
         Metabase(BASE_PATH + "connectors/dist/metabase-connector-v1.0-SNAPSHOT.jar", "all", "metabase"),
         Databend(BASE_PATH + "connectors/dist/databend-connector-v1.0-SNAPSHOT.jar", "all", "databend"),
-
+        Hazelcast(BASE_PATH + "connectors/dist/hazelcast-connector-v1.0-SNAPSHOT.jar", "all", "hazelcast"),
         ;
 
         private final String path;
