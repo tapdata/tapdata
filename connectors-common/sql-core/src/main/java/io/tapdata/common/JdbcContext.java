@@ -1,6 +1,7 @@
 package io.tapdata.common;
 
 import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.HikariPoolMXBean;
 import com.zaxxer.hikari.pool.HikariProxyConnection;
 import com.zaxxer.hikari.pool.ProxyConnection;
 import io.tapdata.entity.logger.TapLogger;
@@ -203,5 +204,11 @@ public abstract class JdbcContext {
 
     public HikariDataSource getHikariDataSource() {
         return hikariDataSource;
+    }
+
+    public String getDataSourceState() {
+        HikariPoolMXBean bean = hikariDataSource.getHikariPoolMXBean();
+        return String.format("total: %s, active: %s, idle: %s, waiting: %s", bean.getTotalConnections(), bean.getActiveConnections(),
+                bean.getIdleConnections(), bean.getThreadsAwaitingConnection());
     }
 }
