@@ -53,4 +53,12 @@ public interface TaskClient<T> {
 	default boolean isRunning() {
 		throw new UnsupportedOperationException();
 	}
+
+	default boolean canRetry() {
+		return false;
+	}
+
+	default void resume() {
+		throw new UnsupportedOperationException();
+	}
 }

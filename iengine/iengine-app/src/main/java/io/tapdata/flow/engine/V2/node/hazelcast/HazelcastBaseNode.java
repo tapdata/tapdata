@@ -756,7 +756,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 				if (hazelcastJob != null) {
 					JobStatus status = hazelcastJob.getStatus();
-					if (JobStatus.SUSPENDED != status && JobStatus.SUSPENDED_EXPORTING_SNAPSHOT != status) {
+					if (JobStatus.COMPLETING != status) {
 						logger.info("Job cancel in error handle");
 						obsLogger.info("Job cancel in error handle");
 						TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());
@@ -764,7 +764,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 							taskDtoTaskClient.terminalMode(TerminalMode.ERROR);
 							taskDtoTaskClient.error(error);
 						}
-						hazelcastJob.cancel();
+						hazelcastJob.suspend();
 					}
 				} else {
 					logger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
