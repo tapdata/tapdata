@@ -311,7 +311,7 @@ public class ConnectorManager {
 //			initDatabaseTypes();
 
 			// init supported list
-			initSupportedList();
+//			initSupportedList();
 
 			// init script task schedule
 			initScriptTaskSchedule(clientMongoOperator);
