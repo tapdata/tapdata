@@ -31,7 +31,6 @@ import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
@@ -1404,13 +1403,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             if (taskDto.getDag().getNodes() != null) {
                 for (Node node : taskDto.getDag().getNodes()) {
                     if (CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
-                        List<AlarmSettingDto> alarmSetting = node.getAlarmSettings();
-                        for (AlarmSettingDto alarmSettingDto : alarmSetting) {
-                            log.info("alarmSettingDto Node{}", JSONObject.toJSONString(alarmSettingDto));
-                            if (CollectionUtils.isNotEmpty(alarmSettingDto.getNotify())) {
-                                alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
-                                alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
-                                log.info("alarmSettingDto  Node after{}", JSONObject.toJSONString(alarmSettingDto));
+                        List<AlarmSettingVO> alarmSetting = node.getAlarmSettings();
+                        for (AlarmSettingVO alarmSettingVO : alarmSetting) {
+                            log.info("alarmSettingDto Node{}", JSONObject.toJSONString(alarmSettingVO));
+                            if (CollectionUtils.isNotEmpty(alarmSettingVO.getNotify())) {
+                                alarmSettingVO.getNotify().remove(NotifyEnum.SMS);
+                                alarmSettingVO.getNotify().remove(NotifyEnum.WECHAT);
+                                log.info("alarmSettingDto  Node after{}", JSONObject.toJSONString(alarmSettingVO));
 
                             }
                         }
