@@ -26,6 +26,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author jackin
@@ -34,6 +36,8 @@ import java.util.concurrent.TimeUnit;
 public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	public static final String TAG = HazelcastTaskClient.class.getSimpleName();
+	public static final int MAX_RETRY_TIME = 3;
+	public static final long RESET_RETRY_DURATION_HOUR = TimeUnit.HOURS.toMillis(2L);
 	private Logger logger = LogManager.getLogger(HazelcastTaskClient.class);
 
 	private Job job;
@@ -49,6 +53,9 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private String cacheName;
 	private Throwable error;
 	private TerminalMode terminalMode;
+	private long lastRetryTimeMillis;
+	private final AtomicInteger retryCounter;
+	private AtomicBoolean retrying;
 
 	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		this.job = job;
@@ -69,6 +76,8 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		}
 		Optional<Node> cacheNode = taskDto.getDag().getNodes().stream().filter(n -> n instanceof CacheNode).findFirst();
 		cacheNode.ifPresent(c -> cacheName = ((CacheNode) c).getCacheName());
+		this.retryCounter = new AtomicInteger(0);
+		this.retrying = new AtomicBoolean(false);
 	}
 
 	@Override
@@ -177,5 +186,35 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	@Override
 	public boolean isRunning() {
 		return job.getStatus() == JobStatus.RUNNING;
+	}
+
+	@Override
+	public boolean canRetry() {
+		if (this.retrying.get()) {
+			return true;
+		}
+		if (retryCounter.incrementAndGet() <= MAX_RETRY_TIME) {
+			this.lastRetryTimeMillis = System.currentTimeMillis();
+			this.retrying.set(true);
+			return true;
+		}
+		long currentTimeMillis = System.currentTimeMillis();
+		long retryDuration = currentTimeMillis - lastRetryTimeMillis;
+		if (retryDuration >= RESET_RETRY_DURATION_HOUR) {
+			this.lastRetryTimeMillis = System.currentTimeMillis();
+			this.retryCounter.set(0);
+			this.retrying.set(true);
+			return true;
+		}
+		return false;
+	}
+
+	@Override
+	public void resume() {
+		JobStatus jobStatus = job.getStatus();
+		if (JobStatus.SUSPENDED == jobStatus) {
+			job.resume();
+			this.retrying.set(false);
+		}
 	}
 }

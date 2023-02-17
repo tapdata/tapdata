@@ -360,7 +360,6 @@ public class TapdataTaskScheduler {
 		Thread.currentThread().setName(String.format(ConnectorConstant.INTERNAL_STOP_TASK_THREAD, instanceNo));
 		try {
 			for (Map.Entry<String, TaskClient<TaskDto>> entry : taskClientMap.entrySet()) {
-
 				TaskClient<TaskDto> taskClient = entry.getValue();
 				final String taskId = taskClient.getTask().getId().toHexString();
 				if (TmStatusService.isNotAllowReport(taskId)) {
@@ -373,7 +372,11 @@ public class TapdataTaskScheduler {
 					} else if (TerminalMode.COMPLETE == terminalMode) {
 						completeTask(taskClient);
 					} else {
-						errorTask(taskClient);
+						if (taskClient.canRetry()) {
+							taskClient.resume();
+						} else {
+							errorTask(taskClient);
+						}
 					}
 				}
 			}
