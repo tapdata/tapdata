@@ -34,6 +34,7 @@ import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.entity.Worker;
@@ -124,6 +125,14 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     @NotNull
     private Query getAvailableAgentQuery() {
         return Query.query(getAvailableAgentCriteria());
+    }
+
+    public boolean isAgentTimeout(Long pingTime) {
+        if (null != pingTime) {
+            int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+            return pingTime <= System.currentTimeMillis() - (overTime * 1000L);
+        }
+        return true;
     }
 
     private Criteria getAvailableAgentCriteria() {
@@ -540,13 +549,28 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         worker.setPingTime(System.currentTimeMillis());
 
-        repository.upsert(
-                Query.query(Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType())),
+        Criteria where = Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType());
+        if (!WorkerSingletonLock.checkDBTag(worker.getSingletonLock(), worker.getWorkerType(), () -> Optional
+                .of(Query.query(where))
+                .map(query -> {
+                    query.fields().include("singletonLock", "ping_time");
+                    return query;
+                }).flatMap(query -> repository.findOne(query).map(w -> {
+                    // 如果超时，返回当前 worker tag 表示可以启动
+                    if (isAgentTimeout(w.getPingTime())) {
+                        return null;
+                    }
+                    return w.getSingletonLock();
+                }))
+                .orElse(worker.getSingletonLock())
+        )) {
+            return null;
+        }
+
+        repository.upsert(Query.query(where),
                 convertToEntity(Worker.class, worker), loginUser
         );
-
         workerPing.increment(worker.getWorkerType(), worker.getVersion());
-
         return worker;
     }
 
