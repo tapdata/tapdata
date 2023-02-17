@@ -111,8 +111,16 @@ public class RegisterCli extends CommonCli {
                     AtomicInteger pdkAPIBuildNumber = new AtomicInteger();
                     if (StringUtils.isNotBlank(pdkAPIVersion)) {
                         CommonUtils.ignoreAnyError(() -> {
-                            String last = Arrays.stream(pdkAPIVersion.split("[.]")).collect(Collectors.toCollection(LinkedList::new)).getLast();
-                            if (last.chars().allMatch(Character::isDigit)) {
+                            LinkedList<String> collect = Arrays.stream(pdkAPIVersion.split("[.]")).collect(Collectors.toCollection(LinkedList::new));
+                            String last = collect.getLast();
+                            if (collect.size() != 3) {
+                                pdkAPIBuildNumber.set(0);
+                            } else if (last.contains("-SNAPSHOT")) {
+                                String temp = StringUtils.replace(last, "-SNAPSHOT", "");
+                                if (temp.chars().allMatch(Character::isDigit)) {
+                                    pdkAPIBuildNumber.set(Integer.parseInt(temp));
+                                }
+                            } else if (last.chars().allMatch(Character::isDigit)) {
                                 pdkAPIBuildNumber.set(Integer.parseInt(last));
                             }
                         }, TAG);
