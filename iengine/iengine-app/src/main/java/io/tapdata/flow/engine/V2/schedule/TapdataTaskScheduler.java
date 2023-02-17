@@ -36,7 +36,14 @@ import javax.annotation.PostConstruct;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -67,7 +74,6 @@ public class TapdataTaskScheduler {
 	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
-	private CountDownLatch taskOpCountDown;
 	private Map<String, ScheduleTaskConfig> scheduleTaskConfigs = new ConcurrentHashMap<>();
 	private Map<String, ScheduledFuture<?>> scheduledFutureMap = new ConcurrentHashMap<>();
 
@@ -122,18 +128,8 @@ public class TapdataTaskScheduler {
 			Thread.currentThread().setName("Task-Operation-Consumer");
 			while (true) {
 				try {
-					TaskOperation taskOperation = taskOperationsQueue.poll(3L, TimeUnit.SECONDS);
+					TaskOperation taskOperation = taskOperationsQueue.poll(1L, TimeUnit.SECONDS);
 					if (null == taskOperation) continue;
-					if (null == taskOpCountDown) {
-						taskOpCountDown = new CountDownLatch(1);
-					} else {
-						while (true) {
-							if (taskOpCountDown.await(1L, TimeUnit.SECONDS)) {
-								taskOpCountDown = new CountDownLatch(1);
-								break;
-							}
-						}
-					}
 					handleTaskOperation(taskOperation);
 				} catch (InterruptedException e) {
 					break;
@@ -184,33 +180,30 @@ public class TapdataTaskScheduler {
 
 	private void handleTaskOperation(TaskOperation taskOperation) {
 		taskOperationThreadPool.submit(() -> {
-			String taskId = null;
-			try {
-				if (taskOperation instanceof StartTaskOperation) {
-					StartTaskOperation startTaskOperation = (StartTaskOperation) taskOperation;
-					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
-					taskId = startTaskOperation.getTaskDto().getId().toHexString();
-					Object lock = lockTask(taskId);
-					synchronized (lock) {
-						taskOpCountDown.countDown();
+			String taskId;
+			if (taskOperation instanceof StartTaskOperation) {
+				StartTaskOperation startTaskOperation = (StartTaskOperation) taskOperation;
+				Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
+				taskId = startTaskOperation.getTaskDto().getId().toHexString();
+				Object lock = lockTask(taskId);
+				synchronized (lock) {
+					try {
 						startTask(startTaskOperation.getTaskDto());
+					} finally {
+						unlockTask(taskId);
 					}
-				} else if (taskOperation instanceof StopTaskOperation) {
-					StopTaskOperation stopTaskOperation = (StopTaskOperation) taskOperation;
-					Thread.currentThread().setName(String.format("Stop-Task-Operation-Handler-%s", stopTaskOperation.getTaskId()));
-					taskId = stopTaskOperation.getTaskId();
-					Object lock = lockTask(taskId);
-					synchronized (lock) {
-						taskOpCountDown.countDown();
+				}
+			} else if (taskOperation instanceof StopTaskOperation) {
+				StopTaskOperation stopTaskOperation = (StopTaskOperation) taskOperation;
+				Thread.currentThread().setName(String.format("Stop-Task-Operation-Handler-%s", stopTaskOperation.getTaskId()));
+				taskId = stopTaskOperation.getTaskId();
+				Object lock = lockTask(taskId);
+				synchronized (lock) {
+					try {
 						stopTask(stopTaskOperation.getTaskId());
+					} finally {
+						Optional.ofNullable(taskId).ifPresent(this::unlockTask);
 					}
-				}
-			} finally {
-				if (StringUtils.isNotBlank(taskId)) {
-					unlockTask(taskId);
-				}
-				if (taskOpCountDown.getCount() > 0) {
-					taskOpCountDown.countDown();
 				}
 			}
 			logger.info("Handled task operation: {}", taskOperation);
@@ -255,7 +248,7 @@ public class TapdataTaskScheduler {
 			return;
 		}
 		logger.info("Stop task which agent id is {} and status is {}", instanceNo, TaskDto.STATUS_STOPPING);
-		clientMongoOperator.postOne(null, ConnectorConstant.TASK_COLLECTION+"/stopTaskByAgentId/"+instanceNo, Object.class);
+		clientMongoOperator.postOne(null, ConnectorConstant.TASK_COLLECTION + "/stopTaskByAgentId/" + instanceNo, Object.class);
 	}
 
 	/**
