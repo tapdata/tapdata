@@ -15,6 +15,7 @@ import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
+import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
@@ -38,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledFuture;
@@ -366,13 +366,15 @@ public class TapdataTaskScheduler {
 				if (TmStatusService.isNotAllowReport(taskId)) {
 					continue;
 				}
-				final String status = taskClient.getStatus();
-				if (TaskDto.STATUS_ERROR.equals(status)) {
-					errorTask(taskClient);
-				} else if (TaskDto.STATUS_STOP.equals(status) || TaskDto.STATUS_STOPPING.equals(status)) {
-					stopTask(taskClient);
-				} else if (TaskDto.STATUS_COMPLETE.equals(status)) {
-					completeTask(taskClient);
+				if (!taskClient.isRunning()) {
+					TerminalMode terminalMode = taskClient.getTerminalMode();
+					if (TerminalMode.STOP_GRACEFUL == terminalMode) {
+						stopTask(taskClient);
+					} else if (TerminalMode.COMPLETE == terminalMode) {
+						completeTask(taskClient);
+					} else {
+						errorTask(taskClient);
+					}
 				}
 			}
 		} catch (Exception e) {
@@ -402,6 +404,12 @@ public class TapdataTaskScheduler {
 			}
 			removeTask(taskId);
 			destroyCache(taskClient);
+			Throwable error = taskClient.getError();
+			if (null == error) {
+				logger.info("Task stopped in engine, last error is empty, exceptions may be ignored");
+			} else {
+				logger.info("Task stopped in engine, last error: " + error.getMessage() + "\n" + Log4jUtil.getStackString(error));
+			}
 		}
 	}
 
@@ -494,8 +502,14 @@ public class TapdataTaskScheduler {
 	private void stopTask(String taskId) {
 		TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
 		if (null == taskDtoTaskClient) {
+			try {
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+			} catch (Exception e) {
+				logger.warn(e.getMessage(), e);
+			}
 			return;
 		}
+		taskDtoTaskClient.terminalMode(TerminalMode.STOP_GRACEFUL);
 		stopTask(taskDtoTaskClient);
 	}
 

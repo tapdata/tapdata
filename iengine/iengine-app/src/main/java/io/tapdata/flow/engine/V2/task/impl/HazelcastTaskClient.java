@@ -15,6 +15,7 @@ import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.task.TaskClient;
+import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
@@ -24,6 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author jackin
@@ -45,8 +47,8 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private MonitorManager monitorManager;
 	private SnapshotProgressManager snapshotProgressManager;
 	private String cacheName;
-
 	private Throwable error;
+	private TerminalMode terminalMode;
 
 	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		this.job = job;
@@ -89,12 +91,36 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	}
 
 	@Override
+	public synchronized void terminalMode(TerminalMode terminalMode) {
+		switch (terminalMode) {
+			case STOP_GRACEFUL:
+				this.terminalMode = terminalMode;
+				break;
+			case ERROR:
+				if (TerminalMode.STOP_GRACEFUL != this.terminalMode) {
+					this.terminalMode = terminalMode;
+				}
+				break;
+			case COMPLETE:
+				if (TerminalMode.STOP_GRACEFUL != this.terminalMode
+						&& TerminalMode.ERROR != this.terminalMode) {
+					this.terminalMode = terminalMode;
+				}
+				break;
+		}
+	}
+
+	@Override
+	public TerminalMode getTerminalMode() {
+		return terminalMode;
+	}
+
+	@Override
 	public synchronized boolean stop() {
 		Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
 		if (job.getStatus() == JobStatus.RUNNING) {
 			job.suspend();
 		}
-
 		if (job.getStatus() == JobStatus.SUSPENDED) {
 			job.cancel();
 		}
@@ -146,5 +172,10 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	public MonitorManager getTaskMonitorManager() {
 		return monitorManager;
+	}
+
+	@Override
+	public boolean isRunning() {
+		return job.getStatus() == JobStatus.RUNNING;
 	}
 }
