@@ -3,7 +3,7 @@ package com.tapdata.entity;
 public class ResponseBody {
 	private String code;
 
-	private String msg;
+	private String message;
 
 	private Object data;
 
@@ -22,12 +22,12 @@ public class ResponseBody {
 		this.code = code;
 	}
 
-	public String getMsg() {
-		return msg;
+	public String getMessage() {
+		return message;
 	}
 
-	public void setMsg(String msg) {
-		this.msg = msg;
+	public void setMessage(String message) {
+		this.message = message;
 	}
 
 	public Object getData() {
@@ -58,7 +58,7 @@ public class ResponseBody {
 	public String toString() {
 		final StringBuilder sb = new StringBuilder("ResponseBody{");
 		sb.append("code='").append(code).append('\'');
-		sb.append(", msg='").append(msg).append('\'');
+		sb.append(", msg='").append(message).append('\'');
 		sb.append(", data=").append(data);
 		sb.append(", reqId='").append(reqId).append('\'');
 		sb.append(", ts=").append(ts);

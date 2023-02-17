@@ -112,6 +112,15 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return repository.findAll(query, userDetail);
     }
 
+    public List<Worker> findAllAgent(UserDetail userDetail) {
+        if (Objects.isNull(userDetail)) {
+            return null;
+        }
+        Criteria criteria = Criteria.where("worker_type").is("connector")
+                .and("isDeleted").ne(true);
+        return repository.findAll(Query.query(criteria), userDetail);
+    }
+
     @NotNull
     private Query getAvailableAgentQuery() {
         return Query.query(getAvailableAgentCriteria());
@@ -547,6 +556,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         WorkerDto one = findOne(query);
         if (Objects.nonNull(one)) {
             dto.setHostName(one.getHostname());
+            Optional.ofNullable(one.getTcmInfo()).ifPresent(info -> {
+                dto.setAgentName(info.getAgentName());
+            });
         }
     }
 

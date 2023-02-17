@@ -3,6 +3,7 @@ package io.tapdata.connector.doris.streamload;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.tapdata.connector.doris.DorisContext;
 import io.tapdata.connector.doris.bean.DorisConfig;
+import io.tapdata.connector.doris.streamload.exception.DorisRetryableException;
 import io.tapdata.connector.doris.streamload.exception.DorisRuntimeException;
 import io.tapdata.connector.doris.streamload.exception.StreamLoadException;
 import io.tapdata.connector.doris.streamload.rest.models.RespContent;
@@ -98,7 +99,7 @@ public class DorisStreamLoader {
 		}
 	}
 
-	public synchronized void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+	public void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
 		try {
 			TapLogger.debug(TAG, "Batch events length is: {}", tapRecordEvents.size());
 			WriteListResult<TapRecordEvent> listResult = writeListResult();
@@ -139,7 +140,7 @@ public class DorisStreamLoader {
 		loadBatchFirstRecord = true;
 	}
 
-	public RespContent put(final TapTable table) throws StreamLoadException {
+	public RespContent put(final TapTable table) throws StreamLoadException, DorisRetryableException {
 		DorisConfig config = dorisContext.getDorisConfig();
 		DorisContext.WriteFormat writeFormat = dorisContext.getWriteFormat();
 		try {
@@ -167,46 +168,52 @@ public class DorisStreamLoader {
 			HttpPut httpPut = putBuilder.build();
 			TapLogger.debug(TAG, "Call stream load http api, url: {}, headers: {}", loadUrl, putBuilder.header);
 			return handlePreCommitResponse(httpClient.execute(httpPut));
+		} catch (DorisRetryableException e) {
+			throw e;
 		} catch (Exception e) {
-            throw new StreamLoadException(String.format("Call stream load error: %s", e.getMessage()), e);
+			throw new StreamLoadException(String.format("Call stream load error: %s", e.getMessage()), e);
 		}
 	}
 
 	public RespContent handlePreCommitResponse(CloseableHttpResponse response) throws Exception {
 		final int statusCode = response.getStatusLine().getStatusCode();
 		if (statusCode != 200 || response.getEntity() == null) {
-			throw new StreamLoadException("Stream load error: " + response.getStatusLine().toString());
+			throw new DorisRetryableException("Stream load error: " + response.getStatusLine().toString());
 		}
 		String loadResult = EntityUtils.toString(response.getEntity());
 
 		TapLogger.debug(TAG, "Stream load Result {}", loadResult);
 		RespContent respContent = OBJECT_MAPPER.readValue(loadResult, RespContent.class);
 		if (!respContent.isSuccess()) {
-			throw new StreamLoadException("Stream load failed | Error: " + loadResult);
+			if (respContent.getMessage().toLowerCase().contains("too many filtered rows")) {
+				throw new StreamLoadException("Stream load failed | Error: " + loadResult);
+			}
+			throw new DorisRetryableException(loadResult);
 		}
 		return respContent;
 	}
 
-	public RespContent flush(TapTable table) {
+	public RespContent flush(TapTable table) throws DorisRetryableException {
 		return flush(table, null);
 	}
 
-	public RespContent flush(TapTable table, WriteListResult<TapRecordEvent> listResult) {
+	public RespContent flush(TapTable table, WriteListResult<TapRecordEvent> listResult) throws DorisRetryableException {
 		// the stream is not started yet, no response to get
 		if (lastEventFlag.get() == 0) {
 			return null;
 		}
 		try {
 			recordStream.write(messageSerializer.batchEnd());
-			TapLogger.debug(TAG, "Flush stream: " + recordStream);
 			recordStream.endInput();
 			RespContent respContent = put(table);
-			TapLogger.debug(TAG, "Execute stream load response: " + respContent);
+			TapLogger.info(TAG, "Execute stream load response: " + respContent);
 			if (null != listResult) {
 				metrics.writeIntoResultList(listResult);
 				metrics.clear();
 			}
 			return respContent;
+		} catch (DorisRetryableException e) {
+			throw e;
 		} catch (Exception e) {
 			throw new DorisRuntimeException(e);
 		} finally {
@@ -217,8 +224,8 @@ public class DorisStreamLoader {
 	}
 
 	public void shutdown() {
-		this.stopLoad();
 		try {
+			this.stopLoad();
 			this.httpClient.close();
 		} catch (Exception ignored) {
 		}
@@ -239,7 +246,7 @@ public class DorisStreamLoader {
 				|| !recordStream.canWrite(length);
 	}
 
-	private void stopLoad() {
+	private void stopLoad() throws DorisRetryableException {
         if (null != tapTable) {
             flush(tapTable);
         }

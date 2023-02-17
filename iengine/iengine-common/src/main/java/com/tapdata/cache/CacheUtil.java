@@ -11,12 +11,14 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.construct.constructImpl.BytesIMap;
 import io.tapdata.exception.DataFlowException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.math.BigDecimal;
@@ -26,6 +28,8 @@ import java.util.function.Supplier;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 public class CacheUtil {
+
+  public static final String CACHE_NAME_PREFIX = "share-cache-";
 
   public final static String CACHE_KEY_SEPERATE = "-";
   public final static Logger logger = LogManager.getLogger(CacheUtil.class);
@@ -77,6 +81,16 @@ public class CacheUtil {
     }
     return keyValues;
   }
+
+  @NotNull
+  public static String getPk(List<String> keys, Map<String, Object> row) {
+    final Object[] pkKeyValues = CacheUtil.getKeyValues(keys, row);
+    if (null == pkKeyValues) {
+      throw new RuntimeException("Cache primary key not in row data: " + keys);
+    }
+    return CacheUtil.cacheKey(pkKeyValues);
+  }
+
 
   public static Map<String, Object> returnCacheRow(Map<String, Object> result) {
 
@@ -134,7 +148,7 @@ public class CacheUtil {
 
   public static synchronized void registerCache(CacheNode cacheNode, TableNode sourceNode, Connections sourceConnection, ClientMongoOperator clientMongoOperator, ICacheConfigurator cacheService) {
 
-    cacheService.registerCache(new DataFlowCacheConfig(
+    DataFlowCacheConfig cacheConfig = new DataFlowCacheConfig(
             cacheNode.getCacheKeys(),
             cacheNode.getCacheName(),
             "all",
@@ -147,7 +161,9 @@ public class CacheUtil {
             sourceNode.getTableName(),
             HazelcastUtil.node2CommonStage(sourceNode),
             Collections.emptyList()
-    ));
+    );
+    cacheConfig.setCacheNode(cacheNode);
+    cacheService.registerCache(cacheConfig);
   }
 
   public static void destroyCache(Job job, ICacheConfigurator cacheService) {
@@ -232,7 +248,7 @@ public class CacheUtil {
       sourceConnections.decodeDatabasePassword();
       sourceConnections.initCustomTimeZone();
 
-      return new DataFlowCacheConfig(
+      DataFlowCacheConfig dataFlowCacheConfig = new DataFlowCacheConfig(
               cacheNode.getCacheKeys(),
               cacheNode.getCacheName(),
               "all",
@@ -246,11 +262,26 @@ public class CacheUtil {
               HazelcastUtil.node2CommonStage(tableNode),
               Collections.emptyList()
       );
+      dataFlowCacheConfig.setExternalStorageId(cacheNode.getExternalStorageId());
+      dataFlowCacheConfig.setCacheNode(cacheNode);
+      return dataFlowCacheConfig;
     } catch (Exception e) {
       logger.warn("get cache config error", e);
       return null;
     }
 
 
+  }
+
+  public static void removeRecord(BytesIMap<Map<String, Map<String, Object>>> dataMap, String beforeCacheKey, String beforePk) throws Throwable {
+    if (dataMap.exists(beforeCacheKey)) {
+      Map<String, Map<String, Object>> oldRecordMap = dataMap.find(beforeCacheKey);
+      oldRecordMap.remove(beforePk);
+      if (org.apache.commons.collections4.MapUtils.isEmpty(oldRecordMap)) {
+        dataMap.delete(beforeCacheKey);
+      } else {
+        dataMap.insert(beforePk, oldRecordMap);
+      }
+    }
   }
 }

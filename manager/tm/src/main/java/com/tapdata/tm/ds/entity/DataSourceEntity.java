@@ -43,6 +43,12 @@ public class DataSourceEntity extends BaseEntity {
     private String name;
     /** 数据源的配置信息 jsonschema */
     private Map<String, Object> config;
+
+    /**
+     * Encrypted storage configuration.
+     */
+    private String encryptConfig;
+
     /** 创建类型 */
     private CreateTypeEnum createType;
     /** 连接类型 源，目标，源&目标 */
@@ -311,6 +317,8 @@ public class DataSourceEntity extends BaseEntity {
     /** 加载表的规则，true为加载全部，false为加载部分 */
     private Boolean loadAllTables;
     private Integer increaseReadSize;
+    // Share cdc external storage id
+    private String shareCDCExternalStorageId;
 
     private Date loadSchemaTime;
     /** 数据源大于一万张表的时候， 设置的每天的某个时间点加载一次 可以设置为0-24点直接的值

@@ -13,10 +13,11 @@ import java.lang.annotation.*;
 @Documented
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
+@Repeatable(PatchAnnotations.class)
 public @interface PatchAnnotation {
     String version();
 
-    AppType[] appTypes() default AppType.DAAS;
+    AppType appType() default AppType.DAAS;
 
     PatchTypeEnums patchType() default PatchTypeEnums.Script;
 }

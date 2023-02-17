@@ -4,6 +4,7 @@ import cn.hutool.core.date.DateField;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
@@ -89,7 +90,10 @@ public class AlarmServiceImpl implements AlarmService {
             info.setId(one.getId());
             info.setTally(one.getTally() + 1);
             info.setLastUpdAt(date);
-            info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
+            FunctionUtils.isTureOrFalse(AlarmStatusEnum.CLOESE.equals(one.getStatus())).trueOrFalseHandle(
+                    () -> info.setFirstOccurrenceTime(date),
+                    () -> info.setFirstOccurrenceTime(one.getFirstOccurrenceTime())
+            );
             info.setLastOccurrenceTime(date);
             if (Objects.nonNull(one.getLastNotifyTime()) && Objects.isNull(info.getLastNotifyTime())) {
                 AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric(), info.getUserId());
@@ -139,17 +143,23 @@ public class AlarmServiceImpl implements AlarmService {
     @SuppressWarnings("unchecked")
     private static List<AlarmSettingDto> getAlarmSettingDtos(TaskDto taskDto, String nodeId) {
         List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
-        alarmSettingDtos.addAll(Optional.ofNullable(taskDto.getAlarmSettings()).orElse(Collections.emptyList()));
+        Optional.ofNullable(taskDto.getAlarmSettings()).ifPresent(list -> {
+            alarmSettingDtos.addAll(CglibUtil.copyList(list, AlarmSettingDto::new));
+        });
 
         if (Objects.nonNull(nodeId)) {
             for (Node node : taskDto.getDag().getNodes()) {
                 if (node.getId().equals(nodeId) && CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
-                    alarmSettingDtos.addAll(node.getAlarmSettings());
+                    alarmSettingDtos.addAll(CglibUtil.copyList(node.getAlarmSettings(), AlarmSettingDto::new));
                     break;
                 }
             }
         } else {
-            taskDto.getDag().getNodes().forEach(node -> alarmSettingDtos.addAll(Optional.ofNullable(node.getAlarmSettings()).orElse(Collections.emptyList())));
+            taskDto.getDag().getNodes().forEach(node -> {
+                Optional.ofNullable(node.getAlarmSettings()).ifPresent(list -> {
+                    alarmSettingDtos.addAll(CglibUtil.copyList(list, AlarmSettingDto::new));
+                });
+            });
         }
         return alarmSettingDtos;
     }
@@ -160,9 +170,11 @@ public class AlarmServiceImpl implements AlarmService {
     public Map<String, List<AlarmRuleDto>> getAlarmRuleDtos(TaskDto taskDto) {
         if (Objects.nonNull(taskDto)) {
             Map<String, List<AlarmRuleDto>> ruleMap = Maps.newHashMap();
-            ruleMap.put(taskDto.getId().toHexString(), Optional.ofNullable(taskDto.getAlarmRules()).orElse(Collections.emptyList()));
+            Optional.ofNullable(taskDto.getAlarmRules()).ifPresent(list -> ruleMap.put(taskDto.getId().toHexString(), CglibUtil.copyList(list, AlarmRuleDto::new)));
 
-            taskDto.getDag().getNodes().forEach(node -> ruleMap.put(node.getId(), Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList())));
+            taskDto.getDag().getNodes().forEach(node -> {
+                Optional.ofNullable(node.getAlarmRules()).ifPresent(list -> ruleMap.put(node.getId(), CglibUtil.copyList(list, AlarmRuleDto::new)));
+            });
             return ruleMap;
         }
         return null;
@@ -194,15 +206,19 @@ public class AlarmServiceImpl implements AlarmService {
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
         for (AlarmInfo info : alarmInfos) {
+            if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(info.getMetric())) {
+                continue;
+            }
+
             TaskDto taskDto = taskDtoMap.get(info.getTaskId());
             UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
 
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMessage(info, taskDto, userDetail);
                 if (!reuslt) {
+                    info.setLastNotifyTime(null);
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
-                    info.setLastNotifyTime(dateTime);
-                    save(info);
+                    info.setLastNotifyTime(dateTime);save(info);
                 }
             });
             FunctionUtils.ignoreAnyError(() -> {

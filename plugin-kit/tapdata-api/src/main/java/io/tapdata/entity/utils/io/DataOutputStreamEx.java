@@ -18,8 +18,8 @@ import java.util.Map;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 public class DataOutputStreamEx extends OutputStream {
-	private static final byte HASVALUE = 1;
-	private static final byte NOVALUE = 0;
+	public static final byte HASVALUE = 1;
+	public static final byte NOVALUE = 0;
 	private DataOutputStream dos;
 	private OutputStream outputStream;
 

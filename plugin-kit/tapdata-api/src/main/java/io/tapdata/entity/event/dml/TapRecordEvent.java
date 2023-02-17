@@ -3,7 +3,12 @@ package io.tapdata.entity.event.dml;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.io.DataInputStreamEx;
+import io.tapdata.entity.utils.io.DataOutputStreamEx;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Map;
 
@@ -20,7 +25,20 @@ public abstract class TapRecordEvent extends TapBaseEvent {
     public TapRecordEvent(int type) {
         super(type);
     }
-
+    /*
+    public void from(InputStream inputStream) throws IOException {
+        super.from(inputStream);
+        DataInputStreamEx dataInputStreamEx = dataInputStream(inputStream);
+        connector = dataInputStreamEx.readUTF();
+        connectorVersion = dataInputStreamEx.readUTF();
+    }
+    public void to(OutputStream outputStream) throws IOException {
+        super.to(outputStream);
+        DataOutputStreamEx dataOutputStreamEx = dataOutputStream(outputStream);
+        dataOutputStreamEx.writeUTF(connector);
+        dataOutputStreamEx.writeUTF(connectorVersion);
+    }
+    */
     @Override
     public void clone(TapEvent tapEvent) {
         super.clone(tapEvent);

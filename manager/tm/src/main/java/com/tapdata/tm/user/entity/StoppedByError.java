@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class StoppedByError {
-    private Boolean email=false;
-    private Boolean sms=false;
+    private Boolean email = false;
+    private Boolean sms = false;
+    private Boolean weChat = false;
 }

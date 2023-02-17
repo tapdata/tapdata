@@ -298,7 +298,7 @@ public class TapdataTaskScheduler {
 	 * Run task(s) already started, find clause: status=running and agentID={@link TapdataTaskScheduler#instanceNo}
 	 */
 	public void runTaskIfNeedWhenEngineStart() {
-		if (!appType.isCloud()) return;
+//		if (!appType.isCloud()) return;
 		Query query = new Query(
 				new Criteria("agentId").is(instanceNo)
 						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)

@@ -45,7 +45,7 @@
                                 <Implementation-Title>${project.artifactId}</Implementation-Title>
                                 <Implementation-Version>${project.version}</Implementation-Version>
                                 <Implementation-Vendor>${project.groupId}</Implementation-Vendor>
-                                <Authentication>beta</Authentication>
+                                <Authentication>Alpha</Authentication>
                                 <Build-OS>${os.name} ${os.version}</Build-OS>
                                 <Build-Java>Java ${java.version}</Build-Java>
                                 <PDK-Runner-Version>${tapdata.pdk.runner.version}</PDK-Runner-Version>

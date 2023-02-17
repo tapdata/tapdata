@@ -189,7 +189,7 @@ public class UserController extends BaseController {
     public ResponseMessage<UserDto> getUser(@PathVariable(value = "userId") String userId) {
         UserDto userDto = userService.findById(toObjectId(userId));
 
-        userDto.setLast_updated(userDto.getLastUpdAt());
+        //userDto.setLastUpdAt(userDto.getLastUpdAt());
         userDto.setCreateTime(userDto.getCreateAt());
         List<RoleMappingDto> roleMappingDtoList = roleMappingService.getUser(PrincipleType.USER, userId);
         if (CollectionUtils.isNotEmpty(roleMappingDtoList)) {

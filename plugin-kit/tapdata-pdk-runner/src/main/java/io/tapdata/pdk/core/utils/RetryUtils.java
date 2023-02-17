@@ -88,7 +88,7 @@ public class RetryUtils extends CommonUtils {
 					if (!needDefaultRetry) {
 						throwIfNeed(retryOptions, message, errThrowable);
 					}
-					TapLogger.warn(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({} s) | error [{}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage());
+					TapLogger.warn(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({} s) | error [{}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, getLastCause(errThrowable).getMessage());
 					Optional.ofNullable(invoker.getLogListener())
 							.ifPresent(log -> log.warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [%s] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage())));
 					invoker.setRetryTimes(retryTimes - 1);
@@ -113,6 +113,14 @@ public class RetryUtils extends CommonUtils {
 				}
 			}
 		}
+	}
+
+	private static Throwable getLastCause(Throwable e) {
+		Throwable last = e;
+		while(null != last.getCause()) {
+			last = last.getCause();
+		}
+		return last;
 	}
 
 	private static RetryOptions callErrorHandleFunctionIfNeed(PDKMethod method, String message, Throwable errThrowable, ErrorHandleFunction function, TapConnectionContext tapConnectionContext) {
@@ -147,7 +155,9 @@ public class RetryUtils extends CommonUtils {
 	private static void callBeforeRetryMethodIfNeed(RetryOptions retryOptions, String logTag, Node node) {
 		if (null == retryOptions || null == retryOptions.getBeforeRetryMethod()) {
 			if(node instanceof ConnectorNode) {
+				TapLogger.warn(logTag, "Connector stopping...");
 				CommonUtils.ignoreAnyError(() -> ((ConnectorNode) node).connectorStop(), RetryUtils.class.getSimpleName());
+				TapLogger.warn(logTag, "Connector restarting...");
 				CommonUtils.ignoreAnyError(() -> ((ConnectorNode) node).connectorInit(), RetryUtils.class.getSimpleName());
 			}
 			return;

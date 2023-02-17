@@ -297,7 +297,7 @@ public class TapSimplify {
 		try {
 			Thread.sleep(milliseconds);
 		} catch (InterruptedException interruptedException) {
-			interruptedException.printStackTrace();
+//			interruptedException.printStackTrace();
 		}
 	}
 
