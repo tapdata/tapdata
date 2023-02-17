@@ -182,7 +182,7 @@
       "doc": "docs/hazelcast_en_US.md",
       "clusterID": "Cluster ID",
       "token": "Token",
-      "password": "password",
+      "password": "Password",
       "dataForm_form_ssl": "Connect using TLS/SSL",
       "ssl": "Use TSL/SSL connection",
       "enum": "",
