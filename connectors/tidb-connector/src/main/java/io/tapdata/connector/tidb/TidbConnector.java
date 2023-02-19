@@ -153,7 +153,9 @@ public class TidbConnector extends ConnectorBase {
         //Changefeed changefeed1 =new Changefeed(513105904441098240L,"kafka://139.198.127.226:32761/tidb-cdc?kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true","replication-task-3");
         changefeed.setSinkUri("kafka://" + map.get("nameSrvAddr") + "/" + map.get("mqTopic") + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
         changefeed.setChangefeedId((String) map.get("changefeedId"));
-
+        //changefeed.setIgnoreIneligibleTable(true);
+        changefeed.setForceReplicate(true);
+        changefeed.setSyncDdl(true);
         if (httpUtil.createChangefeed(changefeed, (String) map.get("ticdcUrl"))) {
             KafkaService kafkaService1 = new KafkaService(tidbConfig);
             kafkaService1.streamConsume(tableList, recordSize, consumer);
