@@ -18,7 +18,6 @@ import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-import net.openhft.chronicle.map.ChronicleMap;
 
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -224,13 +223,14 @@ public abstract class LogMiner implements ILogMiner {
             AtomicReference<RedoLogContent> lastRedoLogContent = new AtomicReference<>();
             Map<String, List> redoLogContents = logTransaction.getRedoLogContents();
             if (logTransaction.isLarge()) {
-                ((ChronicleMap<String, List>) redoLogContents).forEachEntry(entry -> {
-                    batchCreateEvents(entry.value().get(), eventList, lastRedoLogContent);
+                String keyTemp;
+                while ((keyTemp = logTransaction.pollKey()) != null) {
+                    batchCreateEvents(redoLogContents.get(keyTemp), eventList, lastRedoLogContent);
                     if (eventList.get().size() >= 1000) {
                         submitEvent(lastRedoLogContent.get(), eventList.get());
                         eventList.set(TapSimplify.list());
                     }
-                });
+                }
                 submitEvent(lastRedoLogContent.get(), eventList.get());
             } else {
                 for (List<RedoLogContent> redoLogContentList : redoLogContents.values()) {
