@@ -175,10 +175,10 @@ private  String connectorId;
                 }
             }
         }
-      /*   if(EmptyKit.isNotEmpty(list)) {
+        kafkaConsumer.close();
+        if (EmptyKit.isNotEmpty(list)) {
             eventsOffsetConsumer.accept(list, TapSimplify.list());
-        }*/
-        //kafkaConsumer.close();
+        }
     }
 
     private void makeMessage(ConsumerRecord<String, String> consumerRecord, List<TapEvent> list, String tableName) {
