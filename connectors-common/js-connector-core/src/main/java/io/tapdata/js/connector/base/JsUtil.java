@@ -94,4 +94,13 @@ public class JsUtil {
     public String fromJson(Object obj){
         return Objects.isNull(obj)?"":toJson(obj);
     }
+
+    public String timeStamp2Date(Object millSecondsStr, String format){
+        long millSeconds = millSecondsStr instanceof Number ? ((Number)millSecondsStr).longValue() : Long.parseLong((String.valueOf(millSecondsStr)));
+        if (format == null || format.isEmpty()) {
+            format = "yyyy-MM-dd HH:mm:ss";
+        }
+        SimpleDateFormat sdf = new SimpleDateFormat(format);
+        return sdf.format(new Date(millSeconds));
+    }
 }

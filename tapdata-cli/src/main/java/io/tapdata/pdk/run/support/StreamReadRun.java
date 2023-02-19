@@ -9,6 +9,7 @@ import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
 import io.tapdata.pdk.run.base.ReadStopException;
+import io.tapdata.pdk.run.base.RunClassMap;
 import io.tapdata.pdk.run.base.RunnerSummary;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
@@ -27,6 +28,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 @DisplayName("streamReadRun")
 @TapGo
 public class StreamReadRun extends PDKBaseRun {
+    private static final String jsName = RunClassMap.STREAM_READ_RUN.jsName(0);
     @DisplayName("streamReadRun.run")
     @TapTestCase(sort = 1)
     @Test
@@ -46,7 +48,7 @@ public class StreamReadRun extends PDKBaseRun {
                     return;
                 }
                 StreamReadFunction streamRead = functions.getStreamReadFunction();
-                Map<String, Object> batchReadConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get("stream_read")).orElse(new HashMap<>());
+                Map<String, Object> batchReadConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get(StreamReadRun.jsName)).orElse(new HashMap<>());
                 final int pageSize = (int) batchReadConfig.get("pageSize");
                 final List<String> tableName = (List<String>) batchReadConfig.get("tableNameList");
                 final Object offset = batchReadConfig.get("offset");
@@ -71,6 +73,6 @@ public class StreamReadRun extends PDKBaseRun {
     }
 
     public static List<SupportFunction> testFunctions() {
-        return list(support(StreamReadFunction.class, RunnerSummary.format("jsFunctionInNeed","stream_read")));
+        return list(support(StreamReadFunction.class, RunnerSummary.format("jsFunctionInNeed",StreamReadRun.jsName)));
     }
 }
