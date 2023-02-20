@@ -19,7 +19,7 @@ import org.springframework.data.mongodb.core.query.Query;
  * @author <a href="mailto:meteor209@gmail.com">jiuye</a>
  * @version v1.0 2023/2/10 15:47 Create
  */
-@PatchAnnotation(appType = AppType.DAAS, version = "2.14-4")
+@PatchAnnotation(appTypes = {AppType.DAAS}, version = "2.14-4")
 public class V2_14_4_DatabaseTypes extends AbsPatch {
     private static final Logger logger = LogManager.getLogger(V2_14_4_DatabaseTypes.class);
 
