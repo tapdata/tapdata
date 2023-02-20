@@ -14,6 +14,7 @@
 		<module>lark-connector</module>
 		<module>zoho-crm-connector</module>
 		<module>metabase-connector</module>
+		<module>lark-task-connector</module>
 	</modules>
 
 	<properties>
