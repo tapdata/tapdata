@@ -181,17 +181,22 @@ public class PkdSourceService {
                 Update removeLatest = Update.update("latest", false);
                 dataSourceDefinitionService.update(new Query(criteriaLatest), removeLatest);
             }
-            dataSourceDefinitionService.save(definitionDto, user);
+            if (Objects.isNull(oldDefinitionDto)) {
+                dataSourceDefinitionService.save(definitionDto, user);
+            } else {
+                dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(definitionDto.getId())), definitionDto, user);
+            }
         }
     }
 
     public void uploadAndView(String pdkHash, Integer pdkBuildNumber, UserDetail user, PdkFileTypeEnum type, HttpServletResponse response) {
-        Criteria criteria = Criteria.where("pdkHash").is(pdkHash).and("pdkAPIBuildNumber").lte(pdkBuildNumber);
+        Criteria criteria = Criteria.where("pdkHash").is(pdkHash);
         Query query = new Query(criteria);
 
         switch (type) {
             case JAR:
                 query.fields().include("jarRid");
+                criteria.and("pdkAPIBuildNumber").lte(pdkBuildNumber);
                 break;
             case IMAGE:
             query.fields().include("icon");

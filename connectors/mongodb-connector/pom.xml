@@ -13,7 +13,6 @@
 
     <properties>
         <java.version>8</java.version>
-        <tapdata.api.version>1.2.1</tapdata.api.version>
         <tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
     </properties>
     <dependencies>
@@ -26,7 +25,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-api</artifactId>
-            <version>${tapdata.api.version}</version>
+            <version>${tapdata.pdk.api.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

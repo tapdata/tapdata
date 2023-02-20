@@ -1,6 +1,6 @@
 package com.tapdata.tm.init.patches.daas;
 
-import com.tapdata.tm.commons.constants.DataSourceQCType;
+import io.tapdata.pdk.core.constants.DataSourceQCType;
 import com.tapdata.tm.init.PatchType;
 import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.init.patches.AbsPatch;
@@ -24,7 +24,6 @@ import java.util.Map;
  * @version v1.0 2023/2/10 15:47 Create
  */
 @PatchAnnotation(appType = AppType.DAAS, version = "2.14-1")
-@PatchAnnotation(appType = AppType.DFS, version = "2.14-1")
 public class V2_14_1_DataSourceQCType extends AbsPatch {
     private static final Logger logger = LogManager.getLogger(V2_14_1_DataSourceQCType.class);
 

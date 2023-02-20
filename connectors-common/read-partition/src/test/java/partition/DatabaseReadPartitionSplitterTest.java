@@ -86,9 +86,9 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					Assertions.assertEquals(3, readPartitionList.size());
-					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<1; ", readPartitionList.get(0).toString());
 					assertEquals("ReadPartition TapPartitionFilter match {a: 1, }", readPartitionList.get(1).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'1'; ", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>1; ", readPartitionList.get(2).toString());
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
@@ -114,11 +114,11 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					Assertions.assertEquals(5, readPartitionList.size());
-					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<1; ", readPartitionList.get(0).toString());
 					assertEquals("ReadPartition TapPartitionFilter match {a: 1, }", readPartitionList.get(1).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>1; rightBoundary a<2; ", readPartitionList.get(2).toString());
 					assertEquals("ReadPartition TapPartitionFilter match {a: 2, }", readPartitionList.get(3).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'2'; ", readPartitionList.get(4).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>2; ", readPartitionList.get(4).toString());
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
@@ -145,13 +145,13 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					Assertions.assertEquals(7, readPartitionList.size());
-					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<1; ", readPartitionList.get(0).toString());
 					assertEquals("ReadPartition TapPartitionFilter match {a: 1, }", readPartitionList.get(1).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>1; rightBoundary a<2; ", readPartitionList.get(2).toString());
 					assertEquals("ReadPartition TapPartitionFilter match {a: 2, }", readPartitionList.get(3).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ", readPartitionList.get(4).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>2; rightBoundary a<3; ", readPartitionList.get(4).toString());
 					assertEquals("ReadPartition TapPartitionFilter match {a: 3, }", readPartitionList.get(5).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'3'; ", readPartitionList.get(6).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>3; ", readPartitionList.get(6).toString());
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
@@ -189,13 +189,13 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					Assertions.assertEquals(7, readPartitionList.size());
-					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1'; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<1; ", readPartitionList.get(0).toString());
 					assertEquals("ReadPartition TapPartitionFilter match {a: 1, }", readPartitionList.get(1).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>1; rightBoundary a<2; ", readPartitionList.get(2).toString());
 					assertEquals("ReadPartition TapPartitionFilter match {a: 2, }", readPartitionList.get(3).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ", readPartitionList.get(4).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>2; rightBoundary a<3; ", readPartitionList.get(4).toString());
 					assertEquals("ReadPartition TapPartitionFilter match {a: 3, }", readPartitionList.get(5).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'3'; ", readPartitionList.get(6).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>3; ", readPartitionList.get(6).toString());
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
 				.countByPartitionFilter(new IntFieldMinMaxHandler(records))
@@ -224,11 +224,11 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(5, readPartitionList.size()));
-					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1.02'; ", readPartitionList.get(0).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='1.02'; rightBoundary a<'2.0'; ", readPartitionList.get(1).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='2.0'; rightBoundary a<'2.02'; ", readPartitionList.get(2).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='2.02'; rightBoundary a<'2.98'; ", readPartitionList.get(3).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>='2.98'; ", readPartitionList.get(4).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<1.02; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>=1.02; rightBoundary a<2.0; ", readPartitionList.get(1).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>=2.0; rightBoundary a<2.02; ", readPartitionList.get(2).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>=2.02; rightBoundary a<2.98; ", readPartitionList.get(3).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>=2.98; ", readPartitionList.get(4).toString());
 				})
 				.queryFieldMinMaxValue(new DoubleFieldMinMaxHandler(records))
 				.countByPartitionFilter(new DoubleFieldMinMaxHandler(records))
@@ -425,20 +425,20 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.typeSplitterMap(new TypeSplitterMap())
 				.splitCompleteListener((id) -> {
 					Assertions.assertEquals(14, readPartitionList.size());
-					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<'1'; ", readPartitionList.get(0).toString());
-					assertEquals("ReadPartition TapPartitionFilter rightBoundary b<'5'; match {a: 1, }", readPartitionList.get(1).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary a<1; ", readPartitionList.get(0).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary b<5; match {a: 1, }", readPartitionList.get(1).toString());
 					assertEquals("ReadPartition TapPartitionFilter match {a: 1, b: 5, }", readPartitionList.get(2).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>'5'; match {a: 1, }", readPartitionList.get(3).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ", readPartitionList.get(4).toString());
-					assertEquals("ReadPartition TapPartitionFilter rightBoundary b<'51'; match {a: 2, }", readPartitionList.get(5).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>5; match {a: 1, }", readPartitionList.get(3).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>1; rightBoundary a<2; ", readPartitionList.get(4).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary b<51; match {a: 2, }", readPartitionList.get(5).toString());
 					assertEquals("ReadPartition TapPartitionFilter match {a: 2, b: 51, }", readPartitionList.get(6).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>'51'; match {a: 2, }", readPartitionList.get(7).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ", readPartitionList.get(8).toString());
-					assertEquals("ReadPartition TapPartitionFilter rightBoundary b<'57'; match {a: 3, }", readPartitionList.get(9).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>='57'; rightBoundary b<'61'; match {a: 3, }", readPartitionList.get(10).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>='61'; rightBoundary b<'449'; match {a: 3, }", readPartitionList.get(11).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>='449'; match {a: 3, }", readPartitionList.get(12).toString());
-					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>'3'; ", readPartitionList.get(13).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>51; match {a: 2, }", readPartitionList.get(7).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>2; rightBoundary a<3; ", readPartitionList.get(8).toString());
+					assertEquals("ReadPartition TapPartitionFilter rightBoundary b<57; match {a: 3, }", readPartitionList.get(9).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>=57; rightBoundary b<61; match {a: 3, }", readPartitionList.get(10).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>=61; rightBoundary b<449; match {a: 3, }", readPartitionList.get(11).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary b>=449; match {a: 3, }", readPartitionList.get(12).toString());
+					assertEquals("ReadPartition TapPartitionFilter leftBoundary a>3; ", readPartitionList.get(13).toString());
 
 				})
 				.queryFieldMinMaxValue(new IntFieldMinMaxHandler(records))
@@ -483,20 +483,20 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.splitCompleteListener((id) -> {
 					Assertions.assertEquals(14, readPartitionList.size());
 					String[] strs = new String[] {
-							"ReadPartition TapPartitionFilter rightBoundary a<'1'; ",
-					"ReadPartition TapPartitionFilter rightBoundary b<'5'; match {a: 1, }",
+							"ReadPartition TapPartitionFilter rightBoundary a<1; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<5; match {a: 1, }",
 					"ReadPartition TapPartitionFilter match {a: 1, b: 5, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>'5'; match {a: 1, }",
-					"ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ",
-					"ReadPartition TapPartitionFilter rightBoundary b<'51'; match {a: 2, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>5; match {a: 1, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>1; rightBoundary a<2; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<51; match {a: 2, }",
 					"ReadPartition TapPartitionFilter match {a: 2, b: 51, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>'51'; match {a: 2, }",
-					"ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ",
-					"ReadPartition TapPartitionFilter rightBoundary b<'57'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>='57'; rightBoundary b<'61'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>='61'; rightBoundary b<'449'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>='449'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary a>'3'; "
+					"ReadPartition TapPartitionFilter leftBoundary b>51; match {a: 2, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>2; rightBoundary a<3; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<57; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>=57; rightBoundary b<61; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>=61; rightBoundary b<449; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>=449; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>3; "
 					};
 					for(int i = 0; i < strs.length; i++) {
 						assertEquals(strs[i], readPartitionList.get(i).toString());
@@ -544,20 +544,20 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.splitCompleteListener((id) -> {
 					Assertions.assertEquals(14, readPartitionList.size());
 					String[] strs = new String[] {
-							"ReadPartition TapPartitionFilter rightBoundary a<'1'; ",
-					"ReadPartition TapPartitionFilter rightBoundary b<'5'; match {a: 1, }",
+							"ReadPartition TapPartitionFilter rightBoundary a<1; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<5; match {a: 1, }",
 					"ReadPartition TapPartitionFilter match {a: 1, b: 5, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>'5'; match {a: 1, }",
-					"ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ",
-					"ReadPartition TapPartitionFilter rightBoundary b<'51'; match {a: 2, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>5; match {a: 1, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>1; rightBoundary a<2; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<51; match {a: 2, }",
 					"ReadPartition TapPartitionFilter match {a: 2, b: 51, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>'51'; match {a: 2, }",
-					"ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ",
-					"ReadPartition TapPartitionFilter rightBoundary b<'57'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>='57'; rightBoundary b<'61'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>='61'; rightBoundary b<'449'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>='449'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary a>'3'; "
+					"ReadPartition TapPartitionFilter leftBoundary b>51; match {a: 2, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>2; rightBoundary a<3; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<57; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>=57; rightBoundary b<61; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>=61; rightBoundary b<449; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>=449; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>3; "
 					};
 					for(int i = 0; i < strs.length; i++) {
 						assertEquals(strs[i], readPartitionList.get(i).toString());
@@ -606,20 +606,20 @@ public class DatabaseReadPartitionSplitterTest extends AsyncTestBase {
 				.splitCompleteListener((id) -> {
 					$(() -> Assertions.assertEquals(14, readPartitionList.size()));
 					String[] strs = new String[] {
-							"ReadPartition TapPartitionFilter rightBoundary a<'1'; ",
-					"ReadPartition TapPartitionFilter rightBoundary b<'5'; match {a: 1, }",
+							"ReadPartition TapPartitionFilter rightBoundary a<1; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<5; match {a: 1, }",
 					"ReadPartition TapPartitionFilter match {a: 1, b: 5, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>'5'; match {a: 1, }",
-					"ReadPartition TapPartitionFilter leftBoundary a>'1'; rightBoundary a<'2'; ",
-					"ReadPartition TapPartitionFilter rightBoundary b<'51'; match {a: 2, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>5; match {a: 1, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>1; rightBoundary a<2; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<51; match {a: 2, }",
 					"ReadPartition TapPartitionFilter match {a: 2, b: 51, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>'51'; match {a: 2, }",
-					"ReadPartition TapPartitionFilter leftBoundary a>'2'; rightBoundary a<'3'; ",
-					"ReadPartition TapPartitionFilter rightBoundary b<'57'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>='57'; rightBoundary b<'61'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>='61'; rightBoundary b<'449'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary b>='449'; match {a: 3, }",
-					"ReadPartition TapPartitionFilter leftBoundary a>'3'; "
+					"ReadPartition TapPartitionFilter leftBoundary b>51; match {a: 2, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>2; rightBoundary a<3; ",
+					"ReadPartition TapPartitionFilter rightBoundary b<57; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>=57; rightBoundary b<61; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>=61; rightBoundary b<449; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary b>=449; match {a: 3, }",
+					"ReadPartition TapPartitionFilter leftBoundary a>3; "
 					};
 					for(int i = 0; i < strs.length; i++) {
 						assertEquals(strs[i], readPartitionList.get(i).toString());

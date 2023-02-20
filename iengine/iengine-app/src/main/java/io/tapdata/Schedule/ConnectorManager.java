@@ -4,33 +4,9 @@ import com.mongodb.MongoClient;
 import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoClientURI;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.constant.AgentUtil;
-import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.DateUtil;
 import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MapUtil;
-import com.tapdata.constant.MongodbUtil;
-import com.tapdata.constant.SSLUtil;
-import com.tapdata.constant.SystemUtil;
-import com.tapdata.constant.UUIDGenerator;
-import com.tapdata.constant.VersionCheck;
-import com.tapdata.entity.AppType;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.Job;
-import com.tapdata.entity.JobConnection;
-import com.tapdata.entity.LoginResp;
-import com.tapdata.entity.ProgressRateStatsMap;
-import com.tapdata.entity.RelateDataBaseTable;
-import com.tapdata.entity.Schema;
-import com.tapdata.entity.Setting;
-import com.tapdata.entity.Stats;
-import com.tapdata.entity.TapLog;
-import com.tapdata.entity.User;
-import com.tapdata.entity.Worker;
+import com.tapdata.constant.*;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -38,6 +14,8 @@ import com.tapdata.mongo.RestTemplateOperator;
 import com.tapdata.tm.commons.ping.PingDto;
 import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
+import com.tapdata.tm.worker.WorkerSingletonException;
+import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.validator.ConnectionValidateResult;
 import com.tapdata.validator.ConnectionValidator;
 import com.tapdata.validator.ValidatorConstant;
@@ -45,24 +23,9 @@ import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.TapInterface;
 import io.tapdata.aspect.LoginSuccessfullyAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.common.ClassScanner;
-import io.tapdata.common.Connector;
-import io.tapdata.common.ConverterUtil;
-import io.tapdata.common.JetExceptionFilter;
-import io.tapdata.common.LoadBalancing;
-import io.tapdata.common.LogUtil;
-import io.tapdata.common.SettingService;
-import io.tapdata.common.SupportUtil;
-import io.tapdata.common.TapInterfaceUtil;
-import io.tapdata.common.TapdataLog4jFilter;
-import io.tapdata.common.WarningMaker;
+import io.tapdata.common.*;
 import io.tapdata.dao.MessageDao;
-import io.tapdata.entity.BaseConnectionValidateResult;
-import io.tapdata.entity.BaseConnectionValidateResultDetail;
-import io.tapdata.entity.ConnectionsType;
-import io.tapdata.entity.Converter;
-import io.tapdata.entity.Lib;
-import io.tapdata.entity.LibSupported;
+import io.tapdata.entity.*;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
 import io.tapdata.schema.SchemaProxy;
@@ -98,26 +61,8 @@ import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -263,6 +208,24 @@ public class ConnectorManager {
       throw new RuntimeException(checkCloudOneAgentResult);
     }*/
 
+		WorkerSingletonLock.check(tapdataWorkDir, (singletonLock) -> {
+			String newSingletonLock = UUID.randomUUID().toString();
+			while (!Thread.interrupted()) {
+				String status = clientMongoOperator.upsert(new HashMap<String, Object>() {{
+					put("process_id", instanceNo);
+					put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
+					put("singletonLock", singletonLock);
+				}}, new HashMap<String, Object>() {{
+					put("singletonLock", newSingletonLock);
+				}}, ConnectorConstant.WORKER_COLLECTION + "/singleton-lock", String.class);
+				if ("ok".equals(status)) break;
+
+				throw new RuntimeException(String.format("Singleton check in remote failed: '%s'", status));
+			}
+
+			return newSingletonLock;
+		});
+
 		List<Worker> workers = clientMongoOperator.find(params, ConnectorConstant.WORKER_COLLECTION, Worker.class);
 
 		if (CollectionUtils.isNotEmpty(workers)) {
@@ -307,10 +270,10 @@ public class ConnectorManager {
 
 		if (!appType.isCloud()) {
 			// init database type(s)
-			initDatabaseTypes();
+//			initDatabaseTypes();
 
 			// init supported list
-			initSupportedList();
+//			initSupportedList();
 
 			// init script task schedule
 			initScriptTaskSchedule(clientMongoOperator);
@@ -1338,6 +1301,7 @@ public class ConnectorManager {
 				value.put("total_thread", finalThreshold);
 				value.put("process_id", instanceNo);
 				value.put("user_id", userId);
+				value.put("singletonLock", WorkerSingletonLock.getCurrentTag());
 				value.put("version", version);
 				value.put("hostname", hostname);
 				value.put("cpuLoad", processCpuLoad);
@@ -1393,7 +1357,14 @@ public class ConnectorManager {
 					cache -> {
 						String pingResult = cache.get(PingDto.PING_RESULT).toString();
 						if (PingDto.PingResult.FAIL.name().equals(pingResult)) {
-							throw new RuntimeException("Failed to send worker heartbeat use websocket, will retry http, message: " + cache.getOrDefault(PingDto.ERR_MESSAGE, "unknown error"));
+							Object errorMessage = cache.getOrDefault(PingDto.ERR_MESSAGE, "unknown error");
+							if (WorkerSingletonLock.STOP_AGENT.equals(errorMessage)) {
+								RuntimeException stopError = new WorkerSingletonException("Stop by singleton lock");
+								logger.info(stopError.getMessage());
+								System.exit(0);
+								throw stopError;
+							}
+							throw new RuntimeException("Failed to send worker heartbeat use websocket, will retry http, message: " + errorMessage);
 						}
 					});
 			if (!handleResponse) {

@@ -22,5 +22,7 @@ public class TaskDagCheckLogVo implements Serializable {
     private LinkedList<TaskLogInfoVo> list;
     @Schema(description = "模型推演日志数据")
     private LinkedList<TaskLogInfoVo> modelList;
+    private int errorNum;
+    private int warnNum;
     private boolean over;
 }

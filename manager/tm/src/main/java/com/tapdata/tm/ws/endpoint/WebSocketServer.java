@@ -7,10 +7,10 @@
 package com.tapdata.tm.ws.endpoint;
 
 import cn.hutool.core.bean.BeanException;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.websocket.AllowRemoteCall;
 import com.tapdata.tm.commons.websocket.MessageInfoBuilder;
 import com.tapdata.tm.commons.websocket.ReturnCallback;
@@ -25,16 +25,6 @@ import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.dto.WebSocketInfo;
 import com.tapdata.tm.ws.enums.MessageType;
 import com.tapdata.tm.ws.handler.WebSocketHandler;
-
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Type;
-import java.net.InetSocketAddress;
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -47,6 +37,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl;
+
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.net.InetSocketAddress;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Component
@@ -98,13 +97,14 @@ public class WebSocketServer extends TextWebSocketHandler {
 		String id = getId(session);
 		String userId = getUserId(session);
 		String agentId = getAgentId(session);
+		String singletonLock = getSingletonTag(session);
 		String remoteIp = null;
 		InetSocketAddress remote = session.getRemoteAddress();
 		if (remote != null) {
 			remoteIp = remote.getAddress().getHostAddress();
 		}
-		log.info("WebSocket connect,id: {},userId: {}, agentId: {}, remote address {}", id, userId, agentId, remoteIp);
-		WebSocketInfo webSocketInfo = new WebSocketInfo(session.getId(), agentId, userId, session, remoteIp);
+		log.info("WebSocket connect,id: {},userId: {}, agentId: {}, singletonLock: {}, remote address {}", id, userId, agentId, singletonLock, remoteIp);
+		WebSocketInfo webSocketInfo = new WebSocketInfo(session.getId(), agentId, singletonLock, userId, session, remoteIp);
 		WebSocketManager.addSession(webSocketInfo);
 		try {
 			session.sendMessage(new PingMessage());
@@ -396,6 +396,23 @@ public class WebSocketServer extends TextWebSocketHandler {
 			}
 		}catch (Exception e){
 			log.error("WebSocket get agentId error,message: {}", e.getMessage());
+		}
+		return null;
+	}
+
+	private String getSingletonTag(WebSocketSession session) {
+		try {
+			String id = getAttr(session, "singletonTag");
+			if (StringUtils.isNotBlank(id)) {
+				return id;
+			}
+			if (session.getUri() != null) {
+				Map<String, String> queryStrMap = queryStr2Map(session.getUri().getQuery());
+				session.getAttributes().putAll(queryStrMap);
+				return queryStrMap.get("singletonTag");
+			}
+		} catch (Exception e) {
+			log.error("WebSocket get singletonTag error,message: {}", e.getMessage());
 		}
 		return null;
 	}

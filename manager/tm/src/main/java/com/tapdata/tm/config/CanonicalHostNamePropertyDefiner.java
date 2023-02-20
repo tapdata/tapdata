@@ -18,7 +18,10 @@ public class CanonicalHostNamePropertyDefiner extends PropertyDefinerBase {
 
     @Override
     public String getPropertyValue() {
+        return getHostname();
+    }
 
+    public static String getHostname() {
         if (hostname != null)
             return hostname;
 
