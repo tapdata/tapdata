@@ -7,9 +7,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * @author lemon
- */
 public class RedisConfig {
 
     private static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class);
@@ -18,18 +15,24 @@ public class RedisConfig {
     private int port;
     private String user;
     private String password;
-
-    private String deploymentMode ;
-
+    private String deploymentMode;
     private String sentinelName;
-
     private String database;
+    private ArrayList<LinkedHashMap<String, Integer>> sentinelAddress;
 
-    private ArrayList<LinkedHashMap<String,Integer>> sentinelAddress;
+    private String valueType = "List";
+    private String keyExpression;
+    private String valueData = "Text";
+    private String valueJoinString = ",";
+    private String valueTransferredString = "";
+    private Boolean csvFormat = true;
+    private long expireTime;
+    private Boolean resetExpire;
+    private String keyTableName;
+    private Boolean listHead = true;
+    private Boolean oneKey;
 
-
-
-    public RedisConfig load(Map<String, Object> map)  {
+    public RedisConfig load(Map<String, Object> map) {
         return beanUtils.mapToBean(map, this);
     }
 
@@ -97,5 +100,92 @@ public class RedisConfig {
         this.database = database;
     }
 
+    public String getValueType() {
+        return valueType;
+    }
+
+    public void setValueType(String valueType) {
+        this.valueType = valueType;
+    }
+
+    public long getExpireTime() {
+        return expireTime;
+    }
+
+    public void setExpireTime(long expireTime) {
+        this.expireTime = expireTime;
+    }
+
+    public Boolean getResetExpire() {
+        return resetExpire;
+    }
+
+    public void setResetExpire(Boolean resetExpire) {
+        this.resetExpire = resetExpire;
+    }
+
+    public String getValueData() {
+        return valueData;
+    }
+
+    public void setValueData(String valueData) {
+        this.valueData = valueData;
+    }
+
+    public String getValueJoinString() {
+        return valueJoinString;
+    }
+
+    public void setValueJoinString(String valueJoinString) {
+        this.valueJoinString = valueJoinString;
+    }
+
+    public String getValueTransferredString() {
+        return valueTransferredString;
+    }
+
+    public void setValueTransferredString(String valueTransferredString) {
+        this.valueTransferredString = valueTransferredString;
+    }
+
+    public Boolean getCsvFormat() {
+        return csvFormat;
+    }
+
+    public void setCsvFormat(Boolean csvFormat) {
+        this.csvFormat = csvFormat;
+    }
+
+    public String getKeyTableName() {
+        return keyTableName;
+    }
+
+    public void setKeyTableName(String keyTableName) {
+        this.keyTableName = keyTableName;
+    }
+
+    public Boolean getListHead() {
+        return listHead;
+    }
+
+    public void setListHead(Boolean listHead) {
+        this.listHead = listHead;
+    }
+
+    public String getKeyExpression() {
+        return keyExpression;
+    }
+
+    public void setKeyExpression(String keyExpression) {
+        this.keyExpression = keyExpression;
+    }
+
+    public Boolean getOneKey() {
+        return oneKey;
+    }
+
+    public void setOneKey(Boolean oneKey) {
+        this.oneKey = oneKey;
+    }
 
 }

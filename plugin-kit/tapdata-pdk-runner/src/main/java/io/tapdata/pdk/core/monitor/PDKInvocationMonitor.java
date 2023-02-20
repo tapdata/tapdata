@@ -10,6 +10,7 @@ import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.RetryUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -122,16 +123,13 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     }
     public void invokePDKMethod(Node node, PDKMethod method, PDKMethodInvoker invoker) {
         CommonUtils.AnyError r = invoker.getR();
-        String message = invoker.getMessage();
+        final String message = invoker.getMessage();
         final String logTag = invoker.getLogTag();
+        final boolean async = invoker.isAsync();
         Consumer<CoreException> errorConsumer = invoker.getErrorConsumer();
-        boolean async = invoker.isAsync();
         ClassLoader contextClassLoader = invoker.getContextClassLoader();
-        if (!this.invokerRetrySetter(invoker)){
-            TapLogger.debug(logTag, "Do not retry : maxRetryTimeMinute {}, retryPeriodSeconds {}, retryTimes {}. ",invoker.getMaxRetryTimeMinute(),invoker.getRetryPeriodSeconds(),invoker.getRetryTimes());
-            return;
-        }
-        long retryTimes = invoker.getRetryTimes();
+        invokerRetrySetter(invoker);
+        final long retryTimes = invoker.getRetryTimes();
         try {
             this.invokerEnter(node,invoker);
             if (async) {
@@ -140,13 +138,17 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                         Thread.currentThread().setContextClassLoader(contextClassLoader);
                     }
                     if (retryTimes > 0) {
-                        CommonUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
+                        RetryUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
                     } else {
                         node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
                     }
                 });
             } else {
-                CommonUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
+                if (retryTimes > 0){
+                    RetryUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
+                }else {
+                    node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
+                }
             }
         }finally {
             PDKInvocationMonitor.release(node,invoker);
@@ -245,62 +247,45 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     /**
      最大重试时间----最大重试次数----重试间隔时间
      |-1.最大重试时间小于0:
-        |----1.重试时间、重试间隔大于0 ，计算最大重试时间，重试
-        |----2.重试时间、重试间隔小于等于0 ，不重试
+     |----1.重试次数 和 重试间隔大于0 ，计算最大重试时间，最大重试时间 = 重试次数 * 重试间隔
+     |----2.重试次数 或 重试间隔小于等于0 ，重试次数 = 0
      |-2.最大重试时间大于0：
-        |----1.重试间隔大于0，求重试次数，重试
-        |----2.重试间隔小于0,：
-            |----1.重试次数大于0，计算重试间隔，重试。
-            |----2.重试次数小于0，不重试。
-     -----------------------------------------------
-     maxRetryTimeMinute - retryPeriodSeconds - retryTimes
-     |-1. maxRetryTimeMinute is less than or equal to zero:
-         |----1. retryTimes and retryPeriodSeconds is greater than 0. Calculate the maxRetryTimeMinute and retry.
-         |----2. retryTimes or retryPeriodSeconds is less than or equal to 0, do not retry.
-     |-2. The maxRetryTimeMinute is greater than zero:
-        |----1. retryPeriodSeconds is greater than zero. Find retryTimes and try again.
-        |----2. retryPeriodSeconds is less than or equal to zero:
-            |----1. If retryTimes is greater than zero, calculate the retryPeriodSeconds and retry.
-            |----2. If retryTimes is less than or equal to zero, do not retry.
+     |----1.重试间隔大于0：求重试次数，重试次数 = 大重试时间 / 重试间隔
+     |----2.重试间隔小于0：
+     |----1.重试次数大于0，重试间隔 = 最大重试时间 / 重试次数
+     |----2.重试次数小于0，重试间隔 = 5秒，重试间隔 = 最大重试时间 / 重试间隔
      */
-//    private static final long MAX_RETRY_TIMES = 10000L;
-//    private static final long MAX_RETRY_PERIOD_SECOND = 100000L;
-//    private static final long MAX_MAX_RETRY_TIME_MINUTE = 100000L;
-    public static boolean invokerRetrySetter(PDKMethodInvoker invoker){
-//        if (invoker.getRetryTimes()>MAX_RETRY_TIMES){
-//            invoker.setRetryTimes(MAX_RETRY_TIMES);
-//        }
-//        if (invoker.getRetryPeriodSeconds()>MAX_RETRY_PERIOD_SECOND){
-//            invoker.setRetryPeriodSeconds(MAX_RETRY_PERIOD_SECOND);
-//        }
-//        if (invoker.getMaxRetryTimeMinute()>MAX_MAX_RETRY_TIME_MINUTE){
-//            invoker.setMaxRetryTimeMinute(MAX_MAX_RETRY_TIME_MINUTE);
-//        }
-//        if(!invoker.isAsync()){
-//            return;
-//        }
-        long maxRetryTimeMinute = invoker.getMaxRetryTimeMinute();
-        long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
-        long retryTimes = invoker.getRetryTimes();
-        if (maxRetryTimeMinute > 0) {//最大重试时间大于0
-            if (retryPeriodSeconds>0) {//重试间隔时间大于0
-                //计算重试次数，向下取整
-                invoker.setRetryTimes(maxRetryTimeMinute*60 / retryPeriodSeconds);
-                return Boolean.TRUE;
-            }else {
-                if (retryTimes>0){
-                    invoker.setRetryPeriodSeconds(maxRetryTimeMinute*60 / retryTimes);
-                    return Boolean.TRUE;
+    public static final Long DEFAULT_RETRY_PERIOD_SECONDS = 5L;
+    public static void invokerRetrySetter(PDKMethodInvoker invoker){
+        if (null == invoker) return;
+        try {
+            long maxRetryTimeMinute = invoker.getMaxRetryTimeMinute();
+            long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
+            long retryTimes = invoker.getRetryTimes();
+            if (maxRetryTimeMinute > 0) {//最大重试时间大于0
+                if (retryPeriodSeconds > 0) {//重试间隔时间大于0
+                    //计算重试次数，向下取整
+                    invoker.setRetryTimes(maxRetryTimeMinute*60 / retryPeriodSeconds);
                 }else {
-                    throw new IllegalArgumentException("RetryPeriodSeconds can not be zero or less than zero.");
+                    if (retryTimes > 0){
+                        invoker.setRetryPeriodSeconds(maxRetryTimeMinute*60 / retryTimes);
+                    }else {
+                        invoker.setRetryPeriodSeconds(DEFAULT_RETRY_PERIOD_SECONDS);
+                        invoker.setRetryTimes(maxRetryTimeMinute*60 / DEFAULT_RETRY_PERIOD_SECONDS );
+                        TapLogger.info("ErrorRetry", "Retry period seconds can not be zero or less than zero, it has been set as the default value: {} seconds", DEFAULT_RETRY_PERIOD_SECONDS);
+                    }
+                }
+            }else {
+                if (retryPeriodSeconds>0 && retryTimes>0){
+                    invoker.setMaxRetryTimeMinute(retryPeriodSeconds * retryTimes);
+                }else{
+                    invoker.setRetryPeriodSeconds(DEFAULT_RETRY_PERIOD_SECONDS);
+                    invoker.setRetryTimes(0);
                 }
             }
-        }else {
-            if (retryPeriodSeconds>0&&retryTimes>0){
-                invoker.setMaxRetryTimeMinute(retryPeriodSeconds*retryTimes);
-                return Boolean.TRUE;
-            }
+        }catch (Exception e){
+            invoker.setRetryTimes(0);
+            invoker.setRetryPeriodSeconds(DEFAULT_RETRY_PERIOD_SECONDS);
         }
-        return Boolean.FALSE;
     }
 }

@@ -37,6 +37,7 @@ public class InspectDto extends SchedulableDto {
      *
      */
     private String inspectMethod;
+    private String inspectDifferenceMode;
 
     /**
      *
@@ -104,4 +105,7 @@ public class InspectDto extends SchedulableDto {
     private int browserTimezoneOffset; // 浏览器时区偏移量，+8 = -480(分钟)
     private String cdcBeginDate; // 事件开始时间，不能为空。指定从哪个源事件操作时间开始校验，样式：'yyyy-MM-dd HH:mm'
     private int cdcDuration; // 每次处理时长，不能小于5；单位：分钟
+
+    private String inspectResultId;     // 重新校验功能
+    private List<String> taskIds;       // 重新校验要执行的任务id
 }

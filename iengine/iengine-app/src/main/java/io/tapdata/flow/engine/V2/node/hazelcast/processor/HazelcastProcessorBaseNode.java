@@ -41,7 +41,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	protected final boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
 		try {
 			Log4jUtil.setThreadContext(processorBaseContext.getTaskDto());
-			if (!isJetJobRunning()) {
+			if (!isRunning()) {
 				return true;
 			}
 			TapdataEvent tapdataEvent = (TapdataEvent) item;
@@ -86,12 +86,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					});
 				});
 			} catch (Throwable throwable) {
-				NodeException nodeException = new NodeException("Error occurred when process events in processor", throwable)
+				throw new NodeException("Error occurred when process events in processor", throwable)
 						.context(getProcessorBaseContext())
 						.event(tapdataEvent.getTapEvent());
-				logger.error(nodeException.getMessage(), nodeException);
-				obsLogger.error(nodeException);
-				throw nodeException;
 			}
 
 			if (CollectionUtils.isNotEmpty(processedEventList)) {
@@ -103,6 +100,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					}
 				}
 			}
+		} catch (Throwable throwable) {
+			errorHandle(throwable, throwable.getMessage());
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -113,6 +112,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		if (!multipleTables && !StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			tableName = processorBaseContext.getNode().getId();
+		}
+		if (StringUtils.isEmpty(tableName)) {
+			tableName = null;
 		}
 		return ProcessResult.create().tableId(tableName);
 	}

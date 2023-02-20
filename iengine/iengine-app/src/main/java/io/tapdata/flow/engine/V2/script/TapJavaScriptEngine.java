@@ -2,49 +2,76 @@ package io.tapdata.flow.engine.V2.script;
 
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.JobUtil;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.processor.LoggingOutputStream;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import io.tapdata.Application;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.error.NotSupportedException;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import org.apache.logging.log4j.Level;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import javax.script.*;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.Reader;
+import java.net.URLClassLoader;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 
-public class TapJavaScriptEngine implements ScriptEngine, Invocable {
+public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 
     private final ScriptEngine scriptEngine;
     private final Invocable invocable;
     private final String buildInScript;
+    private final ScriptExecutorsManager scriptExecutorsManager;
 
+    private URLClassLoader externalJarClassLoader;
     public TapJavaScriptEngine(ScriptOptions scriptOptions) {
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
         List<JavaScriptFunctions> javaScriptFunctions = JobUtil.getJavaScriptFunctions(clientMongoOperator);
-        this.buildInScript = ScriptUtil.initBuildInMethod(javaScriptFunctions, clientMongoOperator);
+        this.buildInScript = ScriptUtil.initBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalJarClassLoader = urlClassLoader);
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
         invocable = (Invocable) scriptEngine;
+        String contextTaskId = Log4jUtil.getContextTaskId();
+        this.scriptExecutorsManager = new ScriptExecutorsManager(new TapScriptLogger(contextTaskId), clientMongoOperator, HazelcastUtil.getInstance(), contextTaskId, "");
+        scriptEngine.put("ScriptExecutorsManager", scriptExecutorsManager);
     }
 
     private ScriptEngine initScriptEngine(String jsEngineName) {
         JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
         ScriptEngine scriptEngine;
-        if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        String contextTaskId = Log4jUtil.getContextTaskId();
+
+        LoggingOutputStream out = new LoggingOutputStream(new TapScriptLogger(contextTaskId), Level.INFO);
+        LoggingOutputStream err = new LoggingOutputStream(new TapScriptLogger(contextTaskId), Level.ERROR);
+        try {
             //need to change as engine classLoader
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
-            try {
+            if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
                 scriptEngine = GraalJSScriptEngine
-                        .create(null,
+                        .create(Engine.newBuilder()
+                                        .allowExperimentalOptions(true)
+                                        .option("engine.WarnInterpreterOnly", "false")
+                                        .out(out)
+                                        .err(err)
+                                        .build(),
                                 Context.newBuilder("js")
                                         .allowAllAccess(true)
+                                        .out(out)
+                                        .err(err)
                                         .allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
                                                 .targetTypeMapping(Value.class, Object.class
                                                         , v -> v.hasArrayElements() && v.hasMembers()
@@ -52,14 +79,18 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
                                                 ).build()
                                         )
                         );
-            } finally {
-                //return pdk classLoader
-                Thread.currentThread().setContextClassLoader(classLoader);
+                SimpleScriptContext scriptContext = new SimpleScriptContext();
+                scriptContext.setWriter(new OutputStreamWriter(out));
+                scriptContext.setErrorWriter(new OutputStreamWriter(err));
+                scriptEngine.setContext(scriptContext);
+            } else {
+                scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
             }
-
-        } else {
-            scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
+        } finally {
+            //return pdk classLoader
+            Thread.currentThread().setContextClassLoader(classLoader);
         }
+        scriptEngine.put("log", new TapScriptLogger(contextTaskId));
         return scriptEngine;
     }
 
@@ -75,7 +106,10 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
 
     public Object applyClassLoaderContext(Callable<?> callable) {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
+        ClassLoader theClassLoader = externalJarClassLoader;
+        if(theClassLoader == null)
+            theClassLoader = Application.class.getClassLoader();
+        Thread.currentThread().setContextClassLoader(theClassLoader);
         try {
             return callable.call();
         } catch (Exception e) {
@@ -168,5 +202,16 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable {
     @Override
     public <T> T getInterface(Object thiz, Class<T> clasz) {
         return invocable.getInterface(thiz, clasz);
+    }
+
+    @Override
+    public void close() throws IOException {
+        String tag = this.getClass().getSimpleName();
+        CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.scriptExecutorsManager).ifPresent(ScriptExecutorsManager::close), tag);
+        CommonUtils.ignoreAnyError(() -> {
+            if (this.scriptEngine instanceof GraalJSScriptEngine) {
+                ((GraalJSScriptEngine) this.scriptEngine).close();
+            }
+        }, tag);
     }
 }

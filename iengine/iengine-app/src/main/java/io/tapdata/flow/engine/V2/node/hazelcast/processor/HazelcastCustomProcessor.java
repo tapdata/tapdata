@@ -15,7 +15,7 @@ import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
+import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -75,7 +75,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 								javaScriptFunctions,
 								clientMongoOperator,
 								((DataProcessorContext) processorBaseContext).getCacheService(),
-								new ObsScriptLogger(obsLogger));
+								new ObsScriptLogger(obsLogger, logger));
 				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
 				((ScriptEngine) engine).put("state", stateMap);
 			} catch (ScriptException e) {

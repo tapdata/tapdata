@@ -71,6 +71,7 @@ public class MonitorManager implements Closeable {
 		SOURCE_TS_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.SourceTSMonitor"),
 		TASK_PING_TIME("io.tapdata.flow.engine.V2.monitor.impl.TaskPingTimeMonitor"),
 		TABLE_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.TableMonitor"),
+		JET_JOB_STATUS_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor"),
 		;
 
 		private final String clazz;
@@ -82,5 +83,17 @@ public class MonitorManager implements Closeable {
 		public String getClazz() {
 			return clazz;
 		}
+	}
+
+	@Override
+	public String toString() {
+		if (CollectionUtils.isEmpty(monitors)) {
+			return "No monitor";
+		}
+		List<String> list = new ArrayList<>();
+		for (Monitor<?> monitor : monitors) {
+			list.add(monitor.describe());
+		}
+		return "Monitors: \n  - " + String.join("\n  - ", list);
 	}
 }

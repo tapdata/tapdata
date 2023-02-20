@@ -1,8 +1,6 @@
 package com.tapdata.tm.utils;
 
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.inspect.service.InspectCronJob;
-import com.tapdata.tm.schedule.service.ScheduleService;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
@@ -19,7 +17,7 @@ public class CronUtil {
             Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
             JobDetail job = JobBuilder.newJob(InspectCronJob.class).withIdentity(id).build();
             if (scheduler.checkExists(job.getKey())){
-                log.info("id:  {}  job 定时任务已经存在，不再重复设置 ",id);
+                log.debug("id:  {}  job 定时任务已经存在，不再重复设置 ",id);
                 return;
             }
 
@@ -57,37 +55,6 @@ public class CronUtil {
     }
 
 
-    public static void addJob(TaskDto taskDto) {
-        try {
-            String id = String.valueOf(taskDto.getId());
-            Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
-            JobDetail jobDetail = JobBuilder.newJob(ScheduleService.class).withIdentity(id).build();
-            if (scheduler.checkExists(jobDetail.getKey())){
-                log.info("id:  {}  job 定时任务已经存在，不再重复设置 ",id);
-                return;
-            }
-            // 基于表达式构建触发器
-            //String cronString = "0 0/1 * * * ?";
-            String cronString =  taskDto.getCrontabExpression();
-            CronScheduleBuilder cronScheduleBuilder = CronScheduleBuilder.cronSchedule(cronString);
-            // CronTrigger表达式触发器 继承于Trigger
-            // TriggerBuilder 用于构建触发器实例
-            // Date startDate = new Date(taskDto.getScheduleDate());
-            CronTrigger cronTrigger = TriggerBuilder.newTrigger().withIdentity(taskDto.getId()+"_trigger")
-                    .withSchedule(cronScheduleBuilder).build();
-            scheduler.scheduleJob(jobDetail, cronTrigger);
-            //启动
-            if (!scheduler.isShutdown()) {
-                scheduler.start();
-            }
-            // 调度启动
-            scheduler.start();
-        } catch (Exception e) {
-            log.error("设置定时任务异常", e);
-        }
-    }
-
-
     /**
      * @Description: 移除一个任务
      */
@@ -96,7 +63,6 @@ public class CronUtil {
         try {
             TriggerKey triggerKey = TriggerKey.triggerKey(triggerName);
             Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
-            Trigger abc = scheduler.getTrigger(triggerKey);
             scheduler.pauseTrigger(triggerKey);// 停止触发器
             scheduler.unscheduleJob(triggerKey);// 移除触发器
             scheduler.deleteJob(JobKey.jobKey(id));// 删除任务

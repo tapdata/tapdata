@@ -132,7 +132,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 //                    Criteria.where("originalName").regex(queryKey,"i"),
 //                    Criteria.where("name").regex(queryKey,"i"),
 //                    Criteria.where("comment").regex(queryKey,"i"),
-//                    Criteria.where("source.database_name").regex(queryKey,"i"),
+//                    Criteria.where("source.name").regex(queryKey,"i"),
 //                    Criteria.where("source.name").regex(queryKey,"i"),
 //                    Criteria.where("alias_name").regex(queryKey,"i"));
 //        }
@@ -230,7 +230,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 //                    Criteria.where("original_name").regex(param.getQueryKey()),
 //                    Criteria.where("name").regex(param.getQueryKey()),
 //                    Criteria.where("comment").regex(param.getQueryKey()),
-//                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+//                    Criteria.where("source.name").regex(param.getQueryKey()),
 //                    Criteria.where("alias_name").regex(param.getQueryKey()));
 //
 //            taskCriteria.orOperator(
@@ -393,9 +393,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         if (StringUtils.isNotBlank(param.getSourceType())) {
             metadataCriteria.and("source.database_type").is(param.getSourceType());
             taskCriteria.and("agentId").is(param.getSourceType());
-            apiCriteria.and("_id").is("123");
+//            apiCriteria.and("_id").is("123");
         } else {
             taskCriteria.and("agentId").exists(true);
+        }
+
+        if (!user.isRoot()) {
+            taskCriteria.and("user_id").is(user.getUserId());
         }
 
 
@@ -405,7 +409,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(
@@ -510,6 +514,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         List<UnionQueryResult> unionQueryResults = new ArrayList<>();
         if (metaTotal >= skip + param.getPageSize()) {
             Query query = new Query(metadataCriteria);
+            metaDataRepository.applyUserDetail(query, user);
             query.skip(skip);
             query.limit(param.getPageSize());
             List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
@@ -518,6 +523,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             if (metaTotal <= skip) {
                 //只需要查询task
                 Query query = new Query(taskCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip - metaTotal);
                 query.limit(param.getPageSize());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
@@ -525,11 +531,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             } else {
                 //需要两个表
                 Query query = new Query(metadataCriteria);
+                metaDataRepository.applyUserDetail(query, user);
                 query.skip(skip);
                 query.limit(param.getPageSize());
                 List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
 
                 Query queryTask = new Query(taskCriteria);
+                taskRepository.applyUserDetail(queryTask, user);
                 queryTask.skip(skip - metaTotal);
                 queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
@@ -541,6 +549,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             if (metaTotal + taskTotal <= skip) {
                 //只需要查询api
                 Query query = new Query(apiCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip- metaTotal - taskTotal);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
@@ -550,12 +559,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 //需要查询task+api
 
                 Query query = new Query(taskCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip - metaTotal);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryApi = new Query(apiCriteria);
+                taskRepository.applyUserDetail(queryApi, user);
                 queryApi.skip(skip - metaTotal - taskTotal);
                 queryApi.limit(param.getPageSize() - taskUnionQueryResults.size());
                 queryApi.with(Sort.by("createTime").descending());
@@ -566,18 +577,21 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 //需要查询meta task api
 
                 Query query = new Query(metadataCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> metaUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
 
                 Query queryTask = new Query(taskCriteria);
+                taskRepository.applyUserDetail(queryTask, user);
                 queryTask.skip(skip - metaTotal);
                 queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
                 queryTask.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryApi = new Query(apiCriteria);
+                taskRepository.applyUserDetail(queryApi, user);
                 queryApi.skip(skip - metaTotal - taskTotal);
                 queryApi.with(Sort.by("createTime").descending());
                 queryApi.limit(param.getPageSize() - metaUnionQueryResults.size() + taskUnionQueryResults.size());
@@ -953,6 +967,11 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setTotal(0);
 
         Criteria taskCriteria = Criteria.where("is_deleted").ne(true).and("agentId").exists(true);
+        boolean isRoot = true;
+        if (!user.isRoot()) {
+            isRoot = false;
+            taskCriteria.and("user_id").is(user.getUserId());
+        }
         Criteria apiCriteria = Criteria.where("status").is("active").and("is_deleted").ne(true);
 
         Criteria metadataCriteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
@@ -971,7 +990,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(
@@ -1004,33 +1023,44 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     taskCriteria.and("listtags.id").in(tagIds);
                     apiCriteria.and("listtags.id").in(tagIds);
                 } else {
-                    DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(null, definitionDto.getId());
-                    switch (defaultObjEnum) {
-                        case storage:
-                            taskCriteria.and("_id").is("1231231231");
-                            apiCriteria.and("_id").is("1231231231");
-                            List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
-                            if (CollectionUtils.isNotEmpty(linkIds)) {
-                                metadataCriteria.and("source._id").in(linkIds);
-                            } else {
-                                return page;
-                            }
-                            break;
-                        case job:
-                            metadataCriteria.and("_id").is("1231231231");
-                            apiCriteria.and("_id").is("1231231231");
-                            if ("sync".equals(definitionDto.getValue())) {
-                                taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_SYNC);
-                            } else if ("migrate".equals(definitionDto.getValue())) {
-                                taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE);
-                            } else {
-                                taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
-                            }
-                            break;
-                        case api:
-                            metadataCriteria.and("_id").is("1231231231");
-                            taskCriteria.and("_id").is("1231231231");
-                            break;
+                    if (!definitionDto.getItemType().contains("Root")) {
+                        DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(null, definitionDto.getId());
+                        switch (defaultObjEnum) {
+                            case storage:
+                                taskCriteria.and("_id").is("1231231231");
+                                apiCriteria.and("_id").is("1231231231");
+                                List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
+                                if (CollectionUtils.isNotEmpty(linkIds)) {
+                                    metadataCriteria.and("source._id").in(linkIds);
+                                } else {
+                                    return page;
+                                }
+                                break;
+                            case job:
+                                metadataCriteria.and("_id").is("1231231231");
+                                apiCriteria.and("_id").is("1231231231");
+                                if ("sync".equals(definitionDto.getValue())) {
+                                    taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_SYNC);
+                                } else if ("migrate".equals(definitionDto.getValue())) {
+                                    taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE);
+                                } else {
+                                    taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
+                                }
+                                if (isRoot) {
+                                    taskCriteria.and("user_id").is(definitionDto.getUserId());
+                                }
+                                break;
+                            case api:
+                                metadataCriteria.and("_id").is("1231231231");
+                                taskCriteria.and("_id").is("1231231231");
+                                if (isRoot) {
+                                    apiCriteria.and("user_id").is(definitionDto.getUserId());
+                                }
+                                break;
+                            default:
+                                break;
+
+                        }
                     }
                 }
             }
@@ -1050,6 +1080,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         List<UnionQueryResult> unionQueryResults = new ArrayList<>();
         if (metaTotal >= skip + param.getPageSize()) {
             Query query = new Query(metadataCriteria);
+            metaDataRepository.applyUserDetail(query, user);
             query.skip(skip);
             query.limit(param.getPageSize());
             query.with(Sort.by("createTime").descending());
@@ -1059,6 +1090,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             if (metaTotal <= skip) {
                 //只需要查询task
                 Query query = new Query(taskCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip - metaTotal);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
@@ -1067,12 +1099,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             } else {
                 //需要两个表
                 Query query = new Query(metadataCriteria);
+                metaDataRepository.applyUserDetail(query, user);
                 query.skip(skip);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
 
                 Query queryTask = new Query(taskCriteria);
+                taskRepository.applyUserDetail(queryTask, user);
                 queryTask.skip(skip - metaTotal);
                 queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
                 queryTask.with(Sort.by("createTime").descending());
@@ -1085,6 +1119,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             if (metaTotal + taskTotal <= skip) {
                 //只需要查询api
                 Query query = new Query(apiCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip- metaTotal - taskTotal);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
@@ -1094,12 +1129,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 //需要查询task+api
 
                 Query query = new Query(taskCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip - metaTotal);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryTask = new Query(apiCriteria);
+                taskRepository.applyUserDetail(queryTask, user);
                 queryTask.skip(skip - metaTotal - taskTotal);
                 queryTask.limit(param.getPageSize() - taskUnionQueryResults.size());
                 queryTask.with(Sort.by("createTime").descending());
@@ -1110,6 +1147,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 //需要查询meta task api
 
                 Query query = new Query(metadataCriteria);
+                taskRepository.applyUserDetail(query, user);
                 query.skip(skip);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
@@ -1117,12 +1155,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 List<UnionQueryResult> metaUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
 
                 Query queryTask = new Query(taskCriteria);
+                taskRepository.applyUserDetail(queryTask, user);
                 queryTask.skip(skip - metaTotal);
                 queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
                 queryTask.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
 
                 Query queryApi = new Query(apiCriteria);
+                taskRepository.applyUserDetail(queryApi, user);
                 queryApi.skip(skip - metaTotal - taskTotal);
                 queryApi.limit(param.getPageSize() - metaUnionQueryResults.size() + taskUnionQueryResults.size());
                 queryApi.with(Sort.by("createTime").descending());
@@ -1179,7 +1219,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("original_name").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("source.name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
 
             taskCriteria.orOperator(
@@ -1208,33 +1248,35 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     taskCriteria.and("listtags.id").in(tagIds);
                     apiCriteria.and("listtags.id").in(tagIds);
                 } else {
-                    DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(null, definitionDto.getId());
-                    switch (defaultObjEnum) {
-                        case storage:
-                            taskCriteria.and("_id").is("1231231231");
-                            apiCriteria.and("_id").is("1231231231");
-                            List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
-                            if (CollectionUtils.isNotEmpty(linkIds)) {
-                                metadataCriteria.and("source._id").in(linkIds);
-                            } else {
-                                return page;
-                            }
-                            break;
-                        case job:
-                            metadataCriteria.and("_id").is("1231231231");
-                            apiCriteria.and("_id").is("1231231231");
-                            if ("sync".equals(definitionDto.getValue())) {
-                                taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_SYNC);
-                            } else if ("migrate".equals(definitionDto.getValue())) {
-                                taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE);
-                            } else {
-                                taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
-                            }
-                            break;
-                        case api:
-                            metadataCriteria.and("_id").is("1231231231");
-                            taskCriteria.and("_id").is("1231231231");
-                            break;
+                    if (!definitionDto.getValue().equals("Root")) {
+                        DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(null, definitionDto.getId());
+                        switch (defaultObjEnum) {
+                            case storage:
+                                taskCriteria.and("_id").is("1231231231");
+                                apiCriteria.and("_id").is("1231231231");
+                                List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
+                                if (CollectionUtils.isNotEmpty(linkIds)) {
+                                    metadataCriteria.and("source._id").in(linkIds);
+                                } else {
+                                    return page;
+                                }
+                                break;
+                            case job:
+                                metadataCriteria.and("_id").is("1231231231");
+                                apiCriteria.and("_id").is("1231231231");
+                                if ("sync".equals(definitionDto.getValue())) {
+                                    taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_SYNC);
+                                } else if ("migrate".equals(definitionDto.getValue())) {
+                                    taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE);
+                                } else {
+                                    taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
+                                }
+                                break;
+                            case api:
+                                metadataCriteria.and("_id").is("1231231231");
+                                taskCriteria.and("_id").is("1231231231");
+                                break;
+                        }
                     }
                 }
             }
@@ -1434,22 +1476,48 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
 
-        Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
-                .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
+        Criteria criteriaSyncTask = Criteria.where("is_deleted").ne(true)
+                .and("syncType").is(TaskDto.SYNC_TYPE_SYNC)
                 .and("agentId").exists(true);
-        MatchOperation matchTask = Aggregation.match(criteriaTask);
-        GroupOperation gTask = Aggregation.group("syncType").count().as("count");
+        boolean isRoot = user.isRoot();
+        if (!isRoot) {
+            criteriaSyncTask.and("user_id").is(user.getUserId());
+        }
+        MatchOperation matchTask = Aggregation.match(criteriaSyncTask);
+        GroupOperation gTask = Aggregation.group("user_id").count().as("count");
 
 
         Aggregation aggregationTask = Aggregation.newAggregation(matchTask, gTask);
         AggregationResults<GroupMetadata> tasks = taskRepository.getMongoOperations().aggregate(aggregationTask, "TaskCollectionObj", GroupMetadata.class);
         List<GroupMetadata> TaskMappedResults = tasks.getMappedResults();
 
-        final Map<String, Long> taskMap;
+        final Map<String, Long> syncTaskMap;
         if (CollectionUtils.isNotEmpty(TaskMappedResults)) {
-            taskMap = TaskMappedResults.stream().collect(Collectors.toMap(GroupMetadata::get_id, GroupMetadata::getCount, (m1, m2) -> m1));
+            syncTaskMap = TaskMappedResults.stream().collect(Collectors.toMap(GroupMetadata::get_id, GroupMetadata::getCount, (m1, m2) -> m1));
         } else {
-            taskMap = new HashMap<>();
+            syncTaskMap = new HashMap<>();
+        }
+
+
+        Criteria criteriaMigrateTask = Criteria.where("is_deleted").ne(true)
+                .and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE)
+                .and("agentId").exists(true);
+        if (!isRoot) {
+            criteriaMigrateTask.and("user_id").is(user.getUserId());
+        }
+        MatchOperation matchMigrateTask = Aggregation.match(criteriaMigrateTask);
+        GroupOperation gMigrateTask = Aggregation.group("user_id").count().as("count");
+
+
+        Aggregation aggregationMigrateTask = Aggregation.newAggregation(matchMigrateTask, gMigrateTask);
+        AggregationResults<GroupMetadata> migrateTasks = taskRepository.getMongoOperations().aggregate(aggregationMigrateTask, "TaskCollectionObj", GroupMetadata.class);
+        List<GroupMetadata> TaskMigrateMappedResults = migrateTasks.getMappedResults();
+
+        final Map<String, Long> migrateTaskMap;
+        if (CollectionUtils.isNotEmpty(TaskMappedResults)) {
+            migrateTaskMap = TaskMigrateMappedResults.stream().collect(Collectors.toMap(GroupMetadata::get_id, GroupMetadata::getCount, (m1, m2) -> m1));
+        } else {
+            migrateTaskMap = new HashMap<>();
         }
 
 
@@ -1475,6 +1543,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                             Criteria apiCriteria = Criteria.where("status").is("active");
 
 
+
                             List<String> tagIds = andChild.stream().map(t->t.getId().toHexString()).collect(Collectors.toList());
 
                             criteria.and("listtags.id").in(tagIds);
@@ -1485,23 +1554,48 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                             long count3 = modulesService.count(new Query(apiCriteria), user);
                             count = count1 + count2 + count3;
                         } else {
-                            DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(metadataDefinitionDtoMap, tagDto.getId());
-                            switch (defaultObjEnum) {
-                                case storage:
-                                    List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
-                                    for (String linkId : linkIds) {
-                                        count += connectMap.getOrDefault(linkId, 0L);
+                            if (!tagDto.getValue().equals("Root")) {
+                                DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(metadataDefinitionDtoMap, tagDto.getId());
+                                switch (defaultObjEnum) {
+                                    case storage:
+                                        List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
+                                        for (String linkId : linkIds) {
+                                            count += connectMap.getOrDefault(linkId, 0L);
+                                        }
+                                        break;
+                                    case job:
+                                        for (MetadataDefinitionDto metadataDefinitionDto : andChild) {
+                                            if (metadataDefinitionDto.getValue().equals(TaskDto.SYNC_TYPE_MIGRATE)) {
+                                                count += migrateTaskMap.getOrDefault(tagDto.getUserId(), 0L);
+                                            }
+                                            if (metadataDefinitionDto.getValue().equals(TaskDto.SYNC_TYPE_SYNC)) {
+                                                count += syncTaskMap.getOrDefault(tagDto.getUserId(), 0L);
+                                            }
+                                        }
+                                        break;
+                                    case api:
+                                        Criteria apiCriteria = Criteria.where("status").is("active").and("is_deleted").ne(true);
+                                        if (isRoot) {
+                                            apiCriteria.and("user_id").is(tagDto.getUserId());
+                                        }
+                                        count = modulesService.count(new Query(apiCriteria), user);
+                                        break;
+                                }
+                            } else {
+                                List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
+                                for (String linkId : linkIds) {
+                                    count += connectMap.getOrDefault(linkId, 0L);
+                                }
+                                for (MetadataDefinitionDto metadataDefinitionDto : andChild) {
+                                    if (metadataDefinitionDto.getValue().equals(TaskDto.SYNC_TYPE_MIGRATE)) {
+                                        count += migrateTaskMap.getOrDefault(tagDto.getUserId(), 0L);
                                     }
-                                    break;
-                                case job:
-                                    for (MetadataDefinitionDto metadataDefinitionDto : andChild) {
-                                        count += taskMap.getOrDefault(metadataDefinitionDto.getValue(), 0L);
+                                    if (metadataDefinitionDto.getValue().equals(TaskDto.SYNC_TYPE_SYNC)) {
+                                        count += syncTaskMap.getOrDefault(tagDto.getUserId(), 0L);
                                     }
-                                    break;
-                                case api:
-                                    Criteria apiCriteria = Criteria.where("status").is("active");
-                                    count = modulesService.count(new Query(apiCriteria), user);
-                                    break;
+                                }
+                                Criteria apiCriteria = Criteria.where("status").is("active").and("is_deleted").ne(true);;
+                                count += modulesService.count(new Query(apiCriteria), user);
                             }
 
 

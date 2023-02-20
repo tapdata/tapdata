@@ -1,8 +1,8 @@
 package io.tapdata.pdk.core.api.impl;
 
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -15,17 +15,18 @@ import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.RetryUtils;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class RetryTest {
     //测试报错能否触发重试
@@ -34,20 +35,23 @@ public class RetryTest {
         ConnectionNode node = new ConnectionNode();
         Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field.setAccessible(true);
-        field.set(node, new TapConnectionContext(null, null, null));
+        field.set(node, new TapConnectionContext(null, null, null, new TapLog()));
 
         node.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
-        connectionFunctions.supportErrorHandleFunction((nodeContext, method, throwable) -> {
-            return RetryOptions.create().needRetry(true).beforeRetryMethod(() -> {
-                System.out.println("begin retry...");
-            });
-        });
-        Integer retryTimes = 3;
+        AtomicInteger executeTimes = new AtomicInteger(0);
+        AtomicInteger beforeExecuteTimes = new AtomicInteger(0);
+        connectionFunctions.supportErrorHandleFunction((nodeContext, method, throwable) -> RetryOptions.create().needRetry(true).beforeRetryMethod(() -> {
+            beforeExecuteTimes.incrementAndGet();
+            System.out.println("before retry...");
+        }));
+        int retryTimes = 3;
+        long retryPeriodSecond = 1;
+        long elapsedRetrySecond = retryTimes * retryPeriodSecond;
         PDKMethodInvoker invoker = PDKMethodInvoker.create()
-                .runnable(()->{
-                    System.out.println("Begin retry...");
-                    throw new IOException("test retry...");
+                .runnable(() -> {
+                    executeTimes.incrementAndGet();
+                    throw new RuntimeException("Test retry error");
                 })
                 .message("call connection functions coding@io.tapdata-v1.0-SNAPSHOT associateId codingSource_1662088750311")
                 .logTag("")
@@ -55,14 +59,107 @@ public class RetryTest {
                 .async(false)
                 .contextClassLoader(null)
                 .retryTimes(retryTimes)
-                .retryPeriodSeconds(5);
+                .retryPeriodSeconds(retryPeriodSecond);
+        long startTs = System.currentTimeMillis();
         try {
             PDKInvocationMonitor.invoke( node, PDKMethod.REGISTER_CAPABILITIES, invoker );
         }catch (Exception e){
 
         }
 
-        assertTrue(true,"retry times is "+retryTimes+",retry start succeed");
+        long elapsedTimeMS = System.currentTimeMillis() - startTs;
+        assertEquals(retryTimes + 1, executeTimes.get(), "Expect execute 4 times(First time execute + Retry " + retryTimes + " times)");
+        assertEquals(retryTimes, beforeExecuteTimes.get(), "Expect execute before retry method " + retryTimes + " times");
+        assertTrue(elapsedTimeMS >= (elapsedRetrySecond * 1000), "Expect elapsed time at least " + elapsedRetrySecond + " seconds");
+    }
+
+    @Test
+    public void testNeedDefaultRetry() throws Exception {
+        ConnectionNode node = new ConnectionNode();
+        Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
+        field.setAccessible(true);
+        field.set(node, new TapConnectionContext(null, null, null, new TapLog()));
+
+        node.init(new TapConnectorTest());
+        ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
+        AtomicInteger executeTimes = new AtomicInteger(0);
+        AtomicInteger beforeExecuteTimes = new AtomicInteger(0);
+        connectionFunctions.supportErrorHandleFunction((nodeContext, method, throwable) -> RetryOptions.create().needRetry(false).beforeRetryMethod(() -> {
+            beforeExecuteTimes.incrementAndGet();
+            System.out.println("before retry...");
+        }));
+        int retryTimes = 3;
+        long retryPeriodSecond = 1;
+        long elapsedRetrySecond = retryTimes * retryPeriodSecond;
+        PDKMethodInvoker invoker = PDKMethodInvoker.create()
+                .runnable(() -> {
+                    executeTimes.incrementAndGet();
+                    throw new IOException("Test retry error");
+                })
+                .message("call connection functions coding@io.tapdata-v1.0-SNAPSHOT associateId codingSource_1662088750311")
+                .logTag("")
+                .errorConsumer(null)
+                .async(false)
+                .contextClassLoader(null)
+                .retryTimes(retryTimes)
+                .retryPeriodSeconds(retryPeriodSecond);
+        long startTs = System.currentTimeMillis();
+        try {
+            PDKInvocationMonitor.invoke( node, PDKMethod.REGISTER_CAPABILITIES, invoker );
+        }catch (Exception e){
+
+        }
+
+        long elapsedTimeMS = System.currentTimeMillis() - startTs;
+        assertEquals(retryTimes + 1, executeTimes.get(), "Expect execute 4 times(First time execute + Retry " + retryTimes + " times)");
+        assertEquals(retryTimes, beforeExecuteTimes.get(), "Expect execute before retry method " + retryTimes + " times");
+        assertTrue(elapsedTimeMS >= (elapsedRetrySecond * 1000), "Expect elapsed time at least " + elapsedRetrySecond + " seconds");
+    }
+
+    @Test
+    public void testRetryOfZeroMaxRetryTimeMinute() throws Exception {
+        ConnectionNode node = new ConnectionNode();
+        Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
+        field.setAccessible(true);
+        field.set(node, new TapConnectionContext(null, null, null, new TapLog()));
+
+        node.init(new TapConnectorTest());
+        ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
+        AtomicInteger executeTimes = new AtomicInteger(0);
+        AtomicInteger beforeExecuteTimes = new AtomicInteger(0);
+        connectionFunctions.supportErrorHandleFunction((nodeContext, method, throwable) -> RetryOptions.create().needRetry(false).beforeRetryMethod(() -> {
+            beforeExecuteTimes.incrementAndGet();
+            System.out.println("before retry...");
+        }));
+        int retryTimes = 0;
+        long retryPeriodSecond = 0;
+        long elapsedRetrySecond = 0;
+        long maxRetryTimes = 0;
+        PDKMethodInvoker invoker = PDKMethodInvoker.create()
+                .runnable(() -> {
+                    executeTimes.incrementAndGet();
+                    System.out.println("exception ...");
+                    throw new IOException("Test retry error");
+                })
+                .message("call connection functions coding@io.tapdata-v1.0-SNAPSHOT associateId codingSource_1662088750311")
+                .logTag("")
+                .errorConsumer(null)
+                .async(false)
+                .contextClassLoader(null)
+                .maxRetryTimeMinute(maxRetryTimes)
+                .retryTimes(retryTimes)
+                .retryPeriodSeconds(retryPeriodSecond);
+        long startTs = System.currentTimeMillis();
+        try {
+            PDKInvocationMonitor.invoke( node, PDKMethod.REGISTER_CAPABILITIES, invoker );
+        }catch (Exception e){
+
+        }
+
+        long elapsedTimeMS = System.currentTimeMillis() - startTs;
+        assertEquals(retryTimes + 1, executeTimes.get(), "Expect execute 4 times(First time execute + Retry " + retryTimes + " times)");
+        assertEquals(retryTimes, beforeExecuteTimes.get(), "Expect execute before retry method " + retryTimes + " times");
+        assertTrue(elapsedTimeMS >= (elapsedRetrySecond * 1000), "Expect elapsed time at least " + elapsedRetrySecond + " seconds");
     }
 
     //测试报错不需要重试
@@ -71,26 +168,25 @@ public class RetryTest {
         ConnectionNode node = new ConnectionNode();
         Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field.setAccessible(true);
-        field.set(node, new TapConnectionContext(null, null, null));
+        field.set(node, new TapConnectionContext(null, null, null, new TapLog()));
 
         node.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
-        connectionFunctions.supportErrorHandleFunction((nodeContext, method, throwable) -> {
-            return RetryOptions.create().needRetry(false).beforeRetryMethod(null);
-        });
+        AtomicInteger executeTimes = new AtomicInteger(0);
+        connectionFunctions.supportErrorHandleFunction((nodeContext, method, throwable) -> RetryOptions.create().needRetry(false).beforeRetryMethod(null));
         int retryTimes = 3;
-        AtomicInteger retryTimesAtomic = new AtomicInteger(3);
         PDKMethodInvoker invoker = PDKMethodInvoker.create()
                 .runnable(()->{
-                    throw new IOException("test retry...");
+                    executeTimes.incrementAndGet();
+                    throw new RuntimeException("test retry...");
                 })
                 .message("call connection functions coding@io.tapdata-v1.0-SNAPSHOT associateId codingSource_1662088750311")
                 .logTag("")
                 .errorConsumer(null)
                 .async(false)
                 .contextClassLoader(null)
-                .retryTimes(retryTimesAtomic.get())
-                .retryPeriodSeconds(5);
+                .retryTimes(retryTimes)
+                .retryPeriodSeconds(1);
 
         try {
             PDKInvocationMonitor.invoke(
@@ -102,7 +198,7 @@ public class RetryTest {
 
         }
 
-        assertEquals(retryTimes, retryTimesAtomic.get(),"retry times is "+retryTimes+",it is not retry .");
+        assertEquals(1, executeTimes.get(), "Expect execute 1 time, not to do retry");
     }
 
     //测试能否中断重试
@@ -111,7 +207,7 @@ public class RetryTest {
         ConnectionNode node = new ConnectionNode();
         Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field.setAccessible(true);
-        field.set(node, new TapConnectionContext(null, null, null));
+        field.set(node, new TapConnectionContext(null, null, null, new TapLog()));
 
         node.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
@@ -162,7 +258,7 @@ public class RetryTest {
         synchronized (obj) {
             obj.notify();
         }
-        assertEquals(true, success.get(),"===>cancel retry succeed");
+        assertTrue(success.get(), "===>cancel retry succeed");
     }
 
     //测试能否中断重试
@@ -171,7 +267,7 @@ public class RetryTest {
         ConnectionNode node = new ConnectionNode();
         Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field.setAccessible(true);
-        field.set(node, new TapConnectionContext(null, null, null));
+        field.set(node, new TapConnectionContext(null, null, null, new TapLog()));
 
         node.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
@@ -223,7 +319,7 @@ public class RetryTest {
         synchronized (obj) {
             obj.notify();
         }
-        assertEquals(true, success.get(),"===>cancel retry succeed");
+        assertTrue(success.get(), "===>cancel retry succeed");
     }    //测试能否中断重试
 
 
@@ -232,7 +328,7 @@ public class RetryTest {
         ConnectionNode node = new ConnectionNode();
         Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field.setAccessible(true);
-        field.set(node, new TapConnectionContext(null, null, null));
+        field.set(node, new TapConnectionContext(null, null, null, new TapLog()));
 
         node.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
@@ -246,7 +342,7 @@ public class RetryTest {
         ConnectionNode node2 = new ConnectionNode();
         Field field2 = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
         field2.setAccessible(true);
-        field2.set(node2, new TapConnectionContext(null, null, null));
+        field2.set(node2, new TapConnectionContext(null, null, null, new TapLog()));
 
         node2.init(new TapConnectorTest());
         ConnectionFunctions<?> connectionFunctions2 = node2.getConnectionFunctions();
@@ -341,8 +437,26 @@ public class RetryTest {
         synchronized (obj) {
             obj.notify();
         }
-        assertEquals(true, success.get(),"===>cancel retry succeed");
+        assertTrue(success.get(), "===>cancel retry succeed");
     }    //测试能否中断重试
+
+    /**
+     * 测试默认异常过滤器是否正常
+     */
+    @Test
+    public void testDefaultRetry() throws Exception {
+        IOException ioException = new IOException();
+        Class<RetryUtils> retryUtilsClass = (Class<RetryUtils>) Class.forName("io.tapdata.pdk.core.utils.RetryUtils");
+        RetryUtils retryUtils = retryUtilsClass.newInstance();
+        Method needDefaultRetry = retryUtilsClass.getDeclaredMethod("needDefaultRetry", Throwable.class);
+        needDefaultRetry.setAccessible(true);
+        Object result1 = needDefaultRetry.invoke(retryUtils, ioException);
+        assertTrue(result1 instanceof Boolean, "Method needDefaultRetry return should be a boolean");
+        assertTrue((boolean) result1, "IOException should in default retry");
+        RuntimeException runtimeException = new RuntimeException();
+        Object result2 = needDefaultRetry.invoke(retryUtils, runtimeException);
+        assertFalse((boolean)result2, "RuntimeException shouldn't in default retry");
+    }
 
 
     class TapConnectorTest implements TapConnector{

@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.entity;
 
+import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.ConfigurationCenter;
 
 /**
@@ -19,6 +20,13 @@ public class GlobalConstant {
 		return configurationCenter;
 	}
 
+	private HazelcastInstance hazelcastInstance;
+
+	public GlobalConstant hazelcastInstance(HazelcastInstance hazelcastInstance) {
+		this.hazelcastInstance = hazelcastInstance;
+		return this;
+	}
+
 	private GlobalConstant() {
 	}
 
@@ -29,7 +37,7 @@ public class GlobalConstant {
 	enum GlobalConstantInstance {
 		INSTANCE,
 		;
-		private GlobalConstant globalConstant;
+		private final GlobalConstant globalConstant;
 
 		GlobalConstantInstance() {
 			this.globalConstant = new GlobalConstant();

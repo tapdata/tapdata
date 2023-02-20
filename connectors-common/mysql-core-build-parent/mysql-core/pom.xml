@@ -28,10 +28,12 @@
         </repository>
     </repositories>
 
+
     <properties>
         <java.version>8</java.version>
         <mysql.driver.version>8.0.21</mysql.driver.version>
         <debezium.version>1.5.4.Final</debezium.version>
+        <tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -39,11 +41,6 @@
                 <groupId>mysql</groupId>
                 <artifactId>mysql-connector-java</artifactId>
                 <version>${mysql.driver.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.tapdata</groupId>
-                <artifactId>mysql-core</artifactId>
-                <version>1.0-SNAPSHOT</version>
             </dependency>
             <!-- Debezium -->
             <dependency>
@@ -67,7 +64,14 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-api</artifactId>
+            <scope>provided</scope>
+            <version>${tapdata.pdk.api.version}</version>
         </dependency>
         <dependency>
             <groupId>mysql</groupId>

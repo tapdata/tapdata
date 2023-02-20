@@ -7,12 +7,11 @@ import com.tapdata.tm.commons.base.convert.DagSerialize;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import lombok.Data;
 
 import java.io.Serializable;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -117,8 +116,8 @@ public class TaskDto extends ParentTaskDto {
 
     private String taskRecordId;
 
-    private List<AlarmSettingDto> alarmSettings;
-    private List<AlarmRuleDto> alarmRules;
+    private List<AlarmSettingVO> alarmSettings;
+    private List<AlarmRuleVO> alarmRules;
 
     private Integer resetTimes;
 
@@ -126,9 +125,20 @@ public class TaskDto extends ParentTaskDto {
     private Long snapshotDoneAt;
 
     private Long scheduleDate;
-    private Date monitorStartDate;
+    private Long stopedDate;
 
-    private boolean needCreateRecord;
+    /**
+     * js 试运行id
+     */
+    private String testTaskId;
+    /**
+     * js模型推演id
+     */
+    private String transformTaskId;
+
+    private int stopRetryTimes;
+
+    private boolean isManualStop;
 
     public DAG getDag() {
         if (dag != null) {
@@ -141,8 +151,10 @@ public class TaskDto extends ParentTaskDto {
 
     @Data
     public static class SyncPoint implements Serializable {
-        /** 数据源id */
         @EqField
+        private String nodeId;
+        private String nodeName;
+        /** 数据源id */
         private String connectionId;
         /** 数据源名称 */
         private String connectionName;

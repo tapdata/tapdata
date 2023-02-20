@@ -10,6 +10,7 @@ import java.util.List;
  * or, and
  */
 public class TapAdvanceFilter extends TapFilter {
+    private Integer batchSize;
     private Integer skip;
     private Integer limit;
     private List<QueryOperator> operators;
@@ -18,6 +19,11 @@ public class TapAdvanceFilter extends TapFilter {
 
     public static TapAdvanceFilter create() {
         return new TapAdvanceFilter();
+    }
+
+    public TapAdvanceFilter batchSize(Integer batchSize) {
+        this.batchSize = batchSize;
+        return this;
     }
 
     public TapAdvanceFilter projection(Projection projection) {
@@ -35,6 +41,8 @@ public class TapAdvanceFilter extends TapFilter {
     }
 
     public TapAdvanceFilter op(QueryOperator operator) {
+        if(operator == null)
+            return this;
         if(operators == null) {
             operators = new ArrayList<>();
         }
@@ -93,5 +101,25 @@ public class TapAdvanceFilter extends TapFilter {
 
     public void setProjection(Projection projection) {
         this.projection = projection;
+    }
+
+    public Integer getBatchSize() {
+        return batchSize;
+    }
+
+    public void setBatchSize(Integer batchSize) {
+        this.batchSize = batchSize;
+    }
+    @Override
+    public String toString() {
+        return "TapAdvanceFilter{" +
+                "skip=" + skip +
+                ", limit=" + limit +
+                ", batchSize=" + batchSize +
+                ", operators=" + operators +
+                ", sortOnList=" + sortOnList +
+                ", projection=" + projection +
+                ", match=" + match +
+                "} " + super.toString();
     }
 }

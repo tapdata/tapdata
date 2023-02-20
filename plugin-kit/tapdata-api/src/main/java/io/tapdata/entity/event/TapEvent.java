@@ -1,16 +1,22 @@
 package io.tapdata.entity.event;
 
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.serializer.JavaCustomSerializer;
 import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.entity.utils.io.DataInputStreamEx;
+import io.tapdata.entity.utils.io.DataOutputStreamEx;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public abstract class TapEvent implements Serializable {
+public abstract class TapEvent implements Serializable/*, JavaCustomSerializer*/ {
     protected int type;
     /**
      * The time when the event is created
@@ -25,7 +31,26 @@ public abstract class TapEvent implements Serializable {
     protected String pdkId;
     protected String pdkGroup;
     protected String pdkVersion;
-
+    /*public void from(InputStream inputStream) throws IOException {
+        DataInputStreamEx dataInputStreamEx = dataInputStream(inputStream);
+        type = dataInputStreamEx.original().readInt();
+        time = dataInputStreamEx.readLong();
+        key = dataInputStreamEx.readUTF();
+        pdkId = dataInputStreamEx.readUTF();
+        pdkGroup = dataInputStreamEx.readUTF();
+        pdkVersion = dataInputStreamEx.readUTF();
+//        info and trace map will not be serialized
+    }
+    public void to(OutputStream outputStream) throws IOException {
+        DataOutputStreamEx dataOutputStreamEx = dataOutputStream(outputStream);
+        dataOutputStreamEx.original().writeInt(type);
+        dataOutputStreamEx.writeLong(time);
+        dataOutputStreamEx.writeUTF(key);
+        dataOutputStreamEx.writeUTF(pdkId);
+        dataOutputStreamEx.writeUTF(pdkGroup);
+        dataOutputStreamEx.writeUTF(pdkVersion);
+//        info and trace map will not be serialized
+    }*/
     public TapEvent(int type) {
         this.type = type;
     }
@@ -131,7 +156,10 @@ public abstract class TapEvent implements Serializable {
 
     @Override
     public String toString() {
-        return super.toString() + ": " + InstanceFactory.instance(JsonParser.class).toJson(this);
+        TapEvent cloneEvent = (TapEvent) this.clone();
+        // Filter info map when to json, will cause stackOverFlowError
+        cloneEvent.setInfo(null);
+        return super.toString() + ": " + InstanceFactory.instance(JsonParser.class).toJson(cloneEvent);
 //        return "TapEvent{" +
 //                "time=" + time +
 //                ", info=" + info +

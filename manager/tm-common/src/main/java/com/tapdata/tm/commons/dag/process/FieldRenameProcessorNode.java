@@ -1,12 +1,12 @@
 package com.tapdata.tm.commons.dag.process;
 
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.TableIndexColumn;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +14,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 
@@ -35,7 +36,7 @@ public class FieldRenameProcessorNode extends FieldProcessorNode {
     }
 
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         Schema outputSchema = superMergeSchema(inputSchemas, schema);
 
         List<String> inputFields = inputSchemas.stream().map(Schema::getFields).flatMap(Collection::stream).map(Field::getFieldName).collect(Collectors.toList());
@@ -56,10 +57,23 @@ public class FieldRenameProcessorNode extends FieldProcessorNode {
                     for (Field field : outputSchema.getFields()) {
                         if (operation.getId().equals(field.getId())) {
                             field.setFieldName(operation.getOperand());
-                            return;
+                            break;
                             //field.setOriginalFieldName(operation.getOperand());
                         }
                     }
+
+                    Optional.ofNullable(outputSchema.getIndices()).ifPresent(indexList ->
+                            indexList.forEach(index -> {
+                                List<String> collect = index.getColumns().stream().map(TableIndexColumn::getColumnName)
+                                        .collect(Collectors.toList());
+                                if (collect.contains(operation.getField())) {
+                                    index.getColumns().forEach(column -> {
+                                        if (column.getColumnName().equals(operation.getField())) {
+                                            column.setColumnName(operation.getOperand());
+                                        }
+                                    });
+                                }
+                            }));
                 }
 
             });

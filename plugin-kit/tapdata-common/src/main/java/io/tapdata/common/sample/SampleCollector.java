@@ -6,10 +6,7 @@ import io.tapdata.common.sample.sampler.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -126,7 +123,7 @@ public class SampleCollector {
                     result.put(entry.getKey(), entry.getValue().value());
                     long takes = System.currentTimeMillis() - time;
                     if(takes > 10) {
-                        logger.warn("PointSampler {} key {} execute more than 10 milliseconds, {}", entry.getValue().getClass().getSimpleName(), entry.getKey(), takes);
+                        logger.debug("PointSampler {} key {} execute more than 10 milliseconds, {}", entry.getValue().getClass().getSimpleName(), entry.getKey(), takes);
                     }
                 } catch(Throwable throwable) {
                     logger.error("PointSampler {} key {} sample failed, {}", entry.getValue().getClass().getSimpleName(), entry.getKey(), throwable.getMessage(), throwable);

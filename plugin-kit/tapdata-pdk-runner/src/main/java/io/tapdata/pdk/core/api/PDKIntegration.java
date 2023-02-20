@@ -1,6 +1,7 @@
 package io.tapdata.pdk.core.api;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -45,6 +46,7 @@ public class PDKIntegration {
         protected String pdkId;
         protected String group;
         protected String version;
+        protected Log log;
 
         public String verify() {
             if(associateId == null)
@@ -55,9 +57,14 @@ public class PDKIntegration {
                 return "missing group";
             if(version == null)
                 return "missing version";
+//            if(log == null)
+//                return "missing log";
             return null;
         }
-
+        public ConnectionBuilder<T> withLog(Log log) {
+            this.log = log;
+            return this;
+        }
         /**
          * Each
          * @param associateId
@@ -120,6 +127,7 @@ public class PDKIntegration {
         protected String pdkId;
         protected String group;
         protected String version;
+        protected Log log;
 
         public String verify() {
             if(associateId == null)
@@ -135,6 +143,10 @@ public class PDKIntegration {
             return null;
         }
 
+        public ProcessorBuilder<T> withLog(Log log) {
+            this.log = log;
+            return this;
+        }
         /**
          * Each
          * @param associateId
@@ -211,6 +223,7 @@ public class PDKIntegration {
         protected KVMap<Object> stateMap;
         protected KVMap<Object> globalStateMap;
         protected ConnectorCapabilities connectorCapabilities;
+        protected Log log;
 
         public String verify() {
             if(associateId == null)
@@ -231,7 +244,14 @@ public class PDKIntegration {
                 return "missing stateMap";
             if(globalStateMap == null)
                 return "missing globalStateMap";
+//            if(log == null)
+//                return "missing log";
             return null;
+        }
+
+        public ConnectorBuilder<T> withLog(Log log) {
+            this.log = log;
+            return this;
         }
 
         public ConnectorBuilder<T> withConnectorCapabilities(ConnectorCapabilities connectorCapabilities) {
@@ -350,7 +370,7 @@ public class PDKIntegration {
             connectionNode.init((TapConnector) nodeInstance.getTapNode());
             connectionNode.associateId = associateId;
             connectionNode.tapNodeInfo = nodeInstance.getTapNodeInfo();
-            connectionNode.connectionContext = new TapConnectionContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig, nodeConfig);
+            connectionNode.connectionContext = new TapConnectionContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig, nodeConfig, log);
 
             PDKInvocationMonitor.getInstance().invokePDKMethod(connectionNode, PDKMethod.REGISTER_CAPABILITIES,
                     connectionNode::registerCapabilities,
@@ -374,7 +394,7 @@ public class PDKIntegration {
             connectorNode.table = table;
             connectorNode.tables = tables;
             connectorNode.tapNodeInfo = nodeInstance.getTapNodeInfo();
-            connectorNode.connectorContext = new TapConnectorContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig, nodeConfig);
+            connectorNode.connectorContext = new TapConnectorContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig, nodeConfig, log);
             connectorNode.connectorContext.setConfigContext(configContext);
             if(connectorCapabilities == null)
                 connectorCapabilities = new ConnectorCapabilities();
@@ -403,7 +423,7 @@ public class PDKIntegration {
             processorNode.processor = (TapProcessor) nodeInstance.getTapNode();
             processorNode.processorFunctions = new ProcessorFunctions();
             processorNode.tapNodeInfo = nodeInstance.getTapNodeInfo();
-            processorNode.processorContext = new TapProcessorContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig);
+            processorNode.processorContext = new TapProcessorContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig, log);
             PDKInvocationMonitor.getInstance().invokePDKMethod(processorNode, PDKMethod.PROCESSOR_FUNCTIONS,
                     () -> processorNode.processorFunctions(processorNode.processorFunctions),
                     MessageFormat.format("call processor functions {0} associateId {1}", TapNodeSpecification.idAndGroup(pdkId, group, version), associateId), TAG);

@@ -8,13 +8,18 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.inspect.*;
 import com.tapdata.mongo.ClientMongoOperator;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.inspect.cdc.InspectCdcUtils;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.schema.ConnectionTapTableMap;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections.MapUtils;
@@ -27,6 +32,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -222,6 +228,7 @@ public abstract class InspectTask implements Runnable {
 						source,
 						target,
 						inspectResult.getParentId(),
+						inspect.getInspectDifferenceMode(),
 						(inspectTask, inspectResultStats, inspectDetails) -> {
 
 							logger.info(inspectTask.getTaskId() + " inspect done, status " + inspectResultStats.getStatus() + ", result " + inspectResultStats.getResult());
@@ -340,37 +347,38 @@ public abstract class InspectTask implements Runnable {
 			Connections sourceConn = connectionsMap.get(task.getSource().getConnectionId());
 			Connections targetConn = connectionsMap.get(task.getTarget().getConnectionId());
 			if (!connectorNodeMap.containsKey(task.getSource().getConnectionId())) {
-				InspectDataSource source = task.getSource();
-				String srcNodeId = source.getNodeId();
-				DatabaseTypeEnum.DatabaseType srcDatabaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConn.getPdkHash());
-				connectorNodeMap.put(sourceConn.getId(), PdkUtil.createNode(
-						inspect.getFlowId(),
-						srcDatabaseType,
-						clientMongoOperator,
-						InspectTask.class.getSimpleName() + "-" + srcNodeId,
-						sourceConn.getConfig(),
-						new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(srcNodeId)),
-						new PdkStateMap(srcNodeId, HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
-						PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
-				));
+				connectorNodeMap.put(sourceConn.getId(), initConnectorNode(task.getSource().getNodeId(), sourceConn));
 			}
 			if (!connectorNodeMap.containsKey(task.getTarget().getConnectionId())) {
-				InspectDataSource target = task.getTarget();
-				String tgtNodeId = target.getNodeId();
-				DatabaseTypeEnum.DatabaseType tgtDatabaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, targetConn.getPdkHash());
-				connectorNodeMap.put(targetConn.getId(), PdkUtil.createNode(
-						inspect.getFlowId(),
-						tgtDatabaseType,
-						clientMongoOperator,
-						InspectTask.class.getSimpleName() + "-" + tgtNodeId,
-						targetConn.getConfig(),
-						new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(tgtNodeId)),
-						new PdkStateMap(tgtNodeId, HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
-						PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
-				));
+				connectorNodeMap.put(targetConn.getId(), initConnectorNode(task.getTarget().getNodeId(), targetConn));
 			}
 		}
 		return connectorNodeMap;
+	}
+
+	private ConnectorNode initConnectorNode(String nodeId, Connections connection) {
+		DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+		String associateId = InspectTask.class.getSimpleName();
+		KVReadOnlyMap<TapTable> tapTableMap;
+		if (null == nodeId || nodeId.isEmpty()) {
+			associateId += "-conn-" + connection.getId();
+			tapTableMap = new ConnectionTapTableMap(connection.getId(), connection.getName());
+		} else {
+			associateId += "-node-" + nodeId;
+			tapTableMap = new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(nodeId));
+		}
+
+		return PdkUtil.createNode(
+				inspect.getFlowId(),
+				databaseType,
+				clientMongoOperator,
+				associateId,
+				connection.getConfig(),
+				tapTableMap,
+				new PdkStateMap(connection.getId(), HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
+				PdkStateMap.globalStateMap(HazelcastUtil.getInstance()),
+				InstanceFactory.instance(LogFactory.class).getLog()
+		);
 	}
 
 	private void releaseConnectionNodes(Map<String, ConnectorNode> connectorNodeMap) {

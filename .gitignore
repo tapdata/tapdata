@@ -107,11 +107,16 @@ output/
 /plugin-kit/connector-archetypes/source-connector-archetype/target/
 /tdd-logs/
 !/plugin-kit/tapdata-pdk-api/src/main/java/io/tapdata/pdk/apis/functions/connector/target/
-!/plugin-kit/tapdata-pdk-cli/src/main/java/io/tapdata/pdk/tdd/tests/target
+!/tapdata-cli/src/main/java/io/tapdata/pdk/tdd/tests/target
 
 temp/
 tmp_dist/
 tap_table_ehcache/
 **/logs/
+imap-cache-data/
 CacheObserveLogs/
 /node_modules/
+/plugin-kit/tapdata-modules/tapdata-storage-module/tap_storage_test/
+partition_storage/
+/manager/tm/src/main/resources/test3/
+null/

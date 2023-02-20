@@ -13,6 +13,8 @@
     <packaging>jar</packaging>
 
     <properties>
+        <tapdata.api.version>1.2.1</tapdata.api.version>
+        <tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
         <java.version>8</java.version>
     </properties>
 
@@ -25,7 +27,14 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-api</artifactId>
+            <scope>provided</scope>
+            <version>${tapdata.api.version}</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
@@ -50,6 +59,11 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>s3fs-file</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>oss-file</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
     </dependencies>

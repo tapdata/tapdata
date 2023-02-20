@@ -1,6 +1,8 @@
 package io.tapdata.pdk.apis.entity;
 
-public class QueryOperator {
+import java.io.Serializable;
+
+public class QueryOperator implements Serializable {
     public static final int GT = 1;
     public static final int GTE = 2;
     public static final int LT = 3;
@@ -9,6 +11,10 @@ public class QueryOperator {
     private String key;
     private Object value;
     private int operator;
+
+    public QueryOperator() {
+
+    }
 
     public QueryOperator(String key, Object value, int operator) {
         this.key = key;
@@ -79,7 +85,13 @@ public class QueryOperator {
                 operatorStr = "";
                 break;
         }
-        return quote + key + quote + operatorStr + "'" + value.toString() + "'";
+        StringBuilder sb = new StringBuilder(quote + key + quote + operatorStr);
+        if(value instanceof Number) {
+            sb.append(value);
+        } else {
+            sb.append("'").append(value.toString()).append("'");
+        }
+        return sb.toString();
     }
 
 }

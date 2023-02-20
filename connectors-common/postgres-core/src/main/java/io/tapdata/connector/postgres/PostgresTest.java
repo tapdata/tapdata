@@ -6,9 +6,13 @@ import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.postgres.config.PostgresConfig;
 import io.tapdata.constant.DbTestItem;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.entity.TestItem;
+import org.postgresql.Driver;
 
+import java.sql.Connection;
 import java.util.List;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -55,7 +59,15 @@ public class PostgresTest extends CommonDbTest {
     }
 
     public Boolean testStreamRead() {
+        Properties properties = new Properties();
+        properties.put("user", commonDbConfig.getUser());
+        properties.put("password", commonDbConfig.getPassword());
+        properties.put("replication", "database");
+        properties.put("assumeMinServerVersion", "9.4");
         try {
+            Connection connection = new Driver().connect(commonDbConfig.getDatabaseUrl(), properties);
+            assert connection != null;
+            connection.close();
             List<String> testSqls = TapSimplify.list();
             String testSlotName = "test_" + UUID.randomUUID().toString().replaceAll("-", "_");
             testSqls.add(String.format(PG_LOG_PLUGIN_CREATE_TEST, testSlotName, ((PostgresConfig) commonDbConfig).getLogPluginName()));
@@ -65,7 +77,7 @@ public class PostgresTest extends CommonDbTest {
             return true;
         } catch (Throwable e) {
             consumer.accept(testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                    String.format("Test log plugin failed: {%s}, Maybe cdc events cannot work", e.getCause().getMessage())));
+                    String.format("Test log plugin failed: {%s}, Maybe cdc events cannot work", ErrorKit.getLastCause(e).getMessage())));
             return null;
         }
     }
@@ -87,6 +99,6 @@ public class PostgresTest extends CommonDbTest {
     private final static String PG_TABLE_NUM = "SELECT COUNT(*) FROM pg_tables WHERE schemaname='%s'";
     private final static String PG_TABLE_SELECT_NUM = "SELECT count(*) FROM information_schema.table_privileges " +
             "WHERE grantee='%s' AND table_catalog='%s' AND table_schema='%s' AND privilege_type='SELECT'";
-    private final static String PG_LOG_PLUGIN_CREATE_TEST = "SELECT pg_create_logical_replication_slot('%s','%s')";
-    private final static String PG_LOG_PLUGIN_DROP_TEST = "SELECT pg_drop_replication_slot('%s')";
+    protected final static String PG_LOG_PLUGIN_CREATE_TEST = "SELECT pg_create_logical_replication_slot('%s','%s')";
+    protected final static String PG_LOG_PLUGIN_DROP_TEST = "SELECT pg_drop_replication_slot('%s')";
 }

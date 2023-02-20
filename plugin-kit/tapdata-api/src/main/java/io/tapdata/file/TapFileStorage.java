@@ -1,6 +1,7 @@
 package io.tapdata.file;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +95,12 @@ public interface TapFileStorage {
      * @return
      */
     TapFile saveFile(String path, InputStream is, boolean canReplace) throws Exception;
+
+    OutputStream openFileOutputStream(String path, boolean append) throws Exception;
+
+    default boolean supportAppendData() {
+        return true;
+    }
 
     /**
      * Get files/directories on path "directoryPath" with matching regression "matchingReg".

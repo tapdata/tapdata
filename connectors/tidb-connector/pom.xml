@@ -19,24 +19,22 @@
         <sql.core.version>1.0-SNAPSHOT</sql.core.version>
         <mysql.core.version>1.0-SNAPSHOT</mysql.core.version>
         <commons-lang3.version>3.12.0</commons-lang3.version>
+        <tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
     </properties>
 
     <dependencies>
-    <dependency>
-        <groupId>io.tapdata</groupId>
-        <artifactId>tapdata-pdk-api</artifactId>
-        <scope>provided</scope>
-    </dependency>
-    <dependency>
-        <groupId>io.tapdata</groupId>
-        <artifactId>connector-core</artifactId>
-    </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-pdk-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
+            <scope>provided</scope>
+        </dependency>
 
-    <dependency>
-        <groupId>io.tapdata</groupId>
-        <artifactId>tapdata-pdk-runner</artifactId>
-        <scope>test</scope>
-    </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-pdk-runner</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>connector-core</artifactId>
@@ -60,6 +58,24 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-collections4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore</artifactId>
+            <version>4.4.15</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.13</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>kafka-connector</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
         </dependency>
 
     </dependencies>
@@ -88,6 +104,7 @@
                             <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                             <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
                             <Version>${version}</Version>
+                            <Authentication>Alpha</Authentication>
                             <Git-Build-Time>${git.build.time}</Git-Build-Time>
                             <Git-Branch>${git.branch}</Git-Branch>
                             <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>

@@ -11,9 +11,6 @@ import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
-import io.tapdata.observable.metric.handler.DataNodeSampleHandler;
-import io.tapdata.observable.metric.handler.ProcessorNodeSampleHandler;
-import io.tapdata.observable.metric.handler.TaskSampleHandler;
 
 import java.util.*;
 
@@ -93,7 +90,7 @@ public class ObservableAspectTask extends AspectTask {
 	public Void handleDataNodeClose(DataNodeCloseAspect aspect) {
 		String nodeId = aspect.getDataProcessorContext().getNode().getId();
 		Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(DataNodeSampleHandler::close);
-		DataNodeSampleHandler.HealthCheckRunner.getInstance().stopHealthCheck(nodeId);
+//		DataNodeSampleHandler.HealthCheckRunner.getInstance().stopHealthCheck(nodeId);
 
 		return null;
 	}
@@ -101,10 +98,10 @@ public class ObservableAspectTask extends AspectTask {
 	public Void handlePDKNodeInit(PDKNodeInitAspect aspect) {
 		Node<?> node = aspect.getDataProcessorContext().getNode();
 		DataNodeSampleHandler handler = dataNodeSampleHandlers.get(node.getId());
-		if (null != handler) {
-			DataNodeSampleHandler.HealthCheckRunner.getInstance().runHealthCheck(
-					handler.getCollector(), node,  aspect.getDataProcessorContext().getPdkAssociateId());
-		}
+//		if (null != handler) {
+//			DataNodeSampleHandler.HealthCheckRunner.getInstance().runHealthCheck(
+//					handler.getCollector(), node,  aspect.getDataProcessorContext().getPdkAssociateId());
+//		}
 
 		return null;
 	}
@@ -168,7 +165,7 @@ public class ObservableAspectTask extends AspectTask {
 					taskSampleHandler.handleBatchReadAccept(size);
 				});
 				aspect.processCompleteConsumer(events -> {
-					if (null == events || events.size() == 0) {
+					if (null == events || events.isEmpty()) {
 						return;
 					}
 
@@ -177,9 +174,8 @@ public class ObservableAspectTask extends AspectTask {
 							handler.handleBatchReadProcessComplete(System.currentTimeMillis(), recorder)
 					);
 					// batch read should calculate table snapshot insert counter
-					Optional.ofNullable(tableSampleHandlers.get(table)).ifPresent(
-							handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal())
-					);
+
+					Optional.ofNullable(tableSampleHandlers).flatMap(handlers -> Optional.ofNullable(handlers.get(table))).ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
 				});
 				aspect.enqueuedConsumer(events ->
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
@@ -187,8 +183,11 @@ public class ObservableAspectTask extends AspectTask {
 				));
 				break;
 			case BatchReadFuncAspect.STATE_END:
-				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis()));
-				taskSampleHandler.handleBatchReadFuncEnd();
+				if (!aspect.getDataProcessorContext().getTaskDto().isManualStop()) {
+					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis()));
+					taskSampleHandler.handleBatchReadFuncEnd();
+					break;
+				}
 				break;
 		}
 
@@ -248,15 +247,20 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	public Void handleSourceState(SourceStateAspect aspect) {
+		Node<?> node = aspect.getDataProcessorContext().getNode();
 		switch (aspect.getState()) {
 			case SourceStateAspect.STATE_INITIAL_SYNC_START:
 				taskSampleHandler.handleSnapshotStart(aspect.getInitialSyncStartTime());
 				for(String table : aspect.getDataProcessorContext().getTapTableMap().keySet()) {
 					taskSampleHandler.addTable(table);
 				}
+
+				Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
+						handler -> taskSampleHandler.addSourceNodeHandler(node.getId(), handler)
+				);
 				break;
 			case SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED:
-				taskSampleHandler.handleSnapshotDone(aspect.getInitialSyncCompletedTime());
+//				taskSampleHandler.handleSnapshotDone(aspect.getInitialSyncCompletedTime());
 				break;
 			default:
 				break;

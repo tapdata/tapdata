@@ -11,6 +11,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
@@ -19,6 +20,7 @@ import org.springframework.util.Assert;
 import java.lang.reflect.Field;
 import java.util.Date;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * @Author:
@@ -41,7 +43,10 @@ public class TaskRepository extends BaseRepository<TaskEntity, ObjectId> {
 
         applyUserDetail(entity, userDetail);
         beforeCreateEntity(entity, userDetail);
-        return mongoOperations.insert(entity, entityInformation.getCollectionName());
+        Query id = new Query(Criteria.where("_id").is(entity.getId()));
+        upsert(id, entity);
+        Optional<TaskEntity> one = findOne(id, userDetail);
+        return one.orElse(null);
     }
 
     @Override
@@ -53,9 +58,9 @@ public class TaskRepository extends BaseRepository<TaskEntity, ObjectId> {
     public Update buildUpdateSet(TaskEntity entity, UserDetail userDetail) {
         Update update = new Update();
         Field[] files = ReflectionUtils.getAllDeclaredFields(TaskEntity.class);
-        if (userDetail != null){
-            applyUserDetail(entity, userDetail);
-        }
+//        if (userDetail != null){
+//            applyUserDetail(entity, userDetail);
+//        }
 
         for (Field field : files) {
             if ("$jacocoData".equals(field.getName())) {

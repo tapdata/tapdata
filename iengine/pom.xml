@@ -119,11 +119,12 @@
         <!-- original hazelcast -->
         <!--    <hazelcast.version>5.0.2</hazelcast.version>-->
         <!-- hazelcast with tapdata persistence -->
-        <hazelcast.version>5.1-BETA-1-SNAPSHOT</hazelcast.version>
+        <hazelcast.version>5.2.1</hazelcast.version>
+        <hazelcast-persistence.version>5.2.1-SNAPSHOT</hazelcast-persistence.version>
 
         <protobuf-dynamic.version>1.0.1</protobuf-dynamic.version>
 
-        <tm-sdk.version>1.0.2-SNAPSHOT</tm-sdk.version>
+        <tm-sdk.version>1.0.3-SNAPSHOT</tm-sdk.version>
         <tm-common.version>0.0.3-SNAPSHOT</tm-common.version>
 
         <okhttp.version>4.9.1</okhttp.version>
@@ -166,7 +167,6 @@
         <module>iengine-common</module>
         <module>validator</module>
         <module>api</module>
-        <module>hazelcast-lib</module>
         <module>modules</module>
     </modules>
 
@@ -382,11 +382,11 @@
             </dependency>
 
             <!-- jdbc driver -->
-            <dependency>
-                <groupId>com.oracle</groupId>
-                <artifactId>ojdbc</artifactId>
-                <version>${version.oracle.driver}</version>
-            </dependency>
+<!--            <dependency>-->
+<!--                <groupId>com.oracle</groupId>-->
+<!--                <artifactId>ojdbc</artifactId>-->
+<!--                <version>${version.oracle.driver}</version>-->
+<!--            </dependency>-->
 
             <dependency>
                 <groupId>com.microsoft.sqlserver</groupId>
@@ -506,7 +506,7 @@
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-compress</artifactId>
-                <version>1.18</version>
+                <version>1.21</version>
             </dependency>
 
             <dependency>
@@ -767,7 +767,7 @@
             <dependency>
                 <groupId>com.hazelcast</groupId>
                 <artifactId>hazelcast-persistence</artifactId>
-                <version>${hazelcast.version}</version>
+                <version>${hazelcast-persistence.version}</version>
             </dependency>
 
             <dependency>
@@ -818,11 +818,13 @@
                 <artifactId>kotlin-stdlib-common</artifactId>
                 <version>1.4.0</version>
             </dependency>
+            <!-- https://mvnrepository.com/artifact/org.rocksdb/rocksdbjni -->
             <dependency>
                 <groupId>org.rocksdb</groupId>
                 <artifactId>rocksdbjni</artifactId>
-                <version>6.27.3</version>
+                <version>7.3.1</version>
             </dependency>
+
 
             <dependency>
                 <groupId>org.graalvm.js</groupId>
@@ -848,12 +850,6 @@
             </dependency>
 
             <dependency>
-                <groupId>com.tapdata</groupId>
-                <artifactId>hazelcast-lib</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <dependency>
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
@@ -863,6 +859,17 @@
     </dependencyManagement>
 
     <repositories>
+        <repository>
+            <id>tapdata-wendangshujuku-mongo</id>
+            <name>mongo</name>
+            <url>https://tapdata-maven.pkg.coding.net/repository/wendangshujuku/mongo/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
         <repository>
             <id>tapdata-tapdata-maven</id>
             <name>maven</name>

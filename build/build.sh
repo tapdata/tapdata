@@ -23,9 +23,9 @@ if [[ $_in_docker == "" ]]; then
 fi
 
 components=""
-all_components=("plugin-kit" "file-storages" "connectors-common" "manager" "iengine" "connectors")
+all_components=("plugin-kit" "file-storages" "connectors-common" "manager" "iengine" "connectors" "tapdata-cli")
 package_all_components=("iengine" "manager")
-source_components=("plugin-kit" "file-storages" "connectors-common" "connectors" "tapshell" "build")
+source_components=("plugin-kit" "file-storages" "connectors-common" "connectors" "tapshell" "build" "tapdata-cli")
 output="package"
 
 check_env() {

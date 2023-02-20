@@ -3,6 +3,7 @@ package io.tapdata.connector.hive1;
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.DataSourcePool;
+import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.hive1.config.Hive1Config;
 import io.tapdata.connector.hive1.ddl.DDLSqlMaker;
 import io.tapdata.connector.hive1.ddl.impl.Hive1JDBCSqlMaker;
@@ -190,6 +191,7 @@ public class Hive1Connector extends ConnectorBase {
 //        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
 //        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
 //        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> hive1JdbcContext.getConnection(), c));
     }
 
     public void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {

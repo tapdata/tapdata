@@ -30,6 +30,10 @@ public class ParentTaskDto extends SchedulableDto {
     @EqField
     private String crontabExpression;
 
+    /** crontab表达式开关 */
+    @EqField
+    private boolean crontabExpressionFlag;
+
     /**去重写入机制   intelligent 智能去重， force 强制去重 */
     @EqField
     private String deduplicWriteMode;
@@ -218,6 +222,7 @@ public class ParentTaskDto extends SchedulableDto {
 
     //private Date startTime;
     private Date scheduledTime;
+    private Date schedulingTime;
     private Date stoppingTime;
     private Date runningTime;
     private Date errorTime;

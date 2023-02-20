@@ -446,6 +446,7 @@ public class Connections implements Serializable {
 
 	private Map<String, Object> extParam;
 
+	private String shareCDCExternalStorageId;
 
 	public Connections() {
 	}
@@ -2287,6 +2288,14 @@ public class Connections implements Serializable {
 
 	public void setExtParam(Map<String, Object> extParam) {
 		this.extParam = extParam;
+	}
+
+	public String getShareCDCExternalStorageId() {
+		return shareCDCExternalStorageId;
+	}
+
+	public void setShareCDCExternalStorageId(String shareCDCExternalStorageId) {
+		this.shareCDCExternalStorageId = shareCDCExternalStorageId;
 	}
 }
 

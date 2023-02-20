@@ -8,9 +8,9 @@ import com.tapdata.entity.BaseEntity;
 import com.tapdata.entity.ResponseBody;
 import com.tapdata.entity.TapLog;
 import com.tapdata.interceptor.LoggingInterceptor;
-import com.tapdata.tm.sdk.interceptor.VersionHeaderInterceptor;
 import com.tapdata.tm.sdk.available.CloudRestTemplate;
 import com.tapdata.tm.sdk.available.TmStatusService;
+import com.tapdata.tm.sdk.interceptor.VersionHeaderInterceptor;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
 import io.tapdata.exception.ManagementException;
 import io.tapdata.exception.RestAuthException;
@@ -200,12 +200,13 @@ public class RestTemplateOperator {
 						handleRequestFailed(url, HttpMethod.POST.name(), obj,
 								responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
 						);
+						return true;
 					}
 				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.POST.name(), obj, responseBody);
+					exception = retryExceptionHandle(e, url, HttpMethod.POST.name(), obj, responseBody, retry);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -219,16 +220,18 @@ public class RestTemplateOperator {
 		}
 	}
 
-	public Exception retryExceptionHandle(Exception e, String uri, String method, Object param, ResponseBody responseBody) {
+	public Exception retryExceptionHandle(Exception e, String uri, String method, Object param, ResponseBody responseBody, int retryCount) {
 		if (e instanceof HttpClientErrorException) {
 			// If the parameter is incorrect, no retry will be performed
 			if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {
-				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), e.getMessage()), e);
+				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "not found url: " + uri), e);
 			}
 		}
-		logger.warn(
-				"Request {} server failed {}, uri {}, method {}, param {}, response body {}, stack {}, will retry after {}.", baseURL, e.getMessage(), uri, param, responseBody, method, Log4jUtil.getStackString(e), retryInterval
-		);
+		if (retryCount <= 1) {
+			logger.warn(
+					"Request {} server failed {}, uri {}, method {}, param {}, response body {}, stack {}, will retry after {}.", baseURL, e.getMessage(), uri, param, responseBody, method, Log4jUtil.getStackString(e), retryInterval
+			);
+		}
 		try {
 			Thread.sleep(retryInterval);
 		} catch (InterruptedException ignore) {
@@ -283,7 +286,7 @@ public class RestTemplateOperator {
 					throw e;
 				} catch (Exception e) {
 					retry++;
-					exception = retryExceptionHandle(e, url != null ? url.toString() : null, HttpMethod.POST.name(), request, responseBody);
+					exception = retryExceptionHandle(e, url != null ? url.toString() : null, HttpMethod.POST.name(), request, responseBody, retry);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -312,7 +315,7 @@ public class RestTemplateOperator {
 					return;
 				} catch (Exception e) {
 					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.DELETE.name(), uriVariables, null);
+					exception = retryExceptionHandle(e, url, HttpMethod.DELETE.name(), uriVariables, null, retry);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -341,7 +344,7 @@ public class RestTemplateOperator {
 					return;
 				} catch (Exception e) {
 					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.DELETE.name(), params, null);
+					exception = retryExceptionHandle(e, url, HttpMethod.DELETE.name(), params, null, retry);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -372,7 +375,7 @@ public class RestTemplateOperator {
 					return;
 				} catch (Exception e) {
 					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.POST.name(), params, responseBody);
+					exception = retryExceptionHandle(e, url, HttpMethod.POST.name(), params, responseBody, retry);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -459,7 +462,7 @@ public class RestTemplateOperator {
 					throw e;
 				} catch (Exception e) {
 					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.POST.name(), obj, responseBody);
+					exception = retryExceptionHandle(e, url, HttpMethod.POST.name(), obj, responseBody, retry);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -515,7 +518,7 @@ public class RestTemplateOperator {
 					throw e;
 				} catch (Exception e) {
 					retry++;
-					exception = retryExceptionHandle(e, url != null ? url.toString() : null, HttpMethod.POST.name(), params, responseBody);
+					exception = retryExceptionHandle(e, url != null ? url.toString() : null, HttpMethod.POST.name(), params, responseBody, retry);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -559,7 +562,7 @@ public class RestTemplateOperator {
 					throw e;
 				} catch (Exception e) {
 					retry++;
-					exception = retryExceptionHandle(e, url != null ? url.toString() : null, HttpMethod.POST.name(), params, responseBody);
+					exception = retryExceptionHandle(e, url != null ? url.toString() : null, HttpMethod.POST.name(), params, responseBody, retry);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -637,7 +640,7 @@ public class RestTemplateOperator {
 					throw e;
 				} catch (Exception e) {
 					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.GET.name(), params, responseBody);
+					exception = retryExceptionHandle(e, url, HttpMethod.GET.name(), params, responseBody, retry);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -731,7 +734,7 @@ public class RestTemplateOperator {
 						}
 					}
 					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.GET.name(), params, responseBody);
+					exception = retryExceptionHandle(e, url, HttpMethod.GET.name(), params, responseBody, retry);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -805,14 +808,15 @@ public class RestTemplateOperator {
 						handleRequestFailed(url, HttpMethod.GET.name(), httpEntity,
 								responseEntity != null && responseEntity.hasBody() ? responseBody : null
 						);
+						return null;
 					}
 				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (HttpMessageConversionException e){
 				    throw e;
-                } catch (Exception e) {
+				} catch (Exception e) {
 					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.GET.name(), params, responseBody);
+					exception = retryExceptionHandle(e, url, HttpMethod.GET.name(), params, responseBody, retry);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -879,15 +883,23 @@ public class RestTemplateOperator {
 	}
 
 	private void handleRequestFailed(String uri, String method, Object param, ResponseBody responseBody) throws JsonProcessingException {
-		if (TmStatusService.isNotAvailable()) {
-			if (logCount.incrementAndGet() % 1000 == 0) {
-				logger.warn("tm unavailable...");
+		if (TmStatusService.isEnable()) {
+			if((TmStatusService.isNotAvailable() ||
+										(responseBody != null && StringUtils.containsAny(responseBody.getCode(), ResponseCode.UN_AVAILABLE.getCode())))) {
+				if (logCount.incrementAndGet() % 1000 == 0) {
+					logger.warn("tm unavailable...");
+				}
+				return;
 			}
-			return;
 		}
 		if (responseBody == null) {
 			throw new ManagementException("Request management failed, response body is empty.");
-		} else if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument")) {
+		}
+
+		logger.error("Request {} fail, error code {}, error message {}, request id {}",
+				uri, responseBody.getCode(), responseBody.getMessage(), responseBody.getReqId());
+
+		if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument", "Transition.Not.Supported")) {
 			throw new RestDoNotRetryException(uri, method, param, responseBody);
 		} else if ("110403".equals(responseBody.getCode())) {
 			throw new RestAuthException(uri, method, param, responseBody);
@@ -934,6 +946,7 @@ public class RestTemplateOperator {
 
 	enum ResponseCode {
 		SUCCESS("ok"),
+		UN_AVAILABLE("503"),
 		;
 
 		private String code;

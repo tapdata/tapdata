@@ -13,9 +13,11 @@
 
     <modules>
         <module>observable-module</module>
+        <module>milestone-module</module>
         <module>test-run-module</module>
         <module>deduction-module</module>
         <module>proxy-client-module</module>
+        <module>custom-sql-filter-module</module>
     </modules>
     <dependencies>
         <dependency>

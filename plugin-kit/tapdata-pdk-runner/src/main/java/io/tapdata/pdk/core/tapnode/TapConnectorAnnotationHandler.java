@@ -1,9 +1,11 @@
 package io.tapdata.pdk.core.tapnode;
 
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -12,12 +14,15 @@ import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,11 +39,20 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
         if (classes != null && !classes.isEmpty()) {
             newerIdGroupTapNodeInfoMap = new ConcurrentHashMap<>();
             TapLogger.debug(TAG, "--------------TapConnector Classes Start------------- size {}", classes.size());
+			Set<String> connectorSupperClassNames = new HashSet<>();
+			for (Class<?> aClass : classes) {
+				connectorSupperClassNames.addAll(findAllConnectorSuperClassName(aClass));
+			}
+
             for (Class<?> clazz : classes) {
                 TapConnectorClass tapConnectorClass = clazz.getAnnotation(TapConnectorClass.class);
                 if (tapConnectorClass != null) {
-                    URL url = clazz.getClassLoader().getResource(tapConnectorClass.value());
-                    if (url != null) {
+					if (connectorSupperClassNames.contains(clazz.getCanonicalName())) {
+						continue;
+					}
+
+					URL url = clazz.getClassLoader().getResource(tapConnectorClass.value());
+					if (url != null) {
                         TapNodeSpecification tapNodeSpecification = null;
                         try {
                             InputStream is = url.openStream();
@@ -48,7 +62,7 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
 
                             String errorMessage = null;
                             if (tapNodeSpecification == null) {
-                                errorMessage = "Specification not found";
+								errorMessage = "Specification not found";
                             } else {
                                 if(tapNodeSpecification.getGroup() == null) {
                                     tapNodeSpecification.setGroup(clazz.getPackage().getImplementationVendor());
@@ -75,6 +89,19 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
 //                                    }
 //                                });
                                 tapNodeSpecification.setDataTypesMap(matchingMap);
+                            }
+                            DefaultExpressionMatchingMap dataTypesMap = tapNodeSpecification.getDataTypesMap();
+                            if(dataTypesMap == null || dataTypesMap.isEmpty()) {
+                                try(InputStream dataTypeInputStream = this.getClass().getClassLoader().getResourceAsStream("default-data-types.json")) {
+                                    if(dataTypeInputStream != null) {
+                                        String dataTypesJson = IOUtils.toString(dataTypeInputStream, StandardCharsets.UTF_8);
+                                        if(StringUtils.isNotBlank(dataTypesJson)) {
+                                            TapNodeContainer container = InstanceFactory.instance(JsonParser.class).fromJson(dataTypesJson, TapNodeContainer.class);
+                                            if(container != null && container.getDataTypes() != null)
+                                                tapNodeSpecification.setDataTypesMap(DefaultExpressionMatchingMap.map(container.getDataTypes()));
+                                        }
+                                    }
+                                }
                             }
                             ClassLoader classLoader = clazz.getClassLoader();
 
@@ -135,8 +162,8 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
                     isTarget = true;
                 }
             } catch (Throwable e) {
-                e.printStackTrace();
                 TapLogger.error(TAG, "Find connector type failed, {} clazz {} will be ignored", e.getMessage(), clazz);
+                throw new CoreException(TapAPIErrorCodes.ERROR_FIND_CONNECTOR_TYPE_FAILED, "Find connector class {} type failed, {}", clazz, e.getMessage());
             }
         }
 
@@ -149,6 +176,20 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
         }
         return null;
     }
+
+	private Set<String> findAllConnectorSuperClassName(Class<?> clazz) {
+		Set<String> classNames = new HashSet<>();
+		List<Class<?>> classList = ReflectionUtil.getSuperClasses(clazz);
+		if (classList != null) {
+			for(Class<?> superClass : classList) {
+				final Annotation clazzAnnotation = superClass.getAnnotation(TapConnectorClass.class);
+				if(clazzAnnotation != null) {
+					classNames.add(superClass.getCanonicalName());
+				}
+			}
+		}
+		return classNames;
+	}
 
     @Override
     public Class<? extends Annotation> watchAnnotation() {

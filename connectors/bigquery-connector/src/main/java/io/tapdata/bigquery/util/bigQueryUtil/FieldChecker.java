@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 
 public class FieldChecker {
     public static final String FIELD_NAME_REGEX = "^[a-z|A-Z|_]([a-z|A-Z|0-9|_]{0,299})$";
+    public static final String NULL_VALUE = "NULL";
     public static final String ERROR_FIELD_MSG = "Illegal field name [%s],Please use the processor to rename fields according to rules,field name Can only contain letters (a-z, A-Z), numbers (0-9), or underscores (_), Must start with a letter or underscore ,and up to 300 characters.";
     /**
      * column_name 是列的名称。列名称要求：
@@ -39,10 +40,10 @@ public class FieldChecker {
 
     public static String toJsonValue(Object value){
         if (value instanceof Collection && ((Collection)value).isEmpty()) {
-            return "NULL";
+            return NULL_VALUE;
         }
         if (value instanceof Map && ((Map)value).isEmpty()){
-            return "NULL";
+            return NULL_VALUE;
         }
         String val = String.valueOf(value);
         return " JSON '" +
@@ -75,16 +76,22 @@ public class FieldChecker {
     }
 
     public static String simpleStringValue(Object value){
-        return "'"+String.valueOf(value)
+        return simpleStringValue(value,true);
+    }
+    public static String simpleStringValue(Object value,boolean hasBoundary){
+        if (null == value) return NULL_VALUE;
+        String boundaryStr = boundary(hasBoundary);
+        return boundaryStr+String.valueOf(value)
                 .replaceAll("'","\\\\'")
                 .replaceAll("\"\\{","\\{")
                 .replaceAll("\"\\[","\\[")
                 .replaceAll("}\"","}")
                 .replaceAll("]\"","]")
-                +"'";
+                +boundaryStr;
     }
 
     public static String simpleValue(Object value){
+        if (null == value) return NULL_VALUE;
         return (""+value).replaceAll("'","\\\\'")
                 .replaceAll("\"\\{","\\{")
                 .replaceAll("\"\\[","\\[")
@@ -92,16 +99,28 @@ public class FieldChecker {
                 .replaceAll("]\"","]")
                 ;
     }
+
     public static String simpleDateValue(Object value,String format){
-        try {
+        return simpleDateValue(value,format,true);
+    }
+    public static String simpleDateValue(Object value,String format, boolean hasBoundary){
+        if (null == value) return NULL_VALUE;
+        String boundaryStr = boundary(hasBoundary);
+        if (value instanceof DateTime){
             DateTime date = (DateTime) value;
             Date valDate = new Date();
             valDate.setTime(date.getSeconds()*1000);
-            return "'"+DateUtil.format(valDate,format)+"'";
-        }catch (Exception e){
-            TapLogger.debug("FORMAT-DATE","Can not format the time : {}",value);
-            return "NULL";
+            return boundaryStr+DateUtil.format(valDate,format)+boundaryStr;
+        }else if(value instanceof Date || value instanceof Long){
+            return boundaryStr + DateUtil.format(value instanceof Date ? (Date) value :new Date((Long)value ),format)+boundaryStr;
+        }else if (value instanceof String){
+            return boundaryStr+ value +boundaryStr;
+        }else {
+            return boundaryStr + String.valueOf(value) + boundaryStr;
         }
+    }
+    private static String boundary(boolean hasBoundary){
+        return hasBoundary?"'":"";
     }
     public static String simpleYearValue(Object value){
         try {
@@ -112,7 +131,7 @@ public class FieldChecker {
             return ""+Integer.parseInt(DateUtil.format(valDate,"yyyy"));
         }catch (Exception e){
             TapLogger.debug("FORMAT-YEAR","Can not format the year : {}",value);
-            return "NULL";
+            return NULL_VALUE;
         }
     }
 

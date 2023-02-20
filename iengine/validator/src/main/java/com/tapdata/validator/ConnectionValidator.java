@@ -7,6 +7,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.Schema;
 import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.entity.BaseConnectionValidateResultDetail;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
@@ -195,6 +196,7 @@ public class ConnectionValidator {
 						.withPdkId(databaseType.getPdkId())
 						.withAssociateId(connections.getName() + "_" + ts)
 						.withVersion(databaseType.getVersion())
+						.withLog(new TapLog())
 						.build();
 				ConnectionNode finalConnectionNode = connectionNode;
 				List<ConnectionValidateResultDetail> resultDetails = new ArrayList<>();
@@ -216,12 +218,14 @@ public class ConnectionValidator {
 							if (result == TestItem.RESULT_FAILED) {
 								anyErrorOccurred.set(true);
 							}
+							resultDetail.setRequired(result != TestItem.RESULT_SUCCESSFULLY_WITH_WARN);
 							resultDetail.setFail_message(testItem.getInformation());
 							resultDetail.setShow_msg(item);
 							resultDetails.add(resultDetail);
 						})), TAG, TAG, error -> {
 							ConnectionValidateResultDetail resultDetail = new ConnectionValidateResultDetail();
 							resultDetail.setStatus(ValidatorConstant.VALIDATE_DETAIL_RESULT_FAIL);
+							resultDetail.setRequired(true);
 							resultDetail.setFail_message(error.getMessage());
 							resultDetail.setShow_msg("Occurred error");
 							resultDetails.add(resultDetail);

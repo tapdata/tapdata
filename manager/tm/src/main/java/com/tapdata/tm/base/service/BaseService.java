@@ -1,9 +1,7 @@
 package com.tapdata.tm.base.service;
 
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.entity.BaseEntity;
@@ -11,8 +9,7 @@ import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.base.dto.UpdateDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.utils.MapUtils;
-import com.tapdata.tm.utils.ThrowableUtils;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -432,6 +429,11 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
         Assert.notNull(id, "Id must not be null!");
 
         return repository.updateFirst(new Query(Criteria.where("_id").is(id)), update, userDetail);
+    }
+
+    public UpdateResult updateByIdNotChangeLast(ID id, Update update, UserDetail userDetail) {
+        Assert.notNull(id, "Id must not be null!");
+        return repository.updateFirstNotChangeLast(new Query(Criteria.where("_id").is(id)), update, userDetail);
     }
 
     public UpdateResult updateById(String id, Update update, UserDetail userDetail) {

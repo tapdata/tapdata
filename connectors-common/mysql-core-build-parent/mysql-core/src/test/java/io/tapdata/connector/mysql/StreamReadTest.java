@@ -1,19 +1,14 @@
 package io.tapdata.connector.mysql;
 
-import io.tapdata.entity.event.TapEvent;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * @author samuel
@@ -36,7 +31,7 @@ public class StreamReadTest {
 		connectionConfig.kv("database", "test");
 		TapNodeSpecification tapNodeSpecification = new TapNodeSpecification();
 		tapNodeSpecification.setId("mysql");
-		tapConnectorContext = new TapConnectorContext(tapNodeSpecification, connectionConfig, new DataMap());
+		tapConnectorContext = new TapConnectorContext(tapNodeSpecification, connectionConfig, new DataMap(), new TapLog());
 		KVMap<Object> stateMap = InstanceFactory.instance(KVMap.class);
 		stateMap.init("streamTest", Object.class);
 		tapConnectorContext.setStateMap(stateMap);

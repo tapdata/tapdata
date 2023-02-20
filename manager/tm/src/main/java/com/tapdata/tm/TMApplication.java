@@ -1,7 +1,9 @@
 package com.tapdata.tm;
 
+import com.tapdata.tm.ds.service.impl.RepairCreateTimeComponent;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
+import com.tapdata.tm.listener.StartupListener;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -11,12 +13,12 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.servlet.ServletComponentScan;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.mongodb.config.EnableMongoAuditing;
 import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Field;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -51,8 +53,15 @@ public class TMApplication {
 	public static void main(String[] args) {
 		CommonUtils.setProperty("tap_verbose", "true");
 
-		ConfigurableApplicationContext applicationContext = SpringApplication.run(TMApplication.class, args);
+		ConfigurableApplicationContext applicationContext = new SpringApplicationBuilder(TMApplication.class)
+				.listeners(new StartupListener())
+				.build().run(args);
 		SpringContextHelper.applicationContext = applicationContext;
+
+		new Thread(()->{
+			RepairCreateTimeComponent repairCreateTimeComponent = applicationContext.getBean("repairCreateTimeComponent", RepairCreateTimeComponent.class);
+			repairCreateTimeComponent.repair();
+		}).start();
 
 		UserService userService = applicationContext.getBean(UserService.class);
 		Query query = new Query(Criteria.where("email").is("admin@admin.com"));
@@ -109,16 +118,10 @@ public class TMApplication {
 		TapRuntime.getInstance();
 		TapLogger.debug(TAG, "TapRuntime initialized");
 
-//		new Thread(() -> {
-//			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
-//			UserDetail userDetail = userService.loadUserByUsername("admin@admin.com");
-//
-//			bean.deleteDefault(userDetail);
-//			bean.addPdkIds(userDetail);
-//			bean.addConnections(userDetail);
-//			bean.addJobs(userDetail);
-//			bean.addApi(userDetail);
-//		}).start();
+		new Thread(() -> {
+			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
+			bean.init();
+		}).start();
 
 	}
 }

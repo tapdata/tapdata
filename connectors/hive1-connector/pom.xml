@@ -16,11 +16,13 @@
         <java.version>1.8</java.version>
         <sql.core.version>1.0-SNAPSHOT</sql.core.version>
         <commons-lang3.version>3.12.0</commons-lang3.version>
+<!--        <tapdata.pdk.api.version>1.2.0</tapdata.pdk.api.version>-->
     </properties>
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -137,14 +139,6 @@
         </dependency>
     </dependencies>
 
-    <repositories>
-        <repository>
-            <!--必须与 settings.xml 的 id 一致-->
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-        </repository>
-    </repositories>
     <build>
         <plugins>
             <plugin>
@@ -169,6 +163,7 @@
                             <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                             <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
                             <Version>${version}</Version>
+                            <Authentication>Alpha</Authentication>
                             <Git-Build-Time>${git.build.time}</Git-Build-Time>
                             <Git-Branch>${git.branch}</Git-Branch>
                             <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>

@@ -12,10 +12,6 @@ import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.endpoint.WebSocketServer;
 import com.tapdata.tm.ws.handler.WebSocketHandler;
 import org.apache.tomcat.websocket.server.Constants;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import javax.servlet.ServletContext;
 import org.springframework.boot.web.servlet.ServletContextInitializer;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
@@ -25,6 +21,11 @@ import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
+
+import javax.servlet.ServletContext;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSocket
@@ -36,6 +37,8 @@ public class WebSocketConfig implements WebSocketConfigurer, ServletContextIniti
 	private final WebSocketServer webSocket;
 
 	private final WebSocketClusterServer webSocketClusterServer;
+
+	private final long WS_BUFFER_SIZE = 8 * 10 * 1024;
 
 	public WebSocketConfig(WebSocketServer webSocket, WebSocketClusterServer webSocketClusterServer) {
 		this.webSocket = webSocket;
@@ -52,8 +55,8 @@ public class WebSocketConfig implements WebSocketConfigurer, ServletContextIniti
 
 	@Override
 	public void onStartup(ServletContext servletContext) {
-		servletContext.setInitParameter(Constants.BINARY_BUFFER_SIZE_SERVLET_CONTEXT_INIT_PARAM, String.valueOf(8 * 1024 * 10));
-		servletContext.setInitParameter(Constants.TEXT_BUFFER_SIZE_SERVLET_CONTEXT_INIT_PARAM, String.valueOf(8 * 1024 * 10));
+		servletContext.setInitParameter(Constants.BINARY_BUFFER_SIZE_SERVLET_CONTEXT_INIT_PARAM, String.valueOf(1024));
+		servletContext.setInitParameter(Constants.TEXT_BUFFER_SIZE_SERVLET_CONTEXT_INIT_PARAM, String.valueOf(WS_BUFFER_SIZE));
 	}
 
 	@Override

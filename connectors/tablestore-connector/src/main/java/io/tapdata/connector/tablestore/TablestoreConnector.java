@@ -58,22 +58,22 @@ public class TablestoreConnector extends ConnectorBase {
         clientConfiguration.setConnectionTimeoutInMillisecond(5000);
         clientConfiguration.setSocketTimeoutInMillisecond(5000);
         clientConfiguration.setRetryStrategy(new AlwaysRetryStrategy());
-        if (Objects.isNull(tablestoreConfig.getToken())) {
-            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(),
-                    tablestoreConfig.getKey(), tablestoreConfig.getInstance(), clientConfiguration);
+        if (Objects.isNull(tablestoreConfig.getAccessKeyToken())) {
+            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(),
+                    tablestoreConfig.getAccessKeySecret(), tablestoreConfig.getInstance(), clientConfiguration);
         } else {
-            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(),
-                    tablestoreConfig.getKey(), tablestoreConfig.getInstance(), clientConfiguration, tablestoreConfig.getToken());
+            return new TimeseriesClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(),
+                    tablestoreConfig.getAccessKeySecret(), tablestoreConfig.getInstance(), clientConfiguration, tablestoreConfig.getAccessKeyToken());
         }
     }
 
     private SyncClient createInternalClient() {
-        if (Objects.isNull(tablestoreConfig.getToken())) {
-            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(), tablestoreConfig.getKey(),
+        if (Objects.isNull(tablestoreConfig.getAccessKeyToken())) {
+            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(), tablestoreConfig.getAccessKeySecret(),
                     tablestoreConfig.getInstance());
         } else {
-            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getId(), tablestoreConfig.getKey(),
-                    tablestoreConfig.getInstance(), tablestoreConfig.getToken());
+            return new SyncClient(tablestoreConfig.getEndpoint(), tablestoreConfig.getAccessKeyId(), tablestoreConfig.getAccessKeySecret(),
+                    tablestoreConfig.getInstance(), tablestoreConfig.getAccessKeyToken());
         }
     }
 
@@ -237,7 +237,7 @@ public class TablestoreConnector extends ConnectorBase {
         return 0;
     }
 
-    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable, Exception {
         String tableId = tapTable.getId();
         if ("NORMAL".equals(tablestoreConfig.getClientType())) {
             DescribeTableRequest request = new DescribeTableRequest(tableId);
@@ -289,7 +289,7 @@ public class TablestoreConnector extends ConnectorBase {
                             client.putRow(new PutRowRequest(putChange));
                             insertCount++;
                         } catch (Exception e) {
-                            throw new RuntimeException(e);
+                            listResult.addError(recordEvent, e);
                         }
 
                     } else if (recordEvent instanceof TapUpdateRecordEvent) {
@@ -330,7 +330,7 @@ public class TablestoreConnector extends ConnectorBase {
                             client.updateRow(new UpdateRowRequest(updateChange));
                             updateCount++;
                         }  catch (Exception e) {
-                            throw new RuntimeException(e);
+                            listResult.addError(recordEvent, e);
                         }
                     } else if (recordEvent instanceof TapDeleteRecordEvent) {
                         try {
@@ -345,8 +345,7 @@ public class TablestoreConnector extends ConnectorBase {
                                             Optional.ofNullable(tableMeta.getPrimaryKeyMap().get(k))
                                                     .orElseThrow(()-> new RuntimeException("table primaryKeyMap not find "+k))
                                                     .name());
-                                    Object value = before.get(k);
-                                    transferValueType(columnType, value);
+                                    Object value = transferValueType(columnType, before.get(k));
                                     pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                                 }
                                 deleteChange = new RowDeleteChange(tableId, pkBuilder.build());
@@ -357,7 +356,7 @@ public class TablestoreConnector extends ConnectorBase {
                             client.deleteRow(new DeleteRowRequest(deleteChange));
                             deleteCount++;
                         }  catch (Exception e) {
-                            throw new RuntimeException(e);
+                            listResult.addError(recordEvent, e);
                         }
                     }
                 }

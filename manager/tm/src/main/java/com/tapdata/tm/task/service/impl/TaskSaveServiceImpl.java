@@ -1,8 +1,9 @@
 package com.tapdata.tm.task.service.impl;
 
+import cn.hutool.extra.cglib.CglibUtil;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
-import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -16,7 +17,9 @@ import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
@@ -24,6 +27,7 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
@@ -32,8 +36,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,10 +51,6 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
     @Override
     public boolean taskSaveCheckLog(TaskDto taskDto, UserDetail userDetail) {
-        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-            return false;
-        }
-
         taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
 
         boolean noPass = false;
@@ -59,8 +59,6 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             Optional<TaskDagCheckLog> any = taskDagCheckLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
             if (any.isPresent()) {
                 noPass = true;
-
-                //taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
             }
         }
 
@@ -74,21 +72,33 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         }
 
         DAG dag = taskDto.getDag();
+        if (Objects.isNull(dag) || org.apache.commons.collections4.CollectionUtils.isEmpty(dag.getNodes())) {
+            return;
+        }
 
         //supplier migrate tableSelectType=all tableNames and SyncObjects
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             DatabaseNode sourceNode = dag.getSourceNode().getFirst();
-            List<String> tableNames = sourceNode.getTableNames();
-            if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
+
+            if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
                 String connectionId = sourceNode.getConnectionId();
                 List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
                 if (CollectionUtils.isNotEmpty(metaList)) {
-                    List<String> collect = metaList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
+                    List<String> collect = metaList.stream()
+                            .map(MetadataInstancesDto::getOriginalName)
+                            .filter(originalName -> {
+                                if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
+                                    return false;
+                                } else {
+                                    return Pattern.matches(sourceNode.getTableExpression(), originalName);
+                                }
+                            })
+                            .collect(Collectors.toList());
                     sourceNode.setTableNames(collect);
                 }
             }
 
-            nodeCheckData(sourceNode.successors(), tableNames, null);
+            nodeCheckData(sourceNode.successors(), sourceNode.getTableNames(), null);
 
             Dag temp = new Dag(dag.getEdges(), dag.getNodes());
             DAG.build(temp);
@@ -98,8 +108,8 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
     @Override
     public void supplementAlarm(TaskDto taskDto, UserDetail userDetail) {
-        List<AlarmSettingDto> settingDtos = alarmSettingService.findAll();
-        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAll();
+        List<AlarmSettingDto> settingDtos = alarmSettingService.findAll(userDetail);
+        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAll(userDetail);
 
         Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
         Map<AlarmKeyEnum, AlarmRuleDto> ruleDtoMap = ruleDtos.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
@@ -113,51 +123,39 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_START));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
+            taskDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
+        }
 
+        if (CollectionUtils.isEmpty(taskDto.getAlarmRules())) {
             alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
-
-            taskDto.setAlarmSettings(alarmSettingDtos);
-            taskDto.setAlarmRules(alarmRuleDtos);
+            taskDto.setAlarmRules(CglibUtil.copyList(alarmRuleDtos, AlarmRuleVO::new));
         }
 
         if (Objects.nonNull(taskDto.getDag()) && CollectionUtils.isNotEmpty(taskDto.getDag().getNodes())) {
             for (Node<?> node : taskDto.getDag().getNodes()) {
-                alarmSettingDtos = Lists.newArrayList();
-                alarmRuleDtos = Lists.newArrayList();
-                if (node != null) {
-                    if (node.isDataNode()) {
-                        if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
-                            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_CANNOT_CONNECT));
-                            //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
-                            //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
-                            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
-                        }
-
-                        if (CollectionUtils.isEmpty(node.getAlarmRules())) {
-                            //alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
-                            //alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
-                            alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
-                        }
-
-                    } else {
-
-                        if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
-                            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
-                        }
-
-                        if (CollectionUtils.isEmpty(node.getAlarmRules())) {
-                            alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
-                        }
-                    }
-                    if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
-                        node.setAlarmSettings(alarmSettingDtos);
-                    }
-                    if (CollectionUtils.isNotEmpty(alarmRuleDtos)) {
-                        node.setAlarmRules(alarmRuleDtos);
-                    }
-                }
+                List<AlarmSettingDto> nodeSettings = Lists.newArrayList();
+                List<AlarmRuleDto> nodeRules = Lists.newArrayList();
+                FunctionUtils.isTureOrFalse(node.isDataNode()).trueOrFalseHandle(() -> {
+                            if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
+                                nodeSettings.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+                                node.setAlarmSettings(CglibUtil.copyList(nodeSettings, AlarmSettingVO::new));
+                            }
+                            if (CollectionUtils.isEmpty(node.getAlarmRules())) {
+                                nodeRules.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+                                node.setAlarmRules(CglibUtil.copyList(nodeRules, AlarmRuleVO::new));
+                            }
+                        },
+                        () -> {
+                            if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
+                                nodeSettings.add(settingDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
+                                node.setAlarmSettings(CglibUtil.copyList(nodeSettings, AlarmSettingVO::new));
+                            }
+                            if (CollectionUtils.isEmpty(node.getAlarmRules())) {
+                                nodeRules.add(ruleDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
+                                node.setAlarmRules(CglibUtil.copyList(nodeRules, AlarmRuleVO::new));
+                            }
+                        });
             }
-
         }
 
     }

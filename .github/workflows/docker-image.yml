@@ -64,6 +64,13 @@ jobs:
         run: |
           echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
           echo "TAG_BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
+          echo "server_url=${{ github.server_url }}" >> $GITHUB_ENV
+          echo "repository=${{ github.repository }}" >> $GITHUB_ENV
+          echo "run_id=${{ github.run_id }}" >> $GITHUB_ENV
+          echo "FEISHU_APP_ID=${{ env.FEISHU_APP_ID }}" >> $GITHUB_ENV
+          echo "FEISHU_PERSON_IN_CHARGE=${{ env.FEISHU_PERSON_IN_CHARGE }}" >> $GITHUB_ENV
+          echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+          echo "FEISHU_APP_SECRET=${{ env.FEISHU_APP_SECRET }}" >> $GITHUB_ENV
       - name: Checkout Enterprise Repo to Set Env if Cron Job
         if: ${{ github.event_name == 'schedule' }}
         uses: actions/checkout@v3
@@ -111,6 +118,9 @@ jobs:
       - name: compile connectors module
         run:
           build/build.sh -c connectors
+      - name: compile opensource tapdata-cli module
+        run:
+          build/build.sh -c tapdata-cli
       - name: package module and make image
         run: |
           cur_timestamp=$((`date '+%s'`))

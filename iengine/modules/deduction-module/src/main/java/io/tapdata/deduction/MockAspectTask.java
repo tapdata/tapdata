@@ -12,8 +12,10 @@ import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.SampleMockUtil;
+import org.apache.commons.collections.CollectionUtils;
 
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +28,8 @@ import java.util.stream.Collectors;
 public class MockAspectTask extends AbstractAspectTask {
 
   private Set<String> nodeIds;
+
+  private boolean multipleTables;
 
   public MockAspectTask() {
     observerHandlers.register(ProcessorNodeProcessAspect.class, this::processorNodeProcessAspect);
@@ -44,8 +48,12 @@ public class MockAspectTask extends AbstractAspectTask {
           if (!(tapEvent instanceof TapRecordEvent)) {
             return null;
           }
-          SampleMockUtil.mock(processorBaseContext.getTapTableMap().get(TapEventUtil.getTableId(tapEvent)),
-                  TapEventUtil.getAfter(tapEvent));
+          String tableId = TapEventUtil.getTableId(tapEvent);
+          if (!multipleTables) {
+            tableId = nodeId;
+          }
+          TapTable tapTable = processorBaseContext.getTapTableMap().get(tableId);
+          SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
           break;
       }
     }
@@ -54,7 +62,7 @@ public class MockAspectTask extends AbstractAspectTask {
 
   @Override
   public void onStart(TaskStartAspect startAspect) {
-    Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> n.getType().equals("virtualTarget")).findFirst();
+    Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> null != n && "virtualTarget".equals(n.getType())).findFirst();
     if (optional.isPresent()) {
       Node virtualTargetNode = optional.get();
       List<Node> targetNodes = task.getDag().predecessors(virtualTargetNode.getId());
@@ -64,6 +72,7 @@ public class MockAspectTask extends AbstractAspectTask {
       Node targetNode = targetNodes.get(0);
       this.nodeIds = task.getDag().predecessors(targetNode.getId()).stream().map(Element::getId).collect(Collectors.toSet());
     }
+    this.multipleTables = CollectionUtils.isNotEmpty(task.getDag().getSourceNode());
   }
 
 

@@ -15,6 +15,7 @@
 
     <properties>
         <java.version>8</java.version>
+<!--        <tapdata.pdk.api.version>1.2.0</tapdata.pdk.api.version>-->
     </properties>
 
     <dependencies>
@@ -26,6 +27,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -59,6 +61,7 @@
                             <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                             <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
                             <Version>${project.version}</Version>
+                            <Authentication>GA</Authentication>
                             <Git-Build-Time>${git.build.time}</Git-Build-Time>
                             <Git-Branch>${git.branch}</Git-Branch>
                             <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>

@@ -24,7 +24,7 @@ import java.util.Map;
 public class CustomSchema {
 
     private static final String TAG = CustomSchema.class.getSimpleName();
-    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class); //script factory
+    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "engine"); //script factory
     private final CustomConfig customConfig;
     private final static int LOAD_SCHEMA_RETRY_TIME = 60;
 
@@ -66,7 +66,7 @@ public class CustomSchema {
             ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
             scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(script, false));
             scriptEngine.put("core", core);
-            scriptEngine.put("log", new CustomLog());
+//            scriptEngine.put("log", new CustomLog());
             Thread t = new Thread(ScriptUtil.createScriptRunnable(scriptEngine, ScriptUtil.SOURCE_FUNCTION_NAME));
             TapLogger.info(TAG, "Running script, try to get data and build schema. \n {}", script);
             t.start();

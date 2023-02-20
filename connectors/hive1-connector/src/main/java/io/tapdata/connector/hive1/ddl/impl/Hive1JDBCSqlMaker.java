@@ -1,18 +1,15 @@
 package io.tapdata.connector.hive1.ddl.impl;
 
-import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.connector.hive1.ddl.DDLSqlMaker;
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.kit.EmptyKit;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.*;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class Hive1JDBCSqlMaker implements DDLSqlMaker {
@@ -31,7 +28,7 @@ public class Hive1JDBCSqlMaker implements DDLSqlMaker {
             if (tapField.getDataType() == null) {
                 return "";
             }
-            tapField.setDataType(tapField.getDataType().replace("unsigned","").replace("UNSIGNED",""));
+            tapField.setDataType(tapField.getDataType().replace("unsigned", "").replace("UNSIGNED", ""));
             builder.append('`').append(tapField.getName()).append("` ");
 
             builder.append(tapField.getDataType()).append(' ');

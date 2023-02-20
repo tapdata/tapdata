@@ -4,7 +4,6 @@ import base.BaseTest;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.processor.Log4jScriptLogger;
 import com.tapdata.processor.LoggingOutputStream;
-import com.tapdata.processor.ScriptLogger;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.graalvm.polyglot.Context;

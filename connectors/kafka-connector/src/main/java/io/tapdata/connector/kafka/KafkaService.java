@@ -19,6 +19,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
@@ -50,7 +51,14 @@ public class KafkaService extends AbstractMqService {
     public KafkaService(KafkaConfig mqConfig) {
         this.mqConfig = mqConfig;
         ProducerConfiguration producerConfiguration = new ProducerConfiguration(mqConfig, connectorId);
-        kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
+        try {
+            kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            TapLogger.error(TAG, "Kafka producer error: " + ErrorKit.getLastCause(e).getMessage(), e);
+            throw new RuntimeException(e);
+        }
     }
 
     public void setConnectorId(String connectorId) {

@@ -1,10 +1,15 @@
 package com.tapdata.tm.worker.controller;
 
+import com.alibaba.fastjson.JSONObject;
 import com.google.gson.reflect.TypeToken;
-import com.tapdata.tm.commons.util.JsonUtil;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.CheckTaskUsedAgentDto;
 import com.tapdata.tm.worker.dto.WorkerDto;
@@ -15,6 +20,9 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
@@ -41,11 +49,13 @@ public class WorkerController extends BaseController {
         return "get success";
     }
 
+    private final UserLogService userLogService;
+    private SettingsService settingsService;
     private WorkerService workerService;
 
-    private SettingsService settingsService;
-    public WorkerController(WorkerService workerService, SettingsService settingsService) {
+    public WorkerController(WorkerService workerService, UserLogService userLogService, SettingsService settingsService) {
         this.workerService = workerService;
+        this.userLogService = userLogService;
         this.settingsService = settingsService;
     }
 
@@ -69,6 +79,11 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping("/health")
     public ResponseMessage<WorkerDto> health(@RequestBody WorkerDto worker) {
+        // flow-engine will set pingTime to 1 when users ask to stop the flow-engine in DFS， so here we
+        // keep the pingTime value 1
+        if (worker.getPingTime() == null || worker.getPingTime() != 1) {
+            worker.setPingTime(new Date().getTime());
+        }
         return success(workerService.health(worker, getLoginUser()));
     }
 
@@ -272,6 +287,9 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+
+        UserDetail userDetail = getLoginUser();
+
         Where where = parseWhere(whereJson);
         Document update = Document.parse(reqBody);
         if (update.containsKey("$set") && update.get("$set") instanceof Document) {
@@ -280,10 +298,34 @@ public class WorkerController extends BaseController {
             }
         }
 
+        com.tapdata.tm.userLog.constant.Operation operation = null;
+
         if (update.containsKey("isDeleted") && update.getBoolean("isDeleted")) {
             update.put("ping_time", 0L);
+            operation = com.tapdata.tm.userLog.constant.Operation.DELETE;
         }else if (update.containsKey("stopping") && update.getBoolean("stopping")){
             update.put("ping_time", System.currentTimeMillis() - 1000 * 60 * 5);
+            operation = com.tapdata.tm.userLog.constant.Operation.STOP;
+        }
+        boolean isTcmRequest = update.containsKey("isTCM") && update.getBoolean("isTCM");
+        if (isTcmRequest && operation != null) {
+            try {
+                Filter filter = new Filter();
+                filter.setWhere(where);
+
+                WorkerDto worker = workerService.findOne(filter, userDetail);
+                if (worker != null && worker.getTcmInfo() != null) {
+                    userLogService.addUserLog(
+                            Modular.AGENT, operation,
+                            userDetail, worker.getTcmInfo().getAgentName());
+                    if(com.tapdata.tm.userLog.constant.Operation.STOP.equals(operation)) {
+                        workerService.sendStopWorkWs(worker.getProcessId(), userDetail);
+                    }
+                }
+            } catch (Exception e) {
+                // Ignore record agent operation log error
+                log.error("Record update worker operation fail", e);
+            }
         }
 
         if (!update.containsKey("$set") && !update.containsKey("$setOnInsert") && !update.containsKey("$unset")) {
@@ -292,7 +334,7 @@ public class WorkerController extends BaseController {
             update = _body;
         }
 
-        long count = workerService.updateByWhere(where, update, getLoginUser());
+        long count = workerService.updateByWhere(where, update, userDetail);
         /*if (reqBody.contains("\"$set\"") || reqBody.contains("\"$setOnInsert\"") || reqBody.contains("\"$unset\"")) {
             UpdateDto<WorkerDto> updateDto = JsonUtil.parseJsonUseJackson(reqBody, new TypeReference<UpdateDto<WorkerDto>>(){});
 
@@ -309,6 +351,8 @@ public class WorkerController extends BaseController {
         return success(countValue);
     }
 
+
+
     /**
      * 进程调用该方法，上报各个进程的数据，ping_time 之类 的
      *
@@ -322,6 +366,45 @@ public class WorkerController extends BaseController {
             worker.setPingTime(nowTimeStamp);
         }
         return success(workerService.upsertByWhere(where, worker, getLoginUser()));
+    }
+    @Operation(summary = "单例启动检测")
+    @PostMapping("singleton-lock/upsertWithWhere")
+    public ResponseMessage<String> singletonLock(@RequestParam("where") String whereJson, @RequestBody WorkerDto updateWorker) {
+        JSONObject json = JSONObject.parseObject(whereJson);
+
+        String processId = json.getString("process_id");
+        String workerType = json.getString("worker_type");
+        String checkSingletonLock = json.getString("singletonLock");
+
+        WorkerDto oldWorker = workerService.findOne(Query.query(Criteria
+                .where("process_id").is(processId)
+                .and("worker_type").is(workerType)
+        ));
+
+        // 数据不存在，可以启动
+        if (null == oldWorker) {
+            return success("ok");
+        }
+
+        String restoreTip = ", If you want to restore, you need to set '.agentSingletonLock' file content is 'force'";
+        if (!"force".equals(checkSingletonLock)) {
+            checkSingletonLock = (null == checkSingletonLock) ? "" : checkSingletonLock;
+            oldWorker.setSingletonLock((null == oldWorker.getSingletonLock()) ? "" : oldWorker.getSingletonLock());
+
+            // 可以启动的情况：Agent离线、标签一致
+            if (!(workerService.isAgentTimeout(oldWorker.getPingTime())
+                    || checkSingletonLock.equals(oldWorker.getSingletonLock())
+            )) {
+                return success("White agent timeout" + restoreTip);
+            }
+        }
+
+        UpdateResult result = workerService.updateById(oldWorker.getId(), Update.update("singletonLock", updateWorker.getSingletonLock()), getLoginUser());
+        if (result.getModifiedCount() == 1) {
+            return success("ok");
+        } else {
+            return failed("IllegalArgument", "Not found worker" + restoreTip);
+        }
     }
 
     @Operation(summary = "创建实例接口")

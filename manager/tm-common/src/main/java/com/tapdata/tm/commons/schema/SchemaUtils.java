@@ -76,10 +76,18 @@ public class SchemaUtils {
         if (targetSchema == null) {
             log.warn("Can't merge non schema.");
             return null;
+        } else {
+            if (!logicInput && CollectionUtils.isNotEmpty(inputSchemas)) {
+                List<TableIndex> inputIndices = inputSchemas.stream()
+                        .filter(Objects::nonNull)
+                        .filter(s -> null != s.getIndices())
+                        .flatMap(s -> s.getIndices().stream())
+                        .filter(Objects::nonNull).collect(Collectors.toList());
+                targetSchema.setIndices(inputIndices);
+            }
         }
 
 
-        Schema finalTargetSchema = targetSchema;
         List<String> inputSchemaFieldIds = _inputSchemas.stream().flatMap(s -> s.getFields().stream())
                 .map(Field::getId).filter(Objects::nonNull).collect(Collectors.toList());
 

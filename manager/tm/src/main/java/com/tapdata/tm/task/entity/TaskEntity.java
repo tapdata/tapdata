@@ -5,8 +5,8 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.*;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
@@ -166,7 +166,7 @@ public class TaskEntity extends BaseEntity {
     private Long lastStartDate;
     private Date stopTime;
     private Long scheduleDate;
-    private Date monitorStartDate;
+    private Long stopedDate;
 
     private HashSet<String> heartbeatTasks;
 
@@ -184,6 +184,7 @@ public class TaskEntity extends BaseEntity {
 
     //private Date startTime;
     private Date scheduledTime;
+    private Date schedulingTime;
     private Date stoppingTime;
     private Date runningTime;
     private Date errorTime;
@@ -214,8 +215,8 @@ public class TaskEntity extends BaseEntity {
     private String transformUuid;
     private Boolean transformed;
 
-    private List<AlarmSettingDto> alarmSettings;
-    private List<AlarmRuleDto> alarmRules;
+    private List<AlarmSettingVO> alarmSettings;
+    private List<AlarmRuleVO> alarmRules;
 
     private Map<String, Object> logSetting;
     private Integer resetTimes;
@@ -224,6 +225,13 @@ public class TaskEntity extends BaseEntity {
     private Long snapshotDoneAt;
 
     private boolean needCreateRecord;
+
+    private boolean crontabExpressionFlag;
+
+    private String testTaskId;
+    private String transformTaskId;
+    private int stopRetryTimes;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

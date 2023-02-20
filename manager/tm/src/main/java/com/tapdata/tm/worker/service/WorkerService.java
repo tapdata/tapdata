@@ -5,10 +5,10 @@ import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -16,9 +16,12 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
+import com.tapdata.tm.cluster.dto.UpdataStatusRequest;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
@@ -26,18 +29,24 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
 import com.tapdata.tm.scheduleTasks.service.ScheduleTasksService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import io.firedome.MultiTaggedCounter;
+import io.micrometer.core.instrument.Metrics;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.BsonDocument;
 import org.bson.BsonValue;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -51,6 +60,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -63,13 +73,26 @@ import java.util.*;
 public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, WorkerRepository> {
 
     private DataFlowService dataFlowService;
+    @Autowired
     private ClusterStateService clusterStateService;
+    @Autowired
+    private UserLogService userLogService;
+    @Autowired
+    private UserService userService;
+    @Autowired
     private SettingsService settingsService;
+    @Autowired
     private ScheduleTasksService scheduleTasksService;
+
+    @Autowired
     private TaskService taskService;
+
+    private final MultiTaggedCounter workerPing;
 
     public WorkerService(@NonNull WorkerRepository repository) {
         super(repository, WorkerDto.class, Worker.class);
+
+        workerPing = new MultiTaggedCounter("worker_ping", Metrics.globalRegistry, "worker_type", "version");
     }
 
     @Override
@@ -87,7 +110,16 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         }
         // 引擎定时任务是5秒
         Query query = getAvailableAgentQuery();
-        return repository.findAll(query);
+        return repository.findAll(query, userDetail);
+    }
+
+    public List<Worker> findAllAgent(UserDetail userDetail) {
+        if (Objects.isNull(userDetail)) {
+            return null;
+        }
+        Criteria criteria = Criteria.where("worker_type").is("connector")
+                .and("isDeleted").ne(true);
+        return repository.findAll(Query.query(criteria), userDetail);
     }
 
     @NotNull
@@ -95,9 +127,18 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return Query.query(getAvailableAgentCriteria());
     }
 
+    public boolean isAgentTimeout(Long pingTime) {
+        if (null != pingTime) {
+            int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+            return pingTime <= System.currentTimeMillis() - (overTime * 1000L);
+        }
+        return true;
+    }
+
     private Criteria getAvailableAgentCriteria() {
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
         Criteria criteria = Criteria.where("worker_type").is("connector")
-                .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
+                .and("ping_time").gte(System.currentTimeMillis() - (overTime * 1000L))
                 .and("isDeleted").ne(true).and("stopping").ne(true);
         return criteria;
     }
@@ -123,7 +164,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (CollectionUtils.isNotEmpty(processIdList)) {
             query.addCriteria(Criteria.where("process_id").in(processIdList));
         }
-        return repository.findAll(query);
+        return repository.findAll(query, userDetail);
     }
 
     @Override
@@ -178,7 +219,16 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         workerDto.setTmUserId(loginUser.getUserId());
 
-        //userLogService.addUserLog(Modular);
+        try {
+            String agentName = "";
+            if (workerDto.getTcmInfo() != null && StringUtils.isNotBlank(workerDto.getTcmInfo().getAgentName())) {
+                agentName = workerDto.getTcmInfo().getAgentName();
+            }
+            userLogService.addUserLog(Modular.AGENT, Operation.CREATE, loginUser, agentName);
+        } catch (Exception e) {
+            // Ignore record agent operation log error
+            log.error("Record create worker operation fail", e);
+        }
 
         return workerDto;
     }
@@ -194,10 +244,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         workers.forEach(worker -> {
 
-            Query query = Query.query(Criteria.where("agentId").is(worker.getProcessId()).and("status").is("running"));
-            query.fields().include("id", "name");
-            //TODO 同样的这里的dataflow处理， 没有改成task的兼容
-            List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
+            Query query = Query.query(Criteria.where("agentId").is(worker.getProcessId()).and("status").is(TaskDto.STATUS_RUNNING));
+            query.fields().include("id", "name", "syncType");
+            //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
+            List<TaskDto> tasks = taskService.findAll(query);
 
             query = Query.query(Criteria.where("systemInfo.process_id").is(worker.getProcessId()));
             query.with(Sort.by(Sort.Order.desc("lastUpdAt"))).limit(1);
@@ -205,8 +255,15 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             SystemInfo systemInfo = clusterState != null && clusterState.size() > 0 ? clusterState.get(0).getSystemInfo() : null;
 
             WorkerProcessInfoDto workerProcessInfo = new WorkerProcessInfoDto();
-            workerProcessInfo.setRunningNum(dataFlows.size());
-            workerProcessInfo.setDataFlows(dataFlows);
+            workerProcessInfo.setRunningNum(tasks.size());
+            Map<String, Long> groupBySyncType = tasks.stream().collect(Collectors.groupingBy(ParentTaskDto::getSyncType, Collectors.counting()));
+            workerProcessInfo.setRunningTaskNum(groupBySyncType);
+            workerProcessInfo.setDataFlows(tasks.stream().map(task -> {
+                DataFlowDto dataFlow = new DataFlowDto();
+                dataFlow.setId(task.getId());
+                dataFlow.setName(task.getName());
+                return dataFlow;
+            }).collect(Collectors.toList()));
             workerProcessInfo.setSystemInfo(systemInfo);
 
             result.put(worker.getProcessId(), workerProcessInfo);
@@ -412,11 +469,6 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         UpdateResult updateResult = update(query, update);
 
         BsonValue upsertedId = updateResult.getUpsertedId();
-
-        if (upsertedId != null) {
-            BsonDocument bsonDocument = upsertedId.asDocument();
-        }
-
         log.info("clean worker :{}", updateResult.getModifiedCount());
     }
 
@@ -497,11 +549,28 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         worker.setPingTime(System.currentTimeMillis());
 
-        repository.upsert(
-                Query.query(Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType())),
+        Criteria where = Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType());
+        if (!WorkerSingletonLock.checkDBTag(worker.getSingletonLock(), worker.getWorkerType(), () -> Optional
+                .of(Query.query(where))
+                .map(query -> {
+                    query.fields().include("singletonLock", "ping_time");
+                    return query;
+                }).flatMap(query -> repository.findOne(query).map(w -> {
+                    // 如果超时，返回当前 worker tag 表示可以启动
+                    if (isAgentTimeout(w.getPingTime())) {
+                        return null;
+                    }
+                    return w.getSingletonLock();
+                }))
+                .orElse(worker.getSingletonLock())
+        )) {
+            return null;
+        }
+
+        repository.upsert(Query.query(where),
                 convertToEntity(Worker.class, worker), loginUser
         );
-
+        workerPing.increment(worker.getWorkerType(), worker.getVersion());
         return worker;
     }
 
@@ -511,6 +580,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         WorkerDto one = findOne(query);
         if (Objects.nonNull(one)) {
             dto.setHostName(one.getHostname());
+            Optional.ofNullable(one.getTcmInfo()).ifPresent(info -> {
+                dto.setAgentName(info.getAgentName());
+            });
         }
     }
 
@@ -536,5 +608,15 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         return "online";
 
+    }
+
+    public void sendStopWorkWs(String processId, UserDetail userDetail) {
+        UpdataStatusRequest updataStatusRequest = new UpdataStatusRequest();
+        ClusterStateDto clusterStateDto = clusterStateService.findOne(Query.query(Criteria.where("systemInfo.process_id").
+                is(processId).and("status").is("running")));
+        updataStatusRequest.setUuid(clusterStateDto.getUuid());
+        updataStatusRequest.setOperation("stop");
+        updataStatusRequest.setServer("backend");
+        clusterStateService.updateStatus(updataStatusRequest, userDetail);
     }
 }

@@ -24,6 +24,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
@@ -111,6 +112,59 @@ public class TransformSchemaService {
         taskDto.setUserId(user.getUserId());
         DAG dag = taskDto.getDag();
 
+        Map<String, List<SchemaTransformerResult>> results = new HashMap<>();
+        Map<String, List<SchemaTransformerResult>> lastBatchResults = new HashMap<>();
+
+        dag.addNodeEventListener(new Node.EventListener<Object>() {
+            @Override
+            public void onTransfer(List<Object> inputSchemaList, Object schema, Object outputSchema, String nodeId) {
+                List<SchemaTransformerResult> schemaTransformerResults = results.get(nodeId);
+                if (schemaTransformerResults == null) {
+                    return;
+                }
+                List<Schema> outputSchemaList;
+                if (outputSchema instanceof List) {
+                    outputSchemaList = (List) outputSchema;
+
+                } else {
+                    Schema outputSchema1 = (Schema) outputSchema;
+                    outputSchemaList = Lists.newArrayList(outputSchema1);
+                }
+
+                List<String> sourceQualifiedNames = outputSchemaList.stream().map(Schema::getQualifiedName).collect(Collectors.toList());
+                Criteria criteria = Criteria.where("qualified_name").in(sourceQualifiedNames);
+                Query query = new Query(criteria);
+                query.fields().include("_id", "qualified_name");
+                List<MetadataInstancesEntity> all = metadataInstancesService.findAll(query, user);
+                Map<String, MetadataInstancesEntity> metaMaps = all.stream().collect(Collectors.toMap(MetadataInstancesEntity::getQualifiedName, m -> m, (m1, m2) -> m1));
+                for (SchemaTransformerResult schemaTransformerResult : schemaTransformerResults) {
+                    if (Objects.isNull(schemaTransformerResult)) {
+                        continue;
+                    }
+                    MetadataInstancesEntity metadataInstancesEntity = metaMaps.get(schemaTransformerResult.getSinkQulifiedName());
+                    if (metadataInstancesEntity != null && metadataInstancesEntity.getId() != null) {
+                        schemaTransformerResult.setSinkTableId(metadataInstancesEntity.getId().toHexString());
+                    }
+                }
+            }
+
+            @Override
+            public void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults) {
+                List<SchemaTransformerResult> results1 = results.get(nodeId);
+                if (CollectionUtils.isNotEmpty(results1)) {
+                    results1.addAll(schemaTransformerResults);
+                } else {
+                    results.put(nodeId, schemaTransformerResults);
+                }
+                lastBatchResults.put(nodeId, schemaTransformerResults);
+            }
+
+            @Override
+            public List<SchemaTransformerResult> getSchemaTransformResult(String nodeId) {
+                return lastBatchResults.get(nodeId);
+            }
+        });
+
         DAG.Options options = new DAG.Options(taskDto.getRollback(), taskDto.getRollbackTable());
         options.setSyncType(taskDto.getSyncType());
         options.setBatchNum(transformBatchNum);
@@ -158,6 +212,7 @@ public class TransformSchemaService {
             }
         }
 
+        final List<String> fileSource = Lists.newArrayList("xml", "json", "excel", "csv");
         if (!allParam) {
             List<String> qualifiedNames = new ArrayList<>();
             for (Node node : nodes) {
@@ -166,12 +221,24 @@ public class TransformSchemaService {
                     DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
                     DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
                     String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto, taskDto.getId().toHexString());
+
+                    if (fileSource.contains(dataSourceDefinitionDto.getPdkId())) {
+                        int i = qualifiedName.lastIndexOf("_");
+                        qualifiedName = qualifiedName.substring(0, i);
+                    }
                     qualifiedNames.add(qualifiedName);
                 } else if (node instanceof DatabaseNode) {
                     String connectionId = ((DatabaseNode) node).getConnectionId();
                     DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
                     DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
+
                     List<String> metas = metadataInstancesService.findDatabaseNodeQualifiedName(node.getId(), user, taskDto, dataSourceConnectionDto, dataSourceDefinitionDto);
+                    if (fileSource.contains(dataSourceDefinitionDto.getPdkId())) {
+                        metas = metas.stream().map(q -> {
+                            int i = q.lastIndexOf("_");
+                            return q.substring(0, i);
+                        }).collect(Collectors.toList());
+                    }
                     qualifiedNames.addAll(metas);
                 }
             }
@@ -294,8 +361,20 @@ public class TransformSchemaService {
 
         metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId(), result.getTransformUuid());
 
-        if (CollectionUtils.isNotEmpty(result.getBatchRemoveMetaDataList())) {
-            Criteria criteria = Criteria.where("qualified_name").in(result.getBatchRemoveMetaDataList());
+        List<String> batchRemoveMetaDataList = result.getBatchRemoveMetaDataList();
+        List<String> newBatchRemoveMetaDataList = new ArrayList<>();
+        if (CollectionUtils.isNotEmpty(batchRemoveMetaDataList)) {
+            for (String q : batchRemoveMetaDataList) {
+                if (!q.endsWith(taskId)) {
+                    newBatchRemoveMetaDataList.add(q + "_" + taskId);
+                } else {
+                    int i = q.lastIndexOf("_");
+                    String oldQualifiedName = q.substring(0, i);
+                    newBatchRemoveMetaDataList.add(oldQualifiedName);
+                }
+            }
+            batchRemoveMetaDataList.addAll(newBatchRemoveMetaDataList);
+            Criteria criteria = Criteria.where("qualified_name").in(batchRemoveMetaDataList);
             Query query = new Query(criteria);
             metadataInstancesService.deleteAll(query, user);
         }

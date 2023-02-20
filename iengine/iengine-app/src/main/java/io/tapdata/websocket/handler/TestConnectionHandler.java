@@ -44,6 +44,8 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 
 	private final static Logger logger = LogManager.getLogger(TestConnectionHandler.class);
 
+	private final static String NOT_CHANGE_LAST_COLLECTION = ConnectorConstant.CONNECTION_COLLECTION;
+
 	private ClientMongoOperator clientMongoOperator;
 	private SettingService settingService;
 
@@ -209,7 +211,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 					Update update = getValidateResultUpdate(0, 0L, BaseConnectionValidateResult.CONNECTION_STATUS_INVALID,
 							null, null, null, null);
 					Query updateQuery = new Query(where("_id").is(connection.getId()));
-					clientMongoOperator.update(updateQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
+					clientMongoOperator.update(updateQuery, update, NOT_CHANGE_LAST_COLLECTION);
 				}
 			}
 		};
@@ -234,7 +236,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		} else {
 			update.set("loadSchemaField", false);
 		}
-		clientMongoOperator.update(connectionIdQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
+		clientMongoOperator.update(connectionIdQuery, update, NOT_CHANGE_LAST_COLLECTION);
 		// Update connection options
 		update = new Update().set("options", validateResult.getConnectionOptions());
 		clientMongoOperator.update(connectionIdQuery, update, ConnectorConstant.CONNECTION_COLLECTION + "/connectionOptions");
@@ -243,7 +245,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 	@Deprecated
 	private void updateConnectionUniqueName(Connections connection, Query connectionIdQuery) {
 		connection.setUniqueName(connection.getId());
-		clientMongoOperator.update(connectionIdQuery, new Update().set("uniqueName", connection.getUniqueName()), ConnectorConstant.CONNECTION_COLLECTION);
+		clientMongoOperator.update(connectionIdQuery, new Update().set("uniqueName", connection.getUniqueName()), NOT_CHANGE_LAST_COLLECTION);
 	}
 
 	private void updateLoadSchemaFieldStatus(Connections connection, String status, Schema schema, String schemaVersion) {
@@ -252,7 +254,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		if (null != schema && schema.isIncludeFields()) {
 			update.set("schemaVersion", schemaVersion);
 		}
-		clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION);
+		clientMongoOperator.update(query, update, NOT_CHANGE_LAST_COLLECTION);
 	}
 
 	@Deprecated
@@ -303,10 +305,10 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 			}
 			if (!tmpList.isEmpty()) {
 				update.set("schema.tables", tmpList);
-				clientMongoOperator.update(connectionIdQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
+				clientMongoOperator.update(connectionIdQuery, update, NOT_CHANGE_LAST_COLLECTION);
 			}
 		} else {
-			clientMongoOperator.update(connectionIdQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
+			clientMongoOperator.update(connectionIdQuery, update, NOT_CHANGE_LAST_COLLECTION);
 		}
 	}
 

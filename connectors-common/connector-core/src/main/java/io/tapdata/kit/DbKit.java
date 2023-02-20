@@ -1,5 +1,7 @@
 package io.tapdata.kit;
 
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 
@@ -11,6 +13,8 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * tools for ResultSet
@@ -77,7 +81,7 @@ public class DbKit {
             ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
             for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
                 String[] columnNameArr = resultSetMetaData.getColumnName(i).split("\\.");
-                String substring = columnNameArr[columnNameArr.length-1];
+                String substring = columnNameArr[columnNameArr.length - 1];
                 columnNames.add(substring);
             }
         } catch (SQLException e) {
@@ -142,4 +146,29 @@ public class DbKit {
         return re;
     }
 
+    public static boolean ignoreCreateIndex(TapIndex exists, TapIndex created) {
+        if (!exists.isUnique() && created.isUnique()) {
+            return false;
+        }
+        return exists.getIndexFields().stream().map(TapIndexField::getName).collect(Collectors.toList())
+                .equals(created.getIndexFields().stream().map(TapIndexField::getName).collect(Collectors.toList()));
+    }
+
+    public static String buildIndexName(String table) {
+        return "TAPIDX_" + table.substring(Math.max(table.length() - 10, 0)) + UUID.randomUUID().toString().replaceAll("-", "").substring(20);
+    }
+
+    public static <T> List<List<T>> splitToPieces(List<T> data, int eachPieceSize) {
+        if (EmptyKit.isEmpty(data)) {
+            return new ArrayList<>();
+        }
+        if (eachPieceSize <= 0) {
+            throw new IllegalArgumentException("Param Error");
+        }
+        List<List<T>> result = new ArrayList<>();
+        for (int index = 0; index < data.size(); index += eachPieceSize) {
+            result.add(data.stream().skip(index).limit(eachPieceSize).collect(Collectors.toList()));
+        }
+        return result;
+    }
 }

@@ -98,7 +98,7 @@ public class ExcelConnector extends FileConnector {
                     }
                 }
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                TapLogger.warn(TAG, String.format("Reading file %s occurs error, skip it", fileOffset.getPath()), e);
             }
         });
     }
@@ -158,7 +158,7 @@ public class ExcelConnector extends FileConnector {
             TapField field = new TapField();
             field.name(objectEntry.getKey());
             Object val = objectEntry.getValue();
-            if (val instanceof String) {
+            if (EmptyKit.isNull(val) || val instanceof String) {
                 if (EmptyKit.isNotEmpty((String) val) && ((String) val).length() > 200) {
                     field.dataType("TEXT");
                 } else {

@@ -19,18 +19,18 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
+import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SendStatus;
-import com.tapdata.tm.utils.SmsUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -55,6 +55,7 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
     MailUtils mailUtils;
 
     @Autowired
+    @Lazy
     MessageService messageService;
 
     @Autowired
@@ -62,6 +63,9 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
 
     @Autowired
     SettingsService settingsService;
+
+    @Autowired
+    SmsService smsService;
 
     @Override
     protected void beforeSave(EventsDto dto, UserDetail userDetail) {
@@ -151,7 +155,6 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
     }
 
 
-    @Deprecated
     public Events recordEvents(String title, String content, String to, MessageDto messageDto, SendStatus sendStatus, Integer retry, String eventType) {
         Events retEvents = null;
         try {
@@ -267,7 +270,8 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
         Query query = Query.query(Criteria.where("id").is(id));
         update.inc("failed_result.retry", 1);
         update.set("failed_result.fail_message", sendStatus.getErrorMessage());
-        return super.update(query, update, userDetail);
+        update.set("event_status", sendStatus.getStatus());
+        return super.update(query, update);
     }
 
 
@@ -277,7 +281,9 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
     public Long updateEventStatus(ObjectId id, String eventStatus, UserDetail userDetail) {
         Update update = new Update();
         update.set("event_status", eventStatus);
-        UpdateResult updateResult = super.updateById(id, update, userDetail);
+        update.inc("failed_result.retry", 1);
+        update.set("failed_result.fail_message", "");
+        UpdateResult updateResult = super.update(Query.query(Criteria.where("id").is(id)), update);
         return updateResult.getModifiedCount();
     }
 
@@ -325,10 +331,10 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
         String metadataName = messageMetadata.getName();
 
         String receiver = events.getReceivers();
-        String smsTemplateCode = SmsUtils.getTemplateCode(messageDto.getMsg());
+        String smsTemplateCode = smsService.getTemplateCode(messageDto.getMsg());
         //msg为STOPPED_BY_ERROR  还没有设计发送短信
         if (StringUtils.isNotEmpty(smsTemplateCode)) {
-            sendStatus = SmsUtils.sendShortMessage(smsTemplateCode, receiver, messageDto.getSystem(), metadataName);
+            sendStatus = smsService.sendShortMessage(smsTemplateCode, receiver, messageDto.getSystem(), metadataName);
         } else {
 //            log.info("msg为STOPPED_BY_ERROR  还没有设计发送短信");
             sendStatus.setErrorMessage("msg为STOPPED_BY_ERROR  还没有设计发送短信");

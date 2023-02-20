@@ -1,10 +1,11 @@
 package com.tapdata.tm.base.filter;
 
+import com.tapdata.manager.common.utils.StringUtils;
 import cn.hutool.extra.servlet.ServletUtil;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.ThreadLocalUtils;
-import com.tapdata.tm.utils.ThrowableUtils;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.utils.WebUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Enumeration;
+import java.util.List;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -46,39 +48,65 @@ public class RequestFilter implements Filter {
 		}
 
 		ThreadLocalUtils.set(ThreadLocalUtils.USER_LOCALE, WebUtils.getLocale((HttpServletRequest) servletRequest));
-		String reqId = ResponseMessage.generatorReqId();
+		List<String> values = WebUtils.parseQueryString(httpServletRequest.getQueryString()).get("reqId");
+		String reqIdFromHeader = httpServletRequest.getHeader("requestId");
+		String reqId;
+		if (values != null && values.size() > 0) {
+			reqId = values.get(0);
+		} else if (StringUtils.isNotBlank(reqIdFromHeader)){
+			reqId = reqIdFromHeader;
+		} else {
+			reqId = ResponseMessage.generatorReqId();
+		}
 		String ip = ServletUtil.getClientIP(httpServletRequest);
 		ThreadLocalUtils.set(ThreadLocalUtils.REQUEST_ID, reqId);
 		Thread.currentThread().setName(ip + "-" + Thread.currentThread().getId() + "-" + reqId);
 
+		if (log.isTraceEnabled()) {
+			logReq(httpServletRequest);
+		}
+
 		try {
 			filterChain.doFilter(httpServletRequest, httpServletResponse);
 		} catch (Throwable e){
-			log.error("Process request error", ThrowableUtils.getStackTraceByPn(e));
+			log.error("Process request error {}", ThrowableUtils.getStackTraceByPn(e));
+		} finally {
+			log.debug("{} {} {} {}ms ", Thread.currentThread().getName(), httpServletRequest.getMethod(), requestURI, System.currentTimeMillis() - startTime);
+		}
+
+		if (log.isTraceEnabled()) {
+			logRes(httpServletResponse);
 		}
 	}
 
 	private void logReq(ServletRequest servletRequest) {
 		HttpServletRequest httpServletRequest = (HttpServletRequest) servletRequest;
-		log.debug(" > {} {} {}", httpServletRequest.getMethod(), httpServletRequest.getRequestURI(), httpServletRequest.getProtocol());
+		log.trace(" > {} {} {}", httpServletRequest.getMethod(), httpServletRequest.getRequestURI(), httpServletRequest.getProtocol());
 		Enumeration<String> headerNames = httpServletRequest.getHeaderNames();
 		while (headerNames.hasMoreElements()) {
 			String headerName = headerNames.nextElement();
 			String headerValue = httpServletRequest.getHeader(headerName);
-			log.debug(" > {}: {}", headerName, headerValue);
+			log.trace(" > {}: {}", headerName, headerValue);
 		}
 		try {
 			if (httpServletRequest.getQueryString() != null)
-				log.debug(" > query: {}", URLDecoder.decode(httpServletRequest.getQueryString(), "UTF-8"));
+				log.trace(" > query: {}", URLDecoder.decode(httpServletRequest.getQueryString(), "UTF-8"));
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
 		}
 		if (servletRequest instanceof HttpServletRequestWrapper) {
 			try {
-				String requestBody = ((HttpServletRequestWrapper) servletRequest).getContentAsString();
+				String requestBody = "";
+				String contentType = httpServletRequest.getContentType();
+				if ( contentType != null && contentType.contains("multipart/form-data")) {
+					requestBody = "Ignore log for binary upload!!!!!!";
+					//requestBody = ((HttpServletRequestWrapper) servletRequest).getContentAsString();
+				} else {
+					requestBody = ((HttpServletRequestWrapper) servletRequest).getContentAsString();
+				}
 
-				log.debug(" > {}", requestBody);
-				log.debug(" > ");
+				log.trace(" > {}", requestBody);
+				log.trace(" > ");
 			} catch (UnsupportedEncodingException e) {
 				e.printStackTrace();
 			}
@@ -86,15 +114,16 @@ public class RequestFilter implements Filter {
 	}
 	private void logRes(ServletResponse servletResponse) {
 		HttpServletResponse httpServletResponse = (HttpServletResponse) servletResponse;
-		log.debug(" < {}", httpServletResponse.getStatus());
+		log.trace(" < {}", httpServletResponse.getStatus());
 		httpServletResponse.getHeaderNames().forEach(headerName -> {
-			log.debug(" < {}: {}", headerName, httpServletResponse.getHeader(headerName));
+			log.trace(" < {}: {}", headerName, httpServletResponse.getHeader(headerName));
 		});
-		if (servletResponse instanceof HttpServletResponseWrapper) {
+		String contentType = httpServletResponse.getHeader("Content-Type");
+		if (!"application/zip".equals(contentType) && servletResponse instanceof HttpServletResponseWrapper) {
 			try {
 				String content = ((HttpServletResponseWrapper) servletResponse).getContentAsString();
-				log.debug(" < {}", content);
-				log.debug(" <");
+				log.trace(" < {}", content);
+				log.trace(" <");
 			} catch (UnsupportedEncodingException e) {
 				e.printStackTrace();
 			}

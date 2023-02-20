@@ -6,10 +6,15 @@ import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.NodeEnum;
+import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitor.dto.TaskLogDto;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.repository.TaskDagCheckLogRepository;
@@ -34,10 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.text.MessageFormat;
 import java.time.format.DateTimeFormatter;
-import java.util.Date;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,6 +50,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     private TaskDagCheckLogRepository repository;
     private MongoTemplate mongoTemplate;
     private TaskService taskService;
+    private MonitoringLogsService monitoringLogsService;
 
     @Override
     public TaskDagCheckLog save(TaskDagCheckLog log) {
@@ -128,17 +132,43 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         Query modelQuery = new Query(modelCriteria.and("checkType").in(delayList));
         modelQuery.with(Sort.by("_id"));
         List<TaskDagCheckLog> modelLogs = find(modelQuery);
+        // check task nodes has js node
+        Optional<Node> jsNode = taskDto.getDag().getNodes().stream()
+                .filter(n -> (n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode) && !(n instanceof CustomProcessorNode))
+                .findFirst();
+        if (jsNode.isPresent()) {
+            List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName(), NodeEnum.valueOf(jsNode.get().getType()).getNodeName());
+            Optional.ofNullable(jsNodeLog).ifPresent(modelLogs::addAll);
+        }
+
         LinkedList<TaskLogInfoVo> data = packCheckLogs(taskDto, taskDagCheckLogs);
-        TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, false);
+        TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, 0, 0, false);
 
+        LinkedList<TaskLogInfoVo> all = new LinkedList<>(data);
         if (CollectionUtils.isNotEmpty(modelLogs)) {
-
             LinkedList<TaskLogInfoVo> collect = packCheckLogs(taskDto, modelLogs);
             result.setModelList(collect);
             boolean present = taskDto.getTransformed();
             result.setOver(present);
+
+            all.addAll(collect);
         }
 
+        AtomicInteger errorNum = new AtomicInteger();
+        AtomicInteger warnNum = new AtomicInteger();
+        all.forEach(a -> {
+            switch (a.getGrade()) {
+                case ERROR:
+                    errorNum.getAndIncrement();
+                    break;
+                case WARN:
+                    warnNum.getAndIncrement();
+                    break;
+            }
+        });
+
+        result.setErrorNum(errorNum.get());
+        result.setWarnNum(warnNum.get());
         return result;
     }
 
@@ -149,8 +179,11 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                     log = StringUtils.replace(log, "$taskName", taskDto.getName());
                     log = StringUtils.replace(log, "$date", DateUtil.toLocalDateTime(g.getCreateAt()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
 
-                    return new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), log);
+                    TaskLogInfoVo taskLogInfoVo = new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), log);
+                    taskLogInfoVo.setTime(g.getCreateAt());
+                    return taskLogInfoVo;
                 })
+                .sorted(Comparator.comparing(TaskLogInfoVo::getTime))
                 .collect(Collectors.toCollection(LinkedList::new));
     }
 

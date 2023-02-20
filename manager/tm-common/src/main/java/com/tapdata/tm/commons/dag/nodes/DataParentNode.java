@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
+import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
@@ -57,7 +58,9 @@ public abstract class DataParentNode<S> extends Node<S> {
 
     private Boolean enableDDL;
 
+    private ReadPartitionOptions readPartitionOptions;
     private List<String> disabledEvents;
+    @Deprecated
     private Boolean enableDynamicTable;
 	/** 是否开启全量并发写入*/
 	private Boolean initialConcurrent;
@@ -69,6 +72,20 @@ public abstract class DataParentNode<S> extends Node<S> {
 	private Integer cdcConcurrentWriteNum;
     /** 目标节点配置字段修改规则 */
     private List<FieldChangeRule> fieldChangeRules;
+
+    @EqField
+    private Integer readBatchSize = 500;
+    @EqField
+    private Integer writeBatchSize;
+
+    /** 写入每批最大等待时间 */
+    @EqField
+    private Long writeBatchWaitMs;
+
+
+    /** 数据写入策略配置，数据写入模式： 更新已存在或者插入新数据（updateOrInsert）， 追加写入(appendWrite)， 更新写入(updateWrite) */
+    @EqField
+    private String writeStrategy = "updateOrInsert";
     /**
      * constructor for node
      *
@@ -108,6 +125,7 @@ public abstract class DataParentNode<S> extends Node<S> {
             s.setOriginalName(tableName);
             s.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, tableName, getTaskId()));
             str.setSinkQulifiedName(s.getQualifiedName());
+            str.setSinkObjectName(tableName);
         }
 
         int userDeleteNum = 0;
@@ -209,5 +227,13 @@ public abstract class DataParentNode<S> extends Node<S> {
             Field field = iterator.next();
 
         }
+    }
+
+    public ReadPartitionOptions getReadPartitionOptions() {
+        return readPartitionOptions;
+    }
+
+    public void setReadPartitionOptions(ReadPartitionOptions readPartitionOptions) {
+        this.readPartitionOptions = readPartitionOptions;
     }
 }

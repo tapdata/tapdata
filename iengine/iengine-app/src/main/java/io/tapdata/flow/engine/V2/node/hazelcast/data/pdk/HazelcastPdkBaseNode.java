@@ -8,6 +8,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -19,8 +20,9 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
-import io.tapdata.flow.engine.V2.monitor.MonitorManager;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -35,7 +37,6 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import org.apache.commons.collections4.MapUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -48,20 +49,22 @@ import java.util.concurrent.TimeUnit;
  * @create 2022-05-10 16:57
  **/
 public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
+	public static final int DEFAULT_READ_BATCH_SIZE = 100;
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
-	protected MonitorManager monitorManager;
 	protected SyncProgress syncProgress;
 	protected String associateId;
 	protected TapLogger.LogListener logListener;
 	private List<PDKMethodInvoker> pdkMethodInvokerList = new ArrayList<>();
 
+	protected Integer readBatchSize;
+
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
-				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-			this.monitorManager = new MonitorManager();
+		this.readBatchSize = DEFAULT_READ_BATCH_SIZE;
+		if (getNode() instanceof DataParentNode) {
+			this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
 		}
 		logListener = new TapLogger.LogListener() {
 			@Override
@@ -96,7 +99,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		};
 	}
 
-	protected PDKMethodInvoker createPdkMethodInvoker() {
+	public PDKMethodInvoker createPdkMethodInvoker() {
 		PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create()
 				.logTag(TAG)
 				.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
@@ -106,7 +109,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		return pdkMethodInvoker;
 	}
 
-	protected void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
+	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
 		if(null == pdkMethodInvoker) return;
 		pdkMethodInvokerList.remove(pdkMethodInvoker);
 	}
@@ -132,6 +135,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> nodeConfig = null;
 		if (node instanceof TableNode) {
 			nodeConfig = ((TableNode) node).getNodeConfig();
+		} else if(node instanceof DatabaseNode) {
+			nodeConfig = ((DatabaseNode) node).getNodeConfig();
 		}
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
 				PdkUtil.createNode(taskDto.getId().toHexString(),
@@ -144,7 +149,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 						pdkStateMap,
 						globalStateMap,
 						connectorCapabilities,
-						() -> Log4jUtil.setThreadContext(taskDto)
+						() -> Log4jUtil.setThreadContext(taskDto),
+						InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext)
 				)
 		);
 		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));
@@ -202,16 +208,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				}
 			}, TAG);
 			CommonUtils.handleAnyError(() -> {
-				if (this.monitorManager != null) {
-					this.monitorManager.close();
-					logger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
-					obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
-				}
-			}, err -> {
-				logger.warn("Close monitor failed: " + err.getMessage());
-				obsLogger.warn("Close monitor failed: " + err.getMessage());
-			});
-			CommonUtils.handleAnyError(() -> {
 				Optional.ofNullable(getConnectorNode())
 						.ifPresent(connectorNode -> {
 							PDKInvocationMonitor.stop(getConnectorNode());
@@ -237,7 +233,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		}
 	}
 
-	protected ConnectorNode getConnectorNode() {
+	public ConnectorNode getConnectorNode() {
 		return ConnectorNodeService.getInstance().getConnectorNode(associateId);
 	}
 

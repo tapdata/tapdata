@@ -4,6 +4,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 import com.hazelcast.jet.core.Inbox;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.StringUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -93,9 +94,11 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			this.needToDeclare = StringUtils.isNotEmpty(declareScript);
 			if (this.needToDeclare) {
 				if (multipleTables) {
-					declareScript = String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript);
+					declareScript = String.format("var TapModelDeclare = Java.type(\"com.tapdata.processor.util.TapModelDeclare\");\n" +
+									"function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript);
 				} else {
-					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
+					declareScript = String.format("var TapModelDeclare = Java.type(\"com.tapdata.processor.util.TapModelDeclare\");\n" +
+									"function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
 				}
 				this.engine = ScriptUtil.getScriptEngine(declareScript, null, null,
 								((DataProcessorContext) processorBaseContext).getCacheService(),
@@ -129,21 +132,26 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 							}
 							// 解析模型
 							TapTable tapTable = getNewTapTable(tapEvent);
-							if (!multipleTables) {
-								//迁移任务，只有一张表
-								if (needToDeclare) {
-									tapTable = (TapTable) engine.invokeFunction(FUNCTION_NAME_DECLARE, tapTable);
+							try {
+								if (!multipleTables) {
+									//迁移任务，只有一张表
+									if (needToDeclare) {
+										tapTable = (TapTable) engine.invokeFunction(FUNCTION_NAME_DECLARE, tapTable);
+									}
+									tabTableCacheMap.put(schemaKey, tapTable);
 								}
-								tabTableCacheMap.put(schemaKey, tapTable);
-							}
 
-							if (multipleTables) {
-								// 获取差异模型
-								List<SchemaApplyResult> schemaApplyResults = getSchemaApplyResults(tapTable);
-								if (needToDeclare) {
-									schemaApplyResults = (List<SchemaApplyResult>) engine.invokeFunction(FUNCTION_NAME_DECLARE, schemaApplyResults);
+								if (multipleTables) {
+									// 获取差异模型
+									List<SchemaApplyResult> schemaApplyResults = getSchemaApplyResults(tapTable);
+									if (needToDeclare) {
+										schemaApplyResults = (List<SchemaApplyResult>) engine.invokeFunction(FUNCTION_NAME_DECLARE, schemaApplyResults);
+									}
+									schemaApplyResultMap.put(schemaKey, schemaApplyResults);
 								}
-								schemaApplyResultMap.put(schemaKey, schemaApplyResults);
+							} catch (Exception e) {
+								String msg = String.format(" tableName: %s, %s", tapTable.getId(), e.getMessage());
+								throw new RuntimeException(msg, e);
 							}
 						}
 

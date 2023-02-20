@@ -6,14 +6,16 @@ import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.constant.MysqlTestItem;
+import io.tapdata.connector.tidb.config.TidbConfig;
+import io.tapdata.connector.tidb.kafka.KafkaService;
 import io.tapdata.constant.ConnectionTypeEnum;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.util.NetUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-
 import java.net.URI;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -33,7 +35,7 @@ import static io.tapdata.base.ConnectorBase.testItem;
  * @author lemon
  */
 public class TidbConnectionTest extends CommonDbTest {
-
+    public static final String TAG = TidbConnectionTest.class.getSimpleName();
     private final TidbConfig tidbConfig;
 
     private final static String PB_SERVER_SUCCESS = "Check PDServer host port is valid";
@@ -44,10 +46,8 @@ public class TidbConnectionTest extends CommonDbTest {
     protected static final String CHECK_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
             "FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
             "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'Create'";
-
     private boolean cdcCapability;
     private ConnectionOptions connectionOptions;
-
 
     public TidbConnectionTest(TidbConfig tidbConfig, Consumer<TestItem> consumer, ConnectionOptions connectionOptions) {
         super(tidbConfig, consumer);
@@ -60,14 +60,18 @@ public class TidbConnectionTest extends CommonDbTest {
     public Boolean testOneByOne() {
         testFunctionMap.put("testPbserver", this::testPbserver);
         if (!ConnectionTypeEnum.SOURCE.getType().equals(commonDbConfig.get__connectionType())) {
-            testFunctionMap.put("testCreateTablePrivilege", this::testCreateTablePrivilege);
         }
         if (!ConnectionTypeEnum.TARGET.getType().equals(commonDbConfig.get__connectionType())) {
-            testFunctionMap.put("testBinlogMode", this::testBinlogMode);
+
             testFunctionMap.put("testBinlogRowImage", this::testBinlogRowImage);
-            testFunctionMap.put("testCDCPrivileges", this::testCDCPrivileges);
-            testFunctionMap.put("setCdcCapabilitie", this::setCdcCapabilitie);
+            TidbConfig tidbConfig = (TidbConfig) commonDbConfig;
+            if (tidbConfig.getEnableIncrement()) {
+                testFunctionMap.put("testKafkaHostPort", this::testKafkaHostPort);
+            } else {
+                 TapLogger.warn(TAG, "未开启增量配置");
+            }
         }
+
         return super.testOneByOne();
     }
 
@@ -77,7 +81,7 @@ public class TidbConnectionTest extends CommonDbTest {
      * @return
      */
     public Boolean testPbserver() {
-        URI uri = URI.create(tidbConfig.getPdServer());
+        URI uri = URI.create("http://" + tidbConfig.getPdServer());
         try {
             NetUtil.validateHostPortWithSocket(uri.getHost(), uri.getPort());
             consumer.accept(testItem(PB_SERVER_SUCCESS, TestItem.RESULT_SUCCESSFULLY));
@@ -107,7 +111,7 @@ public class TidbConnectionTest extends CommonDbTest {
                         errMsg = "password is empty,please enter password";
                     }
                     consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, errMsg));
-                    return false;
+
 
                 }
             }
@@ -118,17 +122,17 @@ public class TidbConnectionTest extends CommonDbTest {
 
     @Override
     public Boolean testWritePrivilege() {
-        return  WriteOrReadPrivilege("write");
+        return WriteOrReadPrivilege("write");
     }
 
-    private boolean  WriteOrReadPrivilege(String mark){
+    private boolean WriteOrReadPrivilege(String mark) {
         String databaseName = tidbConfig.getDatabase();
         List<String> tableList = new ArrayList();
         AtomicReference<Boolean> globalWrite = new AtomicReference();
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         String itemMark = TestItem.ITEM_READ;
-        if("write".equals(mark)){
-            itemMark =TestItem.ITEM_WRITE;
+        if ("write".equals(mark)) {
+            itemMark = TestItem.ITEM_WRITE;
         }
         try {
             String finalItemMark = itemMark;
@@ -155,7 +159,7 @@ public class TidbConnectionTest extends CommonDbTest {
             consumer.accept(testItem(itemMark, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, JSONObject.toJSONString(tableList)));
             return true;
         }
-        consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, "Without table can "+mark));
+        consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, "Without table can " + mark));
         return false;
     }
 
@@ -186,8 +190,8 @@ public class TidbConnectionTest extends CommonDbTest {
 
 
     @Override
-    public Boolean testReadPrivilege(){
-        return  WriteOrReadPrivilege("read");
+    public Boolean testReadPrivilege() {
+        return WriteOrReadPrivilege("read");
     }
 
     @Override
@@ -196,7 +200,7 @@ public class TidbConnectionTest extends CommonDbTest {
         return true;
     }
 
-    public Boolean testCDCPrivileges(){
+    public Boolean testCDCPrivileges() {
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         try {
             StringBuilder missPri = new StringBuilder();
@@ -376,14 +380,13 @@ public class TidbConnectionTest extends CommonDbTest {
         return result.get();
     }
 
-    public Boolean setCdcCapabilitie(){
-        if(cdcCapability){
+    public Boolean setCdcCapabilitie() {
+        if (cdcCapability) {
             List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDLParserType.MYSQL_CCJ_SQL_PARSER);
             ddlCapabilities.forEach(connectionOptions::capability);
         }
         return true;
     }
-
 
     protected enum CdcPrivilege {
         ALL_PRIVILEGES("ALL PRIVILEGES ON *.*", true),
@@ -407,4 +410,67 @@ public class TidbConnectionTest extends CommonDbTest {
         }
     }
 
+    @Override
+    public Boolean testStreamRead() {
+//        String database = commonDbConfig.getDatabase();
+//        AtomicBoolean cdcPrivilege = new AtomicBoolean();
+//        try {
+//            // check if the cdc is enabled for the database
+//            jdbcContext.queryWithNext(String.format(CHECK_DATABASE_ENABLE_CDC, database),
+//                    rs -> cdcPrivilege.set(rs.getBoolean("is_cdc_enabled")));
+//            if (!cdcPrivilege.get()) {
+//                consumer.accept(testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+//                        String.format(DATABASE_CDC_DISABLED, database)));
+//                return true;
+//            }
+//
+//            // check if user have access privilege to the cdc tables
+//            jdbcContext.execute(String.format(SELECT_CDC_CHANGE_TABLES, database));
+//            consumer.accept(testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
+//            return true;
+//        } catch (Throwable e) {
+//            e.printStackTrace();
+//        }
+//        consumer.accept(testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+//                String.format(CDC_TABLE_NO_PRIVILEGE, database)));
+        return true;
+    }
+
+    /**
+     * check kafka
+     */
+
+    public Boolean testKafkaHostPort() {
+        KafkaService kafkaService1 = new KafkaService(tidbConfig);
+        TestItem testHostAndPort = kafkaService1.testHostAndPort();
+        consumer.accept(testHostAndPort);
+        if (testHostAndPort.getResult() == TestItem.RESULT_FAILED) {
+            return false;
+        }
+        return true;
+    }
+
+    public Boolean testKafkaConnect() {
+        KafkaService kafkaService = new KafkaService(tidbConfig);
+        TestItem testConnect = kafkaService.testConnect();
+        if (testConnect == null || testConnect.getResult() == TestItem.RESULT_FAILED) {
+            return false;
+        }
+        consumer.accept(testConnect);
+        return true;
+    }
+
+    //private  KafkaConnectionTest kafkaConnectionTest;
+    private final static String CHECK_DATABASE_PRIVILEGE = "SELECT permission_name FROM fn_my_permissions(NULL, 'Database');";
+
+
+    private final static String CHECK_DATABASE_ENABLE_CDC =
+            "SELECT [name], database_id, is_cdc_enabled\n" +
+                    "FROM sys.databases\n" +
+                    "WHERE [name] = N'%s'";
+    private final static String SELECT_CDC_CHANGE_TABLES = "SELECT * FROM \"%s\".cdc.[change_tables]";
+
+    private final static String LACK_OF_PRIVILEGES = "lack of privileges: %s";
+    private final static String DATABASE_CDC_DISABLED = "CDC is not enabled for database %s";
+    private final static String CDC_TABLE_NO_PRIVILEGE = "User does not have CDC table privileges for database %s";
 }

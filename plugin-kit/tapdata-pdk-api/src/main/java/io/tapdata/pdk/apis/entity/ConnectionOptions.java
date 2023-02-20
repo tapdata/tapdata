@@ -15,6 +15,10 @@ public class ConnectionOptions {
     public static final String CAPABILITY_RESUME_STREAM_BY_TIMESTAMP = "resume_stream_by_timestamp";
     //Connector disable batch read offset or not, default is disable batch read offset
     public static final String CAPABILITY_DISABLE_BATCH_READ_OFFSET = "disable_batch_read_offset";
+    //Connector support concurrent write records which means writeRecord function need to be thread safe
+    public static final String CAPABILITY_CONCURRENT_WRITE = "disable_concurrent_write";
+    //Connector count is slow, should avoid to use count. 
+    public static final String CAPABILITY_COUNT_IS_SLOW = "count_is_slow";
 
     //DDL events
     public static final String DDL_ALTER_FIELD_NAME_EVENT = FormatUtils.formatTapEvent(TapAlterFieldNameEvent.class);

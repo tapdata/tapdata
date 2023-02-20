@@ -34,7 +34,7 @@ public class DorisDDLInstance {
 
     public String buildColumnDefinition(final TapTable tapTable) {
         final Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-        final Collection<String> pks = tapTable.primaryKeys();
+        final Collection<String> pks = tapTable.primaryKeys(true);
         Set<String> pkSet = Sets.newHashSet();
         final List<String> fieldStrs = Lists.newArrayList();
         for (String pk : pks) {
@@ -70,7 +70,7 @@ public class DorisDDLInstance {
         }
         if (tapField.getDefaultValue() != null) {
             fieldStrs.add("DEFAULT");
-            fieldStrs.add(tapField.getDefaultValue().toString());
+            fieldStrs.add("'" + tapField.getDefaultValue().toString() + "'");
         }
         return StringUtils.join(fieldStrs, " ");
     }

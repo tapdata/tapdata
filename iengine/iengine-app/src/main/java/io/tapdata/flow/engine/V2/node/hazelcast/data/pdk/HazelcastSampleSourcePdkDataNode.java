@@ -8,6 +8,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -18,6 +19,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.SampleMockUtil;
 import io.tapdata.schema.TapTableMap;
@@ -66,6 +68,8 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 			if (node instanceof DatabaseNode) {
 				rows = ((DatabaseNode) node).getRows() == null ? 1 : ((DatabaseNode) node).getRows();
 				tables = ((DatabaseNode) node).getTableNames();
+			} else if (node instanceof TableNode) {
+				rows = ((TableNode) node).getRows() == null ? 1 : ((TableNode) node).getRows();
 			}
 
 			// 测试任务
@@ -118,7 +122,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				List<TapEvent> cloneList = new ArrayList<>();
 				int count = 0;
 				for (TapEvent tapEvent : tapEventList) {
-					if (count > rows) {
+					if (count >= rows) {
 						break;
 					}
 					cloneList.add((TapEvent) tapEvent.clone());
@@ -163,6 +167,11 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 	@Override
 	public boolean complete() {
 		return !isRunning();
+	}
+
+	@Override
+	public PDKMethodInvoker createPdkMethodInvoker() {
+		return super.createPdkMethodInvoker().maxRetryTimeMinute(0);
 	}
 
 	private List<TapdataEvent> wrapTapdataEvent(List<TapEvent> tapEvents) {

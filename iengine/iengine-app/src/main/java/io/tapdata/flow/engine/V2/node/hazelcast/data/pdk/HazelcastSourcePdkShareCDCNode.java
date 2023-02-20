@@ -29,7 +29,7 @@ public class HazelcastSourcePdkShareCDCNode extends HazelcastSourcePdkDataNode {
 
 	public HazelcastSourcePdkShareCDCNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.sourceMode = SourceMode.SHARE_CDC;
+		this.sourceMode = SourceMode.LOG_COLLECTOR;
 	}
 
 	@Override
@@ -55,6 +55,7 @@ public class HazelcastSourcePdkShareCDCNode extends HazelcastSourcePdkDataNode {
 				.withDatabaseType(databaseType)
 				.withTapTableMap(dataProcessorContext.getTapTableMap())
 				.withTaskConfig(dataProcessorContext.getTaskConfig())
+				.withConnections(dataProcessorContext.getConnections())
 				.build();
 		this.syncType = SyncTypeEnum.CDC;
 		super.doInit(context);

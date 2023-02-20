@@ -4,6 +4,7 @@ import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.StageRuntimeStats;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.worker.WorkerSingletonLock;
 import io.tapdata.common.*;
 import io.tapdata.dao.MessageDao;
 import org.apache.commons.collections.CollectionUtils;
@@ -506,8 +507,6 @@ public class TransformerManager {
 //      JOB_MAP.forEach((jobId, tansformer) -> {
 //        flushJobStats(tansformer);
 //      });
-
-			changeLogLevel();
 		} catch (Exception e) {
 			logger.error("Flush jobs' stats to db failed {}", e.getMessage(), e);
 		}
@@ -757,6 +756,7 @@ public class TransformerManager {
 			value.put("total_thread", threshold);
 			value.put("process_id", instanceNo);
 			value.put("user_id", userId);
+			value.put("singletonLock", WorkerSingletonLock.getCurrentTag());
 			value.put("version", version);
 			value.put("hostname", hostname);
 			value.put("cpuLoad", processCpuLoad);
@@ -893,7 +893,8 @@ public class TransformerManager {
 //    }
 //  }
 
-	private void changeLogLevel() {
+	@Scheduled(fixedDelay = 5000L)
+	public void changeLogLevel() {
 
 		Setting levelSetting = settingService.getSetting("logLevel");
 		String scriptEngineHttpApender = settingService.getString("scriptEngineHttpAppender", "false");
