@@ -108,7 +108,11 @@ public class AlarmServiceImpl implements AlarmService {
                 UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(info.getUserId()));
                 AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric(),userDetail);
                 if (Objects.nonNull(alarmSettingDto)) {
+                    log.info("taskname:{}",info.getName());
+                    log.info("getUnit{}",alarmSettingDto.getUnit());
+                    log.info("getInterval{}",alarmSettingDto.getInterval());
                     DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
+                    log.info("lastNotifyTime{}",lastNotifyTime);
                     if (date.after(lastNotifyTime)) {
                         info.setLastNotifyTime(date);
                     }
@@ -614,7 +618,7 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
 
-    private DateField parseDateUnit(DateUnit dateUnit) {
+    private static  DateField parseDateUnit(DateUnit dateUnit) {
         if (Objects.isNull(dateUnit)) {
             return DateField.MILLISECOND;
         }
@@ -963,6 +967,11 @@ public class AlarmServiceImpl implements AlarmService {
             log.error("新增消息异常，", e);
         }
         return messageDto;
+    }
+
+    public static void main(String[] args) {
+        DateTime lastNotifyTime = DateUtil.offset(new Date(), parseDateUnit(DateUnit.SECOND), 600);
+        System.out.println(lastNotifyTime);
     }
 
 
