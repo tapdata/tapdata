@@ -44,7 +44,7 @@ public class WriteValve {
                 .submissionInterval(submissionInterval)
                 .eventCollected(eventCollector)
                 .recoverCovert(recordCovert)
-                .writeConsumer(writeConsumer).start();
+                .writeConsumer(writeConsumer);
     }
 
     //
@@ -57,7 +57,7 @@ public class WriteValve {
                 .writeSize(writeSize)
                 .submissionInterval(submissionInterval)
                 .eventCollected(eventCollector)
-                .writeConsumer(writeConsumer).start();
+                .writeConsumer(writeConsumer);
     }
 
     public static WriteValve open(
@@ -65,14 +65,14 @@ public class WriteValve {
             Consumer<WriteListResult<TapRecordEvent>> writeConsumer) {
         return new WriteValve()
                 .eventCollected(eventCollector)
-                .writeConsumer(writeConsumer).start();
+                .writeConsumer(writeConsumer);
     }
 
     private WriteValve() {
 
     }
 
-    private WriteValve start() {
+    public WriteValve start() {
         if (Objects.isNull(this.tapEventCollector)) {
             synchronized (this) {
                 if (Objects.isNull(this.tapEventCollector)) {

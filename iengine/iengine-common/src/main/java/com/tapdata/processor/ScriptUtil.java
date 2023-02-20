@@ -15,6 +15,7 @@ import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
 import io.tapdata.annotation.DatabaseTypeAnnotation;
 import io.tapdata.annotation.DatabaseTypeAnnotations;
+import io.tapdata.entity.logger.Log;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -99,7 +100,7 @@ public class ScriptUtil {
 																					List<JavaScriptFunctions> javaScriptFunctions,
 																					ClientMongoOperator clientMongoOperator,
 																					ICacheGetter memoryCacheGetter,
-																					ScriptLogger logger) throws ScriptException {
+																					Log logger) throws ScriptException {
 		return getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName(), script, javaScriptFunctions, clientMongoOperator,
 						null, null, memoryCacheGetter, logger);
 	}
@@ -122,7 +123,7 @@ public class ScriptUtil {
 																					ScriptConnection source,
 																					ScriptConnection target,
 																					ICacheGetter memoryCacheGetter,
-																					ScriptLogger logger) throws ScriptException {
+																					Log logger) throws ScriptException {
 		return getScriptEngine(jsEngineName, script, javaScriptFunctions, clientMongoOperator, source, target, memoryCacheGetter, logger, false);
 	}
 
@@ -133,7 +134,7 @@ public class ScriptUtil {
 																					ScriptConnection source,
 																					ScriptConnection target,
 																					ICacheGetter memoryCacheGetter,
-																					ScriptLogger logger,
+																					Log logger,
 																					boolean standard) throws ScriptException {
 
 		if (StringUtils.isBlank(script)) {

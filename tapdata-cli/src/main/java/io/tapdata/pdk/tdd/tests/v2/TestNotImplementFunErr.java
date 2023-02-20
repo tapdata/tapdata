@@ -1,5 +1,6 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -91,6 +92,7 @@ public class TestNotImplementFunErr extends PDKTestBase {
             kvMap.put(testTableId,targetTable);
             ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
                     .withDagId(dagId)
+                    .withLog(new TapLog())
                     .withAssociateId(UUID.randomUUID().toString())
                     .withConnectionConfig(connectionOptions)
                     .withGroup(spec.getGroup())
@@ -102,7 +104,7 @@ public class TestNotImplementFunErr extends PDKTestBase {
                     .withTable(testTableId)
                     .build();
 
-            TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap());
+            TapConnectorContext connectionContext = connectorNode.getConnectorContext(); //new TapConnectorContext(spec, connectionOptions, new DataMap(), connectorNode.getConnectorContext().getLog());
 
             try {
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");

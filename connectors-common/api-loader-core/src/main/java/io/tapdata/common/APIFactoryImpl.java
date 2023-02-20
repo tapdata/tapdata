@@ -30,7 +30,7 @@ public class APIFactoryImpl implements APIFactory {
                     json = (Map<String, Object>) fromJson(ScriptUtil.loadFileFromJarPath(apiJson));
                 } catch (Throwable ignored) {
                     //TapLogger.error(TAG, "Can't analysis api JSON document from path: " + apiJson + ". ");
-                    throw new CoreException(String.format("The current type is temporarily not supported. Not supported."));
+                    throw new CoreException("The current type is temporarily not supported. ");
                 }
             }
         } else {
@@ -38,7 +38,7 @@ public class APIFactoryImpl implements APIFactory {
                 json = (Map<String, Object>) fromJson(ScriptUtil.loadFileFromJarPath(APIFactory.DEFAULT_POST_MAN_FILE_PATH));
             } catch (Throwable ignored) {
                 //TapLogger.error(TAG, "Can't analysis api JSON document, please save this JSON file into " + this.analysis.sourcePath() + ". ");
-                throw new CoreException(String.format("The current type is temporarily not supported. Not supported."));
+                throw new CoreException("The current type is temporarily not supported. ");
             }
         }
         String type = APIUtil.ApiType(json);

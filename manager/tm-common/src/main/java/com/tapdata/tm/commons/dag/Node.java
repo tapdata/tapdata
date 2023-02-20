@@ -7,8 +7,8 @@ import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -21,7 +21,6 @@ import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.types.ObjectId;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -69,12 +68,14 @@ public abstract class Node<S> extends Element{
     //本次已经推演过
     private boolean isTransformed;
 
-    private List<AlarmSettingDto> alarmSettings;
-    private List<AlarmRuleDto> alarmRules;
+    private List<AlarmSettingVO> alarmSettings;
+    private List<AlarmRuleVO> alarmRules;
 
     protected transient DAGDataService service;
 
     protected transient EventListener<S> listener;
+
+    protected String externalStorageId;
 
 //    private String subTaskId;
 

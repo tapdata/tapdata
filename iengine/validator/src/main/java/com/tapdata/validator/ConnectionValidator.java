@@ -7,6 +7,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.Schema;
 import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.entity.BaseConnectionValidateResultDetail;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
@@ -195,6 +196,7 @@ public class ConnectionValidator {
 						.withPdkId(databaseType.getPdkId())
 						.withAssociateId(connections.getName() + "_" + ts)
 						.withVersion(databaseType.getVersion())
+						.withLog(new TapLog())
 						.build();
 				ConnectionNode finalConnectionNode = connectionNode;
 				List<ConnectionValidateResultDetail> resultDetails = new ArrayList<>();

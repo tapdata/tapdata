@@ -2,6 +2,7 @@
 package com.tapdata.tm.commons.schema;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import io.tapdata.pdk.core.constants.DataSourceQCType;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import io.tapdata.pdk.apis.entity.Capability;
@@ -88,7 +89,13 @@ public class DataSourceDefinitionDto extends BaseDto {
 
     private List<Capability> capabilities;
 
+    /**
+     * Quality Control Type（认证类型｜质量控制类型）
+     */
+    private DataSourceQCType qcType;
     private Boolean beta;
+    private String pdkAPIVersion;
+    private Integer pdkAPIBuildNumber;
 
 
     public String calculatePdkHash(String customerId){

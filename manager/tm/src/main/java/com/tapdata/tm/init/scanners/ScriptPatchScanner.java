@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -26,8 +27,11 @@ public class ScriptPatchScanner implements IPatchScanner {
     private static final Logger logger = LogManager.getLogger(ScriptPatchScanner.class);
     private final PatchType patchType;
 
-    public ScriptPatchScanner(AppType appType) {
+    private final Map<String, String> allVariables;
+
+    public ScriptPatchScanner(AppType appType, Map<String, String> allVariables) {
         this.patchType = new PatchType(appType, PatchTypeEnums.Script);
+        this.allVariables = allVariables;
     }
 
     @Override
@@ -40,9 +44,9 @@ public class ScriptPatchScanner implements IPatchScanner {
                 parse(patches, PatchesRunner.patchDir(AppType.DRS) + "/*.json", isVersion);
                 break;
             default:
+                parse(patches, PatchesRunner.patchDir(AppType.DAAS) + "/*.json", isVersion);
                 break;
         }
-        parse(patches, PatchesRunner.patchDir(AppType.DAAS) + "/*.json", isVersion);
     }
 
     private void parse(List<IPatch> patches, String path, Function<PatchVersion, Boolean> isVersion) {
@@ -67,7 +71,7 @@ public class ScriptPatchScanner implements IPatchScanner {
             }
             try (InputStream is = resource.getInputStream()) {
                 String scriptStr = IoUtil.read(is, StandardCharsets.UTF_8);
-                patches.add(new JsonFilePatch(patchType, version, resource.getFilename(), scriptStr));
+                patches.add(new JsonFilePatch(patchType, version, resource.getFilename(), scriptStr, allVariables));
             } catch (IORuntimeException | IOException e) {
                 throw new RuntimeException("Error reading script file: " + resource.getFilename(), e);
             }

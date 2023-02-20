@@ -15,6 +15,7 @@ import io.tapdata.TapInterface;
 import io.tapdata.common.ConverterUtil;
 import io.tapdata.common.TapInterfaceUtil;
 import io.tapdata.entity.LoadSchemaResult;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.core.api.ConnectionNode;
@@ -173,6 +174,7 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 									.withPdkId(databaseType.getPdkId())
 									.withAssociateId(connection.getName() + "_" + connection.getUser_id())
 									.withVersion(databaseType.getVersion())
+									.withLog(new TapLog())
 									.build();
 							PDKInvocationMonitor.invoke(connectionNode, PDKMethod.INIT, connectionNode::connectorInit,
 									LoadSchemaEventHandler.class.getSimpleName());

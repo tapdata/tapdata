@@ -18,6 +18,7 @@ import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -40,13 +41,15 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapValue;
-import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.monitor.Monitor;
+import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -125,6 +128,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected String lastTableName;
 
+	protected ExternalStorageDto externalStorageDto;
+
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 //		isJobRunning = new TapCache<Boolean>().expireTime(2000).supplier(this::isJetJobRunning).disableCacheValue(false);
 
@@ -150,12 +155,23 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 		threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
 
-		//如果为迁移任务、且源节点为数据库类型
+		// 如果为迁移任务、且源节点为数据库类型
 		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
 		if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 		}
+
+		// Init external storage config
+		externalStorageDto = ExternalStorageUtil.getExternalStorage(
+				processorBaseContext.getTaskConfig().getExternalStorageDtoMap(),
+				processorBaseContext.getNode(),
+				clientMongoOperator,
+				processorBaseContext.getNodes(),
+				(processorBaseContext instanceof DataProcessorContext ? ((DataProcessorContext) processorBaseContext).getConnections() : null)
+		);
+		logger.info("[External Storage]Node {}[{}]: {}", getNode().getName(), getNode().getId(), externalStorageDto);
+		obsLogger.info("[External Storage]Node {}[{}]: {}", getNode().getName(), getNode().getId(), externalStorageDto);
 	}
 
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
@@ -671,7 +687,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		this.milestoneService = MilestoneFactory.getJetEdgeMilestoneService(processorBaseContext.getTaskDto(), httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(), httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter(), node, vertexName, vertexNames, null, vertexType);
 	}
 
-	protected synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {
+	public synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {
 		NodeException currentEx;
 		if (throwable instanceof NodeException) {
 			currentEx = (NodeException) throwable;
@@ -819,9 +835,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tableName = getNode().getId();
 		}
 		String qualifiedName = tapTableMap.getQualifiedName(tableName);
-		if (StringUtils.isBlank(qualifiedName)) {
-			throw new RuntimeException("Get metadata qualified name failed, cannot found by table name: " + tableName);
-		}
 		if (tapEvent instanceof TapCreateTableEvent) {
 			Object insertMetadata = tapEvent.getInfo(INSERT_METADATA_INFO_KEY);
 			if (insertMetadata instanceof List) {
@@ -849,6 +862,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} else if (tapEvent instanceof TapDropTableEvent) {
 			// do nothing
 		} else {
+			if (StringUtils.isBlank(qualifiedName)) {
+				throw new RuntimeException("Get metadata qualified name failed, cannot found by table name: " + tableName);
+			}
 			TapTable tapTable = ((DAGDataServiceImpl) dagDataService).getTapTable(qualifiedName);
 			tapTableMap.put(tableName, tapTable);
 			Object updateMetadataObj = tapEvent.getInfo(UPDATE_METADATA_INFO_KEY);
@@ -925,5 +941,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected boolean isJetJobRunning() {
 		JobStatus jetJobStatus = getJetJobStatus();
 		return null == jetJobStatus || jetJobStatus.equals(JobStatus.RUNNING);
+	}
+
+	public ObsLogger getObsLogger() {
+		return obsLogger;
 	}
 }

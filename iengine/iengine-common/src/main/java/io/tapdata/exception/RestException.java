@@ -32,7 +32,7 @@ public class RestException extends RuntimeException {
 	}
 
 	public RestException(String uri, String method, Object param, ResponseBody responseBody) {
-		super(responseBody.getMsg());
+		super(responseBody.getMessage());
 		this.uri = uri;
 		this.method = method;
 		this.param = param;
@@ -42,7 +42,7 @@ public class RestException extends RuntimeException {
 	}
 
 	public RestException(Throwable cause, String uri, String method, Object param, ResponseBody responseBody) {
-		super(responseBody.getMsg(), cause);
+		super(responseBody.getMessage(), cause);
 		this.uri = uri;
 		this.method = method;
 		this.param = param;
@@ -69,6 +69,6 @@ public class RestException extends RuntimeException {
 				", code='" + code + '\'' +
 				", data=" + data +
 				", reqId=" + reqId +
-				'}';
+				"}: " + super.getMessage();
 	}
 }

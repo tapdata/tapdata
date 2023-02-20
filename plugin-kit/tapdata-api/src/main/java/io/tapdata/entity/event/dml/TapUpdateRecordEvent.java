@@ -5,8 +5,14 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.entity.utils.TapUtils;
+import io.tapdata.entity.utils.io.DataInputStreamEx;
+import io.tapdata.entity.utils.io.DataOutputStreamEx;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -21,7 +27,28 @@ public class TapUpdateRecordEvent extends TapRecordEvent {
 	 * Value format should follow TapType formats
 	 */
 	private Map<String, Object> after;
-
+	/*
+	public void from(InputStream inputStream) throws IOException {
+		super.from(inputStream);
+		DataInputStreamEx dataInputStreamEx = dataInputStream(inputStream);
+		ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+		byte[] afterBytes = dataInputStreamEx.readBytes();
+		if(afterBytes != null) {
+			after = (Map<String, Object>) objectSerializable.toObject(afterBytes);
+		}
+		byte[] beforeBytes = dataInputStreamEx.readBytes();
+		if(beforeBytes != null) {
+			before = (Map<String, Object>) objectSerializable.toObject(beforeBytes);
+		}
+	}
+	public void to(OutputStream outputStream) throws IOException {
+		super.to(outputStream);
+		DataOutputStreamEx dataOutputStreamEx = dataOutputStream(outputStream);
+		ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+		dataOutputStreamEx.writeBytes(objectSerializable.fromObject(after));
+		dataOutputStreamEx.writeBytes(objectSerializable.fromObject(before));
+	}
+	*/
 	public TapUpdateRecordEvent() {
 		super(TYPE);
 	}

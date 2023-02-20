@@ -1,11 +1,11 @@
 package io.tapdata.flow.engine.V2.script;
 
-import com.tapdata.processor.ScriptLogger;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.observable.logging.ObsLogger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class ObsScriptLogger implements ScriptLogger {
+public class ObsScriptLogger implements Log {
 
   private final ObsLogger obsLogger;
 

@@ -10,11 +10,16 @@ import com.tapdata.tm.autoinspect.connector.IDataCursor;
 import com.tapdata.tm.autoinspect.connector.IPdkConnector;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.log.LogFactory;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -52,9 +57,11 @@ public class PdkConnector implements IPdkConnector {
     private final TapCodecsFilterManager defaultCodecsFilterManager;
     private final TaskRetryConfig taskRetryConfig;
 
-    public PdkConnector(@NonNull ClientMongoOperator clientMongoOperator, @NonNull String taskId, @NonNull String nodeId, @NonNull String associateId, @NonNull Connections connections, @NonNull DatabaseTypeEnum.DatabaseType sourceDatabaseType, Supplier<Boolean> isRunning, TaskRetryConfig taskRetryConfig) {
+    public PdkConnector(@NonNull ClientMongoOperator clientMongoOperator, @NonNull String taskId, @NonNull Node node, @NonNull String associateId, @NonNull Connections connections, @NonNull DatabaseTypeEnum.DatabaseType sourceDatabaseType, Supplier<Boolean> isRunning, TaskRetryConfig taskRetryConfig) {
         this.isRunning = isRunning;
         this.connections = connections;
+        String nodeId = node.getId();
+        ExternalStorageDto pdkStateMapExternalStorage = ExternalStorageUtil.getPdkStateMapExternalStorage(node, connections, clientMongoOperator);
         this.connectorNode = PdkUtil.createNode(
                 taskId,
                 sourceDatabaseType,
@@ -63,7 +70,8 @@ public class PdkConnector implements IPdkConnector {
                 connections.getConfig(),
                 new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, nodeId, System.currentTimeMillis())),
                 new PdkStateMap(String.format("%s_%s", AutoInspectConstants.MODULE_NAME, nodeId), HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
-                PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
+                PdkStateMap.globalStateMap(HazelcastUtil.getInstance()),
+                InstanceFactory.instance(LogFactory.class).getLog()
         );
         PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
 

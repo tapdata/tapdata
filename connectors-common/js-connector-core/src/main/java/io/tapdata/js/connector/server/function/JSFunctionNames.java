@@ -3,32 +3,45 @@ package io.tapdata.js.connector.server.function;
 import java.util.Objects;
 
 public enum JSFunctionNames {
-    BatchReadFunction("batch_read", "BatchReadFunction", ""),
-    CommandV2("command_callback_v2", "CommandCallbackFunction", ""),
-    CommandV1("command_callback", "CommandCallbackFunction", ""),
-    StreamReadFunction("stream_read", "StreamReadFunction", ""),
-    WriteRecordFunction("write_record", "WriteRecordFunction", ""),
-    BatchCountFunction("batch_count", "BatchCountFunction", ""),
-    WebHookFunction("web_hook_event", "RowDataCallbackFunctionV2", ""),
-    CreateTableV2Function("create_table_v2", "CreateTableV2Function", ""),
-    TimestampToStreamOffset("timestamp_to_stream_offset", "TimestampToStreamOffset", ""),
+    BatchReadFunction("batchRead", "BatchReadFunction", ""),
+    CommandV2("commandCallbackV2", "CommandCallbackFunction", ""),
+    CommandV1("commandCallback", "CommandCallbackFunction", ""),
+    StreamReadFunction("streamRead", "StreamReadFunction", ""),
+    WriteRecordFunction("writeRecord", "WriteRecordFunction", ""),
+    BatchCountFunction("batchCount", "BatchCountFunction", ""),
+    WebHookFunction("webhookEvent", "RowDataCallbackFunctionV2", ""),
+    CreateTableV2Function("createTableV2", "CreateTableV2Function", ""),
+    TimestampToStreamOffset("timestampToStreamOffset", "TimestampToStreamOffset", ""),
 
-    CONNECTION_TEST("connection_test", "ConnectionTest", ""),
-    DISCOVER_SCHEMA("discover_schema", "DiscoverSchema", ""),
-    TABLE_COUNT("table_count", "TableCount", ""),
-    EXPIRE_STATUS("expire_status", "ExpireStatus", ""),
-    UPDATE_TOKEN("update_token", "UpdateToken", ""),
+    CONNECTION_TEST("connectionTest", "ConnectionTest", ""),
+    DISCOVER_SCHEMA("discoverSchema", "DiscoverSchema", ""),
+    TABLE_COUNT("tableCount", "TableCount", ""),
+    EXPIRE_STATUS("expireStatus", "ExpireStatus", ""),
+    UPDATE_TOKEN("updateToken", "UpdateToken", ""),
+
+
+    DeleteRecordFunction("deleteRecord", "DeleteRecordFunction", "","writeRecord"),
+    InsertRecordFunction("insertRecord", "InsertRecordFunction", "","writeRecord"),
+    UpdateRecordFunction("updateRecord", "UpdateRecordFunction", "","writeRecord"),
 
     SCANNING_CAPABILITIES_IN_JAVA_SCRIPT("_scanning_capabilities_in_java_script", "scanningCapabilitiesInJavaScript", ""),
     ;
     String jsName;
     String javaName;
     String description;
+    String baseFunction;
 
+    JSFunctionNames(String jsName, String javaName, String description,String baseFunction) {
+        this.javaName = javaName;
+        this.jsName = jsName;
+        this.description = description;
+        this.baseFunction = baseFunction;
+    }
     JSFunctionNames(String jsName, String javaName, String description) {
         this.javaName = javaName;
         this.jsName = jsName;
         this.description = description;
+        this.baseFunction = "base";
     }
 
     public String jsName() {

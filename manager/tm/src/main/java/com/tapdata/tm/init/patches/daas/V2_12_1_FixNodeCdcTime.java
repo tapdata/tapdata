@@ -4,10 +4,10 @@ import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.init.patches.AbsPatch;
-import com.tapdata.tm.init.patches.PatchAnnotation;
 import com.tapdata.tm.init.PatchType;
 import com.tapdata.tm.init.PatchVersion;
+import com.tapdata.tm.init.patches.AbsPatch;
+import com.tapdata.tm.init.patches.PatchAnnotation;
 import com.tapdata.tm.sdk.util.AppType;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -26,7 +26,7 @@ import java.util.*;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2022/12/16 20:52 Create
  */
-@PatchAnnotation(appTypes = {AppType.DAAS, AppType.DFS, AppType.DRS}, version = "2.12-1")
+@PatchAnnotation(appType = AppType.DAAS, version = "2.12-1")
 public class V2_12_1_FixNodeCdcTime extends AbsPatch {
     private static final Logger logger = LogManager.getLogger(V2_12_1_FixNodeCdcTime.class);
 

@@ -1,4 +1,4 @@
-var batchStart = nowDate();
+var batchStart = dateUtils.nowDate();
 
 /**
  * @return The returned result cannot be empty and must conform to one of the following forms:
@@ -26,7 +26,7 @@ var batchStart = nowDate();
  *          ];
  * @param connectionConfig  Configuration property information of the connection page
  * */
-function discover_schema(connectionConfig) {
+function discoverSchema(connectionConfig) {
     return ['example_table'];
 }
 
@@ -39,7 +39,7 @@ function discover_schema(connectionConfig) {
  * @param pageSize Processing number of each batch of data in the full stage
  * @param batchReadSender  Sender of submitted data
  * */
-function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
+function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
 
 }
 
@@ -53,7 +53,7 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
  * @param pageSize
  * @param streamReadSender
  * */
-function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
+function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
 
 }
 
@@ -61,20 +61,20 @@ function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSi
 /**
  * @return The returned result is not empty and must be in the following form:
  *          [
- *              {"TEST": String, "CODE": Number, "RESULT": String},
- *              {"TEST": String, "CODE": Number, "RESULT": String},
+ *              {"test": String, "code": Number, "result": String},
+ *              {"test": String, "code": Number, "result": String},
  *              ...
  *          ]
- *          param - TEST :  The type is a String, representing the description text of the test item.
- *          param - CODE :  The type is a Number, is the type of test result. It can only be [-1, 0, 1], -1 means failure, 1 means success, 0 means warning.
- *          param - RESULT : The type is a String, descriptive text indicating test results.
+ *          param - test :  The type is a String, representing the description text of the test item.
+ *          param - code :  The type is a Number, is the type of test result. It can only be [-1, 0, 1], -1 means failure, 1 means success, 0 means warning.
+ *          param - result : The type is a String, descriptive text indicating test results.
  * @param connectionConfig  Configuration property information of the connection page
  * */
-function connection_test(connectionConfig) {
+function connectionTest(connectionConfig) {
     return [{
-        "TEST": "Example test item",
-        "CODE": 1,
-        "RESULT": "Pass"
+        "test": "Example test item",
+        "code": 1,
+        "result": "Pass"
     }];
 }
 
@@ -84,8 +84,15 @@ function connection_test(connectionConfig) {
  * @param connectionConfig
  * @param nodeConfig
  * @param commandInfo
+ *
+ *  "commandInfo": {
+ *      "command": String,   //command类型
+ *      "action": String,    //action类型
+ *      "argMap": Object,    //查询参数
+ *      "time": Number       //command发起时间
+ *  }
  * */
-function command_callback(connectionConfig, nodeConfig, commandInfo) {
+function commandCallback(connectionConfig, nodeConfig, commandInfo) {
 
 }
 
@@ -97,31 +104,31 @@ function command_callback(connectionConfig, nodeConfig, commandInfo) {
  *
  * @return array with data maps.
  *  Each data includes five parts:
- *      - EVENT_TYPE : event type ,only with : i , u, d. Respectively insert, update, delete;
- *      - TABLE_NAME : Data related table;
- *      - REFERENCE_TIME : Time stamp of event occurrence;
- *      - AFTER_DATA : After the event, only AFTER_DATA can be added or deleted as a result of the data
- *      - BEFORE_DATA : Before the event, the result of the data will be BEFORE_DATA only if the event is modified
+ *      - eventType : event type ,only with : i , u, d. Respectively insert, update, delete;
+ *      - tableName : Data related table;
+ *      - referenceTime : Time stamp of event occurrence;
+ *      - afterData : After the event, only after_data can be added or deleted as a result of the data
+ *      - beforeData : Before the event, the result of the data will be before_data only if the event is modified
  *  please return with: [
  *      {
- *          "EVENT_TYPE": "i/u/d",
- *          "TABLE_NAME": "${example_table_name}",
- *          "REFERENCE_TIME": Number(),
- *          "AFTER_DATA": {},
- *          "BEFORE_DATA":{}
+ *          "eventType": "i/u/d",
+ *          "tableName": "${example_table_name}",
+ *          "referenceTime": Number(),
+ *          "afterData": {},
+ *          "beforeData":{}
  *      },
  *      ...
  *     ]
  * */
-function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMap) {
+function webhookEvent(connectionConfig, nodeConfig, tableNameList, eventDataMap) {
 
     //return [
     //     {
-    //         "EVENT_TYPE": "i/u/d",
-    //         "TABLE_NAME": "${example_table_name}",
-    //         "REFERENCE_TIME": Number(),
-    //         "AFTER_DATA": {},
-    //         "BEFORE_DATA":{}
+    //         "eventType": "i/u/d",
+    //         "tableName": "${example_table_name}",
+    //         "referenceTime": Number(),
+    //         "afterData": {},
+    //         "beforeData":{}
     //     }
     //]
 }
@@ -129,11 +136,11 @@ function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMa
 /**
  * [
  *  {
- *      "EVENT_TYPE": "i/u/d",
- *      "TABLE_NAME": "${example_table_name}",
- *      "REFERENCE_TIME": Number(),
- *      "AFTER_DATA": {},
- *      "BEFORE_DATA":{}
+ *      "eventType": "i/u/d",
+ *      "tableName": "${example_table_name}",
+ *      "referenceTime": Number(),
+ *      "afterData": {},
+ *      "beforeData":{}
  *  },
  *  ...
  * ]
@@ -141,14 +148,14 @@ function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMa
  * @param nodeConfig
  * @param eventDataList type is js array with data maps.
  *  Each data includes five parts:
- *      - EVENT_TYPE : event type ,only with : i , u, d. Respectively insert, update, delete;
- *      - TABLE_NAME : Data related table;
- *      - REFERENCE_TIME : Time stamp of event occurrence;
- *      - AFTER_DATA : After the event, only AFTER_DATA can be added or deleted as a result of the data
- *      - BEFORE_DATA : Before the event, the result of the data will be BEFORE_DATA only if the event is modified
+ *      - eventType : event type ,only with : i , u, d. Respectively insert, update, delete;
+ *      - tableName : Data related table;
+ *      - referenceTime : Time stamp of event occurrence;
+ *      - afterData : After the event, only after_data can be added or deleted as a result of the data
+ *      - beforeData : Before the event, the result of the data will be before_data only if the event is modified
  *  @return true or false, default true
  * */
-function write_record(connectionConfig, nodeConfig, eventDataList) {
+function writeRecord(connectionConfig, nodeConfig, eventDataList) {
 
     //return true;
 }
@@ -167,7 +174,7 @@ function write_record(connectionConfig, nodeConfig, eventDataList) {
  *      - null : Semantics are the same as {}
  *      - {"key":"value",...} : Type is Object and has key-value ,  At this point, these values will be used to call the interface again after the results are returned.
  * */
-function update_token(connectionConfig, nodeConfig, apiResponse) {
+function updateToken(connectionConfig, nodeConfig, apiResponse) {
     // if (apiResponse.code === 401) {
     //     let result = invoker.invokeV2("apiName");
     //     return {"access_token": result.result.token};

@@ -11,6 +11,7 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
@@ -333,6 +334,7 @@ public class PDKTestBase {
                     .withGroup(nodeInfo.getTapNodeSpecification().getGroup())
                     .withVersion(nodeInfo.getTapNodeSpecification().getVersion())
                     .withConnectionConfig(connection)
+                    .withLog(new TapLog())
                     .build());
         } finally {
             PDKIntegration.releaseAssociateId("associated_" + nodeInfo.getTapNodeSpecification().idAndGroup());
@@ -415,9 +417,9 @@ public class PDKTestBase {
         TapLogger.info(TAG, "************************{} setup************************", this.getClass().getSimpleName());
         Map<String, DataMap> testConfigMap = readTestConfig(testConfigFile);
         assertNotNull(testConfigMap, "testConfigFile " + testConfigFile + " read to json failed");
-        connectionOptions = testConfigMap.get("connection");
-        nodeOptions = testConfigMap.get("node");
-        testOptions = testConfigMap.get("test");
+        this.connectionOptions = Optional.ofNullable(testConfigMap.get("connection")).orElse(new DataMap());
+        this.nodeOptions = Optional.ofNullable(testConfigMap.get("node")).orElse(new DataMap());
+        this.testOptions = Optional.ofNullable(testConfigMap.get("test")).orElse(new DataMap());
     }
 
     @AfterEach

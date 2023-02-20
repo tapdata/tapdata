@@ -21,7 +21,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"Action\": \"DescribeIssueListWithPage\",\r\n,\"ProjectName\": \"{{project_name}}\",\r\n    \"IssueType\": \"ALL\",\r\n    \"PageNumber\": 1,\r\n    \"PageSize\": 500\r\n}",
+							"raw": "{\r\n\"Action\": \"DescribeIssueListWithPage\",\r\n,\"ProjectName\": \"{{project_name}}\",\r\n    \"IssueType\": \"ALL\",\"Conditions\":[],\"SortKey\":\"\",\"SortValue\":\"\",\r\n    \"PageNumber\": 1,\r\n    \"PageSize\": 500\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"

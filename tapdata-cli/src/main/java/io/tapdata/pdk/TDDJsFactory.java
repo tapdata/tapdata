@@ -1,6 +1,6 @@
 package io.tapdata.pdk;
 
-import com.tapdata.constant.ConfigurationCenter;
+//import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.pdk.cli.Main;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -39,7 +39,7 @@ public class TDDJsFactory {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         CommonUtils.setProperty("TDD_AUTO_EXIT","0");
         args = new String[]{"test", "-c", null, null};
-        ConfigurationCenter.processId = "sam_flow_engine";
+//        ConfigurationCenter.processId = "sam_flow_engine";
         for (TDDJsFactory.TddPath tddJarPath : TDDJsFactory.TddPath.values()) {
             args[2] = baseConfPath + tddJarPath.getConf();
             args[3] = baseJarPath + tddJarPath.getPath();
