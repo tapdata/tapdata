@@ -458,6 +458,11 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesService.tables(connectionId, sourceType));
     }
 
+    @GetMapping("tablesValue")
+    public ResponseMessage<List<Map<String, String>>> tablesValue(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
+        return success(metadataInstancesService.tableValues(connectionId, sourceType));
+    }
+
     @GetMapping("page-tables")
     public ResponseMessage<Page<String>> pageTables(
             @RequestParam(value = "connectionId") String connectionId // 连接编号
