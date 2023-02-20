@@ -3,9 +3,12 @@ package io.tapdata.flow.engine.V2.schedule;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.AppType;
+import com.tapdata.entity.SyncStageEnum;
 import com.tapdata.entity.dataflow.DataFlow;
+import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
@@ -13,12 +16,14 @@ import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
+import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,6 +39,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -372,8 +378,12 @@ public class TapdataTaskScheduler {
 					} else if (TerminalMode.COMPLETE == terminalMode) {
 						completeTask(taskClient);
 					} else {
-						if (taskClient.canRetry()) {
-							taskClient.resume();
+
+						if (canTaskRetry(taskClient)) {
+							boolean resumeResult = taskClient.resume();
+							if (resumeResult) {
+								logger.info("Resume task[{}] time: {}", taskClient.getTask().getName(), taskClient.getRetryTime());
+							}
 						} else {
 							errorTask(taskClient);
 						}
@@ -383,6 +393,46 @@ public class TapdataTaskScheduler {
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);
 		}
+	}
+
+	private boolean canTaskRetry(TaskClient<TaskDto> taskClient) {
+		// Check task client implementation of canRetry method
+		if (!taskClient.canRetry()) {
+			return false;
+		}
+		TaskDto task = taskClient.getTask();
+		String taskId = task.getId().toHexString();
+		Query query = Query.query(where("_id").is(taskId));
+		query.fields().include("attrs.syncProgress").include("type");
+		TaskDto findTask = clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+		Map<String, Object> attrs = findTask.getAttrs();
+		if (MapUtils.isNotEmpty(attrs) && attrs.containsKey("syncProgress")) {
+			// Check task sync progress
+			// If all sync pipeline run into cdc, then restart task
+			// If not, then cancel task
+			Object syncProgress = attrs.get("syncProgress");
+			if (syncProgress instanceof Map) {
+				for (Map.Entry<?, ?> syncProgressEntry : ((Map<?, ?>) syncProgress).entrySet()) {
+					Object key = syncProgressEntry.getKey();
+					Object value = syncProgressEntry.getValue();
+					if (!(key instanceof String) || !(value instanceof String)) {
+						return false;
+					}
+					try {
+						SyncProgress progress = JSONUtil.json2POJO((String) value, SyncProgress.class);
+						String streamOffset = progress.getStreamOffset();
+						if (StringUtils.isBlank(streamOffset)) {
+							return false;
+						}
+					} catch (IOException e) {
+						return false;
+					}
+				}
+				return true;
+			}
+		}
+		SyncTypeEnum syncType = SyncTypeEnum.get(findTask.getType());
+		return syncType != SyncTypeEnum.INITIAL_SYNC && syncType != SyncTypeEnum.INITIAL_SYNC_CDC;
 	}
 
 	private void destroyCache(TaskClient<TaskDto> taskClient) {
