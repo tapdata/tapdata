@@ -3,13 +3,10 @@ package io.tapdata.pdk.tdd.tests.v2;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,9 +55,9 @@ public class DropTableFunctionTest extends PDKTestBase {
                         TapAssert.asserts(()->
                             Assertions.assertTrue(
                                 null==consumer||consumer.isEmpty(),
-                                TapSummary.format("dropTable.error",tableId)
+                                LangUtil.format("dropTable.error",tableId)
                             )
-                        ).acceptAsWarn(testCase,TapSummary.format("dropTable.succeed",tableId));
+                        ).acceptAsWarn(testCase,LangUtil.format("dropTable.succeed",tableId));
                     });
                 }
             } catch (Throwable e) {
@@ -73,8 +70,8 @@ public class DropTableFunctionTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-            support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-            support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
+            support(WriteRecordFunction.class, LangUtil.format(inNeedFunFormat,"WriteRecordFunction")),
+            support(DropTableFunction.class, LangUtil.format(inNeedFunFormat,"DropTableFunction"))
         );
     }
 }

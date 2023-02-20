@@ -1,12 +1,8 @@
 package io.tapdata.pdk.tdd.tests.support;
 
-import io.tapdata.pdk.cli.commands.TDDCli;
-import io.tapdata.pdk.cli.commands.TapSummary;
-import org.junit.jupiter.api.DisplayName;
 import org.opentest4j.AssertionFailedError;
 
 import java.lang.reflect.Method;
-import java.util.List;
 
 public interface TapAssert {
     static final int ERROR = 0;//default

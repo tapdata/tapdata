@@ -8,14 +8,10 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.target.*;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.Record;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,9 +54,9 @@ public class ClearTableTest extends PDKTestBase {
                 TapAssert.asserts(()->
                     Assertions.assertTrue(
                         null!=insert && insert.getInsertedCount()==recordCount,
-                        TapSummary.format("clearTable.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
+                        LangUtil.format("clearTable.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
                     )
-                ).acceptAsError(testCase, TapSummary.format("clearTable.insert.succeed",recordCount));
+                ).acceptAsError(testCase, LangUtil.format("clearTable.insert.succeed",recordCount));
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnectorContext context = connectorNode.getConnectorContext();
                 ConnectorFunctions functions = connectorNode.getConnectorFunctions();
@@ -74,14 +70,14 @@ public class ClearTableTest extends PDKTestBase {
                 event.setTableId(tableId);
                 event.setReferenceTime(System.currentTimeMillis());
                 clear.clearTable(context,event);
-                TapAssert.asserts(()->Assertions.assertTrue(true)).acceptAsError(testCase,TapSummary.format("clearTable.clean",recordCount));
+                TapAssert.asserts(()->Assertions.assertTrue(true)).acceptAsError(testCase,LangUtil.format("clearTable.clean",recordCount));
                 //如果数据源实现了BatchCountFunction方法，调用BatchCountFunction方法查看该表是否为0；
                 BatchCountFunction batchCountFunction = functions.getBatchCountFunction();
                 if (null!=batchCountFunction){
                     long count = batchCountFunction.count(context, targetTable);
                     TapAssert.asserts(()->
-                        Assertions.assertEquals(count, 0,TapSummary.format("clearTable.verifyBatchCountFunction.error",0,count))
-                    ).acceptAsError(testCase,TapSummary.format("clearTable.verifyBatchCountFunction.succeed",count));
+                        Assertions.assertEquals(count, 0,LangUtil.format("clearTable.verifyBatchCountFunction.error",0,count))
+                    ).acceptAsError(testCase,LangUtil.format("clearTable.verifyBatchCountFunction.succeed",count));
                     return;
                 }
                 //如果实现了QueryByAdvanceFilter|QueryByFilter,查询插入的两条数据，应该查询不到的
@@ -92,8 +88,8 @@ public class ClearTableTest extends PDKTestBase {
                             TapAssert.asserts(()->
                                 Assertions.assertTrue(
                                     null==consumer || null==consumer.getResults() || consumer.getResults().isEmpty(),
-                                    TapSummary.format("clearTable.verifyQueryByAdvanceFilterFunction.error",recordCount))
-                            ).acceptAsWarn(testCase,TapSummary.format("clearTable.verifyQueryByAdvanceFilterFunction.succeed",recordCount))
+                                    LangUtil.format("clearTable.verifyQueryByAdvanceFilterFunction.error",recordCount))
+                            ).acceptAsWarn(testCase,LangUtil.format("clearTable.verifyQueryByAdvanceFilterFunction.succeed",recordCount))
                     );
                     return;
                 }
@@ -104,8 +100,8 @@ public class ClearTableTest extends PDKTestBase {
                             TapAssert.asserts(()->
                                 Assertions.assertTrue(
                                     null==consumer || consumer.isEmpty(),
-                                    TapSummary.format("clearTable.verifyQueryByFilterFunction.error",recordCount))
-                        ).acceptAsWarn(testCase,TapSummary.format("clearTable.verifyQueryByFilterFunction.succeed",recordCount))
+                                    LangUtil.format("clearTable.verifyQueryByFilterFunction.error",recordCount))
+                        ).acceptAsWarn(testCase,LangUtil.format("clearTable.verifyQueryByFilterFunction.succeed",recordCount))
                     );
                 }
             } catch (Throwable e) {
@@ -119,9 +115,9 @@ public class ClearTableTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-                supportAny(list(BatchCountFunction.class, QueryByFilterFunction.class, QueryByAdvanceFilterFunction.class),TapSummary.format(anyOneFunFormat,"BatchCountFunction,QueryByFilterFunction,QueryByAdvanceFilterFunction")),
-                support(ClearTableFunction.class,TapSummary.format(inNeedFunFormat,"ClearTableFunction"))
+                support(WriteRecordFunction.class, LangUtil.format(inNeedFunFormat,"WriteRecordFunction")),
+                supportAny(list(BatchCountFunction.class, QueryByFilterFunction.class, QueryByAdvanceFilterFunction.class),LangUtil.format(anyOneFunFormat,"BatchCountFunction,QueryByFilterFunction,QueryByAdvanceFilterFunction")),
+                support(ClearTableFunction.class,LangUtil.format(inNeedFunFormat,"ClearTableFunction"))
         );
     }
 }

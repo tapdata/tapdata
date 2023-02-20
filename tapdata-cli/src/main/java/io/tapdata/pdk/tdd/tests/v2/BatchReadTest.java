@@ -5,25 +5,15 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.FilterResult;
-import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.Record;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -72,9 +62,9 @@ public class BatchReadTest extends PDKTestBase {
                 TapAssert.asserts(()->
                     Assertions.assertTrue(
                         null!=insert && insert.getInsertedCount() == recordCount,
-                        TapSummary.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
+                        LangUtil.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
                     )
-                ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
+                ).acceptAsError(testCase, LangUtil.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
 
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnectorContext context = connectorNode.getConnectorContext();
@@ -97,18 +87,18 @@ public class BatchReadTest extends PDKTestBase {
 //                        TapAssert.asserts(() ->
 //                            assertNotNull(
 //                                filterResult,
-//                                TapSummary.format("exact.match.filter.null",InstanceFactory.instance(JsonParser.class).toJson(filterMap))
+//                                LangUtil.format("exact.match.filter.null",InstanceFactory.instance(JsonParser.class).toJson(filterMap))
 //                            )
 //                        ).error(testCase);
 //                        if (null!=filterResult){
 //                            TapAssert.asserts(() -> Assertions.assertNull(
 //                                filterResult.getError(),
-//                                TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
+//                                LangUtil.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
 //                            )).error(testCase);
 //                            if (null==filterResult.getError()){
 //                                TapAssert.asserts(() -> assertNotNull(
 //                                    filterResult.getResult(),
-//                                    TapSummary.format("exact.match.filter.result.null",recordCount)
+//                                    LangUtil.format("exact.match.filter.result.null",recordCount)
 //                                )).error(testCase);
 //                                if (null!=filterResult.getResult()){
 //                                    Map<String, Object> result = filterResult.getResult();
@@ -117,8 +107,8 @@ public class BatchReadTest extends PDKTestBase {
 //                                    StringBuilder builder = new StringBuilder();
 //                                    TapAssert.asserts(()->assertTrue(
 //                                        mapEquals(record, result, builder),
-//                                        TapSummary.format("exact.equals.failed",recordCount,builder.toString())
-//                                    )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
+//                                        LangUtil.format("exact.equals.failed",recordCount,builder.toString())
+//                                    )).acceptAsWarn(testCase,LangUtil.format("exact.equals.succeed",recordCount,builder.toString()));
 //                                }
 //                            }
 //                        }
@@ -129,30 +119,30 @@ public class BatchReadTest extends PDKTestBase {
                 TapAssert.asserts(()->
                     Assertions.assertTrue(
                         list.size() >= 1,
-                        TapSummary.format("batchRead.batchRead.error",recordCount,batchSize,recordCount,null==list?0:list.size())
+                        LangUtil.format("batchRead.batchRead.error",recordCount,batchSize,recordCount,null==list?0:list.size())
                     )
-                ).acceptAsWarn(testCase,TapSummary.format("batchRead.batchRead.succeed",recordCount,batchSize,recordCount,null==list?0:list.size()));
+                ).acceptAsWarn(testCase,LangUtil.format("batchRead.batchRead.succeed",recordCount,batchSize,recordCount,null==list?0:list.size()));
                 if (list.size() == 1) {
                     Record record = records[0];
                     TapEvent tapEvent = list.get(0);
                     //读出的TapInsertRecordEvent， table， time和after不能为空
                     TapAssert.asserts(() -> {
-                        Assertions.assertNotNull(tapEvent, TapSummary.format("batchRead.tapInsertRecordEvent.null"));
-                    }).acceptAsError(testCase, TapSummary.format("batchRead.tapInsertRecordEvent.notNull"));
+                        Assertions.assertNotNull(tapEvent, LangUtil.format("batchRead.tapInsertRecordEvent.null"));
+                    }).acceptAsError(testCase, LangUtil.format("batchRead.tapInsertRecordEvent.notNull"));
                     if (null != tapEvent) {
                         TapInsertRecordEvent insertEvent = ((TapInsertRecordEvent) tapEvent);
                         TapInsertRecordEvent table = insertEvent.table(targetTable.getId());
                         TapAssert.asserts(() -> {
-                            Assertions.assertNotNull(table, TapSummary.format("batchRead.table.null"));
-                        }).acceptAsError(testCase, TapSummary.format("batchRead.table.notNull"));
+                            Assertions.assertNotNull(table, LangUtil.format("batchRead.table.null"));
+                        }).acceptAsError(testCase, LangUtil.format("batchRead.table.notNull"));
                         Long time = insertEvent.getTime();
                         TapAssert.asserts(() -> {
-                            Assertions.assertNotNull(time, TapSummary.format("batchRead.time.null"));
-                        }).acceptAsError(testCase, TapSummary.format("batchRead.time.notNull"));
+                            Assertions.assertNotNull(time, LangUtil.format("batchRead.time.null"));
+                        }).acceptAsError(testCase, LangUtil.format("batchRead.time.notNull"));
                         Map<String, Object> after = insertEvent.getAfter();
                         TapAssert.asserts(() -> {
-                            Assertions.assertNotNull(after, TapSummary.format("batchRead.after.null"));
-                        }).acceptAsError(testCase, TapSummary.format("batchRead.after.notNull"));
+                            Assertions.assertNotNull(after, LangUtil.format("batchRead.after.null"));
+                        }).acceptAsError(testCase, LangUtil.format("batchRead.after.notNull"));
 
                         Map<String, Object> result = null;//filterResult.getResult();
                         if (tapEvent instanceof TapInsertRecordEvent ){
@@ -170,8 +160,8 @@ public class BatchReadTest extends PDKTestBase {
                         Map<String, Object> finalResult = result;
                         TapAssert.asserts(() -> assertTrue(
                                 mapEquals(record, finalResult, builder),
-                                TapSummary.format("exact.equals.failed", recordCount, builder.toString())
-                        )).acceptAsWarn(testCase, TapSummary.format("exact.equals.succeed", recordCount, builder.toString()));
+                                LangUtil.format("exact.equals.failed", recordCount, builder.toString())
+                        )).acceptAsWarn(testCase, LangUtil.format("exact.equals.succeed", recordCount, builder.toString()));
                     }
                 }
             } catch (Throwable e) {
@@ -211,9 +201,9 @@ public class BatchReadTest extends PDKTestBase {
                 TapAssert.asserts(()->
                     Assertions.assertTrue(
                         null!=insert && insert.getInsertedCount() == recordCount,
-                        TapSummary.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
+                        LangUtil.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
                     )
-                ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
+                ).acceptAsError(testCase, LangUtil.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnectorContext context = connectorNode.getConnectorContext();
                 ConnectorFunctions functions = connectorNode.getConnectorFunctions();
@@ -246,21 +236,21 @@ public class BatchReadTest extends PDKTestBase {
                         if (null == tapEvents || tapEvents.size()!=batchSize){
                             //返回数据条目数第一批应该为2，
                             TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("batchRead.batchCount.error",recordCount,batchSize,indexFinal+1,batchSize,tapEventSize)
+                                Assertions.fail(LangUtil.format("batchRead.batchCount.error",recordCount,batchSize,indexFinal+1,batchSize,tapEventSize)
                             )).error(testCase);
                             break;
                         }else{
-                            TapAssert.succeed(testCase,TapSummary.format("batchRead.batchCount.succeed",recordCount,batchSize,indexFinal+1,batchSize,tapEventSize));
+                            TapAssert.succeed(testCase,LangUtil.format("batchRead.batchCount.succeed",recordCount,batchSize,indexFinal+1,batchSize,tapEventSize));
                         }
                     }else {
                         //返回数据条目数第二批应该为1，
                         if (null == tapEvents || tapEvents.size() != (recordCount-batchSize*index) ){
                             TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("batchRead.batchCount.error",recordCount,batchSize,indexFinal+1,recordCount-batchSize*indexFinal,tapEventSize
+                                Assertions.fail(LangUtil.format("batchRead.batchCount.error",recordCount,batchSize,indexFinal+1,recordCount-batchSize*indexFinal,tapEventSize
                             ))).error(testCase);
                             break;
                         }else {
-                            TapAssert.succeed(testCase,TapSummary.format("batchRead.batchCount.succeed",recordCount,batchSize,indexFinal+1,batchSize,tapEventSize));
+                            TapAssert.succeed(testCase,LangUtil.format("batchRead.batchCount.succeed",recordCount,batchSize,indexFinal+1,batchSize,tapEventSize));
                         }
                     }
                     for (int i = 0; i < tapEvents.size(); i++) {
@@ -285,8 +275,8 @@ public class BatchReadTest extends PDKTestBase {
                     //如此返回的2批数据， 验证这2批数据和插入的3条数据保持顺序并且主键相同
                     boolean finalIsTrue = isTrue;
                     TapAssert.asserts(()->
-                        Assertions.assertTrue(finalIsTrue,TapSummary.format("batchRead.final.error",recordCount,recordCount))
-                    ).acceptAsError(testCase,TapSummary.format("batchRead.final.succeed",recordCount,recordCount));
+                        Assertions.assertTrue(finalIsTrue,LangUtil.format("batchRead.final.error",recordCount,recordCount))
+                    ).acceptAsError(testCase,LangUtil.format("batchRead.final.succeed",recordCount,recordCount));
                 }
             } catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -299,8 +289,8 @@ public class BatchReadTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, TapSummary.format("WriteRecordFunctionNeed")),
-                support(BatchReadFunction.class,TapSummary.format("BatchReadFunctionNeed"))
+                support(WriteRecordFunction.class, LangUtil.format("WriteRecordFunctionNeed")),
+                support(BatchReadFunction.class,LangUtil.format("BatchReadFunctionNeed"))
         );
     }
 }

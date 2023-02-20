@@ -1,4 +1,4 @@
-package io.tapdata.pdk.cli.commands;
+package io.tapdata.pdk.tdd.tests.support;
 import javax.swing.JFileChooser;
 import javax.swing.JPanel;
 import io.tapdata.entity.schema.TapTable;
@@ -13,7 +13,6 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
-import io.tapdata.pdk.tdd.tests.support.*;
 import org.apache.commons.io.FilenameUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,6 +59,24 @@ public class TapSummary {
     TestExecutionSummary summary;
     List<Class<?>> testClasses = new ArrayList<>();
     StringBuilder resultBuilder = new StringBuilder();
+    public void summary(TestExecutionSummary summary){
+        this.summary = summary;
+    }
+    public TestExecutionSummary summary(){
+        return this.summary ;
+    }
+    public List<Class<?>> testClasses(){
+        return this.testClasses;
+    }
+    public Map<Class,String> doNotSupportFunTest(){
+        return this.doNotSupportFunTest;
+    }
+    public void tapNodeInfo(TapNodeInfo tapNodeInfo){
+        this.tapNodeInfo = tapNodeInfo;
+    }
+    public TapNodeInfo tapNodeInfo(){
+        return this.tapNodeInfo;
+    }
 
     //存放所有测试类的所有测试用例的全部执行断言的结果
     public static Map<Class, CapabilitiesExecutionMsg> capabilitiesResult = new HashMap<>();
@@ -69,6 +86,9 @@ public class TapSummary {
 
     //存放所有测试类的最终测试结果
     Map<Class<? extends PDKTestBase>,Integer> resultExecution = new HashMap<>();
+    public Map<Class<? extends PDKTestBase>,Integer> resultExecution(){
+        return this.resultExecution;
+    }
 
     //用来表示一次测试过程是否通过
     public static String hasPass = "SUCCEED";
@@ -84,7 +104,7 @@ public class TapSummary {
 
 
     List<TapSummary> summarys;
-    private static final String LANG_PATH = "i18n.lang";
+
     private Locale langType = Locale.SIMPLIFIED_CHINESE;
     private final String AREA_SPLIT = "------------------------------------------------------------------------------------";
     private final String AREA_SPLIT_SIMPLE = "————————————————————————————————————————————————————————————————————————————————————";
@@ -176,7 +196,7 @@ public class TapSummary {
                         jumpCaseTest.append("\t\t")
                                 .append(((char) (65 + caseIndex)))
                                 .append(".")
-                                .append(TapSummary.format(testCase.value()))
+                                .append(LangUtil.format(testCase.value()))
                                 .append("\n");
                         jumpCase++;
                         caseIndex++;
@@ -184,15 +204,15 @@ public class TapSummary {
                 }
                 if (caseIndex>0){
                     builder.append("\t◉ ")
-                            .append(TapSummary.format("base.jumpCase.list"))
+                            .append(LangUtil.format("base.jumpCase.list"))
                             .append("\n")
                             .append(jumpCaseTest);
                 }
                 summaryData.summaryOnce(jumpCase, 0, 0, 0, 0, jumpCase);
                 builder.append("★ ")
-                        .append(TapSummary.format("ONCE_HISTORY",
+                        .append(LangUtil.format("ONCE_HISTORY",
                                 aClass.getSimpleName(),
-                                TapSummary.format("TEST_RESULT_WARN"),
+                                LangUtil.format("TEST_RESULT_WARN"),
                                 0,
                                 0,
                                 0,
@@ -239,7 +259,7 @@ public class TapSummary {
                     capabilityBuilder.append("\t")
                             .append(((char) (65 + caseIndex)))
                             .append(".")
-                            .append(TapSummary.format(testCase.message()))
+                            .append(LangUtil.format(testCase.message()))
                             .append("\n");
                     caseIndex++;
 
@@ -284,9 +304,9 @@ public class TapSummary {
                     0
             );
             builder.append("★ ")
-                    .append(TapSummary.format("ONCE_HISTORY",
+                    .append(LangUtil.format("ONCE_HISTORY",
                             cla.getSimpleName(),
-                            res.executionResult() == CapabilitiesExecutionMsg.ERROR?TapSummary.format("TEST_RESULT_ERROR"):TapSummary.format("TEST_RESULT_SUCCEED"),
+                            res.executionResult() == CapabilitiesExecutionMsg.ERROR?LangUtil.format("TEST_RESULT_ERROR"):LangUtil.format("TEST_RESULT_SUCCEED"),
                             methodCaseMap.size()-warnSize-errorSize,
                             warnSize,
                             errorSize,
@@ -432,22 +452,22 @@ public class TapSummary {
         TapNodeSpecification tapNodeSpecification = tapNodeInfo.getTapNodeSpecification();
         show.append(AREA_SPLIT).append("\n")
                 .append(tapNodeSpecification.getName())
-                .append(TapSummary.format("CONNECTOR_CAPABILITIES_START","\n"));
+                .append(LangUtil.format("CONNECTOR_CAPABILITIES_START","\n"));
         ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
         List<Capability> capabilities = connectorFunctions.getCapabilities();
         AtomicInteger index = new AtomicInteger();
         capabilities.stream().filter(Objects::nonNull).forEach(capability -> show.append("\t")
                 .append(index.incrementAndGet())
                 .append(". ")
-                .append(TapSummary.format(capability.getId()))
+                .append(LangUtil.format(capability.getId()))
                 .append("\n")
         );
-        show.append(TapSummary.format("TOTAL_CAPABILITIES_OF",tapNodeSpecification.getName(),index.get(),"\n"));
+        show.append(LangUtil.format("TOTAL_CAPABILITIES_OF",tapNodeSpecification.getName(),index.get(),"\n"));
         return show;
     }
 
     private String replaceAsLang(String txt){
-        ResourceBundle lang = ResourceBundle.getBundle(LANG_PATH, langType);
+        ResourceBundle lang = ResourceBundle.getBundle(LangUtil.LANG_PATH, langType);
         int startAt = 0;
         int length = txt.length();
         while (startAt <= length) {
@@ -486,25 +506,10 @@ public class TapSummary {
         return logo;
     }
 
-    public static String format(String key, Object ... formatValue){
-        String tapLang = CommonUtils.getProperty("tap_lang");
-        String langArr[] = tapLang.split("_");
-        if (langArr.length<1) langArr = new String[]{"zh","CN"};
-        ResourceBundle lang = ResourceBundle.getBundle(LANG_PATH, new Locale(langArr[0],langArr.length>1?langArr[1]:""));
-        String value = "?";
-        try {
-            value = lang.getString(key);
-        }catch (Exception e){
-            return key;
-        }
-        if (null==formatValue||formatValue.length<1) return value;
-        return String.format(value,formatValue);
-    }
-
     private String getAnnotationName(Class objectCla,Class annotationCla){
         Annotation annotation = objectCla.getAnnotation(annotationCla);
         if (null == annotation) return "?";
-        return TapSummary.format(((DisplayName)objectCla.getAnnotation(DisplayName.class)).value());
+        return LangUtil.format(((DisplayName)objectCla.getAnnotation(DisplayName.class)).value());
     }
 
     public void endingShow(TapSummary summary,String fileName){
@@ -521,7 +526,7 @@ public class TapSummary {
         int succeed = summaryData.succeed();
         int warn = summaryData.warn();
         int dump = summaryData.dump();
-        builderEnd.append(TapSummary.format("SUMMARY_END",connectorName,totalCase,exeCase,succeed,warn,error,dump))
+        builderEnd.append(LangUtil.format("SUMMARY_END",connectorName,totalCase,exeCase,succeed,warn,error,dump))
                 .append("————————————————————————————————————————————————————————————————————————————————————\n")
                 .append(end)
                 .append("\n")
@@ -537,11 +542,11 @@ public class TapSummary {
     public String endingShowV2(String fileName){
         String msg = "";
         if(Case.ERROR.equals(TapSummary.hasPass)) {
-            msg = TapSummary.format("TEST_ERROR_END","",fileName);
+            msg = LangUtil.format("TEST_ERROR_END","",fileName);
         }else {
-            msg = TapSummary.format("TEST_SUCCEED_END","",fileName);
+            msg = LangUtil.format("TEST_SUCCEED_END","",fileName);
             if (Case.WARN.equals(TapSummary.hasPass)){
-                msg += TapSummary.format("SUCCEED_WITH_WARN");
+                msg += LangUtil.format("SUCCEED_WITH_WARN");
             }
         }
 

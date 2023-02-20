@@ -14,7 +14,9 @@ import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.basic.BasicTest;
+import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
+import io.tapdata.pdk.tdd.tests.support.TapSummary;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordTest;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.maven.model.Model;
@@ -33,7 +35,6 @@ import picocli.CommandLine;
 
 import java.io.*;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -111,7 +112,7 @@ public class TDDCli extends CommonCli {
 
         String pdkId = CommonUtils.getProperty("pdk_test_pdk_id", null);
         TestExecutionSummary summary = listener.getSummary();
-        testResultSummary.summary = summary;
+        testResultSummary.summary(summary);
         testResultSummary.setLanType(new Locale(lan)).showTestResult(testResultSummary);
     }
 
@@ -266,7 +267,7 @@ public class TDDCli extends CommonCli {
     private void runLevelWithNodeInfo(TapNodeInfo tapNodeInfo) throws Throwable {
         CommonUtils.setProperty("pdk_test_pdk_id", tapNodeInfo.getTapNodeSpecification().getId());
         TapSummary testResultSummary = TapSummary.create();
-        testResultSummary.tapNodeInfo = tapNodeInfo;
+        testResultSummary.tapNodeInfo(tapNodeInfo);
         testResultSummaries.add(testResultSummary);
         runLevel(generateTestTargets(tapNodeInfo, testResultSummary), testResultSummary);
     }
@@ -302,11 +303,11 @@ public class TDDCli extends CommonCli {
                         try {
                             if (!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
                                 allFound = false;
-                                testResultSummary.doNotSupportFunTest.put(testClass, TapSummary.format(supportFunction.getErrorMessage()));
+                                testResultSummary.doNotSupportFunTest().put(testClass, LangUtil.format(supportFunction.getErrorMessage()));
                             }
                         } catch (NoSuchMethodException e) {
                             allFound = false;
-                            testResultSummary.doNotSupportFunTest.put(testClass, TapSummary.format(supportFunction.getErrorMessage()));
+                            testResultSummary.doNotSupportFunTest().put(testClass, LangUtil.format(supportFunction.getErrorMessage()));
                         }
                         if (!allFound) {
                             Set<Class<? extends PDKTestBase>> classes = subTest(testClass);
@@ -348,7 +349,7 @@ public class TDDCli extends CommonCli {
 
     private void selectorsAddClass(List<DiscoverySelector> selectors, Class<?> theClass, TapSummary testResultSummary) {
         selectors.add(DiscoverySelectors.selectClass(theClass));
-        testResultSummary.testClasses.add(theClass);
+        testResultSummary.testClasses().add(theClass);
     }
 
     private TapNodeInfo nodeInfo() {

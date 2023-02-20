@@ -6,12 +6,9 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,19 +51,19 @@ public class ConnectionTest extends PDKTestBase {
                 testItemMap.containsKey(TestItem.ITEM_CONNECTION)||
                         testItemMap.containsKey(TestItem.ITEM_VERSION)||
                         testItemMap.containsKey(TestItem.ITEM_LOGIN),
-                        TapSummary.format("connectionTest.testConnectionTest.errorVCL")
+                        LangUtil.format("connectionTest.testConnectionTest.errorVCL")
                     )
                 ).acceptAsWarn(testCase,
-                    TapSummary.format("connectionTest.testConnectionTest.succeedVCL")
+                    LangUtil.format("connectionTest.testConnectionTest.succeedVCL")
                 );
                 //当实现BatchReadFunction的时候， Read没有上报时， 输出警告。
                 BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
                 if (null!=batchReadFunction) {
                     TapAssert.asserts(() ->
                         Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_READ),
-                            TapSummary.format("connectionTest.testConnectionTest.errorBatchRead"))
+                            LangUtil.format("connectionTest.testConnectionTest.errorBatchRead"))
                     ).acceptAsWarn(testCase,
-                        TapSummary.format("connectionTest.testConnectionTest.succeedBatchRead")
+                        LangUtil.format("connectionTest.testConnectionTest.succeedBatchRead")
                     );
                 }
                 //当实现StreamReadFunction的时候， Read log没有上报时， 输出警告。
@@ -74,9 +71,9 @@ public class ConnectionTest extends PDKTestBase {
                 if (null!=streamReadFunction){
                     TapAssert.asserts(()->
                         Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_READ_LOG),
-                            TapSummary.format("connectionTest.testConnectionTest.errorStreamRead"))
+                            LangUtil.format("connectionTest.testConnectionTest.errorStreamRead"))
                     ).acceptAsWarn(testCase,
-                        TapSummary.format("connectionTest.testConnectionTest.succeedStreamRead")
+                        LangUtil.format("connectionTest.testConnectionTest.succeedStreamRead")
                     );
                 }
 
@@ -85,9 +82,9 @@ public class ConnectionTest extends PDKTestBase {
                 if (null!=writeRecordFunction){
                     TapAssert.asserts(()->
                         Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_WRITE),
-                            TapSummary.format("connectionTest.testConnectionTest.errorWriteRecord"))
+                            LangUtil.format("connectionTest.testConnectionTest.errorWriteRecord"))
                     ).acceptAsWarn(testCase,
-                        TapSummary.format("connectionTest.testConnectionTest.succeedWriteRecord")
+                        LangUtil.format("connectionTest.testConnectionTest.succeedWriteRecord")
                     );
                 }
             }catch (Throwable e){

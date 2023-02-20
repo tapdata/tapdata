@@ -9,7 +9,8 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.LangUtil;
+import io.tapdata.pdk.tdd.tests.support.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.tests.support.Record;
@@ -140,19 +141,19 @@ public class RecordEventExecute {
 
     public void dropTable() {
         TapAssert.asserts(
-            ()->Assertions.assertDoesNotThrow(this::drop,TapSummary.format("recordEventExecute.drop.table.error"))
-        ).acceptAsWarn(testCase,TapSummary.format("recordEventExecute.drop.notCatch.thrower"));
+            ()->Assertions.assertDoesNotThrow(this::drop,LangUtil.format("recordEventExecute.drop.table.error"))
+        ).acceptAsWarn(testCase,LangUtil.format("recordEventExecute.drop.notCatch.thrower"));
     }
 
     private boolean drop() throws Throwable {
         DropTableFunction dropTableFunction = connectorFunctions.getDropTableFunction();
         if(null == dropTableFunction){
-            TapAssert.asserts(()->Assertions.fail(TapSummary.format("base.notSupportDropTable",base.getTargetTable().getId()))).warn(testCase);
+            TapAssert.asserts(()->Assertions.fail(LangUtil.format("base.notSupportDropTable",base.getTargetTable().getId()))).warn(testCase);
             return false;
         }
         TapAssert.asserts(
-            ()->Assertions.assertNotNull(dropTableFunction,TapSummary.format("recordEventExecute.drop.error.not.support.function"))
-        ).acceptAsError(testCase,TapSummary.format("recordEventExecute.drop.table.succeed",base.getTargetTable().getId()));
+            ()->Assertions.assertNotNull(dropTableFunction,LangUtil.format("recordEventExecute.drop.error.not.support.function"))
+        ).acceptAsError(testCase,LangUtil.format("recordEventExecute.drop.table.succeed",base.getTargetTable().getId()));
         TapDropTableEvent dropTableEvent = new TapDropTableEvent();
         dropTableEvent.setTableId(base.getTargetTable().getId());
         dropTableEvent.setReferenceTime(System.currentTimeMillis());

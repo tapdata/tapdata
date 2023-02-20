@@ -10,13 +10,10 @@ import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -66,15 +63,15 @@ public class CreateTableTest extends PDKTestBase {
 
                 CreateTableV2Function createTableV2 = functions.getCreateTableV2Function();
                 TapAssert.asserts(()->
-                        Assertions.assertNotNull(createTableV2, TapSummary.format("createTable.v2Null",targetTable.getId()))
-                ).acceptAsWarn(testCase,TapSummary.format("createTable.v2NotNull",tableId));
+                        Assertions.assertNotNull(createTableV2, LangUtil.format("createTable.v2Null",targetTable.getId()))
+                ).acceptAsWarn(testCase, LangUtil.format("createTable.v2NotNull",tableId));
                 CreateTableFunction createTable = null;
                 if(null == createTableV2) {
                     createTable = functions.getCreateTableFunction();
                     CreateTableFunction finalCreateTable = createTable;
                     TapAssert.asserts(() ->
-                            Assertions.assertNotNull(finalCreateTable, TapSummary.format("createTable.null", targetTable.getId()))
-                    ).acceptAsWarn(testCase, TapSummary.format("createTable.notNull", tableId));
+                            Assertions.assertNotNull(finalCreateTable, LangUtil.format("createTable.null", targetTable.getId()))
+                    ).acceptAsWarn(testCase, LangUtil.format("createTable.notNull", tableId));
                 }
 
                 boolean isV1 = null != createTable;
@@ -122,8 +119,8 @@ public class CreateTableTest extends PDKTestBase {
         } catch (Throwable throwable) {
         }
         TapAssert.asserts(()->{
-            Assertions.assertFalse(consumer.isEmpty(), TapSummary.format("verifyTableIsCreated.error",tableIdTarget,consumer.size(), createMethod, tableIdTarget));
-        }).acceptAsError(testBase,TapSummary.format("verifyTableIsCreated.succeed",tableIdTarget,consumer.size(), createMethod,tableIdTarget));
+            Assertions.assertFalse(consumer.isEmpty(), LangUtil.format("verifyTableIsCreated.error",tableIdTarget,consumer.size(), createMethod, tableIdTarget));
+        }).acceptAsError(testBase,LangUtil.format("verifyTableIsCreated.succeed",tableIdTarget,consumer.size(), createMethod,tableIdTarget));
         return !consumer.isEmpty();
     }
 
@@ -190,8 +187,8 @@ public class CreateTableTest extends PDKTestBase {
                 if (!tableMap.isEmpty()){
                     TapTable tapTable = tableMap.get(tableId);
                     TapAssert.asserts(()->{
-                        Assertions.assertNotNull(tapTable, TapSummary.format("createTable.allTapType.discoverSchema.error", tableId));
-                    }).acceptAsError(testCase,TapSummary.format("createTable.allTapType.discoverSchema.succeed",tableId));
+                        Assertions.assertNotNull(tapTable, LangUtil.format("createTable.allTapType.discoverSchema.error", tableId));
+                    }).acceptAsError(testCase,LangUtil.format("createTable.allTapType.discoverSchema.succeed",tableId));
                     if (null!=tapTable){
                         //对比两个TapTable里的字段名以及类型， 不同的地方需要警告。
                         LinkedHashMap<String, TapField> targetFields = tapTable.getNameFieldMap();
@@ -199,7 +196,7 @@ public class CreateTableTest extends PDKTestBase {
                     }
                 }else {
                     TapAssert.asserts(()->{
-                        Assertions.fail(TapSummary.format("createTable.allTapType.discoverSchema.error",tableId));
+                        Assertions.fail(LangUtil.format("createTable.allTapType.discoverSchema.error",tableId));
                     }).error(testCase);
                 }
             }catch (Throwable e) {
@@ -267,23 +264,23 @@ public class CreateTableTest extends PDKTestBase {
                 String tableId = targetTable.getId();
                 LinkedHashMap<String, TapField> fieldMap = targetTable.getNameFieldMap();
                 if (null == fieldMap || fieldMap.isEmpty()){
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("createIndex.notFieldMap",tableId))).error(testCase);
+                    TapAssert.asserts(()->Assertions.fail(LangUtil.format("createIndex.notFieldMap",tableId))).error(testCase);
                     return;
                 }
                 TapField string1 = fieldMap.get("TYPE_STRING_1");
                 if (null == string1){
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("createIndex.notSuchField",tableId,"TYPE_STRING_1"))).error(testCase);
+                    TapAssert.asserts(()->Assertions.fail(LangUtil.format("createIndex.notSuchField",tableId,"TYPE_STRING_1"))).error(testCase);
                     return;
                 }
                 TapField string2 = fieldMap.get("TYPE_STRING_2");
                 if (null == string2){
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("createIndex.notSuchField",tableId,"TYPE_STRING_2"))).error(testCase);
+                    TapAssert.asserts(()->Assertions.fail(LangUtil.format("createIndex.notSuchField",tableId,"TYPE_STRING_2"))).error(testCase);
                     return;
                 }
 
                 TapField int64 = fieldMap.get("TYPE_INT64");
                 if (null == int64){
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("createIndex.notSuchField",tableId,"TYPE_INT64"))).error(testCase);
+                    TapAssert.asserts(()->Assertions.fail(LangUtil.format("createIndex.notSuchField",tableId,"TYPE_INT64"))).error(testCase);
                     return;
                 }
 
@@ -294,7 +291,7 @@ public class CreateTableTest extends PDKTestBase {
                 CreateIndexFunction createIndex = functions.getCreateIndexFunction();
                 if (null == createIndex){
                     TapAssert.asserts(()->
-                        Assertions.fail(TapSummary.format("createIndex.noiImplement.createIndexFun"))
+                        Assertions.fail(LangUtil.format("createIndex.noiImplement.createIndexFun"))
                     ).warn(testCase);
                     return;
                 }
@@ -326,10 +323,10 @@ public class CreateTableTest extends PDKTestBase {
                 });
                try {
                    createIndex.createIndex(connectorContext,targetTable,event);
-                   TapAssert.asserts(()->{}).acceptAsError(testCase,TapSummary.format("createIndex.succeed",indexStr.toString(),tableId));
+                   TapAssert.asserts(()->{}).acceptAsError(testCase,LangUtil.format("createIndex.succeed",indexStr.toString(),tableId));
                }catch (Throwable e){
                    TapAssert.asserts(()->
-                       Assertions.fail(TapSummary.format("createIndex.error",indexStr.toString(),tableId))
+                       Assertions.fail(LangUtil.format("createIndex.error",indexStr.toString(),tableId))
                    ).error(testCase);
                    return;
                }
@@ -343,7 +340,7 @@ public class CreateTableTest extends PDKTestBase {
                     TapTable tapTable = consumer.get(0);
                     String id = tapTable.getId();
                     if (!tableId.equals(id)){
-                        TapAssert.asserts(()->Assertions.fail(TapSummary.format("createIndex.discoverSchema.error",tableId))).warn(testCase);
+                        TapAssert.asserts(()->Assertions.fail(LangUtil.format("createIndex.discoverSchema.error",tableId))).warn(testCase);
                         return;
                     }
                     List<TapIndex> indexListAfter = tapTable.getIndexList();
@@ -351,7 +348,7 @@ public class CreateTableTest extends PDKTestBase {
                     //对比两个TapTable里的索引信息， 不同的地方需要警告。
                     super.checkIndex(testCase,indexList,indexListAfter);
                 }else {
-                    TapAssert.asserts(()->Assertions.fail(TapSummary.format("createIndex.discoverSchema.tooMany.error",discoverCount,consumer.size(),tableId))).error(testCase);
+                    TapAssert.asserts(()->Assertions.fail(LangUtil.format("createIndex.discoverSchema.tooMany.error",discoverCount,consumer.size(),tableId))).error(testCase);
                 }
             }catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -391,7 +388,7 @@ public class CreateTableTest extends PDKTestBase {
                 CreateTableV2Function createTableV2 = functions.getCreateTableV2Function();
                 if (null==createTableV2){
                     TapAssert.asserts(()->
-                        Assertions.assertNotNull(createTableV2, TapSummary.format("createTable.v2Null",targetTable.getId()))
+                        Assertions.assertNotNull(createTableV2, LangUtil.format("createTable.v2Null",targetTable.getId()))
                     ).warn(testCase);
                     return;
                 }
@@ -399,14 +396,14 @@ public class CreateTableTest extends PDKTestBase {
                 String tableId = targetTable.getId();
                 CreateTableOptions table = createTableV2.createTable(connectorContext, event);
                 TapAssert.asserts(()->
-                    Assertions.assertTrue(null!=table&&!table.getTableExists(),TapSummary.format("tableIfExists.error",tableId))
-                ).acceptAsError(testCase,TapSummary.format("tableIfExists.succeed",tableId));
+                    Assertions.assertTrue(null!=table&&!table.getTableExists(),LangUtil.format("tableIfExists.error",tableId))
+                ).acceptAsError(testCase,LangUtil.format("tableIfExists.succeed",tableId));
                 if (( hasCreateTable = (null!=table&&!table.getTableExists()) )){
                     event.setReferenceTime(System.currentTimeMillis());
                     CreateTableOptions tableAgain = createTableV2.createTable(connectorContext, event);
                     TapAssert.asserts(()->
-                        Assertions.assertTrue(null!=tableAgain&&tableAgain.getTableExists(),TapSummary.format("tableIfExists.again.error",tableId))
-                    ).acceptAsError(testCase,TapSummary.format("tableIfExists.again.succeed",tableId));
+                        Assertions.assertTrue(null!=tableAgain&&tableAgain.getTableExists(),LangUtil.format("tableIfExists.again.error",tableId))
+                    ).acceptAsError(testCase,LangUtil.format("tableIfExists.again.succeed",tableId));
                     prepare.recordEventExecute().dropTable();
                 }
             }catch (Throwable e) {
@@ -420,11 +417,11 @@ public class CreateTableTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-            //support(DropTableFunction.class,TapSummary.format(inNeedFunFormat,"DropTableFunction")),
-            support(CreateIndexFunction.class,TapSummary.format(inNeedFunFormat,"CreateIndexFunction")),
+            //support(DropTableFunction.class,LangUtil.format(inNeedFunFormat,"DropTableFunction")),
+            support(CreateIndexFunction.class,LangUtil.format(inNeedFunFormat,"CreateIndexFunction")),
             supportAny(
                     list(WriteRecordFunction.class,CreateTableFunction.class,CreateTableV2Function.class),
-                    TapSummary.format(anyOneFunFormat,"WriteRecordFunction,CreateTableFunction,CreateTableV2Function"))
+                    LangUtil.format(anyOneFunFormat,"WriteRecordFunction,CreateTableFunction,CreateTableV2Function"))
         );
     }
 }

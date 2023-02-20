@@ -3,20 +3,14 @@ package io.tapdata.pdk.tdd.tests.v2;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.Record;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -67,10 +61,10 @@ public class QueryByFilterTest extends PDKTestBase {
                     WriteListResult<TapRecordEvent> finalInsert = insert;
                     TapAssert.asserts(()->
                         Assertions.assertTrue(null != finalInsert && finalInsert.getInsertedCount() == records.length,
-                            TapSummary.format("queryByFilter.insert.error",null==finalInsert?0:finalInsert.getInsertedCount(),tableId))
+                            LangUtil.format("queryByFilter.insert.error",null==finalInsert?0:finalInsert.getInsertedCount(),tableId))
                     ).acceptAsError(
                         testCase,
-                        TapSummary.format("batchRead.insert.succeed",null==finalInsert?0:finalInsert.getInsertedCount(),tableId)
+                        LangUtil.format("batchRead.insert.succeed",null==finalInsert?0:finalInsert.getInsertedCount(),tableId)
                     );
 
                     ConnectorFunctions connectorFunctions = prepare.connectorNode().getConnectorFunctions();
@@ -93,10 +87,10 @@ public class QueryByFilterTest extends PDKTestBase {
                     );
                     if (!results.isEmpty()){
                         TapAssert.asserts(()->{
-                            Assertions.assertTrue(1!=results.size(),TapSummary.format("insertWithQuery.queryById.error",recordCount,key,key,value,recordCount));
-                        }).acceptAsWarn(testCase, TapSummary.format("insertWithQuery.queryById.succeed",recordCount,key,key,value));
+                            Assertions.assertTrue(1!=results.size(),LangUtil.format("insertWithQuery.queryById.error",recordCount,key,key,value,recordCount));
+                        }).acceptAsWarn(testCase, LangUtil.format("insertWithQuery.queryById.succeed",recordCount,key,key,value));
                     }else {
-                        TapAssert.asserts(()-> Assertions.fail(TapSummary.format("insertWithQuery.queryById.noData",recordCount,key,key,value,recordCount))).error(testCase);
+                        TapAssert.asserts(()-> Assertions.fail(LangUtil.format("insertWithQuery.queryById.noData",recordCount,key,key,value,recordCount))).error(testCase);
                     }
 
                     if (null != results && results.size() == 1){
@@ -109,8 +103,8 @@ public class QueryByFilterTest extends PDKTestBase {
                         StringBuilder builder = new StringBuilder();
                         TapAssert.asserts(()->assertTrue(
                                 mapEquals(record, tapEvent, builder),
-                                TapSummary.format("exact.equals.failed",recordCount,builder.toString())
-                        )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
+                                LangUtil.format("exact.equals.failed",recordCount,builder.toString())
+                        )).acceptAsWarn(testCase,LangUtil.format("exact.equals.succeed",recordCount,builder.toString()));
 
 
 
@@ -125,18 +119,18 @@ public class QueryByFilterTest extends PDKTestBase {
 //                        TapAssert.asserts(() ->
 //                                assertNotNull(
 //                                        filterResult,
-//                                        TapSummary.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
+//                                        LangUtil.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
 //                                )
 //                        ).error(testCase);
 //                        if (null!=filterResult){
 //                            TapAssert.asserts(() -> Assertions.assertNull(
 //                                    filterResult.getError(),
-//                                    TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
+//                                    LangUtil.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
 //                            )).error(testCase);
 //                            if (null==filterResult.getError()){
 //                                TapAssert.asserts(() -> assertNotNull(
 //                                        filterResult.getResult(),
-//                                        TapSummary.format("exact.match.filter.result.null",recordCount)
+//                                        LangUtil.format("exact.match.filter.result.null",recordCount)
 //                                )).error(testCase);
 //                                if (null!=filterResult.getResult()){
 //                                    Map<String, Object> result = filterResult.getResult();
@@ -145,8 +139,8 @@ public class QueryByFilterTest extends PDKTestBase {
 //                                    StringBuilder builder = new StringBuilder();
 //                                    TapAssert.asserts(()->assertTrue(
 //                                            mapEquals(record, result, builder),
-//                                            TapSummary.format("exact.equals.failed",recordCount,builder.toString())
-//                                    )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
+//                                            LangUtil.format("exact.equals.failed",recordCount,builder.toString())
+//                                    )).acceptAsWarn(testCase,LangUtil.format("exact.equals.succeed",recordCount,builder.toString()));
 //                                }
 //                            }
 //                        }
@@ -161,7 +155,7 @@ public class QueryByFilterTest extends PDKTestBase {
                         prepare.connectorNode().getConnectorContext(),
                         filters,
                         targetTable,
-                        filterResults -> TapAssert.asserts(()->{ }).acceptAsError(testCase, TapSummary.format(""))
+                        filterResults -> TapAssert.asserts(()->{ }).acceptAsError(testCase, LangUtil.format(""))
                     );
 
                     //再进行精确，只要能查出来数据就算是正确。
@@ -170,12 +164,12 @@ public class QueryByFilterTest extends PDKTestBase {
                         prepare.connectorNode().getConnectorContext(),
                         filters,
                         targetTable,
-                        filterResults -> TapAssert.asserts(()->{ }).acceptAsError(testCase, TapSummary.format(""))
+                        filterResults -> TapAssert.asserts(()->{ }).acceptAsError(testCase, LangUtil.format(""))
                     );
                 }catch (Throwable e){
-                    TapAssert.asserts(()-> Assertions.fail(TapSummary.format(""))).acceptAsError(
+                    TapAssert.asserts(()-> Assertions.fail(LangUtil.format(""))).acceptAsError(
                         testCase,
-                        TapSummary.format("")
+                        LangUtil.format("")
                     );
                 }
             }catch (Exception e){
@@ -222,10 +216,10 @@ public class QueryByFilterTest extends PDKTestBase {
                 WriteListResult<TapRecordEvent> finalInsert = insert;
                 TapAssert.asserts(()->
                     Assertions.assertTrue(null != finalInsert && finalInsert.getInsertedCount() == records.length,
-                        TapSummary.format("queryByFilter.insert.error",null==finalInsert?0:finalInsert.getInsertedCount(),tableId))
+                        LangUtil.format("queryByFilter.insert.error",null==finalInsert?0:finalInsert.getInsertedCount(),tableId))
                 ).acceptAsError(
                     testCase,
-                    TapSummary.format("queryByFilter.insert.error",null==finalInsert?0:finalInsert.getInsertedCount(),tableId)
+                    LangUtil.format("queryByFilter.insert.error",null==finalInsert?0:finalInsert.getInsertedCount(),tableId)
                 );
 
                 ConnectorFunctions connectorFunctions = prepare.connectorNode().getConnectorFunctions();
@@ -261,14 +255,14 @@ public class QueryByFilterTest extends PDKTestBase {
                         Assertions.assertTrue(
                         ( ((result1==null) || ( result1.getResult()==null || result1.getResult().isEmpty())) && result2 != null && result2.getResult() != null ) ||
                                 ( ((result2==null) || ( result2.getResult()==null || result2.getResult().isEmpty())) && result1 != null && result1.getResult() != null),
-                            TapSummary.format("lotFilter.notEquals",filters.size(),key,value,key1,value1,filters.size())
+                            LangUtil.format("lotFilter.notEquals",filters.size(),key,value,key1,value1,filters.size())
                         )
                     ).acceptAsWarn(
                         testCase,
-                        TapSummary.format("lotFilter.equals.succeed",filters.size(),key,value,key1,value1,filters.size())
+                        LangUtil.format("lotFilter.equals.succeed",filters.size(),key,value,key1,value1,filters.size())
                     );
                 }else {
-                    TapAssert.asserts(()-> Assertions.fail(TapSummary.format("lotFilter.notEquals.numError",filters.size(),key,value,key1,value1,filters.size(),results.size()))).error(testCase);
+                    TapAssert.asserts(()-> Assertions.fail(LangUtil.format("lotFilter.notEquals.numError",filters.size(),key,value,key1,value1,filters.size(),results.size()))).error(testCase);
                 }
             }catch (Throwable e){
                 throw new RuntimeException(e);
@@ -284,8 +278,8 @@ public class QueryByFilterTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-            support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-            support(QueryByFilterFunction.class,TapSummary.format(inNeedFunFormat,"QueryByFilterFunction"))
+            support(WriteRecordFunction.class, LangUtil.format(inNeedFunFormat,"WriteRecordFunction")),
+            support(QueryByFilterFunction.class,LangUtil.format(inNeedFunFormat,"QueryByFilterFunction"))
         );
     }
 }

@@ -1,23 +1,14 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.Record;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,9 +55,9 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 TapAssert.asserts(()->
                     Assertions.assertTrue(
                         null!=insert && insert.getInsertedCount() == recordCount,
-                        TapSummary.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
+                        LangUtil.format("batchRead.insert.error",recordCount,null==insert?0:insert.getInsertedCount())
                     )
-                ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
+                ).acceptAsError(testCase, LangUtil.format("batchRead.insert.succeed",recordCount,null==insert?0:insert.getInsertedCount()));
 
                 ConnectorNode connectorNode = prepare.connectorNode();
                 ConnectorFunctions functions = connectorNode.getConnectorFunctions();
@@ -80,9 +71,9 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 TapAssert.asserts(()->
                     Assertions.assertEquals(
                          consumer.size(), recordCount,
-                        TapSummary.format("byAdvance.query.error",recordCount,null==consumer ? 0 : consumer.size())
+                        LangUtil.format("byAdvance.query.error",recordCount,null==consumer ? 0 : consumer.size())
                     )
-                ).acceptAsError(testCase,TapSummary.format("byAdvance.query.succeed",recordCount,null==consumer?0:consumer.size()));
+                ).acceptAsError(testCase,LangUtil.format("byAdvance.query.succeed",recordCount,null==consumer?0:consumer.size()));
                 if ( consumer.size() == 1){
                     Record record = records[0];
                     Map<String,Object> tapEvent = consumer.get(0);
@@ -94,8 +85,8 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                     StringBuilder builder = new StringBuilder();
                     TapAssert.asserts(()->assertTrue(
                             mapEquals(record, result, builder),
-                            TapSummary.format("exact.equals.failed",recordCount,builder.toString())
-                    )).acceptAsWarn(testCase,TapSummary.format("exact.equals.succeed",recordCount,builder.toString()));
+                            LangUtil.format("exact.equals.failed",recordCount,builder.toString())
+                    )).acceptAsWarn(testCase,LangUtil.format("exact.equals.succeed",recordCount,builder.toString()));
 
 
 
@@ -110,18 +101,18 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
 //                    TapAssert.asserts(() ->
 //                        assertNotNull(
 //                            filterResult,
-//                            TapSummary.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
+//                            LangUtil.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
 //                        )
 //                    ).error(testCase);
 //                    if (null != filterResult){
 //                        TapAssert.asserts(() -> Assertions.assertNull(
 //                            filterResult.getError(),
-//                            TapSummary.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
+//                            LangUtil.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
 //                        )).error(testCase);
 //                        if (null==filterResult.getError()){
 //                            TapAssert.asserts(() -> assertNotNull(
 //                                filterResult.getResult(),
-//                                TapSummary.format("exact.match.filter.result.null",recordCount)
+//                                LangUtil.format("exact.match.filter.result.null",recordCount)
 //                            )).error(testCase);
 //                            if (null!=filterResult.getResult()){
 //                                }
@@ -167,9 +158,9 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 TapAssert.asserts(()->
                     Assertions.assertTrue(
                         null!=insert && insert.getInsertedCount() == insertCount,
-                        TapSummary.format("batchRead.insert.error",insertCount,null==insert?0:insert.getInsertedCount())
+                        LangUtil.format("batchRead.insert.error",insertCount,null==insert?0:insert.getInsertedCount())
                     )
-                ).acceptAsError(testCase, TapSummary.format("batchRead.insert.succeed",insertCount,null==insert?0:insert.getInsertedCount()));
+                ).acceptAsError(testCase, LangUtil.format("batchRead.insert.succeed",insertCount,null==insert?0:insert.getInsertedCount()));
                 ConnectorNode connectorNode = prepare.connectorNode();
                 ConnectorFunctions functions = connectorNode.getConnectorFunctions();
                 if (super.verifyFunctions(functions,testCase)){
@@ -193,8 +184,8 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 projectionFilter.projection(new Projection().include(key));
                 List<Map<String, Object>> projection = filter(connectorNode, query, projectionFilter);
                 TapAssert.asserts(()->{
-                    Assertions.assertFalse(projection.isEmpty(),TapSummary.format("queryByAdvanced.projection.error",key,tableId));
-                }).acceptAsError(testCase,TapSummary.format("queryByAdvanced.projection.succeed",key,tableId));
+                    Assertions.assertFalse(projection.isEmpty(),LangUtil.format("queryByAdvanced.projection.error",key,tableId));
+                }).acceptAsError(testCase,LangUtil.format("queryByAdvanced.projection.succeed",key,tableId));
             }catch (Throwable e){
                 throw new RuntimeException(e);
             }finally {
@@ -209,8 +200,8 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
         operatorFilter.match(new DataMap().kv(key,value));
         List<Map<String, Object>> operator = filter(connectorNode, query, operatorFilter);
         TapAssert.asserts(()->{
-            Assertions.assertFalse(operator.isEmpty(),TapSummary.format("queryByAdvanced.operator.error","=",key,"=",value,tableId));
-        }).acceptAsError(testCase,TapSummary.format("queryByAdvanced.operator.succeed","=",key,"=",value,tableId));
+            Assertions.assertFalse(operator.isEmpty(),LangUtil.format("queryByAdvanced.operator.error","=",key,"=",value,tableId));
+        }).acceptAsError(testCase,LangUtil.format("queryByAdvanced.operator.succeed","=",key,"=",value,tableId));
     }
     private void operator(String key, Object value,int queryOperator,Method testCase,ConnectorNode connectorNode,QueryByAdvanceFilterFunction query) throws Throwable {
         String operatorChar = "?";
@@ -228,8 +219,8 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
         List<Map<String, Object>> operatorRes = filter(connectorNode, query, operatorFilter);
         String finalOperatorChar = operatorChar;
         TapAssert.asserts(()->{
-            Assertions.assertFalse(operatorRes.isEmpty(),TapSummary.format("queryByAdvanced.operator.error", finalOperatorChar,key,finalOperatorChar,value,tableId));
-        }).acceptAsError(testCase,TapSummary.format("queryByAdvanced.operator.succeed",finalOperatorChar,key,finalOperatorChar,value,tableId));
+            Assertions.assertFalse(operatorRes.isEmpty(),LangUtil.format("queryByAdvanced.operator.error", finalOperatorChar,key,finalOperatorChar,value,tableId));
+        }).acceptAsError(testCase,LangUtil.format("queryByAdvanced.operator.succeed",finalOperatorChar,key,finalOperatorChar,value,tableId));
     }
 
     private void sort(String key,int sortOn,Method testCase,ConnectorNode connectorNode,QueryByAdvanceFilterFunction query) throws Throwable {
@@ -238,8 +229,8 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
         String tableId = targetTable.getId();
         List<Map<String, Object>> sort = filter(connectorNode, query, sortFilter);
         TapAssert.asserts(()->
-            Assertions.assertFalse(sort.isEmpty(),TapSummary.format("queryByAdvanced.sort.error",key,sortOn==2?"DESCENDING":"ASCENDING",tableId))
-        ).acceptAsError(testCase,TapSummary.format("queryByAdvanced.sort.succeed",key,sortOn==2?"DESCENDING":"ASCENDING",tableId));
+            Assertions.assertFalse(sort.isEmpty(),LangUtil.format("queryByAdvanced.sort.error",key,sortOn==2?"DESCENDING":"ASCENDING",tableId))
+        ).acceptAsError(testCase,LangUtil.format("queryByAdvanced.sort.succeed",key,sortOn==2?"DESCENDING":"ASCENDING",tableId));
     }
 
     private List<Map<String,Object>> filter(ConnectorNode connectorNode,QueryByAdvanceFilterFunction query,TapAdvanceFilter operatorFilter) throws Throwable {
@@ -257,8 +248,8 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-            support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-            support(QueryByAdvanceFilterFunction.class, TapSummary.format(inNeedFunFormat,"QueryByAdvanceFilterFunction"))
+            support(WriteRecordFunction.class, LangUtil.format(inNeedFunFormat,"WriteRecordFunction")),
+            support(QueryByAdvanceFilterFunction.class, LangUtil.format(inNeedFunFormat,"QueryByAdvanceFilterFunction"))
         );
     }
 }

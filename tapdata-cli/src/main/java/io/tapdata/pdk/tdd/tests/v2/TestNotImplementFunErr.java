@@ -2,7 +2,6 @@ package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVMapFactory;
@@ -12,7 +11,8 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.LangUtil;
+import io.tapdata.pdk.tdd.tests.support.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -24,7 +24,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -128,9 +127,9 @@ public class TestNotImplementFunErr extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction")),
-                support(CreateTableFunction.class,TapSummary.format(inNeedFunFormat,"CreateTableFunction")),
-                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
+                support(WriteRecordFunction.class, LangUtil.format(inNeedFunFormat,"WriteRecordFunction")),
+                support(CreateTableFunction.class,LangUtil.format(inNeedFunFormat,"CreateTableFunction")),
+                support(DropTableFunction.class, LangUtil.format(inNeedFunFormat,"DropTableFunction"))
         );
     }
 }

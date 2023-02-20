@@ -4,14 +4,10 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.Record;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,9 +45,9 @@ public class BatchCountTest extends PDKTestBase {
                 TapAssert.asserts(()->{
                     Assertions.assertTrue(
                             null!=insert&&insert.getInsertedCount()==records.length,
-                            TapSummary.format("batchCountTest.insert.error",records.length,null==insert?0:insert.getInsertedCount())
+                            LangUtil.format("batchCountTest.insert.error",records.length,null==insert?0:insert.getInsertedCount())
                     );
-                }).acceptAsError(testCase, TapSummary.format("batchCountTest.insert",records.length,insert.getInsertedCount()));
+                }).acceptAsError(testCase, LangUtil.format("batchCountTest.insert",records.length,insert.getInsertedCount()));
                 //使用BatchCountFunction查询记录数， 返回2为正确
                 if(createTable = (null!=insert && insert.getInsertedCount() == records.length) ){
                     ConnectorNode connectorNode = prepare.connectorNode();
@@ -62,8 +58,8 @@ public class BatchCountTest extends PDKTestBase {
                     BatchCountFunction batchCount = functions.getBatchCountFunction();
                     long count = batchCount.count(connectorNode.getConnectorContext(), targetTable);
                     TapAssert.asserts(()->{
-                        Assertions.assertEquals(records.length, count, TapSummary.format("batchCount.afterInsert.error", records.length, count));
-                    }).acceptAsError(testCase,TapSummary.format("batchCount.afterInsert.succeed",records.length,count));
+                        Assertions.assertEquals(records.length, count, LangUtil.format("batchCount.afterInsert.error", records.length, count));
+                    }).acceptAsError(testCase,LangUtil.format("batchCount.afterInsert.succeed",records.length,count));
                 }
             }catch (Throwable e) {
                 throw new RuntimeException(e);

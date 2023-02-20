@@ -5,13 +5,10 @@ import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,10 +49,10 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                         TapAssert.asserts(()->{
                             Assertions.assertTrue(
                                 null!=consumer && !consumer.isEmpty(),
-                                TapSummary.format("getTableNames.discover.notAnyTable"));
+                                LangUtil.format("getTableNames.discover.notAnyTable"));
                         }).acceptAsError(
                             testCase,
-                            TapSummary.format("getTableNames.discover.succeed",consumer.size())
+                            LangUtil.format("getTableNames.discover.succeed",consumer.size())
                         );
                     }
                 );
@@ -93,17 +90,17 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                     TapAssert.asserts(()->{
                         Assertions.assertTrue(
                             null!=consumer && !consumer.isEmpty(),
-                            TapSummary.format("discover.notAnyTable"));
+                            LangUtil.format("discover.notAnyTable"));
                     }).acceptAsError(
                         testCase,
-                        TapSummary.format("discover.succeed",consumer.size())
+                        LangUtil.format("discover.succeed",consumer.size())
                     );
 
                     Map<String, Map<String,String>> warnFieldMap = new HashMap<>();
                     consumer.stream().forEach(table->{
                         if (null == table){
                             TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("discover.nullTable"))
+                                Assertions.fail(LangUtil.format("discover.nullTable"))
                             ).error(testCase);
                             return;
                         }
@@ -111,7 +108,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                         String tableName = table.getId();
                         if (null == tableName || "".equals(tableName)){
                             TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("discover.emptyTableName"))
+                                Assertions.fail(LangUtil.format("discover.emptyTableName"))
                             ).error(testCase);
                             return;
                         }
@@ -120,7 +117,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                         TapAssert.asserts(()->
                             Assertions.assertTrue(
                                 null != nameFieldMap && !nameFieldMap.isEmpty(),
-                                TapSummary.format("discover.emptyTFields",tableName))
+                                LangUtil.format("discover.emptyTFields",tableName))
                         ).warn(testCase);
 
                         //表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
@@ -145,8 +142,8 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                     TapAssert.asserts(()->
                         Assertions.assertTrue(
                             warnFieldMap.isEmpty(),
-                            TapSummary.format("discover.hasWarnFields",warn.toString()))
-                    ).acceptAsWarn(testCase,TapSummary.format("discover.notWarnFields"));
+                            LangUtil.format("discover.hasWarnFields",warn.toString()))
+                    ).acceptAsWarn(testCase,LangUtil.format("discover.notWarnFields"));
                 });
             }catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -182,17 +179,17 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                     TapAssert.asserts(()->{
                         Assertions.assertTrue(
                             null!=consumer && !consumer.isEmpty(),
-                            TapSummary.format("discover.notAnyTable"));
+                            LangUtil.format("discover.notAnyTable"));
                     }).acceptAsError(
                         testCase,
-                        TapSummary.format("discover.succeed",consumer.size())
+                        LangUtil.format("discover.succeed",consumer.size())
                     );
 
                     Map<String, Map<String,String>> warnFieldMap = new HashMap<>();
                     consumer.stream().forEach(table->{
                         if (null == table){
                             TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("discover.nullTable"))
+                                Assertions.fail(LangUtil.format("discover.nullTable"))
                             ).error(testCase);
                             return;
                         }
@@ -200,7 +197,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                         String tableName = table.getId();
                         if (null == tableName || "".equals(tableName)){
                             TapAssert.asserts(()->
-                                Assertions.fail(TapSummary.format("discover.emptyTableName"))
+                                Assertions.fail(LangUtil.format("discover.emptyTableName"))
                             ).error(testCase);
                             return;
                         }
@@ -209,7 +206,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                         TapAssert.asserts(()->
                             Assertions.assertTrue(
                                 null != nameFieldMap && !nameFieldMap.isEmpty(),
-                                TapSummary.format("discover.emptyTFields",tableName))
+                                LangUtil.format("discover.emptyTFields",tableName))
                         ).warn(testCase);
 
                         //表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
@@ -234,8 +231,8 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                     TapAssert.asserts(()->
                         Assertions.assertTrue(
                             warnFieldMap.isEmpty(),
-                            TapSummary.format("discover.hasWarnFields",warn.toString()))
-                    ).acceptAsWarn(testCase,TapSummary.format("discover.notWarnFields"));
+                            LangUtil.format("discover.hasWarnFields",warn.toString()))
+                    ).acceptAsWarn(testCase,LangUtil.format("discover.notWarnFields"));
                 });
             }catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -247,7 +244,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-            support(GetTableNamesFunction.class, TapSummary.format(inNeedFunFormat, "GetTableNamesFunction"))
+            support(GetTableNamesFunction.class, LangUtil.format(inNeedFunFormat, "GetTableNamesFunction"))
         );
     }
 }

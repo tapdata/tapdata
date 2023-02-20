@@ -3,28 +3,21 @@ package io.tapdata.pdk.tdd.tests.v2;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.Record;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_String;
 
 
 @DisplayName("test.writeRecordTest")
@@ -85,8 +78,8 @@ public class WriteRecordTest extends PDKTestBase {
         TapAssert.asserts(()->
             Assertions.assertEquals(
                 recLen, insertRecord,
-                TapSummary.format("recordEventExecute.insert.assert.error", recLen))
-        ).acceptAsWarn(testCase,TapSummary.format("recordEventExecute.insert.assert.succeed",recLen) );
+                LangUtil.format("recordEventExecute.insert.assert.error", recLen))
+        ).acceptAsWarn(testCase, LangUtil.format("recordEventExecute.insert.assert.succeed",recLen) );
 
        for (Record record : records) {
            record.builder("name","Gavin pro").builder("text","Gavin pro max-modify");
@@ -95,16 +88,16 @@ public class WriteRecordTest extends PDKTestBase {
        long updateRecord = update.getModifiedCount();
        TapAssert.asserts(()->Assertions.assertEquals(
            recLen, updateRecord,
-           TapSummary.format("recordEventExecute.update.assert.error",recLen))
-       ).acceptAsError(testCase,TapSummary.format("recordEventExecute.update.assert.succeed",recLen));
+           LangUtil.format("recordEventExecute.update.assert.error",recLen))
+       ).acceptAsError(testCase,LangUtil.format("recordEventExecute.update.assert.succeed",recLen));
 
 
        WriteListResult<TapRecordEvent> delete = recordEventExecute.delete();
        long deleteRecord = delete.getRemovedCount();
        TapAssert.asserts(()->Assertions.assertEquals(
            recLen, deleteRecord,
-           TapSummary.format("recordEventExecute.delete.assert.error",recLen))
-       ).acceptAsError(testCase,TapSummary.format("recordEventExecute.delete.assert.succeed",recLen));
+           LangUtil.format("recordEventExecute.delete.assert.error",recLen))
+       ).acceptAsError(testCase,LangUtil.format("recordEventExecute.delete.assert.succeed",recLen));
 
     }
 
@@ -153,8 +146,8 @@ public class WriteRecordTest extends PDKTestBase {
         long firstUpdate = insertBefore.getModifiedCount();
         long firstDelete = insertBefore.getRemovedCount();
         //此时验证新插入应该是插入2个
-        String firstInsertMsgError = TapSummary.format("writeRecordTest.sourceTest2.verify.firstInsert", recLen, firstInsert,firstUpdate,firstDelete);
-        String firstInsertMsgSucceed = TapSummary.format("writeRecordTest.sourceTest2.verify.firstInsert.succeed", recLen, firstInsert,firstUpdate,firstDelete);
+        String firstInsertMsgError = LangUtil.format("writeRecordTest.sourceTest2.verify.firstInsert", recLen, firstInsert,firstUpdate,firstDelete);
+        String firstInsertMsgSucceed = LangUtil.format("writeRecordTest.sourceTest2.verify.firstInsert.succeed", recLen, firstInsert,firstUpdate,firstDelete);
         TapAssert.asserts(()-> Assertions.assertEquals(recLen, firstInsert,firstInsertMsgError ))
                 .acceptAsError(testCase,firstInsertMsgSucceed);
 
@@ -173,12 +166,12 @@ public class WriteRecordTest extends PDKTestBase {
                 && lastUpdate == recLen
                 && lastInsert == 0 ,
             lastUpdate+lastInsert!=recLen?
-                TapSummary.format("wr.test2.insertAfter.notEquals",recLen,0,2,0,2,lastInsert,lastUpdate,lastDelete): lastInsert == recLen && lastUpdate == 0?
-                TapSummary.format("wr.test2.insertAfter.warnInsert",recLen,0,2,0,lastInsert,lastUpdate,lastDelete):lastUpdate != recLen?
-                TapSummary.format("wr.test2.insertAfter.warnUpdate",recLen,0,2,0,lastInsert,lastUpdate,lastDelete)
-                :TapSummary.format("wr.test2.insertAfter.errorOther",recLen,0,2,0,lastInsert,lastUpdate,lastDelete))
+                LangUtil.format("wr.test2.insertAfter.notEquals",recLen,0,2,0,2,lastInsert,lastUpdate,lastDelete): lastInsert == recLen && lastUpdate == 0?
+                LangUtil.format("wr.test2.insertAfter.warnInsert",recLen,0,2,0,lastInsert,lastUpdate,lastDelete):lastUpdate != recLen?
+                LangUtil.format("wr.test2.insertAfter.warnUpdate",recLen,0,2,0,lastInsert,lastUpdate,lastDelete)
+                :LangUtil.format("wr.test2.insertAfter.errorOther",recLen,0,2,0,lastInsert,lastUpdate,lastDelete))
         );
-        String succeed = TapSummary.format("wr.test2.insertAfter.succeed",recLen,0,2,0,lastInsert,lastUpdate,lastDelete);
+        String succeed = LangUtil.format("wr.test2.insertAfter.succeed",recLen,0,2,0,lastInsert,lastUpdate,lastDelete);
         if (lastUpdate == recLen && lastUpdate+lastInsert==recLen) {
             //后再插入的相同主键的2条数据应该是修改2个
             asserts.acceptAsWarn(testCase,succeed);
@@ -215,8 +208,8 @@ public class WriteRecordTest extends PDKTestBase {
         //插入2条数据， 再次插入相同主键的2条数据， 内容略有不同，
         TapAssert.asserts(() -> Assertions.assertTrue(
             lastUpdate2 == 0 && lastInsert2 == 0 ,
-                    TapSummary.format("wr.test2.IOE.insertAfter.error",0,0,0,lastInsert2,lastUpdate2,lastDelete2))
-        ).acceptAsWarn(testCase,TapSummary.format("wr.test2.IOE.insertAfter.succeed",0,0,0,lastInsert2,lastUpdate2,lastDelete2));
+                    LangUtil.format("wr.test2.IOE.insertAfter.error",0,0,0,lastInsert2,lastUpdate2,lastDelete2))
+        ).acceptAsWarn(testCase,LangUtil.format("wr.test2.IOE.insertAfter.succeed",0,0,0,lastInsert2,lastUpdate2,lastDelete2));
     }
 
     private void sourceTest2FunV2( RecordEventExecute recordEventExecute,ConnectorNode connectorNode) throws Throwable {
@@ -230,8 +223,8 @@ public class WriteRecordTest extends PDKTestBase {
         long firstUpdate = insertBefore.getModifiedCount();
         long firstDelete = insertBefore.getRemovedCount();
         //此时验证新插入应该是插入2个
-        String firstInsertMsgError = TapSummary.format("writeRecordTest.sourceTest2.verify.firstInsert", recLen, firstInsert,firstUpdate,firstDelete);
-        String firstInsertMsgSucceed = TapSummary.format("writeRecordTest.sourceTest2.verify.firstInsert.succeed", recLen, firstInsert,firstUpdate,firstDelete);
+        String firstInsertMsgError = LangUtil.format("writeRecordTest.sourceTest2.verify.firstInsert", recLen, firstInsert,firstUpdate,firstDelete);
+        String firstInsertMsgSucceed = LangUtil.format("writeRecordTest.sourceTest2.verify.firstInsert.succeed", recLen, firstInsert,firstUpdate,firstDelete);
         TapAssert.asserts(()-> Assertions.assertEquals(recLen, firstInsert,firstInsertMsgError ))
                 .acceptAsError(testCase,firstInsertMsgSucceed);
         AtomicInteger count = new AtomicInteger();
@@ -306,7 +299,7 @@ public class WriteRecordTest extends PDKTestBase {
                     delete.getRemovedCount() ==0 &&
                     delete.getModifiedCount() ==0 &&
                     delete.getInsertedCount() ==0,
-                TapSummary.format("wr.test3.deleteNotExist.error",
+                LangUtil.format("wr.test3.deleteNotExist.error",
                     recLen,
                     delete.getInsertedCount(),
                     delete.getModifiedCount(),
@@ -314,15 +307,15 @@ public class WriteRecordTest extends PDKTestBase {
                 ))
             ).acceptAsWarn(
                 recordEventExecute.testCase(),
-                TapSummary.format("wr.test3.deleteNotExist.succeed",recLen)
+                LangUtil.format("wr.test3.deleteNotExist.succeed",recLen)
             );
         }catch (Throwable throwable) {
             TapAssert.asserts(()->Assertions.assertDoesNotThrow(
                 recordEventExecute::delete,
-                TapSummary.format("wr.test3.deleteNotExist.catchThrowable",recLen))
+                LangUtil.format("wr.test3.deleteNotExist.catchThrowable",recLen))
             ).acceptAsError(
                  recordEventExecute.testCase(),
-                TapSummary.format("wr.test3.deleteNotExist.notThrowable",recLen)
+                LangUtil.format("wr.test3.deleteNotExist.notThrowable",recLen)
             );
         }
     }
@@ -371,7 +364,7 @@ public class WriteRecordTest extends PDKTestBase {
         try {
             update1 = recordEventExecute.update();
         } catch (Throwable throwable) {
-            TapAssert.asserts(()-> Assertions.fail(TapSummary.format("wr.test4.insertOnNotExists.throwable",recLen, throwable.getMessage()))).acceptAsError(testCase, null);
+            TapAssert.asserts(()-> Assertions.fail(LangUtil.format("wr.test4.insertOnNotExists.throwable",recLen, throwable.getMessage()))).acceptAsError(testCase, null);
             return;
         }
         WriteListResult<TapRecordEvent> updateFinal1 = update1;
@@ -381,10 +374,10 @@ public class WriteRecordTest extends PDKTestBase {
         TapAssert.asserts(()->
             Assertions.assertTrue(
                 null != updateFinal1 && insert == recLen && update == 0,
-                TapSummary.format("wr.test4.insertOnNotExists.error",recLen,recLen,0,0,insert,update,delete))
+                LangUtil.format("wr.test4.insertOnNotExists.error",recLen,recLen,0,0,insert,update,delete))
         ).acceptAsWarn(
             testCase,
-            TapSummary.format("wr.test4.insertOnNotExists.succeed",recLen,recLen,0,0,insert,update,delete)
+            LangUtil.format("wr.test4.insertOnNotExists.succeed",recLen,recLen,0,0,insert,update,delete)
         );
     }
     private void ignoreOnNotExists(RecordEventExecute recordEventExecute, ConnectorNode connectorNode,Method testCase){
@@ -398,7 +391,7 @@ public class WriteRecordTest extends PDKTestBase {
         try {
             update2 = recordEventExecute.update();
         }catch (Throwable throwable){
-            TapAssert.asserts(()-> Assertions.fail(TapSummary.format("wr.test4.ignoreOnNotExists.throwable",recLen2, throwable.getMessage()))).error(testCase);
+            TapAssert.asserts(()-> Assertions.fail(LangUtil.format("wr.test4.ignoreOnNotExists.throwable",recLen2, throwable.getMessage()))).error(testCase);
             return;
         }
         final WriteListResult<TapRecordEvent> updateFinal2 = update2;
@@ -408,16 +401,16 @@ public class WriteRecordTest extends PDKTestBase {
         TapAssert.asserts(()->
             Assertions.assertTrue(
                 null != updateFinal2 && insert == 0 && update == 0,
-                TapSummary.format("wr.test4.ignoreOnNotExists.error",recLen2,0,0,0,insert,update,delete))
+                LangUtil.format("wr.test4.ignoreOnNotExists.error",recLen2,0,0,0,insert,update,delete))
         ).acceptAsWarn(
             testCase,
-            TapSummary.format("wr.test4.ignoreOnNotExists.succeed",recLen2,0,0,0,insert,update,delete)
+            LangUtil.format("wr.test4.ignoreOnNotExists.succeed",recLen2,0,0,0,insert,update,delete)
         );
     }
 
     public static List<SupportFunction> testFunctions() {
         return list(
-            support(WriteRecordFunction.class, TapSummary.format(inNeedFunFormat,"WriteRecordFunction"))
+            support(WriteRecordFunction.class, LangUtil.format(inNeedFunFormat,"WriteRecordFunction"))
         );
     }
 }

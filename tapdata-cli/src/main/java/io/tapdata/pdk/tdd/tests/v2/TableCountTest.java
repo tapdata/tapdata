@@ -1,12 +1,9 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,16 +46,16 @@ public class TableCountTest extends PDKTestBase {
             tableCount = prepare.connectorNode().getConnector().tableCount(connectorContext);
         }catch (Exception e){
             TapAssert.asserts(()->
-                Assertions.fail(TapSummary.format("tableCount.findTableCount.errorFun",e.getMessage()))
+                Assertions.fail(LangUtil.format("tableCount.findTableCount.errorFun",e.getMessage()))
             ).acceptAsError(testCase, null);
         }
         int tableCountFinal = tableCount;
         TapAssert.asserts(()->
             Assertions.assertTrue(tableCountFinal > 0,
-                TapSummary.format("tableCount.findTableCount.error",tableCountFinal)
+                LangUtil.format("tableCount.findTableCount.error",tableCountFinal)
             )
         ).acceptAsError(testCase,
-            TapSummary.format("tableCount.findTableCount.succeed",tableCountFinal)
+            LangUtil.format("tableCount.findTableCount.succeed",tableCountFinal)
         );
         return tableCount;
     }
@@ -96,7 +93,7 @@ public class TableCountTest extends PDKTestBase {
                     Assertions.assertEquals(
                         tableCountNewTableAfter,
                         tableCountNewTableAgo + 1,
-                        TapSummary.format(
+                        LangUtil.format(
                             "tableCount.findTableCountAfterNewTable.afterNewTable.error",
                             tableCountNewTableAgo,
                             tableCountNewTableAfter
@@ -104,7 +101,7 @@ public class TableCountTest extends PDKTestBase {
                     )
                 ).acceptAsWarn(
                     testCase,
-                    TapSummary.format(
+                    LangUtil.format(
                         "tableCount.findTableCountAfterNewTable.afterNewTable.succeed",
                         tableCountNewTableAgo,
                         tableCountNewTableAfter
@@ -121,7 +118,7 @@ public class TableCountTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-//                support(DropTableFunction.class, TapSummary.format(inNeedFunFormat,"DropTableFunction"))
+//                support(DropTableFunction.class, LangUtil.format(inNeedFunFormat,"DropTableFunction"))
         );
     }
 }
