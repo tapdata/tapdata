@@ -498,9 +498,9 @@ public class AlarmServiceImpl implements AlarmService {
                 String smsEvent = map.get("smsEvent");
                 if (info.getMetric().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().equals(AlarmKeyEnum.TASK_INCREMENT_START)) {
                     smsTemplateCode = SmsService.TASK_NOTICE;
-                    templateParam = "{\"JobName\":\"" + "[" + taskDto.getName() + "]" + smsEvent + "\"}";
+                    templateParam = "{\"JobName\":\"" + "【" + taskDto.getName() + "】" + smsEvent + "\"}";
                 } else {
-                    templateParam = "{\"JobName\":\"" + "[" + taskDto.getName() + "]" + "\",\"eventName\":\"" + smsEvent + "\"}";
+                    templateParam = "{\"JobName\":\"" + "【" + taskDto.getName() + "】" + "\",\"eventName\":\"" + smsEvent + "\"}";
                     smsTemplateCode = SmsService.TASK_ABNORMITY_NOTICE;
                 }
                 smsContent = map.get("content");
