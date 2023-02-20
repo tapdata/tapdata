@@ -207,11 +207,18 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	}
 
 	@Override
-	public void resume() {
+	public boolean resume() {
 		JobStatus jobStatus = job.getStatus();
 		if (JobStatus.SUSPENDED == jobStatus) {
 			job.resume();
 			this.retrying.set(false);
+			return true;
 		}
+		return false;
+	}
+
+	@Override
+	public int getRetryTime() {
+		return retryCounter.get();
 	}
 }
