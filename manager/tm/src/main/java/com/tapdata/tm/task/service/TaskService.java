@@ -2349,58 +2349,62 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     /**
      * 根据连接目标节点的连接id获取任务
-     * @param connectionId
+     * @param connectionIds
      * @param user
      */
-    public Page<TaskDto> getByConIdOfTargetNode(String connectionId, String status, String position, UserDetail user, int page, int pageSize) {
-        Criteria criteria = Criteria.where("dag.node.connectionId").is(connectionId)
-                .and("is_deleted").ne(true);
-        if (StringUtils.isNotBlank(status)) {
-            criteria.and("status").is(status);
-        }
-        Query query = new Query(criteria);
-        query.fields().include("dag.node.id", "dag.node.connectionId");
-        List<TaskDto> allTasks = findAllDto(query, user);
+    public Map<String, List<TaskDto>> getByConIdOfTargetNode(List<String> connectionIds, String status, String position, UserDetail user, int page, int pageSize) {
 
-        List<ObjectId> containsTaskIds = new ArrayList<>();
 
-        be :
-        for (TaskDto task : allTasks) {
-            DAG dag = task.getDag();
-            if (position.equals("source")) {
-                List<Node> sources = dag.getSources();
-                if (CollectionUtils.isNotEmpty(sources)) {
-                    for (Node source : sources) {
-                        if (source instanceof DataParentNode) {
-                            String connectionId1 = ((DataParentNode<?>) source).getConnectionId();
-                            if (connectionId.equals(connectionId1)) {
-                                containsTaskIds.add(task.getId());
-                                continue be;
+        Map<String, List<TaskDto>> taskMap = new HashMap<>();
+        for (String connectionId : connectionIds) {
+            Criteria criteria = Criteria.where("dag.nodes.connectionId").is(connectionId)
+                    .and("is_deleted").ne(true);
+            if (StringUtils.isNotBlank(status)) {
+                criteria.and("status").is(status);
+            }
+            Query query = new Query(criteria);
+            query.fields().include("dag");
+            List<TaskDto> allTasks = findAllDto(query, user);
+
+            List<ObjectId> containsTaskIds = new ArrayList<>();
+
+            be:
+            for (TaskDto task : allTasks) {
+                DAG dag = task.getDag();
+                if (position.equals("source")) {
+                    List<Node> sources = dag.getSources();
+                    if (CollectionUtils.isNotEmpty(sources)) {
+                        for (Node source : sources) {
+                            if (source instanceof DataParentNode) {
+                                String connectionId1 = ((DataParentNode<?>) source).getConnectionId();
+                                if (connectionId.equals(connectionId1)) {
+                                    containsTaskIds.add(task.getId());
+                                    continue be;
+                                }
                             }
                         }
                     }
-                }
-            } else {
-                List<Node> targets = dag.getTargets();
-                if (CollectionUtils.isNotEmpty(targets)) {
-                    for (Node target : targets) {
-                        if (target instanceof DataParentNode) {
-                            String connectionId1 = ((DataParentNode<?>) target).getConnectionId();
-                            if (connectionId.equals(connectionId1)) {
-                                containsTaskIds.add(task.getId());
-                                continue be;
+                } else {
+                    List<Node> targets = dag.getTargets();
+                    if (CollectionUtils.isNotEmpty(targets)) {
+                        for (Node target : targets) {
+                            if (target instanceof DataParentNode) {
+                                String connectionId1 = ((DataParentNode<?>) target).getConnectionId();
+                                if (connectionId.equals(connectionId1)) {
+                                    containsTaskIds.add(task.getId());
+                                    continue be;
+                                }
                             }
                         }
                     }
                 }
             }
-        }
 
-        Filter filter = new Filter();
-        filter.getWhere().and("_id", containsTaskIds);
-        filter.setLimit(pageSize);
-        filter.setPage(page);
-        return find(filter);
+            Criteria criteria1 = Criteria.where("_id").in(containsTaskIds);
+            List<TaskDto> taskDtos = findAllDto(new Query(criteria1), user);
+            taskMap.put(connectionId, taskDtos);
+        }
+        return taskMap;
 
 
     }
