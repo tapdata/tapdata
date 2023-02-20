@@ -1,11 +1,13 @@
 package io.tapdata.js.connector.server.function.support;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.js.connector.JSConnector;
+import io.tapdata.js.connector.base.TapConnectorLog;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.decorator.APIFactoryDecorator;
 import io.tapdata.js.connector.server.function.ExecuteConfig;
@@ -114,10 +116,11 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
         DataMap nodes = new DataMap();
         connections.putAll(Optional.ofNullable(commandInfo.getConnectionConfig()).orElse(new HashMap<>()));
         connections.putAll(Optional.ofNullable(commandInfo.getNodeConfig()).orElse(new HashMap<>()));
-        TapConnectionContext contextTemp = new TapConnectionContext(new TapNodeSpecification(),connections,nodes);
+        TapConnectionContext contextTemp = new TapConnectionContext(new TapNodeSpecification(),connections,nodes, new TapLog());
         interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, contextTemp));
         Object tapAPI = this.javaScripter.scriptEngine().get("tapAPI");
         this.javaScripter.scriptEngine().put("tapAPI", ((APIFactoryDecorator) tapAPI).interceptor(interceptor));
+        this.javaScripter.scriptEngine().put("tapLog", new TapConnectorLog(contextTemp.getLog()));
         try {
             Object invoker;
             synchronized (JSConnector.execLock) {
