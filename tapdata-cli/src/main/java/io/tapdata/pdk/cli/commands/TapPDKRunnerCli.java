@@ -134,7 +134,7 @@ public class TapPDKRunnerCli extends CommonCli {
             this.runClass = commandLine.split(" ");
         }
         TapLogger.enable(false);
-//        LoggerManager.changeLogLeave(LoggerManager.LogLeave.DENY);
+        LoggerManager.changeLogLeave(LoggerManager.LogLeave.DENY);
         //RunnerSummary.create().showLogo();
         CommonUtils.setProperty("refresh_local_jars", "true");
         if (this.verbose)

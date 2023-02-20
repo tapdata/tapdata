@@ -12,6 +12,10 @@ import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.endpoint.WebSocketServer;
 import com.tapdata.tm.ws.handler.WebSocketHandler;
 import org.apache.tomcat.websocket.server.Constants;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import javax.servlet.ServletContext;
 import org.springframework.boot.web.servlet.ServletContextInitializer;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
@@ -21,11 +25,6 @@ import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
-
-import javax.servlet.ServletContext;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 @EnableWebSocket

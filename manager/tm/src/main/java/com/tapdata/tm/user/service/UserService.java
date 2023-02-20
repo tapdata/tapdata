@@ -196,30 +196,43 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
         if (userOptional.isPresent()) {
             user = userOptional.get();
 //            return new UserDetail(user, Collections.singleton(new SimpleGrantedAuthority("USERS")));
-            if (user.getLastUpdAt() == null ||
-                    (System.currentTimeMillis() - user.getLastUpdAt().getTime()) > 1000 * 60 * 60) {
-                UserInfoDto userInfoDto = tcmService.getUserInfo(userId);
-                User tcmUser = buildUserFromTcmUser(userInfoDto, userId);
-
-                tcmUser.setLastUpdAt(new Date());
-                Update userUpdate = repository.buildUpdateSet(tcmUser);
-                UpdateResult res = repository.getMongoOperations().upsert(userQuery, userUpdate, User.class);
-                user = repository.findOne(userQuery).orElse(null);
-            }
             userDetail = new UserDetail(user, Collections.singleton(new SimpleGrantedAuthority("USERS")));
         } else {
             UserInfoDto userInfoDto = tcmService.getUserInfo(userId);
             if (null != userInfoDto) {
-                user = buildUserFromTcmUser(userInfoDto, userId);
+                user = BeanUtil.copyProperties(userInfoDto, User.class, "id");
+                //属性名称不一样的，需要单独set进去
+                user.setPhone(userInfoDto.getTelephone());
+
+                //如果email为空，就生成一个userId+@custom.com后缀的邮箱。如  60bdf759aadcda0267e71a8b@custom.com
+                if (StringUtils.isEmpty(user.getEmail())) {
+                    user.setEmail(user.getUserId() + DEFAULT_MAIL_SUFFIX);
+                }
+
+                user.setAccountStatus(userInfoDto.getUserStatus());
+
+                //新增的用户，生成一个accessCode,生成一个64位的随机字符串
+                user.setAccessCode(UUIDUtil.get64UUID());
+
+                //set 外部用户id,对应tcm返回的userInfoDto  userId
+                user.setExternalUserId(userId);
+
+                //当前操作这条记录的用户id
+                user.setUserId(userId);
+
+                user.setLastUpdAt(new Date());
+                user.setLastUpdBy(userInfoDto.getUsername());
+                user.setCreateAt(new Date());
+                user.setCreateUser(userInfoDto.getUsername());
 
                 // 新增的用户，创建一个默认商户
                 CustomerDto customerDto = customerService.createDefaultCustomer(user);
                 user.setCustomId(customerDto.getId().toHexString());
 
                 Notification notification = new Notification();
-                notification.setConnected(new Connected(true, false, false));
-                notification.setStoppedByError(new StoppedByError(true, false, false));
-                notification.setConnectionInterrupted(new ConnectionInterrupted(true, false, false));
+                notification.setConnected(new Connected(true, false));
+                notification.setStoppedByError(new StoppedByError(true, false));
+                notification.setConnectionInterrupted(new ConnectionInterrupted(true, false));
                 user.setNotification(notification);
 
                 final String email = user.getEmail();
@@ -242,34 +255,6 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
         }
 
         return userDetail;
-    }
-
-    public User buildUserFromTcmUser(UserInfoDto userInfoDto, String externalUserId) {
-        User user = BeanUtil.copyProperties(userInfoDto, User.class, "id");
-        //属性名称不一样的，需要单独set进去
-        user.setPhone(userInfoDto.getTelephone());
-
-        //如果email为空，就生成一个userId+@custom.com后缀的邮箱。如  60bdf759aadcda0267e71a8b@custom.com
-        if (StringUtils.isEmpty(user.getEmail())) {
-            user.setEmail(user.getUserId() + DEFAULT_MAIL_SUFFIX);
-        }
-
-        user.setAccountStatus(userInfoDto.getUserStatus());
-
-        //新增的用户，生成一个accessCode,生成一个64位的随机字符串
-        user.setAccessCode(UUIDUtil.get64UUID());
-
-        //set 外部用户id,对应tcm返回的userInfoDto  userId
-        user.setExternalUserId(externalUserId);
-
-        //当前操作这条记录的用户id
-        user.setUserId(externalUserId);
-
-        user.setLastUpdAt(new Date());
-        user.setLastUpdBy(userInfoDto.getUsername());
-        user.setCreateAt(new Date());
-        user.setCreateUser(userInfoDto.getUsername());
-        return user;
     }
 
 

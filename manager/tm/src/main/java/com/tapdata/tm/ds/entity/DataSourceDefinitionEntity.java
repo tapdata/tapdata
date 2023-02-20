@@ -2,7 +2,7 @@
 package com.tapdata.tm.ds.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
-import io.tapdata.pdk.core.constants.DataSourceQCType;
+import com.tapdata.tm.commons.constants.DataSourceQCType;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
 import lombok.EqualsAndHashCode;

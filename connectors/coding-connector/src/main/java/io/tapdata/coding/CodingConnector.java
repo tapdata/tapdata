@@ -105,10 +105,8 @@ public class CodingConnector extends ConnectorBase {
         if (lastCause instanceof ErrorHttpException || lastCause instanceof IOException){
             return RetryOptions.create().needRetry(true).beforeRetryMethod(()->{
                 try {
-                    synchronized (this.streamReadLock) {
-                        this.onStop(context);
-                        this.onStart(context);
-                    }
+                    this.onStop(context);
+                    this.onStart(context);
                 }catch (Throwable e){
                     TapLogger.warn("Cannot stop and start Coding connector when occur an http error or IOException. {}",e.getMessage());
                 }

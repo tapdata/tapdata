@@ -34,13 +34,4 @@ public class IOUtil {
         return output.toByteArray();
     }
 
-    public static String readAsString(InputStream inputStream, boolean closeInput) throws IOException {
-        byte[] data = readInputStream(inputStream, closeInput);
-        return new String(data);
-    }
-
-    public static String readAsString(InputStream inputStream) throws IOException {
-        return readAsString(inputStream, true);
-    }
-
 }

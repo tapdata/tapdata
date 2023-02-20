@@ -10,7 +10,6 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
@@ -21,8 +20,8 @@ import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
-
 import java.util.Map;
+import java.util.Random;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -116,11 +115,8 @@ public class PingHandler implements WebSocketHandler {
 				WorkerDto workerDto = JsonUtil.map2PojoUseJackson((Map<String, Object>) pingDtoData, new TypeReference<WorkerDto>() {
 				});
 				UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(context.getUserId()));
-				if (null == workerService.health(workerDto, userDetail)) {
-					pingDto.fail(WorkerSingletonLock.STOP_AGENT);
-				} else {
-					pingDto.ok();
-				}
+				workerService.health(workerDto, userDetail);
+				pingDto.ok();
 			} catch (Exception e) {
 				pingDto.fail(e);
 			}

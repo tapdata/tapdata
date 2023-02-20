@@ -72,7 +72,7 @@ public class TidbConnectionTest extends CommonDbTest {
             if (tidbConfig.getEnableIncrement()) {
                 testFunctionMap.put("testKafkaHostPort", this::testKafkaHostPort);
             } else {
-                TapLogger.warn(TAG, "未开启增量配置");
+                TapLogger.warn(TAG, "Incremental configuration is not enabled");
             }
         }
         return super.testOneByOne();
@@ -453,16 +453,4 @@ public class TidbConnectionTest extends CommonDbTest {
         }
     }
 
-    public Boolean testKafkaConnect() {
-        try (
-                KafkaService kafkaService = new KafkaService(kafkaConfig)
-        ) {
-            TestItem testConnect = kafkaService.testConnect();
-            if (testConnect == null || testConnect.getResult() == TestItem.RESULT_FAILED) {
-                return false;
-            }
-            consumer.accept(testConnect);
-            return true;
-        }
-    }
 }

@@ -1,5 +1,7 @@
 package io.tapdata.pdk.cli;
 
+import com.tapdata.constant.ConfigurationCenter;
+import io.tapdata.pdk.cli.support.LoggerManager;
 import org.apache.commons.io.FilenameUtils;
 
 import java.net.URL;

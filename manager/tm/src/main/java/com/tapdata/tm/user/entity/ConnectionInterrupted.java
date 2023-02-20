@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 public class ConnectionInterrupted {
     private Boolean email=false;
     private Boolean sms=false;
-    private Boolean weChat = false;
 
     @Override
     public String toString() {

@@ -1,6 +1,6 @@
 package com.tapdata.tm.init.patches.daas;
 
-import io.tapdata.pdk.core.constants.DataSourceQCType;
+import com.tapdata.tm.commons.constants.DataSourceQCType;
 import com.tapdata.tm.init.PatchType;
 import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.init.patches.AbsPatch;

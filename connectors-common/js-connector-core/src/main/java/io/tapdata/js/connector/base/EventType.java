@@ -17,15 +17,15 @@ public class EventType {
 
     public Map<String, Object> generateEvent(String eventType, String tableName, Object data) {
         Map<String, Object> eventData = new HashMap<>();
-        eventData.put(EventTag.EVENT_TYPE, Optional.ofNullable(eventType).orElse(insert));
+        eventData.put("EVENT_TYPE", Optional.ofNullable(eventType).orElse(insert));
         if (Objects.isNull(tableName) || "".equals(tableName.trim())) {
             throw new CoreException(" When generating event results, the data corresponding table name is empty, and generation failed.");
         }
-        eventData.put(EventTag.TABLE_NAME, tableName);
+        eventData.put("TABLE_NAME", tableName);
         if (Objects.isNull(data)) {
             throw new CoreException(" When generating event results, the data is empty, and generation failed.");
         }
-        eventData.put(EventTag.AFTER_DATA, data);
+        eventData.put("DATA", data);
         return eventData;
     }
 
@@ -91,11 +91,11 @@ public class EventType {
         } else {
             throw new CoreException("Article " + dataIndex + " Record:  The event format is incorrect. Please use the following rules to organize the returned results :\n" +
                     "{\n" +
-                    "\"eventType\": String('i/u/d'),\n" +
-                    " \"tableName\": String('example_table_name'), " +
-                    "\n\"beforeData\": {}," +
-                    "\n\"afterData\": {}," +
-                    "\n\"referenceTime\": Number(time_stamp)" +
+                    "\"event_type\": String('i/u/d'),\n" +
+                    " \"table_name\": String('example_table_name'), " +
+                    "\n\"before_data\": {}," +
+                    "\n\"after_data\": {}," +
+                    "\n\"reference_time\": Number(time_stamp)" +
                     "}\n");
         }
     }

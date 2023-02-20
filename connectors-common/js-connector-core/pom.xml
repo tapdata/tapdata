@@ -32,6 +32,12 @@
             <version>2.11.0</version>
             <scope>compile</scope>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.codehaus.groovy</groupId>-->
+<!--            <artifactId>groovy</artifactId>-->
+<!--            <version>3.0.8</version>-->
+<!--            <scope>test</scope>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
@@ -44,15 +50,40 @@
             <version>1.0-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>org.graalvm.js</groupId>
+            <artifactId>js-scriptengine</artifactId>
+            <version>20.2.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.graalvm.js</groupId>
+            <artifactId>js</artifactId>
+            <version>20.2.0</version>
+        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.graalvm.truffle</groupId>-->
+<!--            <artifactId>truffle-api</artifactId>-->
+<!--            <version>21.3.4</version>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>org.graalvm.regex</groupId>-->
+<!--            <artifactId>regex</artifactId>-->
+<!--            <version>21.3.0</version>-->
+<!--        </dependency>-->
 <!--        <dependency>-->
 <!--            <groupId>org.graalvm.js</groupId>-->
 <!--            <artifactId>js-scriptengine</artifactId>-->
-<!--            <version>20.2.0</version>-->
+<!--            <version>21.3.0</version>-->
 <!--        </dependency>-->
 <!--        <dependency>-->
 <!--            <groupId>org.graalvm.js</groupId>-->
 <!--            <artifactId>js</artifactId>-->
-<!--            <version>20.2.0</version>-->
+<!--            <version>21.3.0</version>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>org.graalvm.sdk</groupId>-->
+<!--            <artifactId>graal-sdk</artifactId>-->
+<!--            <version>21.3.0</version>-->
 <!--        </dependency>-->
         <dependency>
             <groupId>com.alibaba</groupId>

@@ -60,10 +60,6 @@ public class APIInvokerDecoratorStruct implements APIInvoker {
     public void setConfig(Object configMap) {
         apiInvoker.setConfig(configMap);
     }
-    @Override
-    public void setConnectorConfig(Object setConnectorConfig) {
-        apiInvoker.setConnectorConfig(setConnectorConfig);
-    }
 
     @Override
     public void pageStage(TapConnectorContext connectorContext, TapTable table, Object offset, int batchCount, AtomicBoolean task, BiConsumer<List<TapEvent>, Object> consumer) {

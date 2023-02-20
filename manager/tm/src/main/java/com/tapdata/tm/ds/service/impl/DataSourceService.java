@@ -62,6 +62,9 @@ import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.typemappings.constant.TypeMappingDirection;
+import com.tapdata.tm.typemappings.entity.TypeMappingsEntity;
+import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -72,6 +75,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -2053,24 +2057,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		loadSchema(user, tables, connectionDto, definitionDto.getExpression(), databaseModelId, true);
 	}
 
-	public void batchEncryptConfig() {
-		Query query = Query.query(Criteria
-				.where("config").ne(null)
-				.and("encryptConfig").exists(false));
-		query.fields().include("_id", "config");
-		List<DataSourceEntity> result = repository.findAll(query);
-		result.forEach(entity -> {
-
-			repository.encryptConfig(entity);
-
-			if (entity.getEncryptConfig() != null) {
-				repository.update(Query.query(Criteria.where("id").is(entity.getId())),
-						Update.update("encryptConfig", entity.getEncryptConfig()).unset("config"));
-			}
-		});
-	}
-
-    @Data
+	@Data
 	protected static class Part{
 		private String _id;
 		private long count;

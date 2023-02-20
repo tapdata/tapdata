@@ -71,11 +71,6 @@
             <artifactId>service-skeleton-module</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>script-engine-module</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>
         <dependency> <!-- exclude掉spring-boot的默认log配置 -->
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -115,10 +110,10 @@
             <artifactId>commons-collections</artifactId>
         </dependency>
 
-<!--        <dependency>-->
-<!--            <groupId>com.oracle</groupId>-->
-<!--            <artifactId>ojdbc</artifactId>-->
-<!--        </dependency>-->
+        <dependency>
+            <groupId>com.oracle</groupId>
+            <artifactId>ojdbc</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.apache.commons</groupId>

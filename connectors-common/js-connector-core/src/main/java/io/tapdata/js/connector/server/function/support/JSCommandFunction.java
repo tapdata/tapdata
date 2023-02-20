@@ -7,18 +7,14 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
-import io.tapdata.js.connector.server.decorator.APIFactoryDecorator;
 import io.tapdata.js.connector.server.function.ExecuteConfig;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.FunctionSupport;
 import io.tapdata.js.connector.server.function.JSFunctionNames;
-import io.tapdata.js.connector.server.inteceptor.JSAPIInterceptorConfig;
-import io.tapdata.js.connector.server.inteceptor.JSAPIResponseInterceptor;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -94,6 +90,9 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
 
     private CommandResult commandV1(TapConnectionContext context, CommandInfo commandInfo) {
         CommandResult commandResult = new CommandResult();
+        if (Objects.isNull(context)) {
+            throw new CoreException("TapConnectorContext cannot not be empty.");
+        }
         if (Objects.isNull(commandInfo)) {
             throw new CoreException("Command info cannot be empty.");
         }
@@ -108,16 +107,6 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
                 .node(commandInfo.getNodeConfig())
                 .toMap();
         super.javaScripter.put("_tapConfig_", configMap);
-        JSAPIInterceptorConfig config = JSAPIInterceptorConfig.config();
-        JSAPIResponseInterceptor interceptor = JSAPIResponseInterceptor.create(config).configMap(configMap);
-        DataMap connections = new DataMap();
-        DataMap nodes = new DataMap();
-        connections.putAll(Optional.ofNullable(commandInfo.getConnectionConfig()).orElse(new HashMap<>()));
-        connections.putAll(Optional.ofNullable(commandInfo.getNodeConfig()).orElse(new HashMap<>()));
-        TapConnectionContext contextTemp = new TapConnectionContext(new TapNodeSpecification(),connections,nodes);
-        interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, contextTemp));
-        Object tapAPI = this.javaScripter.scriptEngine().get("tapAPI");
-        this.javaScripter.scriptEngine().put("tapAPI", ((APIFactoryDecorator) tapAPI).interceptor(interceptor));
         try {
             Object invoker;
             synchronized (JSConnector.execLock) {

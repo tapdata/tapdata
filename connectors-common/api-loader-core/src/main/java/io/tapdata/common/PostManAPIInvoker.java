@@ -134,16 +134,6 @@ public class PostManAPIInvoker
             this.analysis.setHttpConfig(httpConfig);
         }
     }
-    @Override
-    public void setConnectorConfig(Object setConnectorConfig){
-        if (Objects.isNull(setConnectorConfig)){
-            return;
-        }
-        if (setConnectorConfig instanceof Map){
-            Map<String, Object> setConnectorConfigMap = new HashMap<>((Map<String, Object>) fromJson(toJson(setConnectorConfig)));
-            this.analysis.setConnectorConfig(setConnectorConfigMap);
-        }
-    }
 
     @Override
     public List<APIEntity> tableApis() {

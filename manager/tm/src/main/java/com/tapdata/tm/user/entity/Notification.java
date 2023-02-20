@@ -4,9 +4,10 @@ import lombok.Data;
 
 @Data
 public class Notification {
-    private Connected connected = new Connected();
-    private ConnectionInterrupted connectionInterrupted = new ConnectionInterrupted();
-    private StoppedByError stoppedByError = new StoppedByError();
+    private Connected connected=new Connected();
+    private ConnectionInterrupted connectionInterrupted=new ConnectionInterrupted();
+    private StoppedByError stoppedByError=new StoppedByError();
+
 
     @Override
     public String toString() {

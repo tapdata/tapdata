@@ -1,6 +1,5 @@
 package com.tapdata.constant;
 
-import com.tapdata.tm.worker.WorkerSingletonException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,9 +30,6 @@ public class StartResultUtil {
 		if (e == null) {
 			result.put("status", "ok");
 			result.put("msg", "");
-		} else if (e instanceof WorkerSingletonException) {
-			result.put("status", "failed");
-			result.put("msg", e.getMessage());
 		} else {
 			result.put("status", "failed");
 			result.put("msg", e.getMessage() + "\n  " + Log4jUtil.getStackString(e));

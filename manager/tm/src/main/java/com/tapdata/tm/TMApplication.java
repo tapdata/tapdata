@@ -3,7 +3,6 @@ package com.tapdata.tm;
 import com.tapdata.tm.ds.service.impl.RepairCreateTimeComponent;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
-import com.tapdata.tm.listener.StartupListener;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -13,7 +12,6 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.servlet.ServletComponentScan;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Import;
@@ -53,9 +51,7 @@ public class TMApplication {
 	public static void main(String[] args) {
 		CommonUtils.setProperty("tap_verbose", "true");
 
-		ConfigurableApplicationContext applicationContext = new SpringApplicationBuilder(TMApplication.class)
-				.listeners(new StartupListener())
-				.build().run(args);
+		ConfigurableApplicationContext applicationContext = SpringApplication.run(TMApplication.class, args);
 		SpringContextHelper.applicationContext = applicationContext;
 
 		new Thread(()->{

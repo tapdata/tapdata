@@ -9,11 +9,13 @@
     <packaging>pom</packaging>
 
 	<modules>
-		<module>js-core</module>
-		<module>coding-demo-connector</module>
+		<!--<module>metabase-connector</module>
+		<module>coding-demo-connector</module>-->
 		<module>lark-connector</module>
 		<module>zoho-crm-connector</module>
-		<module>metabase-connector</module>
+<!--		<module>js-test-connector</module>-->
+<!--		<module>metabase-connector</module>-->
+<!--		<module>demo-connector</module>-->
 	</modules>
 
 	<properties>

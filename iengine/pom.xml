@@ -382,11 +382,11 @@
             </dependency>
 
             <!-- jdbc driver -->
-<!--            <dependency>-->
-<!--                <groupId>com.oracle</groupId>-->
-<!--                <artifactId>ojdbc</artifactId>-->
-<!--                <version>${version.oracle.driver}</version>-->
-<!--            </dependency>-->
+            <dependency>
+                <groupId>com.oracle</groupId>
+                <artifactId>ojdbc</artifactId>
+                <version>${version.oracle.driver}</version>
+            </dependency>
 
             <dependency>
                 <groupId>com.microsoft.sqlserver</groupId>

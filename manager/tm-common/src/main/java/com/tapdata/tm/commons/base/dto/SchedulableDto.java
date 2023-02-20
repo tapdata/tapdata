@@ -12,7 +12,6 @@ public class SchedulableDto extends  BaseDto {
 
     private String agentId; //调度到指定的实例上去
     private String hostName;
-    private String agentName;
     private List<String> agentTags; // 标签
 
     private Integer scheduleTimes;  // 调度次数

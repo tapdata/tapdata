@@ -9,70 +9,70 @@
   "nodeConfig": {
 
   },
-  "functionParams": {
-    "discoverSchema": {
+  "function_params": {
+    "discover_schema": {
     },
-    "connectionTest": {
+    "connection_test": {
     },
-    "insertRecord": {
+    "insert_record": {
       "eventDataList": [
         {
-          "eventType": "i",
-          "afterData": {},
-          "beforeData": {},
-          "referenceTime": 0,
-          "tableName": "example_table_lark"
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
         }
       ]
     },
-    "deleteRecord": {
+    "delete_record": {
       "eventDataList": [
         {
-          "eventType": "i",
-          "afterData": {},
-          "beforeData": {},
-          "referenceTime": 0,
-          "tableName": "example_table_lark"
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
         }
       ]
     },
-    "updateRecord": {
+    "update_record": {
       "eventDataList": [
         {
-          "eventType": "i",
-          "afterData": {},
-          "beforeData": {},
-          "referenceTime": 0,
-          "tableName": "example_table_lark"
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
         }
       ]
     },
-    "writeRecord": {
+    "write_record": {
       "eventDataList": [
         {
-          "eventType": "i",
-          "afterData": {},
-          "beforeData": {},
-          "referenceTime": 0,
-          "tableName": "example_table_lark"
+          "event_type": "i",
+          "after_data": {},
+          "before_data": {},
+          "reference_time": 0,
+          "table_name": "example_table_lark"
         }
       ]
     },
-    "batchRead": {
+    "batch_read": {
       "tableName": "Leads",
       "pageSize": 500
     },
-    "batchCount": {
+    "batch_count": {
       "tableName": "Leads"
     },
-    "streamRead": {
+    "stream_read": {
       "offset": {},
       "tableNameList": [
         "Leads"
       ],
       "pageSize": 500
     },
-    "commandCallback": {
+    "command_callback": {
       "commandInfo": {
         "command": "DescribeUserProjects",
         "action": "",
@@ -80,7 +80,7 @@
         "time": 0
       }
     },
-    "webhookEvent": {
+    "web_hook_event": {
       "tableNameList": [
         "Leads"
       ],

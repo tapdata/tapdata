@@ -1,4 +1,4 @@
-package io.tapdata.pdk.core.constants;
+package com.tapdata.tm.commons.constants;
 
 import io.tapdata.entity.error.UnknownCodecException;
 

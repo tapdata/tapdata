@@ -121,7 +121,7 @@ public class BigQueryConnectorV2 extends ConnectorBase {
         ;
     }
 
-    private synchronized void release(TapConnectorContext context) {
+    private void release(TapConnectorContext context) {
         KVMap<Object> stateMap = context.getStateMap();
         Object temporaryConfig = stateMap.get(StateMapOperator.TABLE_CONFIG_NAME);//(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
         if (Objects.nonNull(temporaryConfig)) {

@@ -47,7 +47,7 @@ import java.util.function.Consumer;
 @TapConnectorClass("spec_custom.json")
 public class CustomConnector extends ConnectorBase {
 
-    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "engine"); //script factory
+    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class); //script factory
     private CustomConfig customConfig;
     private ScriptEngine initScriptEngine;
     private ConcurrentHashMap<String, ScriptEngine> writeEnginePool;

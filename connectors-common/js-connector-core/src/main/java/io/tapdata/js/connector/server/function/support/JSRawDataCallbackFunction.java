@@ -35,16 +35,18 @@ public class JSRawDataCallbackFunction extends FunctionBase implements FunctionS
     /**
      * [
      * {
-     * "eventType" : "I",                    //I U D
-     * "tableName" : "example_table_name",  //table name
-     * "beforeData":{},
-     * "afterData":{}
+     * "event_type" : "I",                    //I U D
+     * "table_name" : "example_table_name",  //table name
+     * "data":{
+     * ...
+     * }
      * },
      * {
-     * "eventType" : "U",                    //I U D
-     * "tableName" : "example_table_name",  //table name
-     * "beforeData":{},
-     * "afterData":{}
+     * "event_type" : "U",                    //I U D
+     * "table_name" : "example_table_name",  //table name
+     * "data":{
+     * ...
+     * }
      * }
      * ]
      */

@@ -76,7 +76,7 @@ public class PdkUtil {
 								put("pdkHash", pdkHash);
 								put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
 							}},
-							"/pdk/jar",
+							"pdk/jar",
 							filePath.toString(),
 							false
 					);

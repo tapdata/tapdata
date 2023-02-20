@@ -1,4 +1,4 @@
-var batchStart = dateUtils.nowDate();
+var batchStart = nowDate();
 
 /**
  * @return The returned result cannot be empty and must conform to one of the following forms:
@@ -26,7 +26,7 @@ var batchStart = dateUtils.nowDate();
  *          ];
  * @param connectionConfig  Configuration property information of the connection page
  * */
-function discoverSchema(connectionConfig) {
+function discover_schema(connectionConfig) {
     return ['example_table'];
 }
 
@@ -39,7 +39,7 @@ function discoverSchema(connectionConfig) {
  * @param pageSize Processing number of each batch of data in the full stage
  * @param batchReadSender  Sender of submitted data
  * */
-function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
+function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
 
 }
 
@@ -53,7 +53,7 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
  * @param pageSize
  * @param streamReadSender
  * */
-function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
+function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
 
 }
 
@@ -70,7 +70,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
  *          param - result : The type is a String, descriptive text indicating test results.
  * @param connectionConfig  Configuration property information of the connection page
  * */
-function connectionTest(connectionConfig) {
+function connection_test(connectionConfig) {
     return [{
         "test": "Example test item",
         "code": 1,
@@ -92,7 +92,7 @@ function connectionTest(connectionConfig) {
  *      "time": Number       //command发起时间
  *  }
  * */
-function commandCallback(connectionConfig, nodeConfig, commandInfo) {
+function command_callback(connectionConfig, nodeConfig, commandInfo) {
 
 }
 
@@ -104,31 +104,31 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
  *
  * @return array with data maps.
  *  Each data includes five parts:
- *      - eventType : event type ,only with : i , u, d. Respectively insert, update, delete;
- *      - tableName : Data related table;
- *      - referenceTime : Time stamp of event occurrence;
- *      - afterData : After the event, only after_data can be added or deleted as a result of the data
- *      - beforeData : Before the event, the result of the data will be before_data only if the event is modified
+ *      - event_type : event type ,only with : i , u, d. Respectively insert, update, delete;
+ *      - table_name : Data related table;
+ *      - reference_time : Time stamp of event occurrence;
+ *      - after_data : After the event, only after_data can be added or deleted as a result of the data
+ *      - before_data : Before the event, the result of the data will be before_data only if the event is modified
  *  please return with: [
  *      {
- *          "eventType": "i/u/d",
- *          "tableName": "${example_table_name}",
- *          "referenceTime": Number(),
- *          "afterData": {},
- *          "beforeData":{}
+ *          "event_type": "i/u/d",
+ *          "table_name": "${example_table_name}",
+ *          "reference_time": Number(),
+ *          "after_data": {},
+ *          "before_data":{}
  *      },
  *      ...
  *     ]
  * */
-function webhookEvent(connectionConfig, nodeConfig, tableNameList, eventDataMap) {
+function web_hook_event(connectionConfig, nodeConfig, tableNameList, eventDataMap) {
 
     //return [
     //     {
-    //         "eventType": "i/u/d",
-    //         "tableName": "${example_table_name}",
-    //         "referenceTime": Number(),
-    //         "afterData": {},
-    //         "beforeData":{}
+    //         "event_type": "i/u/d",
+    //         "table_name": "${example_table_name}",
+    //         "reference_time": Number(),
+    //         "after_data": {},
+    //         "before_data":{}
     //     }
     //]
 }
@@ -136,11 +136,11 @@ function webhookEvent(connectionConfig, nodeConfig, tableNameList, eventDataMap)
 /**
  * [
  *  {
- *      "eventType": "i/u/d",
- *      "tableName": "${example_table_name}",
- *      "referenceTime": Number(),
- *      "afterData": {},
- *      "beforeData":{}
+ *      "event_type": "i/u/d",
+ *      "table_name": "${example_table_name}",
+ *      "reference_time": Number(),
+ *      "after_data": {},
+ *      "before_data":{}
  *  },
  *  ...
  * ]
@@ -148,14 +148,14 @@ function webhookEvent(connectionConfig, nodeConfig, tableNameList, eventDataMap)
  * @param nodeConfig
  * @param eventDataList type is js array with data maps.
  *  Each data includes five parts:
- *      - eventType : event type ,only with : i , u, d. Respectively insert, update, delete;
- *      - tableName : Data related table;
- *      - referenceTime : Time stamp of event occurrence;
- *      - afterData : After the event, only after_data can be added or deleted as a result of the data
- *      - beforeData : Before the event, the result of the data will be before_data only if the event is modified
+ *      - event_type : event type ,only with : i , u, d. Respectively insert, update, delete;
+ *      - table_name : Data related table;
+ *      - reference_time : Time stamp of event occurrence;
+ *      - after_data : After the event, only after_data can be added or deleted as a result of the data
+ *      - before_data : Before the event, the result of the data will be before_data only if the event is modified
  *  @return true or false, default true
  * */
-function writeRecord(connectionConfig, nodeConfig, eventDataList) {
+function write_record(connectionConfig, nodeConfig, eventDataList) {
 
     //return true;
 }
@@ -174,7 +174,7 @@ function writeRecord(connectionConfig, nodeConfig, eventDataList) {
  *      - null : Semantics are the same as {}
  *      - {"key":"value",...} : Type is Object and has key-value ,  At this point, these values will be used to call the interface again after the results are returned.
  * */
-function updateToken(connectionConfig, nodeConfig, apiResponse) {
+function update_token(connectionConfig, nodeConfig, apiResponse) {
     // if (apiResponse.code === 401) {
     //     let result = invoker.invokeV2("apiName");
     //     return {"access_token": result.result.token};

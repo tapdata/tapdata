@@ -4,7 +4,6 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.doris.streamload.DorisStreamLoader;
 import io.tapdata.connector.doris.streamload.HttpUtil;
-import io.tapdata.connector.doris.streamload.exception.DorisRetryableException;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -30,11 +29,8 @@ import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -169,17 +165,6 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
-        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
-    }
-
-    private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
-        RetryOptions retryOptions = RetryOptions.create();
-        if ( null != matchThrowable(throwable, DorisRetryableException.class)
-                || null != matchThrowable(throwable, IOException.class)) {
-            retryOptions.needRetry(true);
-            return retryOptions;
-        }
-        return retryOptions;
     }
 
     private DorisStreamLoader getDorisStreamLoader() {

@@ -69,9 +69,6 @@ public class TaskCleanerService {
 
 	private static void checkCanClean(String taskId) throws TaskCleanerException {
 		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
-		if (null == tapdataTaskScheduler) {
-			return;
-		}
 		Map<String, TaskClient<TaskDto>> taskClientMap = tapdataTaskScheduler.getTaskClientMap();
 		TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
 		if (null != taskDtoTaskClient) {

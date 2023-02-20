@@ -9,7 +9,6 @@ import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
 import com.tapdata.tm.sdk.util.Version;
-import com.tapdata.tm.worker.WorkerSingletonLock;
 import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskService;
@@ -37,9 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.websocket.WebSocketEventResult.Type.HANDLE_EVENT_ERROR_RESULT;
@@ -254,7 +251,6 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			if (CloudSignUtil.isNeedSign()) {
 				currentWsUrl = CloudSignUtil.getQueryStr("", currentWsUrl);
 			}
-			currentWsUrl = WorkerSingletonLock.addTag2WsUrl(currentWsUrl);
 
 			String version = Version.get();
 			if (org.apache.commons.lang3.StringUtils.isNotEmpty(version)) {

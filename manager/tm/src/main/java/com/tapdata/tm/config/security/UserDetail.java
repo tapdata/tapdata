@@ -35,8 +35,6 @@ public class UserDetail implements Serializable, UserDetails {
 	private Notification notification;
 	private String externalUserId;
 
-	private String openid;
-
 	private ThreadLocal<Boolean> authenticationThreadLocal = InheritableThreadLocal.withInitial(() -> false);
 
 
@@ -89,7 +87,6 @@ public class UserDetail implements Serializable, UserDetails {
 		this.authorities = Collections.unmodifiableSet(sortAuthorities(authorities));
 		this.notification=user.getNotification();
 		this.externalUserId=user.getExternalUserId();
-		this.openid = user.getOpenid();
 	}
 
 	public boolean isRoot() {

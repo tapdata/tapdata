@@ -1,0 +1,17 @@
+{
+  "connection": {
+    "pdServer": "192.168.1.179:2379",
+    "host": "192.168.1.179",
+    "port": 4000,
+    "database": "kiki",
+    "user": "root",
+    "password": "root",
+    "enableIncrement": true,
+    "mqUsername": "tidb-cdc",
+    "nameSrvAddr": "139.198.127.226:32761",
+    "changefeedId": "replication-task-1",
+    "ticdcUrl": "192.168.1.179:8300"
+  },
+  "node": {
+  }
+}

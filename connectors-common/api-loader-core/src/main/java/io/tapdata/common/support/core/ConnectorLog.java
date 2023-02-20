@@ -2,10 +2,7 @@ package io.tapdata.common.support.core;
 
 import io.tapdata.entity.logger.TapLogger;
 
-import java.util.Objects;
-import java.util.Optional;
-
-import static io.tapdata.entity.simplify.TapSimplify.toJson;
+import java.util.function.Function;
 
 public class ConnectorLog {
 
@@ -16,46 +13,34 @@ public class ConnectorLog {
     }
 
     public void debug(String msg, Object... params) {
-        TapLogger.debug(TAG, msg, this.args(params));
+        TapLogger.debug(TAG, msg, params);
     }
 
     public void info(String msg, Object... params) {
-        TapLogger.info(TAG, msg, this.args(params));
+        TapLogger.info(TAG, msg, params);
     }
 
     public void info(Long spendTime, String msg, Object... params) {
-        TapLogger.info(TAG, spendTime, msg, this.args(params));
+        TapLogger.info(TAG, spendTime, msg, params);
     }
 
     public void infoWithData(String dataType, String data, String msg, Object... params) {
-        TapLogger.info(TAG, dataType, data, msg, this.args(params));
+        TapLogger.info(TAG, dataType, data, msg, params);
     }
 
     public void warn(String msg, Object... params) {
-        TapLogger.warn(TAG, msg, this.args(params));
+        TapLogger.warn(TAG, msg, params);
     }
 
     public void error(String msg, Object... params) {
-        TapLogger.error(TAG, msg, this.args(params));
+        TapLogger.error(TAG, msg, params);
     }
 
     public void fatal(String msg, Object... params) {
-        TapLogger.fatal(TAG, msg, this.args(params));
+        TapLogger.fatal(TAG, msg, params);
     }
 
     public void memory(String msg, Object... params) {
-        TapLogger.memory(TAG, msg, this.args(params));
-    }
-
-    private Object args(Object... params) {
-        if (Objects.nonNull(params) && params.length > 0) {
-            String[] args = new String[params.length];
-            for (int index = 0; index < params.length; index++) {
-                Object param = Optional.ofNullable(params[index]).orElse("null");
-                args[index] = param instanceof String ? (String) param : toJson(param);
-            }
-            return args;
-        }
-        return new String[0];
+        TapLogger.memory(TAG, msg, params);
     }
 }

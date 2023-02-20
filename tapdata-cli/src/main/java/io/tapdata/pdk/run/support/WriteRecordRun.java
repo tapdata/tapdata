@@ -9,7 +9,6 @@ import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.cli.commands.TapSummary;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
-import io.tapdata.pdk.run.base.RunClassMap;
 import io.tapdata.pdk.run.base.RunnerSummary;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
@@ -28,10 +27,6 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 @DisplayName("writeRecordRun")
 @TapGo(sort = 7)
 public class WriteRecordRun extends PDKBaseRun {
-    public static final String writerName = RunClassMap.WRITE_RECORD_RUN.jsName(0);
-    public static final String insertName = RunClassMap.WRITE_RECORD_RUN.jsName(1);
-    public static final String updateName = RunClassMap.WRITE_RECORD_RUN.jsName(2);
-    public static final String deleteName = RunClassMap.WRITE_RECORD_RUN.jsName(3);
     @DisplayName("writeRecordRun.run")
     @TapTestCase(sort = 1)
     @Test
@@ -51,10 +46,10 @@ public class WriteRecordRun extends PDKBaseRun {
                     return;
                 }
                 WriteRecordFunction write = functions.getWriteRecordFunction();
-                Map<String, Object> writeRecordConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get(WriteRecordRun.writerName)).orElse(new HashMap<String, Object>());
-                Map<String, Object> insertRecordConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get(WriteRecordRun.insertName)).orElse(new HashMap<String, Object>());
-                Map<String, Object> deleteRecordConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get(WriteRecordRun.deleteName)).orElse(new HashMap<String, Object>());
-                Map<String, Object> updateRecordConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get(WriteRecordRun.updateName)).orElse(new HashMap<String, Object>());
+                Map<String, Object> writeRecordConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get("write_record")).orElse(new HashMap<String, Object>());
+                Map<String, Object> insertRecordConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get("insert_record")).orElse(new HashMap<String, Object>());
+                Map<String, Object> deleteRecordConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get("delete_record")).orElse(new HashMap<String, Object>());
+                Map<String, Object> updateRecordConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get("update_record")).orElse(new HashMap<String, Object>());
 
                 List<Map<String, Object>> eventDataList = new ArrayList<>();
                 eventDataList.addAll((List<Map<String, Object>>) Optional.ofNullable(writeRecordConfig.get("eventDataList")).orElse(new ArrayList<Map<String, Object>>()));
@@ -62,7 +57,7 @@ public class WriteRecordRun extends PDKBaseRun {
                 eventDataList.addAll((List<Map<String, Object>>) Optional.ofNullable(deleteRecordConfig.get("eventDataList")).orElse(new ArrayList<Map<String, Object>>()));
                 eventDataList.addAll((List<Map<String, Object>>) Optional.ofNullable(updateRecordConfig.get("eventDataList")).orElse(new ArrayList<Map<String, Object>>()));
 
-                Map<String, List<Map<String, Object>>> stringListMap = eventDataList.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(map -> String.valueOf(map.get("tableName"))));
+                Map<String, List<Map<String, Object>>> stringListMap = eventDataList.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(map -> String.valueOf(map.get("table_name"))));
                 Map<String, WriteListResult<TapRecordEvent>> eventResult = new HashMap<>();
                 for (Map.Entry<String, List<Map<String, Object>>> entry : stringListMap.entrySet()) {
                     String tableName = entry.getKey();
@@ -90,11 +85,11 @@ public class WriteRecordRun extends PDKBaseRun {
         List<TapRecordEvent> eventList = new ArrayList<>();
         if (Objects.nonNull(events) && !events.isEmpty()) {
             events.stream().filter(Objects::nonNull).forEach(e -> {
-                String eventType = String.valueOf(Optional.ofNullable(e.get("eventType")).orElse("i"));
-                Map<String, Object> afterData = (Map<String, Object>) (Optional.ofNullable(e.get("afterData")).orElse(new HashMap<>()));
-                Map<String, Object> beforeData = (Map<String, Object>) (Optional.ofNullable(e.get("beforeData")).orElse(new HashMap<>()));
-                Long referenceTime = Long.parseLong(String.valueOf(Optional.ofNullable(e.get("referenceTime")).orElse(System.currentTimeMillis())));
-                String tableName = String.valueOf(Optional.ofNullable(e.get("tableName")).orElse("i"));
+                String eventType = String.valueOf(Optional.ofNullable(e.get("event_type")).orElse("i"));
+                Map<String, Object> afterData = (Map<String, Object>) (Optional.ofNullable(e.get("after_data")).orElse(new HashMap<>()));
+                Map<String, Object> beforeData = (Map<String, Object>) (Optional.ofNullable(e.get("before_data")).orElse(new HashMap<>()));
+                Long referenceTime = Long.parseLong(String.valueOf(Optional.ofNullable(e.get("reference_time")).orElse(System.currentTimeMillis())));
+                String tableName = String.valueOf(Optional.ofNullable(e.get("table_name")).orElse("i"));
                 TapRecordEvent event;
                 switch (eventType) {
                     case "u": {
@@ -116,12 +111,6 @@ public class WriteRecordRun extends PDKBaseRun {
     }
 
     public static List<SupportFunction> testFunctions() {
-        return list(support(WriteRecordFunction.class, RunnerSummary.format("jsFunctionInNeed",
-                String.format("any one or more of %s and %s and %s and %s",
-                        WriteRecordRun.writerName,
-                        WriteRecordRun.insertName,
-                        WriteRecordRun.updateName,
-                        WriteRecordRun.deleteName
-                ))));
+        return list(support(WriteRecordFunction.class, RunnerSummary.format("jsFunctionInNeed","any one or more of writer_record and insert_record and update_record and delete_record")));
     }
 }

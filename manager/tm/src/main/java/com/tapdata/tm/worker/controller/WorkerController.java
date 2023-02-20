@@ -19,16 +19,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -369,37 +367,36 @@ public class WorkerController extends BaseController {
     }
     @Operation(summary = "单例启动检测")
     @PostMapping("singleton-lock/upsertWithWhere")
-    public ResponseMessage<String> singletonLock(@RequestParam("where") String whereJson, @RequestBody WorkerDto updateWorker) {
+    public ResponseMessage<String> singletonLock(@RequestParam("where") String whereJson, @RequestBody WorkerDto worker) {
         JSONObject json = JSONObject.parseObject(whereJson);
 
         String processId = json.getString("process_id");
         String workerType = json.getString("worker_type");
-        String checkSingletonLock = json.getString("singletonLock");
+        String oldSingletonLock = json.getString("singletonLock");
 
         WorkerDto oldWorker = workerService.findOne(Query.query(Criteria
                 .where("process_id").is(processId)
                 .and("worker_type").is(workerType)
         ));
 
-        // 数据不存在，可以启动
+        // 数据不存在，新增
         if (null == oldWorker) {
+            worker.setProcessId(processId);
+            workerService.save(worker, getLoginUser());
             return success("ok");
         }
 
-        String restoreTip = ", If you want to restore, you need to set '.agentSingletonLock' file content is 'force'";
-        if (!"force".equals(checkSingletonLock)) {
-            checkSingletonLock = (null == checkSingletonLock) ? "" : checkSingletonLock;
-            oldWorker.setSingletonLock((null == oldWorker.getSingletonLock()) ? "" : oldWorker.getSingletonLock());
-
-            // 可以启动的情况：Agent离线、标签一致
-            if (!(workerService.isAgentTimeout(oldWorker.getPingTime())
-                    || checkSingletonLock.equals(oldWorker.getSingletonLock())
-            )) {
-                return success("White agent timeout" + restoreTip);
+        String restoreTip = ", If you want to restore, you need to match the TM 'Workers.singletonLock' value to the value in the FE 'agent.singletonLock'";
+        if (StringUtils.isBlank(oldWorker.getSingletonLock())) {
+            if (!StringUtils.isBlank(oldSingletonLock)) {
+                return failed("IllegalArgument", "SingletonLock is not blank" + restoreTip);
             }
+        } else if (!oldWorker.getSingletonLock().equals(oldSingletonLock)) {
+            return failed("IllegalArgument", "SingletonLock is illegal" + restoreTip);
         }
+        oldWorker.setSingletonLock(worker.getSingletonLock());
 
-        UpdateResult result = workerService.updateById(oldWorker.getId(), Update.update("singletonLock", updateWorker.getSingletonLock()), getLoginUser());
+        UpdateResult result = workerService.updateById(oldWorker.getId(), Update.update("singletonLock", worker.getSingletonLock()), getLoginUser());
         if (result.getModifiedCount() == 1) {
             return success("ok");
         } else {

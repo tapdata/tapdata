@@ -65,13 +65,15 @@ public class PdkController extends BaseController {
 
     @GetMapping(value = "/icon")
     public void downloadIcon(@RequestParam("pdkHash") String pdkHash,
+                             @RequestParam(value = "pdkBuildNumber", defaultValue = "0", required = false) Integer pdkBuildNumber,
                              HttpServletResponse response) {
-        pkdSourceService.uploadAndView(pdkHash, null, getLoginUser(),PdkFileTypeEnum.IMAGE, response);
+        pkdSourceService.uploadAndView(pdkHash, pdkBuildNumber, getLoginUser(),PdkFileTypeEnum.IMAGE, response);
     }
 
     @GetMapping(value = "/doc", produces = MediaType.TEXT_MARKDOWN_VALUE)
     public void downloadDoc(@RequestParam("pdkHash") String pdkHash,
+                            @RequestParam(value = "pdkBuildNumber", defaultValue = "0", required = false) Integer pdkBuildNumber,
                             HttpServletResponse response) {
-        pkdSourceService.uploadAndView(pdkHash, null, getLoginUser(),PdkFileTypeEnum.MARKDOWN, response);
+        pkdSourceService.uploadAndView(pdkHash, pdkBuildNumber, getLoginUser(),PdkFileTypeEnum.MARKDOWN, response);
     }
 }

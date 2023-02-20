@@ -190,13 +190,12 @@ public class PkdSourceService {
     }
 
     public void uploadAndView(String pdkHash, Integer pdkBuildNumber, UserDetail user, PdkFileTypeEnum type, HttpServletResponse response) {
-        Criteria criteria = Criteria.where("pdkHash").is(pdkHash);
+        Criteria criteria = Criteria.where("pdkHash").is(pdkHash).and("pdkAPIBuildNumber").lte(pdkBuildNumber);
         Query query = new Query(criteria);
 
         switch (type) {
             case JAR:
                 query.fields().include("jarRid");
-                criteria.and("pdkAPIBuildNumber").lte(pdkBuildNumber);
                 break;
             case IMAGE:
             query.fields().include("icon");

@@ -1,7 +1,7 @@
 package com.tapdata.tm.ds.dto;
 
 import com.tapdata.tm.commons.base.dto.BaseDto;
-import io.tapdata.pdk.core.constants.DataSourceQCType;
+import com.tapdata.tm.commons.constants.DataSourceQCType;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -68,6 +68,4 @@ public class DataSourceTypeDto extends BaseDto {
     private Boolean isComing; // 即将上线
 
     private List<Capability> capabilities;
-    private String pdkAPIVersion;
-    private Integer pdkAPIBuildNumber;
 }
