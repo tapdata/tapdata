@@ -1070,4 +1070,15 @@ public class TaskController extends BaseController {
         taskService.stopTaskIfNeedByAgentId(agentId, getLoginUser());
         return success();
     }
+
+    @GetMapping("/targetNode/{connectionId}")
+    public ResponseMessage<Page<TaskDto>> getByConIdOfTargetNode(@PathVariable("connectionId") String connectionId
+            , @RequestParam(value = "status", required = false) String status
+            , @RequestParam(value = "position", required = false, defaultValue = "target") String position
+            , @RequestParam(value = "page", defaultValue = "1") Integer page
+            , @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
+        Page<TaskDto> taskDtoPage = taskService.getByConIdOfTargetNode(connectionId, status, position, getLoginUser(), page, pageSize);
+        return success(taskDtoPage);
+    }
+
 }

@@ -2346,6 +2346,65 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         dataFlowInsightStatisticsDto.setGranularity("month");
         return dataFlowInsightStatisticsDto;
     }
+
+    /**
+     * 根据连接目标节点的连接id获取任务
+     * @param connectionId
+     * @param user
+     */
+    public Page<TaskDto> getByConIdOfTargetNode(String connectionId, String status, String position, UserDetail user, int page, int pageSize) {
+        Criteria criteria = Criteria.where("dag.node.connectionId").is(connectionId)
+                .and("is_deleted").ne(true);
+        if (StringUtils.isNotBlank(status)) {
+            criteria.and("status").is(status);
+        }
+        Query query = new Query(criteria);
+        query.fields().include("dag.node.id", "dag.node.connectionId");
+        List<TaskDto> allTasks = findAllDto(query, user);
+
+        List<ObjectId> containsTaskIds = new ArrayList<>();
+
+        be :
+        for (TaskDto task : allTasks) {
+            DAG dag = task.getDag();
+            if (position.equals("source")) {
+                List<Node> sources = dag.getSources();
+                if (CollectionUtils.isNotEmpty(sources)) {
+                    for (Node source : sources) {
+                        if (source instanceof DataParentNode) {
+                            String connectionId1 = ((DataParentNode<?>) source).getConnectionId();
+                            if (connectionId.equals(connectionId1)) {
+                                containsTaskIds.add(task.getId());
+                                continue be;
+                            }
+                        }
+                    }
+                }
+            } else {
+                List<Node> targets = dag.getTargets();
+                if (CollectionUtils.isNotEmpty(targets)) {
+                    for (Node target : targets) {
+                        if (target instanceof DataParentNode) {
+                            String connectionId1 = ((DataParentNode<?>) target).getConnectionId();
+                            if (connectionId.equals(connectionId1)) {
+                                containsTaskIds.add(task.getId());
+                                continue be;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Filter filter = new Filter();
+        filter.getWhere().and("_id", containsTaskIds);
+        filter.setLimit(pageSize);
+        filter.setPage(page);
+        return find(filter);
+
+
+    }
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
