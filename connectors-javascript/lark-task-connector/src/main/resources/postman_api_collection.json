@@ -66,7 +66,7 @@
 				"header": [
 					{
 						"key": "Authorization",
-						"value": "Bearer t-g1042heJNQ2QZTY3FXZSZTUT3GPL3YSCP2BSKBFV"
+						"value": "{{Authorization}}"
 					},
 					{
 						"key": "Content-Type",
@@ -75,7 +75,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n\t\"mobiles\": [\n\t\t\"{{mobiles}}\"\n\t]\n}"
+					"raw": "{\"mobiles\":[\"{{userMobiles}}\"],\"emails\":[\"{{userEmails}}\"]}"
 				},
 				"url": {
 					"raw": "https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=user_id",
@@ -118,7 +118,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n\t\"can_edit\": true,\n\t\"collaborator_ids\": [\n\t\t\"{{collaborator_ids}}\"\n\t],\n\t\"custom\": \"{\\\"custom_complete\\\":{\\\"android\\\":{\\\"href\\\":\\\"https://www.feishu.cn/\\\",\\\"tip\\\":{\\\"zh_cn\\\":\\\"你好\\\",\\\"en_us\\\":\\\"hello\\\"}},\\\"ios\\\":{\\\"href\\\":\\\"https://www.feishu.cn/\\\",\\\"tip\\\":{\\\"zh_cn\\\":\\\"你好\\\",\\\"en_us\\\":\\\"hello\\\"}},\\\"pc\\\":{\\\"href\\\":\\\"https://www.feishu.cn/\\\",\\\"tip\\\":{\\\"zh_cn\\\":\\\"你好\\\",\\\"en_us\\\":\\\"hello\\\"}}}}\",\n\t\"description\": \"对本次会议内容复盘总结，编写更新本季度OKR\",\n\t\"due\": {\n\t\t\"is_all_day\": false,\n\t\t\"time\": \"{{time}}\",\n\t\t\"timezone\": \"Asia/Shanghai\"\n\t},\n\t\"extra\": \"dGVzdA==\",\n\t\"follower_ids\": [\n\t\t\"{{follower_ids}}\"\n\t],\n\t\"origin\": {\n\t\t\"href\": {\n\t\t\t\"title\": \"{{title}}\",\n\t\t\t\"url\": \"{{url}}\"\n\t\t},\n\t\t\"platform_i18n_name\": \"{\\\"zh_cn\\\": \\\"IT 工作台\\\", \\\"en_us\\\": \\\"IT Workspace\\\"}\"\n\t},\n\t\"repeat_rule\": \"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR\",\n\t\"rich_description\": \"{{rich_description}}\",\n\t\"rich_summary\": \"{{rich_summary}}\",\n\t\"summary\": \"完成本季度OKR编写\"\n}"
+					"raw": "{\n\t\"can_edit\": true,\n\t\"collaborator_ids\": [{{collaborator_ids}}],\n\t\"custom\": \"{\\\"custom_complete\\\":{\\\"android\\\":{\\\"href\\\":\\\"https://www.feishu.cn/\\\",\\\"tip\\\":{\\\"zh_cn\\\":\\\"你好\\\",\\\"en_us\\\":\\\"hello\\\"}},\\\"ios\\\":{\\\"href\\\":\\\"https://www.feishu.cn/\\\",\\\"tip\\\":{\\\"zh_cn\\\":\\\"你好\\\",\\\"en_us\\\":\\\"hello\\\"}},\\\"pc\\\":{\\\"href\\\":\\\"https://www.feishu.cn/\\\",\\\"tip\\\":{\\\"zh_cn\\\":\\\"你好\\\",\\\"en_us\\\":\\\"hello\\\"}}}}\",\n\t\"description\": \"对本次会议内容复盘总结，编写更新本季度OKR\",\n\t\"due\": {\n\t\t\"is_all_day\": false,\n\t\t\"time\": \"{{time}}\",\n\t\t\"timezone\": \"Asia/Shanghai\"\n\t},\n\t\"extra\": \"dGVzdA==\",\n\t\"follower_ids\": [{{follower_ids}}],\n\t\"origin\": {\n\t\t\"href\": {\n\t\t\t\"title\": \"{{title}}\",\n\t\t\t\"url\": \"{{url}}\"\n\t\t},\n\t\t\"platform_i18n_name\": \"{\\\"zh_cn\\\": \\\"IT 工作台\\\", \\\"en_us\\\": \\\"IT Workspace\\\"}\"\n\t},\n\t\"repeat_rule\": \"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR\",\n\t\"rich_description\": \"{{rich_description}}\",\n\t\"rich_summary\": \"{{rich_summary}}\",\n\t\"summary\": \"完成本季度OKR编写\"\n}"
 				},
 				"url": {
 					"raw": "https://open.feishu.cn/open-apis/task/v1/tasks?user_id_type=user_id",
@@ -168,7 +168,7 @@
 	"variable": [
 		{
 			"key": "Authorization",
-			"value": "Bearer t-g1042heJNQ2QZTY3FXZSZTUT3GPL3YSCP2BSKBFV",
+			"value": "Bearer t-g1042keTZRI73CJD53GMDGAW6XTIZJD37OINUYLP",
 			"type": "string"
 		},
 		{
@@ -183,7 +183,7 @@
 		},
 		{
 			"key": "collaborator_ids",
-			"value": "bb8cb75b",
+			"value": "[\"bb8cb75b\",\"79bba6gg\"]",
 			"type": "string"
 		},
 		{
@@ -213,7 +213,7 @@
 		},
 		{
 			"key": "rich_summary",
-			"value": "测试测试",
+			"value": "两个负责人",
 			"type": "string"
 		},
 		{

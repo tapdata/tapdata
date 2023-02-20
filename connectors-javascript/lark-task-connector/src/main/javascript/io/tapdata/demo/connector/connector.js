@@ -53,45 +53,45 @@ function connectionTest(connectionConfig) {
         "code": isApp ? 1 : -1,
         "result": isApp ? "App name is:" + app.data.app.app_name : "Can not get App info, please check you App ID and App Secret."
     }];
-    if (isApp) {
-        let needAuthority = {
-            "contact:user.id:readonly": '通过手机号或邮箱获取用户 ID',
-            "contact:user.employee_id:readonly": '获取用户 user ID',
-            "task:task": '查看、创建、编辑和删除任务'
-        }
-        let appScopes = app.data.app.scopes;
-        let hasEnoughAuthority = true;
-        let notSupport = '';
-        for (let index = 0; index < appScopes.length; index++) {
-            let s = appScopes[index];
-            let newVar = needAuthority.get(s.scope);
-            if ('undefined' === newVar || null == newVar) {
-                if (hasEnoughAuthority) {
-                    hasEnoughAuthority = false;
-                }
-                notSupport += s.description + ":" + s.scope + ";";
-            }
-        }
-        testItem.push({
-            "test": "Check whether the authority is complete ",
-            "code": hasEnoughAuthority ? 1 : -1,
-            "result": hasEnoughAuthority ? "Permission configuration meets the requirements" : "The following permissions are configured. Please configure and try again: " + notSupport,
-        })
-    }
+    // if (isApp) {
+    //     let needAuthority = {
+    //         "contact:user.id:readonly": '通过手机号或邮箱获取用户 ID',
+    //         "contact:user.employee_id:readonly": '获取用户 user ID',
+    //         "task:task": '查看、创建、编辑和删除任务'
+    //     }
+    //     let appScopes = app.data.app.scopes;
+    //     let hasEnoughAuthority = true;
+    //     let notSupport = '';
+    //     for (let index = 0; index < appScopes.length; index++) {
+    //         let s = appScopes[index];
+    //         let newVar = needAuthority.get(s.scope);
+    //         if ('undefined' === newVar || null == newVar) {
+    //             if (hasEnoughAuthority) {
+    //                 hasEnoughAuthority = false;
+    //             }
+    //             notSupport += s.description + ":" + s.scope + ";";
+    //         }
+    //     }
+    //     testItem.push({
+    //         "test": "Check whether the authority is complete ",
+    //         "code": hasEnoughAuthority ? 1 : -1,
+    //         "result": hasEnoughAuthority ? "Permission configuration meets the requirements" : "The following permissions are configured. Please configure and try again: " + notSupport,
+    //     })
+    // }
     return testItem;
 }
 
 var receiveOpenIdMap = {};
 
 function insertRecord(connectionConfig, nodeConfig, eventDataList) {
-    let createTask = new createTask();
-    createTask.create(connectionConfig, nodeConfig, eventDataList);
+    let createTask1 = new CreateTask();
+    createTask1.create(connectionConfig, nodeConfig, eventDataList);
 }
 
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
     if (apiResponse.result.code != 99991663 && apiResponse.result.code != 99991661) return null;
     let result = invoker.invokeWithoutIntercept("Obtain the App Token and Tenant Token");
-    if (result.result.code === 0) return {"token": result.result.tenant_access_token};
+    if (result.result.code === 0) return {"Authorization": "Bearer " +  result.result.tenant_access_token};
     else log.error('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. ');
 }
 
@@ -110,9 +110,10 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
  * */
 function commandCallback(connectionConfig, nodeConfig, commandInfo) {
     //
-    let commandName = commandInfo.command;
-    let exec = new CommandStage().exec(commandInfo.command);
-    if (null != exec) {
-        return exec.command(connectionConfig, nodeConfig, commandInfo);
-    }
+    // let commandName = commandInfo.command;
+    // let exec = new CommandStage().exec(commandInfo.command);
+    // if (null != exec) {
+    //     return exec.command(connectionConfig, nodeConfig, commandInfo);
+    // }
+    return null;
 }
