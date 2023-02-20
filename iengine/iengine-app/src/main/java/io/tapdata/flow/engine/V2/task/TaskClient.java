@@ -58,7 +58,11 @@ public interface TaskClient<T> {
 		return false;
 	}
 
-	default void resume() {
+	default int getRetryTime() {
+		return 0;
+	}
+
+	default boolean resume() {
 		throw new UnsupportedOperationException();
 	}
 }
