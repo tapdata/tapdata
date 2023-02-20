@@ -25,11 +25,11 @@ import java.util.Objects;
  * @author <a href="mailto:meteor209@gmail.com">jiuye</a>
  * @version v1.0 2023/2/10 15:47 Create
  */
-@PatchAnnotation(appType = AppType.DAAS, version = "2.14-4")
-public class V2_14_4_DatabaseTypes extends AbsPatch {
-    private static final Logger logger = LogManager.getLogger(V2_14_4_DatabaseTypes.class);
+@PatchAnnotation(appType = AppType.DAAS, version = "2.14-5")
+public class V2_14_5_DatabaseTypes extends AbsPatch {
+    private static final Logger logger = LogManager.getLogger(V2_14_5_DatabaseTypes.class);
 
-    public V2_14_4_DatabaseTypes(PatchType patchType, PatchVersion version) {
+    public V2_14_5_DatabaseTypes(PatchType patchType, PatchVersion version) {
         super(patchType, version);
     }
 
@@ -40,11 +40,14 @@ public class V2_14_4_DatabaseTypes extends AbsPatch {
         MongoTemplate mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
         GridFsTemplate gridFsTemplate = SpringContextHelper.getBean(GridFsTemplate.class);
 
-        boolean match = mongoTemplate.indexOps(collectionName).getIndexInfo().stream()
-                .anyMatch(index -> "index_pdkHash_1_pdkAPIBuildNumber_1".equals(index.getName()));
-        if (match) {
-            mongoTemplate.indexOps(collectionName).dropIndex("index_pdkHash_1_pdkAPIBuildNumber_1");
-        }
+        mongoTemplate.indexOps(collectionName).getIndexInfo().forEach(index -> {
+            if ("index_pdkHash_1_pdkAPIBuildNumber_1".equals(index.getName())) {
+                mongoTemplate.indexOps(collectionName).dropIndex("index_pdkHash_1_pdkAPIBuildNumber_1");
+            } else if ("pdkHash_1_pdkAPIBuildNumber_1".equals(index.getName())) {
+                mongoTemplate.indexOps(collectionName).dropIndex("pdkHash_1_pdkAPIBuildNumber_1");
+            }
+        });
+
         // del data
         mongoTemplate.remove(Query.query(Criteria.where("pdkId").exists(false)), collectionName);
         List<DataSourceDefinitionEntity> all = mongoTemplate.findAll(DataSourceDefinitionEntity.class);
