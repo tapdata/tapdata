@@ -402,6 +402,9 @@ public class TapdataTaskScheduler {
 							stopTaskResource = StopTaskResource.RUN_ERROR;
 						}
 					}
+					if (null != stopTaskResource) {
+						stopTaskCallAssignApi(taskClient, stopTaskResource);
+					}
 				}
 			}
 		} catch (Exception e) {
