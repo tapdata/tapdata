@@ -5,12 +5,13 @@ import com.google.common.collect.Maps;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
+import io.tapdata.connector.kafka.KafkaService;
+import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.connector.mysql.SqlMaker;
 import io.tapdata.connector.tidb.config.TidbConfig;
 import io.tapdata.connector.tidb.ddl.TidbSqlMaker;
 import io.tapdata.connector.tidb.dml.TidbReader;
 import io.tapdata.connector.tidb.dml.TidbRecordWrite;
-import io.tapdata.connector.tidb.kafka.KafkaService;
 import io.tapdata.connector.tidb.snapshot.SnapshotOffset;
 import io.tapdata.connector.tidb.util.HttpUtil;
 import io.tapdata.connector.tidb.util.pojo.Changefeed;
@@ -52,10 +53,10 @@ import java.util.stream.Collectors;
 
 @TapConnectorClass("spec_tidb.json")
 public class TidbConnector extends ConnectorBase {
-    private KafkaService kafkaService;
     private static final String TAG = TidbConnector.class.getSimpleName();
     private TidbConfig tidbConfig;
     private TidbContext tidbContext;
+    private KafkaService kafkaService;
     private TidbReader tidbReader;
     private String connectionTimezone;
     private TidbSqlMaker tidbSqlMaker;
@@ -70,6 +71,7 @@ public class TidbConnector extends ConnectorBase {
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         this.tidbConfig = (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
+
         this.tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {
         }, null);
         if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
@@ -148,19 +150,16 @@ public class TidbConnector extends ConnectorBase {
     }
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
-        map = nodeContext.getConnectionConfig();
+        KafkaConfig kafkaConfig = (KafkaConfig) new KafkaConfig().load(nodeContext.getConnectionConfig());
         Changefeed changefeed = new Changefeed();
-        //Changefeed changefeed1 =new Changefeed(513105904441098240L,"kafka://139.198.127.226:32761/tidb-cdc?kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true","replication-task-3");
-        changefeed.setSinkUri("kafka://" + map.get("nameSrvAddr") + "/" + map.get("mqTopic") + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
-        changefeed.setChangefeedId((String) map.get("changefeedId"));
-        //changefeed.setIgnoreIneligibleTable(true);
+        changefeed.setSinkUri("kafka://" + kafkaConfig.getNameSrvAddr() + "/" + tidbConfig.getMqTopic() + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
+        changefeed.setChangefeedId(tidbConfig.getChangefeedId());
         changefeed.setForceReplicate(true);
         changefeed.setSyncDdl(true);
-        if (httpUtil.createChangefeed(changefeed, (String) map.get("ticdcUrl"))) {
-            KafkaService kafkaService1 = new KafkaService(tidbConfig);
-            kafkaService1.streamConsume(tableList, recordSize, consumer);
+        if (httpUtil.createChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
+            kafkaService = new KafkaService(kafkaConfig);
+            kafkaService.streamConsume(tableList, recordSize, consumer);
         }
-
     }
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
@@ -336,11 +335,13 @@ public class TidbConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         if (EmptyKit.isNotNull(tidbContext)) {
-            DataSourcePool.removeJdbcContext(tidbConfig);
             tidbContext.finish(connectionContext.getId());
         }
         if (EmptyKit.isNotNull(tidbConnectionTest)) {
             tidbConnectionTest.close();
+        }
+        if (EmptyKit.isNotNull(kafkaService)) {
+            kafkaService.close();
         }
         if (EmptyKit.isNotNull(connectionContext.getConnectionConfig().get("changefeedId"))) {
             try {

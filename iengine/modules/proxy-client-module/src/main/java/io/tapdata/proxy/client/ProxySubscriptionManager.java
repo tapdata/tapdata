@@ -4,6 +4,7 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
@@ -215,6 +216,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 					.withPdkId(pdkInfo.getPdkId())
 					.withAssociateId(associateId)
 					.withVersion(pdkInfo.getVersion())
+					.withLog(new TapLog())
 					.build();
 
 			try {

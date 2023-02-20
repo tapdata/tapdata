@@ -112,7 +112,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                         for (Field field : metadata.getFields()) {
                             switch (databaseType) {
                                 case "Oracle":
-                                    if (Objects.nonNull(field.getIsNullable()) && (Boolean) field.getIsNullable()) {
+                                    if (Objects.nonNull(field.getIsNullable()) && !(Boolean) field.getIsNullable()) {
                                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                                 .grade(Level.WARNING).nodeId(nodeId)
                                                 .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：【{0}】【{1}】该Oracle非空约束字段不支持对“”数据的写入操作。", metadata.getName(), field.getFieldName()))

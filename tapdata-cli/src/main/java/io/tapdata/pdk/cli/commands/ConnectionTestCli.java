@@ -1,8 +1,8 @@
 package io.tapdata.pdk.cli.commands;
 
 import com.alibaba.fastjson.JSON;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.cli.CommonCli;
 import io.tapdata.pdk.cli.entity.DAGDescriber;
 import io.tapdata.pdk.core.api.ConnectionNode;
@@ -46,6 +46,7 @@ public class ConnectionTestCli extends CommonCli {
                     .withVersion(version)
                     .withPdkId(pdkId)
                     .withConnectionConfig(dataMap)
+                    .withLog(new TapLog())
                     .build();
 //            connectionNode.getConnectorNode().connectionTest(connectionNode.getConnectionContext(), testItem -> TapLogger.info(TAG, "testItem {}", testItem));
 
