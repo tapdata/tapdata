@@ -58,7 +58,6 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
  */
 @TapConnectorClass("spec_postgres.json")
 public class PostgresConnector extends ConnectorBase {
-
     private PostgresConfig postgresConfig;
     private PostgresJdbcContext postgresJdbcContext;
     private PostgresTest postgresTest;

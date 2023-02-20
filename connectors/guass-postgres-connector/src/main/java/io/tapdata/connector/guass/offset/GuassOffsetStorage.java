@@ -1,6 +1,5 @@
 package io.tapdata.connector.guass.offset;
 
-import io.tapdata.connector.postgres.cdc.offset.PostgresOffset;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

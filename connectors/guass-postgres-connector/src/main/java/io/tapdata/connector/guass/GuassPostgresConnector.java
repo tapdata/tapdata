@@ -4,11 +4,11 @@ import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
+import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlGenerator;
 import io.tapdata.connector.guass.cdc.GuassCdcRunner;
 import io.tapdata.connector.guass.config.GuassConfig;
 import io.tapdata.connector.guass.offset.GuassOffset;
-import io.tapdata.connector.postgres.cdc.offset.PostgresOffset;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -26,9 +26,7 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
@@ -46,6 +44,7 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
 @TapConnectorClass("spec_guass.json")
 public class GuassPostgresConnector extends ConnectorBase {
     private Object slotName; //must be stored in stateMap
+    private static final int BATCH_ADVANCE_READ_LIMIT = 1000;
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private GuassCdcRunner cdcRunner; //only when task start-pause this variable can be shared
     private GuassTest guassTest;
@@ -53,6 +52,8 @@ public class GuassPostgresConnector extends ConnectorBase {
     private GuassConfig guassConfig;
     private String guassVersion;
     private DDLSqlGenerator ddlSqlGenerator;
+
+
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
 
@@ -77,17 +78,64 @@ public class GuassPostgresConnector extends ConnectorBase {
         connectorFunctions.supportStreamRead(this::streamRead);
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
 //        // query
-//        connectorFunctions.supportQueryByFilter(this::queryByFilter);
-//        connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
+        connectorFunctions.supportQueryByFilter(this::queryByFilter);
+        connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
 //        // ddl
-//        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
-//        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
-//        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
-//        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
-//        connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-//        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> postgresJdbcContext.getConnection(), c));
+        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
+        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> guassJdbcContext.getConnection(), c));
 
     }
+    private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
+        StringBuilder builder = new StringBuilder("SELECT ");
+        Projection projection = filter.getProjection();
+        if (EmptyKit.isNull(projection) || (EmptyKit.isEmpty(projection.getIncludeFields()) && EmptyKit.isEmpty(projection.getExcludeFields()))) {
+            builder.append("*");
+        } else {
+            builder.append("\"");
+            if (EmptyKit.isNotEmpty(filter.getProjection().getIncludeFields())) {
+                builder.append(String.join("\",\"", filter.getProjection().getIncludeFields()));
+            } else {
+                builder.append(table.getNameFieldMap().keySet().stream()
+                        .filter(tapField -> !filter.getProjection().getExcludeFields().contains(tapField)).collect(Collectors.joining("\",\"")));
+            }
+            builder.append("\"");
+        }
+        builder.append(" FROM \"").append(guassConfig.getSchema()).append("\".\"").append(table.getId()).append("\" ").append(new CommonSqlMaker().buildSqlByAdvanceFilter(filter));
+        guassJdbcContext.query(builder.toString(), resultSet -> {
+            FilterResults filterResults = new FilterResults();
+            while (resultSet.next()) {
+                filterResults.add(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)));
+                if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
+                    consumer.accept(filterResults);
+                    filterResults = new FilterResults();
+                }
+            }
+            if (EmptyKit.isNotEmpty(filterResults.getResults())) {
+                consumer.accept(filterResults);
+            }
+        });
+    }
+    private void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
+        Set<String> columnNames = tapTable.getNameFieldMap().keySet();
+        List<FilterResult> filterResults = new LinkedList<>();
+        for (TapFilter filter : filters) {
+            String sql = "SELECT * FROM \"" + guassConfig.getSchema() + "\".\"" + tapTable.getId() + "\" WHERE " + new CommonSqlMaker().buildKeyAndValue(filter.getMatch(), "AND", "=");
+            FilterResult filterResult = new FilterResult();
+            try {
+                guassJdbcContext.queryWithNext(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
+            } catch (Throwable e) {
+                filterResult.setError(e);
+            } finally {
+                filterResults.add(filterResult);
+            }
+        }
+        listConsumer.accept(filterResults);
+    }
+
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
         return new GuassOffset();
     }
@@ -98,16 +146,16 @@ public class GuassPostgresConnector extends ConnectorBase {
             buildSlot();
             tapConnectorContext.getStateMap().put("tapdata_pg_slot", slotName);
         }
-        PostgresOffset postgresOffset;
+        GuassOffset guassOffset;
         //beginning
         if (null == offsetState) {
-            postgresOffset = new PostgresOffset(new CommonSqlMaker().getOrderByUniqueKey(tapTable), 0L);
+            guassOffset = new GuassOffset(new CommonSqlMaker().getOrderByUniqueKey(tapTable), 0L);
         }
         //with offset
         else {
-            postgresOffset = (PostgresOffset) offsetState;
+            guassOffset = (GuassOffset) offsetState;
         }
-        String sql = "SELECT * FROM \"" + guassConfig.getSchema() + "\".\"" + tapTable.getId() + "\"" + postgresOffset.getSortString() + " OFFSET " + postgresOffset.getOffsetValue();
+        String sql = "SELECT * FROM \"" + guassConfig.getSchema() + "\".\"" + tapTable.getId() + "\"" + guassOffset.getSortString() + " OFFSET " + guassOffset.getOffsetValue();
         guassJdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
             //get all column names
@@ -115,15 +163,15 @@ public class GuassPostgresConnector extends ConnectorBase {
             while (isAlive() && resultSet.next()) {
                 tapEvents.add(insertRecordEvent(DbKit.getRowFromResultSet(resultSet, columnNames), tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
-                    postgresOffset.setOffsetValue(postgresOffset.getOffsetValue() + eventBatchSize);
-                    eventsOffsetConsumer.accept(tapEvents, postgresOffset);
+                    guassOffset.setOffsetValue(guassOffset.getOffsetValue() + eventBatchSize);
+                    eventsOffsetConsumer.accept(tapEvents, guassOffset);
                     tapEvents = list();
                 }
             }
             //last events those less than eventBatchSize
             if (EmptyKit.isNotEmpty(tapEvents)) {
-                postgresOffset.setOffsetValue(postgresOffset.getOffsetValue() + tapEvents.size());
-                eventsOffsetConsumer.accept(tapEvents, postgresOffset);
+                guassOffset.setOffsetValue(guassOffset.getOffsetValue() + tapEvents.size());
+                eventsOffsetConsumer.accept(tapEvents, guassOffset);
             }
         });
 
@@ -324,10 +372,19 @@ public class GuassPostgresConnector extends ConnectorBase {
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
         return null;
     }
-
+    private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
+        guassJdbcContext.queryAllTables(TapSimplify.list(), batchSize, listConsumer);
+    }
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
         return 0;
+    }
+    private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) throws SQLException {
+        List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
+        if (null == sqls) {
+            return;
+        }
+        guassJdbcContext.batchExecute(sqls);
     }
     private void initConnection(TapConnectionContext connectorContext) {
         guassConfig = (GuassConfig) new GuassConfig().load(connectorContext.getConnectionConfig());
@@ -373,4 +430,5 @@ public class GuassPostgresConnector extends ConnectorBase {
         TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
         return ddlSqlGenerator.dropColumn(guassConfig, tapDropFieldEvent);
     }
+
 }
