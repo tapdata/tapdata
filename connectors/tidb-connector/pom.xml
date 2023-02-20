@@ -73,7 +73,7 @@
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>kafka-connector</artifactId>
+            <artifactId>kafka-core</artifactId>
             <version>1.0-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>

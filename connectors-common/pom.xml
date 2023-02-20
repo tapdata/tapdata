@@ -13,6 +13,7 @@
 		<module>mysql-core-build-parent</module>
 		<module>postgres-core</module>
         <module>mq-core</module>
+		<module>kafka-core</module>
         <module>logminer-core</module>
         <module>file-connector-core</module>
         <module>api-loader-core</module>
