@@ -418,17 +418,17 @@ public class AlarmServiceImpl implements AlarmService {
             case TASK_FULL_COMPLETE:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE, info.getName(), info.getParam().get("fullTime"));
-                SmsEvent = "全量任务结束";
+                SmsEvent = "全量结束";
                 break;
             case TASK_INCREMENT_START:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START, info.getName(), info.getParam().get("cdcTime"));
-                SmsEvent = "增量任务开始";
+                SmsEvent = "增量开始";
                 break;
             case TASK_INCREMENT_DELAY:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("time"));
-                SmsEvent = "增量任务延迟";
+                SmsEvent = "增量延迟";
                 break;
             case DATANODE_CANNOT_CONNECT:
                 title = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT_TITLE, info.getName());
@@ -492,11 +492,11 @@ public class AlarmServiceImpl implements AlarmService {
                 }
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 String smsEvent = map.get("smsEvent");
-                if(info.getMetric().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().equals(AlarmKeyEnum.TASK_INCREMENT_START)){
+                if (info.getMetric().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().equals(AlarmKeyEnum.TASK_INCREMENT_START)) {
                     smsTemplateCode = SmsService.TASK_NOTICE;
-                    templateParam = "{\"JobName\":\"" + taskDto.getName() + smsEvent + "\"}";
-                }else {
-                    templateParam=  "{\"JobName\":\"" +taskDto.getName() + "\",\"eventName\":\""+ smsEvent+"\"}";
+                    templateParam = "{\"JobName\":\"" + "[" + taskDto.getName() + "]" + smsEvent + "\"}";
+                } else {
+                    templateParam = "{\"JobName\":\"" + "[" + taskDto.getName() + "]" + "\",\"eventName\":\"" + smsEvent + "\"}";
                     smsTemplateCode = SmsService.TASK_ABNORMITY_NOTICE;
                 }
                 smsContent = map.get("content");
