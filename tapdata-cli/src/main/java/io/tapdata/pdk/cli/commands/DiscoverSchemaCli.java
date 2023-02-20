@@ -1,6 +1,7 @@
 package io.tapdata.pdk.cli.commands;
 
 import com.alibaba.fastjson.JSON;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.logger.TapLogger;
@@ -49,6 +50,7 @@ public class DiscoverSchemaCli extends CommonCli {
                     .withVersion(version)
                     .withPdkId(pdkId)
                     .withConnectionConfig(dataMap)
+                    .withLog(new TapLog())
                     .build();
             connectionNode.discoverSchema(null, 1000, new Consumer<List<TapTable>>() {
                 @Override
