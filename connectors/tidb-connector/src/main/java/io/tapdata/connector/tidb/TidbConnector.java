@@ -64,16 +64,15 @@ public class TidbConnector extends ConnectorBase {
     private String version;
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private static final int MAX_FILTER_RESULT_SIZE = 100;
-
-    Map<String, Object> map;
     HttpUtil httpUtil = new HttpUtil();
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         this.tidbConfig = (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
-
+        KafkaConfig kafkaConfig = (KafkaConfig) new KafkaConfig().load(tapConnectionContext.getConnectionConfig());
         this.tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {
         }, null);
+        this.tidbConnectionTest.setKafkaConfig(kafkaConfig);
         if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
             tidbContext = (TidbContext) DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, tapConnectionContext.getId());
         }
@@ -445,11 +444,13 @@ public class TidbConnector extends ConnectorBase {
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
         tidbConfig = (TidbConfig) new TidbConfig().load(databaseContext.getConnectionConfig());
+        KafkaConfig kafkaConfig = (KafkaConfig) new KafkaConfig().load(databaseContext.getConnectionConfig());
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(tidbConfig.getConnectionString());
         try (
                 TidbConnectionTest connectionTest = new TidbConnectionTest(tidbConfig, consumer, connectionOptions)
         ) {
+            connectionTest.setKafkaConfig(kafkaConfig);
             connectionTest.testOneByOne();
         }
         //TODO ask Jarad!
