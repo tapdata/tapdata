@@ -6,13 +6,11 @@ class CreateTask {
         for (let index = 0; index < eventDataList.length; index++) {
             let event = eventDataList[index];
             let data = this.convertEventAndCreateTask(event);
-            if (null != data) {
-                let r = this.sendHttp(data);
-                if (this.checkParam(r)) {
-                    succeedDataArr.push(event.afterData);
-                }
+            if (this.sendHttp(data)) {
+                succeedDataArr.push(event.afterData);
             }
         }
+        return succeedDataArr;
     }
 
     convertEventAndCreateTask(eventData) {
@@ -24,7 +22,6 @@ class CreateTask {
         let followerIds = event.followerIds;
         let title = event.title;
         let url = event.url;
-
 
         if (!this.checkParam(richSummary)) {
             log.error('RichSummary is the title of the task and cannot be empty. ');
@@ -50,9 +47,9 @@ class CreateTask {
         return {
             "rich_summary": richSummary,
             "rich_description": richDescription,
-            "collaborator_ids": cUserIds,
+            "collaboratorIds": cUserIds,
             "time": time,
-            "follower_ids": fUserIds,
+            "followerIds": fUserIds,
             "title": title,
             "url": url
         }
@@ -69,17 +66,18 @@ class CreateTask {
             return true;
         } else {
             log.warn(writeResult.result.msg);
+            return false;
         }
     }
 
     getUserId(receivedUser) {
         let userIds = {};
-        log.warn("88888:{}", receivedUser.length);
         for (let index = 0; index < receivedUser.length; index++) {
             let spiltUserId = receivedUser[index];
-            if (!this.checkParam(spiltUserId)) {
+            log.warn("USER-{}",spiltUserId)
+            if (this.checkParam(spiltUserId)) {
                 let receiveIdData = invoker.invoke("Get the user ID by phone number or email", {
-                    'userMobiles': spiltUserId,
+                    "userMobiles": spiltUserId,
                     "userEmails": spiltUserId
                 });
 
@@ -91,7 +89,7 @@ class CreateTask {
                 }
                 if (!this.checkParam(userId)) {
                     log.warn(' User: {}, this user is not in the visible range of the application. Please ensure that this user of the application is visible under the current version. You can view the visible range under the latest version in the application version management and release. If necessary, create a new version and add this user to the visible range, message is: {}', event.phone, event.content);
-                    return null;
+                    continue;
                 }
 
                 if (!this.checkParam(userIds[spiltUserId])) {
@@ -99,7 +97,6 @@ class CreateTask {
                 }
             }
         }
-        log.warn("ERROR-{}-{}","[\"" + Object.values(userIds).join("\",\"") + "\"]",userIds)
         return "\""+Object.values(userIds).join("\",\"") +"\"" ;
     }
 
