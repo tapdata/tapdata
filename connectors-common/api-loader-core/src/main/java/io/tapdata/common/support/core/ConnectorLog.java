@@ -47,7 +47,7 @@ public class ConnectorLog {
         TapLogger.memory(TAG, msg, this.args(params));
     }
 
-    private Object args(Object... params) {
+    protected Object args(Object... params) {
         if (Objects.nonNull(params) && params.length > 0) {
             String[] args = new String[params.length];
             for (int index = 0; index < params.length; index++) {
