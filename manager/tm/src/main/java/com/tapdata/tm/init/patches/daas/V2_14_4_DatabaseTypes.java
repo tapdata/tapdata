@@ -1,5 +1,7 @@
 package com.tapdata.tm.init.patches.daas;
 
+import com.mongodb.client.gridfs.model.GridFSFile;
+import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.init.PatchType;
 import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.init.patches.AbsPatch;
@@ -13,6 +15,10 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.CompoundIndexDefinition;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.gridfs.GridFsTemplate;
+
+import java.util.List;
+import java.util.Objects;
 
 /**
  *
@@ -32,6 +38,7 @@ public class V2_14_4_DatabaseTypes extends AbsPatch {
         logger.info("Execute java patch: {}...", getClass().getName());
         String collectionName = "DatabaseTypes";
         MongoTemplate mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
+        GridFsTemplate gridFsTemplate = SpringContextHelper.getBean(GridFsTemplate.class);
 
         boolean match = mongoTemplate.indexOps(collectionName).getIndexInfo().stream()
                 .anyMatch(index -> "index_pdkHash_1_pdkAPIBuildNumber_1".equals(index.getName()));
@@ -40,7 +47,17 @@ public class V2_14_4_DatabaseTypes extends AbsPatch {
         }
         // del data
         mongoTemplate.remove(Query.query(Criteria.where("pdkId").exists(false)), collectionName);
-        mongoTemplate.remove(Query.query(Criteria.where("latest").is(false)), collectionName);
+        List<DataSourceDefinitionEntity> all = mongoTemplate.findAll(DataSourceDefinitionEntity.class);
+        all.forEach(info -> {
+            if (info.isLatest()) {
+                GridFSFile one = gridFsTemplate.findOne(Query.query(Criteria.where("_id").is(info.getJarRid())));
+                if (Objects.isNull(one)) {
+                    mongoTemplate.remove(Query.query(Criteria.where("_id").is(info.getId())), DataSourceDefinitionEntity.class);
+                }
+            } else {
+                mongoTemplate.remove(Query.query(Criteria.where("_id").is(info.getId())), DataSourceDefinitionEntity.class);
+            }
+        });
 
         // create union index
         CompoundIndexDefinition compoundIndex = new CompoundIndexDefinition(new Document()
