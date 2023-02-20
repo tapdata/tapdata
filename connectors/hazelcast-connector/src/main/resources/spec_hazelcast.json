@@ -1,0 +1,230 @@
+{
+  "properties": {
+    "name": "Hazelcast",
+    "icon": "icons/hazelcast.png",
+    "doc": "${doc}",
+    "id": "hazelcast"
+  },
+  "configOptions": {
+    "capabilities": [
+      {
+        "id": "dml_insert_policy",
+        "alternatives": [
+          "update_on_exists",
+          "ignore_on_exists"
+        ]
+      },
+      {
+        "id": "dml_update_policy",
+        "alternatives": [
+          "ignore_on_nonexists",
+          "insert_on_nonexists"
+        ]
+      },
+      {
+        "id": "api_server_supported"
+      }
+    ],
+    "connection": {
+      "type": "object",
+      "properties": {
+        "clusterID": {
+          "required": true,
+          "type": "string",
+          "title": "${clusterID}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 1
+        },
+        "token": {
+          "required": true,
+          "type": "string",
+          "title": "${token}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 2
+        },
+        "password": {
+          "type": "string",
+          "title": "${password}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_password",
+          "required": true,
+          "x-index": 3
+        },
+        "ssl": {
+          "type": "boolean",
+          "title": "${dataForm_form_ssl}",
+          "x-decorator": "FormItem",
+          "x-component": "Radio.Group",
+          "x-component-props": {
+            "optionType": "button"
+          },
+          "default": false,
+          "x-index": 80,
+          "enum": [
+            {
+              "label": "${dataForm_form_options_sslTSL}",
+              "value": true
+            },
+            {
+              "label": "${dataForm_form_options_sslTop}",
+              "value": false
+            }
+          ],
+          "x-reactions": [
+            {
+              "target": "*(sslKey,sslPass,sslValidate)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ]
+        },
+        "ssl_tips1": {
+          "type": "void",
+          "title": " ",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-component": "Text",
+          "x-component-props": {
+            "content": "${ssl_tips1}"
+          },
+          "x-reactions": {
+            "dependencies": [
+              "ssl"
+            ],
+            "fulfill": {
+              "schema": {
+                "x-decorator-props.style.display": "{{$deps[0]===true ? null:\"none\"}}"
+              }
+            }
+          },
+          "x-index": 81
+        },
+        "ssl_tips2": {
+          "type": "void",
+          "title": "",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-component": "Text",
+          "x-component-props": {
+            "content": "${ssl_tips2}"
+          },
+          "x-reactions": {
+            "dependencies": [
+              "ssl"
+            ],
+            "fulfill": {
+              "schema": {
+                "x-decorator-props.style.display": "{{$deps[0]===false ? null:\"none\"}}"
+              }
+            }
+          },
+          "x-index": 82
+        },
+        "sslKey": {
+          "type": "string",
+          "title": "${sslKey}",
+          "x-decorator": "FormItem",
+          "x-component": "TextFileReader",
+          "x-component-props": {
+            "base64": true
+          },
+          "fileNameField": "sslKeyFile",
+          "required": true,
+          "x-index": 90
+        },
+        "sslValidate": {
+          "type": "boolean",
+          "title": "${sslValidate}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "show": false,
+          "x-reactions": [
+            {
+              "target": "sslCA",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ],
+          "x-index": 110
+        },
+        "sslCA": {
+          "type": "string",
+          "title": "${sslCA}",
+          "x-decorator": "FormItem",
+          "x-component": "TextFileReader",
+          "fileNameField": "sslCAFile",
+          "x-component-props": {
+            "base64": true
+          },
+          "required": true,
+          "x-index": 120
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/hazelcast_en_US.md",
+      "clusterID": "Cluster ID",
+      "token": "Token",
+      "password": "Password",
+      "dataForm_form_ssl": "Connect using TLS/SSL",
+      "ssl": "Use TSL/SSL connection",
+      "enum": "",
+      "ssl_tips1": "Tapdata will connect to a separate server in your network which provides an TSL/SSL tunnel to your database. This method is necessary if your database is in an inaccessible subnet.",
+      "ssl_tips2": "Tapdata will connect directly to your database. You may have to create a security rule to allow access. This is the simplest method.",
+      "sslKey": "Client private key",
+      "sslValidate": "Validate server certificate",
+      "sslCA": "Certificate Authority",
+      "dataForm_form_options_sslTSL": "TSL/SSL connection",
+      "dataForm_form_options_sslTop": "Direct connection"
+    },
+    "zh_CN": {
+      "doc": "docs/hazelcast_zh_CN.md",
+      "clusterID": "集群 ID",
+      "token": "令牌",
+      "password": "密码",
+      "dataForm_form_ssl": "使用 TLS/SSL 连接",
+      "ssl": "使用 TLS/SSL 连接",
+      "ssl_tips1": "Tapdata 将连接网络中的单独服务器，该服务器提供到数据库的TSL/SSL通道。如果您的数据库位于不可访问的子网中，则可尝试使用此方法",
+      "ssl_tips2": "Tapdata 将直接连接到数据库，您可以要创建一个安全规则以允许系统访问，这是简单直接的方法",
+      "sslKey": "客户端私钥文件",
+      "sslValidate": "验证服务端证书",
+      "sslCA": "证书颁发机构",
+      "dataForm_form_options_sslTSL": "TSL/SSL连接",
+      "dataForm_form_options_sslTop": "直接连接"
+    },
+    "zh_TW": {
+      "doc": "docs/hazelcast_zh_TW.md",
+      "clusterID": "集羣 ID",
+      "token": "令牌",
+      "password": "密碼",
+      "dataForm_form_ssl": "",
+      "ssl": "使用 TLS/SSL 連接",
+      "ssl_tips1": "Tapdata 將連接奧網絡中的單獨服務器，該服務器提供到數據庫的TSL/SSL通道。如果您的數據庫位於不可訪問的子網中，則可嘗試使用此方法",
+      "ssl_tips2": "Tapdata 將直接連接到數據庫，您可以要創建一個安全規則以允許系統訪問，這是簡單直接的方法",
+      "sslKey": "客戶端私鑰文件",
+      "sslValidate": "驗證服務端證書",
+      "sslCA": "證書頒發機構",
+      "dataForm_form_options_sslTSL": "TSL/SSL連接",
+      "dataForm_form_options_sslTop": "直接連接"
+    }
+  },
+  "dataTypes": {
+  }
+}
