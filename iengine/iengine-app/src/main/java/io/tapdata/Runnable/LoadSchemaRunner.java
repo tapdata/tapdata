@@ -12,6 +12,7 @@ import io.tapdata.common.ConverterUtil;
 import io.tapdata.common.TapInterfaceUtil;
 import io.tapdata.entity.LoadSchemaResult;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -166,6 +167,7 @@ public class LoadSchemaRunner implements Runnable {
 								.withPdkId(databaseType.getPdkId())
 								.withAssociateId(connections.getName() + "_" + ts)
 								.withVersion(databaseType.getVersion())
+								.withLog(new TapLog())
 								.build();
 						PDKInvocationMonitor.invoke(connectionNode, PDKMethod.INIT, connectionNode::connectorInit, "Init PDK", TAG);
 						if (loadSchemaProgress.getTableCount() <= 0) {
