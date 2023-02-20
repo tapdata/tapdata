@@ -15,7 +15,6 @@ import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
-import com.tapdata.tm.alarm.service.impl.AlarmServiceImpl;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
@@ -375,7 +374,7 @@ public class TaskAlarmScheduler {
                     alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
                     alarmInfo.setLastOccurrenceTime(null);
 
-                    long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
+                    long continued = DateUtil.between(data.getLastOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
                     summary = MessageFormat.format(template[3], nodeName, alarmRuleDto.getMs(), continued, current, DateUtil.now(), flag);
                 } else {
                     alarmInfo.setStatus(AlarmStatusEnum.ING);
@@ -448,7 +447,7 @@ public class TaskAlarmScheduler {
                     AlarmInfo data = first.get();
                     alarmInfo.setId(data.getId());
 
-                    long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
+                    long continued = DateUtil.between(data.getLastOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
                     summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_ALWAYS, alarmRuleDto.getMs(), continued, delay, DateUtil.now(), flag);
                 } else {
                     summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_START, alarmRuleDto.getMs(), delay, DateUtil.now(), flag);
