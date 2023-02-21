@@ -60,7 +60,7 @@ public class PdkController extends BaseController {
     @GetMapping(value = "/jar", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public void downloadJar(@RequestParam("pdkHash") String pdkHash,
                             HttpServletResponse response) throws IOException {
-        response.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED, "Please upgrade engine");
+        response.sendError(HttpServletResponse.SC_NOT_FOUND, "Please upgrade engine");
     }
 
     @GetMapping(value = "/jar/v2", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
