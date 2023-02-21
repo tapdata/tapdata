@@ -108,7 +108,11 @@ public class AlarmServiceImpl implements AlarmService {
                 UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(info.getUserId()));
                 AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric(),userDetail);
                 if (Objects.nonNull(alarmSettingDto)) {
+                    log.info("taskname:{}",info.getName());
+                    log.info("getUnit{}",alarmSettingDto.getUnit());
+                    log.info("getInterval{}",alarmSettingDto.getInterval());
                     DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
+                    log.info("lastNotifyTime{}",lastNotifyTime);
                     if (date.after(lastNotifyTime)) {
                         info.setLastNotifyTime(date);
                     }
@@ -194,6 +198,7 @@ public class AlarmServiceImpl implements AlarmService {
                 .and("lastNotifyTime").lt(DateUtil.date()).gt(DateUtil.offsetSecond(DateUtil.date(), -30)
                 );
         Query needNotifyQuery = new Query(criteria);
+        needNotifyQuery.with(Sort.by("lastNotifyTime").ascending());
         List<AlarmInfo> alarmInfos = mongoTemplate.find(needNotifyQuery, AlarmInfo.class);
 
         if (CollectionUtils.isEmpty(alarmInfos)) {
@@ -418,17 +423,17 @@ public class AlarmServiceImpl implements AlarmService {
             case TASK_FULL_COMPLETE:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE, info.getName(), info.getParam().get("fullTime"));
-                SmsEvent = "全量任务结束";
+                SmsEvent = "全量结束";
                 break;
             case TASK_INCREMENT_START:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START, info.getName(), info.getParam().get("cdcTime"));
-                SmsEvent = "增量任务开始";
+                SmsEvent = "增量开始";
                 break;
             case TASK_INCREMENT_DELAY:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("time"));
-                SmsEvent = "增量任务延迟";
+                SmsEvent = "增量延迟";
                 break;
             case DATANODE_CANNOT_CONNECT:
                 title = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT_TITLE, info.getName());
@@ -492,11 +497,11 @@ public class AlarmServiceImpl implements AlarmService {
                 }
                 Map<String, String> map = getTaskTitleAndContent(info, taskDto);
                 String smsEvent = map.get("smsEvent");
-                if(info.getMetric().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().equals(AlarmKeyEnum.TASK_INCREMENT_START)){
+                if (info.getMetric().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().equals(AlarmKeyEnum.TASK_INCREMENT_START)) {
                     smsTemplateCode = SmsService.TASK_NOTICE;
-                    templateParam = "{\"JobName\":\"" + taskDto.getName() + smsEvent + "\"}";
-                }else {
-                    templateParam=  "{\"JobName\":\"" +taskDto.getName() + "\",\"eventName\":\""+ smsEvent+"\"}";
+                    templateParam = "{\"JobName\":\"" + "【" + taskDto.getName() + "】" + smsEvent + "\"}";
+                } else {
+                    templateParam = "{\"JobName\":\"" + "【" + taskDto.getName() + "】" + "\",\"eventName\":\"" + smsEvent + "\"}";
                     smsTemplateCode = SmsService.TASK_ABNORMITY_NOTICE;
                 }
                 smsContent = map.get("content");
@@ -614,7 +619,7 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
 
-    private DateField parseDateUnit(DateUnit dateUnit) {
+    private static  DateField parseDateUnit(DateUnit dateUnit) {
         if (Objects.isNull(dateUnit)) {
             return DateField.MILLISECOND;
         }
@@ -963,6 +968,11 @@ public class AlarmServiceImpl implements AlarmService {
             log.error("新增消息异常，", e);
         }
         return messageDto;
+    }
+
+    public static void main(String[] args) {
+        DateTime lastNotifyTime = DateUtil.offset(new Date(), parseDateUnit(DateUnit.SECOND), 600);
+        System.out.println(lastNotifyTime);
     }
 
 

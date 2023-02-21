@@ -1272,14 +1272,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
     public Page<TaskDto> find(Filter filter, UserDetail userDetail) {
         if (isAgentReq()) {
-            log.info("isAgentReq{}",isAgentReq());
             Page<TaskDto>  page = super.find(filter, userDetail);
             deleteNotifyEnumData(page.getItems());
-            log.info("page{}",JSONObject.toJSONString(page));
-
+            log.debug("page{}",JSONObject.toJSONString(page));
             return page;
         }
-        log.info("not AgentReq");
         Where where = filter.getWhere();
         if (where == null) {
             where = new Where();
@@ -2101,7 +2098,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public TransformerWsMessageDto findTransformParam(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
         if (isAgentReq()) {
-            log.info("isAgentReq{}",isAgentReq());
             List<TaskDto> list = new ArrayList<>();
             list.add(taskDto);
             deleteNotifyEnumData(list);
@@ -2113,7 +2109,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public TransformerWsMessageDto findTransformAllParam(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
         if (isAgentReq()) {
-            log.info("isAgentReq{}",isAgentReq());
             List<TaskDto> list = new ArrayList<>();
             list.add(taskDto);
             deleteNotifyEnumData(list);

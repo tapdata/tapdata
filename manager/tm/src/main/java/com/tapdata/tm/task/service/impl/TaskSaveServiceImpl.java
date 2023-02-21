@@ -117,7 +117,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         List<AlarmRuleDto> alarmRuleDtos = Lists.newArrayList();
         if (CollectionUtils.isEmpty(taskDto.getAlarmSettings())) {
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_ERROR));
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
+            //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_FULL_COMPLETE));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_START));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
