@@ -24,7 +24,7 @@ public class LogTransaction {
     public static final String TX_TYPE_DDL = "ddl";
     public static final String TX_TYPE_DML = "dml";
     public static final String TX_TYPE_COMMIT = "commit";
-    public static final long LARGE_TRANSACTION_UPPER_LIMIT = 1000L;
+    public static final long LARGE_TRANSACTION_UPPER_LIMIT = 10000L;
 
     private String connectorId;
 
