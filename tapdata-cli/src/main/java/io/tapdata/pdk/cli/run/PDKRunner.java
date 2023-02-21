@@ -14,7 +14,7 @@ public class PDKRunner {
     public static final String BASE_CONF_PATH = "tapdata-cli/src/main/resources/run/";
 
     private enum TddPath {
-        Lark("lark-connector-v1.0-SNAPSHOT.jar", "lark.json"),
+        Lark("lark-im-connector-v1.0-SNAPSHOT.jar", "lark-im.json"),
 //        ZoHoCRM("zoho-crm-connector-v1.0-SNAPSHOT.jar", "zoho-crm-js.json"),
 //        CodingDemo("coding-demo-connector-v1.0-SNAPSHOT.jar", "coding-js.json"),
         ;

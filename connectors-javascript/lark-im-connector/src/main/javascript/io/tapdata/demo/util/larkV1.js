@@ -56,9 +56,9 @@ class larkSendMsg {
         switch (receiveType) {
             case 'phone':{
                 if (!this.checkParam(receiveId)) {
-                    let receiveIdData = invoker.httpConfig({'timeout': 1000}).invoke("GetOpenIdByPhone", {
-                        'userMobiles': receivedUser,
-                        "userEmails": receivedUser
+                    let receiveIdData = invoker.invoke("GetOpenIdByPhone", {
+                        "mobiles": receivedUser,
+                        "emails": receivedUser
                     });
                     receiveId = receiveIdData.result.data.user_list[0].user_id;
                     if (!this.checkParam(receiveId)) {
@@ -67,7 +67,7 @@ class larkSendMsg {
                         receiveId = receiveIdData.result.data.user_list[1].user_id;
                     }
                     if (!this.checkParam(receiveId)) {
-                        log.warn(' User: {}, this user is not in the visible range of the application. Please ensure that this user of the application is visible under the current version. You can view the visible range under the latest version in the application version management and release. If necessary, create a new version and add this user to the visible range, message is: {}', event.phone, event.content);
+                        log.warn('User: {}, this user is not in the visible range of the application. Please ensure that this user of the application is visible under the current version. You can view the visible range under the latest version in the application version management and release. If necessary, create a new version and add this user to the visible range.', receivedUser);
                         return null;
                     }
                     receiveOpenIdMap[receivedUser] = receiveId;
