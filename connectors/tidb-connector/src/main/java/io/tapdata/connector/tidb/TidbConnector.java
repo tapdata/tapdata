@@ -70,9 +70,9 @@ public class TidbConnector extends ConnectorBase {
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         this.tidbConfig = (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
         KafkaConfig kafkaConfig = (KafkaConfig) new KafkaConfig().load(tapConnectionContext.getConnectionConfig());
-        this.tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {
+        tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {
         }, null);
-        this.tidbConnectionTest.setKafkaConfig(kafkaConfig);
+        tidbConnectionTest.setKafkaConfig(kafkaConfig);
         if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
             tidbContext = (TidbContext) DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, tapConnectionContext.getId());
         }
